@@ -1,0 +1,4 @@
+Vendor: Alfa Logistics
+Contract: Warehouse Pilot
+Renewal notice period: 15 days before the renewal date.
+Notes: This is a decoy fixture for argument validation.

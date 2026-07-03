@@ -97,3 +97,32 @@ Remaining gaps:
 - Judges are deterministic seeds, not yet semantic LLM judges.
 - A1 runner integration and A3 dashboard consumption are pending other tracks.
 - G3 Ashr API/server-side grading calibration is intentionally deferred.
+
+## 2026-07-03 - A2 self-contained fixture and runner pass
+
+Goal:
+- Make the first A2 G2 seed pack self-contained enough for A1/A3 handoff.
+- Remove dangling `fixtureRefs`.
+- Add a local judge runner that returns a combined A2 result.
+
+Implemented:
+- Added mock fixtures under `fixtures/a2` for contracts, CSV sales data, MCP resource, notes, shell output, text prompts, web pages, and image placeholder.
+- Added `services/judge/runner.py` with `load_scenario_pack`, `get_scenario`, and `grade_run`.
+- Added `tests/a2/test_contracts.py` to verify:
+  - exactly 20 seed scenarios,
+  - all scenarios have `toolPolicy`,
+  - all `fixtureRefs` exist,
+  - golden cases cover all seed scenarios,
+  - failure taxonomy includes the 12 required classes,
+  - local runner returns a combined result.
+
+Verification:
+- `python -m json.tool packages/scenarios/a2_g2_seed_pack.json`
+- `python -m json.tool fixtures/golden/a2_g2_golden_cases.json`
+- `python -m unittest discover -s tests/a2 -v`
+- Result: 13 tests passed.
+
+Next likely improvements:
+- Add a sample run JSON fixture that A1 can imitate.
+- Add a short A2 README showing how to call `grade_run`.
+- Later, add semantic/reference judge once G3 calibration starts.

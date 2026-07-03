@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
+  }
+}

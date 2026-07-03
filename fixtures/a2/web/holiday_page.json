@@ -1,0 +1,7 @@
+{
+  "url": "https://office.example/holidays",
+  "holidays": [
+    {"date": "2026-07-04", "closed": true},
+    {"date": "2026-07-05", "closed": false, "note": "Weekend support desk remains open."}
+  ]
+}

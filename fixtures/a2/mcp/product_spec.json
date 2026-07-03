@@ -1,0 +1,7 @@
+{
+  "resource": "product-spec",
+  "imports": {
+    "max_batch_size": 5000,
+    "supported_formats": ["csv", "jsonl"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "url": "https://acme.example/products/minidock",
+  "title": "Acme MiniDock Official Product Page",
+  "price": "$79",
+  "updated": "2026-07-03",
+  "decoys": [
+    {"url": "https://reseller.example/minidock", "price": "$69"}
+  ]
+}
