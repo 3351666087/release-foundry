@@ -1,3 +1,23 @@
 # Official Site Gaps
 
-No Ashr API calls were made and no real key was entered/read. Hosted grading, authenticated dashboard persistence, tenant feature flags, billing/usage enforcement, and private dashboard data remain unverified. `lab.ashr.io` read-only state was session-dependent across Chrome checks.
+Date: 2026-07-03
+
+No Ashr API calls were made and no real key was entered/read.
+
+Verified public-only:
+
+- Homepage, Python SDK docs, TypeScript SDK docs, VM integration docs, API reference, and public Plans section were accessible in read-only Chrome checks.
+- Public Plans copy was visible for Developer, Startup, and Enterprise tiers.
+- `lab.ashr.io` reached only a dashboard shell/loading state; no private data was used as clone input.
+
+Unverified or intentionally out of scope:
+
+- Hosted/server-side grading behavior, including `run.deploy`, `poll_run`, dashboard deeplinks after deploy, and final hosted grade persistence.
+- Authenticated dashboard persistence, private project/run/dataset state, tenant feature flags, and observability dashboard rendering.
+- API key creation, key scopes, key expiry/revocation, and dashboard-only key management.
+- Billing enforcement, Stripe checkout/portal behavior, hard-cap enforcement, metered overage calculation, and annual-plan discount application.
+- Public pricing backend/API, if any; only rendered public Plans copy was inspected.
+- TypeScript SDK runtime parity; the TypeScript docs were calibrated only to avoid field/process guessing.
+- Voice-minute metering, data retention enforcement, and tenant/project limit enforcement.
+
+If any of these become required for A1, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs.

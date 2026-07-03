@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import copy
 from datetime import datetime, timezone
 import hashlib
 import importlib
@@ -130,11 +131,12 @@ def execute_case(case: Any, *, index: int = 0) -> dict[str, Any]:
 def run_agent_batch(agent: Any, cases: Iterable[Any], *, dataset_id: str = "local-dataset", runner_id: str = "a1-local-runner", max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     case_list = list(cases)
     worker_count = normalize_max_workers(max_workers)
+    agent_factory = _agent_factory(agent)
     started_at = _utc_now()
     run_id = _stable_run_id(dataset_id, runner_id, case_list, started_at)
     ordered: list[dict[str, Any] | None] = [None] * len(case_list)
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {executor.submit(_run_agent_case, _new_agent(agent), case, index, run_id, timeout_seconds): index for index, case in enumerate(case_list)}
+        futures = {executor.submit(_run_agent_case, agent_factory, case, index, run_id, timeout_seconds): index for index, case in enumerate(case_list)}
         for future in as_completed(futures):
             index = futures[future]
             try:
@@ -227,17 +229,22 @@ def _resolve_target(target: Any) -> Callable[..., Any]:
     return resolved
 
 
-def _run_agent_case(agent: Any, case: Any, index: int, run_id: str, timeout_seconds: float | None) -> dict[str, Any]:
+def _run_agent_case(agent_factory: Callable[[], tuple[Any, threading.RLock | None]], case: Any, index: int, run_id: str, timeout_seconds: float | None) -> dict[str, Any]:
     mapping, _ = _normalize_case(case, index)
     effective_timeout = _effective_timeout(mapping, timeout_seconds)
     if effective_timeout is not None and effective_timeout <= 0:
         return _agent_timeout_case(mapping, index, run_id, effective_timeout)
+    agent, execution_lock = agent_factory()
     box: dict[str, dict[str, Any]] = {}
     error: dict[str, BaseException] = {}
 
     def worker() -> None:
         try:
-            box["result"] = _execute_agent_case(agent, mapping, index, run_id)
+            if execution_lock is None:
+                box["result"] = _execute_agent_case(agent, mapping, index, run_id)
+            else:
+                with execution_lock:
+                    box["result"] = _execute_agent_case(agent, mapping, index, run_id)
         except BaseException as exc:
             error["error"] = exc
 
@@ -270,10 +277,28 @@ def _execute_agent_case(agent: Any, case: Mapping[str, Any], index: int, run_id:
 
 
 def _new_agent(agent: Any) -> Any:
+    return _agent_factory(agent)()[0]
+
+
+def _agent_factory(agent: Any) -> Callable[[], tuple[Any, threading.RLock | None]]:
     if isinstance(agent, str):
         target = _resolve_target(agent)
-        return target() if inspect.isclass(target) else target
-    return agent() if inspect.isclass(agent) else agent
+        return _agent_factory(target)
+    if inspect.isclass(agent):
+        return lambda: (agent(), None)
+    clone = getattr(agent, "clone", None)
+    if callable(clone):
+        return lambda: (clone(), None)
+    shared_lock = threading.RLock()
+
+    def factory() -> tuple[Any, threading.RLock | None]:
+        try:
+            cloned = copy.deepcopy(agent)
+        except Exception:
+            return agent, shared_lock
+        return cloned, None
+
+    return factory
 
 
 def _case_prompt(case: Mapping[str, Any]) -> str:

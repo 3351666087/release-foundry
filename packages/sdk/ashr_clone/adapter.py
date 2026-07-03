@@ -4,9 +4,10 @@ import asyncio
 import copy
 import inspect
 import json
+import threading
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any
+from typing import Any, Mapping
 
 from .types import JsonDict, ToolCall
 
@@ -41,9 +42,9 @@ class AgentResult:
         )
 
     def to_dict(self) -> JsonDict:
-        data = {"text": self.text, "tool_calls": self.tool_calls, "status": self.status, "latency_ms": self.latency_ms, "metadata": self.metadata}
+        data = {"text": self.text, "tool_calls": _jsonable(self.tool_calls), "status": self.status, "latency_ms": self.latency_ms, "metadata": _jsonable(self.metadata)}
         if self.error:
-            data["error"] = self.error
+            data["error"] = _jsonable(self.error)
         return data
 
 
@@ -52,7 +53,8 @@ AgentTurn = AgentResult
 
 class AgentAdapter:
     def __init__(self, agent: Any, *, name: str | None = None, raise_errors: bool = False):
-        if not hasattr(agent, "respond") and not callable(agent):
+        responder = getattr(agent, "respond", None)
+        if not callable(responder) and not callable(agent):
             raise AgentAdapterError("agent must expose respond(message) or be callable")
         self.agent = agent
         self.name = name or getattr(agent, "__name__", agent.__class__.__name__)
@@ -72,7 +74,7 @@ class AgentAdapter:
         try:
             value = reset()
             if inspect.isawaitable(value):
-                asyncio.run(value)
+                _run_awaitable_sync(value)
             self.last_reset_error = None
             self.last_reset_latency_ms = elapsed_ms(started)
             return True
@@ -136,7 +138,7 @@ class AgentAdapter:
         try:
             value, style = self._invoke(message, kwargs)
             if inspect.isawaitable(value):
-                value = asyncio.run(value)
+                value = _run_awaitable_sync(value)
             return self._normalize(value, started, style)
         except Exception as exc:
             if self.raise_errors:
@@ -145,9 +147,11 @@ class AgentAdapter:
 
     def _invoke(self, message: str, kwargs: JsonDict) -> tuple[Any, str]:
         responder = getattr(self.agent, "respond", None)
-        if responder is not None:
+        if callable(responder):
             return responder(message, **kwargs), "respond"
-        return self.agent(message, **kwargs), "callable"
+        if callable(self.agent):
+            return self.agent(message, **kwargs), "callable"
+        raise AgentAdapterError("agent must expose respond(message) or be callable")
 
     def _normalize(self, value: Any, started: float, style: str) -> AgentResult:
         if isinstance(value, AgentResult):
@@ -265,3 +269,38 @@ def _coerce_error(error: Any) -> JsonDict:
     if isinstance(error, dict):
         return dict(error)
     return {"type": "AgentError", "message": str(error)}
+
+
+def _run_awaitable_sync(value: Any) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(value)
+    box: dict[str, Any] = {}
+
+    def runner() -> None:
+        try:
+            box["value"] = asyncio.run(value)
+        except BaseException as exc:
+            box["error"] = exc
+
+    thread = threading.Thread(target=runner)
+    thread.start()
+    thread.join()
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(value[key]) for key in sorted(value, key=lambda item: str(item))}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, set):
+        return [_jsonable(item) for item in sorted(value, key=repr)]
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return copy.deepcopy(value)

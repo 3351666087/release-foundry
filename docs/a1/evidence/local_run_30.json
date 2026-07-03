@@ -32,7 +32,7 @@
         ]
       },
       "case_id": "math-00",
-      "ended_at": "2026-07-03T13:47:47.918Z",
+      "ended_at": "2026-07-03T14:26:51.272Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -82,15 +82,15 @@
         {
           "case_id": "math-00",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.918Z",
+          "ended_at": "2026-07-03T14:26:51.272Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-00"
           },
-          "observation_id": "obs_9146be61d46109f6",
+          "observation_id": "obs_3807f370bef4ae27",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.918Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.272Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -98,16 +98,16 @@
         {
           "case_id": "math-00",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.918Z",
+          "ended_at": "2026-07-03T14:26:51.272Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_c89182af8d08ec6d",
+          "observation_id": "obs_af5e896b605024a4",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.918Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.272Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -163,7 +163,7 @@
         }
       ],
       "scenario_id": "scenario-00",
-      "started_at": "2026-07-03T13:47:47.918Z",
+      "started_at": "2026-07-03T14:26:51.272Z",
       "status": "passed",
       "title": "Calculator 00"
     },
@@ -190,7 +190,7 @@
         ]
       },
       "case_id": "math-01",
-      "ended_at": "2026-07-03T13:47:47.920Z",
+      "ended_at": "2026-07-03T14:26:51.273Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -240,15 +240,15 @@
         {
           "case_id": "math-01",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.920Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-01"
           },
-          "observation_id": "obs_e33a044889abb392",
+          "observation_id": "obs_c5992f05adbd66da",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.920Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -256,16 +256,16 @@
         {
           "case_id": "math-01",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.920Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_de4f324e0201ece9",
+          "observation_id": "obs_2aa2317bfddac4c1",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.920Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -321,7 +321,7 @@
         }
       ],
       "scenario_id": "scenario-01",
-      "started_at": "2026-07-03T13:47:47.920Z",
+      "started_at": "2026-07-03T14:26:51.273Z",
       "status": "passed",
       "title": "Calculator 01"
     },
@@ -348,7 +348,7 @@
         ]
       },
       "case_id": "math-02",
-      "ended_at": "2026-07-03T13:47:47.921Z",
+      "ended_at": "2026-07-03T14:26:51.273Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -398,15 +398,15 @@
         {
           "case_id": "math-02",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.921Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-02"
           },
-          "observation_id": "obs_5552c674836caa9e",
+          "observation_id": "obs_672299e3b0a4d9f9",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.921Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -414,16 +414,16 @@
         {
           "case_id": "math-02",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.921Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_dd5df2ffd5c41119",
+          "observation_id": "obs_5c03b1ed20015d01",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.921Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -479,7 +479,7 @@
         }
       ],
       "scenario_id": "scenario-02",
-      "started_at": "2026-07-03T13:47:47.921Z",
+      "started_at": "2026-07-03T14:26:51.273Z",
       "status": "passed",
       "title": "Calculator 02"
     },
@@ -506,7 +506,7 @@
         ]
       },
       "case_id": "math-03",
-      "ended_at": "2026-07-03T13:47:47.923Z",
+      "ended_at": "2026-07-03T14:26:51.273Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -556,15 +556,15 @@
         {
           "case_id": "math-03",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.923Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-03"
           },
-          "observation_id": "obs_ed65bbd880d88e89",
+          "observation_id": "obs_8cd85daed1d33681",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.923Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -572,16 +572,16 @@
         {
           "case_id": "math-03",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.923Z",
+          "ended_at": "2026-07-03T14:26:51.273Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_b292d50db7ae7606",
+          "observation_id": "obs_bdb2956098479da9",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.923Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.273Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -637,7 +637,7 @@
         }
       ],
       "scenario_id": "scenario-03",
-      "started_at": "2026-07-03T13:47:47.923Z",
+      "started_at": "2026-07-03T14:26:51.273Z",
       "status": "passed",
       "title": "Calculator 03"
     },
@@ -664,7 +664,7 @@
         ]
       },
       "case_id": "math-04",
-      "ended_at": "2026-07-03T13:47:47.924Z",
+      "ended_at": "2026-07-03T14:26:51.275Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -708,21 +708,21 @@
         "scenario_id": "scenario-04",
         "score": 1.0
       },
-      "latency_ms": 1,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-04",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.923Z",
+          "ended_at": "2026-07-03T14:26:51.275Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-04"
           },
-          "observation_id": "obs_2b4b5d58daa4e082",
+          "observation_id": "obs_b75f82049b48b872",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.923Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.275Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -730,16 +730,16 @@
         {
           "case_id": "math-04",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.924Z",
+          "ended_at": "2026-07-03T14:26:51.275Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_868ffd6694dabaa3",
+          "observation_id": "obs_e5fed9bb17541a00",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.923Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.275Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -754,7 +754,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 1,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -795,7 +795,7 @@
         }
       ],
       "scenario_id": "scenario-04",
-      "started_at": "2026-07-03T13:47:47.923Z",
+      "started_at": "2026-07-03T14:26:51.275Z",
       "status": "passed",
       "title": "Calculator 04"
     },
@@ -822,7 +822,7 @@
         ]
       },
       "case_id": "math-05",
-      "ended_at": "2026-07-03T13:47:47.925Z",
+      "ended_at": "2026-07-03T14:26:51.275Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -872,15 +872,15 @@
         {
           "case_id": "math-05",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.925Z",
+          "ended_at": "2026-07-03T14:26:51.275Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-05"
           },
-          "observation_id": "obs_23d240023f58452f",
+          "observation_id": "obs_eeacea644c9ebd58",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.925Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.275Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -888,16 +888,16 @@
         {
           "case_id": "math-05",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.925Z",
+          "ended_at": "2026-07-03T14:26:51.275Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_b0a0a162723e04de",
+          "observation_id": "obs_de26136454b3f456",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.925Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.275Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -953,7 +953,7 @@
         }
       ],
       "scenario_id": "scenario-05",
-      "started_at": "2026-07-03T13:47:47.925Z",
+      "started_at": "2026-07-03T14:26:51.275Z",
       "status": "passed",
       "title": "Calculator 05"
     },
@@ -980,7 +980,7 @@
         ]
       },
       "case_id": "math-06",
-      "ended_at": "2026-07-03T13:47:47.927Z",
+      "ended_at": "2026-07-03T14:26:51.276Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1030,15 +1030,15 @@
         {
           "case_id": "math-06",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.927Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-06"
           },
-          "observation_id": "obs_e4b4c724e51d10eb",
+          "observation_id": "obs_c562b8880a834ca5",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.927Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1046,16 +1046,16 @@
         {
           "case_id": "math-06",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.927Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_7ba1155bc5f27ab1",
+          "observation_id": "obs_01cd5484f1f26b57",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.927Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1111,7 +1111,7 @@
         }
       ],
       "scenario_id": "scenario-06",
-      "started_at": "2026-07-03T13:47:47.927Z",
+      "started_at": "2026-07-03T14:26:51.276Z",
       "status": "passed",
       "title": "Calculator 06"
     },
@@ -1138,7 +1138,7 @@
         ]
       },
       "case_id": "math-07",
-      "ended_at": "2026-07-03T13:47:47.928Z",
+      "ended_at": "2026-07-03T14:26:51.276Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1188,15 +1188,15 @@
         {
           "case_id": "math-07",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.928Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-07"
           },
-          "observation_id": "obs_3d611fb6feb75356",
+          "observation_id": "obs_6d6f8ac6cc215c45",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.928Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1204,16 +1204,16 @@
         {
           "case_id": "math-07",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.928Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_79c29964f771ab9a",
+          "observation_id": "obs_3a410bfe1b09691d",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.928Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1269,7 +1269,7 @@
         }
       ],
       "scenario_id": "scenario-07",
-      "started_at": "2026-07-03T13:47:47.928Z",
+      "started_at": "2026-07-03T14:26:51.276Z",
       "status": "passed",
       "title": "Calculator 07"
     },
@@ -1296,7 +1296,7 @@
         ]
       },
       "case_id": "math-08",
-      "ended_at": "2026-07-03T13:47:47.928Z",
+      "ended_at": "2026-07-03T14:26:51.276Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1346,15 +1346,15 @@
         {
           "case_id": "math-08",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.928Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-08"
           },
-          "observation_id": "obs_5148c7f3bd8849bc",
+          "observation_id": "obs_00a21388b46a0162",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.928Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1362,16 +1362,16 @@
         {
           "case_id": "math-08",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.928Z",
+          "ended_at": "2026-07-03T14:26:51.276Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_9d2f053563ba7344",
+          "observation_id": "obs_350e26d6e246e5f7",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.928Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.276Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1427,7 +1427,7 @@
         }
       ],
       "scenario_id": "scenario-08",
-      "started_at": "2026-07-03T13:47:47.928Z",
+      "started_at": "2026-07-03T14:26:51.276Z",
       "status": "passed",
       "title": "Calculator 08"
     },
@@ -1454,7 +1454,7 @@
         ]
       },
       "case_id": "math-09",
-      "ended_at": "2026-07-03T13:47:47.929Z",
+      "ended_at": "2026-07-03T14:26:51.277Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1504,15 +1504,15 @@
         {
           "case_id": "math-09",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.929Z",
+          "ended_at": "2026-07-03T14:26:51.277Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-09"
           },
-          "observation_id": "obs_47844c12bcdcf29e",
+          "observation_id": "obs_e59f74d6fa06cbf7",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.929Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.277Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1520,16 +1520,16 @@
         {
           "case_id": "math-09",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.929Z",
+          "ended_at": "2026-07-03T14:26:51.277Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_a94e3cda40b72b01",
+          "observation_id": "obs_622e3908b01d84dc",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.929Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.277Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1585,7 +1585,7 @@
         }
       ],
       "scenario_id": "scenario-09",
-      "started_at": "2026-07-03T13:47:47.929Z",
+      "started_at": "2026-07-03T14:26:51.277Z",
       "status": "passed",
       "title": "Calculator 09"
     },
@@ -1612,7 +1612,7 @@
         ]
       },
       "case_id": "math-10",
-      "ended_at": "2026-07-03T13:47:47.931Z",
+      "ended_at": "2026-07-03T14:26:51.278Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1662,15 +1662,15 @@
         {
           "case_id": "math-10",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.931Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-10"
           },
-          "observation_id": "obs_b6f9e3d2a091a4a9",
+          "observation_id": "obs_16d0151b00839465",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1678,16 +1678,16 @@
         {
           "case_id": "math-10",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.931Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_42ece8507ba4c406",
+          "observation_id": "obs_e1d7ea47e827c5e5",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1743,7 +1743,7 @@
         }
       ],
       "scenario_id": "scenario-10",
-      "started_at": "2026-07-03T13:47:47.931Z",
+      "started_at": "2026-07-03T14:26:51.278Z",
       "status": "passed",
       "title": "Calculator 10"
     },
@@ -1770,7 +1770,7 @@
         ]
       },
       "case_id": "math-11",
-      "ended_at": "2026-07-03T13:47:47.932Z",
+      "ended_at": "2026-07-03T14:26:51.278Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1814,21 +1814,21 @@
         "scenario_id": "scenario-11",
         "score": 1.0
       },
-      "latency_ms": 1,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-11",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.931Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-11"
           },
-          "observation_id": "obs_246ddcd0d2105fe9",
+          "observation_id": "obs_a57cb89e546af6b9",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1836,16 +1836,16 @@
         {
           "case_id": "math-11",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.932Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_4fe614d70f8dd97f",
+          "observation_id": "obs_a8f6c17220ece9ea",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -1860,7 +1860,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 1,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -1901,7 +1901,7 @@
         }
       ],
       "scenario_id": "scenario-11",
-      "started_at": "2026-07-03T13:47:47.931Z",
+      "started_at": "2026-07-03T14:26:51.278Z",
       "status": "passed",
       "title": "Calculator 11"
     },
@@ -1928,7 +1928,7 @@
         ]
       },
       "case_id": "math-12",
-      "ended_at": "2026-07-03T13:47:47.931Z",
+      "ended_at": "2026-07-03T14:26:51.278Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -1978,15 +1978,15 @@
         {
           "case_id": "math-12",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.931Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-12"
           },
-          "observation_id": "obs_ceae6e31802586ce",
+          "observation_id": "obs_3550ffa0fb1a8450",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -1994,16 +1994,16 @@
         {
           "case_id": "math-12",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.931Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_4de9891825059390",
+          "observation_id": "obs_3088d13f44eeed21",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.931Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2059,7 +2059,7 @@
         }
       ],
       "scenario_id": "scenario-12",
-      "started_at": "2026-07-03T13:47:47.931Z",
+      "started_at": "2026-07-03T14:26:51.278Z",
       "status": "passed",
       "title": "Calculator 12"
     },
@@ -2086,7 +2086,7 @@
         ]
       },
       "case_id": "math-13",
-      "ended_at": "2026-07-03T13:47:47.934Z",
+      "ended_at": "2026-07-03T14:26:51.280Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2136,15 +2136,15 @@
         {
           "case_id": "math-13",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.932Z",
+          "ended_at": "2026-07-03T14:26:51.278Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-13"
           },
-          "observation_id": "obs_a35b0d2d4d1ac7fd",
+          "observation_id": "obs_63836f4b5a87f5b8",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.932Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2152,16 +2152,16 @@
         {
           "case_id": "math-13",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.934Z",
+          "ended_at": "2026-07-03T14:26:51.280Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_831cd42d87f1ae0c",
+          "observation_id": "obs_358508b692cf8bbc",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.932Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.278Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2217,7 +2217,7 @@
         }
       ],
       "scenario_id": "scenario-13",
-      "started_at": "2026-07-03T13:47:47.932Z",
+      "started_at": "2026-07-03T14:26:51.278Z",
       "status": "passed",
       "title": "Calculator 13"
     },
@@ -2244,7 +2244,7 @@
         ]
       },
       "case_id": "math-14",
-      "ended_at": "2026-07-03T13:47:47.934Z",
+      "ended_at": "2026-07-03T14:26:51.280Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2294,15 +2294,15 @@
         {
           "case_id": "math-14",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.934Z",
+          "ended_at": "2026-07-03T14:26:51.280Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-14"
           },
-          "observation_id": "obs_e4f43f4ea994358f",
+          "observation_id": "obs_3b606fba68b1ec2b",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.934Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.280Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2310,16 +2310,16 @@
         {
           "case_id": "math-14",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.934Z",
+          "ended_at": "2026-07-03T14:26:51.280Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_5191ded3dd9731ba",
+          "observation_id": "obs_9342ad99b968bf36",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.934Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.280Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2375,7 +2375,7 @@
         }
       ],
       "scenario_id": "scenario-14",
-      "started_at": "2026-07-03T13:47:47.934Z",
+      "started_at": "2026-07-03T14:26:51.280Z",
       "status": "passed",
       "title": "Calculator 14"
     },
@@ -2402,7 +2402,7 @@
         ]
       },
       "case_id": "math-15",
-      "ended_at": "2026-07-03T13:47:47.934Z",
+      "ended_at": "2026-07-03T14:26:51.280Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2452,15 +2452,15 @@
         {
           "case_id": "math-15",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.934Z",
+          "ended_at": "2026-07-03T14:26:51.280Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-15"
           },
-          "observation_id": "obs_4007edc58c629f2a",
+          "observation_id": "obs_5c22c5a257baa9c3",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.934Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.280Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2468,16 +2468,16 @@
         {
           "case_id": "math-15",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.934Z",
+          "ended_at": "2026-07-03T14:26:51.280Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_004a9f148d3ef2bb",
+          "observation_id": "obs_d92863b6c469713b",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.934Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.280Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2533,7 +2533,7 @@
         }
       ],
       "scenario_id": "scenario-15",
-      "started_at": "2026-07-03T13:47:47.934Z",
+      "started_at": "2026-07-03T14:26:51.280Z",
       "status": "passed",
       "title": "Calculator 15"
     },
@@ -2560,7 +2560,7 @@
         ]
       },
       "case_id": "math-16",
-      "ended_at": "2026-07-03T13:47:47.935Z",
+      "ended_at": "2026-07-03T14:26:51.281Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2610,15 +2610,15 @@
         {
           "case_id": "math-16",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.935Z",
+          "ended_at": "2026-07-03T14:26:51.281Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-16"
           },
-          "observation_id": "obs_7550bb4ab005919c",
+          "observation_id": "obs_19377d6ae8108409",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.935Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.281Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2626,16 +2626,16 @@
         {
           "case_id": "math-16",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.935Z",
+          "ended_at": "2026-07-03T14:26:51.281Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_8c908c0b75db656d",
+          "observation_id": "obs_c3f0197886b9ed79",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.935Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.281Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2691,7 +2691,7 @@
         }
       ],
       "scenario_id": "scenario-16",
-      "started_at": "2026-07-03T13:47:47.935Z",
+      "started_at": "2026-07-03T14:26:51.281Z",
       "status": "passed",
       "title": "Calculator 16"
     },
@@ -2718,7 +2718,7 @@
         ]
       },
       "case_id": "math-17",
-      "ended_at": "2026-07-03T13:47:47.938Z",
+      "ended_at": "2026-07-03T14:26:51.281Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2768,15 +2768,15 @@
         {
           "case_id": "math-17",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.938Z",
+          "ended_at": "2026-07-03T14:26:51.281Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-17"
           },
-          "observation_id": "obs_784ae0e23577da56",
+          "observation_id": "obs_3c93f84be7b1d9fe",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.938Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.281Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2784,16 +2784,16 @@
         {
           "case_id": "math-17",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.938Z",
+          "ended_at": "2026-07-03T14:26:51.281Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_e6e22cb16069884d",
+          "observation_id": "obs_446c6a810b7801c5",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.938Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.281Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2849,7 +2849,7 @@
         }
       ],
       "scenario_id": "scenario-17",
-      "started_at": "2026-07-03T13:47:47.938Z",
+      "started_at": "2026-07-03T14:26:51.281Z",
       "status": "passed",
       "title": "Calculator 17"
     },
@@ -2876,7 +2876,7 @@
         ]
       },
       "case_id": "math-18",
-      "ended_at": "2026-07-03T13:47:47.940Z",
+      "ended_at": "2026-07-03T14:26:51.283Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -2920,21 +2920,21 @@
         "scenario_id": "scenario-18",
         "score": 1.0
       },
-      "latency_ms": 2,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-18",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.938Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-18"
           },
-          "observation_id": "obs_814ec831f26dbd90",
+          "observation_id": "obs_2f8f71a7d999b0e2",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.938Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -2942,16 +2942,16 @@
         {
           "case_id": "math-18",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.940Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_a581e4688a02d50f",
+          "observation_id": "obs_c9c9355f12f781ab",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.938Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -2966,7 +2966,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 2,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -3007,7 +3007,7 @@
         }
       ],
       "scenario_id": "scenario-18",
-      "started_at": "2026-07-03T13:47:47.938Z",
+      "started_at": "2026-07-03T14:26:51.283Z",
       "status": "passed",
       "title": "Calculator 18"
     },
@@ -3034,7 +3034,7 @@
         ]
       },
       "case_id": "math-19",
-      "ended_at": "2026-07-03T13:47:47.940Z",
+      "ended_at": "2026-07-03T14:26:51.283Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3084,15 +3084,15 @@
         {
           "case_id": "math-19",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.940Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-19"
           },
-          "observation_id": "obs_c988b1922d2abdf4",
+          "observation_id": "obs_89250bb9ffeadd25",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.940Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3100,16 +3100,16 @@
         {
           "case_id": "math-19",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.940Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_8827eefcf7350f97",
+          "observation_id": "obs_a68a75f82b5767c7",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.940Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3165,7 +3165,7 @@
         }
       ],
       "scenario_id": "scenario-19",
-      "started_at": "2026-07-03T13:47:47.940Z",
+      "started_at": "2026-07-03T14:26:51.283Z",
       "status": "passed",
       "title": "Calculator 19"
     },
@@ -3192,7 +3192,7 @@
         ]
       },
       "case_id": "math-20",
-      "ended_at": "2026-07-03T13:47:47.941Z",
+      "ended_at": "2026-07-03T14:26:51.283Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3242,15 +3242,15 @@
         {
           "case_id": "math-20",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.941Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-20"
           },
-          "observation_id": "obs_fb180e88e06d2ef2",
+          "observation_id": "obs_286a0a0c6ebb3faf",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.941Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3258,16 +3258,16 @@
         {
           "case_id": "math-20",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.941Z",
+          "ended_at": "2026-07-03T14:26:51.283Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_ed7c085d95b8ab35",
+          "observation_id": "obs_99439a5e0dbc1bd8",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.941Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.283Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3323,7 +3323,7 @@
         }
       ],
       "scenario_id": "scenario-20",
-      "started_at": "2026-07-03T13:47:47.941Z",
+      "started_at": "2026-07-03T14:26:51.283Z",
       "status": "passed",
       "title": "Calculator 20"
     },
@@ -3350,7 +3350,7 @@
         ]
       },
       "case_id": "math-21",
-      "ended_at": "2026-07-03T13:47:47.943Z",
+      "ended_at": "2026-07-03T14:26:51.284Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3400,15 +3400,15 @@
         {
           "case_id": "math-21",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.943Z",
+          "ended_at": "2026-07-03T14:26:51.284Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-21"
           },
-          "observation_id": "obs_251a73969e727ac2",
+          "observation_id": "obs_3d2494977ffb8288",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.943Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.284Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3416,16 +3416,16 @@
         {
           "case_id": "math-21",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.943Z",
+          "ended_at": "2026-07-03T14:26:51.284Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_c72cd3af02deeebd",
+          "observation_id": "obs_bdc6175e6342d43e",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.943Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.284Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3481,7 +3481,7 @@
         }
       ],
       "scenario_id": "scenario-21",
-      "started_at": "2026-07-03T13:47:47.943Z",
+      "started_at": "2026-07-03T14:26:51.284Z",
       "status": "passed",
       "title": "Calculator 21"
     },
@@ -3508,7 +3508,7 @@
         ]
       },
       "case_id": "math-22",
-      "ended_at": "2026-07-03T13:47:47.943Z",
+      "ended_at": "2026-07-03T14:26:51.284Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3558,15 +3558,15 @@
         {
           "case_id": "math-22",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.943Z",
+          "ended_at": "2026-07-03T14:26:51.284Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-22"
           },
-          "observation_id": "obs_2e4b14eb7ea555f0",
+          "observation_id": "obs_411d55c41d060505",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.943Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.284Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3574,16 +3574,16 @@
         {
           "case_id": "math-22",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.943Z",
+          "ended_at": "2026-07-03T14:26:51.284Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_d9ace2e166a5a46c",
+          "observation_id": "obs_3edc106b1172d034",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.943Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.284Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3639,7 +3639,7 @@
         }
       ],
       "scenario_id": "scenario-22",
-      "started_at": "2026-07-03T13:47:47.943Z",
+      "started_at": "2026-07-03T14:26:51.284Z",
       "status": "passed",
       "title": "Calculator 22"
     },
@@ -3666,7 +3666,7 @@
         ]
       },
       "case_id": "math-23",
-      "ended_at": "2026-07-03T13:47:47.944Z",
+      "ended_at": "2026-07-03T14:26:51.285Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3716,15 +3716,15 @@
         {
           "case_id": "math-23",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.944Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-23"
           },
-          "observation_id": "obs_46dabdb87f7488bd",
+          "observation_id": "obs_a5c1c10bc22733a1",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.944Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3732,16 +3732,16 @@
         {
           "case_id": "math-23",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.944Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_dbbf77c868e0bede",
+          "observation_id": "obs_2bd1f37ab706b0c7",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.944Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3797,7 +3797,7 @@
         }
       ],
       "scenario_id": "scenario-23",
-      "started_at": "2026-07-03T13:47:47.944Z",
+      "started_at": "2026-07-03T14:26:51.285Z",
       "status": "passed",
       "title": "Calculator 23"
     },
@@ -3824,7 +3824,7 @@
         ]
       },
       "case_id": "math-24",
-      "ended_at": "2026-07-03T13:47:47.946Z",
+      "ended_at": "2026-07-03T14:26:51.285Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -3868,21 +3868,21 @@
         "scenario_id": "scenario-24",
         "score": 1.0
       },
-      "latency_ms": 2,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-24",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.944Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-24"
           },
-          "observation_id": "obs_50e7c8a0d4ad9a2e",
+          "observation_id": "obs_1ce67bcf5b91e4f3",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.944Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -3890,16 +3890,16 @@
         {
           "case_id": "math-24",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.946Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_6a922c0f124fe75c",
+          "observation_id": "obs_d96b827c46f6fc93",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.944Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -3914,7 +3914,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 2,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -3955,7 +3955,7 @@
         }
       ],
       "scenario_id": "scenario-24",
-      "started_at": "2026-07-03T13:47:47.944Z",
+      "started_at": "2026-07-03T14:26:51.285Z",
       "status": "passed",
       "title": "Calculator 24"
     },
@@ -3982,7 +3982,7 @@
         ]
       },
       "case_id": "math-25",
-      "ended_at": "2026-07-03T13:47:47.946Z",
+      "ended_at": "2026-07-03T14:26:51.285Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -4032,15 +4032,15 @@
         {
           "case_id": "math-25",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.946Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-25"
           },
-          "observation_id": "obs_87b86dbfb400ea47",
+          "observation_id": "obs_143c05b950c7130a",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.946Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -4048,16 +4048,16 @@
         {
           "case_id": "math-25",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.946Z",
+          "ended_at": "2026-07-03T14:26:51.285Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_1c33ccb95c30977b",
+          "observation_id": "obs_2609a87a8075480d",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.946Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.285Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -4113,7 +4113,7 @@
         }
       ],
       "scenario_id": "scenario-25",
-      "started_at": "2026-07-03T13:47:47.946Z",
+      "started_at": "2026-07-03T14:26:51.285Z",
       "status": "passed",
       "title": "Calculator 25"
     },
@@ -4140,7 +4140,7 @@
         ]
       },
       "case_id": "math-26",
-      "ended_at": "2026-07-03T13:47:47.947Z",
+      "ended_at": "2026-07-03T14:26:51.287Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -4184,21 +4184,21 @@
         "scenario_id": "scenario-26",
         "score": 1.0
       },
-      "latency_ms": 1,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-26",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.946Z",
+          "ended_at": "2026-07-03T14:26:51.287Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-26"
           },
-          "observation_id": "obs_622b315f6e2f9326",
+          "observation_id": "obs_22e97ff80768a928",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.946Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.287Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -4206,16 +4206,16 @@
         {
           "case_id": "math-26",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.947Z",
+          "ended_at": "2026-07-03T14:26:51.287Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_f48b54890b78b8fa",
+          "observation_id": "obs_6ecb3aa38aad796a",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.946Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.287Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -4230,7 +4230,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 1,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -4271,7 +4271,7 @@
         }
       ],
       "scenario_id": "scenario-26",
-      "started_at": "2026-07-03T13:47:47.946Z",
+      "started_at": "2026-07-03T14:26:51.287Z",
       "status": "passed",
       "title": "Calculator 26"
     },
@@ -4298,7 +4298,7 @@
         ]
       },
       "case_id": "math-27",
-      "ended_at": "2026-07-03T13:47:47.948Z",
+      "ended_at": "2026-07-03T14:26:51.287Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -4342,21 +4342,21 @@
         "scenario_id": "scenario-27",
         "score": 1.0
       },
-      "latency_ms": 1,
+      "latency_ms": 0,
       "metadata": {},
       "observations": [
         {
           "case_id": "math-27",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.947Z",
+          "ended_at": "2026-07-03T14:26:51.287Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-27"
           },
-          "observation_id": "obs_6e0a62ac1ec1eefa",
+          "observation_id": "obs_63510af89983c391",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.947Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.287Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -4364,16 +4364,16 @@
         {
           "case_id": "math-27",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.948Z",
+          "ended_at": "2026-07-03T14:26:51.287Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_d1c98f837d4affe2",
+          "observation_id": "obs_252f74d2097143f2",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.947Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.287Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -4388,7 +4388,7 @@
           ],
           "turn_index": 1,
           "vm_stream": {
-            "duration_ms": 1,
+            "duration_ms": 0,
             "logs": [
               {
                 "data": {
@@ -4429,7 +4429,7 @@
         }
       ],
       "scenario_id": "scenario-27",
-      "started_at": "2026-07-03T13:47:47.947Z",
+      "started_at": "2026-07-03T14:26:51.287Z",
       "status": "passed",
       "title": "Calculator 27"
     },
@@ -4456,7 +4456,7 @@
         ]
       },
       "case_id": "math-28",
-      "ended_at": "2026-07-03T13:47:47.949Z",
+      "ended_at": "2026-07-03T14:26:51.288Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -4506,15 +4506,15 @@
         {
           "case_id": "math-28",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.949Z",
+          "ended_at": "2026-07-03T14:26:51.288Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-28"
           },
-          "observation_id": "obs_37eb3cdbcd85d74d",
+          "observation_id": "obs_eda55e6928912fe2",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.949Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.288Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -4522,16 +4522,16 @@
         {
           "case_id": "math-28",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.949Z",
+          "ended_at": "2026-07-03T14:26:51.288Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_158d6e86d4a1f689",
+          "observation_id": "obs_ca04b1b8b32e7481",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.949Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.288Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -4587,7 +4587,7 @@
         }
       ],
       "scenario_id": "scenario-28",
-      "started_at": "2026-07-03T13:47:47.949Z",
+      "started_at": "2026-07-03T14:26:51.288Z",
       "status": "passed",
       "title": "Calculator 28"
     },
@@ -4614,7 +4614,7 @@
         ]
       },
       "case_id": "math-29",
-      "ended_at": "2026-07-03T13:47:47.949Z",
+      "ended_at": "2026-07-03T14:26:51.288Z",
       "expected": {
         "text": "The answer is 42.",
         "tool_calls": [
@@ -4664,15 +4664,15 @@
         {
           "case_id": "math-29",
           "content": "What is 19 + 23?",
-          "ended_at": "2026-07-03T13:47:47.949Z",
+          "ended_at": "2026-07-03T14:26:51.288Z",
           "event_type": "message",
           "metadata": {
             "scenario_id": "scenario-29"
           },
-          "observation_id": "obs_c775e2b851c6207d",
+          "observation_id": "obs_da82acc6e72ae24c",
           "role": "user",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.949Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.288Z",
           "status": "ok",
           "tool_calls": [],
           "turn_index": 0
@@ -4680,16 +4680,16 @@
         {
           "case_id": "math-29",
           "content": "The answer is 42.",
-          "ended_at": "2026-07-03T13:47:47.949Z",
+          "ended_at": "2026-07-03T14:26:51.288Z",
           "event_type": "agent_response",
           "latency_ms": 0,
           "metadata": {
             "reset_ok": true
           },
-          "observation_id": "obs_73998cb8718f1a12",
+          "observation_id": "obs_d56271eaebcb34b6",
           "role": "assistant",
-          "run_id": "run_c88c939ef80189a5",
-          "started_at": "2026-07-03T13:47:47.949Z",
+          "run_id": "run_a0575128b71d8a54",
+          "started_at": "2026-07-03T14:26:51.288Z",
           "status": "ok",
           "tool_calls": [
             {
@@ -4745,14 +4745,14 @@
         }
       ],
       "scenario_id": "scenario-29",
-      "started_at": "2026-07-03T13:47:47.949Z",
+      "started_at": "2026-07-03T14:26:51.288Z",
       "status": "passed",
       "title": "Calculator 29"
     }
   ],
   "dataset_id": "a2-local-scenarios",
-  "duration_ms": 45,
-  "ended_at": "2026-07-03T13:47:47.950Z",
+  "duration_ms": 18,
+  "ended_at": "2026-07-03T14:26:51.288Z",
   "errored": 0,
   "failed": 0,
   "field_map_version": "a1-local-2026-07-03",
@@ -4762,9 +4762,9 @@
     "local_only": true
   },
   "passed": 30,
-  "run_id": "run_c88c939ef80189a5",
+  "run_id": "run_a0575128b71d8a54",
   "runner_id": "a1-local-runner",
-  "started_at": "2026-07-03T13:47:47.905Z",
+  "started_at": "2026-07-03T14:26:51.270Z",
   "status": "passed",
   "timed_out": 0,
   "total_cases": 30,

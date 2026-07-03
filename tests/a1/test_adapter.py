@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -79,6 +80,24 @@ class AgentAdapterTests(unittest.TestCase):
         self.assertEqual(result.metadata["style"], "callable")
         self.assertNotIn("style", original.metadata)
 
+    def test_callable_agent_with_non_callable_respond_attribute_uses_call(self):
+        class CallableAgent:
+            respond = "not callable"
+
+            def __call__(self, prompt):
+                return f"called: {prompt}"
+
+        result = AgentAdapter(CallableAgent()).respond("hello")
+        self.assertEqual(result.text, "called: hello")
+        self.assertEqual(result.metadata["style"], "callable")
+
+    def test_agent_result_to_dict_is_json_safe(self):
+        result = AgentResult(text="ok", tool_calls=[{"name": "local", "output": Path("not-json")}], metadata={"labels": {"b", "a"}})
+        payload = result.to_dict()
+        self.assertEqual(payload["tool_calls"][0]["output"], "not-json")
+        self.assertEqual(payload["metadata"]["labels"], ["a", "b"])
+        self.assertIsInstance(json.dumps(payload), str)
+
 
 class AsyncAgentAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_async_respond_and_async_reset(self):
@@ -89,6 +108,16 @@ class AsyncAgentAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.text, "async answer: hello")
         self.assertEqual(result.tool_calls, [{"name": "search", "arguments": {}, "call_id": "call-1"}])
+        self.assertTrue(reset_ok)
+        self.assertEqual(agent.reset_count, 1)
+
+    async def test_sync_methods_can_wrap_async_agent_inside_running_loop(self):
+        agent = AsyncRespondAgent()
+        adapter = AgentAdapter(agent)
+        result = adapter.respond("inside-loop")
+        reset_ok = adapter.reset()
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "async answer: inside-loop")
         self.assertTrue(reset_ok)
         self.assertEqual(agent.reset_count, 1)
 
