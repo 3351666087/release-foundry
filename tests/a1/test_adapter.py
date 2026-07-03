@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
+from ashr_clone import to_a2_judge_run  # noqa: E402
 from ashr_clone.adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult  # noqa: E402
 from ashr_clone.types import ToolCall  # noqa: E402
 
@@ -100,6 +101,28 @@ class AgentAdapterTests(unittest.TestCase):
         self.assertEqual(payload["tool_calls"][0]["output"], "not-json")
         self.assertEqual(payload["metadata"]["labels"], ["a", "b"])
         self.assertIsInstance(json.dumps(payload), str)
+
+    def test_agent_result_projects_to_a2_judge_run_shape(self):
+        result = AgentResult(
+            text="Three grounded bullets.",
+            tool_calls=[{"name": "file.read", "arguments": {"path": "fixtures/a2/notes/launch-review.md"}, "call_id": "call-1"}],
+        )
+        payload = to_a2_judge_run(result, expected_keywords=("grounded",), forbidden_keywords=("hallucinated",))
+        self.assertEqual(payload["final_response"], "Three grounded bullets.")
+        self.assertEqual(payload["expected_keywords"], ["grounded"])
+        self.assertEqual(payload["forbidden_keywords"], ["hallucinated"])
+        self.assertEqual(payload["tool_calls"][0]["id"], "call-1")
+        self.assertEqual(payload["tool_calls"][0]["tool"], "file.read")
+        self.assertEqual(payload["tool_calls"][0]["args"], {"path": "fixtures/a2/notes/launch-review.md"})
+        self.assertEqual(payload["tool_calls"][0]["name"], "file.read")
+        self.assertEqual(payload["tool_calls"][0]["arguments"], {"path": "fixtures/a2/notes/launch-review.md"})
+        self.assertIsInstance(json.dumps(payload), str)
+
+    def test_a2_judge_projection_accepts_agent_output_mapping(self):
+        payload = to_a2_judge_run({"text": Path("answer.txt"), "tool_calls": [{"tool": "search", "args": {"tags": {"b", "a"}}}]})
+        self.assertEqual(payload["final_response"], "answer.txt")
+        self.assertEqual(payload["tool_calls"][0]["tool"], "search")
+        self.assertEqual(payload["tool_calls"][0]["args"], {"tags": ["a", "b"]})
 
     def test_non_json_text_fields_are_normalized_without_adapter_error(self):
         result = AgentAdapter(lambda prompt: {"content": Path("content.txt")}).respond("ignored")

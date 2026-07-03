@@ -10,4 +10,6 @@ Round 3 resolved: agent timeout/error cases now emit A3-consumable failure trace
 
 Round 4 resolved: negative default `timeout_seconds` / CLI `--timeout` values are rejected before execution, and negative per-case timeout values become schema-safe A3 error cases instead of negative latency/duration payloads. Tests now cover CLI rejection, case-level negative timeout handling, and an emitted mixed RunResult schema guard for required fields and minimum-zero timing fields.
 
+Round 5 resolved: A2 peer handoff expects `final_response` and `tool_calls[].tool` / `tool_calls[].args`; A1 now exposes `to_a2_judge_run(...)` to project local `AgentTurn` / `agent_output` into that shape without modifying A2 judge semantics or Gate contracts.
+
 Remaining: A2 final `Scenario` / Judge / Golden adapters should wait for Gate contract.

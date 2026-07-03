@@ -60,6 +60,23 @@ class AgentResult:
 AgentTurn = AgentResult
 
 
+def to_a2_judge_run(
+    agent_output: AgentResult | Mapping[str, Any],
+    *,
+    expected_keywords: list[str] | tuple[str, ...] | None = None,
+    forbidden_keywords: list[str] | tuple[str, ...] | None = None,
+) -> JsonDict:
+    """Project an A1 agent turn into A2's local judge run shape."""
+    output = agent_output.to_dict() if isinstance(agent_output, AgentResult) else _jsonable(dict(agent_output))
+    tool_calls = [_a2_tool_call(call, index) for index, call in enumerate(normalize_tool_calls(output.get("tool_calls", [])))]
+    run = {"tool_calls": tool_calls, "final_response": _text_value(output.get("text", ""))}
+    if expected_keywords is not None:
+        run["expected_keywords"] = _jsonable(list(expected_keywords))
+    if forbidden_keywords is not None:
+        run["forbidden_keywords"] = _jsonable(list(forbidden_keywords))
+    return run
+
+
 class AgentAdapter:
     def __init__(self, agent: Any, *, name: str | None = None, raise_errors: bool = False):
         responder = getattr(agent, "respond", None)
@@ -225,6 +242,22 @@ def _normalize_tool_call(call: Any, index: int) -> JsonDict:
     if arguments_json is None and isinstance(call.get("arguments"), str):
         arguments_json = json.dumps(arguments, sort_keys=True, separators=(",", ":"))
     return ToolCall(name=name, arguments=arguments, arguments_json=str(arguments_json) if arguments_json is not None else None, call_id=call.get("id") or call.get("call_id"), output=call.get("output") or call.get("result"), latency_ms=call.get("latency_ms"), error=call.get("error")).to_dict()
+
+
+def _a2_tool_call(call: JsonDict, index: int) -> JsonDict:
+    name = str(call.get("tool") or call.get("name") or f"tool_{index}")
+    args = call.get("args") if isinstance(call.get("args"), dict) else call.get("arguments")
+    if not isinstance(args, dict):
+        args = {}
+    projected = dict(call)
+    projected["tool"] = name
+    projected["args"] = _jsonable(args)
+    projected.setdefault("name", name)
+    projected.setdefault("arguments", _jsonable(args))
+    call_id = call.get("id") or call.get("call_id")
+    if call_id is not None:
+        projected["id"] = str(call_id)
+    return _jsonable(projected)
 
 
 def _extract_text(data: JsonDict) -> str:
