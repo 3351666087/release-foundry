@@ -74,6 +74,20 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(result["primary_failure_class"], "none")
         self.assertEqual(len(result["judge_results"]), 2)
 
+    def test_sample_run_fixtures_grade_as_expected(self):
+        run_dir = ROOT / "fixtures/a2/runs"
+        for path in sorted(run_dir.glob("*.json")):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            with self.subTest(run_fixture=path.name):
+                result = grade_run(
+                    payload["scenario_id"],
+                    payload["run"],
+                    pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+                    case_id=payload["case_id"],
+                )
+                self.assertEqual(result["passed"], payload["expected"]["passed"])
+                self.assertEqual(result["primary_failure_class"], payload["expected"]["primary_failure_class"])
+
 
 if __name__ == "__main__":
     unittest.main()

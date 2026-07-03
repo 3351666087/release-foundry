@@ -1,0 +1,12 @@
+{
+  "scenario_id": "A2-S001",
+  "case_id": "sample-a2-s001-pass",
+  "run": {
+    "tool_calls": [],
+    "final_response": "I need a little more information before I can complete your request."
+  },
+  "expected": {
+    "passed": true,
+    "primary_failure_class": "none"
+  }
+}

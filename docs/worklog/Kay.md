@@ -126,3 +126,21 @@ Next likely improvements:
 - Add a sample run JSON fixture that A1 can imitate.
 - Add a short A2 README showing how to call `grade_run`.
 - Later, add semantic/reference judge once G3 calibration starts.
+
+## 2026-07-03 - A2 usage docs and sample runs
+
+Goal:
+- Make A2 easier for A1/A3 teammates to consume.
+
+Implemented:
+- Added `docs/a2/README.md` with current deliverables, run shape, and `grade_run` usage.
+- Added sample run fixtures:
+  - `fixtures/a2/runs/a2_s001_pass.json`
+  - `fixtures/a2/runs/a2_s004_missing_tool.json`
+- Extended contract tests to grade sample run fixtures and compare expected pass/fail plus primary failure class.
+
+Verification:
+- `python -m json.tool fixtures/a2/runs/a2_s001_pass.json`
+- `python -m json.tool fixtures/a2/runs/a2_s004_missing_tool.json`
+- `python -m unittest discover -s tests/a2 -v`
+- Result: 14 tests passed.
