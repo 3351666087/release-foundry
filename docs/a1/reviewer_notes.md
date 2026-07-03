@@ -6,4 +6,6 @@ Follow-up resolved: `run_agent_batch` now builds a per-case agent from class/str
 
 Adapter follow-up resolved: non-callable `respond` attributes no longer mask callable agents; sync `respond/reset` can wrap async agents even when called inside an existing event loop; `AgentResult.to_dict()` now returns JSON-safe data. Timeout remains a Runner-level contract because Python cannot safely cancel arbitrary external sync agent code.
 
+Round 3 resolved: agent timeout/error cases now emit A3-consumable failure traces with user + system observations, synthetic VM stream metadata, and `grade.actual.error`; VM stream frames are strictly validated against trace events; `AgentTurn` output includes `schema_version: ashr.clone.agent_turn.v1`; local schema snapshots live in `docs/a1/schemas`.
+
 Remaining: A2 final `Scenario` / Judge / Golden adapters should wait for Gate contract.

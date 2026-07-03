@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from datetime import datetime
 
 from examples.agents.mock_agent import RespondingMockAgent
 from services.runner.runner import BatchRunner, LocalEvalRunner, run_agent_batch, run_batch, run_case, write_results_json
@@ -56,6 +57,8 @@ class DeepcopyTrackingAgent:
 class LockedSharedAgent:
     def __init__(self):
         self.history = []
+        self.active = 0
+        self.max_active = 0
 
     def __deepcopy__(self, memo):
         raise TypeError("cannot deepcopy")
@@ -64,8 +67,13 @@ class LockedSharedAgent:
         self.history = []
 
     def respond(self, prompt):
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        time.sleep(0.01)
         self.history.append(prompt)
-        return {"text": f"{len(self.history)}:{prompt}"}
+        result = {"text": f"{len(self.history)}:{prompt}"}
+        self.active -= 1
+        return result
 
 
 def test_run_batch_supports_30_cases_and_preserves_order():
@@ -141,11 +149,11 @@ def test_cli_fail_on_case_failure_returns_nonzero_and_writes_json(tmp_path):
 
 
 def test_agent_runner_emits_a3_run_result_with_complete_trace():
-    cases = [{"id": f"math-{index:02d}", "scenario_id": f"scenario-{index:02d}", "prompt": "What is 19 + 23?", "expected": {"text": "The answer is 42.", "tool_calls": [{"name": "calculator"}]}} for index in range(30)]
+    cases = [{"id": f"math-{index:02d}", "scenario_id": f"scenario-{index:02d}", "prompt": "What is 19 + 23?", "expected": {"text": "The answer is 42.", "tool_calls": [{"name": "calculator"}]}} for index in range(80)]
     result = run_agent_batch(RespondingMockAgent, cases, dataset_id="a2-local-scenarios", runner_id="a1-local-runner", max_workers=1, timeout_seconds=5)
-    assert result["total_cases"] == 30
+    assert result["total_cases"] == 80
     assert result["max_workers"] >= 4
-    assert result["passed"] == 30
+    assert result["passed"] == 80
     assert result["trace_completeness"] >= 0.95
     assert result["cases"][0]["observations"][1]["vm_stream"]["provider"] == "local-runner"
 
@@ -181,6 +189,18 @@ def test_agent_runner_tracks_mixed_pass_fail_error_and_timeout():
     assert result["status"] == "completed_with_errors"
     assert [case["status"] for case in result["cases"]] == ["passed", "failed", "error", "timeout"]
     assert result["cases"][2]["agent_output"]["error"]["type"] == "RuntimeError"
+    timeout_case = result["cases"][3]
+    assert timeout_case["grade"]["actual"]["error"]["type"] == "TimeoutError"
+    assert timeout_case["agent_output"]["schema_version"] == "ashr.clone.agent_turn.v1"
+    assert timeout_case["agent_output"]["latency_ms"] == 50
+    assert timeout_case["agent_output"]["metadata"]["synthetic"] is True
+    assert len(timeout_case["observations"]) == 2
+    assert timeout_case["observations"][0]["role"] == "user"
+    assert timeout_case["observations"][1]["vm_stream"]["metadata"]["failure"] == "timeout"
+    started = datetime.fromisoformat(timeout_case["started_at"].replace("Z", "+00:00"))
+    ended = datetime.fromisoformat(timeout_case["ended_at"].replace("Z", "+00:00"))
+    assert int((ended - started).total_seconds() * 1000) == timeout_case["latency_ms"]
+    assert result["trace_completeness"] == 1.0
 
 
 def test_agent_cli_fail_on_case_failure_returns_nonzero_and_writes_json(tmp_path):
@@ -208,3 +228,4 @@ def test_non_cloneable_agent_instance_uses_shared_lock():
     result = run_agent_batch(agent, cases, max_workers=4, timeout_seconds=5)
     assert result["passed"] == 8
     assert len(agent.history) == 1
+    assert agent.max_active == 1

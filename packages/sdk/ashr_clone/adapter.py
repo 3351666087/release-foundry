@@ -11,6 +11,8 @@ from typing import Any, Mapping
 
 from .types import JsonDict, ToolCall
 
+AGENT_TURN_SCHEMA_VERSION = "ashr.clone.agent_turn.v1"
+
 
 class AgentAdapterError(RuntimeError):
     """Raised when an agent cannot be adapted."""
@@ -42,7 +44,14 @@ class AgentResult:
         )
 
     def to_dict(self) -> JsonDict:
-        data = {"text": self.text, "tool_calls": _jsonable(self.tool_calls), "status": self.status, "latency_ms": self.latency_ms, "metadata": _jsonable(self.metadata)}
+        data = {
+            "schema_version": AGENT_TURN_SCHEMA_VERSION,
+            "text": _jsonable(self.text),
+            "tool_calls": _jsonable(self.tool_calls),
+            "status": _jsonable(self.status),
+            "latency_ms": _jsonable(self.latency_ms),
+            "metadata": _jsonable(self.metadata),
+        }
         if self.error:
             data["error"] = _jsonable(self.error)
         return data
@@ -249,15 +258,14 @@ def _first_text(data: JsonDict, keys: tuple[str, ...]) -> str:
     for key in keys:
         value = data.get(key)
         if value is not None:
-            return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+            return _text_value(value)
     return ""
 
 
 def _object_text(value: Any) -> str:
     for attr in ("text", "message", "content", "response", "output"):
         if hasattr(value, attr):
-            text = getattr(value, attr)
-            return text if isinstance(text, str) else json.dumps(text, sort_keys=True)
+            return _text_value(getattr(value, attr))
     return str(value)
 
 
@@ -304,3 +312,9 @@ def _jsonable(value: Any) -> Any:
     except (TypeError, ValueError):
         return str(value)
     return copy.deepcopy(value)
+
+
+def _text_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(_jsonable(value), sort_keys=True)

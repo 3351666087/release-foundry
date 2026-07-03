@@ -33,9 +33,19 @@ Mode: read-only Chrome checks. No Ashr API key, password, payment data, or other
 - Billing toggle copy observed: `Monthly` and `Annual Save 17%`.
 - Developer plan: `$39/mo`, hard cap, 5,000 graded scenarios/mo, 250,000 observations/mo, 1,000 voice minutes/mo, 14 day retention, 1 project.
 - Startup plan: `$500/mo`, metered overage, 100,000 graded scenarios/mo, 10,000,000 observations/mo, 50,000 voice minutes/mo, 90 day retention, unlimited projects.
+- Annual toggle was publicly visible. Developer annual price: `$390/yr`; Startup annual price: `$5,000/yr`; Enterprise remains custom/contact sales.
 - Enterprise plan: custom/contact sales for graded scenarios, observations, voice minutes, retention, and projects.
 
 ## Dashboard Shell
 
-- `https://lab.ashr.io/` reached a dashboard shell URL and title `Ashr Labs`.
-- Only shell/loading state and public nav links were checked. Private dashboard data, project data, API key creation, billing portal, checkout, and server-side grading state were not verified.
+- `https://lab.ashr.io/` reached title `Ashr Labs` and URL `https://lab.ashr.io/?tab=analysis`.
+- Current unauthenticated shell shows sign-in actions `Continue with Google` and `Continue with Microsoft`, Terms/Privacy links, public ashr.io/Docs/Blog links, onboarding text `Create your workspace`, and a `Pick a plan` panel.
+- Unauthenticated onboarding plan copy observed: `FREE $0/mo`, `100 images / mo`, `200 audio files / mo`, `100 sample files / mo`, and `CUSTOM Let's talk` with unlimited images/audio/sample files.
+- Only unauthenticated shell/onboarding state and public nav links were checked. Private dashboard data, project data, API key creation, billing portal, checkout, and server-side grading state were not verified.
+
+## API And VM Boundary Notes
+
+- Python API reference publicly lists `list_api_keys(include_inactive=False)` and `revoke_api_key(api_key_id)`.
+- TypeScript API reference publicly lists `listApiKeys(includeInactive?)` and `revokeApiKey(apiKeyId)`.
+- VM docs show `test.set_vm_stream(provider, session_id=None, duration_ms=None, logs=None, metadata=None)`.
+- VM log entry fields are `ts`, `type`, and `data`; docs state VM logs are not auto-captured.

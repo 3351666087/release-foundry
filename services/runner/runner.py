@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib
 import inspect
@@ -269,6 +269,11 @@ def _execute_agent_case(agent: Any, case: Mapping[str, Any], index: int, run_id:
     reset_ok = adapter.reset()
     user_obs = _observation(run_id, case_id, 0, "message", "user", prompt, started_at, started_at, metadata={"scenario_id": scenario_id})
     turn = adapter.respond(prompt)
+    if not reset_ok and turn.error is None:
+        turn = turn.copy()
+        turn.status = ERROR
+        turn.error = adapter.last_reset_error or {"type": "AgentResetError", "message": "agent reset failed"}
+        turn.metadata["reset_ok"] = False
     ended_at = _utc_now()
     status = _case_status(turn, expected, reset_ok)
     grade = _grade_result(scenario_id, turn, expected, status, reset_ok)
@@ -323,7 +328,10 @@ def _grade_result(scenario_id: str, turn: AgentResult, expected: Mapping[str, An
     passed = status == PASSED and reset_ok and text_ok and tools_ok and turn.error is None
     if not expected and reset_ok and turn.error is None:
         passed = True
-    return GradeResult(scenario_id=scenario_id, passed=passed, score=1.0 if passed else 0.0, label=PASSED if passed else status, reason="local checks passed" if passed else "local expected/actual mismatch", expected=dict(expected), actual={"text": turn.text, "tool_calls": turn.tool_calls}, metrics={"text_match": text_ok, "tool_match": tools_ok, "reset_ok": reset_ok, "latency_ms": turn.latency_ms})
+    actual = {"text": turn.text, "tool_calls": turn.tool_calls}
+    if turn.error:
+        actual["error"] = turn.error
+    return GradeResult(scenario_id=scenario_id, passed=passed, score=1.0 if passed else 0.0, label=PASSED if passed else status, reason="local checks passed" if passed else "local expected/actual mismatch", expected=dict(expected), actual=actual, metrics={"text_match": text_ok, "tool_match": tools_ok, "reset_ok": reset_ok, "latency_ms": turn.latency_ms})
 
 
 def _tools_match(expected: Any, actual: list[Mapping[str, Any]]) -> bool:
@@ -345,17 +353,30 @@ def _case_vm_stream(case: Mapping[str, Any], turn: AgentResult, started_at: str,
     return {"provider": "local-runner", "session_id": str(case.get("case_id") or case.get("id") or "local"), "duration_ms": _duration_ms(started_at, ended_at), "logs": _jsonable(logs), "metadata": {"synthetic": True}}
 
 
+def _error_vm_stream(case: Mapping[str, Any], error_type: str, message: str, status: str, duration_ms: int) -> dict[str, Any]:
+    logs = [
+        {"ts": 0, "type": "action", "data": {"action": "respond", "input": _case_prompt(case)}},
+        {"ts": duration_ms, "type": "console", "data": {"level": "error", "message": message, "error_type": error_type, "status": status}},
+    ]
+    return {"provider": "local-runner", "session_id": str(case.get("case_id") or case.get("id") or "local"), "duration_ms": duration_ms, "logs": _jsonable(logs), "metadata": {"synthetic": True, "failure": status}}
+
+
 def _agent_timeout_case(case: Any, index: int, run_id: str, timeout_seconds: float | None) -> dict[str, Any]:
-    return _agent_error_case(case, index, run_id, "TimeoutError", f"case timed out after {timeout_seconds:g} seconds", status=TIMEOUT)
+    duration_ms = int(float(timeout_seconds or 0) * 1000)
+    return _agent_error_case(case, index, run_id, "TimeoutError", f"case timed out after {timeout_seconds:g} seconds", status=TIMEOUT, duration_ms=duration_ms)
 
 
-def _agent_error_case(case: Any, index: int, run_id: str, error_type: str, message: str, status: str = ERROR) -> dict[str, Any]:
+def _agent_error_case(case: Any, index: int, run_id: str, error_type: str, message: str, status: str = ERROR, duration_ms: int | None = None) -> dict[str, Any]:
     mapping, case_id = _normalize_case(case, index)
-    now = _utc_now()
+    started_at = _utc_now()
+    duration_ms = 0 if duration_ms is None else duration_ms
+    ended_at = _add_ms(started_at, duration_ms)
     scenario_id = str(mapping.get("scenario_id") or mapping.get("scenario") or case_id)
     grade = GradeResult(scenario_id=scenario_id, passed=False, score=0.0, label=status, reason=message, expected=_expected_payload(mapping), actual={"error": {"type": error_type, "message": message}})
-    obs = _observation(run_id, case_id, 0, status, "system", message, now, now, status="error", error=message)
-    return CaseResult(case_id=case_id, scenario_id=scenario_id, title=str(mapping.get("title") or scenario_id), status=status, started_at=now, ended_at=now, latency_ms=0, observations=[obs], grade=grade.to_dict(), agent_output={"text": "", "tool_calls": [], "status": status, "error": {"type": error_type, "message": message}}, expected=_expected_payload(mapping), error=message).to_dict()
+    user_obs = _observation(run_id, case_id, 0, "message", "user", _case_prompt(mapping), started_at, started_at, metadata={"scenario_id": scenario_id})
+    error_obs = _observation(run_id, case_id, 1, status, "system", message, started_at, ended_at, latency_ms=duration_ms, status="error", error=message, metadata={"error_type": error_type}, vm_stream=_error_vm_stream(mapping, error_type, message, status, duration_ms))
+    agent_output = AgentResult(text="", tool_calls=[], status=status, latency_ms=duration_ms, error={"type": error_type, "message": message}, metadata={"synthetic": True}).to_dict()
+    return CaseResult(case_id=case_id, scenario_id=scenario_id, title=str(mapping.get("title") or scenario_id), status=status, started_at=started_at, ended_at=ended_at, latency_ms=duration_ms, observations=[user_obs, error_obs], grade=grade.to_dict(), agent_output=agent_output, expected=_expected_payload(mapping), error=message).to_dict()
 
 
 def _normalize_case(case: Any, index: int) -> tuple[dict[str, Any], str]:
@@ -423,6 +444,10 @@ def _utc_now() -> str:
 
 def _duration_ms(started_at: str, ended_at: str) -> int:
     return max(0, int((_parse_time(ended_at) - _parse_time(started_at)).total_seconds() * 1000))
+
+
+def _add_ms(started_at: str, duration_ms: int) -> str:
+    return (_parse_time(started_at) + timedelta(milliseconds=duration_ms)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _parse_time(value: str) -> datetime:

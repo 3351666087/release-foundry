@@ -77,3 +77,56 @@ Remaining:
 - A2 `Scenario` / Judge / Golden adapter waits for Gate contract.
 - A3 should confirm final `RunResult` / `Observation` / `GradeResult` schema expectations.
 - Strict VM frame schema validation and TypeScript parity remain optional future enhancements.
+
+## 2026-07-03 Round 3 Schema/Timeout Hardening
+
+Goal: run a new A1 enhancement/review loop after Round 2, with official site recalibration, Bus-Auditor/role reviews, and one highest-ROI implementation.
+
+Start protocol:
+
+- `git fetch origin`: success.
+- `git status -sb --untracked-files=all`: clean at start, branch `codex/a1-local-sdk-runner` tracking origin.
+- PR check: draft PR #1 open, base `main`, head `codex/a1-local-sdk-runner`.
+- Peer changes: none observed; local and remote branch were synchronized at `074c510`.
+- Recent worklog and previous top remaining items were read before implementation.
+
+Three proposed enhancements:
+
+1. A3 failure/schema hardening: timeout/error cases remain replayable, VM frames are strictly validated, AgentTurn has a stable schema version, and schema snapshots exist for A3/Gate review.
+2. Strict RunResult golden snapshots across all-pass, mixed failure, and timeout runs.
+3. TypeScript SDK parity.
+
+Implemented highest ROI enhancement: A3 failure/schema hardening. TypeScript parity and final A2 Scenario/Judge/Golden adapter remain deferred.
+
+Subagent findings:
+
+- Bus-Auditor: initial repo/PR/tooling state passed; suggested updating stale final bus audit evidence.
+- Explorer-Chrome/Product: public homepage/Python/TypeScript/monthly Plans records still accurate, but annual prices, unauthenticated `lab.ashr.io` onboarding shell, API key list/revoke docs, and VM stream signature needed evidence updates.
+- Explorer-SDK: A3 helpers are usable, but lack of schema snapshots/strict validation was a contract risk.
+- Worker-Adapter: `AgentResult.text`, non-JSON content extraction, direct `ToolCall.to_dict()`, and AgentTurn schema version needed hardening.
+- Worker-Runner: agent timeout cases only had one system observation and no VM stream, lowering mixed-run trace completeness; 80-case regression and shared-lock active-count coverage were recommended.
+- Worker-Trace: `validate_run_fixture` accepted malformed VM frames and `trace_events_from_vm_stream` treated unknown streams as lifecycle control.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/adapter.py`: added `AGENT_TURN_SCHEMA_VERSION`, schema-versioned `AgentResult.to_dict()`, JSON-safe text/status/latency fields, and safe text extraction for non-JSON content.
+- `packages/sdk/ashr_clone/types.py`: made direct dataclass `to_dict()` paths JSON-safe for mappings, tuples, sets, and non-JSON values.
+- `services/runner/runner.py`: agent error/timeout cases now emit user + system observations, synthetic VM stream metadata, `agent_output.schema_version`, and `grade.actual.error`.
+- `packages/sdk/ashr_clone/trace.py`: added strict VM frame shape/type/schema/sequence validation and event-frame consistency checks; unknown VM streams are rejected instead of silently replayed as lifecycle.
+- `tests/a1`: added Adapter JSON/schema tests, 80-case runner regression, A3 timeout trace completeness assertions, shared-lock active-count assertion, schema snapshot tests, VM frame negative tests, and bad VM replay rejection.
+- `docs/a1/schemas`: added local schema snapshots for `agent_turn`, `run_result`, `case_result`, `observation`, `grade_result`, `run_fixture`, `trace_event`, and `vm_stream_frame`.
+- `docs/a1/explorer_chrome.md` and `docs/evidence/official_site_gaps.md`: updated annual pricing, unauthenticated dashboard/onboarding shell, API key list/revoke docs, and VM stream signature notes.
+
+Verification:
+
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `33 passed in 1.46s`.
+- `python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.json --output docs/a1/evidence/local_run_30.json --agent examples.agents.mock_agent:RespondingMockAgent --dataset-id a2-local-scenarios --runner-id a1-local-runner --max-workers 4 --timeout 5 --fail-on-case-failure`: `30 passed`, `0 failed`, `0 errors`, `0 timeouts`, trace `100.00%`.
+- `python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures`: rewrote three A3 fixtures.
+- Evidence summary: `total_cases=30`, `passed=30`, `trace_completeness=1.0`, `max_workers=4`, `agent_output.schema_version=ashr.clone.agent_turn.v1`.
+
+Remaining:
+
+- A2 final Scenario/Judge/Golden adapter waits for Gate contract.
+- A3 should confirm final schema snapshots and optional-field behavior.
+- Timeout still uses daemon threads and cannot safely cancel arbitrary sync agent code; stronger isolation would require process-level execution or a cancellable agent contract.
+- TypeScript runtime parity remains optional future work.

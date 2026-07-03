@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 GradeResult",
+  "type": "object",
+  "required": ["scenario_id", "passed", "score", "label", "reason", "expected", "actual"],
+  "properties": {
+    "scenario_id": { "type": "string" },
+    "passed": { "type": "boolean" },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "label": { "type": "string" },
+    "reason": { "type": "string" },
+    "expected": { "type": "object" },
+    "actual": { "type": "object" },
+    "metrics": { "type": "object" }
+  },
+  "additionalProperties": true
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import json
 from typing import Any
 
 JsonDict = dict[str, Any]
@@ -104,7 +105,15 @@ class RunResult:
 
 def _drop_none(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: _drop_none(item) for key, item in value.items() if item is not None}
+        return {str(key): _drop_none(value[key]) for key in sorted(value, key=lambda item: str(item)) if value[key] is not None}
     if isinstance(value, list):
         return [_drop_none(item) for item in value]
+    if isinstance(value, tuple):
+        return [_drop_none(item) for item in value]
+    if isinstance(value, set):
+        return [_drop_none(item) for item in sorted(value, key=repr)]
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError):
+        return str(value)
     return value

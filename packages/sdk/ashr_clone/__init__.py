@@ -1,6 +1,6 @@
 """Local Ashr clone SDK surface for A1 runner work."""
 
-from .adapter import AgentAdapter, AgentAdapterError, AgentResult, AgentTurn
+from .adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult, AgentTurn
 from .trace import (
     TraceEvent,
     TraceRecorder,
@@ -20,6 +20,7 @@ __all__ = [
     "AgentAdapterError",
     "AgentResult",
     "AgentTurn",
+    "AGENT_TURN_SCHEMA_VERSION",
     "CaseResult",
     "GradeResult",
     "Observation",

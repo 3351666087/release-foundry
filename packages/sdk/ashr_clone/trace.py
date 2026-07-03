@@ -11,6 +11,8 @@ TRACE_SCHEMA = "ashr.clone.trace.v1"
 RUN_FIXTURE_SCHEMA = "ashr.clone.run.v1"
 VM_STREAM_SCHEMA = "ashr.clone.vm_stream.v1"
 FIXED_STARTED_AT = "2026-01-01T00:00:00.000Z"
+VM_FRAME_KEYS = {"schema", "seq", "timestamp", "event_id", "stream", "status", "text", "data"}
+VM_STREAMS = {"stdin", "stdout", "tool_call", "tool_result", "lifecycle", "metric", "stderr", "state"}
 
 
 def stable_id(prefix: str, *parts: Any, size: int = 16) -> str:
@@ -175,7 +177,11 @@ def build_vm_stream(events: Iterable[EventInput]) -> list[dict[str, Any]]:
 
 def trace_events_from_vm_stream(run_id: str, frames: Iterable[Mapping[str, Any]], source: str = "vm_replay", started_at: str = FIXED_STARTED_AT) -> list[TraceEvent]:
     recorder = TraceRecorder(run_id=run_id, source=source, started_at=started_at)
-    for frame in sorted(frames, key=lambda item: int(item["seq"])):
+    frame_list = [_validate_vm_frame_shape(frame) for frame in frames]
+    seqs = [frame["seq"] for frame in sorted(frame_list, key=lambda item: item["seq"])]
+    if seqs != list(range(len(seqs))):
+        raise ValueError("vm_stream frame seqs must be contiguous from zero")
+    for frame in sorted(frame_list, key=lambda item: item["seq"]):
         stream = str(frame["stream"])
         text = str(frame.get("text", ""))
         data = frame.get("data", {})
@@ -189,6 +195,10 @@ def trace_events_from_vm_stream(run_id: str, frames: Iterable[Mapping[str, Any]]
             recorder.append(Observation("tool_result", channel="tool", text=text, data=data, status=str(frame.get("status", "ok"))), "tool")
         elif stream == "metric":
             recorder.append(Observation("metric", channel="system", text=text, data=data), "telemetry")
+        elif stream == "stderr":
+            recorder.append(Observation.error(text, data=data), "vm")
+        elif stream == "state":
+            recorder.append(Observation("state", channel="vm", text=text, data=data, status=str(frame.get("status", "ok"))), "vm")
         else:
             recorder.control(text, status=str(frame.get("status", "ok")), data=data)
     return recorder.events()
@@ -215,9 +225,56 @@ def validate_run_fixture(fixture: Mapping[str, Any]) -> bool:
     if not isinstance(frames, list) or len(frames) != len(events):
         raise ValueError("vm_stream must contain one frame per event")
     parsed = [TraceEvent.from_dict(event) for event in events]
+    run_id = str(run["run_id"])
+    if any(event.run_id != run_id for event in parsed):
+        raise ValueError("all events must match run.run_id")
     if [event.seq for event in parsed] != list(range(len(parsed))):
         raise ValueError("event seqs must be contiguous from zero")
+    for event in parsed:
+        _parse_timestamp(event.timestamp)
+    replay = fixture.get("replay", {})
+    if replay and (not isinstance(replay, Mapping) or any(key in replay and not isinstance(replay[key], str) for key in ("entrypoint", "command", "mode"))):
+        raise ValueError("replay metadata must contain string entrypoint/command/mode values when present")
+    normalized_frames = [_validate_vm_frame_shape(frame) for frame in frames]
+    if [frame["seq"] for frame in normalized_frames] != list(range(len(normalized_frames))):
+        raise ValueError("vm_stream frame seqs must be contiguous from zero")
+    expected_frames = build_vm_stream(parsed)
+    if normalized_frames != expected_frames:
+        raise ValueError("vm_stream frames must match trace events")
     return True
+
+
+def _validate_vm_frame_shape(frame: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(frame, Mapping):
+        raise ValueError("vm_stream frame must be a mapping")
+    keys = set(frame)
+    if keys != VM_FRAME_KEYS:
+        raise ValueError(f"vm_stream frame keys must be {sorted(VM_FRAME_KEYS)}")
+    if frame.get("schema") != VM_STREAM_SCHEMA:
+        raise ValueError(f"unsupported vm_stream schema: {frame.get('schema')}")
+    seq = frame.get("seq")
+    if isinstance(seq, bool) or not isinstance(seq, int):
+        raise ValueError("vm_stream frame seq must be an integer")
+    timestamp = frame.get("timestamp")
+    event_id = frame.get("event_id")
+    stream = frame.get("stream")
+    status = frame.get("status")
+    text = frame.get("text")
+    data = frame.get("data")
+    if not isinstance(timestamp, str):
+        raise ValueError("vm_stream frame timestamp must be a string")
+    _parse_timestamp(timestamp)
+    if not isinstance(event_id, str):
+        raise ValueError("vm_stream frame event_id must be a string")
+    if not isinstance(stream, str) or stream not in VM_STREAMS:
+        raise ValueError(f"unsupported vm_stream stream: {stream}")
+    if not isinstance(status, str):
+        raise ValueError("vm_stream frame status must be a string")
+    if not isinstance(text, str):
+        raise ValueError("vm_stream frame text must be a string")
+    if not isinstance(data, Mapping):
+        raise ValueError("vm_stream frame data must be a mapping")
+    return {"schema": frame["schema"], "seq": seq, "timestamp": timestamp, "event_id": event_id, "stream": stream, "status": status, "text": text, "data": _json_normalize(dict(data))}
 
 
 def write_run_fixture(path: str | Path, fixture: Mapping[str, Any]) -> None:

@@ -6,7 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
-from ashr_clone.adapter import AgentAdapter, AgentResult  # noqa: E402
+from ashr_clone.adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult  # noqa: E402
+from ashr_clone.types import ToolCall  # noqa: E402
 
 
 class RespondAgent:
@@ -92,11 +93,38 @@ class AgentAdapterTests(unittest.TestCase):
         self.assertEqual(result.metadata["style"], "callable")
 
     def test_agent_result_to_dict_is_json_safe(self):
-        result = AgentResult(text="ok", tool_calls=[{"name": "local", "output": Path("not-json")}], metadata={"labels": {"b", "a"}})
+        result = AgentResult(text=Path("answer.txt"), tool_calls=[{"name": "local", "output": Path("not-json")}], metadata={"labels": {"b", "a"}})
         payload = result.to_dict()
+        self.assertEqual(payload["schema_version"], AGENT_TURN_SCHEMA_VERSION)
+        self.assertEqual(payload["text"], "answer.txt")
         self.assertEqual(payload["tool_calls"][0]["output"], "not-json")
         self.assertEqual(payload["metadata"]["labels"], ["a", "b"])
         self.assertIsInstance(json.dumps(payload), str)
+
+    def test_non_json_text_fields_are_normalized_without_adapter_error(self):
+        result = AgentAdapter(lambda prompt: {"content": Path("content.txt")}).respond("ignored")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, '"content.txt"')
+
+    def test_tool_call_to_dict_is_json_safe_directly(self):
+        payload = ToolCall(name="local", output=Path("tool-output.txt"), arguments={"labels": {"b", "a"}}).to_dict()
+        self.assertEqual(payload["output"], "tool-output.txt")
+        self.assertEqual(payload["arguments"]["labels"], ["a", "b"])
+        self.assertIsInstance(json.dumps(payload), str)
+
+    def test_raise_errors_wraps_reset_failure_and_preserves_respond_exception(self):
+        class FailingResetAgent:
+            def reset(self):
+                raise RuntimeError("reset boom")
+
+            def respond(self, prompt):
+                raise ValueError("respond boom")
+
+        adapter = AgentAdapter(FailingResetAgent(), raise_errors=True)
+        with self.assertRaises(AgentAdapterError):
+            adapter.reset()
+        with self.assertRaises(ValueError):
+            adapter.respond("boom")
 
 
 class AsyncAgentAdapterTests(unittest.IsolatedAsyncioTestCase):

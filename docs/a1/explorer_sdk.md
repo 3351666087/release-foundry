@@ -10,6 +10,7 @@ The downloaded upstream artifacts under `docs/a1/_pypi_artifacts/` are evidence 
 - PyPI artifacts: `docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl` and `docs/a1/_pypi_artifacts/ashr_labs-0.3.1.tar.gz` were retained as evidence only.
 - Runtime import path: A1 code inserts `packages/sdk` into `sys.path`; it does not add `_pypi_artifacts` to the runtime path.
 - Local clone exports: `ashr_clone.__all__` exposes adapter/result types plus TraceEvent and fixture/replay helpers for A3 consumption.
+- Local schema snapshots: `docs/a1/schemas` records AgentTurn, RunResult, run fixture, trace event, and VM stream frame shapes for A3/Gate review.
 
 ## Field Source Groups
 
@@ -23,3 +24,4 @@ The downloaded upstream artifacts under `docs/a1/_pypi_artifacts/` are evidence 
 - A2 final Scenario/Judge/Golden adapter remains deferred until Gate contract.
 - TypeScript SDK parity is not implemented in A1; only docs were calibrated.
 - There is no package installer metadata yet; fresh setup currently runs from the repository root with `packages/sdk` on `sys.path`.
+- AgentTurn now emits `schema_version: ashr.clone.agent_turn.v1`; RunResult continues to expose the run contract version in `aggregate_metrics.schema_version`.

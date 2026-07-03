@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 AgentTurn",
+  "type": "object",
+  "required": ["schema_version", "text", "tool_calls", "status", "latency_ms", "metadata"],
+  "properties": {
+    "schema_version": { "const": "ashr.clone.agent_turn.v1" },
+    "text": {},
+    "tool_calls": { "type": "array" },
+    "status": { "type": "string" },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "metadata": { "type": "object" },
+    "error": {
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
