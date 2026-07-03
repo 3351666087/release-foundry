@@ -1,0 +1,99 @@
+﻿# Kay A2 Worklog
+
+## 2026-07-03 - Supervisor kickoff
+
+Role: Kay, A2 / Scenario & Judge.
+
+Long-running goal:
+- Build the Ashr A2 G1-G2 foundation on branch `dev/a2-scenario-judge`.
+- Final target: 60 scenarios, 5 rubric classes, 5 judge modes, 20 golden cases, 12 failure classes.
+- Current foundation target: scenario/rubric/judge/failure taxonomy v0, first 20 scenarios, 2 local judges, golden seeds, tests, and A1/A3-compatible JSON outputs.
+
+Supervisor setup:
+- GitHub CLI installed and authenticated as `KayZhongyi`.
+- Repository cloned locally under `work/ashr-codex-factory`.
+- Branch created: `dev/a2-scenario-judge`.
+- Heartbeat automation created for 15-minute self-checks.
+- Subagents launched:
+  - Research Agent: read-only evaluation design recommendations.
+  - Scenario Worker: `packages/scenarios`, `docs/a2`.
+  - Judge Worker: `services/judge`, `tests/a2`.
+  - Failure/Golden Worker: `fixtures/golden`, `docs/a2`.
+
+Scope rules:
+- Kay-owned write paths: `packages/scenarios`, `services/judge`, `fixtures/golden`, `tests/a2`, `docs/a2`, `docs/worklog`.
+- Do not modify A1/A3 paths.
+- Do not directly modify shared schemas without a change request.
+
+Evaluation principle:
+- Score each scenario by what that scenario requires.
+- Do not reward calling every tool.
+- Tool policy must distinguish `required`, `optional`, and `forbidden` tools.
+- Later enhancements may include external quality signals such as GitHub stars, but G1-G2 focuses on deterministic, reproducible local evaluation.
+
+## 2026-07-03 - Visible-thread architecture revision
+
+Reason for revision:
+- Hidden subagents were less visible to Kay and one worker wrote draft files outside the target repo because the patch path did not stay anchored to `work/ashr-codex-factory`.
+- Architecture was paused before any commit/push.
+
+Revised execution model:
+1. Current thread remains the main A2 supervisor and the only code integrator.
+2. Visible Codex threads are used for read-only design first:
+   - A2 Research Design
+   - A2 Scenario Design
+   - A2 Judge Design
+   - A2 Failure & Golden Design
+3. Design threads must not edit files, run git write commands, commit, push, or spawn more agents.
+4. Main supervisor collects their reports, then writes code in the target repo with explicit `workdir` and scoped file changes.
+5. Main supervisor runs tests, checks `git status` / `git diff`, updates worklog, and only then commits/pushes Kay-owned paths.
+
+Transition plan:
+- Early phase: one integration branch `dev/a2-scenario-judge`; visible threads are read-only.
+- After schema v0 and G2 local loop stabilize, optional later phase can split implementation branches by module, such as `dev/a2-scenarios`, `dev/a2-judge`, and `dev/a2-golden`.
+- Branch split is postponed until field names and output contracts are stable, to avoid schema drift.
+
+Safety rules:
+- Keep heartbeat paused or check-only until Kay asks for autonomous continuation.
+- Do not use `git add .`.
+- Do not use external social signals such as GitHub stars as G1-G2 scoring criteria; keep them as possible later metadata only.
+- Treat repo-outside generated files as scratch only unless deliberately reviewed and copied into the target repo.
+
+Visible design threads created:
+- Research: 019f286a-42ec-7a93-8e81-3a0b971d442b
+- Scenario: 019f286a-54cd-7e73-b3b8-7665bc07c21c
+- Judge: 019f286a-66d3-72a3-ab68-7e4e26fd7a49
+- Failure/Golden: 019f286a-78ad-7e81-9cca-62b1e03ec84d
+
+## 2026-07-03 - A2 G1-G2 foundation implementation
+
+Visible design reports completed and were consistent on:
+- `toolPolicy` with required / optional / forbidden tools.
+- G1-G2 deterministic local judges before G3 Ashr server-side calibration.
+- First 20 seed scenarios as the G2 starter pack.
+- 5 rubric classes, 5 judge modes, 12 failure classes, and 20 golden cases.
+
+Implemented in Kay-owned paths:
+- `docs/a2/scenario_schema.md`
+- `docs/a2/scenario_coverage_plan.md`
+- `docs/a2/failure_taxonomy_v0.md`
+- `packages/scenarios/a2_g2_seed_pack.json`
+- `fixtures/golden/a2_g2_golden_cases.json`
+- `services/judge/*`
+- `tests/a2/test_judges.py`
+
+Local judge foundation:
+- `ToolPolicyJudge`: checks required tools, optional tools, forbidden tools, exact/contains argument rules, and tool order.
+- `OutcomeJudge`: checks deterministic final response constraints such as expected keywords, forbidden keywords, and no-tool response contracts.
+
+Verification:
+- `python -m json.tool packages/scenarios/a2_g2_seed_pack.json`
+- `python -m json.tool fixtures/golden/a2_g2_golden_cases.json`
+- `python -m unittest discover -s tests/a2 -v`
+- Result: 8 tests passed.
+
+Remaining gaps:
+- G2 still needs richer fixture files for referenced paths.
+- Judges are deterministic seeds, not yet semantic LLM judges.
+- A1 runner integration and A3 dashboard consumption are pending other tracks.
+- G3 Ashr API/server-side grading calibration is intentionally deferred.
