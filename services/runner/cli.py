@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 
 try:
-    from .runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, run_agent_file, run_file
+    from .runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalize_timeout_seconds, run_agent_file, run_file
 except ImportError:  # pragma: no cover
-    from runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, run_agent_file, run_file
+    from runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalize_timeout_seconds, run_agent_file, run_file
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,8 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    timeout = None if args.no_timeout else args.timeout
     try:
+        timeout = None if args.no_timeout else normalize_timeout_seconds(args.timeout, field_name="--timeout")
         if args.agent:
             results = run_agent_file(Path(args.input), Path(args.output), args.agent, dataset_id=args.dataset_id, runner_id=args.runner_id, max_workers=args.max_workers, timeout_seconds=timeout)
             print("ran {total_cases} agent cases: {passed} passed, {failed} failed, {errored} errors, {timed_out} timeouts, trace {trace_completeness:.2%} -> {output}".format(output=args.output, **results))

@@ -8,4 +8,6 @@ Adapter follow-up resolved: non-callable `respond` attributes no longer mask cal
 
 Round 3 resolved: agent timeout/error cases now emit A3-consumable failure traces with user + system observations, synthetic VM stream metadata, and `grade.actual.error`; VM stream frames are strictly validated against trace events; `AgentTurn` output includes `schema_version: ashr.clone.agent_turn.v1`; local schema snapshots live in `docs/a1/schemas`.
 
+Round 4 resolved: negative default `timeout_seconds` / CLI `--timeout` values are rejected before execution, and negative per-case timeout values become schema-safe A3 error cases instead of negative latency/duration payloads. Tests now cover CLI rejection, case-level negative timeout handling, and an emitted mixed RunResult schema guard for required fields and minimum-zero timing fields.
+
 Remaining: A2 final `Scenario` / Judge / Golden adapters should wait for Gate contract.

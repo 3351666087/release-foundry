@@ -12,6 +12,6 @@ python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.j
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `33 passed`, 30/30 local agent cases passed, trace completeness 1.0, and three A3 fixtures generated.
+Current follow-up verification: `37 passed`, 30/30 local agent cases passed, trace completeness 1.0, and three A3 fixtures generated.
 
 Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.

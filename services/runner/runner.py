@@ -39,6 +39,15 @@ def normalize_max_workers(max_workers: int | None) -> int:
     return max(MIN_MAX_WORKERS, requested)
 
 
+def normalize_timeout_seconds(timeout_seconds: float | None, *, field_name: str = "timeout_seconds") -> float | None:
+    if timeout_seconds is None:
+        return None
+    value = float(timeout_seconds)
+    if value < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return value
+
+
 def load_cases(path: str | Path) -> list[Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     cases = payload.get("cases") if isinstance(payload, Mapping) else payload
@@ -57,7 +66,7 @@ def write_results_json(results: Mapping[str, Any], path: str | Path) -> Path:
 class BatchRunner:
     def __init__(self, *, max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> None:
         self.max_workers = normalize_max_workers(max_workers)
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = normalize_timeout_seconds(timeout_seconds)
 
     def run(self, cases: Iterable[Any]) -> dict[str, Any]:
         return run_batch(cases, max_workers=self.max_workers, timeout_seconds=self.timeout_seconds)
@@ -69,20 +78,20 @@ class LocalEvalRunner:
         self.dataset_id = dataset_id
         self.runner_id = runner_id
         self.max_workers = normalize_max_workers(max_workers)
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = normalize_timeout_seconds(timeout_seconds)
 
     def run(self, cases: Iterable[Any]) -> dict[str, Any]:
         return run_agent_batch(self.agent, cases, dataset_id=self.dataset_id, runner_id=self.runner_id, max_workers=self.max_workers, timeout_seconds=self.timeout_seconds)
 
 
 def run_file(input_path: str | Path, output_path: str | Path, *, max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
-    results = run_batch(load_cases(input_path), max_workers=max_workers, timeout_seconds=timeout_seconds)
+    results = run_batch(load_cases(input_path), max_workers=max_workers, timeout_seconds=normalize_timeout_seconds(timeout_seconds))
     write_results_json(results, output_path)
     return results
 
 
 def run_agent_file(input_path: str | Path, output_path: str | Path, agent: Any, *, dataset_id: str = "local-dataset", runner_id: str = "a1-local-runner", max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
-    results = run_agent_batch(agent, load_cases(input_path), dataset_id=dataset_id, runner_id=runner_id, max_workers=max_workers, timeout_seconds=timeout_seconds)
+    results = run_agent_batch(agent, load_cases(input_path), dataset_id=dataset_id, runner_id=runner_id, max_workers=max_workers, timeout_seconds=normalize_timeout_seconds(timeout_seconds))
     write_results_json(results, output_path)
     return results
 
@@ -90,9 +99,10 @@ def run_agent_file(input_path: str | Path, output_path: str | Path, agent: Any, 
 def run_batch(cases: Iterable[Any], *, max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     case_list = list(cases)
     worker_count = normalize_max_workers(max_workers)
+    default_timeout = normalize_timeout_seconds(timeout_seconds)
     ordered: list[dict[str, Any] | None] = [None] * len(case_list)
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {executor.submit(run_case, case, index=index, timeout_seconds=timeout_seconds): index for index, case in enumerate(case_list)}
+        futures = {executor.submit(run_case, case, index=index, timeout_seconds=default_timeout): index for index, case in enumerate(case_list)}
         for future in as_completed(futures):
             index = futures[future]
             try:
@@ -131,12 +141,13 @@ def execute_case(case: Any, *, index: int = 0) -> dict[str, Any]:
 def run_agent_batch(agent: Any, cases: Iterable[Any], *, dataset_id: str = "local-dataset", runner_id: str = "a1-local-runner", max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
     case_list = list(cases)
     worker_count = normalize_max_workers(max_workers)
+    default_timeout = normalize_timeout_seconds(timeout_seconds)
     agent_factory = _agent_factory(agent)
     started_at = _utc_now()
     run_id = _stable_run_id(dataset_id, runner_id, case_list, started_at)
     ordered: list[dict[str, Any] | None] = [None] * len(case_list)
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {executor.submit(_run_agent_case, agent_factory, case, index, run_id, timeout_seconds): index for index, case in enumerate(case_list)}
+        futures = {executor.submit(_run_agent_case, agent_factory, case, index, run_id, default_timeout): index for index, case in enumerate(case_list)}
         for future in as_completed(futures):
             index = futures[future]
             try:
@@ -362,7 +373,7 @@ def _error_vm_stream(case: Mapping[str, Any], error_type: str, message: str, sta
 
 
 def _agent_timeout_case(case: Any, index: int, run_id: str, timeout_seconds: float | None) -> dict[str, Any]:
-    duration_ms = int(float(timeout_seconds or 0) * 1000)
+    duration_ms = max(0, int(float(timeout_seconds or 0) * 1000))
     return _agent_error_case(case, index, run_id, "TimeoutError", f"case timed out after {timeout_seconds:g} seconds", status=TIMEOUT, duration_ms=duration_ms)
 
 
@@ -409,8 +420,8 @@ def _expected_payload(case: Mapping[str, Any]) -> dict[str, Any]:
 def _effective_timeout(case: Mapping[str, Any], default_timeout: float | None) -> float | None:
     for key in ("timeout_seconds", "timeout", "case_timeout_seconds"):
         if key in case and case[key] is not None:
-            return float(case[key])
-    return None if default_timeout is None else float(default_timeout)
+            return normalize_timeout_seconds(case[key], field_name=key)
+    return normalize_timeout_seconds(default_timeout)
 
 
 def _has_target(case: Mapping[str, Any]) -> bool:

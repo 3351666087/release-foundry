@@ -76,6 +76,44 @@ class LockedSharedAgent:
         return result
 
 
+def assert_a3_run_result_schema_guard(result):
+    required_run_keys = {"run_id", "dataset_id", "runner_id", "status", "total_cases", "passed", "failed", "errored", "timed_out", "started_at", "ended_at", "duration_ms", "max_workers", "trace_completeness", "cases", "aggregate_metrics", "metadata", "field_map_version"}
+    assert required_run_keys <= set(result)
+    assert result["total_cases"] >= 0
+    assert result["passed"] >= 0
+    assert result["failed"] >= 0
+    assert result["errored"] >= 0
+    assert result["timed_out"] >= 0
+    assert result["duration_ms"] >= 0
+    assert result["max_workers"] >= 4
+    assert 0 <= result["trace_completeness"] <= 1
+    assert result["metadata"]["local_only"] is True
+    assert result["metadata"]["ashr_api_used"] is False
+    assert result["aggregate_metrics"]["schema_version"] == "ashr.clone.run_result.v1"
+
+    required_case_keys = {"case_id", "scenario_id", "title", "status", "started_at", "ended_at", "latency_ms", "observations", "grade", "agent_output", "expected", "metadata"}
+    required_observation_keys = {"observation_id", "run_id", "case_id", "turn_index", "event_type", "role", "started_at", "ended_at", "status", "metadata"}
+    required_grade_keys = {"scenario_id", "passed", "score", "label", "reason", "expected", "actual"}
+    required_agent_keys = {"schema_version", "text", "tool_calls", "status", "latency_ms", "metadata"}
+    for case in result["cases"]:
+        assert required_case_keys <= set(case)
+        assert case["latency_ms"] >= 0
+        assert required_grade_keys <= set(case["grade"])
+        assert 0 <= case["grade"]["score"] <= 1
+        assert required_agent_keys <= set(case["agent_output"])
+        assert case["agent_output"]["schema_version"] == "ashr.clone.agent_turn.v1"
+        assert case["agent_output"]["latency_ms"] >= 0
+        for observation in case["observations"]:
+            assert required_observation_keys <= set(observation)
+            assert observation["turn_index"] >= 0
+            if observation.get("latency_ms") is not None:
+                assert observation["latency_ms"] >= 0
+            if observation.get("vm_stream"):
+                stream = observation["vm_stream"]
+                assert {"provider", "session_id", "duration_ms", "logs", "metadata"} <= set(stream)
+                assert stream["duration_ms"] >= 0
+
+
 def test_run_batch_supports_30_cases_and_preserves_order():
     cases = [{"id": f"case-{index:02d}", "input": index, "expected": index} for index in range(30)]
     results = run_batch(cases, max_workers=1, timeout_seconds=None)
@@ -117,6 +155,51 @@ def test_per_case_timeout_marks_case_without_blocking_batch():
     assert time.monotonic() - started < 0.5
 
 
+def test_negative_default_timeout_is_rejected():
+    cases = [{"id": "literal", "input": "ok", "expected": "ok"}]
+    try:
+        run_batch(cases, timeout_seconds=-0.1)
+    except ValueError as exc:
+        assert "timeout_seconds must be non-negative" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("negative timeout should be rejected")
+
+    try:
+        run_agent_batch(RespondingMockAgent, cases, timeout_seconds=-0.1)
+    except ValueError as exc:
+        assert "timeout_seconds must be non-negative" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("negative agent timeout should be rejected")
+
+
+def test_negative_agent_case_timeout_is_schema_safe_error():
+    case = {"id": "bad-timeout", "prompt": "hello", "timeout_seconds": -0.1, "expected": {"text": "Echo: hello"}}
+    result = run_agent_batch(RespondingMockAgent, [case], max_workers=4, timeout_seconds=5)
+    emitted = result["cases"][0]
+    assert emitted["status"] == "error"
+    assert emitted["latency_ms"] == 0
+    assert emitted["agent_output"]["latency_ms"] == 0
+    assert emitted["observations"][1]["latency_ms"] == 0
+    assert emitted["observations"][1]["vm_stream"]["duration_ms"] == 0
+    assert "timeout_seconds must be non-negative" in emitted["error"]
+
+
+def test_emitted_mixed_agent_run_result_matches_schema_guard():
+    cases = [
+        {"id": "pass", "prompt": "ok", "expected": {"text": "ok"}},
+        {"id": "fail", "prompt": "actual", "expected": {"text": "expected"}},
+        {"id": "error", "prompt": "error", "expected": {"text": "unused"}},
+        {"id": "timeout", "prompt": "slow", "timeout_seconds": 0.05, "expected": {"text": "late"}},
+        {"id": "bad-timeout", "prompt": "ok", "timeout_seconds": -0.1, "expected": {"text": "ok"}},
+    ]
+    result = run_agent_batch(MixedOutcomeAgent, cases, max_workers=4, timeout_seconds=5)
+    assert result["passed"] == 1
+    assert result["failed"] == 1
+    assert result["errored"] == 2
+    assert result["timed_out"] == 1
+    assert_a3_run_result_schema_guard(result)
+
+
 def test_json_output_is_deterministic(tmp_path):
     results = BatchRunner(max_workers=2, timeout_seconds=None).run([{"id": "b", "input": {"z": 1, "a": 2}, "expected": {"a": 2, "z": 1}}])
     first = tmp_path / "first.json"
@@ -146,6 +229,16 @@ def test_cli_fail_on_case_failure_returns_nonzero_and_writes_json(tmp_path):
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["summary"]["failed"] == 1
     assert "1 failed" in completed.stdout
+
+
+def test_cli_rejects_negative_timeout(tmp_path):
+    input_path = tmp_path / "cases.json"
+    output_path = tmp_path / "results.json"
+    input_path.write_text(json.dumps({"cases": [{"id": "literal", "input": "ok", "expected": "ok"}]}), encoding="utf-8")
+    completed = subprocess.run([sys.executable, "-B", "-m", "services.runner.cli", "--input", str(input_path), "--output", str(output_path), "--timeout", "-0.1"], cwd=str(Path(__file__).resolve().parents[2]), text=True, capture_output=True, check=False)
+    assert completed.returncode == 2
+    assert "--timeout must be non-negative" in completed.stderr
+    assert not output_path.exists()
 
 
 def test_agent_runner_emits_a3_run_result_with_complete_trace():
