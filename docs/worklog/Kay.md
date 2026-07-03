@@ -144,3 +144,19 @@ Verification:
 - `python -m json.tool fixtures/a2/runs/a2_s004_missing_tool.json`
 - `python -m unittest discover -s tests/a2 -v`
 - Result: 14 tests passed.
+
+## 2026-07-03 - A1/A3 handoff examples
+
+Goal:
+- Make A2 outputs easy for A1 and A3 to consume without reading implementation internals.
+
+Implemented:
+- Added `docs/a2/a1_a3_handoff.md` with the current A1 run input and A3 display output contract.
+- Generated sample grade result fixtures under `fixtures/a2/results`.
+- Extended contract tests so sample result fixtures must match `grade_run` output exactly.
+
+Verification:
+- `python -m json.tool fixtures/a2/results/a2_s001_pass_grade.json`
+- `python -m json.tool fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- `python -m unittest discover -s tests/a2 -v`
+- Result: 15 tests passed.
