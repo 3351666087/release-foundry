@@ -249,7 +249,10 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.executable_failure_classes_missing.length, 0);
   assert.equal(summary.coverage_warning_count, 2);
   assert.equal(Object.keys(summary.thin_golden_failure_classes).length, 9);
-  assert.equal(Object.keys(summary.thin_executable_failure_classes).length, 12);
+  assert.equal(Object.keys(summary.thin_executable_failure_classes).length, 9);
+  assert.equal(summary.thin_executable_failure_classes.hallucinated_tool_result, undefined);
+  assert.equal(summary.thin_executable_failure_classes.wrong_arguments, undefined);
+  assert.equal(summary.thin_executable_failure_classes.poor_failure_recovery, undefined);
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);

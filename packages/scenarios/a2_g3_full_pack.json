@@ -929,6 +929,11 @@
         "required": [
           {
             "tool": "shell.exec",
+            "args": {
+              "contains": {
+                "command": "node --version"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }
@@ -1050,6 +1055,11 @@
         "required": [
           {
             "tool": "image.view",
+            "args": {
+              "contains": {
+                "path": "fixtures/a2/images/dashboard-alert.png"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }
@@ -1111,6 +1121,11 @@
         "required": [
           {
             "tool": "mcp.resource",
+            "args": {
+              "contains": {
+                "resource": "product-spec"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }
@@ -1946,6 +1961,11 @@
         "required": [
           {
             "tool": "calculator",
+            "args": {
+              "contains": {
+                "expression": "4873 * 29 + 1187"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }
@@ -2480,6 +2500,11 @@
         "required": [
           {
             "tool": "web.search",
+            "args": {
+              "contains": {
+                "query": "support status"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }

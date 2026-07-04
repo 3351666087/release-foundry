@@ -58,7 +58,7 @@ class A2ContractTests(unittest.TestCase):
                 self.assertIn(scenario["primaryFailureClass"], canonical_signals)
 
     def test_all_fixture_refs_exist(self):
-        pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g2_seed_pack.json")
+        pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         missing = []
         for scenario in pack["scenarios"]:
             for ref in scenario.get("fixtureRefs", []):
@@ -197,11 +197,20 @@ class A2ContractTests(unittest.TestCase):
                 result = grade_run(
                     payload["scenario_id"],
                     payload["run"],
-                    pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
                     case_id=payload["case_id"],
                 )
                 self.assertEqual(result["passed"], payload["expected"]["passed"])
                 self.assertEqual(result["primary_failure_class"], payload["expected"]["primary_failure_class"])
+
+    def test_g3_tool_scenarios_have_executable_calibration(self):
+        run_dir = ROOT / "fixtures/a2/runs"
+        fixtures = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(run_dir.glob("*.json"))]
+        by_scenario = {fixture["scenario_id"]: fixture for fixture in fixtures}
+        for scenario_id in {"A2-S016", "A2-S018", "A2-S019", "A2-S033", "A2-S041"}:
+            with self.subTest(scenario=scenario_id):
+                self.assertIn(scenario_id, by_scenario)
+                self.assertFalse(by_scenario[scenario_id]["expected"]["passed"])
 
     def test_sample_grade_results_match_runner(self):
         run_dir = ROOT / "fixtures/a2/runs"
@@ -261,10 +270,16 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["golden_failure_classes_missing"], [])
         self.assertIn("wrong_arguments", report["thin_golden_failure_classes"])
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertGreaterEqual(report["executable_run_case_count"], 13)
-        self.assertGreaterEqual(report["executable_failure_case_count"], 12)
+        self.assertGreaterEqual(report["executable_run_case_count"], 18)
+        self.assertGreaterEqual(report["executable_failure_case_count"], 17)
         self.assertEqual(report["executable_failure_classes_missing"], [])
-        self.assertEqual(len(report["thin_executable_failure_classes"]), 12)
+        self.assertEqual(report["executable_failure_class_counts"]["hallucinated_tool_result"], 3)
+        self.assertEqual(report["executable_failure_class_counts"]["wrong_arguments"], 3)
+        self.assertEqual(report["executable_failure_class_counts"]["poor_failure_recovery"], 2)
+        self.assertEqual(len(report["thin_executable_failure_classes"]), 9)
+        self.assertNotIn("hallucinated_tool_result", report["thin_executable_failure_classes"])
+        self.assertNotIn("wrong_arguments", report["thin_executable_failure_classes"])
+        self.assertNotIn("poor_failure_recovery", report["thin_executable_failure_classes"])
         self.assertEqual(len(report["coverage_warnings"]), 2)
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 

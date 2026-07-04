@@ -26,6 +26,7 @@ This module provides the local G1-G2 foundation for:
 - Coverage report helper: `services/judge/coverage.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
+- 18 executable calibration run fixtures, including G3 tool/workflow cases in `fixtures/a2/runs`
 
 ## Local Run Shapes
 

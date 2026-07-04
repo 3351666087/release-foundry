@@ -91,6 +91,8 @@ It also audits executable run fixtures in `fixtures/a2/runs`:
 - `executable_failure_class_counts`,
 - `executable_failure_classes_missing`: expected to stay empty after executable G3 calibration.
 
+G3 executable calibration now includes seed and non-seed tool/workflow scenarios for shell inspection, image inspection, MCP resource lookup, calculator argument fidelity, and retry/failure recovery. These fixtures make more of the 60-pack auditable through actual runner output rather than metadata alone.
+
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 
 ## Later Enhancements
