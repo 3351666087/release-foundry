@@ -12,6 +12,7 @@ def build_commercial_readiness_report(
     coverage_report: dict[str, Any],
     calibration_matrix: dict[str, Any],
     case_book_report: dict[str, Any] | None = None,
+    sdk_parity_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -31,6 +32,8 @@ def build_commercial_readiness_report(
         for case in calibration_matrix.get("cases", [])
     )
     case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
+    sdk_parity_passed = bool((sdk_parity_report or {}).get("parity_passed"))
+    sdk_language_count = int((sdk_parity_report or {}).get("sdk_language_count", 0))
 
     gates = [
         _gate(
@@ -49,14 +52,17 @@ def build_commercial_readiness_report(
         _gate(
             "C1",
             "SDK runner consumption",
-            "scenario outputs can be consumed through the shared A1/A2 runner contract",
-            False,
-            coverage_stable,
+            "scenario outputs can be consumed through both Python and TypeScript SDK runner contracts",
+            coverage_stable and sdk_parity_passed,
+            coverage_stable or sdk_language_count > 0,
             [
                 "tests/a2/test_contracts.py::test_runner_accepts_a1_agent_output_shape",
                 "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id",
+                "fixtures/a2/results/a2_sdk_parity_report.json",
             ],
-            ["Keep A1 runner-shape tests green and add TS SDK parity evidence from A1 when available."],
+            []
+            if sdk_parity_passed
+            else ["Add Python and TypeScript SDK parity evidence for A2 runner consumption."],
         ),
         _gate(
             "C2",
@@ -154,6 +160,8 @@ def build_commercial_readiness_report(
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
             "case_book_regression_count": case_book_count,
+            "sdk_language_count": sdk_language_count,
+            "sdk_parity_passed": sdk_parity_passed,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -165,6 +173,7 @@ def build_commercial_readiness_report(
             "inputs": [
                 "fixtures/a2/results/a2_g3_coverage_report.json",
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
+                "fixtures/a2/results/a2_sdk_parity_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

@@ -4,6 +4,7 @@ from .calibration import build_calibration_matrix, import_ashr_grading_observati
 from .casebook import build_case_book_report
 from .coverage import build_coverage_report
 from .readiness import build_commercial_readiness_report
+from .sdk_parity import build_sdk_parity_report
 from .grounding import GroundingJudge
 from .outcome import OutcomeJudge
 from .safety_boundary import SafetyBoundaryJudge
@@ -23,6 +24,7 @@ __all__ = [
     "build_case_book_report",
     "build_commercial_readiness_report",
     "build_coverage_report",
+    "build_sdk_parity_report",
     "import_ashr_grading_observations",
     "merge_calibration_observations",
 ]

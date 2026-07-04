@@ -26,12 +26,14 @@ This module provides the local G1-G2 foundation for:
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
 - Case book helper: `services/judge/casebook.py`
+- SDK parity helper: `services/judge/sdk_parity.py`
 - Commercial readiness helper: `services/judge/readiness.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
 - Case book regression seed: `fixtures/a2/results/a2_case_book.json`
+- Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
@@ -70,6 +72,17 @@ from services.judge.runner import grade_run
 
 result = grade_run("A2-S004", run)
 ```
+
+## SDK Parity
+
+The Ashr docs expose both Python and TypeScript SDK entrypoints, so A2 must not silently become Python-only.
+
+A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/judge/sdk_parity.py`. The report grades the same scenario through:
+
+- Python-style `AgentTurn` / `AgentResult.to_dict()` metadata from `packages/sdk/ashr_clone/adapter.py`
+- TypeScript-style `CaseResult.agent_output` metadata from `packages/ts/ashr-clone/src/index.ts`
+
+This is deterministic contract evidence for C1: A2 can consume both SDK-language runner shapes. It does not claim hosted TypeScript API parity or live Ashr grading; those remain A1/C3 calibration work.
 
 The result contains:
 
@@ -153,7 +166,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C0 met with C3-C5 still partial because Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C1 met with C3-C5 still partial because Python/TypeScript runner consumption is covered, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
 
 ## G1-G2 Boundary
 

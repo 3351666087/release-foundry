@@ -16,6 +16,7 @@ from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
+from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 
 
 DEFAULT_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
@@ -28,6 +29,7 @@ DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibrati
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
 DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
+DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
 
 
 def main() -> int:
@@ -46,6 +48,7 @@ def main() -> int:
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
+    parser.add_argument("--sdk-parity", default=DEFAULT_SDK_PARITY.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -63,6 +66,7 @@ def main() -> int:
         calibration_matrix_path=Path(args.calibration_matrix),
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
+        sdk_parity_path=Path(args.sdk_parity),
     )
 
     if args.check:
@@ -85,6 +89,7 @@ def generate_outputs(
     calibration_matrix_path: Path,
     commercial_readiness_path: Path,
     case_book_path: Path,
+    sdk_parity_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -118,10 +123,13 @@ def generate_outputs(
     outputs[calibration_matrix_path] = calibration_matrix
     case_book = build_case_book_report(calibration_matrix)
     outputs[case_book_path] = case_book
+    sdk_parity = build_sdk_parity_report(pack_path=pack_path)
+    outputs[sdk_parity_path] = sdk_parity
     outputs[commercial_readiness_path] = build_commercial_readiness_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
         case_book_report=case_book,
+        sdk_parity_report=sdk_parity,
     )
     return outputs
 

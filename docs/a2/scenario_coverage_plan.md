@@ -119,7 +119,9 @@ It currently includes six representative cases across pass control, argument fid
 The matrix deliberately marks `ashr_grading` as missing until a real server-side grading batch is collected.
 
 The July 4 PDF gate logic is also encoded in `fixtures/a2/results/a2_commercial_readiness_report.json`.
-This report marks C0 as met and C3-C5 as partial, because A2 has local/LLM calibration structure but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
+This report marks C1 as met and C3-C5 as partial, because A2 can consume both Python and TypeScript SDK runner shapes but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
+
+The first C1 SDK-parity artifact is `fixtures/a2/results/a2_sdk_parity_report.json`. It grades the same A2 scenario through a Python-style `AgentTurn` shape and a TypeScript-style `CaseResult.agent_output` shape so the official dual-SDK chain stays visible in A2.
 
 The first C5 case-book seed is `fixtures/a2/results/a2_case_book.json`, with a reviewer-readable companion at `docs/a2/case_book.md`. It currently promotes the `sample-a2-s010-wrong-arguments` local-vs-LLM failure-class disagreement into an explicit open regression seed.
 

@@ -372,3 +372,27 @@ Next top 3:
 1. Resolve the seed with reviewed Ashr grading or audited live LLM evidence.
 2. Add any new Ashr/local/LLM disagreements to the case book automatically.
 3. Let A3 optionally surface `a2_case_book.json` in a judge drilldown panel.
+
+## 2026-07-04 - Python and TypeScript SDK parity evidence
+
+Reason:
+- The commercial-goals PDF and official Ashr docs treat Python and TypeScript as two SDK entrypoints.
+- A2 should prove its judge runner can consume both SDK-language output shapes, not only Python-style fixtures.
+
+Implemented:
+- Merged latest `origin/main`, including A1's TypeScript SDK package under `packages/ts/ashr-clone`.
+- Added `services/judge/sdk_parity.py` to build deterministic `a2.sdk_parity.v1` evidence.
+- Added generated fixture `fixtures/a2/results/a2_sdk_parity_report.json`.
+- Added schema snapshot `docs/a2/schemas/sdk_parity.schema.json`.
+- Integrated SDK parity into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C1 is met when Python and TypeScript runner shapes both pass A2 grading.
+- Added A2 tests for TypeScript `CaseResult.agent_output` consumption and SDK parity report reproducibility.
+
+Boundary:
+- This is A2 contract evidence, not a claim that A2 owns TypeScript SDK implementation.
+- Hosted TypeScript API parity and real Ashr server-side grading remain A1/C3 calibration work.
+
+Next top 3:
+1. Keep the SDK parity report green as A1 changes Python or TypeScript runner schemas.
+2. Fill the `ashr_grading` column with reviewed Ashr evidence for the six calibration cases.
+3. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.

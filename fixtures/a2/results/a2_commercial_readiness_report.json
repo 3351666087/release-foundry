@@ -6,7 +6,7 @@
     "a2_summary": "Scenario, Judge, and open-ended semantic evaluation commercial growth.",
     "success_sentence": "The clone can fail real agents for the right reasons and explain those reasons under calibration evidence."
   },
-  "current_gate": "C0",
+  "current_gate": "C1",
   "ready_for_commercial_gate": false,
   "commercial_dimensions": [
     {
@@ -67,15 +67,14 @@
     {
       "gate": "C1",
       "name": "SDK runner consumption",
-      "status": "partial",
-      "requirement": "scenario outputs can be consumed through the shared A1/A2 runner contract",
+      "status": "met",
+      "requirement": "scenario outputs can be consumed through both Python and TypeScript SDK runner contracts",
       "evidence_refs": [
         "tests/a2/test_contracts.py::test_runner_accepts_a1_agent_output_shape",
-        "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id"
+        "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id",
+        "fixtures/a2/results/a2_sdk_parity_report.json"
       ],
-      "gaps": [
-        "Keep A1 runner-shape tests green and add TS SDK parity evidence from A1 when available."
-      ]
+      "gaps": []
     },
     {
       "gate": "C2",
@@ -155,7 +154,9 @@
     "llm_judge_coverage_ratio": 1.0,
     "llm_judge_offline_only": true,
     "local_vs_llm_mismatch_count": 1,
-    "case_book_regression_count": 1
+    "case_book_regression_count": 1,
+    "sdk_language_count": 2,
+    "sdk_parity_passed": true
   },
   "next_top_3": [
     {
@@ -215,7 +216,8 @@
     "deterministic": true,
     "inputs": [
       "fixtures/a2/results/a2_g3_coverage_report.json",
-      "fixtures/a2/results/a2_g3_calibration_matrix.json"
+      "fixtures/a2/results/a2_g3_calibration_matrix.json",
+      "fixtures/a2/results/a2_sdk_parity_report.json"
     ],
     "notes": [
       "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",
