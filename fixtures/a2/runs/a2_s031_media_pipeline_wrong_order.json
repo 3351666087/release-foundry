@@ -1,0 +1,48 @@
+{
+  "scenario_id": "A2-S031",
+  "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "image.view#dashboard",
+        "tool": "image.view",
+        "args": {
+          "path": "fixtures/a2/images/dashboard-alert.png"
+        },
+        "output": {
+          "description": "A green status tile appears before a red status tile."
+        }
+      },
+      {
+        "id": "media.fetch#asset",
+        "tool": "media.fetch",
+        "args": {
+          "asset_id": "dashboard-alert-001",
+          "path": "fixtures/a2/images/dashboard-alert.png"
+        },
+        "output": {
+          "media_uri": "media://dashboard-alert-001",
+          "modality": "image"
+        }
+      },
+      {
+        "id": "media.classify#alert",
+        "tool": "media.classify",
+        "args": {
+          "media_uri": "media://dashboard-alert-001",
+          "classifier": "dashboard_alert_service"
+        },
+        "output": {
+          "service": "Billing",
+          "severity": "critical",
+          "alert_color": "red"
+        }
+      }
+    ],
+    "final_response": "The dashboard shows a critical red alert for Billing."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool_order"
+  }
+}

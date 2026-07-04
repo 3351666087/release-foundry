@@ -215,6 +215,28 @@ export function summarizeCoverage(coverageFixture = {}) {
     meets_assignment_minimums: coverageFixture.meets_assignment_minimums === true,
     assignment_checks: mapping(coverageFixture.assignment_checks),
     scenario_count: coverageFixture.scenario_count || 0,
+    scenario_dimension_minimums: mapping(coverageFixture.scenario_dimension_minimums),
+    scenario_dimension_checks: mapping(coverageFixture.scenario_dimension_checks),
+    scenario_dimension_counts: mapping(coverageFixture.scenario_dimension_counts),
+    scenario_dimension_scenarios: mapping(coverageFixture.scenario_dimension_scenarios),
+    thin_scenario_dimensions: mapping(coverageFixture.thin_scenario_dimensions),
+    scenario_quality_targets: mapping(coverageFixture.scenario_quality_targets),
+    scenario_quality_warnings: missing(coverageFixture.scenario_quality_warnings),
+    scenario_quality_warning_count: missing(coverageFixture.scenario_quality_warnings).length,
+    difficulty_counts: mapping(coverageFixture.difficulty_counts),
+    action_count_counts: mapping(coverageFixture.action_count_counts),
+    multi_turn_scenario_count: coverageFixture.multi_turn_scenario_count || 0,
+    environment_counts: mapping(coverageFixture.environment_counts),
+    tag_counts: mapping(coverageFixture.tag_counts),
+    tool_policy_shape_counts: mapping(coverageFixture.tool_policy_shape_counts),
+    required_tool_counts: mapping(coverageFixture.required_tool_counts),
+    optional_tool_counts: mapping(coverageFixture.optional_tool_counts),
+    forbidden_tool_counts: mapping(coverageFixture.forbidden_tool_counts),
+    ordered_tool_count: coverageFixture.ordered_tool_count || 0,
+    ordered_tool_pairs: mapping(coverageFixture.ordered_tool_pairs),
+    fixture_scenario_count: coverageFixture.fixture_scenario_count || 0,
+    fixture_type_counts: mapping(coverageFixture.fixture_type_counts),
+    fixture_ref_counts_by_scenario: mapping(coverageFixture.fixture_ref_counts_by_scenario),
     rubric_class_count: Array.isArray(coverageFixture.rubric_classes) ? coverageFixture.rubric_classes.length : 0,
     judge_mode_count: Array.isArray(coverageFixture.judge_modes) ? coverageFixture.judge_modes.length : 0,
     primary_failure_class_count: countKeys(coverageFixture.primary_failure_class_counts),
@@ -313,6 +335,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       "",
       `- Assignment minimums met: ${coverage.meets_assignment_minimums ? "yes" : "no"}`,
       `- Scenarios: ${coverage.scenario_count}`,
+      `- Scenario dimensions met: ${Object.values(coverage.scenario_dimension_checks).filter(Boolean).length}/${Object.keys(coverage.scenario_dimension_checks).length}`,
+      `- Scenario quality warnings: ${coverage.scenario_quality_warning_count}`,
       `- Rubric classes: ${coverage.rubric_class_count}`,
       `- Judge modes: ${coverage.judge_mode_count}`,
       `- Golden cases: ${coverage.golden_case_count}`,
@@ -321,6 +345,14 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Coverage warnings: ${coverage.coverage_warning_count}`,
       ""
     );
+    if (coverage.scenario_quality_warnings.length > 0) {
+      lines.push(
+        "### Scenario Quality Warnings",
+        "",
+        ...coverage.scenario_quality_warnings.map((warning) => `- ${warning}`),
+        ""
+      );
+    }
     if (evidenceLines.length > 0) {
       lines.push(
         "### Failure Class Evidence",

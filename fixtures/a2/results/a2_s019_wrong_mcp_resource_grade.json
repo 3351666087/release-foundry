@@ -67,7 +67,11 @@
       "evidence": {
         "tool_call_ids": [
           "mcp.resource#1"
-        ]
+        ],
+        "tool_sequence": [
+          "mcp.resource"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

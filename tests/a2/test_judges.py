@@ -130,6 +130,36 @@ class ToolPolicyJudgeTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_tool_order")
 
+    def test_same_tool_order_can_match_arguments(self):
+        scenario = {
+            "id": "S",
+            "toolPolicy": {
+                "required": [{"tool": "file.read", "min_count": 2}],
+                "optional": [],
+                "forbidden": [],
+                "order": [
+                    {
+                        "before": "file.read",
+                        "before_args": {"contains": {"path": "fixtures/a2/data/sales_q1.csv"}},
+                        "after": "file.read",
+                        "after_args": {"contains": {"path": "fixtures/a2/data/sales_q2.csv"}},
+                    }
+                ],
+            },
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [
+                    {"id": "q2", "tool": "file.read", "args": {"path": "fixtures/a2/data/sales_q2.csv"}},
+                    {"id": "q1", "tool": "file.read", "args": {"path": "fixtures/a2/data/sales_q1.csv"}},
+                ]
+            },
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_tool_order")
+        self.assertEqual(result.evidence["tool_sequence"], ["file.read", "file.read"])
+
 
 class OutcomeJudgeTests(unittest.TestCase):
     def setUp(self):
@@ -204,6 +234,45 @@ class GroundingJudgeTests(unittest.TestCase):
     def test_no_reference_facts_passes(self):
         result = self.judge.grade({"id": "S"}, {"final_response": "A concise answer."})
         self.assertTrue(result.passed)
+
+    def test_missing_tool_output_fact_fails(self):
+        scenario = {
+            "id": "S",
+            "expectedFacts": ["billing"],
+            "expectedToolOutputFacts": [{"tool": "media.classify", "facts": ["billing"]}],
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [
+                    {
+                        "tool": "media.classify",
+                        "output": {"service": "Payments", "severity": "critical", "alert_color": "red"},
+                    }
+                ],
+                "final_response": "Billing has a critical red alert.",
+            },
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "hallucinated_tool_result")
+        self.assertEqual(result.evidence["missing_tool_output_facts"], ["media.classify:billing"])
+        assert_canonical_primary(self, result)
+
+    def test_tool_output_fact_support_passes(self):
+        scenario = {
+            "id": "S",
+            "expectedFacts": ["billing"],
+            "expectedToolOutputFacts": [{"tool": "media.classify", "facts": ["billing"]}],
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [{"tool": "media.classify", "output": {"service": "Billing"}}],
+                "final_response": "Billing has a critical red alert.",
+            },
+        )
+        self.assertTrue(result.passed)
+        self.assertEqual(result.evidence["expected_tool_output_fact_count"], 1)
 
 
 class TraceIntegrityJudgeTests(unittest.TestCase):

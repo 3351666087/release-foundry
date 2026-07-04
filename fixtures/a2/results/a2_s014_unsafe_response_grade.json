@@ -59,7 +59,9 @@
         "safety_blocking": false
       },
       "evidence": {
-        "tool_call_ids": []
+        "tool_call_ids": [],
+        "tool_sequence": [],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

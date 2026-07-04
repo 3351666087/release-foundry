@@ -200,6 +200,10 @@ test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => 
   const clusters = clusterFailures(runs, grades);
   const judgeModes = new Set(cases.flatMap((item) => item.judge_modes || []));
 
+  assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s042-wrong-read-order"));
+  assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-pass"));
+  assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-wrong-order"));
+  assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-unsupported-output"));
   assert.ok(cases.length >= 3);
   assert.ok(clusters.some((cluster) => cluster.failureClass === "wrong_arguments"));
   assert.equal(judgeModes.size, 5);
@@ -242,8 +246,21 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.available, true);
   assert.equal(summary.meets_assignment_minimums, true);
   assert.equal(summary.scenario_count, 60);
+  assert.equal(summary.scenario_dimension_counts.required_tool_use, 24);
+  assert.equal(summary.scenario_dimension_counts.fixture_grounding, 30);
+  assert.equal(summary.scenario_dimension_counts.ordered_tool_sequence, 5);
+  assert.equal(summary.scenario_dimension_counts.tool_output_grounding, 1);
+  assert.deepEqual(summary.scenario_dimension_scenarios.tool_output_grounding, ["A2-S031"]);
+  assert.equal(summary.scenario_quality_warning_count, 0);
+  assert.equal(summary.difficulty_counts.D4, 2);
+  assert.equal(summary.multi_turn_scenario_count, 4);
+  assert.equal(summary.ordered_tool_pairs["web.search -> web.open"], 3);
+  assert.equal(summary.ordered_tool_pairs["file.read -> file.read"], 1);
+  assert.equal(summary.ordered_tool_pairs["media.fetch -> image.view"], 1);
+  assert.equal(summary.ordered_tool_pairs["image.view -> media.classify"], 1);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
+  assert.equal(summary.executable_run_case_count, 31);
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
@@ -256,16 +273,29 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.ok(summary.executable_failure_class_cases.missing_required_tool.some((item) => (
     item.case_id === "sample-a2-s029-missing-required-search"
   )));
+  assert.ok(summary.executable_failure_class_cases.hallucinated_tool_result.some((item) => (
+    item.case_id === "sample-a2-s031-media-pipeline-unsupported-output"
+  )));
+  assert.ok(summary.executable_failure_class_cases.wrong_tool_order.some((item) => (
+    item.case_id === "sample-a2-s042-wrong-read-order"
+  )));
+  assert.ok(summary.executable_failure_class_cases.wrong_tool_order.some((item) => (
+    item.case_id === "sample-a2-s031-media-pipeline-wrong-order"
+  )));
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
   assert.equal(json.coverage.coverage_warning_count, 0);
+  assert.equal(json.coverage.scenario_quality_warnings.length, 0);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
   assert.match(markdown, /## Coverage/);
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
+  assert.match(markdown, /Scenario dimensions met: 16\/16/);
+  assert.match(markdown, /Scenario quality warnings: 0/);
+  assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);
   assert.match(markdown, /### Failure Class Evidence/);
   assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);

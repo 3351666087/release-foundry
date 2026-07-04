@@ -61,7 +61,11 @@
       "evidence": {
         "tool_call_ids": [
           "web.open#1"
-        ]
+        ],
+        "tool_sequence": [
+          "web.open"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

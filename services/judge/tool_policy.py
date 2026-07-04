@@ -66,8 +66,8 @@ class ToolPolicyJudge:
         for rule in policy.get("order", []):
             before = rule.get("before")
             after = rule.get("after")
-            before_index = first_index(calls, before)
-            after_index = first_index(calls, after)
+            before_index = first_index(calls, before, rule.get("before_args"))
+            after_index = first_index(calls, after, rule.get("after_args"))
             if before_index is None or after_index is None or before_index > after_index:
                 failures.append("wrong_tool_order")
                 details.append(f"Tool order violated: {before} before {after}")
@@ -101,13 +101,17 @@ class ToolPolicyJudge:
             score=score,
             rubric_scores=rubric_scores,
             failure_analysis=failure_analysis,
-            evidence={"tool_call_ids": [str(call.get("id", idx)) for idx, call in enumerate(calls)]},
+            evidence={
+                "tool_call_ids": [str(call.get("id", idx)) for idx, call in enumerate(calls)],
+                "tool_sequence": [get_tool_name(call) for call in calls],
+                "order_rules": policy.get("order", []),
+            },
         )
 
 
-def first_index(calls: list[dict[str, Any]], tool_name: str | None) -> int | None:
+def first_index(calls: list[dict[str, Any]], tool_name: str | None, args_rule: dict[str, Any] | None = None) -> int | None:
     for index, call in enumerate(calls):
-        if get_tool_name(call) == tool_name:
+        if get_tool_name(call) == tool_name and args_match(args_rule, call.get("args") or call.get("arguments") or {}):
             return index
     return None
 

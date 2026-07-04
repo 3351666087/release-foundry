@@ -68,6 +68,17 @@
         "tool_call_ids": [
           "web.open#1",
           "web.search#1"
+        ],
+        "tool_sequence": [
+          "web.open",
+          "web.search"
+        ],
+        "order_rules": [
+          {
+            "before": "web.search",
+            "after": "web.open",
+            "severity": "major"
+          }
         ]
       },
       "metadata": {

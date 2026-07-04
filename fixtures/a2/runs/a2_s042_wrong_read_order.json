@@ -1,0 +1,27 @@
+{
+  "scenario_id": "A2-S042",
+  "case_id": "sample-a2-s042-wrong-read-order",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "file.read#q2",
+        "tool": "file.read",
+        "args": {
+          "path": "fixtures/a2/data/sales_q2.csv"
+        }
+      },
+      {
+        "id": "file.read#q1",
+        "tool": "file.read",
+        "args": {
+          "path": "fixtures/a2/data/sales_q1.csv"
+        }
+      }
+    ],
+    "final_response": "Q2 is higher than Q1, but the files were read in reverse order."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool_order"
+  }
+}

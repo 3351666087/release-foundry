@@ -9,8 +9,26 @@
     "assignment_checks",
     "meets_assignment_minimums",
     "calibration_redundancy_targets",
+    "scenario_dimension_minimums",
+    "scenario_dimension_checks",
+    "scenario_quality_targets",
+    "scenario_quality_warnings",
     "scenario_count",
     "family_counts",
+    "difficulty_counts",
+    "action_count_counts",
+    "multi_turn_scenario_count",
+    "environment_counts",
+    "tag_counts",
+    "scenario_dimension_counts",
+    "scenario_dimension_scenarios",
+    "thin_scenario_dimensions",
+    "tool_policy_shape_counts",
+    "required_tool_counts",
+    "optional_tool_counts",
+    "forbidden_tool_counts",
+    "ordered_tool_count",
+    "ordered_tool_pairs",
     "rubric_classes",
     "primary_rubric_counts",
     "judge_modes",
@@ -33,7 +51,10 @@
     "executable_failure_classes_missing",
     "thin_executable_failure_classes",
     "coverage_warnings",
-    "fixture_ref_count"
+    "fixture_ref_count",
+    "fixture_scenario_count",
+    "fixture_type_counts",
+    "fixture_ref_counts_by_scenario"
   ],
   "properties": {
     "schema_version": { "const": "a2.coverage_report.v1" },
@@ -45,8 +66,26 @@
     },
     "meets_assignment_minimums": { "type": "boolean" },
     "calibration_redundancy_targets": { "$ref": "#/$defs/count_map" },
+    "scenario_dimension_minimums": { "$ref": "#/$defs/count_map" },
+    "scenario_dimension_checks": { "$ref": "#/$defs/boolean_map" },
+    "scenario_quality_targets": { "$ref": "#/$defs/count_map" },
+    "scenario_quality_warnings": { "$ref": "#/$defs/string_array" },
     "scenario_count": { "type": "integer", "minimum": 0 },
     "family_counts": { "$ref": "#/$defs/count_map" },
+    "difficulty_counts": { "$ref": "#/$defs/count_map" },
+    "action_count_counts": { "$ref": "#/$defs/count_map" },
+    "multi_turn_scenario_count": { "type": "integer", "minimum": 0 },
+    "environment_counts": { "$ref": "#/$defs/count_map" },
+    "tag_counts": { "$ref": "#/$defs/count_map" },
+    "scenario_dimension_counts": { "$ref": "#/$defs/count_map" },
+    "scenario_dimension_scenarios": { "$ref": "#/$defs/string_array_map" },
+    "thin_scenario_dimensions": { "$ref": "#/$defs/count_map" },
+    "tool_policy_shape_counts": { "$ref": "#/$defs/count_map" },
+    "required_tool_counts": { "$ref": "#/$defs/count_map" },
+    "optional_tool_counts": { "$ref": "#/$defs/count_map" },
+    "forbidden_tool_counts": { "$ref": "#/$defs/count_map" },
+    "ordered_tool_count": { "type": "integer", "minimum": 0 },
+    "ordered_tool_pairs": { "$ref": "#/$defs/count_map" },
     "rubric_classes": { "$ref": "#/$defs/string_array" },
     "primary_rubric_counts": { "$ref": "#/$defs/count_map" },
     "judge_modes": { "$ref": "#/$defs/string_array" },
@@ -69,16 +108,27 @@
     "executable_failure_classes_missing": { "$ref": "#/$defs/string_array" },
     "thin_executable_failure_classes": { "$ref": "#/$defs/count_map" },
     "coverage_warnings": { "$ref": "#/$defs/string_array" },
-    "fixture_ref_count": { "type": "integer", "minimum": 0 }
+    "fixture_ref_count": { "type": "integer", "minimum": 0 },
+    "fixture_scenario_count": { "type": "integer", "minimum": 0 },
+    "fixture_type_counts": { "$ref": "#/$defs/count_map" },
+    "fixture_ref_counts_by_scenario": { "$ref": "#/$defs/count_map" }
   },
   "$defs": {
     "count_map": {
       "type": "object",
       "additionalProperties": { "type": "integer", "minimum": 0 }
     },
+    "boolean_map": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
     "string_array": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "string_array_map": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/string_array" }
     },
     "case_ref": {
       "type": "object",

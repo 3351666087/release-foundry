@@ -67,7 +67,11 @@
       "evidence": {
         "tool_call_ids": [
           "web.search#1"
-        ]
+        ],
+        "tool_sequence": [
+          "web.search"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

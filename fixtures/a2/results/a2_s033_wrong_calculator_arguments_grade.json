@@ -67,7 +67,11 @@
       "evidence": {
         "tool_call_ids": [
           "calculator#1"
-        ]
+        ],
+        "tool_sequence": [
+          "calculator"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true
