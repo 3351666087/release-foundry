@@ -18,6 +18,8 @@ python -B -m services.api.cli export-fixture --state-input docs/evidence/private
 npm install --prefix packages/ts/ashr-clone
 npm test --prefix packages/ts/ashr-clone
 node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json
+node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json
+node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
@@ -87,3 +89,5 @@ node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_3
 ```
 
 `packages/ts/ashr-clone` builds TypeScript source with `tsc`, exports `AgentInput`, `CloudApiService`, `QuotaLedger`, `buildDefaultRequestInputSchema(...)`, `runAgentCloudDemo(...)`, redaction helpers, and a hosted-parity `AshrApiClient`. Its local runtime tests poison `globalThis.fetch`, and API-client tests prove dry-run plans require no key and do not call the network.
+
+The TypeScript probe CLI is `node packages/ts/ashr-clone/dist/probe.js ...` or the package bin `ashr-clone-probe` / `ashr-clone-api-probe` after install. It writes JSON probe records to ignored private evidence by default, prints only one-line summaries to stdout, and requires `--execute` plus environment-only API keys for real calls. Mutating execution also requires `--allow-mutate --max-retries 0`.

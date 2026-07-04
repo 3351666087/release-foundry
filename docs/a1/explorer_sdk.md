@@ -24,7 +24,7 @@ The downloaded upstream artifacts under `docs/a1/_pypi_artifacts/` are evidence 
 ## Remaining SDK Gaps
 
 - A2 final Scenario/Judge/Golden adapter remains deferred until Gate contract.
-- TypeScript SDK parity is not implemented in A1; only docs were calibrated.
+- TypeScript SDK parity is implemented locally in `packages/ts/ashr-clone`, including `AgentInput`, local cloud runtime/quota helpers, hosted dry-run `AshrApiClient`, and a dry-run-first probe CLI. Hosted TypeScript execution remains unverified unless run through the env-only, dry-run-first probe flow.
 - There is no package installer metadata yet; fresh setup currently runs from the repository root with `packages/sdk` on `sys.path`.
 - AgentTurn now emits `schema_version: ashr.clone.agent_turn.v1`; RunResult continues to expose the run contract version in `aggregate_metrics.schema_version`.
 - AgentInput now emits `schema_version: ashr.clone.agent_input.v1`; the local default `request_input_schema` advertises the AgentInput `parts` envelope for Image/Audio/Files accepted inputs. Hosted media failure-detail calibration remains a follow-up because the first real Image/Audio/Files request was accepted but later failed server-side.

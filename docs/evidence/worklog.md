@@ -1116,3 +1116,64 @@ Remaining / next top 3:
 1. Add TypeScript probe CLI wrapper around dry-run `AshrApiClient` for cross-language API calibration ergonomics.
 2. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
 3. Convert selected private hosted run evidence through the A2 grading import/merge bridge into public-safe calibration observations after explicit evidence-selection rules.
+
+## 2026-07-04 TypeScript Probe CLI
+
+Goal: add a dry-run-first TypeScript probe CLI around the hosted-parity `AshrApiClient`, so TS users get the same operator ergonomics as Python `services.runner.api_probe`: plan/read/probe calls without keys by default, write redacted JSON records, require explicit execution/mutation flags, and keep real Ashr API usage under the dry-run -> small batch -> batch rule.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `18e4a96` to `8542b19`, and `origin/codex/a3-p3-ashr-calibration` advanced from `c30b67a` to `5872ef3`.
+- `gh pr list --state all --limit 30`: PR #7 open/draft on `codex/a1-local-sdk-runner` at `7942516`; prior A1 PRs merged.
+- `git status -sb --untracked-files=all`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, TS `dist/`, and `node_modules/` remained unstaged.
+
+Baseline scan:
+
+- Python A1 surfaces: SDK adapter/types/trace/dataset adapter/API client, runner CLI, Python API probe, local cloud runtime/queue/replay CLI, MockAgent, A1 tests/schemas/docs.
+- TypeScript surfaces: `packages/ts/ashr-clone` exports local SDK/runtime/quota/redaction plus hosted dry-run `AshrApiClient`; tests cover API client library parity, but package metadata has no `bin` or probe CLI yet.
+- Private evidence: many ignored `docs/evidence/private_refs/a1_api_*`, queue smoke, TS quickstart, and Chrome screenshot/note files exist; only filenames were listed, raw contents were not read.
+- Known gaps: hosted TS auth/quota/media behavior remains unverified; no TS operator CLI exists; hosted queue persistence/cancellation semantics remain local-only; request generation quota was previously exhausted/unclear for additional create-request calls.
+- Peer changes/impact: A2 latest `8542b19 G3: add A2 regression replay evidence` touched A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`; A3 latest `5872ef3 Add A3 product console media evidence` touched dashboard/report/A3 docs/screenshots/fixtures/tests. No A1-owned conflict; do not stage or alter A2/A3/judge/dashboard changes.
+
+Three proposed enhancements:
+
+1. TypeScript probe CLI wrapper around dry-run `AshrApiClient`: demo value 5, risk reduction 5, contract impact 1, estimated effort 3, API evidence value 5. Selected because it converts existing TS library parity into an operator/fresh-setup surface without real API calls by default.
+2. Persistent queue batch controls for multiple queued runs: demo value 4, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 2.
+3. Public-safe A2/A3 calibration bridge from selected hosted evidence: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 4.
+
+Round-start subagents:
+
+- Bus-Auditor, Explorer-SDK/API, Explorer-Chrome, and Worker-TS were spawned. Runtime/Reviewer could not be spawned initially because the agent thread limit was reached; main thread will retry after an agent finishes.
+- Bus-Auditor initial verdict: BLOCK until the TS probe CLI draft stopped printing full real records to stdout, defaulted to ignored private evidence output, and wrote redacted error records for failures.
+- Explorer-SDK/API: confirmed the exact TS CLI surface should mirror Python `services.runner.api_probe` operations and flags, with `health-check -> keep_alive`, dry-run `poll-run -> poll_run`, real polling through `get_run`, and create-request summary-shaped params.
+- Explorer-Chrome: verified public TypeScript API/auth docs plus Usage labels. TS API docs showed `AshrLabsClient`, `fromEnv`, run/request APIs, `healthCheck`, accepted input and media generation fields; TS docs did not show `generate_images`, `listAgents`, or `pollRun` in that pass.
+- Worker-TS: created the first `src/probe.ts`, package bin/script, and probe tests. Main thread retained the structure, then tightened stdout/error-record safeguards per Bus-Auditor.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/probe.ts`: added dry-run-first API probe CLI with Python-parity operations, env-only key loading, mutating execution gates, media/non-text/variation guardrails, default ignored private evidence output paths, one-line stdout summaries by default, opt-in `--print-record`, output-file JSON writing, and redacted error-record persistence.
+- `packages/ts/ashr-clone/test/probe.test.mjs`: added CLI tests for dry-run no-network behavior, output-file writing, `--print-record`, read-only operation mapping, create-request preflight shape summaries, create-run dry-run plans, missing-key handling, mutating guardrails, and media guard blocking before transport.
+- `packages/ts/ashr-clone/package.json` and `package-lock.json`: added `ashr-clone-probe` / `ashr-clone-api-probe` bin entries, `npm run probe`, and Node types for CLI compilation.
+- `packages/ts/ashr-clone/README.md`, `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/explorer_sdk.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated.
+
+Verification:
+
+- `npm install --package-lock-only --prefix packages/ts/ashr-clone`: up to date, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 33 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 130 passed.
+- `node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json`: planned dry-run, wrote ignored private evidence, stdout summary only.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: planned dry-run for Image/Audio/Files interface, wrote ignored private evidence, stdout summary only.
+- Final remote recheck before staging: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` from `8542b19` to `1cc07a7 G3: deepen A2 media API calibration` and `origin/codex/a3-p3-ashr-calibration` from `5872ef3` to `02f6ce7 Add A3 tool call diff panel`. Peer changes stayed in A2/A3 docs/fixtures/tests plus `services/judge`, `services/report`, and `apps/dashboard`; no A1-owned conflict observed.
+- Final validation: `npm test --prefix packages/ts/ashr-clone` passed 33 Node tests; `python -B -m pytest tests/a1 -q -p no:cacheprovider` passed 130 tests; `git diff --check` exited 0 with only CRLF warnings.
+- Public-file secret scan: `rg` checks for desktop key paths, local key filenames, GitHub-token prefixes, model-key prefixes, and bearer-token literals in intended TS/A1 docs files found no matches.
+- Real Ashr API calls: none in this implementation round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.
+
+Remaining / next top 3:
+
+1. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
+2. Convert selected private hosted run evidence through the A2/A3 calibration import bridges into public-safe observations after explicit evidence-selection rules.
+3. Add optional TypeScript injected-transport probe fixtures for API-level error/quota header shapes before any hosted TS execution.

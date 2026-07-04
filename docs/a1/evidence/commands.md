@@ -388,3 +388,33 @@ Cleanup note:
 - `python -B -m services.api.cli export-fixture --state-input docs/evidence/private_refs/a1_queue_replayed_state_smoke.json --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --run-id run_a1_replay_smoke --fixture-output docs/evidence/private_refs/a1_queue_exported_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_export_summary_smoke.json`: exported a completed run fixture from restored state; incomplete exports remain blocked by default.
 - Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced from `007c650` to `18e4a96 G3: add A2 semantic judge import bridge`, touching `docs/a2`, `docs/worklog/Kay.md`, `fixtures/a2/calibration`, `scripts/a2_import_semantic_judge.py`, `scripts/a2_merge_calibration_observations.py`, `services/judge`, and `tests/a2`. No A1-owned conflict observed; current branch remained even with `origin/codex/a1-local-sdk-runner`.
 - Real Ashr API calls: none in this round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.
+
+## 2026-07-04 TypeScript Probe CLI
+
+- `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view --json nameWithOwner,url,defaultBranchRef`: repo root `C:/Users/33516/Documents/Ashr`, branch `codex/a1-local-sdk-runner`, remote `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced to `8542b19`, and `origin/codex/a3-p3-ashr-calibration` advanced to `5872ef3`.
+- `gh pr list --state all --limit 30 --json ...`: PR #7 open/draft on `codex/a1-local-sdk-runner` at `7942516`.
+- `git status -sb --untracked-files=all`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, TS `dist/`, and TS `node_modules/` remained unstaged.
+- Peer impact: A2 latest `8542b19 G3: add A2 regression replay evidence` touched A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`; A3 latest `5872ef3 Add A3 product console media evidence` touched dashboard/report/A3 docs/screenshots/fixtures/tests. No A1-owned conflict observed.
+- Baseline A1 scan: Python SDK/Adapter/Runner/Trace/API probe, local cloud runtime/queue/replay CLI, TypeScript local SDK and hosted dry-run API client, tests/schemas/docs, and ignored private evidence filenames are present. TS package has no `bin` or probe CLI yet.
+- Three scored enhancements:
+  - TypeScript probe CLI wrapper around dry-run `AshrApiClient`: demo value 5, risk reduction 5, contract impact 1, effort 3, API evidence 5. Selected.
+  - Persistent queue batch controls for multiple queued runs: demo value 4, risk reduction 4, contract impact 1, effort 3, API evidence 2.
+  - Public-safe A2/A3 calibration bridge from selected hosted evidence: demo value 4, risk reduction 3, contract impact 2, effort 4, API evidence 4.
+- Spawned Bus-Auditor, Explorer-SDK/API, Explorer-Chrome, and Worker-TS. Runtime/Reviewer spawn was deferred because the agent thread limit was reached.
+- Bus-Auditor initial verdict: BLOCK until TS probe CLI stopped printing full real records by default, wrote evidence files under ignored private refs, and persisted redacted error records on failure.
+- Explorer-SDK/API: recommended exact Python-parity operations and flags; noted TS `outputPath` was only metadata until the CLI wrote files.
+- Explorer-Chrome: verified public TypeScript API/auth docs and Usage labels. TS auth docs showed `ASHR_LABS_API_KEY`, optional `ASHR_LABS_BASE_URL`, `fromEnv`, `apiKey` / `baseUrl`, and API key list/revoke/security guidance. Usage page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counters were not recorded.
+- Worker-TS implemented the first CLI draft; main thread tightened stdout/error-record safety per Bus.
+- Implemented `packages/ts/ashr-clone/src/probe.ts`: dry-run-first TS API probe CLI, Python-parity operations, env-only key loading for real calls, mutating execution gates, media/non-text/variation guardrails, default ignored private evidence output, one-line stdout summaries by default, opt-in `--print-record`, and redacted error-record persistence.
+- Added `packages/ts/ashr-clone/test/probe.test.mjs`: covers no-network dry-run, output-file writing, full JSON only with `--print-record`, read-only mappings, create-request preflight, create-run dry-run, missing-key guard, mutation guard, and media guard before transport.
+- Updated TS package metadata/docs plus A1 README, field map, API calibration README, Explorer SDK note, official site gaps, and worklog.
+- `npm install --package-lock-only --prefix packages/ts/ashr-clone`: up to date, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 33 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 130 passed.
+- `node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json`: dry-run planned `init`, wrote ignored private evidence, stdout summary only.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: dry-run planned Image/Audio/Files create-request, wrote ignored private evidence, stdout summary only.
+- Final remote recheck before staging: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` to `1cc07a7 G3: deepen A2 media API calibration` and `origin/codex/a3-p3-ashr-calibration` to `02f6ce7 Add A3 tool call diff panel`; changed paths were A2/A3 docs/fixtures/tests plus `services/judge`, `services/report`, and `apps/dashboard`, with no A1-owned conflict or staged peer files.
+- Final validation: `npm test --prefix packages/ts/ashr-clone` passed 33 Node tests; `python -B -m pytest tests/a1 -q -p no:cacheprovider` passed 130 tests; `git diff --check` exited 0 with only CRLF warnings.
+- Public-file secret scan: `rg` checks for desktop key paths, local key filenames, GitHub-token prefixes, model-key prefixes, and bearer-token literals in the intended TS/A1 docs files found no matches.
+- Real Ashr API calls: none in this round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.

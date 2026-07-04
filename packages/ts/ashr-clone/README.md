@@ -5,6 +5,7 @@ TypeScript parity package for A1. It mirrors the Python `AgentInput`, `CloudApiS
 ```powershell
 npm install --prefix packages/ts/ashr-clone
 npm test --prefix packages/ts/ashr-clone
+npm run probe --prefix packages/ts/ashr-clone -- init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json
 ```
 
 Minimal quickstart:
@@ -57,3 +58,13 @@ console.log(plan.attempts); // 0
 ```
 
 `AshrApiClient` defaults to dry-run mode, does not require an API key for plans, and does not call `fetch` or an injected transport unless `dryRun: false` is passed. Real execution must use an explicit key source and should follow the dry-run -> small batch -> batch discipline recorded in A1 evidence.
+
+Probe CLI:
+
+```powershell
+npm run build --prefix packages/ts/ashr-clone
+node packages/ts/ashr-clone/dist/probe.js health-check --output docs/evidence/private_refs/a1_ts_api_health_check_dry_run.json
+node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json
+```
+
+The CLI is dry-run-first and writes JSON records to `docs/evidence/private_refs` by default. Stdout prints only a one-line summary unless `--print-record` is explicitly passed. Real calls require `--execute` and an environment-only `ASHR_API_KEY` or `ASHR_LABS_API_KEY`; mutating calls also require `--allow-mutate --max-retries 0`.

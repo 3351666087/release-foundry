@@ -178,7 +178,9 @@ Private real-shape smoke test:
 - `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 62 passed.
 - `python -B -m pytest tests/a1/test_adapter.py tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 83 passed.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 125 passed.
-- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 24 Node tests passed.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 33 Node tests passed.
+- `node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json`: TypeScript probe CLI dry-run wrote a planned record under ignored private evidence and printed only a one-line summary to stdout.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: TypeScript probe CLI dry-run recorded Image/Audio/Files preflight shape without network or key use.
 - `node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json`: wrote a local-only TS cloud fixture for 30 cases under ignored private evidence.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
@@ -192,10 +194,10 @@ Private real-shape smoke test:
 - Local cloud API skeleton coverage now includes in-memory tenant/project/dataset/request/run records, run polling, fixture export, and project-scoped quota blocking before writes. The local cloud demo CLI coverage runs an external agent target, submits the result into `CloudApiService`, polls the stored run, writes a summary, writes an A3-consumable fixture, preserves failure output semantics, and redacts operational error text. Adapter/API redaction now both cover `sk-...` style key strings. This path made no real Ashr API calls.
 - Local queue worker coverage now includes queued run creation, queued/running/completed status history, failed completion when observation quota is exhausted, max worker normalization to at least 4, run id propagation into `RunResult` and observations, `run-agent-queued` fixture export, and wait-timeout guards that prevent incomplete fixture/run/summary writes. This path made no real Ashr API calls.
 - TypeScript quickstart parity now covers local-only `AgentInput`, media request schema construction, `CloudApiService`, `QuotaLedger`, TS agent demo execution, fixture export, no-network checks, and redaction for token-like strings, `sk-...`, bearer values, emails, and signed query values.
-- TypeScript hosted API-client parity now covers dry-run call plans, env-compatible constants, injected transport execution, session context injection, `keep_alive` / `list_agents`, media `createRequest` preflight summaries, mutation guardrails, retryable status handling, API-level error redaction, and safe failed-request summary shapes. No real Ashr API calls were made for this TS parity round.
+- TypeScript hosted API-client parity now covers dry-run call plans, env-compatible constants, injected transport execution, session context injection, `keep_alive` / `list_agents`, media `createRequest` preflight summaries, mutation guardrails, retryable status handling, API-level error redaction, safe failed-request summary shapes, and a dry-run-first probe CLI that writes redacted JSON evidence while keeping stdout to summaries by default. No real Ashr API calls were made for the TS parity/probe CLI rounds.
 
 ## Next Candidates
 
-1. Add queue persistence/replay controls so queued run state can survive process boundaries and produce deterministic replay artifacts.
-2. Add a TypeScript probe CLI wrapper around the dry-run `AshrApiClient` before any hosted TS calls.
-3. Convert selected private hosted run evidence through the A2 Ashr grading import/merge bridge into public-safe calibration observations.
+1. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
+2. Convert selected private hosted run evidence through the A2/A3 calibration import bridges into public-safe observations after explicit evidence-selection rules.
+3. Add optional TS injected-transport probe fixtures for API-level error and quota header shapes before any hosted TS execution.
