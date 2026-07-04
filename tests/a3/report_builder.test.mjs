@@ -11,7 +11,8 @@ import {
   clusterFailures,
   filterCases,
   getFilterOptions,
-  normalizeCases
+  normalizeCases,
+  summarizeCoverage
 } from "../../services/report/report_builder.mjs";
 
 async function loadJson(path) {
@@ -143,4 +144,25 @@ test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => 
   assert.ok(clusters.some((cluster) => cluster.failureClass === "wrong_arguments"));
   assert.equal(judgeModes.size, 5);
   assert.ok(judgeModes.has("g3_semantic_reference_judge"));
+});
+
+test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+
+  const summary = summarizeCoverage(coverage);
+  assert.equal(summary.scenario_count, 60);
+  assert.equal(summary.rubric_class_count, 5);
+  assert.equal(summary.judge_mode_count, 5);
+  assert.equal(summary.primary_failure_class_count, 12);
+  assert.equal(summary.golden_failure_classes_missing.length, 0);
+  assert.equal(summary.executable_failure_classes_missing.length, 0);
+
+  const json = buildJsonReport(runs, grades, coverage);
+  assert.equal(json.coverage.executable_failure_class_count, 12);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage);
+  assert.match(markdown, /## Coverage/);
+  assert.match(markdown, /Scenarios: 60/);
 });

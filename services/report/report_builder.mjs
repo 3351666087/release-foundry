@@ -169,6 +169,28 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
   };
 }
 
+export function summarizeCoverage(coverageFixture = {}) {
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const countKeys = (value) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value).length
+    : 0;
+
+  return {
+    schema_version: coverageFixture.schema_version || "unknown",
+    pack_id: coverageFixture.pack_id || "unknown",
+    scenario_count: coverageFixture.scenario_count || 0,
+    rubric_class_count: Array.isArray(coverageFixture.rubric_classes) ? coverageFixture.rubric_classes.length : 0,
+    judge_mode_count: Array.isArray(coverageFixture.judge_modes) ? coverageFixture.judge_modes.length : 0,
+    primary_failure_class_count: countKeys(coverageFixture.primary_failure_class_counts),
+    golden_case_count: coverageFixture.golden_case_count || 0,
+    golden_failure_class_count: countKeys(coverageFixture.golden_failure_class_counts),
+    golden_failure_classes_missing: missing(coverageFixture.golden_failure_classes_missing),
+    executable_run_case_count: coverageFixture.executable_run_case_count || 0,
+    executable_failure_class_count: countKeys(coverageFixture.executable_failure_class_counts),
+    executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing)
+  };
+}
+
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const failedCases = normalizeCases(runFixture, gradeFixture)
     .filter((item) => !item.passed && item.primary_failure_class !== "none");
@@ -206,8 +228,9 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   })).sort((left, right) => right.count - left.count || left.failureClass.localeCompare(right.failureClass));
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
+  const coverage = summarizeCoverage(coverageFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -218,6 +241,15 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}) {
     `- Pass rate: ${summary.passRate}%`,
     `- Average score: ${summary.avgScore}`,
     `- Trace completeness: ${summary.traceCompleteness}%`,
+    "",
+    "## Coverage",
+    "",
+    `- Scenarios: ${coverage.scenario_count}`,
+    `- Rubric classes: ${coverage.rubric_class_count}`,
+    `- Judge modes: ${coverage.judge_mode_count}`,
+    `- Golden cases: ${coverage.golden_case_count}`,
+    `- Executable run cases: ${coverage.executable_run_case_count}`,
+    `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
     "",
     "## Failure Clusters",
     ""
@@ -267,10 +299,11 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
+    coverage: summarizeCoverage(coverageFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

@@ -124,6 +124,7 @@ Sample outputs:
 For dashboard/report consumption, A2 also provides an aggregate wrapper:
 
 - `fixtures/a2/results/a2_g3_grade_results.json`
+- `fixtures/a2/results/a2_g3_coverage_report.json`
 
 The aggregate wrapper uses:
 
@@ -131,6 +132,8 @@ The aggregate wrapper uses:
 - `grade_results[]`: list of normal `grade_run` outputs
 - `total_cases`, `passed`, `failed`
 - `scenario_pack`, `dataset_id`, `report_id`
+
+The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, and executable failure calibration coverage without rerunning A2 code.
 
 ## Known Boundary
 
