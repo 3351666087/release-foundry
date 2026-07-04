@@ -61,8 +61,10 @@ class A2ContractTests(unittest.TestCase):
         golden = json.loads((ROOT / "fixtures/golden/a2_g2_golden_cases.json").read_text(encoding="utf-8"))
         scenario_ids = {scenario["id"] for scenario in pack["scenarios"]}
         golden_ids = {case["scenario_id"] for case in golden["goldenCases"]}
-        self.assertEqual(len(golden["goldenCases"]), 20)
-        self.assertEqual(scenario_ids, golden_ids)
+        case_ids = [case["case_id"] for case in golden["goldenCases"]]
+        self.assertGreaterEqual(len(golden["goldenCases"]), 20)
+        self.assertEqual(len(case_ids), len(set(case_ids)))
+        self.assertLessEqual(scenario_ids, golden_ids)
         for case in golden["goldenCases"]:
             with self.subTest(case=case["case_id"]):
                 self.assertIn(case["expected_primary_failure_class"], CANONICAL_FAILURE_CLASSES | {"none"})
@@ -233,13 +235,14 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(len(report["primary_failure_class_counts"]), 12)
         self.assertEqual(sum(report["primary_failure_class_counts"].values()), 60)
         self.assertLessEqual(set(report["primary_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertEqual(report["golden_case_count"], 20)
+        self.assertGreaterEqual(report["golden_case_count"], 20)
         self.assertGreaterEqual(report["golden_failure_case_count"], 12)
         self.assertGreaterEqual(report["golden_pass_case_count"], 1)
         self.assertEqual(
             sum(report["golden_failure_class_counts"].values()),
             report["golden_failure_case_count"],
         )
+        self.assertEqual(report["golden_failure_classes_missing"], [])
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 

@@ -77,10 +77,11 @@ These fields make coverage auditable; runtime judges still grade actual run beha
 
 The coverage report also reads `fixtures/golden/a2_g2_golden_cases.json` and reports:
 
-- `golden_case_count`: expected to stay at 20 or higher,
+- `golden_case_count`: expected to stay at 20 or higher. The first 20 cases cover the 20 G2 seed scenarios; extra cases may be added as failure calibration seeds.
 - `golden_pass_case_count`,
 - `golden_failure_case_count`: expected to stay at 12 or higher,
-- `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds.
+- `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds,
+- `golden_failure_classes_missing`: expected to stay empty after G3 calibration.
 
 ## Later Enhancements
 
