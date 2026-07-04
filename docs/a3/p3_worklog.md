@@ -110,3 +110,111 @@
 - Read-only Ashr SDK smoke test via `AshrLabsClient`.
 - `node --test tests/a3/report_builder.test.mjs`
 - `node --test tests/a3/p3_ashr_mapper.test.mjs`
+
+## 2026-07-04 - Product Console / Media Evidence iteration
+
+### Baseline and peer state
+
+- Current branch: `codex/a3-p3-ashr-calibration`.
+- `.env.local` is ignored by `.git/info/exclude`.
+- `gh pr list --state all --limit 20` showed:
+  - PR #5 `P3 Ashr calibration for A3 dashboard`: merged.
+  - PR #6 `A1 local SDK runner, cloud API, and TS quickstart`: merged.
+  - PR #7 `A1 queue worker and TS API client parity`: open draft.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` failed with a network reset. This is recorded as merge risk because local `origin/main` may be stale even though GitHub API was reachable.
+
+### ROI decision
+
+Selected `Media Evidence` for this round.
+
+Reason:
+
+- Real Ashr samples already exposed media fields that A3 could not display.
+- Media evidence has high demo value because non-developers can understand audio/file/VM evidence faster than raw JSON.
+- Supporting media fields reduces integration risk for future real Ashr data.
+
+Backlog:
+
+- Trace tree + tool-call diff + judge drilldown.
+- Report center with more formal export workflow.
+- Authenticated official Ashr dashboard observation after manual login.
+
+### Real Ashr media calibration
+
+Read-only Ashr API/SDK evidence from this round is saved in sanitized files:
+
+- `fixtures/a3/p3/ashr_media_field_sample.redacted.json`
+- `fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json`
+- `fixtures/a3/p3/ashr_run_detail_sample.redacted.json`
+- `fixtures/a3/p3/ashr_request_detail_sample.redacted.json`
+
+Confirmed fields:
+
+- `dataset_source.runs.*.actions[]`
+- `action_type`: `text`, `file`, `audio`
+- `action_tags`
+- `output_path`
+- `expected_response.tool_calls`
+- `run.result.cases[]`
+- `case.metadata.action_type`
+- `case.metadata.audio_tags`
+- `case.metadata.intent_tags`
+- `case.observations[].vm_stream`
+- `grade.expected`
+- `grade.actual`
+- `grade.metrics`
+- `grade.passed`
+- `grade.score`
+
+### Official frontend observation
+
+- Public site observed at `https://ashr.io/`.
+- Public product concepts seen: datasets, test details, explore, prompts, SDK, full test timelines, expected vs actual, usage scaling.
+- Lab frontend opened at `https://lab.ashr.io/` and landed on sign-in/onboarding.
+- No login, form submission, workspace creation, or plan selection was performed.
+- Notes saved in `docs/a3/p3_official_frontend_notes.md`.
+
+### Implemented
+
+- Extended `services/report/p3_ashr_mapper.mjs` to support:
+  - `run.result.tests[].action_results[]`
+  - `run.result.cases[]`
+  - media evidence summary
+  - audio/file/image/video action types
+  - action tags and output paths
+  - VM stream summaries
+  - media timeline events such as `media.vm_stream`
+- Extended `services/report/report_builder.mjs` to include media evidence counts in summaries and media fields in JSON/CSV exports.
+- Extended `tests/a3/p3_ashr_mapper.test.mjs` with a real redacted `result.cases[]` media sample test.
+- Updated `apps/dashboard/index.html` into a product-console style UI:
+  - data source switcher
+  - product console overview
+  - Usage / Quota known-gap panel
+  - Requests / datasets / runs object summary
+  - Media Evidence panel in Case Detail
+  - P3 media sample view powered by the mapper
+
+### Screenshots
+
+- `docs/screenshots/a3-p3-product-console-media-overview.png`
+- `docs/screenshots/a3-p3-product-console-media-mobile.png`
+
+### Verification
+
+- `node --test tests/a3/report_builder.test.mjs`: 4 tests passed.
+- `node --test tests/a3/p3_ashr_mapper.test.mjs`: 5 tests passed.
+- Browser smoke: `http://127.0.0.1:5173/apps/dashboard/index.html?source=p3-media`.
+- Browser checks:
+  - Page title rendered `A3 Product Console`.
+  - Data source rendered `P3 redacted Ashr media sample`.
+  - Case rows: 3.
+  - Media Evidence metric: 3.
+  - Media panel showed `audio` and `vm_stream`.
+  - Console logs: no warnings/errors.
+  - Mobile viewport width 390 had no horizontal overflow.
+
+### Next top 3
+
+1. Add a trace/tool-call diff panel for expected vs actual tool-call comparison.
+2. Add a report-center page with saved report history and PDF-ready layout.
+3. After a teammate logs into Ashr Lab, observe authenticated requests/datasets/runs/detail pages and update `p3_official_frontend_notes.md`.

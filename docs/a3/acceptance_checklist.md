@@ -46,6 +46,30 @@
 - [ ] Decide score source: `semantic_similarity` vs a later server grade field.
 - [ ] Join dataset scenario titles into mapped A3 cases.
 
+## P3 Product Console / Media Evidence
+
+- [x] Recorded ROI decision before implementation.
+- [x] Selected one highest ROI enhancement for this round: media evidence.
+- [x] Saved sanitized media calibration fixtures under `fixtures/a3/p3`.
+- [x] Confirmed real sample includes `audio`, `file`, `action_tags`, `output_path`, and `vm_stream`.
+- [x] Documented media calibration in `docs/a3/p3_media_calibration.md`.
+- [x] Documented official frontend observation in `docs/a3/p3_official_frontend_notes.md`.
+- [x] Extended P3 mapper to support `run.result.cases[]`.
+- [x] Extended P3 mapper to emit `media_evidence`.
+- [x] Extended P3 mapper to emit media timeline events.
+- [x] Extended report export to preserve media evidence in JSON/CSV.
+- [x] Added P3 media sample test coverage.
+- [x] Dashboard can switch between A1/A2 mock and P3 media sample.
+- [x] Dashboard shows product console overview.
+- [x] Dashboard shows Usage / Quota known-gap panel.
+- [x] Dashboard shows Requests / Datasets / Runs object summary.
+- [x] Dashboard shows case-level Media Evidence panel.
+- [x] Browser smoke test confirmed P3 media sample renders.
+- [x] Mobile viewport check confirmed no horizontal overflow at width 390.
+- [x] Screenshots saved under `docs/screenshots`.
+- [ ] Authenticated Ashr Lab dashboard observed after manual login.
+- [ ] Native signed media URL field confirmed for audio/image/video.
+
 ## Next Acceptance Targets
 
 - [ ] Replace A3 mock fixtures with generated fixtures from merged A1/A2 outputs.

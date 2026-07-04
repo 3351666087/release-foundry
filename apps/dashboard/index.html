@@ -117,6 +117,24 @@
         justify-content: flex-end;
       }
 
+      .source-picker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .source-picker select {
+        min-height: 36px;
+        max-width: 190px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        padding: 6px 8px;
+      }
+
       .button {
         border: 1px solid var(--line);
         border-radius: 6px;
@@ -134,6 +152,66 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: 12px;
+      }
+
+      .console-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr 1fr;
+        gap: 14px;
+      }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(80px, 1fr));
+        gap: 8px;
+      }
+
+      .workflow-step {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px;
+        background: #fbfcfe;
+        min-width: 0;
+      }
+
+      .workflow-step strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .mini-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--ink-soft);
+        padding-bottom: 7px;
+        font-size: 13px;
+      }
+
+      .mini-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      .progress {
+        height: 8px;
+        border-radius: 999px;
+        background: var(--ink-soft);
+        overflow: hidden;
+        margin-top: 10px;
+      }
+
+      .progress span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--green);
       }
 
       .metric,
@@ -313,6 +391,40 @@
         margin-top: 12px;
       }
 
+      .media-evidence {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        margin-top: 12px;
+        padding: 12px;
+        background: #fbfcfe;
+      }
+
+      .media-evidence h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .evidence-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 8px;
+      }
+
+      .evidence-item {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px;
+        background: #fff;
+        min-width: 0;
+      }
+
+      .evidence-item strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 4px;
+        word-break: break-word;
+      }
+
       .judge {
         border: 1px solid var(--line);
         border-radius: 6px;
@@ -375,9 +487,11 @@
         }
 
         .metrics,
+        .console-grid,
         .filters,
         .grid,
-        .detail-grid {
+        .detail-grid,
+        .workflow {
           grid-template-columns: 1fr;
         }
 
@@ -391,9 +505,10 @@
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">Ashr A3</div>
-        <div class="subtitle">Dashboard & Triage skeleton consuming local A1/A2-style fixtures.</div>
+        <div class="subtitle">Product console for run triage, evidence review, and report export.</div>
         <nav class="nav" aria-label="Dashboard sections">
-          <a href="#summary" class="active">Summary</a>
+          <a href="#summary" class="active">Overview</a>
+          <a href="#console">Console</a>
           <a href="#runs">Run List</a>
           <a href="#detail">Case Detail</a>
           <a href="#timeline">Trace Timeline</a>
@@ -404,10 +519,17 @@
       <main class="content">
         <section class="topbar" id="summary">
           <div>
-            <h1>A3 Dashboard & Triage</h1>
+            <h1>A3 Product Console</h1>
             <div class="caption" id="data-source">Loading local fixtures...</div>
           </div>
           <div class="actions">
+            <label class="source-picker" for="source-select">
+              Data
+              <select id="source-select">
+                <option value="mock">A1/A2 Mock</option>
+                <option value="p3-media">P3 Media Sample</option>
+              </select>
+            </label>
             <button class="button" id="export-json" type="button">Export JSON</button>
             <button class="button" id="export-csv" type="button">Export CSV</button>
             <button class="button" id="export-md" type="button">Export Markdown</button>
@@ -420,6 +542,46 @@
           <div class="metric"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong></div>
           <div class="metric"><label>Average Score</label><strong id="metric-score">0</strong></div>
           <div class="metric"><label>Trace Complete</label><strong id="metric-trace">0%</strong></div>
+          <div class="metric"><label>Media Evidence</label><strong id="metric-media">0</strong></div>
+        </section>
+
+        <section class="console-grid" id="console" aria-label="Product console overview">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Workflow</h2>
+              <span class="caption">Request to report</span>
+            </div>
+            <div class="panel-body">
+              <div class="workflow">
+                <div class="workflow-step"><strong>Requests</strong><span class="muted" id="workflow-requests">calibrated</span></div>
+                <div class="workflow-step"><strong>Datasets</strong><span class="muted" id="workflow-datasets">loaded</span></div>
+                <div class="workflow-step"><strong>Runs</strong><span class="muted" id="workflow-runs">loaded</span></div>
+                <div class="workflow-step"><strong>Analysis</strong><span class="muted" id="workflow-analysis">ready</span></div>
+                <div class="workflow-step"><strong>Export</strong><span class="muted">JSON/CSV/MD</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Usage / Quota</h2>
+              <span class="badge neutral">read-only</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="usage-detail">Waiting for fixture data.</div>
+              <div class="progress" aria-hidden="true"><span id="usage-bar"></span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Objects</h2>
+              <span class="caption">Requests / datasets / runs</span>
+            </div>
+            <div class="panel-body">
+              <div class="mini-list" id="object-summary"></div>
+            </div>
+          </div>
         </section>
 
         <section class="filters" aria-label="Filters">
@@ -491,6 +653,7 @@
                   <pre id="actual-view">{}</pre>
                 </div>
               </div>
+              <div class="media-evidence" id="media-view"></div>
               <div class="judge-list" id="judge-view"></div>
             </div>
           </div>
@@ -531,13 +694,15 @@
         getFilterOptions,
         normalizeCases
       } from "../../services/report/report_builder.mjs";
+      import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
       const state = {
         runs: null,
         grades: null,
         cases: [],
         filteredCases: [],
-        selectedCaseId: null
+        selectedCaseId: null,
+        source: "mock"
       };
 
       const $ = (id) => document.getElementById(id);
@@ -554,8 +719,20 @@
         return JSON.stringify(value ?? {}, null, 2);
       }
 
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
       function fillSelect(selectId, values) {
         const select = $(selectId);
+        while (select.options.length > 1) {
+          select.remove(1);
+        }
         for (const value of values) {
           const option = document.createElement("option");
           option.value = value;
@@ -596,11 +773,51 @@
         $("metric-pass-rate").textContent = `${summary.passRate}%`;
         $("metric-score").textContent = summary.avgScore;
         $("metric-trace").textContent = `${summary.traceCompleteness}%`;
-        $("data-source").textContent = `Local fixture: ${summary.lastRunId}`;
+        $("metric-media").textContent = summary.mediaEvidenceCases;
+        $("data-source").textContent = `${sourceLabel(state.source)}: ${summary.lastRunId}`;
+      }
+
+      function renderConsoleStats() {
+        const summary = buildDashboardSummary(state.runs, state.grades);
+        const runs = Array.isArray(state.runs?.runs) ? state.runs.runs : [];
+        const datasets = new Set(runs.map((item) => item.dataset_id).filter(Boolean));
+        const runners = new Set(runs.map((item) => item.runner_id).filter(Boolean));
+        $("workflow-requests").textContent = state.source === "p3-media" ? "API sample" : "mock seed";
+        $("workflow-datasets").textContent = `${datasets.size || 1} dataset`;
+        $("workflow-runs").textContent = `${summary.totalRuns} run`;
+        $("workflow-analysis").textContent = `${summary.failed} failed`;
+        $("usage-detail").textContent = `${summary.traceCompleteness}% trace coverage, ${summary.mediaEvidenceCases} media case(s), ${summary.vmStreamCases} VM stream case(s). Quota is tracked as a known external field until Ashr usage API is exposed to A3.`;
+        $("usage-bar").style.width = `${Math.min(100, Math.max(0, summary.traceCompleteness))}%`;
+        $("object-summary").replaceChildren(...[
+          miniRow("Requests", state.source === "p3-media" ? "sampled read-only" : "mock only"),
+          miniRow("Datasets", String(datasets.size || 1)),
+          miniRow("Runs", String(summary.totalRuns)),
+          miniRow("Runners", String(runners.size || 1)),
+          miniRow("Export", "JSON / CSV / Markdown")
+        ]);
+      }
+
+      function miniRow(label, value) {
+        const node = document.createElement("div");
+        node.className = "mini-row";
+        node.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
+        return node;
+      }
+
+      function sourceLabel(source) {
+        return source === "p3-media" ? "P3 redacted Ashr media sample" : "Local A1/A2 mock fixture";
       }
 
       function renderCaseList() {
         $("visible-count").textContent = `${state.filteredCases.length} visible`;
+        if (!state.filteredCases.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent = "No cases match the current filters.";
+          $("case-list").replaceChildren(empty);
+          return;
+        }
+
         $("case-list").replaceChildren(...state.filteredCases.map((item) => {
           const button = document.createElement("button");
           button.className = `case-row ${item.case_id === state.selectedCaseId ? "active" : ""}`;
@@ -611,14 +828,14 @@
             renderDetail();
           });
           button.innerHTML = `
-            <div class="case-title">${item.title}</div>
+            <div class="case-title">${escapeHtml(item.title)}</div>
             <div class="case-meta">
-              <span>${item.case_id}</span>
-              <span>${item.scenario_id}</span>
+              <span>${escapeHtml(item.case_id)}</span>
+              <span>${escapeHtml(item.scenario_id)}</span>
               <span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span>
-              <span>${item.primary_failure_class}</span>
-              <span>${item.severity}</span>
-              <span>${item.score}</span>
+              <span>${escapeHtml(item.primary_failure_class)}</span>
+              <span>${escapeHtml(item.severity)}</span>
+              <span>${escapeHtml(item.score)}</span>
             </div>
           `;
           return button;
@@ -635,6 +852,7 @@
           $("actual-view").textContent = "{}";
           $("timeline-view").textContent = "";
           $("judge-view").textContent = "";
+          $("media-view").textContent = "";
           return;
         }
 
@@ -643,6 +861,7 @@
         $("case-heading").textContent = `${item.case_id} / ${item.scenario_id} - ${item.failure_summary}`;
         $("expected-view").textContent = formatJson(item.expected);
         $("actual-view").textContent = formatJson(item.actual);
+        renderMediaEvidence(item);
         $("judge-view").replaceChildren(...(item.judge_results || []).map((judge) => {
           const node = document.createElement("div");
           node.className = "judge";
@@ -689,6 +908,13 @@
 
       function renderClusters() {
         const clusters = clusterFailures(state.runs, state.grades);
+        if (!clusters.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent = "No failure clusters for the current data source.";
+          $("cluster-list").replaceChildren(empty);
+          return;
+        }
         $("cluster-list").replaceChildren(...clusters.map((cluster) => {
           const node = document.createElement("div");
           node.className = "cluster";
@@ -701,6 +927,36 @@
         }));
       }
 
+      function renderMediaEvidence(item) {
+        const media = item.media_evidence;
+        if (!media || !((media.evidence_items || []).length || (media.vm_streams || []).length || (media.media_types || []).length)) {
+          $("media-view").innerHTML = `
+            <h3>Media Evidence</h3>
+            <div class="muted">No image/audio/file/video/VM evidence is attached to this case. For mock fixtures this is expected; switch to the P3 Media Sample to inspect calibrated media fields.</div>
+          `;
+          return;
+        }
+
+        const knownGaps = (media.known_gaps || []).map((item) => `<div class="muted">${escapeHtml(item)}</div>`).join("");
+        const evidenceItems = (media.evidence_items || []).map((entry) => `
+          <div class="evidence-item">
+            <strong>${escapeHtml(entry.type || "evidence")}</strong>
+            <div class="muted">${escapeHtml(entry.name || entry.provider || "source")}</div>
+            <div>${escapeHtml(entry.output_path || entry.session_id || "no direct media URL")}</div>
+          </div>
+        `).join("");
+        $("media-view").innerHTML = `
+          <h3>Media Evidence</h3>
+          <div class="case-meta" style="margin-bottom: 8px;">
+            <span class="badge neutral">${escapeHtml(media.primary_media_type || "media")}</span>
+            <span>${escapeHtml((media.media_types || []).join(", ") || "vm_stream")}</span>
+            <span>${escapeHtml((media.vm_streams || []).length)} VM stream(s)</span>
+          </div>
+          <div class="evidence-grid">${evidenceItems || "<div class=\"muted\">No evidence item details.</div>"}</div>
+          ${knownGaps ? `<div style="margin-top: 8px;">${knownGaps}</div>` : ""}
+        `;
+      }
+
       function download(name, content, type) {
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
@@ -711,9 +967,20 @@
         URL.revokeObjectURL(url);
       }
 
-      async function init() {
-        state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
-        state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+      async function loadDataSource(source) {
+        state.source = source;
+        if (source === "p3-media") {
+          const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
+          const mapped = mapAshrSampleToA3Fixtures(sample, {
+            fixtureId: "p3_ashr_media_dashboard_sample",
+            gradeFixtureId: "p3_ashr_media_dashboard_grades"
+          });
+          state.runs = mapped.runFixture;
+          state.grades = mapped.gradeFixture;
+        } else {
+          state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+          state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+        }
         state.cases = normalizeCases(state.runs, state.grades);
         state.filteredCases = state.cases;
         state.selectedCaseId = state.cases[0]?.case_id || null;
@@ -724,10 +991,34 @@
         fillSelect("filter-run", filterOptions.runIds);
         fillSelect("filter-severity", filterOptions.severities);
         fillSelect("filter-score", filterOptions.scoreBands);
+        for (const id of ["filter-status", "filter-family", "filter-failure", "filter-run", "filter-severity", "filter-score"]) {
+          $(id).value = "all";
+        }
+
+        renderSummary();
+        renderConsoleStats();
+        renderCaseList();
+        renderDetail();
+        renderClusters();
+      }
+
+      async function init() {
+        const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
+        $("source-select").value = initialSource === "p3-media" ? "p3-media" : "mock";
+        await loadDataSource($("source-select").value);
 
         for (const id of ["filter-status", "filter-family", "filter-failure", "filter-run", "filter-severity", "filter-score"]) {
           $(id).addEventListener("change", applyFilters);
         }
+
+        $("source-select").addEventListener("change", async () => {
+          try {
+            await loadDataSource($("source-select").value);
+          } catch (error) {
+            $("data-source").textContent = error.message;
+            console.error(error);
+          }
+        });
 
         $("export-json").addEventListener("click", () => {
           download("a3-dashboard-report.json", JSON.stringify(buildJsonReport(state.runs, state.grades), null, 2), "application/json");
@@ -738,11 +1029,6 @@
         $("export-md").addEventListener("click", () => {
           download("a3-dashboard-report.md", buildMarkdownReport(state.runs, state.grades), "text/markdown");
         });
-
-        renderSummary();
-        renderCaseList();
-        renderDetail();
-        renderClusters();
       }
 
       init().catch((error) => {

@@ -114,6 +114,8 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
   const totalCases = cases.length;
   const passed = cases.filter((item) => item.passed).length;
   const failed = totalCases - passed;
+  const mediaEvidenceCases = cases.filter(hasMediaEvidence).length;
+  const vmStreamCases = cases.filter((item) => (item.media_evidence?.vm_streams || []).length > 0).length;
   const avgScore = totalCases
     ? Math.round((cases.reduce((sum, item) => sum + normalizeScore(item.score), 0) / totalCases) * 10) / 10
     : 0;
@@ -128,6 +130,8 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
     traceCompleteness: runs.length
       ? Math.round((runs.reduce((sum, run) => sum + (run.trace_completeness || 0), 0) / runs.length) * 1000) / 10
       : 0,
+    mediaEvidenceCases,
+    vmStreamCases,
     lastRunId: runs[0]?.run_id || "none"
   };
 }
@@ -212,7 +216,10 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     "score",
     "severity",
     "primary_failure_class",
-    "failure_summary"
+    "failure_summary",
+    "media_types",
+    "media_evidence_count",
+    "vm_stream_count"
   ];
   const rows = normalizeCases(runFixture, gradeFixture).map((item) => [
     item.run_id,
@@ -223,7 +230,10 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     item.score,
     item.severity,
     item.primary_failure_class,
-    item.failure_summary
+    item.failure_summary,
+    (item.media_evidence?.media_types || []).join("|"),
+    item.media_evidence?.evidence_items?.length || 0,
+    item.media_evidence?.vm_streams?.length || 0
   ]);
   return [header, ...rows]
     .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
@@ -248,7 +258,15 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}) {
       primary_failure_class: item.primary_failure_class,
       failure_summary: item.failure_summary,
       expected: item.expected,
-      actual: item.actual
+      actual: item.actual,
+      media_evidence: item.media_evidence || null
     }))
   };
+}
+
+function hasMediaEvidence(item = {}) {
+  const mediaEvidence = item.media_evidence || {};
+  return (mediaEvidence.media_types || []).length > 0
+    || (mediaEvidence.evidence_items || []).length > 0
+    || (mediaEvidence.vm_streams || []).length > 0;
 }
