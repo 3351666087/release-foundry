@@ -531,14 +531,68 @@ Remaining:
 - Request generation quota is currently exhausted for additional `create-request` calls in this period/account state; continue with read/list/get/poll calibration, existing completed datasets, runner replay, and docs until quota resets or plan changes.
 - Adapter still lacks the proposed canonical multimodal `AgentInput` envelope and content-part text normalization; this is the next highest ROI implementation once mutation guardrails are stable.
 
+## 2026-07-04 AgentInput Multimodal Envelope
+
+Goal: implement the next highest-ROI A1 local SDK/Adapter step after real request guardrails by adding a canonical multimodal `AgentInput` envelope for Image/Audio/Files interfaces, while preserving legacy text-only adapter behavior and A2/A3 `AgentTurn` output contracts.
+
+Start protocol:
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `c2d1561`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking origin; tracked changes at start were the in-progress A1 adapter draft only. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: open PRs remained A1 PR #4 and A3 PR #5; PRs #1/#2/#3 were merged history.
+- Peer changes/impact: A2/G3 continued additive A2 calibration work and A3 PR #5 stayed in A3 dashboard/report scope. No live peer change required modifying A1 `AgentTurn`, A2 projection, judge semantics, or dashboard behavior.
+
+Three proposed enhancements:
+
+1. Add canonical `AgentInput` multimodal envelope plus adapter methods and content-part output normalization.
+2. Adjust the hosted media request schema/UI calibration before repeating Image/Audio/Files generation.
+3. Add a second external-agent adapter smoke path against the new envelope.
+
+Implemented highest ROI enhancement: `AgentInput` and adapter input/output boundary coverage.
+
+Subagent findings:
+
+- Bus-Auditor: PASS to proceed with local `AgentInput`; BLOCK any new real `create-request` because hosted request quota was exhausted in the latest evidence. Main agent performed no new real generation request calls.
+- Explorer-SDK: recommended `AgentInput` next to `AgentResult`, schema `ashr.clone.agent_input.v1`, parts for `text`, `image`, `audio`, and `file`, explicit `respond_input`/`arespond_input`, top-level exports, schema snapshot, and docs.
+- Reviewer: requested content-part output normalization and adapter error redaction for local failures that may include file paths, signed URLs, tokens, or owner emails.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/adapter.py`: added `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, `coerce_agent_input`, multimodal part normalization, explicit `respond_input`, `arespond_input`, `run_input_turn`, and `arun_input_turn`. Legacy `respond("text")` still passes a plain string by default.
+- `packages/sdk/ashr_clone/adapter.py`: content-part outputs now extract text from `text`, `input_text`, and `output_text` parts instead of JSON-dumping the entire multimodal list.
+- `packages/sdk/ashr_clone/adapter.py`: adapter error payloads and captured kwargs redact token-like values, bearer tokens, emails, and signed URL query strings.
+- `packages/sdk/ashr_clone/__init__.py`: exported `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, and `coerce_agent_input`.
+- `docs/a1/schemas/agent_input.schema.json`: added the A1 AgentInput schema snapshot for A3/Gate review.
+- `tests/a1/test_adapter.py`: added coverage for text default compatibility, envelope passing, keyword style, image/audio/file parts, async envelope use, content-part text extraction, A2 projection stability, and redacted error payloads.
+- `tests/a1/test_trace_fixture.py`: added schema snapshot coverage for `agent_input.schema.json`.
+- `docs/a1/README.md`, `docs/a1/explorer_sdk.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.10s`.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: `8 passed in 0.27s`.
+- `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: `56 passed in 2.64s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `92 passed in 2.96s`.
+- Chrome read-only calibration: logged-in Usage page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no sign-in copy; exact private usage values were not recorded in tracked docs. Official API reference remained reachable and showed `create_request`, `accepted_inputs`, `generate_audio`, `generate_files`, `generate_images`, and `add_user_file`.
+- Final remote recheck before staging: `git fetch --all --prune` advanced `origin/main` to `2205084` and `origin/dev/g3-a2-calibration` to `3c27179`; PR #4 and PR #5 are now merged. `origin/main` contains A1 plus additive A2/A3/judge/dashboard/report fixture work. Current A1 patch remains a follow-up on `codex/a1-local-sdk-runner`.
+- Bus-Auditor final verdict: PASS. No must-fix items; safe to stage/commit self-made A1 SDK/tests/docs plus this shared worklog. It noted that pushing the branch is safe but will not update a merged PR, so a fresh PR or handoff is needed after push if collaboration visibility is required.
+
+Remaining:
+
+- Need stage/commit/push this self-made follow-up patch, then create a fresh PR or handoff because PR #4 has already merged.
+- Hosted media-generation failure reason is still unresolved; do not repeat the same media request blindly. Next media step should adjust schema/request shape or inspect official product docs/UI for required media payload semantics.
+- Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
+- A second external-agent adapter smoke path against `AgentInput` would be useful once the local envelope is committed.
+
 ## 2026-07-04 Latest Round Index
 
-Latest active A1 round: Real Request And Media Boundary Calibration.
+Latest active A1 round: AgentInput Multimodal Envelope.
 
 Key current facts:
 
-- Branch remains `codex/a1-local-sdk-runner`; tracked worktree has self-made changes in A1-owned dirs awaiting final audit/stage/commit.
-- Real text-only create-request chain now works end-to-end with default schema: create succeeded, get observed processing, poll observed completed.
-- Real Image/Audio/Files request was accepted but hosted processing failed; this is now a known backend/request-shape boundary, not a local CLI failure.
+- Branch remains `codex/a1-local-sdk-runner`; tracked worktree has self-made A1 SDK/tests/docs changes awaiting stage/commit/push. PR #4 has already merged, so this follow-up needs a fresh PR or explicit handoff after push.
+- `AgentInput` local envelope exists with `schema_version=ashr.clone.agent_input.v1` and supports `text`, `image`, `audio`, and `file` parts.
+- Legacy `AgentAdapter.respond("text")` still passes plain strings; `respond_input(...)` and async/input-turn variants pass the canonical envelope.
+- A2/A3-facing `AgentTurn` output shape remains intact, with content-part text extraction and A2 projection tests passing.
 - Additional real text batch generation is blocked by hosted request quota exhaustion. Read-only API probes still work.
-- A1 tests are now `85 passed`.
+- A1 tests are now `92 passed`.

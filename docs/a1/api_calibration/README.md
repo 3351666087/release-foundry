@@ -158,15 +158,19 @@ Private real-shape smoke test:
 
 - `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 37 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 85 passed.
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: 21 passed.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
+- `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: 56 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 92 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
+- Local multimodal adapter coverage now includes `AgentInput` with `text`, `image`, `audio`, and `file` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
 
 ## Next Candidates
 
-1. Add a canonical multimodal `AgentInput` envelope to `AgentAdapter` so future Image/Audio/Files inputs can be wrapped consistently while preserving legacy text behavior.
-2. Inspect/adjust the media request schema or official UI/docs before repeating media generation; the first real media request was accepted but hosted processing failed.
-3. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.
+1. Inspect/adjust the media request schema or official UI/docs before repeating media generation; the first real media request was accepted but hosted processing failed.
+2. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.
+3. Add a second external-agent adapter smoke path against the new `AgentInput` envelope without changing A2/A3 `AgentTurn` output contracts.

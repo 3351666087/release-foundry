@@ -160,3 +160,22 @@ Cleanup note:
 - Evidence hygiene hardening: create-request records now summarize request shape before writing evidence params; the real API body still receives the full request payload.
 - `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `37 passed in 1.22s`.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `85 passed in 3.13s`.
+
+## 2026-07-04 AgentInput Multimodal Envelope
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `c2d1561`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking origin; tracked changes at start were the in-progress A1 adapter draft only. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` remained unstaged.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json number,title,headRefName,baseRefName,state,isDraft,author,updatedAt,headRefOid,url`: open PRs observed were A1 PR #4 and A3 PR #5; merged PRs #1/#2/#3 remained historical.
+- Peer impact: A2/G3 continued additive A2 calibration work and A3 PR #5 stayed in A3 dashboard/report scope. No live peer change required modifying A1 `AgentTurn`, A2 projection, judge semantics, or dashboard behavior.
+- Bus-Auditor verdict before implementation: PASS for local `AgentInput` multimodal envelope; BLOCK for any new real `create-request` because hosted request quota was exhausted in the latest evidence. Main agent performed no new real generation request calls.
+- Implemented `AgentInput` with `schema_version=ashr.clone.agent_input.v1`, `text`, `parts`, and `metadata`; parts support `text`, `image`, `audio`, and `file` without reading local files.
+- Added explicit adapter methods `respond_input`, `arespond_input`, `run_input_turn`, and `arun_input_turn`; legacy `respond("text")` still passes a plain string by default.
+- Fixed content-part output normalization so list-style text parts produce joined text instead of a JSON blob, and added adapter error redaction for token-like values, bearer tokens, emails, and signed URL query strings.
+- Added schema snapshot `docs/a1/schemas/agent_input.schema.json` and top-level SDK exports for `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, and `coerce_agent_input`.
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.10s`.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: `8 passed in 0.27s`.
+- `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: `56 passed in 2.64s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `92 passed in 2.96s`.
+- Chrome read-only calibration: logged-in `https://lab.ashr.io/?tab=usage` showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no sign-in copy; exact private usage values were not recorded in tracked docs. Official API reference at `https://ashr.io/docs/python-sdk/api-reference/` showed `create_request`, `accepted_inputs`, `generate_audio`, `generate_files`, `generate_images`, and `add_user_file`.
+- Final remote recheck before staging: `git fetch --all --prune` advanced `origin/main` to `2205084` and `origin/dev/g3-a2-calibration` to `3c27179`; PR #4 and PR #5 are now merged. `origin/main` contains A1 plus additive A2/A3/judge/dashboard/report fixture work. Current A1 patch remains a follow-up on `codex/a1-local-sdk-runner`.
+- Bus-Auditor final verdict: PASS. Safe to stage/commit self-made A1 SDK/tests/docs plus this shared worklog; no private raw evidence was read, and no new real `create-request` was made.

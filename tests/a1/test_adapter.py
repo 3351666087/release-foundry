@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
-from ashr_clone import to_a2_judge_run  # noqa: E402
+from ashr_clone import AGENT_INPUT_SCHEMA_VERSION, AgentInput, to_a2_judge_run  # noqa: E402
 from ashr_clone.adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult  # noqa: E402
 from ashr_clone.types import ToolCall  # noqa: E402
 
@@ -38,6 +38,27 @@ class AsyncRespondAgent:
 
 
 class AgentAdapterTests(unittest.TestCase):
+    def test_agent_input_to_dict_is_json_safe_and_preserves_media_parts(self):
+        agent_input = AgentInput.from_parts(
+            [
+                {"type": "text", "text": "Describe this file."},
+                {"type": "image", "path": Path("fixtures/image.png"), "mimeType": "image/png"},
+                {"type": "audio", "url": "https://example.invalid/audio.wav", "mime_type": "audio/wav"},
+                {"type": "file", "path": Path("fixtures/spec.pdf"), "name": "spec.pdf", "mime_type": "application/pdf"},
+            ],
+            metadata={"labels": {"b", "a"}},
+        )
+        payload = agent_input.to_dict()
+        self.assertEqual(payload["schema_version"], AGENT_INPUT_SCHEMA_VERSION)
+        self.assertEqual(payload["text"], "Describe this file.")
+        self.assertEqual(payload["parts"][1]["type"], "image")
+        self.assertEqual(payload["parts"][1]["path"], "fixtures\\image.png" if "\\" in str(Path("fixtures/image.png")) else "fixtures/image.png")
+        self.assertEqual(payload["parts"][1]["mime_type"], "image/png")
+        self.assertEqual(payload["parts"][2]["type"], "audio")
+        self.assertEqual(payload["parts"][3]["type"], "file")
+        self.assertEqual(payload["metadata"]["labels"], ["a", "b"])
+        self.assertIsInstance(json.dumps(payload), str)
+
     def test_respond_agent_normalizes_text_tools_and_latency(self):
         agent = RespondAgent()
         adapter = AgentAdapter(agent, name="local-test-agent")
@@ -49,6 +70,49 @@ class AgentAdapterTests(unittest.TestCase):
         self.assertEqual(result.metadata["style"], "respond")
         self.assertIs(adapter.last_result, result)
         self.assertEqual(adapter.history, [result])
+
+    def test_respond_input_passes_envelope_without_breaking_text_default(self):
+        seen = []
+
+        def agent(prompt, **kwargs):
+            seen.append((prompt, kwargs))
+            return {"content": "ok"}
+
+        adapter = AgentAdapter(agent)
+        plain = adapter.respond("hello", mode="text")
+        multimodal = adapter.respond_input(
+            AgentInput.from_parts(
+                [{"type": "text", "text": "look"}, {"type": "image", "path": "fixtures/chart.png", "mime_type": "image/png"}],
+                text="look",
+                metadata={"case_id": "case-1"},
+            ),
+            mode="request",
+        )
+        self.assertEqual(plain.text, "ok")
+        self.assertEqual(seen[0], ("hello", {"mode": "text"}))
+        envelope, kwargs = seen[1]
+        self.assertEqual(kwargs, {"mode": "request"})
+        self.assertEqual(envelope["schema_version"], AGENT_INPUT_SCHEMA_VERSION)
+        self.assertEqual(envelope["text"], "look")
+        self.assertEqual(envelope["parts"][1]["type"], "image")
+        self.assertEqual(multimodal.metadata["style"], "callable:request")
+
+    def test_keyword_input_style_passes_envelope_as_named_argument(self):
+        class KeywordAgent:
+            def __init__(self):
+                self.kwargs = None
+
+            def respond(self, **kwargs):
+                self.kwargs = kwargs
+                return "keyword ok"
+
+        agent = KeywordAgent()
+        result = AgentAdapter(agent, input_style="keyword").respond("hello", input_metadata={"source": "unit"}, extra=True)
+        self.assertEqual(result.text, "keyword ok")
+        self.assertEqual(agent.kwargs["extra"], True)
+        self.assertEqual(agent.kwargs["agent_input"]["schema_version"], AGENT_INPUT_SCHEMA_VERSION)
+        self.assertEqual(agent.kwargs["agent_input"]["text"], "hello")
+        self.assertEqual(agent.kwargs["agent_input"]["metadata"], {"source": "unit"})
 
     def test_reset_calls_wrapped_agent_when_available(self):
         agent = RespondAgent()
@@ -118,6 +182,16 @@ class AgentAdapterTests(unittest.TestCase):
         self.assertEqual(payload["tool_calls"][0]["arguments"], {"path": "fixtures/a2/notes/launch-review.md"})
         self.assertIsInstance(json.dumps(payload), str)
 
+    def test_a2_projection_extracts_text_from_multimodal_content_parts(self):
+        payload = to_a2_judge_run(
+            {
+                "text": [{"type": "text", "text": "Grounded answer."}, {"type": "image", "url": "https://example.invalid/chart.png"}],
+                "tool_calls": [{"name": "file.read", "arguments": {"path": "fixtures/a2/notes/launch-review.md"}}],
+            }
+        )
+        self.assertEqual(payload["final_response"], "Grounded answer.")
+        self.assertEqual(payload["tool_calls"][0]["tool"], "file.read")
+
     def test_a2_judge_projection_accepts_agent_output_mapping(self):
         payload = to_a2_judge_run({"text": Path("answer.txt"), "tool_calls": [{"tool": "search", "args": {"tags": {"b", "a"}}}]})
         self.assertEqual(payload["final_response"], "answer.txt")
@@ -128,6 +202,36 @@ class AgentAdapterTests(unittest.TestCase):
         result = AgentAdapter(lambda prompt: {"content": Path("content.txt")}).respond("ignored")
         self.assertTrue(result.ok)
         self.assertEqual(result.text, '"content.txt"')
+
+    def test_content_parts_outputs_extract_text_without_json_blob(self):
+        result = AgentAdapter(
+            lambda prompt: {
+                "content": [
+                    {"type": "output_text", "text": "first"},
+                    {"type": "image", "url": "https://example.invalid/image.png"},
+                    {"type": "text", "text": "second"},
+                ]
+            }
+        ).respond("ignored")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "first\nsecond")
+
+    def test_adapter_error_payload_and_kwargs_are_redacted(self):
+        def failing_agent(prompt, resource_url=None):
+            bearer = "Bearer " + "abc.def-123"
+            token = "tp_" + "secret123"
+            email = "owner" + "@example.com"
+            query = "token" + "=abc"
+            raise ValueError(f"bad {bearer} {token} {email} https://signed.invalid/file.png?{query}")
+
+        result = AgentAdapter(failing_agent).respond("boom", resource_url="https://private.invalid/audio.wav?" + "X-Amz-" + "Signature=abc")
+        self.assertFalse(result.ok)
+        message = result.error["message"]
+        self.assertNotIn("abc.def-123", message)
+        self.assertNotIn("tp_" + "secret123", message)
+        self.assertNotIn("owner" + "@example.com", message)
+        self.assertNotIn("token" + "=abc", message)
+        self.assertEqual(result.metadata["kwargs"]["resource_url"], "https://private.invalid/audio.wav?[redacted]")
 
     def test_tool_call_to_dict_is_json_safe_directly(self):
         payload = ToolCall(name="local", output=Path("tool-output.txt"), arguments={"labels": {"b", "a"}}).to_dict()
@@ -161,6 +265,17 @@ class AsyncAgentAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_calls, [{"name": "search", "arguments": {}, "call_id": "call-1"}])
         self.assertTrue(reset_ok)
         self.assertEqual(agent.reset_count, 1)
+
+    async def test_async_respond_input_passes_envelope(self):
+        async def async_agent(prompt, **kwargs):
+            await asyncio.sleep(0)
+            return {"content": prompt["text"], "metadata": {"mode": kwargs["mode"]}}
+
+        result = await AgentAdapter(async_agent).arespond_input(AgentInput.from_text("async envelope"), mode="multi")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "async envelope")
+        self.assertEqual(result.metadata["mode"], "multi")
+        self.assertEqual(result.metadata["style"], "callable:request")
 
     async def test_sync_methods_can_wrap_async_agent_inside_running_loop(self):
         agent = AsyncRespondAgent()

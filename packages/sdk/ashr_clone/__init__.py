@@ -16,7 +16,7 @@ from .api_client import (
     redact_sensitive,
     redact_text,
 )
-from .adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult, AgentTurn, to_a2_judge_run
+from .adapter import AGENT_INPUT_SCHEMA_VERSION, AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentInput, AgentResult, AgentTurn, coerce_agent_input, to_a2_judge_run
 from .dataset_adapter import (
     DATASET_ADAPTER_VERSION,
     DATASET_SOURCE_ADAPTER_VERSION,
@@ -58,11 +58,14 @@ __all__ = [
     "build_default_request_input_schema",
     "redact_sensitive",
     "redact_text",
+    "AgentInput",
     "AgentAdapter",
     "AgentAdapterError",
     "AgentResult",
     "AgentTurn",
+    "AGENT_INPUT_SCHEMA_VERSION",
     "AGENT_TURN_SCHEMA_VERSION",
+    "coerce_agent_input",
     "to_a2_judge_run",
     "DATASET_ADAPTER_VERSION",
     "DATASET_SOURCE_ADAPTER_VERSION",
