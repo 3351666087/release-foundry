@@ -1,0 +1,146 @@
+{
+  "schema_version": "a3.grade_fixture.v1",
+  "fixture_id": "a3_local_grade_seed",
+  "source_notes": [
+    "Based on PR #2 fixtures/a2/results/a2_s001_pass_grade.json",
+    "Based on PR #2 fixtures/a2/results/a2_s004_missing_tool_grade.json",
+    "A3 adds one wrong_arguments example to exercise failure clustering."
+  ],
+  "grade_results": [
+    {
+      "schema_version": "a2.local_judge_run.v1",
+      "scenario_id": "A2-S001",
+      "case_id": "sample-a2-s001-pass",
+      "passed": true,
+      "score": 100,
+      "primary_failure_class": "none",
+      "judge_results": [
+        {
+          "judge_mode": "g1_trace_contract_judge",
+          "passed": true,
+          "score": 100,
+          "max_score": 100,
+          "failure_analysis": {
+            "primary_failure_class": "none",
+            "failure_classes": [],
+            "severity": "none",
+            "blame_stage": "reasoning",
+            "summary": "Tool policy satisfied.",
+            "details": [],
+            "remediation": []
+          },
+          "evidence": {
+            "tool_call_ids": []
+          }
+        },
+        {
+          "judge_mode": "g2_output_contract_judge",
+          "passed": true,
+          "score": 100,
+          "max_score": 100,
+          "failure_analysis": {
+            "primary_failure_class": "none",
+            "failure_classes": [],
+            "severity": "none",
+            "blame_stage": "reasoning",
+            "summary": "Final response satisfied deterministic checks.",
+            "details": [],
+            "remediation": []
+          },
+          "evidence": {
+            "final_response_excerpt": "I am sorry, but we need a little more information before we can approve your request."
+          }
+        }
+      ]
+    },
+    {
+      "schema_version": "a2.local_judge_run.v1",
+      "scenario_id": "A2-S004",
+      "case_id": "sample-a2-s004-missing-tool",
+      "passed": false,
+      "score": 85.5,
+      "primary_failure_class": "missing_required_tool",
+      "judge_results": [
+        {
+          "judge_mode": "g1_trace_contract_judge",
+          "passed": false,
+          "score": 71,
+          "max_score": 100,
+          "failure_analysis": {
+            "primary_failure_class": "missing_required_tool",
+            "failure_classes": [
+              "missing_required_tool"
+            ],
+            "severity": "major",
+            "blame_stage": "tool_use",
+            "summary": "Required tool missing: web.search",
+            "details": [
+              "Required tool missing: web.search"
+            ],
+            "remediation": [
+              "Align trace with scenario toolPolicy."
+            ]
+          },
+          "evidence": {
+            "tool_call_ids": []
+          }
+        },
+        {
+          "judge_mode": "g2_output_contract_judge",
+          "passed": true,
+          "score": 100,
+          "max_score": 100,
+          "failure_analysis": {
+            "primary_failure_class": "none",
+            "failure_classes": [],
+            "severity": "none",
+            "blame_stage": "reasoning",
+            "summary": "Final response satisfied deterministic checks.",
+            "details": [],
+            "remediation": []
+          },
+          "evidence": {
+            "final_response_excerpt": "The Acme MiniDock costs $79."
+          }
+        }
+      ]
+    },
+    {
+      "schema_version": "a3.synthetic_grade_run.v1",
+      "scenario_id": "A2-S010",
+      "case_id": "sample-a2-s010-wrong-argument",
+      "passed": false,
+      "score": 62,
+      "primary_failure_class": "wrong_arguments",
+      "judge_results": [
+        {
+          "judge_mode": "g1_trace_contract_judge",
+          "passed": false,
+          "score": 62,
+          "max_score": 100,
+          "failure_analysis": {
+            "primary_failure_class": "wrong_arguments",
+            "failure_classes": [
+              "wrong_arguments"
+            ],
+            "severity": "major",
+            "blame_stage": "tool_use",
+            "summary": "Required file path was vendor-alpha.txt, but actual call used vendor-alfa.txt.",
+            "details": [
+              "Expected args.path fixtures/a2/contracts/vendor-alpha.txt.",
+              "Actual args.path fixtures/a2/contracts/vendor-alfa.txt."
+            ],
+            "remediation": [
+              "Show expected vs actual argument diff in A3 case detail."
+            ]
+          },
+          "evidence": {
+            "tool_call_ids": [
+              "file.read#1"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,431 @@
+{
+  "schema_version": "a3.dashboard_fixture.v1",
+  "fixture_id": "a3_local_dashboard_seed",
+  "source_notes": [
+    {
+      "source": "PR #1 A1 local SDK runner trace loop",
+      "branch": "origin/codex/a1-local-sdk-runner",
+      "paths": [
+        "docs/a1/evidence/local_run_30.json",
+        "examples/agents/fixtures/tool_math_success.json",
+        "docs/a1/schemas/run_result.schema.json",
+        "docs/a1/schemas/case_result.schema.json",
+        "docs/a1/schemas/trace_event.schema.json"
+      ]
+    },
+    {
+      "source": "PR #2 A2: Scenario and judge foundation",
+      "branch": "origin/dev/a2-scenario-judge",
+      "paths": [
+        "docs/a2/a1_a3_handoff.md",
+        "packages/scenarios/a2_g2_seed_pack.json",
+        "fixtures/a2/results/a2_s001_pass_grade.json",
+        "fixtures/a2/results/a2_s004_missing_tool_grade.json",
+        "docs/a2/failure_taxonomy_v0.md"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "run_a3_g2_demo_001",
+      "dataset_id": "a2-local-scenarios",
+      "runner_id": "a1-local-runner",
+      "status": "failed",
+      "total_cases": 4,
+      "passed": 2,
+      "failed": 2,
+      "errored": 0,
+      "timed_out": 0,
+      "started_at": "2026-07-03T15:34:50.992Z",
+      "ended_at": "2026-07-03T15:34:51.016Z",
+      "duration_ms": 24,
+      "max_workers": 4,
+      "trace_completeness": 1,
+      "metadata": {
+        "local_only": true,
+        "ashr_api_used": false,
+        "a3_fixture_note": "Synthetic A3 view model based on A1/A2 draft PR fields."
+      },
+      "cases": [
+        {
+          "case_id": "sample-a2-s001-pass",
+          "scenario_id": "A2-S001",
+          "title": "Concise No-Tool Rewrite",
+          "family": "direct_answer",
+          "status": "passed",
+          "score": 100,
+          "latency_ms": 18,
+          "primary_failure_class": "none",
+          "severity": "none",
+          "failure_summary": "All deterministic checks passed.",
+          "expected": {
+            "summary": "Return one warmer sentence and do not call tools.",
+            "tool_calls": [],
+            "final_response_points": [
+              "Preserve the original meaning",
+              "Return one sentence",
+              "Do not call tools"
+            ]
+          },
+          "actual": {
+            "final_response": "I am sorry, but we need a little more information before we can approve your request.",
+            "tool_calls": []
+          },
+          "observations": [
+            {
+              "turn_index": 0,
+              "event_type": "message",
+              "role": "user",
+              "content": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+              "status": "ok",
+              "tool_calls": []
+            },
+            {
+              "turn_index": 1,
+              "event_type": "agent_response",
+              "role": "assistant",
+              "content": "I am sorry, but we need a little more information before we can approve your request.",
+              "status": "ok",
+              "tool_calls": []
+            }
+          ],
+          "trace_events": [
+            {
+              "seq": 0,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "a1-local-runner",
+              "observation": {
+                "kind": "message",
+                "channel": "user",
+                "status": "ok",
+                "text": "Rewrite this sentence warmly."
+              }
+            },
+            {
+              "seq": 1,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "message",
+                "channel": "assistant",
+                "status": "ok",
+                "text": "I am sorry, but we need a little more information before we can approve your request."
+              }
+            }
+          ]
+        },
+        {
+          "case_id": "sample-a2-s004-missing-tool",
+          "scenario_id": "A2-S004",
+          "title": "Required Current Price",
+          "family": "tool_execution",
+          "status": "failed",
+          "score": 85.5,
+          "latency_ms": 21,
+          "primary_failure_class": "missing_required_tool",
+          "severity": "major",
+          "failure_summary": "Required tool missing: web.search",
+          "expected": {
+            "summary": "Use web.search, prefer the official product page, and report current price with source.",
+            "tool_calls": [
+              {
+                "tool": "web.search",
+                "min_count": 1
+              }
+            ],
+            "final_response_points": [
+              "Current official price",
+              "Source name or URL"
+            ]
+          },
+          "actual": {
+            "final_response": "The Acme MiniDock costs $79.",
+            "tool_calls": []
+          },
+          "observations": [
+            {
+              "turn_index": 0,
+              "event_type": "message",
+              "role": "user",
+              "content": "What is the current listed price of the Acme MiniDock on its official product page?",
+              "status": "ok",
+              "tool_calls": []
+            },
+            {
+              "turn_index": 1,
+              "event_type": "agent_response",
+              "role": "assistant",
+              "content": "The Acme MiniDock costs $79.",
+              "status": "ok",
+              "tool_calls": []
+            }
+          ],
+          "trace_events": [
+            {
+              "seq": 0,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "a1-local-runner",
+              "observation": {
+                "kind": "message",
+                "channel": "user",
+                "status": "ok",
+                "text": "What is the current listed price of the Acme MiniDock on its official product page?"
+              }
+            },
+            {
+              "seq": 1,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "message",
+                "channel": "assistant",
+                "status": "ok",
+                "text": "The Acme MiniDock costs $79."
+              }
+            }
+          ]
+        },
+        {
+          "case_id": "math-00",
+          "scenario_id": "scenario-00",
+          "title": "Calculator 00",
+          "family": "tool_execution",
+          "status": "passed",
+          "score": 100,
+          "latency_ms": 0,
+          "primary_failure_class": "none",
+          "severity": "none",
+          "failure_summary": "A1 local checks passed.",
+          "expected": {
+            "summary": "Call calculator and answer 42.",
+            "tool_calls": [
+              {
+                "tool": "calculator"
+              }
+            ],
+            "final_response_points": [
+              "The answer is 42."
+            ]
+          },
+          "actual": {
+            "final_response": "The answer is 42.",
+            "tool_calls": [
+              {
+                "name": "calculator",
+                "arguments": {
+                  "expression": "19 + 23"
+                },
+                "output": {
+                  "value": 42
+                }
+              }
+            ]
+          },
+          "observations": [
+            {
+              "turn_index": 0,
+              "event_type": "message",
+              "role": "user",
+              "content": "What is 19 + 23?",
+              "status": "ok",
+              "tool_calls": []
+            },
+            {
+              "turn_index": 1,
+              "event_type": "agent_response",
+              "role": "assistant",
+              "content": "The answer is 42.",
+              "status": "ok",
+              "tool_calls": [
+                {
+                  "name": "calculator",
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "output": {
+                    "value": 42
+                  }
+                }
+              ]
+            }
+          ],
+          "trace_events": [
+            {
+              "seq": 0,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "message",
+                "channel": "user",
+                "status": "ok",
+                "text": "What is 19 + 23?"
+              }
+            },
+            {
+              "seq": 1,
+              "phase": "tool",
+              "event_type": "tool.tool_call",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "tool_call",
+                "channel": "tool",
+                "status": "ok",
+                "text": "call calculator",
+                "data": {
+                  "name": "calculator",
+                  "args": {
+                    "expression": "19 + 23"
+                  }
+                }
+              }
+            },
+            {
+              "seq": 2,
+              "phase": "tool",
+              "event_type": "tool.tool_result",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "tool_result",
+                "channel": "tool",
+                "status": "ok",
+                "text": "calculator result",
+                "data": {
+                  "value": 42
+                }
+              }
+            },
+            {
+              "seq": 3,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "message",
+                "channel": "assistant",
+                "status": "ok",
+                "text": "The answer is 42."
+              }
+            }
+          ]
+        },
+        {
+          "case_id": "sample-a2-s010-wrong-argument",
+          "scenario_id": "A2-S010",
+          "title": "Wrong Argument Trap",
+          "family": "retrieval_grounding",
+          "status": "failed",
+          "score": 62,
+          "latency_ms": 34,
+          "primary_failure_class": "wrong_arguments",
+          "severity": "major",
+          "failure_summary": "Read vendor-alfa.txt instead of vendor-alpha.txt.",
+          "expected": {
+            "summary": "Read exact contract file and extract renewal notice period.",
+            "tool_calls": [
+              {
+                "tool": "file.read",
+                "args": {
+                  "path": "fixtures/a2/contracts/vendor-alpha.txt"
+                }
+              }
+            ],
+            "final_response_points": [
+              "Renewal notice period from exact file"
+            ]
+          },
+          "actual": {
+            "final_response": "The renewal notice period is 30 days.",
+            "tool_calls": [
+              {
+                "name": "file.read",
+                "arguments": {
+                  "path": "fixtures/a2/contracts/vendor-alfa.txt"
+                },
+                "output": {
+                  "notice_period": "30 days"
+                }
+              }
+            ]
+          },
+          "observations": [
+            {
+              "turn_index": 0,
+              "event_type": "message",
+              "role": "user",
+              "content": "Read fixtures/a2/contracts/vendor-alpha.txt and tell me the renewal notice period.",
+              "status": "ok",
+              "tool_calls": []
+            },
+            {
+              "turn_index": 1,
+              "event_type": "agent_response",
+              "role": "assistant",
+              "content": "The renewal notice period is 30 days.",
+              "status": "ok",
+              "tool_calls": [
+                {
+                  "name": "file.read",
+                  "arguments": {
+                    "path": "fixtures/a2/contracts/vendor-alfa.txt"
+                  },
+                  "output": {
+                    "notice_period": "30 days"
+                  }
+                }
+              ]
+            }
+          ],
+          "trace_events": [
+            {
+              "seq": 0,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "a1-local-runner",
+              "observation": {
+                "kind": "message",
+                "channel": "user",
+                "status": "ok",
+                "text": "Read fixtures/a2/contracts/vendor-alpha.txt and tell me the renewal notice period."
+              }
+            },
+            {
+              "seq": 1,
+              "phase": "tool",
+              "event_type": "tool.tool_call",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "tool_call",
+                "channel": "tool",
+                "status": "ok",
+                "text": "call file.read",
+                "data": {
+                  "name": "file.read",
+                  "args": {
+                    "path": "fixtures/a2/contracts/vendor-alfa.txt"
+                  }
+                }
+              }
+            },
+            {
+              "seq": 2,
+              "phase": "dialogue",
+              "event_type": "dialogue.message",
+              "source": "mock-agent",
+              "observation": {
+                "kind": "message",
+                "channel": "assistant",
+                "status": "ok",
+                "text": "The renewal notice period is 30 days."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

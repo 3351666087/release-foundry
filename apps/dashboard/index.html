@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A3 Dashboard & Triage</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --line: #d9dee7;
+        --text: #18212f;
+        --muted: #657184;
+        --green: #1e7a4d;
+        --red: #b42318;
+        --amber: #a15c00;
+        --blue: #285c9f;
+        --ink-soft: #eef1f5;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      button,
+      select {
+        font: inherit;
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--line);
+        background: #202633;
+        color: #f7f9fc;
+        padding: 22px 14px;
+      }
+
+      .brand {
+        font-size: 17px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      .subtitle {
+        color: #b8c1cf;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-bottom: 26px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 7px;
+      }
+
+      .nav a {
+        color: #dce3ee;
+        text-decoration: none;
+        padding: 9px 10px;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+
+      .nav a.active,
+      .nav a:hover {
+        background: #343c4c;
+        color: #fff;
+      }
+
+      .content {
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+
+      .topbar > div:first-child {
+        flex: 1 1 320px;
+        min-width: 240px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin: 0 0 6px;
+      }
+
+      .caption {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        flex: 1 1 320px;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .button {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        color: var(--text);
+        padding: 8px 11px;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        border-color: #aab3c1;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+      }
+
+      .metric,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .metric {
+        padding: 14px;
+      }
+
+      .metric label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      .metric strong {
+        font-size: 24px;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 12px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .field label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 5px;
+      }
+
+      .field select {
+        width: 100%;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        padding: 6px 8px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.8fr) minmax(420px, 1.2fr);
+        gap: 14px;
+      }
+
+      .panel {
+        min-width: 0;
+      }
+
+      .panel-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-header h2 {
+        font-size: 16px;
+        margin: 0;
+      }
+
+      .panel-body {
+        padding: 14px 16px;
+      }
+
+      .run-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .case-row {
+        width: 100%;
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        padding: 11px;
+        cursor: pointer;
+      }
+
+      .case-row.active {
+        border-color: var(--blue);
+        box-shadow: inset 3px 0 0 var(--blue);
+      }
+
+      .case-title {
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+
+      .case-meta {
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .badge.pass {
+        color: var(--green);
+        background: #e8f4ee;
+      }
+
+      .badge.fail {
+        color: var(--red);
+        background: #fdebea;
+      }
+
+      .badge.neutral {
+        color: #3f4a5f;
+        background: var(--ink-soft);
+      }
+
+      .detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .compare {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .compare h3 {
+        margin: 0;
+        padding: 10px 12px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--ink-soft);
+      }
+
+      .compare pre {
+        margin: 0;
+        padding: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 260px;
+        overflow: auto;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 10px;
+      }
+
+      .judge-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .judge {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        background: #fff;
+      }
+
+      .judge-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+
+      .event {
+        border-left: 3px solid #9aa6b6;
+        padding-left: 11px;
+      }
+
+      .event strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 3px;
+      }
+
+      .event span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .cluster-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .cluster {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+      }
+
+      .cluster strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      @media (max-width: 1000px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .metrics,
+        .filters,
+        .grid,
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .actions {
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">Ashr A3</div>
+        <div class="subtitle">Dashboard & Triage skeleton consuming local A1/A2-style fixtures.</div>
+        <nav class="nav" aria-label="Dashboard sections">
+          <a href="#summary" class="active">Summary</a>
+          <a href="#runs">Run List</a>
+          <a href="#detail">Case Detail</a>
+          <a href="#timeline">Trace Timeline</a>
+          <a href="#clusters">Failure Clusters</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="topbar" id="summary">
+          <div>
+            <h1>A3 Dashboard & Triage</h1>
+            <div class="caption" id="data-source">Loading local fixtures...</div>
+          </div>
+          <div class="actions">
+            <button class="button" id="export-json" type="button">Export JSON</button>
+            <button class="button" id="export-csv" type="button">Export CSV</button>
+            <button class="button" id="export-md" type="button">Export Markdown</button>
+          </div>
+        </section>
+
+        <section class="metrics" aria-label="Run summary metrics">
+          <div class="metric"><label>Runs</label><strong id="metric-runs">0</strong></div>
+          <div class="metric"><label>Cases</label><strong id="metric-cases">0</strong></div>
+          <div class="metric"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong></div>
+          <div class="metric"><label>Average Score</label><strong id="metric-score">0</strong></div>
+          <div class="metric"><label>Trace Complete</label><strong id="metric-trace">0%</strong></div>
+        </section>
+
+        <section class="filters" aria-label="Filters">
+          <div class="field">
+            <label for="filter-status">Status</label>
+            <select id="filter-status">
+              <option value="all">All</option>
+              <option value="passed">Passed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-family">Scenario Family</label>
+            <select id="filter-family">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-failure">Failure Class</label>
+            <select id="filter-failure">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-run">Run</label>
+            <select id="filter-run">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-severity">Severity</label>
+            <select id="filter-severity">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-score">Score Band</label>
+            <select id="filter-score">
+              <option value="all">All</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel" id="runs">
+            <div class="panel-header">
+              <h2>Run List</h2>
+              <span class="badge neutral" id="visible-count">0 visible</span>
+            </div>
+            <div class="panel-body">
+              <div class="run-list" id="case-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="detail">
+            <div class="panel-header">
+              <h2>Case Detail</h2>
+              <span id="detail-status" class="badge neutral">No case</span>
+            </div>
+            <div class="panel-body">
+              <div id="case-heading" class="caption">Select a case to inspect expected vs actual.</div>
+              <div class="detail-grid" style="margin-top: 12px;">
+                <div class="compare">
+                  <h3>Expected</h3>
+                  <pre id="expected-view">{}</pre>
+                </div>
+                <div class="compare">
+                  <h3>Actual</h3>
+                  <pre id="actual-view">{}</pre>
+                </div>
+              </div>
+              <div class="judge-list" id="judge-view"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel" id="timeline">
+            <div class="panel-header">
+              <h2>Trace Timeline</h2>
+              <span class="caption">A1 observations and trace events</span>
+            </div>
+            <div class="panel-body">
+              <div class="timeline" id="timeline-view"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="clusters">
+            <div class="panel-header">
+              <h2>Failure Clusters</h2>
+              <span class="caption">Grouped by A2 primary failure class</span>
+            </div>
+            <div class="panel-body">
+              <div class="cluster-list" id="cluster-list"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module">
+      import {
+        buildCsvReport,
+        buildDashboardSummary,
+        buildJsonReport,
+        buildMarkdownReport,
+        clusterFailures,
+        filterCases,
+        getFilterOptions,
+        normalizeCases
+      } from "../../services/report/report_builder.mjs";
+
+      const state = {
+        runs: null,
+        grades: null,
+        cases: [],
+        filteredCases: [],
+        selectedCaseId: null
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      async function loadJson(path) {
+        const response = await fetch(path);
+        if (!response.ok) {
+          throw new Error(`Failed to load ${path}: ${response.status}`);
+        }
+        return response.json();
+      }
+
+      function formatJson(value) {
+        return JSON.stringify(value ?? {}, null, 2);
+      }
+
+      function fillSelect(selectId, values) {
+        const select = $(selectId);
+        for (const value of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value;
+          select.appendChild(option);
+        }
+      }
+
+      function applyFilters() {
+        const status = $("filter-status").value;
+        const family = $("filter-family").value;
+        const failure = $("filter-failure").value;
+        const run = $("filter-run").value;
+        const severity = $("filter-severity").value;
+        const selectedScoreBand = $("filter-score").value;
+
+        state.filteredCases = filterCases(state.cases, {
+          status,
+          family,
+          failureClass: failure,
+          runId: run,
+          severity,
+          scoreBand: selectedScoreBand
+        });
+
+        if (!state.filteredCases.some((item) => item.case_id === state.selectedCaseId)) {
+          state.selectedCaseId = state.filteredCases[0]?.case_id || null;
+        }
+
+        renderCaseList();
+        renderDetail();
+      }
+
+      function renderSummary() {
+        const summary = buildDashboardSummary(state.runs, state.grades);
+        $("metric-runs").textContent = summary.totalRuns;
+        $("metric-cases").textContent = summary.totalCases;
+        $("metric-pass-rate").textContent = `${summary.passRate}%`;
+        $("metric-score").textContent = summary.avgScore;
+        $("metric-trace").textContent = `${summary.traceCompleteness}%`;
+        $("data-source").textContent = `Local fixture: ${summary.lastRunId}`;
+      }
+
+      function renderCaseList() {
+        $("visible-count").textContent = `${state.filteredCases.length} visible`;
+        $("case-list").replaceChildren(...state.filteredCases.map((item) => {
+          const button = document.createElement("button");
+          button.className = `case-row ${item.case_id === state.selectedCaseId ? "active" : ""}`;
+          button.type = "button";
+          button.addEventListener("click", () => {
+            state.selectedCaseId = item.case_id;
+            renderCaseList();
+            renderDetail();
+          });
+          button.innerHTML = `
+            <div class="case-title">${item.title}</div>
+            <div class="case-meta">
+              <span>${item.case_id}</span>
+              <span>${item.scenario_id}</span>
+              <span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span>
+              <span>${item.primary_failure_class}</span>
+              <span>${item.severity}</span>
+              <span>${item.score}</span>
+            </div>
+          `;
+          return button;
+        }));
+      }
+
+      function renderDetail() {
+        const item = state.cases.find((candidate) => candidate.case_id === state.selectedCaseId);
+        if (!item) {
+          $("detail-status").className = "badge neutral";
+          $("detail-status").textContent = "No case";
+          $("case-heading").textContent = "Select a case to inspect expected vs actual.";
+          $("expected-view").textContent = "{}";
+          $("actual-view").textContent = "{}";
+          $("timeline-view").textContent = "";
+          $("judge-view").textContent = "";
+          return;
+        }
+
+        $("detail-status").className = `badge ${item.passed ? "pass" : "fail"}`;
+        $("detail-status").textContent = item.passed ? "PASS" : "FAIL";
+        $("case-heading").textContent = `${item.case_id} / ${item.scenario_id} - ${item.failure_summary}`;
+        $("expected-view").textContent = formatJson(item.expected);
+        $("actual-view").textContent = formatJson(item.actual);
+        $("judge-view").replaceChildren(...(item.judge_results || []).map((judge) => {
+          const node = document.createElement("div");
+          node.className = "judge";
+          const analysis = judge.failure_analysis || {};
+          node.innerHTML = `
+            <div class="judge-head">
+              <strong>${judge.judge_mode || "judge"}</strong>
+              <span class="badge ${judge.passed ? "pass" : "fail"}">${judge.passed ? "PASS" : "FAIL"} ${judge.score ?? ""}</span>
+            </div>
+            <div class="muted">${analysis.primary_failure_class || "none"} / ${analysis.severity || "none"}</div>
+            <div>${analysis.summary || "No failure analysis summary."}</div>
+          `;
+          return node;
+        }));
+
+        const events = Array.isArray(item.trace_events) && item.trace_events.length
+          ? item.trace_events
+          : (item.observations || []).map((obs, index) => ({
+            seq: index,
+            phase: obs.event_type,
+            event_type: obs.event_type,
+            source: obs.role,
+            observation: {
+              kind: obs.event_type,
+              channel: obs.role,
+              status: obs.status,
+              text: obs.content,
+              data: { tool_calls: obs.tool_calls }
+            }
+          }));
+
+        $("timeline-view").replaceChildren(...events.map((event) => {
+          const node = document.createElement("div");
+          node.className = "event";
+          const text = event.observation?.text || "";
+          node.innerHTML = `
+            <strong>#${event.seq} ${event.event_type}</strong>
+            <span>${event.phase} / ${event.source} / ${event.observation?.status || "unknown"}</span>
+            <div>${text}</div>
+          `;
+          return node;
+        }));
+      }
+
+      function renderClusters() {
+        const clusters = clusterFailures(state.runs, state.grades);
+        $("cluster-list").replaceChildren(...clusters.map((cluster) => {
+          const node = document.createElement("div");
+          node.className = "cluster";
+          node.innerHTML = `
+            <strong>${cluster.failureClass}</strong>
+            <div class="muted">${cluster.count} case(s), severity ${cluster.severity}</div>
+            <div>${cluster.summaries[0] || "No summary."}</div>
+          `;
+          return node;
+        }));
+      }
+
+      function download(name, content, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = name;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function init() {
+        state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+        state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+        state.cases = normalizeCases(state.runs, state.grades);
+        state.filteredCases = state.cases;
+        state.selectedCaseId = state.cases[0]?.case_id || null;
+
+        const filterOptions = getFilterOptions(state.cases);
+        fillSelect("filter-family", filterOptions.families);
+        fillSelect("filter-failure", filterOptions.failureClasses);
+        fillSelect("filter-run", filterOptions.runIds);
+        fillSelect("filter-severity", filterOptions.severities);
+        fillSelect("filter-score", filterOptions.scoreBands);
+
+        for (const id of ["filter-status", "filter-family", "filter-failure", "filter-run", "filter-severity", "filter-score"]) {
+          $(id).addEventListener("change", applyFilters);
+        }
+
+        $("export-json").addEventListener("click", () => {
+          download("a3-dashboard-report.json", JSON.stringify(buildJsonReport(state.runs, state.grades), null, 2), "application/json");
+        });
+        $("export-csv").addEventListener("click", () => {
+          download("a3-dashboard-report.csv", buildCsvReport(state.runs, state.grades), "text/csv");
+        });
+        $("export-md").addEventListener("click", () => {
+          download("a3-dashboard-report.md", buildMarkdownReport(state.runs, state.grades), "text/markdown");
+        });
+
+        renderSummary();
+        renderCaseList();
+        renderDetail();
+        renderClusters();
+      }
+
+      init().catch((error) => {
+        $("data-source").textContent = error.message;
+        console.error(error);
+      });
+    </script>
+  </body>
+</html>
