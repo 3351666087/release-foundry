@@ -112,7 +112,7 @@
     ],
     "planned_quota_units": {
       "run.submit": 5,
-      "observation.write": 46
+      "observation.write": 47
     },
     "batch_size_limits": {
       "ashr_grading_tiny_calibration": 6,

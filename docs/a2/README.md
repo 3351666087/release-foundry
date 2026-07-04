@@ -43,7 +43,7 @@ This module provides the local G1-G2 foundation for:
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
-- 31 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
+- 32 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
 - Optional real Ashr API smoke script: `scripts/a2_real_api_smoke.py`
 
 ## Local Run Shapes
@@ -96,6 +96,17 @@ A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/
 The report also records `official_sdk_chains` so reviewers can see exactly how the official Python and TypeScript quickstart surfaces map into A2's local runner contract.
 
 This is deterministic contract evidence for C1: A2 can consume both SDK-language runner shapes. It does not claim hosted TypeScript API parity or live Ashr grading; those remain A1/C3 calibration work.
+
+## Media API Calibration
+
+A2-S031 is the current media/tool-output grounding scenario. It now has four executable calibration cases:
+
+- passing media pipeline,
+- classifier output contradicts the final answer: `hallucinated_tool_result`,
+- tool order is wrong: `wrong_tool_order`,
+- media classifier API argument is wrong: `wrong_arguments`.
+
+`fixtures/a2/results/a2_g3_coverage_report.json` exposes these through `executable_media_case_count`, `executable_tool_output_grounding_case_count`, `executable_media_expected_class_counts`, and the corresponding case refs. This keeps media coverage visible without changing the A3 grade-result contract.
 
 ## Semantic Judge Harness
 

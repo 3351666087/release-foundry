@@ -250,6 +250,11 @@ export function summarizeCoverage(coverageFixture = {}) {
     executable_failure_class_cases: mapping(coverageFixture.executable_failure_class_cases),
     executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing),
     thin_executable_failure_classes: mapping(coverageFixture.thin_executable_failure_classes),
+    executable_media_case_count: coverageFixture.executable_media_case_count || 0,
+    executable_tool_output_grounding_case_count: coverageFixture.executable_tool_output_grounding_case_count || 0,
+    executable_media_expected_class_counts: mapping(coverageFixture.executable_media_expected_class_counts),
+    executable_media_case_refs: missing(coverageFixture.executable_media_case_refs),
+    executable_tool_output_grounding_case_refs: missing(coverageFixture.executable_tool_output_grounding_case_refs),
     coverage_warnings: missing(coverageFixture.coverage_warnings),
     coverage_warning_count: missing(coverageFixture.coverage_warnings).length
   };
@@ -341,6 +346,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Judge modes: ${coverage.judge_mode_count}`,
       `- Golden cases: ${coverage.golden_case_count}`,
       `- Executable run cases: ${coverage.executable_run_case_count}`,
+      `- Media executable cases: ${coverage.executable_media_case_count}`,
+      `- Tool-output grounding executable cases: ${coverage.executable_tool_output_grounding_case_count}`,
       `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
       `- Coverage warnings: ${coverage.coverage_warning_count}`,
       ""

@@ -147,7 +147,7 @@
     "assignment_minimums_green": true,
     "scenario_count": 60,
     "golden_case_count": 32,
-    "executable_run_case_count": 31,
+    "executable_run_case_count": 32,
     "failure_class_count": 12,
     "calibration_case_count": 6,
     "ashr_grading_available": 0,

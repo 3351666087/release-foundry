@@ -260,7 +260,10 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.ordered_tool_pairs["image.view -> media.classify"], 1);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
-  assert.equal(summary.executable_run_case_count, 31);
+  assert.equal(summary.executable_run_case_count, 32);
+  assert.equal(summary.executable_media_case_count, 4);
+  assert.equal(summary.executable_tool_output_grounding_case_count, 4);
+  assert.equal(summary.executable_media_expected_class_counts.wrong_arguments, 1);
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
@@ -282,9 +285,13 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.ok(summary.executable_failure_class_cases.wrong_tool_order.some((item) => (
     item.case_id === "sample-a2-s031-media-pipeline-wrong-order"
   )));
+  assert.ok(summary.executable_media_case_refs.some((item) => (
+    item.case_id === "sample-a2-s031-media-pipeline-wrong-classifier-args"
+  )));
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
+  assert.equal(json.coverage.executable_media_case_count, 4);
   assert.equal(json.coverage.coverage_warning_count, 0);
   assert.equal(json.coverage.scenario_quality_warnings.length, 0);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
@@ -297,6 +304,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);
+  assert.match(markdown, /Media executable cases: 4/);
+  assert.match(markdown, /Tool-output grounding executable cases: 4/);
   assert.match(markdown, /### Failure Class Evidence/);
   assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);
   assert.match(markdown, /missing_required_tool: golden GC-A2-S004-fail\/A2-S004/);

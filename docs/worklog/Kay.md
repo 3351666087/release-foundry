@@ -509,3 +509,26 @@ Next top 3:
 1. Keep the TypeScript chain green when A1/A3 update their TS package or report mapper.
 2. Fill the `ashr_grading` column with reviewed server-side evidence.
 3. Run audited semantic judge calls across both SDK chains and import reviewed summaries.
+
+## 2026-07-04 - Media API calibration depth
+
+Reason:
+- Kay asked not to forget media-direction coverage.
+- A2-S031 had media pipeline coverage, but the executable set did not explicitly include the common case where the agent calls the media API with the wrong classifier/configuration.
+
+Implemented:
+- Added `sample-a2-s031-media-pipeline-wrong-classifier-args` as an executable run fixture.
+- Added `wrong_arguments` to A2-S031's documented failure signals.
+- Extended the coverage report with executable media and tool-output-grounding calibration counts and case refs.
+- Added tests that require the media executable set to cover pass, hallucinated tool result, wrong tool order, and wrong arguments.
+- Updated A3's report builder summary to pass through the new media coverage fields.
+- Updated README and scenario coverage docs.
+
+Boundary:
+- This does not add a new scenario; it strengthens executable calibration for the existing media/API scenario.
+- It does not change `a2.grade_results.v1` or A3's grade join contract.
+
+Next top 3:
+1. Keep collecting real Ashr grading evidence for the six C3 calibration cases.
+2. Run audited semantic judge calls for both Python and TypeScript SDK chains.
+3. Add more media/audio/file scenarios only if the assignment/product target expands beyond the current 60-pack.

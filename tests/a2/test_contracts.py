@@ -483,8 +483,8 @@ class A2ContractTests(unittest.TestCase):
         }
         self.assertIn("GC-A2-S033-fail-wrong-calculator-arguments", golden_wrong_arguments)
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertGreaterEqual(report["executable_run_case_count"], 31)
-        self.assertGreaterEqual(report["executable_failure_case_count"], 29)
+        self.assertGreaterEqual(report["executable_run_case_count"], 32)
+        self.assertGreaterEqual(report["executable_failure_case_count"], 30)
         self.assertEqual(report["executable_failure_classes_missing"], [])
         self.assertEqual(report["thin_executable_failure_classes"], {})
         for failure_class in CANONICAL_FAILURE_CLASSES:
@@ -510,6 +510,20 @@ class A2ContractTests(unittest.TestCase):
         }
         self.assertIn("sample-a2-s042-wrong-read-order", executable_wrong_order)
         self.assertIn("sample-a2-s031-media-pipeline-wrong-order", executable_wrong_order)
+        media_cases = {case_ref["case_id"] for case_ref in report["executable_media_case_refs"]}
+        self.assertEqual(report["executable_media_case_count"], 4)
+        self.assertEqual(report["executable_tool_output_grounding_case_count"], 4)
+        self.assertEqual(
+            report["executable_media_expected_class_counts"],
+            {
+                "hallucinated_tool_result": 1,
+                "none": 1,
+                "wrong_arguments": 1,
+                "wrong_tool_order": 1,
+            },
+        )
+        self.assertIn("sample-a2-s031-media-pipeline-pass", media_cases)
+        self.assertIn("sample-a2-s031-media-pipeline-wrong-classifier-args", media_cases)
         self.assertEqual(report["coverage_warnings"], [])
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
