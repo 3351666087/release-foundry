@@ -174,7 +174,8 @@ Private real-shape smoke test:
 - `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: 21 passed.
 - `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: 56 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 102 passed.
+- `python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider`: 7 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 109 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
@@ -184,9 +185,10 @@ Private real-shape smoke test:
 - Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Image/Audio/Files before real execution is allowed, and that part types match enabled accepted inputs.
 - Local hosted request failure coverage verifies that failed `get-request` / `poll-request` records include safe nested `_failure` field-shape summaries without recording raw failure text in tracked docs.
 - Local read-only SDK parity coverage now includes `health-check` and `list-agents`, matching official SDK `health_check()` / `list_agents()` and A2's real API smoke surface.
+- Local cloud API skeleton coverage now includes in-memory tenant/project/dataset/request/run records, run polling, fixture export, and project-scoped quota blocking before writes. This round made no real Ashr API calls.
 
 ## Next Candidates
 
-1. Inspect official UI-required media payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed with nested `_failure` shape only.
-2. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.
-3. Add a second external-agent adapter smoke path against the new `AgentInput` envelope without changing A2/A3 `AgentTurn` output contracts.
+1. Add a local API/CLI demo path that runs an external agent, submits the result into `CloudApiService`, polls it, and writes a fixture.
+2. Inspect official UI-required media payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed with nested `_failure` shape only.
+3. Start TypeScript SDK quickstart parity against the Python API client and local cloud runtime.

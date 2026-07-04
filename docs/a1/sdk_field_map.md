@@ -1,6 +1,6 @@
 # A1 SDK Field Map
 
-Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `health_check`, `keep_alive`, `list_agents`, `agents`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_request`, `request_name`, `request_input_schema`, `properties`, `$defs`, `agent_input_part`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `AgentInput`, `schema_version`, `text`, `parts`, `image`, `audio`, `file`, `path`, `url`, `source`, `mime_type`, `name`, `tool_calls`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`.
+Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `health_check`, `keep_alive`, `list_agents`, `agents`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_request`, `request_name`, `request_input_schema`, `properties`, `$defs`, `agent_input_part`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `AgentInput`, `schema_version`, `text`, `parts`, `image`, `audio`, `file`, `path`, `url`, `source`, `mime_type`, `name`, `tool_calls`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`, `CloudApiService`, `tenant_id`, `project_id`, `request_id`, `run_id`, `case_count`, `result_status`, `quota`, `limits`, `used`, `remaining`, `operation`, and `units`.
 
 Source groups:
 
@@ -8,12 +8,15 @@ Source groups:
 - Public Plans page: plan/usage fields were calibrated for evidence only and are not part of the local runner schema.
 - PyPI wheel/sdist under `docs/a1/_pypi_artifacts`: retained as evidence only, not imported by runtime code.
 - Local A1 clone: `AgentAdapter`, `AgentInput`, `LocalEvalRunner`, `TraceRecorder`, `MockAgent`, `RunResult`, `Observation`, and `GradeResult` are local-only and do not call hosted Ashr services.
+- Local A1 cloud runtime: `CloudApiService`, `InMemoryCloudStore`, and `QuotaLedger` are local-only scaffolds for tenant/project isolation, dataset import, request records, run submission/polling, fixture export, and quota checks. They do not call hosted Ashr services and are not Gate contract changes.
 
 Top-level local SDK exports now include `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, `TraceEvent`, `build_run_fixture`, `load_run_fixture`, `write_run_fixture`, `validate_run_fixture`, and `trace_events_from_vm_stream` so A3 can import fixture helpers without depending on internal module paths.
 
 Adapter input envelope exports now include `AgentInput`, `coerce_agent_input`, `respond_input`, `arespond_input`, `run_input_turn`, and `arun_input_turn`. The envelope schema is `ashr.clone.agent_input.v1` and supports `parts` with `type` values `text`, `image`, `audio`, and `file`. Legacy `AgentAdapter.respond("text")` remains string-first.
 
 Dataset source adapter exports now include `DATASET_SOURCE_ADAPTER_VERSION`, `cases_from_dataset_source`, `case_from_source_run`, and `replay_fixture_from_source_run`. The adapter maps observed `dataset_source.runs` shapes into existing A1 runner cases and strict A3 replay fixtures without changing Gate contracts.
+
+Local cloud API exports now include `CLOUD_API_SCHEMA_VERSION`, `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, and `QuotaExceededError`. Current local record fields include `tenant_id`, `project_id`, `dataset_id`, `request_id`, `run_id`, `status`, `result_status`, `request_input_schema`, `accepted_inputs`, `observations`, `result`, `limits`, `used`, and `remaining`.
 
 ## 2026-07-04 API Calibration Addendum
 

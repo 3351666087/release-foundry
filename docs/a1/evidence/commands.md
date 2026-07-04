@@ -236,3 +236,27 @@ Cleanup note:
 - `git diff --check`: exit 0; CRLF warnings only.
 - Added-line value-oriented sensitive scan: no token-like key value, bearer token, email, private request id, or exact usage pattern. A broader scan matched only the public env var name `ASHR_LABS_API_KEY` in the field map.
 - No real `create-request` or `create-run` was executed in this round.
+
+## 2026-07-04 Local Cloud API Runtime Skeleton
+
+- `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `gh pr list --state all`: repo root `C:/Users/33516/Documents/Ashr`, remote `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, PR #6 open/draft. Fetch advanced `origin/dev/g3-a2-calibration` to `ddd615a`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present.
+- Peer impact: latest A2/G3 commit `ddd615a` touched A2 scenario/judge/report coverage files only. No A1-owned file or Gate contract impact observed.
+- A1 scan: existing Python SDK/Adapter/Runner/Trace/API probe present; `services/api`, `services/cloud`, `packages/ts`, root `package.json`, `pyproject.toml`, and `requirements.txt` absent before this round.
+- Three scored enhancements:
+  - Local cloud API skeleton: demo 5, risk 4, contract impact 2, effort 3, API evidence 3. Selected as highest ROI because it creates the tenant/project/dataset/run/request anchor for later TS, queue, and quota work.
+  - Standalone quota ledger module: demo 3, risk 4, contract impact 1, effort 2, API evidence 2.
+  - TypeScript SDK quickstart scaffold: demo 4, risk 3, contract impact 2, effort 4, API evidence 2.
+- Bus-Auditor start verdict: PASS with tight scope; keep implementation local-only, avoid new undeclared runtime dependencies, no real mutating API calls, and keep touched files in A1-owned dirs.
+- Explorer-SDK/API: confirmed Python SDK/API probe surfaces are strong but no integrated local cloud runtime, runner is still text-first for batch cases, media semantics remain unresolved, quota is guardrail-based, and TS parity is absent.
+- Explorer-Chrome/Product: official API reference exposed `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `request_status`, and media generation/file fields. Logged-in Usage page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; no exact private counter values recorded. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_hosted_media_failure_detail_round_2026-07-04.png`.
+- Worker-Runtime: independently implemented/reviewed the bounded local runtime shape under `services/api`; main workspace includes `CloudApiService`, `InMemoryCloudStore`, and `QuotaLedger`.
+- Worker-TS/Reviewer: confirmed no TypeScript package exists and proposed a future `packages/ts/ashr-clone` quickstart with injected `fetch`, dry-run default, env-key parity, and redaction tests.
+- Implemented `services/api/runtime.py` and `services/api/__init__.py`: local-only tenant/project/dataset/request/run records, project-scoped quota ledger, run submit/poll, observation storage, and fixture export.
+- Added schema snapshot `docs/a1/schemas/cloud_api.schema.json`.
+- Added `tests/a1/test_cloud_api.py` plus schema snapshot guard in `tests/a1/test_trace_fixture.py`.
+- `python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider`: 7 passed.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 109 passed.
+- Final remote recheck before staging: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` to `bee20af`; latest peer files were `docs/a2/README.md`, `docs/evidence/a2_real_api_smoke.json`, `scripts/a2_regenerate_fixtures.py`, and `tests/a2/test_contracts.py`. No A1-owned file impact observed.
+- No Ashr API call was made in this implementation round; only Chrome read-only checks were performed.

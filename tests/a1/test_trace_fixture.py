@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 from ashr_clone import AGENT_INPUT_SCHEMA_VERSION, TraceEvent, build_run_fixture, trace_events_from_vm_stream  # noqa: E402
 from ashr_clone.trace import RUN_FIXTURE_SCHEMA, TRACE_SCHEMA, VM_STREAM_SCHEMA, build_vm_stream, load_run_fixture, replay_observations, validate_run_fixture  # noqa: E402
 from examples.agents.mock_agent import MockAgent, build_default_fixtures  # noqa: E402
+from services.api import CLOUD_API_SCHEMA_VERSION  # noqa: E402
 
 
 class TraceFixtureTests(unittest.TestCase):
@@ -40,6 +41,7 @@ class TraceFixtureTests(unittest.TestCase):
         self.assertEqual(schemas["trace_event.schema.json"]["properties"]["schema"]["const"], TRACE_SCHEMA)
         self.assertEqual(schemas["vm_stream_frame.schema.json"]["properties"]["schema"]["const"], VM_STREAM_SCHEMA)
         self.assertEqual(schemas["agent_input.schema.json"]["properties"]["schema_version"]["const"], AGENT_INPUT_SCHEMA_VERSION)
+        self.assertEqual(schemas["cloud_api.schema.json"]["properties"]["schema_version"]["const"], CLOUD_API_SCHEMA_VERSION)
         self.assertEqual(schemas["agent_turn.schema.json"]["properties"]["schema_version"]["const"], "ashr.clone.agent_turn.v1")
         self.assertEqual(schemas["run_result.schema.json"]["properties"]["aggregate_metrics"]["properties"]["schema_version"]["const"], "ashr.clone.run_result.v1")
         self.assertIn("case_result.schema.json", schemas)

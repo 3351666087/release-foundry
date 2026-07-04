@@ -24,4 +24,10 @@ Unverified or intentionally out of scope:
 - TypeScript SDK runtime parity; the TypeScript docs were calibrated only to avoid field/process guessing.
 - Voice-minute metering, data retention enforcement, and tenant/project limit enforcement.
 
+2026-07-04 A1 update:
+
+- Read-only Chrome recheck confirmed the public API reference exposed `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `request_status`, `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, and file-upload style media fields.
+- A logged-in Usage page check showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without a sign-in blocker; exact private counter values were not recorded in tracked docs.
+- Public pricing/plans still did not clearly define per-category Image/Audio/File generation quota semantics, reset timing, or hosted media failure semantics. Keep those as known gaps and do not infer them from private counters.
+
 If any of these become required for A1, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs.

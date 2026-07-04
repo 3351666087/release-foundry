@@ -731,3 +731,66 @@ Remaining:
 
 - Run final Bus-Auditor recheck.
 - No `create-request` or `create-run` was executed in this round.
+
+## 2026-07-04 Local Cloud API Runtime Skeleton
+
+Goal: begin the long-running A1 cloud-runtime phase by adding the smallest local-only API service skeleton that can hold tenant/project/dataset/request/run state, submit existing A1 `RunResult` payloads, poll stored run status, export run fixtures for A3, and enforce a project-scoped quota ledger without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced to `ddd615a`.
+- `gh pr list --state all`: PR #6 `A1 AgentInput multimodal adapter envelope` open/draft on `codex/a1-local-sdk-runner`; earlier A1/A2/A3 PRs are merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 Python surfaces: `packages/sdk/ashr_clone/{api_client.py,adapter.py,trace.py,dataset_adapter.py,types.py}`, `services/runner/{api_probe.py,cli.py,runner.py,dataset_adapter.py}`, `examples/agents/mock_agent.py`, `tests/a1/test_{adapter,api_client,dataset_adapter,runner,trace_fixture}.py`, and A1 docs/schemas/evidence.
+- Existing capabilities: local MockAgent + CLI; 30-80 case runs; max workers normalized to at least 4; A3 run fixture/replay; `AgentInput` multimodal envelope; read-only API parity for `health-check` and `list-agents`; guarded mutating `create-run` and `create-request`; private real API evidence under ignored `docs/evidence/private_refs/`.
+- Missing before this round: `services/api`, `services/cloud`, `packages/ts`, root `package.json`, root `pyproject.toml`, root `requirements.txt`, tenant/project cloud runtime, local quota ledger, TypeScript SDK package.
+- Peer changes/impact: latest A2/G3 commit `ddd615a` touched `docs/a2/scenario_coverage_plan.md`, `fixtures/a2/results/a2_g3_coverage_report.json`, `packages/scenarios/a2_g3_full_pack.json`, `services/judge/coverage.py`, `tests/a2/test_contracts.py`, and `tests/a3/report_builder.test.mjs`. No A1-owned or contract-breaking change observed.
+
+Three proposed enhancements:
+
+1. Local cloud API skeleton with tenant/project/dataset/run/request state and in-memory quota ledger. Scores: demo value 5, risk reduction 4, contract impact 2, estimated effort 3, API evidence value 3.
+2. Standalone quota ledger hardening for API probe and runner operations. Scores: demo value 3, risk reduction 4, contract impact 1, estimated effort 2, API evidence value 2.
+3. TypeScript SDK quickstart scaffold. Scores: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 2.
+
+Implemented highest ROI enhancement: local cloud API skeleton.
+
+Subagent findings:
+
+- Bus-Auditor: PASS with tight scope. Keep implementation A1-owned/local-only, avoid new undeclared runtime deps, no judge/dashboard/Gate changes, and no real `create-request` / `create-run`.
+- Explorer-SDK/API: Python API probe is strong, but no integrated local cloud runtime existed; batch runner remains text-first for media cases; hosted media semantics remain unresolved; quota is guardrail-based; TypeScript parity absent.
+- Explorer-Chrome/Product: official API reference showed request/media boundary fields including `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `request_status`, `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, and file-upload style fields. Logged-in Usage showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without recording exact private counters. Screenshot stayed ignored at `docs/evidence/private_refs/ashr_lab_usage_hosted_media_failure_detail_round_2026-07-04.png`.
+- Worker-Runtime: independently converged on the same bounded `services/api` shape and verified `tests/a1` at 108 passed before the main agent added one validation/quota transaction regression, bringing the final total to 109 passed.
+- Worker-TS/Reviewer: confirmed no TS package exists; recommended future `packages/ts/ashr-clone` with injected `fetch`, dry-run default, env-key parity, and redaction/zero-retry tests.
+
+Implemented:
+
+- `services/api/runtime.py`: added `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, and `QuotaExceededError`.
+- `services/api/runtime.py`: tenant/project isolation; dataset import/list/get; request create/list/get; run submit/list/get/poll; observation append; run fixture export/write; project-scoped quota snapshot.
+- `services/api/__init__.py`: exported the local cloud runtime surface.
+- `docs/a1/schemas/cloud_api.schema.json`: added schema snapshot for local runtime records.
+- `tests/a1/test_cloud_api.py`: added coverage for dataset import, local runner submit, polling, fixture export, tenant/project isolation, media request schema preservation, validation errors that do not consume quota, and quota blocking before writes.
+- `tests/a1/test_trace_fixture.py`: added cloud schema version guard.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider`: 7 passed.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 109 passed.
+- Chrome official docs check: API reference reachable and shows request/media boundary fields above.
+- Chrome Usage check: logged-in page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counters remain private.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced to `bee20af`, touching A2 docs/evidence/scripts/tests only (`docs/a2/README.md`, `docs/evidence/a2_real_api_smoke.json`, `scripts/a2_regenerate_fixtures.py`, `tests/a2/test_contracts.py`). No A1-owned file impact observed.
+- Real API calls: none in this round.
+
+Remaining / next top 3:
+
+1. Add a small local API/CLI demo path that runs an external agent, submits the `RunResult` into `CloudApiService`, polls it, and writes a fixture.
+2. Start TypeScript SDK quickstart parity against the new cloud runtime and existing Python API client constants.
+3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.

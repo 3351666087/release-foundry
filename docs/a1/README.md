@@ -8,13 +8,14 @@ Prerequisite: run from the repository root with Python 3.12+ and `pytest` availa
 
 ```powershell
 python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider
 python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.json --output docs/a1/evidence/local_run_30.json --agent examples.agents.mock_agent:RespondingMockAgent --dataset-id a2-local-scenarios --runner-id a1-local-runner --max-workers 4 --timeout 5 --fail-on-case-failure
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `102 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `health-check`, `list-datasets`, `list-runs`, `list-requests`, `list-agents`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` now sends a permissive default `request_input_schema` when omitted, matching the official SDK docs and the observed API requirement; for Image/Audio/Files accepted inputs, that default schema also advertises the local `AgentInput` `parts` envelope and reports part types that match accepted inputs. A text-only real `create-request -> get-request -> poll-request` chain completed successfully. A real Image/Audio/Files interface request was accepted but ended in hosted `request_status=failed`; read-only recheck found failure detail under a nested `_failure` object and the SDK now records only its safe field shape. A follow-up text batch probe hit the hosted request usage boundary. The CLI and direct SDK block unsafe mutating retries before real execution.
+Current follow-up verification: `109 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `health-check`, `list-datasets`, `list-runs`, `list-requests`, `list-agents`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` now sends a permissive default `request_input_schema` when omitted, matching the official SDK docs and the observed API requirement; for Image/Audio/Files accepted inputs, that default schema also advertises the local `AgentInput` `parts` envelope and reports part types that match accepted inputs. A text-only real `create-request -> get-request -> poll-request` chain completed successfully. A real Image/Audio/Files interface request was accepted but ended in hosted `request_status=failed`; read-only recheck found failure detail under a nested `_failure` object and the SDK now records only its safe field shape. A follow-up text batch probe hit the hosted request usage boundary. The CLI and direct SDK block unsafe mutating retries before real execution. The local cloud API skeleton now exposes in-memory tenant/project/dataset/request/run records, run polling, fixture export, and quota ledger checks without calling Ashr APIs.
 
-Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentInput`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.
+Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentInput`, `AgentTurn`, cloud API runtime records, run fixture, trace event, and VM stream frame shapes.
 
 Agent adapter multimodal input: `ashr_clone.AgentInput` wraps text plus `parts` for `text`, `image`, `audio`, and `file` inputs under `schema_version: ashr.clone.agent_input.v1`. Existing `AgentAdapter.respond("text")` behavior stays text-first and passes a plain string to legacy agents. New `respond_input(...)`, `arespond_input(...)`, `run_input_turn(...)`, and `arun_input_turn(...)` pass the canonical envelope as the agent argument for future Image/Audio/Files interface work.
 
@@ -55,3 +56,11 @@ python -B -m services.runner.cli --input docs/evidence/private_refs/a1_real_data
 ```
 
 Public SDK helpers for this path are `cases_from_dataset_source(...)`, `case_from_source_run(...)`, and `replay_fixture_from_source_run(...)`.
+
+Local cloud API skeleton quickstart:
+
+```powershell
+python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider
+```
+
+`services.api.CloudApiService` is local-only and in-memory. It can create tenants/projects/datasets/requests, submit existing A1 `RunResult` payloads, poll stored runs, export A3-consumable run fixtures, and enforce project-scoped quota ledger limits before writes.
