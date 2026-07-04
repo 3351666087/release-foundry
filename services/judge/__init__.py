@@ -1,7 +1,12 @@
 """A2 local deterministic judges."""
 
 from .batch_plan import build_batch_plan_report
-from .calibration import build_calibration_matrix, import_ashr_grading_observations, merge_calibration_observations
+from .calibration import (
+    build_calibration_matrix,
+    import_ashr_grading_observations,
+    import_semantic_judge_observations,
+    merge_calibration_observations,
+)
 from .casebook import build_case_book_report
 from .coverage import build_coverage_report
 from .readiness import build_commercial_readiness_report
@@ -30,5 +35,6 @@ __all__ = [
     "build_sdk_parity_report",
     "build_semantic_harness_report",
     "import_ashr_grading_observations",
+    "import_semantic_judge_observations",
     "merge_calibration_observations",
 ]

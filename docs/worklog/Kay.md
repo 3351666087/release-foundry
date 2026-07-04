@@ -443,3 +443,25 @@ Next top 3:
 1. Fill the `ashr_grading` column with reviewed Ashr server-side grading evidence.
 2. Run the semantic harness with audited live model calls and commit only redacted summaries, hashes, costs, and confidence.
 3. Expand the case book once real Ashr/LLM disagreements are available.
+
+## 2026-07-04 - Semantic judge import bridge
+
+Reason:
+- The C4 harness defined what audited semantic judge evidence must look like, but A2 still needed a deterministic path for reviewed model-call summaries to enter the calibration matrix.
+- The bridge should not require raw prompts, raw responses, API keys, or account-specific payloads in committed files.
+
+Implemented:
+- Added `import_semantic_judge_observations(...)` in `services/judge/calibration.py`.
+- Added `scripts/a2_import_semantic_judge.py` to convert reviewed semantic judge summaries into `llm_judge` observations.
+- Added `fixtures/a2/calibration/semantic_judge_import_sample.json` as a redaction/import shape sample only.
+- Added tests proving semantic judge imports redact sensitive-looking rationale text, preserve provider/model/cost/hash/SDK language metadata, and can replace selected offline `llm_judge` rows through the existing merge gate.
+- Updated A2 README, scenario coverage plan, and A1/A3 handoff docs.
+
+Boundary:
+- This does not mark C4 met and does not alter the committed calibration observations.
+- The sample fixture is synthetic importer coverage, not live model evidence.
+
+Next top 3:
+1. Collect reviewed Ashr grading evidence for the six C3 cases.
+2. Run the semantic harness privately and import all six reviewed `llm_judge` rows through the new bridge.
+3. Promote any new cross-judge disagreements into the case book.

@@ -22,7 +22,7 @@ def main() -> int:
     )
     parser.add_argument("--base", default=DEFAULT_CALIBRATION_OBSERVATIONS.as_posix())
     parser.add_argument("--incoming", required=True, help="Importer output or observations JSON to merge.")
-    parser.add_argument("--source", default="ashr_grading", help="External source to merge, usually ashr_grading.")
+    parser.add_argument("--source", default="ashr_grading", help="External source to merge, usually ashr_grading or llm_judge.")
     parser.add_argument("--min-count", type=int, default=1, help="Require at least this many merged observations.")
     parser.add_argument("--output", help="Write merged calibration JSON here. Omit to print to stdout.")
     args = parser.parse_args()

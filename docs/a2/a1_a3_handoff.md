@@ -156,6 +156,8 @@ The SDK parity report uses `schema_version: a2.sdk_parity.v1` and lives at `fixt
 
 The semantic harness report uses `schema_version: a2.semantic_harness.v1` and lives at `fixtures/a2/results/a2_semantic_harness_report.json`. It is optional C4 evidence for A1/A3: it records the semantic judge prompt contract, output schema, model/cost/redaction policy, six calibration cases, and both Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths. It is harness-ready but not live-evidence-complete until audited model-call summaries replace offline references.
 
+`scripts/a2_import_semantic_judge.py` converts reviewed semantic judge summaries into `llm_judge` calibration observations. A1/A3 do not need to run it for normal local tests; it is a bridge for private/reviewed C4 evidence and preserves only summary fields, costs, hashes, confidence, SDK language, and evidence refs.
+
 The batch plan report uses `schema_version: a2.batch_plan.v1` and lives at `fixtures/a2/results/a2_batch_plan_report.json`. It is optional C2 planning evidence for A1/A3: it names planned local, SDK parity, Ashr grading, semantic judge, and regression replay batches; records expected quota phases; and keeps private evidence boundaries explicit. Missing batch-plan data must not break existing A3 dashboard/report paths.
 
 Commercial-readiness invariants:

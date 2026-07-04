@@ -11,6 +11,7 @@ from services.judge.batch_plan import build_batch_plan_report
 from services.judge.calibration import (
     build_calibration_matrix,
     import_ashr_grading_observations,
+    import_semantic_judge_observations,
     merge_calibration_observations,
 )
 from services.judge.casebook import build_case_book_report
@@ -790,6 +791,66 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["schema_version"], "a2.ashr_grading_import.v1")
+        self.assertEqual(payload["observation_count"], 2)
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotIn("@", result.stdout)
+
+    def test_semantic_judge_import_can_replace_offline_llm_rows(self):
+        sample = json.loads((ROOT / "fixtures/a2/calibration/semantic_judge_import_sample.json").read_text(encoding="utf-8"))
+        observations = import_semantic_judge_observations(
+            sample,
+            evidence_ref="docs/evidence/private_refs/a2_semantic_judge_sample.redacted.json",
+        )
+        self.assertEqual(len(observations), 2)
+        self.assertEqual([observation["source"] for observation in observations], ["llm_judge", "llm_judge"])
+        self.assertEqual(observations[0]["case_id"], "sample-a2-s001-pass")
+        self.assertEqual(observations[0]["primary_failure_class"], "none")
+        self.assertEqual(observations[1]["case_id"], "sample-a2-s031-media-pipeline-unsupported-output")
+        self.assertEqual(observations[1]["primary_failure_class"], "hallucinated_tool_result")
+        self.assertEqual(observations[1]["metadata"]["sdk_language"], "typescript")
+        self.assertNotIn("Bearer ", observations[1]["rationale"])
+        self.assertNotIn("@", observations[1]["rationale"])
+
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        payload = merge_calibration_observations(payload, {"observations": observations}, source="llm_judge")
+        merged_llm = [observation for observation in payload["observations"] if observation["source"] == "llm_judge"]
+        self.assertEqual(len(merged_llm), 6)
+        merged_by_case = {observation["case_id"]: observation for observation in merged_llm}
+        self.assertEqual(merged_by_case["sample-a2-s031-media-pipeline-unsupported-output"]["provider"], "reviewed_model_call_sample")
+        self.assertEqual(merged_by_case["sample-a2-s031-media-pipeline-unsupported-output"]["scenario_id"], "A2-S031")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        cost_ledger = {row["source"]: row for row in matrix["cost_ledger"]}
+        self.assertEqual(cost_ledger["llm_judge"]["sample_count"], 6)
+        self.assertIn("reviewed_model_call_sample", cost_ledger["llm_judge"]["provider_counts"])
+        self.assertIn("offline_reference", cost_ledger["llm_judge"]["provider_counts"])
+
+    def test_semantic_judge_import_cli_outputs_redacted_observations(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_import_semantic_judge.py"),
+                "--input",
+                str(ROOT / "fixtures/a2/calibration/semantic_judge_import_sample.json"),
+                "--evidence-ref",
+                "docs/evidence/private_refs/a2_semantic_judge_sample.redacted.json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["schema_version"], "a2.semantic_judge_import.v1")
         self.assertEqual(payload["observation_count"], 2)
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)

@@ -28,6 +28,7 @@ This module provides the local G1-G2 foundation for:
 - Case book helper: `services/judge/casebook.py`
 - SDK parity helper: `services/judge/sdk_parity.py`
 - Semantic judge harness helper: `services/judge/semantic_harness.py`
+- Semantic judge import helper: `scripts/a2_import_semantic_judge.py`
 - Commercial readiness helper: `services/judge/readiness.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
@@ -100,6 +101,8 @@ A2 now generates `fixtures/a2/results/a2_semantic_harness_report.json` from `ser
 - Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths.
 
 The current harness is ready for audited model calls but still reports `live_model_evidence_available: false`. That is intentional: offline `llm_judge` samples are useful deterministic references, but C4 is not met until private live model evidence is reviewed and summarized.
+
+`scripts/a2_import_semantic_judge.py` is the bridge from reviewed private model-call summaries into the calibration matrix. It preserves provider/model, prompt and response hashes, prompt template id, cost, confidence, review status, and SDK language while redacting token-like or email-like text. The checked-in sample fixture is only an importer test shape; it is not counted as C4 live evidence.
 
 ## Batch Plan
 
@@ -176,6 +179,27 @@ python scripts/a2_merge_calibration_observations.py \
 Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
 
 The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
+
+Reviewed semantic judge summaries use the same merge gate. Convert redacted model-call summaries into `llm_judge` observations with:
+
+```bash
+python scripts/a2_import_semantic_judge.py \
+  --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
+  --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
+  --output docs/evidence/private_refs/a2_semantic_judge_import.review.json
+```
+
+Then merge reviewed rows with:
+
+```bash
+python scripts/a2_merge_calibration_observations.py \
+  --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json \
+  --source llm_judge \
+  --min-count 6 \
+  --output fixtures/a2/calibration/a2_g3_calibration_observations.json
+```
+
+The importer expects reviewed summaries, not raw prompts or raw responses. Raw/private model payloads stay under `docs/evidence/private_refs`.
 
 ## Case Book
 
