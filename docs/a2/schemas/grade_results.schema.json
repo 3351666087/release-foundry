@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 GradeResultsReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "dataset_id",
+    "scenario_pack",
+    "total_cases",
+    "passed",
+    "failed",
+    "grade_results"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.grade_results.v1" },
+    "report_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "scenario_pack": { "type": "string" },
+    "total_cases": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "grade_results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/local_judge_run" }
+    }
+  },
+  "$defs": {
+    "failure_class": {
+      "enum": [
+        "none",
+        "wrong_intent",
+        "missing_required_tool",
+        "unnecessary_tool_call",
+        "forbidden_tool_call",
+        "wrong_tool",
+        "wrong_arguments",
+        "wrong_tool_order",
+        "missing_clarification",
+        "hallucinated_tool_result",
+        "ignored_tool_result",
+        "unsafe_or_policy_violation",
+        "poor_failure_recovery"
+      ]
+    },
+    "local_judge_run": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "scenario_id",
+        "case_id",
+        "passed",
+        "score",
+        "primary_failure_class",
+        "judge_results"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.local_judge_run.v1" },
+        "scenario_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "primary_failure_class": { "$ref": "#/$defs/failure_class" },
+        "judge_results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/grade_result" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "grade_result": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "scenario_id",
+        "case_id",
+        "judge_mode",
+        "judge_version",
+        "passed",
+        "score",
+        "max_score",
+        "rubric_scores",
+        "failure_analysis",
+        "evidence",
+        "metadata"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.grade_result.v1" },
+        "scenario_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "judge_mode": { "type": "string" },
+        "judge_version": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "max_score": { "const": 100 },
+        "rubric_scores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rubric_score" }
+        },
+        "failure_analysis": { "$ref": "#/$defs/failure_analysis" },
+        "evidence": { "type": "object" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "rubric_score": {
+      "type": "object",
+      "required": ["class", "score", "weight", "rationale"],
+      "properties": {
+        "class": { "type": "string" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "weight": { "type": "integer", "minimum": 0 },
+        "rationale": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "failure_analysis": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "primary_failure_class",
+        "failure_classes",
+        "severity",
+        "blame_stage",
+        "summary",
+        "details",
+        "remediation",
+        "safety_blocking"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.failure_analysis.v1" },
+        "primary_failure_class": { "$ref": "#/$defs/failure_class" },
+        "failure_classes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "severity": { "type": "string" },
+        "blame_stage": { "type": "string" },
+        "summary": { "type": "string" },
+        "details": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "remediation": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "safety_blocking": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

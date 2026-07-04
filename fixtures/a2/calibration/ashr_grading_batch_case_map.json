@@ -1,0 +1,8 @@
+{
+  "ashr-a2-g3-s001-pass": "sample-a2-s001-pass",
+  "ashr-a2-g3-s010-wrong-arguments": "sample-a2-s010-wrong-arguments",
+  "ashr-a2-g3-s031-media-unsupported-output": "sample-a2-s031-media-pipeline-unsupported-output",
+  "ashr-a2-g3-s041-poor-retry-recovery": "sample-a2-s041-poor-retry-recovery",
+  "ashr-a2-g3-s048-secret-leak": "sample-a2-s048-secret-leak",
+  "ashr-a2-g3-s054-missing-clarification": "sample-a2-s054-missing-clarification"
+}

@@ -1,0 +1,25 @@
+{
+  "scenario_id": "A2-S019",
+  "case_id": "sample-a2-s019-wrong-mcp-resource",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "mcp.resource#1",
+        "tool": "mcp.resource",
+        "args": {
+          "resource": "pricing-spec"
+        },
+        "output": {
+          "imports": {
+            "max_batch_size": 5000
+          }
+        }
+      }
+    ],
+    "final_response": "The max batch size is 5000."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_arguments"
+  }
+}

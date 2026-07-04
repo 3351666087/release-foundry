@@ -90,13 +90,18 @@ result = grade_run("A2-S005", run)
 
 1. `ToolPolicyJudge`
 2. `OutcomeJudge`
+3. `TraceIntegrityJudge`
+4. `GroundingJudge`
+5. `SafetyBoundaryJudge`
 
 The combined result includes:
 
 - `passed`
 - `score`
-- `primary_failure_class`
+- canonical `primary_failure_class`
 - `judge_results`
+
+`primary_failure_class` is reserved for the 12 canonical A2 failure classes or `none`, so A3 failure clusters stay stable. Local debug signals can remain inside nested `failure_analysis.failure_classes`; A3 normalizes legacy local signals before clustering.
 
 ## A2 -> A3 Display Output
 
@@ -114,10 +119,49 @@ Sample outputs:
 
 - `fixtures/a2/results/a2_s001_pass_grade.json`
 - `fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- `fixtures/a2/results/a2_s010_wrong_arguments_grade.json`
+
+For dashboard/report consumption, A2 also provides an aggregate wrapper:
+
+- `fixtures/a2/results/a2_g3_grade_results.json`
+- `fixtures/a2/results/a2_g3_coverage_report.json`
+- `fixtures/a2/results/a2_g3_calibration_matrix.json`
+
+The aggregate wrapper uses:
+
+- `schema_version`: `a2.grade_results.v1`
+- `grade_results[]`: list of normal `grade_run` outputs
+- `total_cases`, `passed`, `failed`
+- `scenario_pack`, `dataset_id`, `report_id`
+
+A2 aggregate scores use a 0-100 scale with `max_score: 100` on per-judge results. A3 also normalizes A1 nested `case.grade.score` values on the 0-1 scale when no A2 aggregate grade is joined.
+
+The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, executable failure calibration coverage, assignment minimum checks, and thin-calibration warnings without rerunning A2 code.
+
+A3 can also use `golden_failure_class_cases` and `executable_failure_class_cases` as drilldown evidence for each canonical failure class. The Markdown report surfaces the same evidence in a compact `Failure Class Evidence` section for manual review.
+
+For scenario-quality review, A3 can read `scenario_dimension_counts`, `scenario_dimension_scenarios`, tool-surface counts, fixture type counts, and `scenario_quality_warnings`. The Markdown report surfaces the advisory warning details, but these warnings do not change `meets_assignment_minimums`.
+
+The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a G3 commercial-readiness artifact for comparing `local_judge`, future `ashr_grading`, and `llm_judge` observations on the same cases. It exposes source coverage, agreement summaries, per-case diffs, cost ledger rows, and calibration warnings. A3 can surface this as a calibration panel without treating missing Ashr grading as a broken local test.
+
+A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, and private evidence path.
+
+For the current six-case C3 batch, A1 should use `fixtures/a2/calibration/ashr_grading_batch_case_map.json` when assigning Ashr `test_id` values. After A2 reviews the importer output, `scripts/a2_merge_calibration_observations.py` can merge those observations into `fixtures/a2/calibration/a2_g3_calibration_observations.json` with `--source ashr_grading --min-count 6`.
+
+The commercial readiness report uses `schema_version: a2.commercial_readiness.v1` and lives at `fixtures/a2/results/a2_commercial_readiness_report.json`. It is an optional planning/status feed for A3: it records the PDF-derived C0-C6 gate status, current evidence snapshot, commercial dimensions, and A2 next top 3. It is intentionally additive; A1/A3 should not depend on it for the existing grade or coverage join paths.
+
+The case book uses `schema_version: a2.case_book.v1` and lives at `fixtures/a2/results/a2_case_book.json`. It is another optional feed for A3 or manual review: it promotes calibration disagreements into explicit regression seeds with local-vs-LLM failure class summaries, evidence refs, reviewer notes, and a regression assertion. Missing case-book data must not break existing A3 dashboard/report paths.
+
+Commercial-readiness invariants:
+
+- `grade_run` remains deterministic and local; live Ashr or LLM calls enter calibration/readiness artifacts only.
+- A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
+- Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
+- A3 may load `a2.commercial_readiness.v1` as an optional feed, but missing readiness data must not break existing dashboard/report paths.
 
 ## Known Boundary
 
-This is a local deterministic handoff. It is intentionally not yet the real Ashr server-side grading result. G3 will calibrate field names and scoring behavior against real Ashr API evidence.
+This is primarily a local deterministic handoff. A2 now also keeps an optional real Ashr API smoke path in `scripts/a2_real_api_smoke.py`: when `ASHR_LABS_API_KEY` is set, it validates authentication and read/list endpoint reachability, then stores only a redacted summary in `docs/evidence/a2_real_api_smoke.json`. Hosted/server-side grading with `run.deploy` remains a later calibration step.
 
 ## Recommended Codex Workflow
 

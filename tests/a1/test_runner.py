@@ -251,6 +251,36 @@ def test_agent_runner_emits_a3_run_result_with_complete_trace():
     assert result["cases"][0]["observations"][1]["vm_stream"]["provider"] == "local-runner"
 
 
+def test_agent_runner_compares_expected_tool_arguments_when_present():
+    class WrongArgumentAgent:
+        def reset(self):
+            pass
+
+        def respond(self, prompt):
+            return {"text": "done", "tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "A-999"}}]}
+
+    cases = [{"id": "wrong-args", "prompt": "lookup", "expected": {"text": "done", "tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "A-100"}}]}}]
+    result = run_agent_batch(WrongArgumentAgent, cases, max_workers=4, timeout_seconds=5)
+
+    assert result["failed"] == 1
+    assert result["cases"][0]["grade"]["metrics"]["tool_match"] is False
+    assert result["cases"][0]["status"] == "failed"
+
+
+def test_agent_runner_keeps_name_only_tool_expectations_compatible():
+    class DifferentArgumentAgent:
+        def reset(self):
+            pass
+
+        def respond(self, prompt):
+            return {"text": "done", "tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "A-999"}}]}
+
+    cases = [{"id": "name-only", "prompt": "lookup", "expected": {"text": "done", "tool_calls": [{"name": "lookup_order"}]}}]
+    result = run_agent_batch(DifferentArgumentAgent, cases, max_workers=4, timeout_seconds=5)
+
+    assert result["passed"] == 1
+
+
 def test_local_eval_runner_wrapper_uses_same_contract():
     result = LocalEvalRunner(RespondingMockAgent, max_workers=4, timeout_seconds=5).run([{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}])
     assert result["passed"] == 1

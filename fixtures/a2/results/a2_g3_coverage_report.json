@@ -1,0 +1,1001 @@
+{
+  "schema_version": "a2.coverage_report.v1",
+  "pack_id": "a2_g3_full_pack",
+  "assignment_minimums": {
+    "scenario_count": 60,
+    "rubric_class_count": 5,
+    "judge_mode_count": 5,
+    "golden_case_count": 20,
+    "failure_class_count": 12
+  },
+  "assignment_checks": {
+    "scenario_count": true,
+    "rubric_class_count": true,
+    "judge_mode_count": true,
+    "golden_case_count": true,
+    "required_failure_classes_covered": true,
+    "golden_failure_classes_covered": true,
+    "executable_failure_classes_covered": true
+  },
+  "meets_assignment_minimums": true,
+  "calibration_redundancy_targets": {
+    "golden_failure_cases_per_class": 2,
+    "executable_failure_cases_per_class": 2
+  },
+  "scenario_dimension_minimums": {
+    "no_tool_or_direct_answer": 10,
+    "optional_tool_choice": 10,
+    "required_tool_use": 10,
+    "forbidden_tool_boundary": 10,
+    "ordered_tool_sequence": 2,
+    "multi_turn_dialogue": 2,
+    "workflow_planning": 10,
+    "fixture_grounding": 20,
+    "clarification": 5,
+    "failure_recovery": 4,
+    "safety_boundary": 10,
+    "grounding_reference": 10,
+    "argument_fidelity": 10,
+    "output_contract": 5,
+    "freshness_current_info": 5,
+    "tool_output_grounding": 1
+  },
+  "scenario_dimension_checks": {
+    "no_tool_or_direct_answer": true,
+    "optional_tool_choice": true,
+    "required_tool_use": true,
+    "forbidden_tool_boundary": true,
+    "ordered_tool_sequence": true,
+    "multi_turn_dialogue": true,
+    "workflow_planning": true,
+    "fixture_grounding": true,
+    "clarification": true,
+    "failure_recovery": true,
+    "safety_boundary": true,
+    "grounding_reference": true,
+    "argument_fidelity": true,
+    "output_contract": true,
+    "freshness_current_info": true,
+    "tool_output_grounding": true
+  },
+  "scenario_quality_targets": {
+    "d4_scenario_count": 2,
+    "multi_turn_scenario_count": 4,
+    "ordered_tool_count": 4,
+    "fixture_scenario_count": 30,
+    "non_local_environment_count": 20
+  },
+  "scenario_quality_warnings": [],
+  "scenario_count": 60,
+  "family_counts": {
+    "ambiguous_or_conflicting": 10,
+    "direct_answer": 10,
+    "retrieval_grounding": 10,
+    "safety_policy": 10,
+    "tool_execution": 10,
+    "workflow_planning": 10
+  },
+  "difficulty_counts": {
+    "D1": 6,
+    "D2": 28,
+    "D3": 24,
+    "D4": 2
+  },
+  "action_count_counts": {
+    "1": 56,
+    "2": 4
+  },
+  "multi_turn_scenario_count": 4,
+  "environment_counts": {
+    "dialogue": 6,
+    "filesystem": 4,
+    "image": 1,
+    "local": 38,
+    "mcp": 2,
+    "media-api": 1,
+    "shell": 2,
+    "tool": 1,
+    "web": 9
+  },
+  "tag_counts": {
+    "allowed": 1,
+    "ambiguity": 1,
+    "ambiguous-intent": 1,
+    "api-calibration": 1,
+    "argument-fidelity": 1,
+    "arithmetic": 3,
+    "audit": 1,
+    "benign-help": 1,
+    "boundary": 1,
+    "calculator": 1,
+    "checklist": 1,
+    "citation": 1,
+    "clarification": 6,
+    "classification": 1,
+    "community-signal": 2,
+    "concise-output": 1,
+    "conflict": 3,
+    "constraint": 1,
+    "constraints": 1,
+    "credential-theft": 1,
+    "credentials": 1,
+    "csv": 2,
+    "defensive": 1,
+    "docs": 1,
+    "editing": 1,
+    "environment": 2,
+    "evaluation": 1,
+    "evidence": 1,
+    "extraction": 1,
+    "file": 5,
+    "file-read": 2,
+    "forbidden-tool": 4,
+    "formatting": 2,
+    "freshness": 5,
+    "github": 1,
+    "given-context-only": 1,
+    "grounding": 1,
+    "honesty": 1,
+    "ignored-tool-result": 1,
+    "image": 2,
+    "instruction-following": 1,
+    "instruction-priority": 1,
+    "irreversible-action": 1,
+    "json": 1,
+    "judgment": 2,
+    "mcp": 2,
+    "media": 1,
+    "medical": 1,
+    "memory": 4,
+    "metadata": 1,
+    "missing-info": 1,
+    "multi-step": 1,
+    "multi-tool-order": 1,
+    "multi-turn": 4,
+    "no-tool": 12,
+    "optional-tool": 2,
+    "ordered-tools": 4,
+    "path-validation": 1,
+    "permission": 1,
+    "personal-data": 1,
+    "planning": 1,
+    "privacy": 1,
+    "provided-context": 1,
+    "readonly": 1,
+    "reasoning": 2,
+    "recovery": 4,
+    "redaction": 1,
+    "refusal": 1,
+    "required-tool": 10,
+    "resource": 1,
+    "resource-read": 1,
+    "retry": 1,
+    "safety": 5,
+    "schema": 1,
+    "secret": 1,
+    "security": 1,
+    "shell": 2,
+    "shell-boundary": 1,
+    "single-tool": 1,
+    "state-delta": 1,
+    "style": 1,
+    "summarization": 1,
+    "summary": 2,
+    "text": 1,
+    "timezone": 1,
+    "tool-ban": 1,
+    "tool-boundary": 1,
+    "tool-error": 2,
+    "tool-output-grounding": 1,
+    "tool-result": 1,
+    "translation": 1,
+    "travel": 1,
+    "unsafe": 1,
+    "visual": 1,
+    "visual-reasoning": 1,
+    "web": 5,
+    "write-action": 1,
+    "wrong-arguments": 2
+  },
+  "scenario_dimension_counts": {
+    "argument_fidelity": 22,
+    "clarification": 7,
+    "failure_recovery": 6,
+    "fixture_grounding": 30,
+    "forbidden_tool_boundary": 56,
+    "freshness_current_info": 9,
+    "grounding_reference": 35,
+    "multi_turn_dialogue": 4,
+    "no_tool_or_direct_answer": 12,
+    "optional_tool_choice": 17,
+    "ordered_tool_sequence": 5,
+    "output_contract": 10,
+    "required_tool_use": 24,
+    "safety_boundary": 20,
+    "tool_output_grounding": 1,
+    "workflow_planning": 11
+  },
+  "scenario_dimension_scenarios": {
+    "argument_fidelity": [
+      "A2-S005",
+      "A2-S007",
+      "A2-S009",
+      "A2-S010",
+      "A2-S013",
+      "A2-S019",
+      "A2-S020",
+      "A2-S026",
+      "A2-S031",
+      "A2-S032",
+      "A2-S033",
+      "A2-S034",
+      "A2-S036",
+      "A2-S037",
+      "A2-S040",
+      "A2-S042",
+      "A2-S044",
+      "A2-S046",
+      "A2-S047",
+      "A2-S053",
+      "A2-S055",
+      "A2-S059"
+    ],
+    "clarification": [
+      "A2-S007",
+      "A2-S043",
+      "A2-S052",
+      "A2-S054",
+      "A2-S056",
+      "A2-S057",
+      "A2-S059"
+    ],
+    "failure_recovery": [
+      "A2-S011",
+      "A2-S015",
+      "A2-S020",
+      "A2-S041",
+      "A2-S045",
+      "A2-S060"
+    ],
+    "fixture_grounding": [
+      "A2-S003",
+      "A2-S004",
+      "A2-S005",
+      "A2-S009",
+      "A2-S010",
+      "A2-S011",
+      "A2-S012",
+      "A2-S013",
+      "A2-S016",
+      "A2-S017",
+      "A2-S018",
+      "A2-S019",
+      "A2-S020",
+      "A2-S029",
+      "A2-S030",
+      "A2-S031",
+      "A2-S032",
+      "A2-S033",
+      "A2-S035",
+      "A2-S036",
+      "A2-S037",
+      "A2-S038",
+      "A2-S040",
+      "A2-S041",
+      "A2-S042",
+      "A2-S045",
+      "A2-S046",
+      "A2-S047",
+      "A2-S051",
+      "A2-S059"
+    ],
+    "forbidden_tool_boundary": [
+      "A2-S001",
+      "A2-S002",
+      "A2-S003",
+      "A2-S004",
+      "A2-S005",
+      "A2-S006",
+      "A2-S007",
+      "A2-S008",
+      "A2-S009",
+      "A2-S010",
+      "A2-S011",
+      "A2-S012",
+      "A2-S013",
+      "A2-S014",
+      "A2-S015",
+      "A2-S016",
+      "A2-S017",
+      "A2-S018",
+      "A2-S019",
+      "A2-S020",
+      "A2-S021",
+      "A2-S022",
+      "A2-S023",
+      "A2-S024",
+      "A2-S025",
+      "A2-S026",
+      "A2-S027",
+      "A2-S028",
+      "A2-S029",
+      "A2-S030",
+      "A2-S031",
+      "A2-S032",
+      "A2-S034",
+      "A2-S035",
+      "A2-S036",
+      "A2-S037",
+      "A2-S039",
+      "A2-S040",
+      "A2-S042",
+      "A2-S043",
+      "A2-S044",
+      "A2-S045",
+      "A2-S046",
+      "A2-S048",
+      "A2-S049",
+      "A2-S050",
+      "A2-S051",
+      "A2-S052",
+      "A2-S053",
+      "A2-S054",
+      "A2-S055",
+      "A2-S056",
+      "A2-S057",
+      "A2-S058",
+      "A2-S059",
+      "A2-S060"
+    ],
+    "freshness_current_info": [
+      "A2-S003",
+      "A2-S004",
+      "A2-S009",
+      "A2-S011",
+      "A2-S012",
+      "A2-S029",
+      "A2-S040",
+      "A2-S041",
+      "A2-S058"
+    ],
+    "grounding_reference": [
+      "A2-S003",
+      "A2-S004",
+      "A2-S005",
+      "A2-S006",
+      "A2-S009",
+      "A2-S010",
+      "A2-S011",
+      "A2-S012",
+      "A2-S013",
+      "A2-S016",
+      "A2-S017",
+      "A2-S018",
+      "A2-S019",
+      "A2-S020",
+      "A2-S029",
+      "A2-S030",
+      "A2-S031",
+      "A2-S032",
+      "A2-S033",
+      "A2-S034",
+      "A2-S035",
+      "A2-S036",
+      "A2-S037",
+      "A2-S038",
+      "A2-S039",
+      "A2-S040",
+      "A2-S041",
+      "A2-S042",
+      "A2-S045",
+      "A2-S046",
+      "A2-S047",
+      "A2-S051",
+      "A2-S056",
+      "A2-S058",
+      "A2-S059"
+    ],
+    "multi_turn_dialogue": [
+      "A2-S013",
+      "A2-S044",
+      "A2-S046",
+      "A2-S059"
+    ],
+    "no_tool_or_direct_answer": [
+      "A2-S001",
+      "A2-S002",
+      "A2-S008",
+      "A2-S021",
+      "A2-S022",
+      "A2-S023",
+      "A2-S024",
+      "A2-S025",
+      "A2-S026",
+      "A2-S027",
+      "A2-S028",
+      "A2-S053"
+    ],
+    "optional_tool_choice": [
+      "A2-S003",
+      "A2-S004",
+      "A2-S007",
+      "A2-S011",
+      "A2-S012",
+      "A2-S013",
+      "A2-S015",
+      "A2-S016",
+      "A2-S020",
+      "A2-S029",
+      "A2-S034",
+      "A2-S037",
+      "A2-S039",
+      "A2-S041",
+      "A2-S051",
+      "A2-S053",
+      "A2-S059"
+    ],
+    "ordered_tool_sequence": [
+      "A2-S009",
+      "A2-S031",
+      "A2-S040",
+      "A2-S042",
+      "A2-S047"
+    ],
+    "output_contract": [
+      "A2-S001",
+      "A2-S005",
+      "A2-S013",
+      "A2-S021",
+      "A2-S026",
+      "A2-S027",
+      "A2-S028",
+      "A2-S036",
+      "A2-S037",
+      "A2-S038"
+    ],
+    "required_tool_use": [
+      "A2-S004",
+      "A2-S005",
+      "A2-S009",
+      "A2-S010",
+      "A2-S011",
+      "A2-S012",
+      "A2-S016",
+      "A2-S018",
+      "A2-S019",
+      "A2-S020",
+      "A2-S029",
+      "A2-S030",
+      "A2-S031",
+      "A2-S032",
+      "A2-S033",
+      "A2-S036",
+      "A2-S037",
+      "A2-S038",
+      "A2-S040",
+      "A2-S041",
+      "A2-S042",
+      "A2-S045",
+      "A2-S046",
+      "A2-S047"
+    ],
+    "safety_boundary": [
+      "A2-S006",
+      "A2-S014",
+      "A2-S015",
+      "A2-S017",
+      "A2-S027",
+      "A2-S035",
+      "A2-S039",
+      "A2-S043",
+      "A2-S046",
+      "A2-S048",
+      "A2-S049",
+      "A2-S050",
+      "A2-S051",
+      "A2-S052",
+      "A2-S053",
+      "A2-S054",
+      "A2-S056",
+      "A2-S057",
+      "A2-S058",
+      "A2-S060"
+    ],
+    "tool_output_grounding": [
+      "A2-S031"
+    ],
+    "workflow_planning": [
+      "A2-S011",
+      "A2-S015",
+      "A2-S020",
+      "A2-S040",
+      "A2-S041",
+      "A2-S042",
+      "A2-S043",
+      "A2-S044",
+      "A2-S045",
+      "A2-S046",
+      "A2-S047"
+    ]
+  },
+  "thin_scenario_dimensions": {},
+  "tool_policy_shape_counts": {
+    "critical_forbid": 21,
+    "forbidden_tool": 56,
+    "no_required_tool": 36,
+    "optional_tool": 17,
+    "ordered_tools": 5,
+    "required_plus_forbidden": 20,
+    "required_tool": 24,
+    "wildcard_forbid": 14
+  },
+  "required_tool_counts": {
+    "calculator": 1,
+    "file.read": 9,
+    "image.view": 2,
+    "mcp.resource": 2,
+    "media.classify": 1,
+    "media.fetch": 1,
+    "shell.exec": 2,
+    "web.open": 5,
+    "web.search": 6
+  },
+  "optional_tool_counts": {
+    "file.read": 4,
+    "shell.exec": 1,
+    "web.open": 3,
+    "web.search": 9
+  },
+  "forbidden_tool_counts": {
+    "*": 14,
+    "apply_patch": 9,
+    "booking.create": 2,
+    "calendar.create": 1,
+    "calendar.update": 1,
+    "file.read": 4,
+    "file.write": 22,
+    "payment.charge": 2,
+    "prescription.write": 1,
+    "shell.exec": 9,
+    "web.open": 2,
+    "web.search": 17
+  },
+  "ordered_tool_count": 5,
+  "ordered_tool_pairs": {
+    "file.read -> file.read": 1,
+    "image.view -> media.classify": 1,
+    "media.fetch -> image.view": 1,
+    "web.search -> web.open": 3
+  },
+  "rubric_classes": [
+    "task_completion",
+    "skill_protocol",
+    "argument_fidelity",
+    "safety_permissions",
+    "final_response_quality"
+  ],
+  "primary_rubric_counts": {
+    "argument_fidelity": 12,
+    "final_response_quality": 12,
+    "safety_permissions": 12,
+    "skill_protocol": 12,
+    "task_completion": 12
+  },
+  "judge_modes": [
+    "g1_trace_contract_judge",
+    "g2_output_contract_judge",
+    "g3_replay_sandbox_judge",
+    "g3_semantic_reference_judge",
+    "g3_safety_boundary_judge"
+  ],
+  "primary_failure_class_counts": {
+    "forbidden_tool_call": 6,
+    "hallucinated_tool_result": 5,
+    "ignored_tool_result": 6,
+    "missing_clarification": 5,
+    "missing_required_tool": 5,
+    "poor_failure_recovery": 4,
+    "unnecessary_tool_call": 5,
+    "unsafe_or_policy_violation": 5,
+    "wrong_arguments": 6,
+    "wrong_intent": 5,
+    "wrong_tool": 4,
+    "wrong_tool_order": 4
+  },
+  "failure_signal_count": 14,
+  "failure_signals": [
+    "bad_final_response",
+    "forbidden_tool_call",
+    "hallucinated_tool_result",
+    "ignored_tool_result",
+    "missing_clarification",
+    "missing_required_tool",
+    "output_schema_invalid",
+    "poor_failure_recovery",
+    "unnecessary_tool_call",
+    "unsafe_or_policy_violation",
+    "wrong_arguments",
+    "wrong_intent",
+    "wrong_tool",
+    "wrong_tool_order"
+  ],
+  "required_failure_classes_covered": [
+    "forbidden_tool_call",
+    "hallucinated_tool_result",
+    "ignored_tool_result",
+    "missing_clarification",
+    "missing_required_tool",
+    "poor_failure_recovery",
+    "unnecessary_tool_call",
+    "unsafe_or_policy_violation",
+    "wrong_arguments",
+    "wrong_intent",
+    "wrong_tool",
+    "wrong_tool_order"
+  ],
+  "required_failure_classes_missing": [],
+  "golden_case_count": 32,
+  "golden_pass_case_count": 5,
+  "golden_failure_case_count": 27,
+  "golden_failure_class_counts": {
+    "forbidden_tool_call": 2,
+    "hallucinated_tool_result": 2,
+    "ignored_tool_result": 2,
+    "missing_clarification": 2,
+    "missing_required_tool": 5,
+    "poor_failure_recovery": 2,
+    "unnecessary_tool_call": 2,
+    "unsafe_or_policy_violation": 2,
+    "wrong_arguments": 2,
+    "wrong_intent": 2,
+    "wrong_tool": 2,
+    "wrong_tool_order": 2
+  },
+  "golden_failure_class_cases": {
+    "forbidden_tool_call": [
+      {
+        "case_id": "GC-A2-S006-fail",
+        "scenario_id": "A2-S006"
+      },
+      {
+        "case_id": "GC-A2-S017-fail",
+        "scenario_id": "A2-S017"
+      }
+    ],
+    "hallucinated_tool_result": [
+      {
+        "case_id": "GC-A2-S003-fail-hallucinated-weather",
+        "scenario_id": "A2-S003"
+      },
+      {
+        "case_id": "GC-A2-S016-fail-hallucinated-shell-version",
+        "scenario_id": "A2-S016"
+      }
+    ],
+    "ignored_tool_result": [
+      {
+        "case_id": "GC-A2-S012-fail",
+        "scenario_id": "A2-S012"
+      },
+      {
+        "case_id": "GC-A2-S036-fail-ignored-csv-total",
+        "scenario_id": "A2-S036"
+      }
+    ],
+    "missing_clarification": [
+      {
+        "case_id": "GC-A2-S007-fail",
+        "scenario_id": "A2-S007"
+      },
+      {
+        "case_id": "GC-A2-S043-fail-missing-booking-clarification",
+        "scenario_id": "A2-S043"
+      }
+    ],
+    "missing_required_tool": [
+      {
+        "case_id": "GC-A2-S004-fail",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "GC-A2-S005-fail",
+        "scenario_id": "A2-S005"
+      },
+      {
+        "case_id": "GC-A2-S016-fail",
+        "scenario_id": "A2-S016"
+      },
+      {
+        "case_id": "GC-A2-S018-fail",
+        "scenario_id": "A2-S018"
+      },
+      {
+        "case_id": "GC-A2-S019-fail",
+        "scenario_id": "A2-S019"
+      }
+    ],
+    "poor_failure_recovery": [
+      {
+        "case_id": "GC-A2-S011-fail",
+        "scenario_id": "A2-S011"
+      },
+      {
+        "case_id": "GC-A2-S041-fail-poor-retry-recovery",
+        "scenario_id": "A2-S041"
+      }
+    ],
+    "unnecessary_tool_call": [
+      {
+        "case_id": "GC-A2-S001-fail-unnecessary-tool",
+        "scenario_id": "A2-S001"
+      },
+      {
+        "case_id": "GC-A2-S022-fail-unnecessary-tool",
+        "scenario_id": "A2-S022"
+      }
+    ],
+    "unsafe_or_policy_violation": [
+      {
+        "case_id": "GC-A2-S014-fail",
+        "scenario_id": "A2-S014"
+      },
+      {
+        "case_id": "GC-A2-S048-fail-secret-redaction",
+        "scenario_id": "A2-S048"
+      }
+    ],
+    "wrong_arguments": [
+      {
+        "case_id": "GC-A2-S010-fail",
+        "scenario_id": "A2-S010"
+      },
+      {
+        "case_id": "GC-A2-S033-fail-wrong-calculator-arguments",
+        "scenario_id": "A2-S033"
+      }
+    ],
+    "wrong_intent": [
+      {
+        "case_id": "GC-A2-S008-fail",
+        "scenario_id": "A2-S008"
+      },
+      {
+        "case_id": "GC-A2-S013-fail",
+        "scenario_id": "A2-S013"
+      }
+    ],
+    "wrong_tool": [
+      {
+        "case_id": "GC-A2-S004-fail-wrong-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "GC-A2-S051-fail-wrong-tool-defensive-security",
+        "scenario_id": "A2-S051"
+      }
+    ],
+    "wrong_tool_order": [
+      {
+        "case_id": "GC-A2-S009-fail",
+        "scenario_id": "A2-S009"
+      },
+      {
+        "case_id": "GC-A2-S040-fail-wrong-tool-order",
+        "scenario_id": "A2-S040"
+      }
+    ]
+  },
+  "golden_failure_classes_missing": [],
+  "thin_golden_failure_classes": {},
+  "executable_run_case_count": 31,
+  "executable_failure_case_count": 29,
+  "executable_failure_class_counts": {
+    "forbidden_tool_call": 2,
+    "hallucinated_tool_result": 4,
+    "ignored_tool_result": 2,
+    "missing_clarification": 2,
+    "missing_required_tool": 2,
+    "poor_failure_recovery": 2,
+    "unnecessary_tool_call": 2,
+    "unsafe_or_policy_violation": 2,
+    "wrong_arguments": 3,
+    "wrong_intent": 2,
+    "wrong_tool": 2,
+    "wrong_tool_order": 4
+  },
+  "executable_failure_class_cases": {
+    "forbidden_tool_call": [
+      {
+        "case_id": "sample-a2-s006-forbidden-tool",
+        "scenario_id": "A2-S006"
+      },
+      {
+        "case_id": "sample-a2-s035-forbidden-write",
+        "scenario_id": "A2-S035"
+      }
+    ],
+    "hallucinated_tool_result": [
+      {
+        "case_id": "sample-a2-s003-hallucinated-weather",
+        "scenario_id": "A2-S003"
+      },
+      {
+        "case_id": "sample-a2-s016-hallucinated-shell-version",
+        "scenario_id": "A2-S016"
+      },
+      {
+        "case_id": "sample-a2-s018-hallucinated-image-service",
+        "scenario_id": "A2-S018"
+      },
+      {
+        "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+        "scenario_id": "A2-S031"
+      }
+    ],
+    "ignored_tool_result": [
+      {
+        "case_id": "sample-a2-s012-ignored-tool-result",
+        "scenario_id": "A2-S012"
+      },
+      {
+        "case_id": "sample-a2-s036-ignored-csv-total",
+        "scenario_id": "A2-S036"
+      }
+    ],
+    "missing_clarification": [
+      {
+        "case_id": "sample-a2-s007-missing-clarification",
+        "scenario_id": "A2-S007"
+      },
+      {
+        "case_id": "sample-a2-s054-missing-clarification",
+        "scenario_id": "A2-S054"
+      }
+    ],
+    "missing_required_tool": [
+      {
+        "case_id": "sample-a2-s004-missing-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "sample-a2-s029-missing-required-search",
+        "scenario_id": "A2-S029"
+      }
+    ],
+    "poor_failure_recovery": [
+      {
+        "case_id": "sample-a2-s011-poor-recovery",
+        "scenario_id": "A2-S011"
+      },
+      {
+        "case_id": "sample-a2-s041-poor-retry-recovery",
+        "scenario_id": "A2-S041"
+      }
+    ],
+    "unnecessary_tool_call": [
+      {
+        "case_id": "sample-a2-s001-unnecessary-tool",
+        "scenario_id": "A2-S001"
+      },
+      {
+        "case_id": "sample-a2-s022-unnecessary-tool",
+        "scenario_id": "A2-S022"
+      }
+    ],
+    "unsafe_or_policy_violation": [
+      {
+        "case_id": "sample-a2-s014-unsafe-response",
+        "scenario_id": "A2-S014"
+      },
+      {
+        "case_id": "sample-a2-s048-secret-leak",
+        "scenario_id": "A2-S048"
+      }
+    ],
+    "wrong_arguments": [
+      {
+        "case_id": "sample-a2-s010-wrong-arguments",
+        "scenario_id": "A2-S010"
+      },
+      {
+        "case_id": "sample-a2-s019-wrong-mcp-resource",
+        "scenario_id": "A2-S019"
+      },
+      {
+        "case_id": "sample-a2-s033-wrong-calculator-arguments",
+        "scenario_id": "A2-S033"
+      }
+    ],
+    "wrong_intent": [
+      {
+        "case_id": "sample-a2-s002-wrong-intent",
+        "scenario_id": "A2-S002"
+      },
+      {
+        "case_id": "sample-a2-s023-wrong-intent",
+        "scenario_id": "A2-S023"
+      }
+    ],
+    "wrong_tool": [
+      {
+        "case_id": "sample-a2-s004-wrong-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "sample-a2-s029-wrong-tool-file-read",
+        "scenario_id": "A2-S029"
+      }
+    ],
+    "wrong_tool_order": [
+      {
+        "case_id": "sample-a2-s009-wrong-order",
+        "scenario_id": "A2-S009"
+      },
+      {
+        "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+        "scenario_id": "A2-S031"
+      },
+      {
+        "case_id": "sample-a2-s040-wrong-tool-order",
+        "scenario_id": "A2-S040"
+      },
+      {
+        "case_id": "sample-a2-s042-wrong-read-order",
+        "scenario_id": "A2-S042"
+      }
+    ]
+  },
+  "executable_failure_classes_missing": [],
+  "thin_executable_failure_classes": {},
+  "coverage_warnings": [],
+  "fixture_ref_count": 37,
+  "fixture_scenario_count": 30,
+  "fixture_type_counts": {
+    "calculator": 1,
+    "config": 1,
+    "contracts": 2,
+    "data": 9,
+    "errors": 1,
+    "images": 2,
+    "mcp": 2,
+    "media": 1,
+    "notes": 1,
+    "safety": 1,
+    "shell": 2,
+    "skills": 1,
+    "text": 4,
+    "web": 9
+  },
+  "fixture_ref_counts_by_scenario": {
+    "A2-S003": 1,
+    "A2-S004": 1,
+    "A2-S005": 1,
+    "A2-S009": 1,
+    "A2-S010": 2,
+    "A2-S011": 1,
+    "A2-S012": 1,
+    "A2-S013": 1,
+    "A2-S016": 1,
+    "A2-S017": 1,
+    "A2-S018": 1,
+    "A2-S019": 1,
+    "A2-S020": 3,
+    "A2-S029": 1,
+    "A2-S030": 1,
+    "A2-S031": 2,
+    "A2-S032": 1,
+    "A2-S033": 1,
+    "A2-S035": 1,
+    "A2-S036": 1,
+    "A2-S037": 3,
+    "A2-S038": 1,
+    "A2-S040": 1,
+    "A2-S041": 1,
+    "A2-S042": 2,
+    "A2-S045": 1,
+    "A2-S046": 1,
+    "A2-S047": 1,
+    "A2-S051": 1,
+    "A2-S059": 1
+  }
+}

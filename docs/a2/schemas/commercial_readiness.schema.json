@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 CommercialReadinessReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "source_goal",
+    "current_gate",
+    "ready_for_commercial_gate",
+    "commercial_dimensions",
+    "contract_invariants",
+    "gate_status",
+    "evidence_snapshot",
+    "next_top_3",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.commercial_readiness.v1" },
+    "report_id": { "type": "string" },
+    "source_goal": { "type": "object" },
+    "current_gate": { "type": "string" },
+    "ready_for_commercial_gate": { "type": "boolean" },
+    "commercial_dimensions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/commercial_dimension" }
+    },
+    "contract_invariants": { "$ref": "#/$defs/string_array" },
+    "gate_status": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gate_status" }
+    },
+    "evidence_snapshot": { "type": "object" },
+    "next_top_3": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/next_move" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "status": {
+      "enum": ["met", "partial", "blocked"]
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "commercial_dimension": {
+      "type": "object",
+      "required": ["dimension", "weight", "status", "evidence"],
+      "properties": {
+        "dimension": { "type": "string" },
+        "weight": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "status": { "$ref": "#/$defs/status" },
+        "evidence": { "type": "string" },
+        "gap": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "gate_status": {
+      "type": "object",
+      "required": ["gate", "name", "status", "requirement", "evidence_refs", "gaps"],
+      "properties": {
+        "gate": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "$ref": "#/$defs/status" },
+        "requirement": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" },
+        "gaps": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "next_move": {
+      "type": "object",
+      "required": ["id", "title", "why_now", "scores", "smallest_delivery"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "why_now": { "type": "string" },
+        "scores": { "type": "object" },
+        "smallest_delivery": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

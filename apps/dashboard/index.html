@@ -753,6 +753,7 @@
       const state = {
         runs: null,
         grades: null,
+        coverage: {},
         cases: [],
         filteredCases: [],
         selectedCaseId: null,
@@ -767,6 +768,15 @@
           throw new Error(`Failed to load ${path}: ${response.status}`);
         }
         return response.json();
+      }
+
+      async function loadOptionalJson(path) {
+        try {
+          return await loadJson(path);
+        } catch (error) {
+          console.warn(error.message);
+          return {};
+        }
       }
 
       function formatJson(value) {
@@ -828,7 +838,8 @@
         $("metric-score").textContent = summary.avgScore;
         $("metric-trace").textContent = `${summary.traceCompleteness}%`;
         $("metric-media").textContent = summary.mediaEvidenceCases;
-        $("data-source").textContent = `${sourceLabel(state.source)}: ${summary.lastRunId}`;
+        const coverageLabel = state.coverage?.pack_id ? `; Coverage: ${state.coverage.pack_id}` : "";
+        $("data-source").textContent = `${sourceLabel(state.source)}: ${summary.lastRunId}${coverageLabel}`;
       }
 
       function renderConsoleStats() {
@@ -1072,6 +1083,7 @@
           state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
           state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
         }
+        state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
         state.cases = normalizeCases(state.runs, state.grades);
         state.filteredCases = state.cases;
         state.selectedCaseId = state.cases[0]?.case_id || null;
@@ -1112,13 +1124,13 @@
         });
 
         $("export-json").addEventListener("click", () => {
-          download("a3-dashboard-report.json", JSON.stringify(buildJsonReport(state.runs, state.grades), null, 2), "application/json");
+          download("a3-dashboard-report.json", JSON.stringify(buildJsonReport(state.runs, state.grades, state.coverage), null, 2), "application/json");
         });
         $("export-csv").addEventListener("click", () => {
           download("a3-dashboard-report.csv", buildCsvReport(state.runs, state.grades), "text/csv");
         });
         $("export-md").addEventListener("click", () => {
-          download("a3-dashboard-report.md", buildMarkdownReport(state.runs, state.grades), "text/markdown");
+          download("a3-dashboard-report.md", buildMarkdownReport(state.runs, state.grades, state.coverage), "text/markdown");
         });
       }
 

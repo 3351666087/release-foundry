@@ -1,0 +1,15 @@
+{
+  "scenario_id": "A2-S023",
+  "case_id": "sample-a2-s023-wrong-intent",
+  "run": {
+    "tool_calls": [],
+    "final_response": "feature",
+    "expected_keywords": [
+      "bug"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_intent"
+  }
+}

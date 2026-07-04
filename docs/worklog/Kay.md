@@ -193,3 +193,182 @@ Boundary:
 Verification:
 - `python -m unittest discover -s tests/a2 -v`
 - Result: 18 tests passed.
+
+## 2026-07-04 - G3 A2 minimum coverage pass
+
+Goal:
+- Move A2 from the 20-scenario G2 seed into the G3 minimum assignment target.
+- Keep the work local and deterministic before using real Ashr API credentials.
+
+Implemented:
+- Added `packages/scenarios/a2_g3_full_pack.json` with 60 scenarios:
+  - 10 `direct_answer`
+  - 10 `retrieval_grounding`
+  - 10 `tool_execution`
+  - 10 `workflow_planning`
+  - 10 `safety_policy`
+  - 10 `ambiguous_or_conflicting`
+- Expanded runner output to 5 judge modes:
+  - `g1_trace_contract_judge`
+  - `g2_output_contract_judge`
+  - `g3_replay_sandbox_judge`
+  - `g3_semantic_reference_judge`
+  - `g3_safety_boundary_judge`
+- Added deterministic judges for replay/trace recovery, grounding facts, and safety boundaries.
+- Added A2-S010 wrong-arguments run/result fixtures so A3 failure clustering no longer depends only on synthetic A3 data.
+- Added `fixtures/a2/results/a2_g3_grade_results.json` aggregate grade report for A3.
+- Added `services/judge/coverage.py` for assignment coverage reporting.
+
+SubAgent review impact:
+- A3 review identified the need for an aggregate `grade_results[]` wrapper.
+- Judge review identified mode naming, grounding fact placement, and fixture/test drift.
+
+Verification:
+- `python -m unittest discover -s tests/a2 -v`
+- `node --test tests/a3/report_builder.test.mjs`
+
+## 2026-07-04 - Commercial A2 calibration matrix pass
+
+Reason:
+- Kay provided `Ashr_Commercial_Grade_Goals_CN.pdf`, which changes A2's working target from "meet G3 minimums" to "build a commercial-grade semantic evaluation product line."
+- The PDF specifically names A2's next P1 as `semantic judge + calibration matrix`, with `LLM judge harness`, `Ashr/local/LLM diff table`, misjudgment regression fixtures, `eval report`, `cost ledger`, and `judge tests`.
+
+Updated A2 goal interpretation:
+- Keep all hard minimums green: 60 scenarios, 5 rubric classes, 5 judge modes, 20+ golden cases, and 12 canonical failure classes.
+- Add commercial calibration evidence on top: compare deterministic `local_judge`, future Ashr server-side `ashr_grading`, and `llm_judge` observations on the same cases.
+- Be explicit when evidence is missing. Current read/list Ashr API smoke is not the same as server-side grading, so `ashr_grading` remains marked missing until a real grading batch exists.
+- Track model/cost/confidence metadata for semantic judging instead of treating LLM judge outputs as opaque.
+
+Implemented:
+- Added `services/judge/calibration.py` to build `a2.calibration_matrix.v1`.
+- Added `fixtures/a2/calibration/a2_g3_calibration_observations.json` with six representative cases and offline `llm_judge` reference observations.
+- Added generated result fixture `fixtures/a2/results/a2_g3_calibration_matrix.json`.
+- Added `docs/a2/schemas/calibration_matrix.schema.json`.
+- Extended `scripts/a2_regenerate_fixtures.py` so `--check` and `--write` include the calibration matrix.
+- Updated `docs/a2/README.md`, `docs/a2/a1_a3_handoff.md`, and `docs/a2/scenario_coverage_plan.md` with the PDF-aligned commercial target.
+- Added tests that verify source coverage, local-vs-LLM agreement, cost ledger fields, schema shape, and the intentionally tracked disagreement case.
+
+Current matrix facts:
+- `local_judge`: 6/6 available.
+- `llm_judge`: 6/6 offline reference observations available.
+- `ashr_grading`: 0/6 available, intentionally missing until real server-side grading evidence exists.
+- `local_judge` vs `llm_judge`: 6 comparable cases, 1 failure-class disagreement on `sample-a2-s010-wrong-arguments`.
+
+Peer/GitHub context:
+- `gh pr list --state all` showed A1 draft PR #6, merged A3 P3 PR #5, and prior A1/A2/A3 merged PRs.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` initially hit a transient network reset, then succeeded.
+- `origin/main` now includes merged A1/A3 work and diverges from this A2 branch; this pass did not merge main to avoid mixing peer changes into a scoped A2 commit.
+
+Verification:
+- `python -B scripts/a2_regenerate_fixtures.py --check`
+- `python -B -m unittest discover -s tests/a2 -v`
+- `python -B -m unittest discover -s tests/a1 -v`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs`
+- `git diff --check`
+
+Next top 3:
+1. Collect a small authenticated Ashr grading batch and fill the `ashr_grading` column.
+2. Replace offline `llm_judge` observations with audited model calls and real cost evidence.
+3. Promote the `wrong_arguments` vs `ignored_tool_result` disagreement into a regression case or judge calibration note.
+
+## 2026-07-04 - Ashr grading import bridge
+
+Reason:
+- The commercial matrix pass made `ashr_grading` visible but still missing. The next useful step is a deterministic bridge from real Ashr `get-run/list-runs` evidence into A2 calibration observations.
+- A1 on `origin/main` already has API probe support for `create-run`, `get-run`, `poll-run`, and redacted private evidence. A3 P3 already mapped real Ashr `run.result.tests[].action_results[]` fields. A2 needs its own small importer so it can fill the matrix without copying raw private records.
+
+Implemented:
+- Extended `services/judge/calibration.py` with `import_ashr_grading_observations(...)` and Ashr run extraction/classification helpers.
+- Added `scripts/a2_import_ashr_grading.py`, a local CLI that converts a redacted Ashr run record plus a `test_id` to `case_id` map into `ashr_grading` observations.
+- Added synthetic redacted import fixtures:
+  - `fixtures/a2/calibration/ashr_grading_import_sample.json`
+  - `fixtures/a2/calibration/ashr_grading_import_case_map.json`
+- Added tests proving imported Ashr observations can raise matrix `ashr_grading` coverage from 0/6 to 2/6 and agree with local judge on the two mapped sample cases.
+- Updated README, handoff docs, and scenario coverage plan with the importer workflow.
+
+Boundary:
+- This pass does not call the real Ashr API and does not read any key file.
+- Raw/private API evidence should remain under `docs/evidence/private_refs`; committed A2 fixtures should contain only reviewed summaries and evidence refs.
+- The current committed calibration matrix still marks `ashr_grading` as missing until a real batch is reviewed and merged.
+
+Verification:
+- `python -B scripts/a2_import_ashr_grading.py --input fixtures/a2/calibration/ashr_grading_import_sample.json --case-map fixtures/a2/calibration/ashr_grading_import_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json`
+- `python -B scripts/a2_regenerate_fixtures.py --check`
+- `python -B -m unittest discover -s tests/a2 -v`
+
+Next top 3:
+1. Use A1's real API probe to collect a tiny private `get-run` or `poll-run` record for A2 mapped cases.
+2. Run `scripts/a2_import_ashr_grading.py` against that private evidence and review the imported observations.
+3. Merge reviewed `ashr_grading` observations into `a2_g3_calibration_observations.json` and regenerate the matrix.
+
+## 2026-07-04 - Commercial readiness gate from new PDF
+
+Reason:
+- The new `Ashr_Commercial_Grade_Goals_CN.pdf` raises A2 from assignment minimums to a commercial-grade semantic evaluation product line.
+- The PDF's A2 success condition is not just 60 scenarios; it is failing real agents for the right reasons and explaining those reasons under calibration evidence.
+
+Implemented:
+- Added `services/judge/readiness.py` to summarize PDF-derived C0-C6 commercial gate status from deterministic A2 coverage and calibration artifacts.
+- Added generated report `fixtures/a2/results/a2_commercial_readiness_report.json`.
+- Added schema snapshot `docs/a2/schemas/commercial_readiness.schema.json`.
+- Integrated the report into `scripts/a2_regenerate_fixtures.py`, so `--check` now protects 35 A2 generated fixtures.
+- Added tests for C0/C3/C4 status, missing Ashr grading evidence, offline-only LLM evidence, and the next top 3.
+- Updated A2 README, scenario coverage plan, and A1/A3 handoff docs.
+- Added contract invariants so commercial upgrades remain additive and do not break A1/A3 grade or coverage consumers.
+
+Current commercial gate:
+- C0 is met: assignment minimums, coverage, scenario quality, golden cases, and executable failures are stable.
+- C3 is partial: local-vs-LLM diff exists, but all six calibration cases still lack reviewed Ashr server-side grading.
+- C4 is partial: LLM judge confidence/cost fields exist, but current samples are offline references, not audited live model calls.
+- C5 is partial: a judge disagreement candidate exists, but it has not yet been promoted into a regression fixture and case-book entry.
+
+Next top 3:
+1. Fill the `ashr_grading` column with a tiny reviewed private Ashr grading batch.
+2. Replace offline LLM references with audited semantic judge calls and prompt/model/cost evidence.
+3. Promote the current local-vs-LLM disagreement into regression fixtures and a case-book seed.
+
+## 2026-07-04 - Ashr grading batch merge gate
+
+Reason:
+- The importer made Ashr grading evidence convertible, but filling C3 still required manual copying into `a2_g3_calibration_observations.json`.
+- The current environment has no `ASHR_LABS_API_KEY`, so this round cannot safely run live Ashr. The useful step is to make the post-evidence merge deterministic and reviewable.
+
+Implemented:
+- Added `merge_calibration_observations(...)` to `services/judge/calibration.py`.
+- Added `scripts/a2_merge_calibration_observations.py` so reviewed importer output can be merged with source and known-case validation.
+- Added `fixtures/a2/calibration/ashr_grading_batch_case_map.json` with the six C3 calibration test ids.
+- Added tests for six-case map coverage, function-level merge, CLI merge, and the resulting matrix coverage.
+- Updated README, A1/A3 handoff, scenario coverage plan, and readiness next top 3.
+
+Boundary:
+- No real API call was made in this round because the key is not in the environment.
+- The committed calibration matrix still marks `ashr_grading` missing until a reviewed real batch is merged.
+
+Next top 3:
+1. Export or collect a private real Ashr `get-run/list-runs` record using the six batch test ids.
+2. Run importer -> merge gate with `--min-count 6`, then regenerate fixtures.
+3. Promote any Ashr/local/LLM disagreements into regression fixtures or case-book entries.
+
+## 2026-07-04 - Case book regression seed
+
+Reason:
+- The readiness report marked C5 partial because the calibration matrix had a disagreement candidate but no durable reviewer-facing case book.
+- `sample-a2-s010-wrong-arguments` is the first useful seed: local A2 classifies the issue as `wrong_arguments`, while the offline LLM reference labels it `ignored_tool_result`.
+
+Implemented:
+- Added `services/judge/casebook.py` to build `a2.case_book.v1` from calibration disagreement tags.
+- Added generated fixture `fixtures/a2/results/a2_case_book.json`.
+- Added reviewer-facing markdown `docs/a2/case_book.md`.
+- Added schema snapshot `docs/a2/schemas/case_book.schema.json`.
+- Integrated case-book generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness to expose `case_book_regression_count`.
+- Added tests that lock the generated case book, schema, markdown seed, and readiness count.
+
+Boundary:
+- This does not change `grade_run`, top-level `primary_failure_class`, or the A3 grade join.
+- C5 remains partial because this is one regression seed, not a mature regression suite.
+
+Next top 3:
+1. Resolve the seed with reviewed Ashr grading or audited live LLM evidence.
+2. Add any new Ashr/local/LLM disagreements to the case book automatically.
+3. Let A3 optionally surface `a2_case_book.json` in a judge drilldown panel.
