@@ -321,6 +321,7 @@ def _next_top_3(
             "smallest_delivery": [
                 "private redacted get-run/list-runs evidence",
                 "reviewed ashr_grading observations",
+                "merged calibration observations payload",
                 "regenerated calibration matrix",
             ],
         },

@@ -326,3 +326,25 @@ Next top 3:
 1. Fill the `ashr_grading` column with a tiny reviewed private Ashr grading batch.
 2. Replace offline LLM references with audited semantic judge calls and prompt/model/cost evidence.
 3. Promote the current local-vs-LLM disagreement into regression fixtures and a case-book seed.
+
+## 2026-07-04 - Ashr grading batch merge gate
+
+Reason:
+- The importer made Ashr grading evidence convertible, but filling C3 still required manual copying into `a2_g3_calibration_observations.json`.
+- The current environment has no `ASHR_LABS_API_KEY`, so this round cannot safely run live Ashr. The useful step is to make the post-evidence merge deterministic and reviewable.
+
+Implemented:
+- Added `merge_calibration_observations(...)` to `services/judge/calibration.py`.
+- Added `scripts/a2_merge_calibration_observations.py` so reviewed importer output can be merged with source and known-case validation.
+- Added `fixtures/a2/calibration/ashr_grading_batch_case_map.json` with the six C3 calibration test ids.
+- Added tests for six-case map coverage, function-level merge, CLI merge, and the resulting matrix coverage.
+- Updated README, A1/A3 handoff, scenario coverage plan, and readiness next top 3.
+
+Boundary:
+- No real API call was made in this round because the key is not in the environment.
+- The committed calibration matrix still marks `ashr_grading` missing until a reviewed real batch is merged.
+
+Next top 3:
+1. Export or collect a private real Ashr `get-run/list-runs` record using the six batch test ids.
+2. Run importer -> merge gate with `--min-count 6`, then regenerate fixtures.
+3. Promote any Ashr/local/LLM disagreements into regression fixtures or case-book entries.

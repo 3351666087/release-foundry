@@ -148,6 +148,49 @@ def import_ashr_grading_observations(
     return observations
 
 
+def merge_calibration_observations(
+    base_payload: dict[str, Any],
+    incoming_payload: dict[str, Any] | list[Any],
+    *,
+    source: str = "ashr_grading",
+) -> dict[str, Any]:
+    """Merge reviewed external observations into an A2 calibration payload."""
+    if source == "local_judge" or source not in REQUIRED_SOURCES:
+        raise ValueError(f"source must be an external calibration source, got {source!r}")
+
+    merged = json.loads(json.dumps(base_payload))
+    known_cases = {
+        str(case["case_id"]): str(case.get("scenario_id", ""))
+        for case in merged.get("cases", [])
+        if isinstance(case, dict) and case.get("case_id")
+    }
+    incoming = _extract_observations(incoming_payload)
+    if not incoming:
+        raise ValueError("incoming payload does not contain observations")
+
+    observations_by_key = _observations_by_case_and_source(merged.get("observations", []))
+    seen: set[tuple[str, str]] = set()
+    for observation in incoming:
+        incoming_source = str(observation.get("source", ""))
+        case_id = str(observation.get("case_id", ""))
+        key = (case_id, incoming_source)
+        if incoming_source != source:
+            raise ValueError(f"incoming observation {case_id!r} has source {incoming_source!r}, expected {source!r}")
+        if case_id not in known_cases:
+            raise ValueError(f"incoming observation case_id {case_id!r} is not in calibration cases")
+        if key in seen:
+            raise ValueError(f"duplicate incoming observation for {case_id!r}/{incoming_source!r}")
+        seen.add(key)
+
+        normalized = dict(observation)
+        normalized["case_id"] = case_id
+        normalized["scenario_id"] = known_cases[case_id]
+        observations_by_key[key] = normalized
+
+    merged["observations"] = _sorted_observations(observations_by_key, known_cases)
+    return merged
+
+
 def extract_ashr_runs(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
@@ -169,11 +212,44 @@ def extract_ashr_runs(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any
     return []
 
 
+def _extract_observations(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    observations = payload.get("observations")
+    if isinstance(observations, list):
+        return [item for item in observations if isinstance(item, dict)]
+    if payload.get("case_id") and payload.get("source"):
+        return [payload]
+    return []
+
+
 def _observations_by_case_and_source(observations: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
     return {
         (str(observation["case_id"]), str(observation["source"])): observation
         for observation in observations
     }
+
+
+def _sorted_observations(
+    observations_by_key: dict[tuple[str, str], dict[str, Any]],
+    known_cases: dict[str, str],
+) -> list[dict[str, Any]]:
+    case_order = {case_id: index for index, case_id in enumerate(known_cases)}
+    source_order = {source: index for index, source in enumerate(REQUIRED_SOURCES)}
+    return [
+        observation
+        for _, observation in sorted(
+            observations_by_key.items(),
+            key=lambda item: (
+                case_order.get(item[0][0], len(case_order)),
+                source_order.get(item[0][1], len(source_order)),
+                item[0][1],
+                item[0][0],
+            ),
+        )
+    ]
 
 
 def _local_source(result: dict[str, Any]) -> dict[str, Any]:

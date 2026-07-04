@@ -127,7 +127,9 @@ Next A2 priorities should be chosen by ROI against this commercial target:
 2. replace offline `llm_judge` samples with audited model calls and a real cost ledger,
 3. promote local-vs-LLM disagreements into regression fixtures or judge improvements.
 
-`scripts/a2_import_ashr_grading.py` is the bridge for the first item. It converts redacted Ashr `run.result.tests[].action_results[]` records into `ashr_grading` observations with canonical A2 failure classes. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed observation summaries and private evidence references.
+`scripts/a2_import_ashr_grading.py` is the bridge for the first item. It converts redacted Ashr `run.result.tests[].action_results[]` records into `ashr_grading` observations with canonical A2 failure classes. `scripts/a2_merge_calibration_observations.py` is the review gate that merges those observations into the calibration payload after checking source and known case ids. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed observation summaries and private evidence references.
+
+`fixtures/a2/calibration/ashr_grading_batch_case_map.json` defines the six recommended Ashr `test_id` values for the current C3 calibration batch. It should be used when collecting the first real Ashr grading batch so `ashr_grading` rows join cleanly with A2 case ids.
 
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 

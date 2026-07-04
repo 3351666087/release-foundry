@@ -146,6 +146,8 @@ The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a 
 
 A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, and private evidence path.
 
+For the current six-case C3 batch, A1 should use `fixtures/a2/calibration/ashr_grading_batch_case_map.json` when assigning Ashr `test_id` values. After A2 reviews the importer output, `scripts/a2_merge_calibration_observations.py` can merge those observations into `fixtures/a2/calibration/a2_g3_calibration_observations.json` with `--source ashr_grading --min-count 6`.
+
 The commercial readiness report uses `schema_version: a2.commercial_readiness.v1` and lives at `fixtures/a2/results/a2_commercial_readiness_report.json`. It is an optional planning/status feed for A3: it records the PDF-derived C0-C6 gate status, current evidence snapshot, commercial dimensions, and A2 next top 3. It is intentionally additive; A1/A3 should not depend on it for the existing grade or coverage join paths.
 
 Commercial-readiness invariants:

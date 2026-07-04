@@ -7,7 +7,11 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-from services.judge.calibration import build_calibration_matrix, import_ashr_grading_observations
+from services.judge.calibration import (
+    build_calibration_matrix,
+    import_ashr_grading_observations,
+    merge_calibration_observations,
+)
 from services.judge.coverage import build_coverage_report
 from services.judge.readiness import build_commercial_readiness_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
@@ -448,6 +452,19 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertIn("judge_disagreement_regression", disagreement["calibration_tags"])
 
+    def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
+        observations_payload = json.loads(
+            (ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8")
+        )
+        case_map = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_batch_case_map.json").read_text(encoding="utf-8"))
+
+        calibration_cases = {case["case_id"] for case in observations_payload["cases"]}
+        self.assertEqual(set(case_map.values()), calibration_cases)
+        self.assertEqual(len(case_map), 6)
+        for raw_case_id in case_map:
+            with self.subTest(raw_case_id=raw_case_id):
+                self.assertTrue(raw_case_id.startswith("ashr-a2-g3-"))
+
     def test_commercial_readiness_report_tracks_pdf_gates(self):
         coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         calibration_matrix = build_calibration_matrix(
@@ -505,7 +522,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotIn("@", redacted[1]["rationale"])
 
         payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
-        payload["observations"] = payload["observations"] + observations
+        payload = merge_calibration_observations(payload, {"observations": observations})
+        merged_ashr = [observation for observation in payload["observations"] if observation["source"] == "ashr_grading"]
+        self.assertEqual(len(merged_ashr), 2)
+        self.assertEqual(merged_ashr[0]["scenario_id"], "A2-S001")
+        self.assertEqual(merged_ashr[1]["scenario_id"], "A2-S010")
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "observations.json"
             path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -519,6 +540,39 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 4)
         self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["comparable"], 2)
         self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["mismatch_count"], 0)
+
+    def test_ashr_grading_merge_cli_outputs_reviewed_calibration_payload(self):
+        sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))
+        case_map = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json").read_text(encoding="utf-8"))
+        observations = import_ashr_grading_observations(sample, case_map=case_map)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            incoming = Path(tmp_dir) / "incoming.json"
+            incoming.write_text(json.dumps({"observations": observations}, indent=2) + "\n", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/a2_merge_calibration_observations.py"),
+                    "--base",
+                    str(ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json"),
+                    "--incoming",
+                    str(incoming),
+                    "--source",
+                    "ashr_grading",
+                    "--min-count",
+                    "2",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        merged = json.loads(result.stdout)
+        self.assertEqual(merged["schema_version"], "a2.calibration_observations.v1")
+        self.assertEqual(sum(1 for item in merged["observations"] if item["source"] == "ashr_grading"), 2)
+        self.assertIn("sample-a2-s010-wrong-arguments", {item["case_id"] for item in merged["observations"]})
 
     def test_ashr_grading_import_cli_outputs_redacted_observations(self):
         result = subprocess.run(

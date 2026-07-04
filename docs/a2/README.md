@@ -112,11 +112,24 @@ When a redacted Ashr `get-run` or `list-runs` record is available under private 
 ```bash
 python scripts/a2_import_ashr_grading.py \
   --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
-  --case-map fixtures/a2/calibration/ashr_grading_import_case_map.json \
-  --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json
+  --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json \
+  --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
+  --output docs/evidence/private_refs/a2_ashr_grading_import.review.json
 ```
 
-The import command prints `ashr_grading` observations that can be reviewed before merging into `fixtures/a2/calibration/a2_g3_calibration_observations.json`.
+After review, merge the imported summaries into a calibration payload:
+
+```bash
+python scripts/a2_merge_calibration_observations.py \
+  --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json \
+  --source ashr_grading \
+  --min-count 6 \
+  --output fixtures/a2/calibration/a2_g3_calibration_observations.json
+```
+
+Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
+
+The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
 
 ## Commercial Readiness Gate
 

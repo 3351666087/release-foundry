@@ -1,0 +1,11 @@
+# Local secrets and private API evidence
+.env
+.env.*
+Ashr_key.txt
+*.key
+*.pem
+docs/evidence/private_refs/
+
+# Python runtime cache
+__pycache__/
+*.py[cod]

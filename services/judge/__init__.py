@@ -1,6 +1,6 @@
 """A2 local deterministic judges."""
 
-from .calibration import build_calibration_matrix, import_ashr_grading_observations
+from .calibration import build_calibration_matrix, import_ashr_grading_observations, merge_calibration_observations
 from .coverage import build_coverage_report
 from .readiness import build_commercial_readiness_report
 from .grounding import GroundingJudge
@@ -22,4 +22,5 @@ __all__ = [
     "build_commercial_readiness_report",
     "build_coverage_report",
     "import_ashr_grading_observations",
+    "merge_calibration_observations",
 ]
