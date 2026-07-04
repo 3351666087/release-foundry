@@ -33,6 +33,7 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Hosted run result: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
 - `list_requests`: `_user`, `next_cursor`, `requests`, `status`.
 - Request item: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
+- Local create-request preflight record: `num_variations`, `num_variations_known`, `media_generation`, `media_generation_enabled`, `accepted_input_flags`, `non_text_inputs_enabled`, `small_batch`, `notes`.
 
 Error calibration:
 

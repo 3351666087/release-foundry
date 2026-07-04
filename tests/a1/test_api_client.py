@@ -214,6 +214,128 @@ def test_create_request_dry_run_records_mutating_plan(tmp_path):
     assert record["request"]["params"]["request_name"] == "Tiny calibration"
 
 
+def test_create_request_records_preflight_summary(tmp_path):
+    output = tmp_path / "create_request.json"
+    client = AshrApiClient(api_key=None)
+
+    record = client.create_request(
+        request_name="Tiny calibration",
+        request={"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}},
+        output_path=output,
+        dry_run=True,
+        preflight={"num_variations": 1, "media_generation_enabled": False},
+    )
+
+    assert record["request"]["preflight"]["num_variations"] == 1
+    assert record["response"]["plan"]["preflight"]["media_generation_enabled"] is False
+
+
+def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
+    request_file = tmp_path / "request.json"
+    output = tmp_path / "probe.json"
+    request_file.write_text(
+        json.dumps(
+            {
+                "agent": {"name": "Mock", "accepted_inputs": {"text": True, "audio": False}},
+                "generation_options": {"generate_audio": False, "generate_images": False},
+                "test_config": {"num_variations": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.runner.api_probe",
+            "create-request",
+            "--request-name",
+            "Tiny",
+            "--request-file",
+            str(request_file),
+            "--output",
+            str(output),
+        ],
+        cwd=str(Path(__file__).resolve().parents[2]),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    record = json.loads(output.read_text(encoding="utf-8"))
+    assert record["request"]["preflight"]["num_variations"] == 1
+    assert record["request"]["preflight"]["media_generation_enabled"] is False
+    assert record["request"]["preflight"]["small_batch"] is True
+
+
+def test_api_probe_create_request_preflight_blocks_media_generation():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "generation_options": {"generate_audio": True},
+            "test_config": {"num_variations": 1},
+        }
+    )
+
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "--allow-media-generation" in str(exc)
+    else:
+        raise AssertionError("expected media generation guardrail to block execution")
+
+
+def test_api_probe_create_request_preflight_blocks_large_variation_count():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "generation_options": {"generate_audio": False},
+            "test_config": {"num_variations": 3},
+        }
+    )
+
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "num_variations=3" in str(exc)
+    else:
+        raise AssertionError("expected variation guardrail to block execution")
+
+
+def test_api_probe_create_request_preflight_blocks_unknown_variation_count():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "generation_options": {"generate_audio": False},
+            "test_config": {},
+        }
+    )
+
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "num_variations is unknown" in str(exc)
+    else:
+        raise AssertionError("expected unknown variation guardrail to block execution")
+
+
+def test_api_probe_create_request_preflight_blocks_non_text_inputs():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "agent": {"accepted_inputs": {"text": True, "audio": True}},
+            "generation_options": {"generate_audio": False},
+            "test_config": {"num_variations": 1},
+        }
+    )
+
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "--allow-non-text-inputs" in str(exc)
+    else:
+        raise AssertionError("expected non-text input guardrail to block execution")
+
+
 def test_redact_sensitive_handles_nested_values():
     payload = {
         "Authorization": "Bearer tp_secret",

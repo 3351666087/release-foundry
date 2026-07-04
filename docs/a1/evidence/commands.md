@@ -101,3 +101,20 @@ Cleanup note:
 - `python -B -m services.runner.api_probe poll-run --execute --max-retries 0 --run-id <private run id> --poll-timeout 10 --poll-interval 2 --output docs/evidence/private_refs/a1_api_poll_created_run_real_v2.json`: fixed poll-run succeeded with `status=ok`, HTTP `200`, `attempts=1`.
 - `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `16 passed in 0.68s`.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `64 passed in 2.41s`.
+
+## 2026-07-04 Create Request Preflight Guardrail
+
+- `git fetch origin --prune`: success.
+- `git status -sb`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; no tracked changes at round start.
+- GitHub plugin PR check failed due to MCP transport to `chatgpt.com/backend-api/ps/mcp`; local `gh` fallback was used.
+- `gh pr view 4 --repo 3351666087/ashr-codex-factory --json number,title,state,isDraft,mergeable,headRefName,baseRefName,headRefOid,updatedAt,url`: PR #4 open, draft, mergeable, head `07d93b3`.
+- `gh pr diff 4 --repo 3351666087/ashr-codex-factory --name-only`: PR changed files stayed within A1 docs, SDK, runner, and tests.
+- Chrome read-only calibration:
+  - `https://lab.ashr.io/?tab=analysis` showed logged-in `Ashr Labs` title with `Datasets`, `Runs`, `Usage`, `Docs`, `New dataset`, and no sign-in text.
+  - `https://lab.ashr.io/?tab=usage` showed `Usage`, `Monitor your resource consumption`, `Upgrade`, and `Loading usage...`; no visible quota/credits counters loaded.
+  - Screenshots were stored in ignored private evidence as `ashr_lab_analysis_request_round_2026-07-04.png` and `ashr_lab_usage_request_round_2026-07-04.png`.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `22 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `70 passed`.
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Calibration" --request-file docs/a1/api_calibration/tiny_generation_request.json --output docs/evidence/private_refs/a1_api_tiny_create_request_dry_run.json`: planned create-request, `status=planned`, `attempts=0`.
+- Safe preflight summary from the dry-run record: `mutates=true`, `estimated_calls=2`, `num_variations=1`, `num_variations_known=true`, `small_batch=true`, accepted input text only, `non_text_inputs_enabled=false`, media generation all false.
+- No real `create-request` was executed in this round.

@@ -62,6 +62,7 @@ class AshrApiError(RuntimeError):
 class AshrApiCallPlan:
     function: str
     params: JsonDict = field(default_factory=dict)
+    preflight: JsonDict | None = None
     purpose: str = ""
     estimated_calls: int = 1
     mutates: bool = False
@@ -133,12 +134,14 @@ class AshrApiClient:
         purpose: str = "",
         estimated_calls: int = 1,
         mutates: bool = False,
+        preflight: Mapping[str, Any] | None = None,
         output_path: str | Path | None = None,
         notes: list[str] | None = None,
     ) -> AshrApiCallPlan:
         return AshrApiCallPlan(
             function=function,
             params=redact_sensitive(params or {}),
+            preflight=redact_sensitive(preflight) if preflight is not None else None,
             purpose=purpose,
             estimated_calls=max(1, int(estimated_calls)),
             mutates=mutates,
@@ -155,6 +158,7 @@ class AshrApiClient:
         purpose: str = "",
         estimated_calls: int = 1,
         mutates: bool = False,
+        preflight: Mapping[str, Any] | None = None,
         output_path: str | Path | None = None,
         dry_run: bool = True,
     ) -> JsonDict:
@@ -164,8 +168,10 @@ class AshrApiClient:
             purpose=purpose,
             estimated_calls=estimated_calls,
             mutates=mutates,
+            preflight=preflight,
             output_path=output_path,
         )
+        request_summary = _request_summary(function, plan.params, plan.estimated_calls, mutates, plan.preflight)
         started = utc_now()
         start = time.monotonic()
 
@@ -180,7 +186,7 @@ class AshrApiClient:
                 attempts=0,
                 status="planned",
                 status_code=None,
-                request={"function": function, "params": plan.params, "estimated_calls": plan.estimated_calls, "mutates": mutates},
+                request=request_summary,
                 response={"plan": plan.to_dict()},
                 output_path=str(output_path) if output_path is not None else None,
             )
@@ -208,7 +214,7 @@ class AshrApiClient:
                     attempts=attempts,
                     status="ok",
                     status_code=status_code,
-                    request={"function": function, "params": plan.params, "estimated_calls": plan.estimated_calls, "mutates": mutates},
+                    request=request_summary,
                     response=response,
                     response_headers=response_headers,
                     output_path=str(output_path) if output_path is not None else None,
@@ -233,7 +239,7 @@ class AshrApiClient:
             attempts=attempts,
             status="error",
             status_code=status_code,
-            request={"function": function, "params": plan.params, "estimated_calls": plan.estimated_calls, "mutates": mutates},
+            request=request_summary,
             error=last_error.to_dict() if last_error is not None else {"message": "unknown Ashr API error", "status_code": status_code},
             output_path=str(output_path) if output_path is not None else None,
         )
@@ -507,6 +513,13 @@ def utc_now() -> str:
 
 def elapsed_ms(started: float) -> int:
     return max(0, int((time.monotonic() - started) * 1000))
+
+
+def _request_summary(function: str, params: JsonDict, estimated_calls: int, mutates: bool, preflight: JsonDict | None = None) -> JsonDict:
+    summary: JsonDict = {"function": function, "params": params, "estimated_calls": estimated_calls, "mutates": mutates}
+    if preflight is not None:
+        summary["preflight"] = preflight
+    return summary
 
 
 def _urlopen_transport(url: str, headers: Mapping[str, str], body: bytes, timeout: int) -> TransportResponse:

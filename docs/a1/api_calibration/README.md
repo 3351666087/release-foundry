@@ -45,10 +45,13 @@ Private evidence files:
 - `docs/evidence/private_refs/a1_api_create_run_real.json`
 - `docs/evidence/private_refs/a1_api_get_created_run_real.json`
 - `docs/evidence/private_refs/a1_api_poll_created_run_real_v2.json`
+- `docs/evidence/private_refs/a1_api_tiny_create_request_dry_run.json`
 - `docs/evidence/private_refs/a1_real_dataset_cases.json`
 - `docs/evidence/private_refs/a1_real_dataset_run_mock.json`
 - `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png`
 - `docs/evidence/private_refs/ashr_lab_analysis_create_run_round_2026-07-04.png`
+- `docs/evidence/private_refs/ashr_lab_analysis_request_round_2026-07-04.png`
+- `docs/evidence/private_refs/ashr_lab_usage_request_round_2026-07-04.png`
 
 Observed non-sensitive field keys:
 
@@ -74,6 +77,29 @@ One real `create-run` probe was executed after reviewing a dry-run plan:
 - Follow-up `get-run` succeeded with HTTP `200`, `attempts=1`, and the same run/result shape.
 - First short `poll-run` exposed a real parity bug: `get_run` returned a complete `run.result`, but the local poll completion predicate only looked for `aggregate_metrics.tests_passed`, then timed out after 4 attempts and the CLI printed a traceback.
 - Fixed behavior: poll completion now accepts the observed run-result shape, CLI catches `TimeoutError`, and the same private created run polls successfully with `status=ok`, HTTP `200`, `attempts=1`.
+
+## Create Request Preflight
+
+No real `create-request` generation call was executed in this pass.
+
+The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.json` is text-only and bounded to one variation. The dry-run record now includes a local preflight summary:
+
+- `num_variations=1`
+- `num_variations_known=true`
+- `small_batch=true`
+- accepted inputs: text only; `non_text_inputs_enabled=false`
+- media generation: audio/files/images/videos/simulations all disabled
+- `mutates=true`, `estimated_calls=2`, `attempts=0`
+
+Execution guardrails:
+
+- `create-request --execute` still requires `--allow-mutate`.
+- Real mutating calibration should use `--max-retries 0` to avoid duplicate creation on retry.
+- Real execution blocks unknown `num_variations`; the request config must set a known value no larger than `--max-request-variations` before mutation.
+- The CLI blocks media generation unless `--allow-media-generation` is passed.
+- The CLI blocks non-text accepted inputs unless `--allow-non-text-inputs` is passed.
+- The CLI blocks known `num_variations` values above `--max-request-variations`, which defaults to `1`.
+- Chrome usage check reached the logged-in Usage page but visible quota counters did not load; the page only showed `Usage`, `Monitor your resource consumption`, `Upgrade`, and `Loading usage...`. Real generation remains blocked until drift, dry-run, and current usage review are satisfied.
 
 ## Dataset Source Adapter
 
@@ -103,17 +129,17 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 16 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 22 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 64 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 70 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
-- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`.
+- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`. No real `create-request` has been executed.
 - Real read-only follow-up probes executed against the created run: `get-run` and fixed `poll-run`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 
 ## Next Candidates
 
-1. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after quota/plan wording is confirmed in the dashboard.
+1. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after current branch drift and usage/plan wording are reviewed again.
 2. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.
 3. Add a public-safe redacted run fixture derived from private `create-run` evidence for A3 mapper regression tests.

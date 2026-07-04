@@ -30,6 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--request-name", help="Request name for create-request.")
     parser.add_argument("--request-file", help="Generation request config JSON for create-request.")
     parser.add_argument("--request-schema-file", help="Optional request input schema JSON for create-request.")
+    parser.add_argument("--allow-media-generation", action="store_true", help="Allow create-request configs that enable audio, file, image, video, or simulation generation.")
+    parser.add_argument("--allow-non-text-inputs", action="store_true", help="Allow create-request configs whose accepted_inputs include audio, files, images, videos, or conversations.")
+    parser.add_argument("--max-request-variations", type=int, default=1, help="Maximum known num_variations allowed for create-request execution.")
     parser.add_argument("--poll-timeout", type=int, default=300)
     parser.add_argument("--poll-interval", type=int, default=20)
     return parser
@@ -88,7 +91,22 @@ def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Pa
         require(args.request_file, "--request-file is required for create-request")
         request = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
         request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if args.request_schema_file else None
-        return client.create_request(request_name=args.request_name, request=request, request_input_schema=request_schema, output_path=output, dry_run=dry_run)
+        preflight = summarize_generation_request(request)
+        if not dry_run:
+            enforce_create_request_preflight(
+                preflight,
+                allow_media_generation=args.allow_media_generation,
+                allow_non_text_inputs=args.allow_non_text_inputs,
+                max_request_variations=args.max_request_variations,
+            )
+        return client.create_request(
+            request_name=args.request_name,
+            request=request,
+            request_input_schema=request_schema,
+            output_path=output,
+            dry_run=dry_run,
+            preflight=preflight,
+        )
     if args.operation == "create-run":
         require(args.dataset_id, "--dataset-id is required for create-run")
         require(args.result_file, "--result-file is required for create-run")
@@ -106,6 +124,59 @@ def default_output_path(operation: str, *, dry_run: bool) -> Path:
 def require(value: Any, message: str) -> None:
     if value is None:
         raise ValueError(message)
+
+
+def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
+    generation_options = request.get("generation_options") if isinstance(request.get("generation_options"), dict) else {}
+    test_config = request.get("test_config") if isinstance(request.get("test_config"), dict) else {}
+    accepted_inputs = request.get("agent", {}).get("accepted_inputs") if isinstance(request.get("agent"), dict) else {}
+    if not isinstance(accepted_inputs, dict):
+        accepted_inputs = {}
+    media_flags = {
+        "audio": bool(generation_options.get("generate_audio")),
+        "files": bool(generation_options.get("generate_files")),
+        "images": bool(generation_options.get("generate_images")),
+        "videos": bool(generation_options.get("generate_videos")),
+        "simulations": bool(generation_options.get("generate_simulations")),
+    }
+    raw_variations = test_config.get("num_variations", request.get("num_variations"))
+    num_variations = _coerce_positive_int(raw_variations)
+    return {
+        "num_variations": num_variations,
+        "num_variations_known": num_variations is not None,
+        "media_generation": media_flags,
+        "media_generation_enabled": any(media_flags.values()),
+        "accepted_input_flags": {key: bool(accepted_inputs.get(key)) for key in ("text", "audio", "file", "image", "video", "conversation")},
+        "non_text_inputs_enabled": any(bool(accepted_inputs.get(key)) for key in ("audio", "file", "image", "video", "conversation")),
+        "small_batch": num_variations is not None and num_variations <= 1,
+        "notes": [
+            "dry-run-first mutating create_request calibration",
+            "use --max-retries 0 for real mutating execution",
+            "raw request content stays in private evidence",
+        ],
+    }
+
+
+def enforce_create_request_preflight(preflight: dict[str, Any], *, allow_media_generation: bool, allow_non_text_inputs: bool, max_request_variations: int) -> None:
+    if not preflight.get("num_variations_known"):
+        raise ValueError("create-request num_variations is unknown; set test_config.num_variations before real execution")
+    if preflight.get("media_generation_enabled") and not allow_media_generation:
+        raise ValueError("create-request enables media generation; rerun with --allow-media-generation only after reviewing usage/cost risk")
+    if preflight.get("non_text_inputs_enabled") and not allow_non_text_inputs:
+        raise ValueError("create-request accepts non-text inputs; rerun with --allow-non-text-inputs only after reviewing usage/cost risk")
+    num_variations = preflight.get("num_variations")
+    if isinstance(num_variations, int) and num_variations > max_request_variations:
+        raise ValueError(f"create-request num_variations={num_variations} exceeds --max-request-variations={max_request_variations}")
+
+
+def _coerce_positive_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
 
 
 MUTATING_OPERATIONS = {"create-run", "create-request"}
