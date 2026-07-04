@@ -270,7 +270,9 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const missing = (value) => Array.isArray(value) ? value : [];
   const mapping = (value) => isObject(value) ? value : {};
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
+  const semanticMergeGate = mapping(evidenceFixture.semantic_live_merge_gate);
   const redaction = mapping(evidenceFixture.redaction_policy);
 
   return {
@@ -283,14 +285,62 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_current_missing: ashr.current_missing || 0,
     ashr_expected_observation_count: ashr.expected_observation_count || 0,
     ashr_case_map_covers_all_calibration_cases: ashr.case_map_covers_all_calibration_cases === true,
+    ashr_public_merge_status: ashrMergeGate.status || "unknown",
+    ashr_public_matrix_merged: ashrMergeGate.public_matrix_merged === true,
+    ashr_safe_to_mark_c3_met: ashrMergeGate.safe_to_mark_c3_met === true,
+    ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
+    ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
+    semantic_risk_assessment_status: semantic.risk_assessment_status || "unknown",
+    semantic_false_positive_tracking_ready: semantic.false_positive_tracking_ready === true,
+    semantic_false_positive_candidate_count: semantic.false_positive_candidate_count || 0,
+    semantic_false_negative_candidate_count: semantic.false_negative_candidate_count || 0,
+    semantic_failure_class_drift_candidate_count: semantic.failure_class_drift_candidate_count || 0,
+    semantic_score_delta_review_count: semantic.score_delta_review_count || 0,
+    semantic_risk_case_count: semantic.risk_case_count || 0,
+    semantic_live_merge_status: semanticMergeGate.status || "unknown",
+    semantic_audited_live_evidence_merged: semanticMergeGate.audited_live_evidence_merged === true,
+    semantic_safe_to_mark_c4_met: semanticMergeGate.safe_to_mark_c4_met === true,
+    semantic_missing_audited_observation_count: semanticMergeGate.missing_audited_observation_count || 0,
+    semantic_live_merge_blocking_reason: semanticMergeGate.blocking_reason || "",
     semantic_required_fields: missing(semantic.required_fields),
     required_sdk_languages: missing(semantic.required_sdk_languages),
     covered_sdk_languages: missing(semantic.covered_sdk_languages),
     batch_plan_refs: missing(evidenceFixture.batch_plan_refs),
     private_raw_path: redaction.raw_private_path || "",
     never_commit: missing(redaction.never_commit)
+  };
+}
+
+export function summarizeRegressionReadiness(caseBookFixture = {}, regressionReplayFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const caseBookAvailable = isObject(caseBookFixture) && Object.keys(caseBookFixture).length > 0;
+  const replayAvailable = isObject(regressionReplayFixture) && Object.keys(regressionReplayFixture).length > 0;
+  const candidatePool = mapping(caseBookFixture.candidate_pool);
+  const caseBookGate = mapping(caseBookFixture.maturity_gate);
+  const replayGate = mapping(regressionReplayFixture.maturity_gate);
+
+  return {
+    available: caseBookAvailable || replayAvailable,
+    case_book_schema_version: caseBookAvailable ? caseBookFixture.schema_version || "unknown" : "none",
+    replay_schema_version: replayAvailable ? regressionReplayFixture.schema_version || "unknown" : "none",
+    regression_case_count: caseBookFixture.regression_case_count || 0,
+    replay_case_count: regressionReplayFixture.replay_case_count || 0,
+    replay_ready: regressionReplayFixture.replay_ready === true,
+    maturity_status: regressionReplayFixture.maturity_status || caseBookGate.status || "none",
+    case_book_ready: caseBookGate.ready === true,
+    replay_gate_ready: replayGate.ready === true,
+    target_regression_case_count: caseBookGate.target_regression_case_count || 0,
+    current_regression_case_count: caseBookGate.current_regression_case_count || caseBookFixture.regression_case_count || 0,
+    target_replay_case_count: replayGate.target_replay_case_count || 0,
+    current_replay_case_count: replayGate.current_replay_case_count || regressionReplayFixture.replay_case_count || 0,
+    failed_replay_case_count: replayGate.failed_replay_case_count || regressionReplayFixture.failed_count || 0,
+    local_llm_mismatch_count: candidatePool.local_llm_mismatch_count || 0,
+    ashr_grading_missing_count: candidatePool.ashr_grading_missing_count || 0,
+    gaps: [...missing(caseBookGate.gaps), ...missing(replayGate.gaps)]
   };
 }
 
@@ -373,10 +423,18 @@ export function buildToolCallDiffs(caseResult = {}) {
   return diffs;
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
+export function buildMarkdownReport(
+  runFixture = {},
+  gradeFixture = {},
+  coverageFixture = {},
+  evidenceReadinessFixture = {},
+  caseBookFixture = {},
+  regressionReplayFixture = {}
+) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
+  const regressionReadiness = summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -435,9 +493,32 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Ready for external collection: ${evidenceReadiness.ready_for_external_collection ? "yes" : "no"}`,
       `- Calibration cases: ${evidenceReadiness.calibration_case_count}`,
       `- Ashr grading missing: ${evidenceReadiness.ashr_current_missing}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Ashr public merge: ${evidenceReadiness.ashr_public_merge_status}`,
+      `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
+      `- Semantic risk register: ${evidenceReadiness.semantic_risk_assessment_status}`,
+      `- Semantic false-positive candidates: ${evidenceReadiness.semantic_false_positive_candidate_count}`,
+      `- Semantic failure-class drift candidates: ${evidenceReadiness.semantic_failure_class_drift_candidate_count}`,
+      `- Semantic score-delta reviews: ${evidenceReadiness.semantic_score_delta_review_count}`,
+      `- Semantic live merge: ${evidenceReadiness.semantic_live_merge_status}`,
+      `- C4 safe to mark met: ${evidenceReadiness.semantic_safe_to_mark_c4_met ? "yes" : "no"}`,
       `- SDK languages covered: ${evidenceReadiness.covered_sdk_languages.join(", ") || "none"}`,
       `- Private evidence path: ${evidenceReadiness.private_raw_path || "none"}`,
+      ""
+    );
+  }
+
+  if (regressionReadiness.available) {
+    lines.push(
+      "## Regression Readiness",
+      "",
+      `- Maturity status: ${regressionReadiness.maturity_status}`,
+      `- Case book regressions: ${regressionReadiness.current_regression_case_count}/${regressionReadiness.target_regression_case_count || "unknown"}`,
+      `- Replay cases: ${regressionReadiness.current_replay_case_count}/${regressionReadiness.target_replay_case_count || "unknown"}`,
+      `- Replay ready: ${regressionReadiness.replay_ready ? "yes" : "no"}`,
+      `- Local-vs-LLM mismatches: ${regressionReadiness.local_llm_mismatch_count}`,
+      `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,
+      `- Maturity gaps: ${regressionReadiness.gaps.join(" | ") || "none"}`,
       ""
     );
   }
@@ -497,12 +578,20 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
+export function buildJsonReport(
+  runFixture = {},
+  gradeFixture = {},
+  coverageFixture = {},
+  evidenceReadinessFixture = {},
+  caseBookFixture = {},
+  regressionReplayFixture = {}
+) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
     coverage: summarizeCoverage(coverageFixture),
     evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
+    regression_readiness: summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

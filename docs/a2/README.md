@@ -158,10 +158,11 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 - the six calibration cases that need comparable external observations,
 - whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
 - the reviewed Ashr grading import/merge commands,
+- an `ashr_public_merge_gate` that says whether the reviewed Ashr grading column is actually present in the public calibration matrix,
 - the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
 - the private evidence boundary: raw prompts, raw responses, account payloads, and API keys stay under `docs/evidence/private_refs/` and are not committed.
 
-This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported.
+This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported. `ready_for_external_collection: true` means the workflow is ready; it does not mean C3 is met. C3 is safe to mark met only when `ashr_public_merge_gate.safe_to_mark_c3_met` is true.
 
 ## Regenerating Fixtures
 
@@ -250,7 +251,9 @@ A2 now generates:
 
 The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies `wrong_arguments` and the offline LLM reference identifies `ignored_tool_result`. This remains open until reviewed Ashr grading or audited live LLM evidence resolves the judge boundary.
 
-The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, so C5 is stronger but still partial until more reviewed disagreement cases are promoted.
+The case book now exposes a `candidate_pool` and `maturity_gate` so reviewers can see why C5 is still partial: the current calibration batch has 6 local-vs-LLM comparable cases, 1 mismatch promoted into the case book, and 6 missing Ashr grading observations. The maturity target is 3 reviewed disagreement regressions.
+
+The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, while `maturity_gate.ready: false` explains that 2 more reviewed replay cases are needed before C5 can be called mature.
 
 ## Commercial Readiness Gate
 
@@ -260,7 +263,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet. The commercial snapshot also mirrors `ashr_public_merge_gate`, so C3 remains partial while `ashr_safe_to_mark_c3_met` is false.
 
 ## G1-G2 Boundary
 

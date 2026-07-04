@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 
+MATURE_REGRESSION_CASE_TARGET = 3
+
+
 def build_case_book_report(calibration_matrix: dict[str, Any]) -> dict[str, Any]:
     """Build a durable case-book seed from calibration disagreement candidates."""
     regression_cases = [
@@ -18,6 +21,8 @@ def build_case_book_report(calibration_matrix: dict[str, Any]) -> dict[str, Any]
         "source_matrix": calibration_matrix.get("matrix_id", ""),
         "dataset_id": calibration_matrix.get("dataset_id", ""),
         "regression_case_count": len(regression_cases),
+        "candidate_pool": _candidate_pool(calibration_matrix, regression_cases),
+        "maturity_gate": _maturity_gate(regression_cases),
         "regression_cases": regression_cases,
         "metadata": {
             "deterministic": True,
@@ -28,6 +33,40 @@ def build_case_book_report(calibration_matrix: dict[str, Any]) -> dict[str, Any]
             ],
         },
     }
+
+
+def _candidate_pool(calibration_matrix: dict[str, Any], regression_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    agreement = calibration_matrix.get("agreement_summary", {}).get("local_vs_llm_judge", {})
+    ashr_coverage = calibration_matrix.get("source_coverage", {}).get("ashr_grading", {})
+    return {
+        "calibration_case_count": int(calibration_matrix.get("case_count", 0)),
+        "comparable_local_llm_count": int(agreement.get("comparable", 0)),
+        "local_llm_mismatch_count": int(agreement.get("mismatch_count", 0)),
+        "ashr_grading_missing_count": int(ashr_coverage.get("missing", 0)),
+        "promoted_regression_case_count": len(regression_cases),
+    }
+
+
+def _maturity_gate(regression_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    current_count = len(regression_cases)
+    ready = current_count >= MATURE_REGRESSION_CASE_TARGET
+    return {
+        "status": "mature" if ready else "seed",
+        "ready": ready,
+        "target_regression_case_count": MATURE_REGRESSION_CASE_TARGET,
+        "current_regression_case_count": current_count,
+        "gaps": _maturity_gaps(current_count),
+    }
+
+
+def _maturity_gaps(current_count: int) -> list[str]:
+    if current_count >= MATURE_REGRESSION_CASE_TARGET:
+        return []
+    remaining = MATURE_REGRESSION_CASE_TARGET - current_count
+    return [
+        f"Promote {remaining} more reviewed disagreement case(s) before marking the C5 case book mature.",
+        "Keep new seeds tied to reviewed Ashr or audited semantic evidence before using them to close C5.",
+    ]
 
 
 def _regression_case(case: dict[str, Any]) -> dict[str, Any]:

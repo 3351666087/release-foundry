@@ -46,6 +46,24 @@ def build_commercial_readiness_report(
     regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
     regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
     evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
+    ashr_public_merge_gate = (evidence_readiness_report or {}).get("ashr_public_merge_gate", {})
+    ashr_public_merge_status = str(ashr_public_merge_gate.get("status", "unknown"))
+    ashr_public_matrix_merged = bool(ashr_public_merge_gate.get("public_matrix_merged"))
+    ashr_safe_to_mark_c3_met = bool(ashr_public_merge_gate.get("safe_to_mark_c3_met"))
+    ashr_public_missing = int(ashr_public_merge_gate.get("missing_public_observation_count", ashr_missing))
+    semantic_live_merge_gate = (evidence_readiness_report or {}).get("semantic_live_merge_gate", {})
+    semantic_live_merge_status = str(semantic_live_merge_gate.get("status", "unknown"))
+    semantic_audited_live_evidence_merged = bool(semantic_live_merge_gate.get("audited_live_evidence_merged"))
+    semantic_safe_to_mark_c4_met = bool(semantic_live_merge_gate.get("safe_to_mark_c4_met"))
+    semantic_missing_audited = int(semantic_live_merge_gate.get("missing_audited_observation_count", 0))
+    semantic_risk = (semantic_harness_report or {}).get("risk_assessment", {})
+    semantic_false_positive_tracking_ready = bool(semantic_risk.get("tracking_ready"))
+    semantic_risk_status = str(semantic_risk.get("status", "unknown"))
+    semantic_false_positive_candidates = int(semantic_risk.get("false_positive_candidate_count", 0))
+    semantic_false_negative_candidates = int(semantic_risk.get("false_negative_candidate_count", 0))
+    semantic_failure_class_drift_candidates = int(semantic_risk.get("failure_class_drift_candidate_count", 0))
+    semantic_score_delta_reviews = int(semantic_risk.get("score_delta_review_count", 0))
+    semantic_risk_case_count = int(semantic_risk.get("risk_case_count", 0))
 
     gates = [
         _gate(
@@ -92,31 +110,42 @@ def build_commercial_readiness_report(
             "C3",
             "Paid batch calibration",
             "Ashr grading diff and LLM judge diff are both comparable",
-            ashr_ratio == 1.0 and llm_ratio == 1.0,
+            ashr_ratio == 1.0 and llm_ratio == 1.0 and ashr_safe_to_mark_c3_met,
             llm_ratio > 0 or ashr_available > 0,
             [
                 "calibration_matrix.agreement_summary.local_vs_ashr_grading",
                 "calibration_matrix.agreement_summary.local_vs_llm_judge",
                 "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
-            [f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases."]
-            if ashr_missing
-            else [],
+            _c3_gaps(ashr_missing, ashr_public_merge_status, ashr_safe_to_mark_c3_met),
         ),
         _gate(
             "C4",
             "Semantic judge",
             "semantic/LLM judge evidence includes cost, confidence, false-positive tracking, and model provenance",
-            llm_cost_ready and llm_confidence_ready and semantic_live_evidence and not llm_is_offline_only,
-            llm_cost_ready and llm_confidence_ready and semantic_harness_ready,
+            llm_cost_ready
+            and llm_confidence_ready
+            and semantic_live_evidence
+            and not llm_is_offline_only
+            and semantic_false_positive_tracking_ready
+            and semantic_safe_to_mark_c4_met,
+            llm_cost_ready and llm_confidence_ready and semantic_harness_ready and semantic_false_positive_tracking_ready,
             [
                 "calibration_matrix.cost_ledger",
                 "calibration_matrix.cases[].sources.llm_judge.confidence",
                 "calibration_matrix.cases[].calibration_tags",
                 "fixtures/a2/results/a2_semantic_harness_report.json",
+                "fixtures/a2/results/a2_semantic_harness_report.json::risk_assessment",
                 "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
-            _c4_gaps(llm_is_offline_only, semantic_harness_ready, semantic_live_evidence),
+            _c4_gaps(
+                llm_is_offline_only,
+                semantic_harness_ready,
+                semantic_live_evidence,
+                semantic_live_merge_status,
+                semantic_safe_to_mark_c4_met,
+                semantic_false_positive_tracking_ready,
+            ),
         ),
         _gate(
             "C5",
@@ -174,6 +203,10 @@ def build_commercial_readiness_report(
             "calibration_case_count": calibration_matrix.get("case_count", 0),
             "ashr_grading_available": ashr_available,
             "ashr_grading_missing": ashr_missing,
+            "ashr_public_merge_status": ashr_public_merge_status,
+            "ashr_public_matrix_merged": ashr_public_matrix_merged,
+            "ashr_safe_to_mark_c3_met": ashr_safe_to_mark_c3_met,
+            "ashr_public_missing_observations": ashr_public_missing,
             "llm_judge_coverage_ratio": llm_ratio,
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
@@ -188,6 +221,17 @@ def build_commercial_readiness_report(
             "batch_plan_ready": batch_plan_ready,
             "semantic_harness_ready": semantic_harness_ready,
             "semantic_harness_live_evidence": semantic_live_evidence,
+            "semantic_live_merge_status": semantic_live_merge_status,
+            "semantic_audited_live_evidence_merged": semantic_audited_live_evidence_merged,
+            "semantic_safe_to_mark_c4_met": semantic_safe_to_mark_c4_met,
+            "semantic_missing_audited_observations": semantic_missing_audited,
+            "semantic_risk_assessment_status": semantic_risk_status,
+            "semantic_false_positive_tracking_ready": semantic_false_positive_tracking_ready,
+            "semantic_false_positive_candidates": semantic_false_positive_candidates,
+            "semantic_false_negative_candidates": semantic_false_negative_candidates,
+            "semantic_failure_class_drift_candidates": semantic_failure_class_drift_candidates,
+            "semantic_score_delta_reviews": semantic_score_delta_reviews,
+            "semantic_risk_case_count": semantic_risk_case_count,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -291,13 +335,33 @@ def _c4_gaps(
     llm_is_offline_only: bool,
     semantic_harness_ready: bool,
     semantic_live_evidence: bool,
+    semantic_live_merge_status: str = "unknown",
+    semantic_safe_to_mark_c4_met: bool = False,
+    semantic_false_positive_tracking_ready: bool = False,
 ) -> list[str]:
     gaps = []
     if not semantic_harness_ready:
         gaps.append("Add a semantic judge harness with prompt, output schema, cost, redaction, and SDK-chain coverage.")
+    if not semantic_false_positive_tracking_ready:
+        gaps.append("Add semantic judge false-positive/false-negative risk tracking before using C4 evidence.")
     if llm_is_offline_only or not semantic_live_evidence:
         gaps.append(
             "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        )
+    if not semantic_safe_to_mark_c4_met:
+        gaps.append(
+            f"Semantic live merge gate is {semantic_live_merge_status}; import audited semantic judge summaries before marking C4 met."
+        )
+    return gaps
+
+
+def _c3_gaps(ashr_missing: int, ashr_public_merge_status: str, ashr_safe_to_mark_c3_met: bool) -> list[str]:
+    gaps = []
+    if ashr_missing:
+        gaps.append(f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases.")
+    if not ashr_safe_to_mark_c3_met:
+        gaps.append(
+            f"Public Ashr grading merge gate is {ashr_public_merge_status}; import, merge, and regenerate before marking C3 met."
         )
     return gaps
 

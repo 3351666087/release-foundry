@@ -14,7 +14,8 @@ import {
   getFilterOptions,
   normalizeCases,
   summarizeCoverage,
-  summarizeEvidenceReadiness
+  summarizeEvidenceReadiness,
+  summarizeRegressionReadiness
 } from "../../services/report/report_builder.mjs";
 
 async function loadJson(path) {
@@ -350,8 +351,25 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(summary.ashr_current_missing, 6);
   assert.equal(summary.ashr_expected_observation_count, 6);
   assert.equal(summary.ashr_case_map_covers_all_calibration_cases, true);
+  assert.equal(summary.ashr_public_merge_status, "not_merged");
+  assert.equal(summary.ashr_public_matrix_merged, false);
+  assert.equal(summary.ashr_safe_to_mark_c3_met, false);
+  assert.equal(summary.ashr_missing_public_observation_count, 6);
+  assert.match(summary.ashr_public_merge_blocking_reason, /before C3 is met/);
   assert.equal(summary.semantic_offline_reference_only, true);
   assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.equal(summary.semantic_risk_assessment_status, "offline_reference_risk_register");
+  assert.equal(summary.semantic_false_positive_tracking_ready, true);
+  assert.equal(summary.semantic_false_positive_candidate_count, 0);
+  assert.equal(summary.semantic_false_negative_candidate_count, 0);
+  assert.equal(summary.semantic_failure_class_drift_candidate_count, 1);
+  assert.equal(summary.semantic_score_delta_review_count, 4);
+  assert.equal(summary.semantic_risk_case_count, 4);
+  assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
+  assert.equal(summary.semantic_audited_live_evidence_merged, false);
+  assert.equal(summary.semantic_safe_to_mark_c4_met, false);
+  assert.equal(summary.semantic_missing_audited_observation_count, 6);
+  assert.match(summary.semantic_live_merge_blocking_reason, /before C4 is met/);
   assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
   assert.deepEqual(summary.covered_sdk_languages, ["python", "typescript"]);
   assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
@@ -360,11 +378,68 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   const json = buildJsonReport(runs, grades, coverage, readiness);
   assert.equal(json.evidence_readiness.available, true);
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
+  assert.equal(json.evidence_readiness.ashr_public_merge_status, "not_merged");
+  assert.equal(json.evidence_readiness.ashr_safe_to_mark_c3_met, false);
+  assert.equal(json.evidence_readiness.semantic_risk_assessment_status, "offline_reference_risk_register");
+  assert.equal(json.evidence_readiness.semantic_false_positive_candidate_count, 0);
+  assert.equal(json.evidence_readiness.semantic_failure_class_drift_candidate_count, 1);
+  assert.equal(json.evidence_readiness.semantic_score_delta_review_count, 4);
+  assert.equal(json.evidence_readiness.semantic_live_merge_status, "offline_reference_only");
+  assert.equal(json.evidence_readiness.semantic_safe_to_mark_c4_met, false);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
   assert.match(markdown, /## Evidence Readiness/);
   assert.match(markdown, /Status: awaiting_private_evidence/);
   assert.match(markdown, /Ashr grading missing: 6\/6/);
+  assert.match(markdown, /Ashr public merge: not_merged/);
+  assert.match(markdown, /C3 safe to mark met: no/);
+  assert.match(markdown, /Semantic risk register: offline_reference_risk_register/);
+  assert.match(markdown, /Semantic false-positive candidates: 0/);
+  assert.match(markdown, /Semantic failure-class drift candidates: 1/);
+  assert.match(markdown, /Semantic score-delta reviews: 4/);
+  assert.match(markdown, /Semantic live merge: offline_reference_only/);
+  assert.match(markdown, /C4 safe to mark met: no/);
   assert.match(markdown, /SDK languages covered: python, typescript/);
+});
+
+test("A3 report builder can summarize A2 C5 regression readiness fixtures", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const caseBook = await loadJson("../../fixtures/a2/results/a2_case_book.json");
+  const regressionReplay = await loadJson("../../fixtures/a2/results/a2_regression_replay_report.json");
+
+  const summary = summarizeRegressionReadiness(caseBook, regressionReplay);
+  assert.equal(summary.available, true);
+  assert.equal(summary.case_book_schema_version, "a2.case_book.v1");
+  assert.equal(summary.replay_schema_version, "a2.regression_replay.v1");
+  assert.equal(summary.regression_case_count, 1);
+  assert.equal(summary.replay_case_count, 1);
+  assert.equal(summary.replay_ready, true);
+  assert.equal(summary.maturity_status, "seed");
+  assert.equal(summary.case_book_ready, false);
+  assert.equal(summary.replay_gate_ready, false);
+  assert.equal(summary.target_regression_case_count, 3);
+  assert.equal(summary.current_regression_case_count, 1);
+  assert.equal(summary.target_replay_case_count, 3);
+  assert.equal(summary.current_replay_case_count, 1);
+  assert.equal(summary.failed_replay_case_count, 0);
+  assert.equal(summary.local_llm_mismatch_count, 1);
+  assert.equal(summary.ashr_grading_missing_count, 6);
+  assert.ok(summary.gaps.some((gap) => gap.includes("Promote 2 more")));
+  assert.ok(summary.gaps.some((gap) => gap.includes("Replay 2 more")));
+
+  const json = buildJsonReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
+  assert.equal(json.regression_readiness.available, true);
+  assert.equal(json.regression_readiness.maturity_status, "seed");
+  assert.equal(json.regression_readiness.target_replay_case_count, 3);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
+  assert.match(markdown, /## Regression Readiness/);
+  assert.match(markdown, /Maturity status: seed/);
+  assert.match(markdown, /Case book regressions: 1\/3/);
+  assert.match(markdown, /Replay cases: 1\/3/);
+  assert.match(markdown, /Ashr grading missing: 6/);
 });

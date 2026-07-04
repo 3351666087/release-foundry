@@ -130,11 +130,11 @@ The first C4 semantic-harness artifact is `fixtures/a2/results/a2_semantic_harne
 
 `scripts/a2_import_semantic_judge.py` is the C4 import bridge. It converts reviewed semantic judge summaries into `llm_judge` observations with provider/model, cost, confidence, prompt/response hashes, review status, and SDK language. This lets A2 replace offline references with audited summaries later without committing raw prompts, raw model responses, API keys, or account-specific payloads.
 
-`fixtures/a2/results/a2_evidence_readiness_report.json` is the C3/C4 preflight artifact. It lists the six calibration cases, verifies the Ashr grading case map covers them, records the reviewed import/merge commands, and names the semantic judge fields that must be present before offline references can be replaced. It is intentionally a readiness report, not external evidence.
+`fixtures/a2/results/a2_evidence_readiness_report.json` is the C3/C4 preflight artifact. It lists the six calibration cases, verifies the Ashr grading case map covers them, records the reviewed import/merge commands, and names the semantic judge fields that must be present before offline references can be replaced. It is intentionally a readiness report, not external evidence. The `ashr_public_merge_gate` currently reports `status: not_merged`, so C3 remains partial until six reviewed Ashr grading observations are imported into the public calibration matrix and regenerated.
 
 The first C5 case-book seed is `fixtures/a2/results/a2_case_book.json`, with a reviewer-readable companion at `docs/a2/case_book.md`. It currently promotes the `sample-a2-s010-wrong-arguments` local-vs-LLM failure-class disagreement into an explicit open regression seed.
 
-The first C5 executable replay artifact is `fixtures/a2/results/a2_regression_replay_report.json`. It re-runs every case-book seed through deterministic `grade_run` and checks that local failure class preservation, pass/fail status, matrix disagreement visibility, and regression assertions still hold. This makes C5 more auditable, but the maturity status remains `seed` until more reviewed disagreements are promoted.
+The first C5 executable replay artifact is `fixtures/a2/results/a2_regression_replay_report.json`. It re-runs every case-book seed through deterministic `grade_run` and checks that local failure class preservation, pass/fail status, matrix disagreement visibility, and regression assertions still hold. The case book and replay report now expose `maturity_gate` fields: the target is 3 reviewed disagreement regressions, the current count is 1, and the status remains `seed` until more reviewed disagreements are promoted.
 
 Next A2 priorities should be chosen by ROI against this commercial target:
 

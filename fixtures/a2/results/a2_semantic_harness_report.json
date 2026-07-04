@@ -152,11 +152,73 @@
     "public_fixture_rule": "Commit only reviewed summaries, cost numbers, hashes, and fixture references.",
     "private_path": "docs/evidence/private_refs/"
   },
+  "risk_assessment": {
+    "status": "offline_reference_risk_register",
+    "tracking_ready": true,
+    "basis": "offline_reference",
+    "case_count": 6,
+    "false_positive_candidate_count": 0,
+    "false_negative_candidate_count": 0,
+    "failure_class_drift_candidate_count": 1,
+    "score_delta_review_count": 4,
+    "low_confidence_reference_count": 1,
+    "risk_case_count": 4,
+    "risk_cases": [
+      {
+        "case_id": "sample-a2-s010-wrong-arguments",
+        "scenario_id": "A2-S010",
+        "risk_flags": [
+          "failure_class_drift_candidate",
+          "score_delta_review",
+          "low_confidence_reference"
+        ],
+        "expected_failure_class": "wrong_arguments",
+        "local_failure_class": "wrong_arguments",
+        "offline_reference_failure_class": "ignored_tool_result",
+        "score_delta": 31.0
+      },
+      {
+        "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+        "scenario_id": "A2-S031",
+        "risk_flags": [
+          "score_delta_review"
+        ],
+        "expected_failure_class": "hallucinated_tool_result",
+        "local_failure_class": "hallucinated_tool_result",
+        "offline_reference_failure_class": "hallucinated_tool_result",
+        "score_delta": 45.25
+      },
+      {
+        "case_id": "sample-a2-s041-poor-retry-recovery",
+        "scenario_id": "A2-S041",
+        "risk_flags": [
+          "score_delta_review"
+        ],
+        "expected_failure_class": "poor_failure_recovery",
+        "local_failure_class": "poor_failure_recovery",
+        "offline_reference_failure_class": "poor_failure_recovery",
+        "score_delta": 35.75
+      },
+      {
+        "case_id": "sample-a2-s054-missing-clarification",
+        "scenario_id": "A2-S054",
+        "risk_flags": [
+          "score_delta_review"
+        ],
+        "expected_failure_class": "missing_clarification",
+        "local_failure_class": "missing_clarification",
+        "offline_reference_failure_class": "missing_clarification",
+        "score_delta": 41.75
+      }
+    ],
+    "interpretation": "These are review candidates, not model quality rates, until audited live semantic judge evidence replaces offline references."
+  },
   "readiness_checks": {
     "has_prompt_contract": true,
     "has_output_schema": true,
     "has_cost_policy": true,
     "has_redaction_policy": true,
+    "has_false_positive_tracking": true,
     "covers_calibration_cases": true,
     "covers_python_and_typescript": true,
     "has_official_sdk_chain_map": true,
@@ -207,6 +269,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "risk_flags": [],
       "audit_target": {
         "required_live_source": "llm_judge",
         "required_provider_status": "not offline_reference",
@@ -256,6 +319,11 @@
         "agent_final_response",
         "agent_tool_calls",
         "observed_tool_results"
+      ],
+      "risk_flags": [
+        "failure_class_drift_candidate",
+        "score_delta_review",
+        "low_confidence_reference"
       ],
       "audit_target": {
         "required_live_source": "llm_judge",
@@ -307,6 +375,9 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "risk_flags": [
+        "score_delta_review"
+      ],
       "audit_target": {
         "required_live_source": "llm_judge",
         "required_provider_status": "not offline_reference",
@@ -356,6 +427,9 @@
         "agent_final_response",
         "agent_tool_calls",
         "observed_tool_results"
+      ],
+      "risk_flags": [
+        "score_delta_review"
       ],
       "audit_target": {
         "required_live_source": "llm_judge",
@@ -407,6 +481,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "risk_flags": [],
       "audit_target": {
         "required_live_source": "llm_judge",
         "required_provider_status": "not offline_reference",
@@ -456,6 +531,9 @@
         "agent_final_response",
         "agent_tool_calls",
         "observed_tool_results"
+      ],
+      "risk_flags": [
+        "score_delta_review"
       ],
       "audit_target": {
         "required_live_source": "llm_judge",

@@ -30,7 +30,9 @@
       "items": { "$ref": "#/$defs/calibration_case" }
     },
     "ashr_grading_preflight": { "$ref": "#/$defs/preflight" },
+    "ashr_public_merge_gate": { "type": "object" },
     "semantic_judge_preflight": { "$ref": "#/$defs/preflight" },
+    "semantic_live_merge_gate": { "type": "object" },
     "batch_plan_refs": { "$ref": "#/$defs/string_array" },
     "redaction_policy": { "type": "object" },
     "metadata": { "type": "object" }

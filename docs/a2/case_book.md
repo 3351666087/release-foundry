@@ -4,6 +4,18 @@ This case book is the reviewer-facing companion to `fixtures/a2/results/a2_case_
 
 It records calibration disagreements that should remain visible until reviewed Ashr grading or audited live LLM evidence resolves the boundary.
 
+## C5 Maturity Gate
+
+- Calibration cases: `6`
+- Local-vs-LLM comparable cases: `6`
+- Local-vs-LLM mismatch candidates: `1`
+- Promoted regression cases: `1`
+- Missing Ashr grading observations: `6`
+- Mature target: `3` reviewed disagreement regressions
+- Current status: `seed`
+
+C5 remains partial because 2 more reviewed disagreement regressions are needed before the case book and replay suite should be called mature.
+
 ## Regression: sample-a2-s010-wrong-arguments
 
 - Scenario: `A2-S010`

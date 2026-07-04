@@ -9,6 +9,16 @@
   "failed_count": 0,
   "replay_ready": true,
   "maturity_status": "seed",
+  "maturity_gate": {
+    "status": "seed",
+    "ready": false,
+    "target_replay_case_count": 3,
+    "current_replay_case_count": 1,
+    "failed_replay_case_count": 0,
+    "gaps": [
+      "Replay 2 more reviewed case-book regression(s) before marking C5 mature."
+    ]
+  },
   "cases": [
     {
       "regression_id": "regression-sample-a2-s010-wrong-arguments",

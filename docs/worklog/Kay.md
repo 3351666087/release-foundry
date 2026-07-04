@@ -578,3 +578,87 @@ Next top 3:
 1. Use the readiness report when collecting reviewed Ashr grading evidence.
 2. Import audited semantic judge summaries when available.
 3. Keep A3 optional feeds additive so missing readiness artifacts never break core grade reports.
+
+## 2026-07-04 - C5 maturity gate audit
+
+Reason:
+- C5 replay was executable, but reviewers could only see `maturity_status: seed` without a structured explanation.
+- A2 should avoid pretending C5 is mature while still making the remaining path explicit and machine-readable.
+
+Implemented:
+- Added `candidate_pool` and `maturity_gate` to `fixtures/a2/results/a2_case_book.json`.
+- Added `maturity_gate` to `fixtures/a2/results/a2_regression_replay_report.json`.
+- Kept both additions optional under the existing `a2.case_book.v1` and `a2.regression_replay.v1` schemas.
+- Updated A2 tests and reviewer-facing docs to show the current 1/3 maturity state.
+
+Boundary:
+- This does not promote synthetic or unreviewed cases.
+- C5 remains partial until at least 2 more reviewed disagreement regressions are added and replay cleanly.
+
+Next top 3:
+1. Collect reviewed Ashr grading for the six calibration cases.
+2. Replace offline LLM references with audited semantic judge summaries.
+3. Promote new reviewed disagreements into the case book until the maturity gate reaches 3 clean replay cases.
+
+## 2026-07-04 - A3 C5 regression readiness export
+
+Reason:
+- A2 now exposes C5 maturity gates, but A3 exports also need to surface that status for reviewers.
+- The goal is to make the 1/3 C5 maturity state visible without changing the A2 grade-result contract.
+
+Implemented:
+- Added `summarizeRegressionReadiness(...)` to `services/report/report_builder.mjs`.
+- Extended A3 JSON/Markdown report builders with optional case-book and regression-replay fixtures.
+- Wired dashboard exports to load optional `a2_case_book.json`, `a2_regression_replay_report.json`, and evidence readiness fixtures.
+- Added A3 tests that assert C5 status remains `seed`, target is 3, current replay count is 1, and gaps mention the 2 missing reviewed cases.
+
+Boundary:
+- This is A3 export support only; it does not change A2 scoring or promote new regressions.
+- Missing optional C5 feeds still leave core grade and coverage reports usable.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for the six calibration cases.
+2. Import audited semantic judge summaries to replace offline references.
+3. Promote two more reviewed disagreements into the case book and replay suite.
+
+## 2026-07-04 - C3 Ashr public merge gate
+
+Reason:
+- The six-case Ashr server-side grading column is not yet publicly merged into the calibration matrix.
+- A2 needed a machine-readable guard so `ready_for_external_collection` is not mistaken for C3 completion.
+
+Implemented:
+- Added `ashr_public_merge_gate` to `a2_evidence_readiness_report.json`.
+- The gate records `public_matrix_merged: false`, `safe_to_mark_c3_met: false`, and 6 missing public Ashr grading observations.
+- A3 evidence readiness summaries now expose the public merge status and C3-safe flag.
+- Added A2/A3 tests and docs that keep C3 marked partial until reviewed Ashr grading observations are imported, merged, and regenerated.
+
+Boundary:
+- This does not call Ashr or read any API key.
+- It does not add fake server-side grading rows; it only prevents readiness evidence from being confused with merged evidence.
+
+Next top 3:
+1. Collect the six reviewed Ashr grading observations under private evidence.
+2. Import and merge them through the documented scripts.
+3. Regenerate fixtures and verify `ashr_public_merge_gate.safe_to_mark_c3_met` turns true before claiming C3 met.
+
+## 2026-07-04 - Commercial readiness uses C3 merge gate
+
+Reason:
+- `a2_commercial_readiness_report.json` should reflect the same C3 public-merge truth as evidence readiness.
+- Reviewers should not need to cross-check two files to know that Ashr grading is still not publicly merged.
+
+Implemented:
+- Commercial readiness now reads `ashr_public_merge_gate` from evidence readiness.
+- C3 met requires `ashr_safe_to_mark_c3_met` in addition to Ashr/LLM coverage ratios.
+- The evidence snapshot now includes Ashr public merge status, public matrix merged flag, C3-safe flag, and missing public observations.
+- Added tests locking the current `not_merged` state.
+
+Boundary:
+- This is status propagation only.
+- It does not call Ashr, read keys, or add reviewed grading rows.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for all six calibration cases.
+2. Merge them into `a2_g3_calibration_observations.json` through the reviewed import path.
+3. Regenerate fixtures and confirm both evidence readiness and commercial readiness agree that C3 is safe.

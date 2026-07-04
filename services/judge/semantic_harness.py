@@ -37,11 +37,13 @@ def build_semantic_harness_report(
     cases = [_harness_case(case) for case in calibration_matrix.get("cases", [])]
     sdk_languages = _sdk_languages(sdk_parity_report)
     live_model_evidence_available = _live_model_evidence_available(calibration_matrix)
+    risk_assessment = _risk_assessment(cases, live_model_evidence_available)
     readiness_checks = {
         "has_prompt_contract": True,
         "has_output_schema": True,
         "has_cost_policy": True,
         "has_redaction_policy": True,
+        "has_false_positive_tracking": bool(risk_assessment.get("tracking_ready")),
         "covers_calibration_cases": len(cases) == int(calibration_matrix.get("case_count", 0)) and bool(cases),
         "covers_python_and_typescript": set(REQUIRED_SDK_LANGUAGES).issubset(sdk_languages),
         "has_official_sdk_chain_map": set(REQUIRED_SDK_LANGUAGES).issubset(
@@ -77,6 +79,7 @@ def build_semantic_harness_report(
         "model_policy": _model_policy(live_model_evidence_available),
         "cost_policy": _cost_policy(),
         "redaction_policy": _redaction_policy(),
+        "risk_assessment": risk_assessment,
         "readiness_checks": readiness_checks,
         "cases": cases,
         "metadata": {
@@ -226,27 +229,118 @@ def _redaction_policy() -> dict[str, Any]:
 
 def _harness_case(case: dict[str, Any]) -> dict[str, Any]:
     sources = case.get("sources", {})
-    local = sources.get("local_judge", {})
+    expected = _summary_result(case.get("expected", {}))
+    local = _summary_result(sources.get("local_judge", {}))
     llm = sources.get("llm_judge", {})
+    offline_reference = _summary_result(llm) if llm.get("available") else {"available": False}
+    risk_flags = _semantic_risk_flags(expected, local, offline_reference)
     return {
         "case_id": case.get("case_id", ""),
         "scenario_id": case.get("scenario_id", ""),
         "fixture_ref": case.get("fixture_ref", ""),
         "calibration_focus": case.get("calibration_focus", []),
-        "expected": _summary_result(case.get("expected", {})),
-        "local_judge": _summary_result(local),
-        "offline_reference": _summary_result(llm) if llm.get("available") else {"available": False},
+        "expected": expected,
+        "local_judge": local,
+        "offline_reference": offline_reference,
         "sdk_input_paths": {
             "python": _semantic_prompt_path("python"),
             "typescript": _semantic_prompt_path("typescript"),
         },
         "semantic_prompt_fields": PROMPT_FIELDS,
+        "risk_flags": risk_flags,
         "audit_target": {
             "required_live_source": "llm_judge",
             "required_provider_status": "not offline_reference",
             "raw_evidence": "private",
         },
     }
+
+
+def _risk_assessment(cases: list[dict[str, Any]], live_model_evidence_available: bool) -> dict[str, Any]:
+    risk_cases = []
+    for case in cases:
+        flags = case.get("risk_flags", [])
+        if not flags:
+            continue
+        local = case.get("local_judge", {})
+        offline = case.get("offline_reference", {})
+        score_delta = _score_delta(local, offline)
+        risk_case = {
+            "case_id": case.get("case_id", ""),
+            "scenario_id": case.get("scenario_id", ""),
+            "risk_flags": flags,
+            "expected_failure_class": case.get("expected", {}).get("primary_failure_class", ""),
+            "local_failure_class": local.get("primary_failure_class", ""),
+            "offline_reference_failure_class": offline.get("primary_failure_class", ""),
+        }
+        if score_delta is not None:
+            risk_case["score_delta"] = score_delta
+        risk_cases.append(risk_case)
+
+    def count(flag: str) -> int:
+        return sum(1 for case in cases if flag in case.get("risk_flags", []))
+
+    return {
+        "status": "audited_live_risk_register"
+        if live_model_evidence_available
+        else "offline_reference_risk_register",
+        "tracking_ready": True,
+        "basis": "offline_reference" if not live_model_evidence_available else "audited_live_model_evidence",
+        "case_count": len(cases),
+        "false_positive_candidate_count": count("false_positive_candidate"),
+        "false_negative_candidate_count": count("false_negative_candidate"),
+        "failure_class_drift_candidate_count": count("failure_class_drift_candidate"),
+        "score_delta_review_count": count("score_delta_review"),
+        "low_confidence_reference_count": count("low_confidence_reference"),
+        "risk_case_count": len(risk_cases),
+        "risk_cases": risk_cases,
+        "interpretation": (
+            "These are review candidates, not model quality rates, until audited live semantic judge evidence "
+            "replaces offline references."
+        ),
+    }
+
+
+def _semantic_risk_flags(
+    expected: dict[str, Any],
+    local: dict[str, Any],
+    offline_reference: dict[str, Any],
+) -> list[str]:
+    if offline_reference.get("available") is False or offline_reference.get("passed") is None:
+        return ["missing_semantic_reference"]
+
+    flags = []
+    expected_passed = expected.get("passed")
+    offline_passed = offline_reference.get("passed")
+    expected_class = expected.get("primary_failure_class")
+    offline_class = offline_reference.get("primary_failure_class")
+    if expected_passed is False and offline_passed is True:
+        flags.append("false_positive_candidate")
+    if expected_passed is True and offline_passed is False:
+        flags.append("false_negative_candidate")
+    if (
+        expected_passed == offline_passed
+        and expected_class
+        and offline_class
+        and expected_class != offline_class
+    ):
+        flags.append("failure_class_drift_candidate")
+
+    score_delta = _score_delta(local, offline_reference)
+    if score_delta is not None and score_delta >= 20:
+        flags.append("score_delta_review")
+    confidence = offline_reference.get("confidence")
+    if isinstance(confidence, (int, float)) and confidence < 0.75:
+        flags.append("low_confidence_reference")
+    return flags
+
+
+def _score_delta(left: dict[str, Any], right: dict[str, Any]) -> float | None:
+    left_score = left.get("score")
+    right_score = right.get("score")
+    if not isinstance(left_score, (int, float)) or not isinstance(right_score, (int, float)):
+        return None
+    return round(abs(float(left_score) - float(right_score)), 2)
 
 
 def _summary_result(result: dict[str, Any]) -> dict[str, Any]:
