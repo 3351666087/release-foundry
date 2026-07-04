@@ -1,4 +1,4 @@
-# A1 Worklog
+﻿# A1 Worklog
 
 ## 2026-07-03 Round 1
 
@@ -648,3 +648,44 @@ Key current facts:
 - A2/A3-facing `AgentTurn` output shape remains intact, with content-part text extraction and A2 projection tests passing.
 - Additional real text batch generation is blocked by hosted request quota exhaustion. Read-only API probes still work.
 - A1 tests are now `96 passed`.
+
+## 2026-07-04 Hosted Media Failure Detail Calibration
+
+Goal: continue A1 subscription-era SDK/Runner calibration by inspecting the previously accepted-but-failed hosted Image/Audio/Files request through read-only evidence, then making `get-request` and `poll-request` records preserve safe failure details for A2/A3-facing debugging without exposing raw private values.
+
+Start protocol:
+
+- `git fetch origin --prune`: success.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at start. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `87fd28c`.
+- Peer changes/impact: latest `origin/dev/g3-a2-calibration` commit `96ff7d5` touched A2 scenario/judge/report evidence files. No live peer change required modifying A1 contracts, judge semantics, or dashboard business logic.
+
+Three proposed enhancements:
+
+1. Add hosted request failure-shape summaries to `get-request` / `poll-request` records.
+2. Re-run media generation with a revised schema and real paid API call.
+3. Add the second external-agent adapter smoke path against `AgentInput`.
+
+Implemented highest ROI enhancement: hosted request failure-shape summaries. This was chosen because it extracts value from existing paid API evidence and reduces future debugging risk before spending another media-generation request.
+
+Evidence and implementation:
+
+- Existing read-only recheck `docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json` showed `status=ok`, HTTP `200`, `attempts=1`, hosted `request_status=failed`.
+- Safe failure shape: no top-level failure-like hosted request keys; nested `request.request` keys included `_failure`, `agent`, `context`, `generation_options`, `metadata`, and `test_config`; `_failure` was an object with keys `at` and `error`, both strings. Raw values remain in ignored private evidence only.
+- `packages/sdk/ashr_clone/api_client.py`: added `summarize_request_failure(...)` and response summary attachment so failed `get-request` records include `response_summary.request_failure`, and failed `poll-request` error records include `error.failure_summary`.
+- `tests/a1/test_api_client.py`: added failed `get-request` and failed `poll-request` regressions, including token/email redaction and a completed-request false-positive guard for ordinary `requestor_details` fields.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification so far:
+
+- `python -B -c "... summarize_request_failure(...)"`: helper emitted only keys, types, string lengths, and nested request keys for the private failed media request.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `44 passed in 1.18s`.
+- Chrome read-only calibration: official API reference showed `create_request`, `request_input_schema`, `accepted_inputs`, `generate_audio`, `generate_images`, and `add_user_file`. Existing logged-in Usage tab showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy; exact usage counters remain private and screenshots are stored under ignored `docs/evidence/private_refs/`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `99 passed in 2.94s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line sensitive scan: implementation/docs matched no real key, request id, email, or exact usage patterns. Test-only matches were synthetic redaction fixtures.
+
+Remaining:
+
+- Run final Bus-Auditor recheck.
+- Do not repeat media generation until UI-required payload semantics or quota state are clearer; read/list/get/poll calibration remains allowed.

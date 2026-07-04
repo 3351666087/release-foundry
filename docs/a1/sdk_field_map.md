@@ -43,10 +43,11 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Local create-request record params are summary-shaped before evidence writing: `request.top_level_keys`, `request.agent_keys`, `request.tools_count`, `request.accepted_input_flags`, `request.generation_options`, `request.metadata_keys`, `request.test_config_keys`, `request.num_variations`, and `request_input_schema.{keys,type,additionalProperties,tools_count,property_keys,defs_keys,agent_input_schema_version,agent_input_part_types}`.
 - Media interface flags: `generate_images`, `generate_audio`, `generate_files`, `generate_videos`, `generate_simulations`, plus accepted input flags for `image`, `audio`, `file`, `video`, `conversation`, and `text`.
 - Local AgentInput envelope: `schema_version`, `text`, `parts`, `metadata`; part fields include `type`, `text`, `path`, `url`, `source`, `mime_type`, `name`, and `description`.
+- Local hosted request failure summary: `response_summary.request_failure.request_status`, `top_level_failure_like_keys`, `nested_request_keys`, and `failure_sources.request._failure.{type,present,keys,fields}`. Field shapes include only `type`, `present`, `length`, `count`, `item_types`, and nested `keys`; raw hosted failure values stay out of tracked docs.
 
 Error calibration:
 
 - API-level errors can be HTTP `200` with body `status: error`; local records label this as `error_kind: api`.
-- Hosted request generation can end with `request_status: failed` after an accepted `create_request`; local `poll-request` records this as an error summary without retrying creation.
+- Hosted request generation can end with `request_status: failed` after an accepted `create_request`; local `get-request` and `poll-request` records capture safe nested failure-shape summaries without retrying creation.
 - Hosted request quota errors can also arrive as HTTP `200` / `status: error`; one real text-batch probe returned a request usage limit message after local preflight passed.
 - Rate-limit and retry headers were not present in the small successful calls, but the wrapper captures `retry-after` and `x-ratelimit-*` when returned.

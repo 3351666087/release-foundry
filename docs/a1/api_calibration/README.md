@@ -1,4 +1,4 @@
-# A1 API Calibration
+﻿# A1 API Calibration
 
 Round date: 2026-07-04
 
@@ -50,6 +50,7 @@ Private evidence files:
 - `docs/evidence/private_refs/a1_api_tiny_create_request_round2_real.json`
 - `docs/evidence/private_refs/a1_api_tiny_create_request_round2_schema_dry_run.json`
 - `docs/evidence/private_refs/a1_api_media_interface_create_request_dry_run.json`
+- `docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json`
 - `docs/evidence/private_refs/a1_real_dataset_cases.json`
 - `docs/evidence/private_refs/a1_real_dataset_run_mock.json`
 - `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png`
@@ -116,6 +117,7 @@ Real request calibration after the default schema patch:
 - Follow-up `get-request` returned `request_status=processing`, then bounded `poll-request` returned `request_status=completed` with `status=ok`, HTTP `200`, `attempts=1`.
 - The completed request shape includes `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `prompt_version_id`, `request`, `request_input_schema`, `request_name`, `request_status`, `requestor_id`, and `requestor_tenant`.
 - One real Image/Audio/Files interface request was submitted after a fresh Usage page review and explicit `--allow-media-generation --allow-non-text-inputs`; it returned `create-request status=ok`, then `get-request request_status=failed`. Bounded `poll-request` recorded an error summary with HTTP `200`, `attempts=1`, and message `request failed`.
+- A later read-only recheck of that failed media request found no top-level failure/reason/message/detail fields on the hosted request object. The nested original request payload contained `_failure` with safe shape keys `at` and `error`; both values were strings. A1 records this as `response_summary.request_failure.failure_sources.request._failure` and, for failed polling, `error.failure_summary`, using only keys, types, string lengths, and counts.
 - A text-only 3-variation batch dry-run passed local preflight, but real execution returned a hosted API-level usage error: request quota exhausted for the current period. No retry was attempted.
 
 Execution guardrails:
@@ -159,12 +161,12 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 41 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 44 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
 - `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: 21 passed.
 - `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: 56 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 96 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 99 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
@@ -172,9 +174,10 @@ Private real-shape smoke test:
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 - Local multimodal adapter coverage now includes `AgentInput` with `text`, `image`, `audio`, and `file` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
 - Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Image/Audio/Files before real execution is allowed, and that part types match enabled accepted inputs.
+- Local hosted request failure coverage verifies that failed `get-request` / `poll-request` records include safe nested `_failure` field-shape summaries without recording raw failure text in tracked docs.
 
 ## Next Candidates
 
-1. Inspect hosted media failure details or UI-required payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed.
+1. Inspect official UI-required media payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed with nested `_failure` shape only.
 2. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.
 3. Add a second external-agent adapter smoke path against the new `AgentInput` envelope without changing A2/A3 `AgentTurn` output contracts.

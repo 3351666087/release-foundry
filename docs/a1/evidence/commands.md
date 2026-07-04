@@ -1,4 +1,4 @@
-# A1 Round 1 Command Evidence
+﻿# A1 Round 1 Command Evidence
 
 Commands:
 
@@ -199,3 +199,21 @@ Cleanup note:
 - `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_adapter.py -q -p no:cacheprovider`: `62 passed in 1.15s`.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `96 passed in 2.92s`.
 - `git diff --check`: clean except CRLF warnings.
+
+## 2026-07-04 Hosted Media Failure Detail Calibration
+
+- `git fetch origin --prune`: success.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and private evidence remained unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `87fd28c`.
+- Peer impact: latest `origin/dev/g3-a2-calibration` commit `96ff7d5` touched A2 scenario/judge/report evidence paths. No live peer change required modifying A1 contract, judge semantics, or dashboard business logic.
+- Existing ignored private evidence recheck: `python -B -m services.runner.api_probe get-request --execute --max-retries 0 --request-id <private media request id> --output docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json` succeeded before this patch with `status=ok`, HTTP `200`, `attempts=1`, hosted `request_status=failed`.
+- Safe hosted failure shape from `docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json`: no top-level failure-like request keys; nested request keys included `_failure`, `agent`, `context`, `generation_options`, `metadata`, and `test_config`; `_failure` was an object with keys `at` and `error`, both string values. Raw values remain private.
+- `python -B -c "... summarize_request_failure(...)"`: confirmed the SDK helper emits only safe shape fields: `request_status=failed`, `top_level_failure_like_keys=[]`, nested `_failure` keys `at` and `error`, string lengths, and field types.
+- Chrome read-only calibration: official API reference at `https://ashr.io/docs/python-sdk/api-reference/` showed `create_request`, `request_input_schema`, `accepted_inputs`, `generate_audio`, `generate_images`, and `add_user_file`. Existing logged-in Usage tab at `https://lab.ashr.io/?tab=usage` showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy; exact counters remain private. Screenshots stored in ignored private evidence as `ashr_lab_usage_failure_detail_round_2026-07-04.png`, `ashr_lab_analysis_failure_detail_round_2026-07-04.png`, and `ashr_existing_usage_failure_detail_round_2026-07-04.png`.
+- Implemented hosted failure summary extraction in `packages/sdk/ashr_clone/api_client.py`: failed `get-request` records gain `response_summary.request_failure`; failed `poll-request` records additionally include `error.failure_summary`. The summary records keys/types/lengths/counts only.
+- Added a false-positive guard so ordinary hosted fields such as `requestor_details` do not create failure summaries on completed requests.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `44 passed in 1.18s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `99 passed in 2.94s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line sensitive scan: implementation/docs matched no real key, request id, email, or exact usage patterns. Test-only hits were synthetic redaction fixtures.
+- No new real `create-request` was executed in this round.

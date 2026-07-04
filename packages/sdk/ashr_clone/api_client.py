@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 JsonDict = dict[str, Any]
 TransportResponse = tuple[int, bytes] | tuple[int, bytes, Mapping[str, str]]
 Transport = Callable[[str, Mapping[str, str], bytes, int], TransportResponse]
+FailureResult = str | Mapping[str, Any] | None
 
 ASHR_DEFAULT_BASE_URL = "https://api.ashr.io/testing-platform-api"
 ASHR_API_ENV_VAR = "ASHR_API_KEY"
@@ -28,6 +29,9 @@ _NON_TEXT_AGENT_INPUT_PART_TYPES = ("image", "audio", "file")
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")
 _SENSITIVE_EXACT_KEYS = {"key"}
+_FAILURE_EXACT_KEYS = {"_failure", "failure", "failures", "failed", "error", "errors", "reason", "reasons", "message", "messages", "detail", "details", "exception", "traceback"}
+_FAILURE_KEY_PREFIXES = ("failure_", "error_", "reason_", "message_", "detail_", "exception_", "traceback_")
+_FAILURE_KEY_SUFFIXES = ("_failure", "_error", "_reason", "_message", "_detail", "_exception", "_traceback")
 _RETRYABLE_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 _SECRET_LIKE_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
@@ -225,6 +229,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 return payload
             except AshrApiError as exc:
@@ -327,7 +332,7 @@ class AshrApiClient:
             function="get_request",
             params={"request_id": request_id},
             complete=lambda response: response.get("request", {}).get("request_status") == "completed",
-            failure=lambda response: "request failed" if response.get("request", {}).get("request_status") == "failed" else None,
+            failure=_request_failure_result,
             purpose="Poll generation request status",
             estimated_calls=estimated_calls,
             timeout_seconds=timeout_seconds,
@@ -341,7 +346,7 @@ class AshrApiClient:
         function: str,
         params: Mapping[str, Any],
         complete: Callable[[JsonDict], bool],
-        failure: Callable[[JsonDict], str | None],
+        failure: Callable[[JsonDict], FailureResult],
         purpose: str,
         estimated_calls: int,
         timeout_seconds: int,
@@ -358,8 +363,9 @@ class AshrApiClient:
             attempts += 1
             status_code, response, response_headers = self._request(function, params)
             last_response = response
-            failure_message = failure(response)
-            if failure_message:
+            failure_result = failure(response)
+            if failure_result:
+                failure_error = _poll_failure_error(failure_result, status_code)
                 record = AshrApiCallRecord(
                     function=function,
                     dry_run=dry_run,
@@ -373,12 +379,13 @@ class AshrApiClient:
                     request={"function": function, "params": redact_sensitive(params), "estimated_calls": estimated_calls, "mutates": mutates},
                     response=response,
                     response_headers=response_headers,
-                    error={"message": failure_message, "status_code": status_code},
+                    error=failure_error,
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
-                raise AshrApiError(failure_message, status_code=status_code, response=payload)
+                raise AshrApiError(failure_error["message"], status_code=status_code, response=payload)
             if complete(response):
                 record = AshrApiCallRecord(
                     function=function,
@@ -396,6 +403,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 return payload
             if (time.monotonic() - start) >= timeout_seconds:
@@ -416,6 +424,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 raise TimeoutError(payload["error"]["message"])
             time.sleep(max(0, poll_interval_seconds))
@@ -499,6 +508,27 @@ def redact_text(value: str) -> str:
     for pattern in _SECRET_LIKE_PATTERNS:
         redacted = pattern.sub(_REDACTED, redacted)
     return redacted
+
+
+def summarize_request_failure(response: Mapping[str, Any]) -> JsonDict:
+    request = response.get("request") if isinstance(response.get("request"), Mapping) else {}
+    nested_request = request.get("request") if isinstance(request.get("request"), Mapping) else {}
+    summary: JsonDict = {
+        "request_status": request.get("request_status") if isinstance(request.get("request_status"), str) else None,
+        "top_level_failure_like_keys": _failure_like_keys(request),
+        "nested_request_keys": sorted(str(key) for key in nested_request.keys()) if isinstance(nested_request, Mapping) else [],
+    }
+    failure_sources: JsonDict = {}
+    if isinstance(nested_request, Mapping) and nested_request.get("_failure") is not None:
+        failure_sources["request._failure"] = _safe_value_shape(nested_request["_failure"], depth=2)
+    if request.get("_failure") is not None:
+        failure_sources["_failure"] = _safe_value_shape(request["_failure"], depth=2)
+    for key in ("failure", "error", "message", "detail", "reason"):
+        if request.get(key) is not None:
+            failure_sources[key] = _safe_value_shape(request[key], depth=1)
+    if failure_sources:
+        summary["failure_sources"] = failure_sources
+    return summary
 
 
 def build_default_request_input_schema(request: Mapping[str, Any] | None = None) -> JsonDict:
@@ -649,6 +679,85 @@ def _schema_agent_input_part_types(part_schema: Mapping[str, Any]) -> list[str]:
         if isinstance(enum, list):
             types.update(str(item) for item in enum)
     return sorted(types)
+
+
+def _request_failure_result(response: JsonDict) -> JsonDict | None:
+    request = response.get("request") if isinstance(response.get("request"), Mapping) else {}
+    if request.get("request_status") != "failed":
+        return None
+    return {"message": "request failed", "failure_summary": summarize_request_failure(response)}
+
+
+def _poll_failure_error(failure_result: str | Mapping[str, Any], status_code: int | None) -> JsonDict:
+    if isinstance(failure_result, Mapping):
+        error = redact_sensitive(dict(failure_result))
+        message = error.get("message")
+        if not isinstance(message, str) or not message:
+            message = "request failed"
+        error["message"] = redact_text(message)
+        error["status_code"] = status_code
+        return error
+    return {"message": redact_text(str(failure_result)), "status_code": status_code}
+
+
+def _attach_response_summary(payload: JsonDict) -> None:
+    response = payload.get("response")
+    if not isinstance(response, Mapping):
+        return
+    request_failure = summarize_request_failure(response)
+    if _has_request_failure_summary(request_failure):
+        response_summary = payload.setdefault("response_summary", {})
+        if isinstance(response_summary, dict):
+            response_summary["request_failure"] = request_failure
+
+
+def _has_request_failure_summary(summary: Mapping[str, Any]) -> bool:
+    return (
+        summary.get("request_status") == "failed"
+        or bool(summary.get("top_level_failure_like_keys"))
+        or bool(summary.get("failure_sources"))
+    )
+
+
+def _failure_like_keys(value: Mapping[str, Any]) -> list[str]:
+    return sorted(str(key) for key in value.keys() if _is_failure_like_key(str(key)))
+
+
+def _is_failure_like_key(key: str) -> bool:
+    normalized = key.lower().replace("-", "_")
+    return normalized in _FAILURE_EXACT_KEYS or normalized.startswith(_FAILURE_KEY_PREFIXES) or normalized.endswith(_FAILURE_KEY_SUFFIXES)
+
+
+def _safe_value_shape(value: Any, *, depth: int) -> JsonDict:
+    shape: JsonDict = {"type": _safe_type_name(value), "present": value is not None}
+    if isinstance(value, Mapping):
+        shape["keys"] = sorted(str(key) for key in value.keys())
+        if depth > 0:
+            shape["fields"] = {str(key): _safe_value_shape(item, depth=depth - 1) for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))}
+    elif isinstance(value, list):
+        shape["count"] = len(value)
+        shape["item_types"] = sorted({_safe_type_name(item) for item in value})
+    elif isinstance(value, str):
+        shape["length"] = len(value)
+    return shape
+
+
+def _safe_type_name(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, Mapping):
+        return "object"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    return type(value).__name__
 
 
 def maybe_write_json(path: str | Path | None, payload: Mapping[str, Any]) -> None:

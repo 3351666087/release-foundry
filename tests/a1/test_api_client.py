@@ -203,6 +203,64 @@ def test_poll_request_execute_stops_on_completed_response(tmp_path):
     assert json.loads(output.read_text(encoding="utf-8"))["response"]["request"]["request_status"] == "completed"
 
 
+def test_get_request_failed_response_records_safe_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"failed","request":{"_failure":{"at":"2026-07-04T00:00:00Z","error":"bad media key tp_secret for owner@example.com"}}}}'
+
+    output = tmp_path / "get_request_failed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.get_request(7, output_path=output, dry_run=False)
+
+    summary = record["response_summary"]["request_failure"]
+    nested_failure = summary["failure_sources"]["request._failure"]
+    assert summary["request_status"] == "failed"
+    assert summary["top_level_failure_like_keys"] == []
+    assert summary["nested_request_keys"] == ["_failure"]
+    assert nested_failure["keys"] == ["at", "error"]
+    assert nested_failure["fields"]["error"]["type"] == "string"
+    assert nested_failure["fields"]["error"]["length"] > 0
+    text = output.read_text(encoding="utf-8")
+    assert "tp_secret" not in text
+    assert "owner@example.com" not in text
+
+
+def test_get_request_completed_with_details_does_not_record_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"completed","requestor_details":{"name":"Owner"}}}'
+
+    output = tmp_path / "get_request_completed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.get_request(7, output_path=output, dry_run=False)
+
+    assert "response_summary" not in record
+    assert "response_summary" not in json.loads(output.read_text(encoding="utf-8"))
+
+
+def test_poll_request_failed_response_raises_with_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"failed","request":{"_failure":{"at":"worker","error":"media processor failed"}}}}'
+
+    output = tmp_path / "poll_request_failed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.poll_request(request_id=7, timeout_seconds=1, poll_interval_seconds=0, output_path=output, dry_run=False)
+    except AshrApiError as exc:
+        assert str(exc) == "request failed"
+    else:
+        raise AssertionError("expected failed poll request")
+
+    record = json.loads(output.read_text(encoding="utf-8"))
+    failure_summary = record["error"]["failure_summary"]
+    assert record["status"] == "error"
+    assert record["attempts"] == 1
+    assert record["error"]["message"] == "request failed"
+    assert failure_summary == record["response_summary"]["request_failure"]
+    assert failure_summary["failure_sources"]["request._failure"]["fields"]["error"]["type"] == "string"
+
+
 def test_create_request_dry_run_records_mutating_plan(tmp_path):
     output = tmp_path / "create_request.json"
     client = AshrApiClient(api_key=None)
