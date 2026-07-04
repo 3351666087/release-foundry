@@ -152,6 +152,8 @@ The commercial readiness report uses `schema_version: a2.commercial_readiness.v1
 
 The case book uses `schema_version: a2.case_book.v1` and lives at `fixtures/a2/results/a2_case_book.json`. It is another optional feed for A3 or manual review: it promotes calibration disagreements into explicit regression seeds with local-vs-LLM failure class summaries, evidence refs, reviewer notes, and a regression assertion. Missing case-book data must not break existing A3 dashboard/report paths.
 
+The regression replay report uses `schema_version: a2.regression_replay.v1` and lives at `fixtures/a2/results/a2_regression_replay_report.json`. It is optional C5 evidence for A3/manual review: it re-runs case-book seeds through the deterministic local judge and reports whether the local failure class, pass/fail status, matrix disagreement, and regression assertion are still preserved. Missing replay data must not break existing A3 dashboard/report paths.
+
 The SDK parity report uses `schema_version: a2.sdk_parity.v1` and lives at `fixtures/a2/results/a2_sdk_parity_report.json`. It is optional evidence for A1/A3 that A2 can consume both Python `AgentTurn` output and TypeScript `CaseResult.agent_output` shapes without changing the grade-result schema. Missing SDK-parity data must not break existing A3 dashboard/report paths.
 
 The semantic harness report uses `schema_version: a2.semantic_harness.v1` and lives at `fixtures/a2/results/a2_semantic_harness_report.json`. It is optional C4 evidence for A1/A3: it records the semantic judge prompt contract, output schema, model/cost/redaction policy, six calibration cases, and both Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths. It is harness-ready but not live-evidence-complete until audited model-call summaries replace offline references.
@@ -165,7 +167,7 @@ Commercial-readiness invariants:
 - `grade_run` remains deterministic and local; live Ashr or LLM calls enter calibration/readiness artifacts only.
 - A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
 - Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
-- A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, `a2.sdk_parity.v1`, `a2.batch_plan.v1`, or `a2.semantic_harness.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
+- A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, `a2.regression_replay.v1`, `a2.sdk_parity.v1`, `a2.batch_plan.v1`, or `a2.semantic_harness.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
 
 ## Known Boundary
 

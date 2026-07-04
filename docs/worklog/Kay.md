@@ -465,3 +465,26 @@ Next top 3:
 1. Collect reviewed Ashr grading evidence for the six C3 cases.
 2. Run the semantic harness privately and import all six reviewed `llm_judge` rows through the new bridge.
 3. Promote any new cross-judge disagreements into the case book.
+
+## 2026-07-04 - C5 regression replay report
+
+Reason:
+- The case book promoted one local-vs-LLM disagreement, but C5 also needs durable executable regression evidence.
+- The batch plan already named `case_book_regression_replay`; A2 needed a generated artifact that proves replay actually happens.
+
+Implemented:
+- Added `services/judge/regression_replay.py` to re-run every case-book seed through deterministic `grade_run`.
+- Added generated fixture `fixtures/a2/results/a2_regression_replay_report.json`.
+- Added schema snapshot `docs/a2/schemas/regression_replay.schema.json`.
+- Integrated replay generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C5 cites replay evidence and records `regression_replay_ready`, count, and maturity.
+- Added tests proving the current `sample-a2-s010-wrong-arguments` seed still preserves local `wrong_arguments` while the LLM reference remains `ignored_tool_result`.
+
+Boundary:
+- C5 remains partial because the replay suite has one seed and `maturity_status: seed`.
+- This does not alter `grade_run`, A3 grade joins, or calibration source semantics.
+
+Next top 3:
+1. Add more reviewed Ashr/local/LLM disagreement cases to the case book and replay suite.
+2. Fill the `ashr_grading` column for the six calibration cases.
+3. Replace offline `llm_judge` rows with audited semantic judge imports.

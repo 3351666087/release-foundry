@@ -90,7 +90,8 @@
       "objective": "Replay every disagreement seed so judge-boundary regressions remain visible.",
       "requires_private_evidence": false,
       "evidence_refs": [
-        "fixtures/a2/results/a2_case_book.json"
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json"
       ]
     }
   ],
@@ -124,6 +125,7 @@
     "public_outputs": [
       "fixtures/a2/results/a2_g3_calibration_matrix.json",
       "fixtures/a2/results/a2_case_book.json",
+      "fixtures/a2/results/a2_regression_replay_report.json",
       "fixtures/a2/results/a2_semantic_harness_report.json",
       "fixtures/a2/results/a2_commercial_readiness_report.json"
     ],

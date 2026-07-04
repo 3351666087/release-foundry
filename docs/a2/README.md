@@ -26,6 +26,7 @@ This module provides the local G1-G2 foundation for:
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
 - Case book helper: `services/judge/casebook.py`
+- Regression replay helper: `services/judge/regression_replay.py`
 - SDK parity helper: `services/judge/sdk_parity.py`
 - Semantic judge harness helper: `services/judge/semantic_harness.py`
 - Semantic judge import helper: `scripts/a2_import_semantic_judge.py`
@@ -35,6 +36,7 @@ This module provides the local G1-G2 foundation for:
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
 - Case book regression seed: `fixtures/a2/results/a2_case_book.json`
+- Case book regression replay report: `fixtures/a2/results/a2_regression_replay_report.json`
 - Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
 - Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
 - Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
@@ -208,10 +210,14 @@ C5 requires disagreements to become durable regression evidence, not only commen
 A2 now generates:
 
 - machine-readable case book: `fixtures/a2/results/a2_case_book.json`
+- executable replay report: `fixtures/a2/results/a2_regression_replay_report.json`
 - reviewer-facing case book: `docs/a2/case_book.md`
 - schema: `docs/a2/schemas/case_book.schema.json`
+- replay schema: `docs/a2/schemas/regression_replay.schema.json`
 
 The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies `wrong_arguments` and the offline LLM reference identifies `ignored_tool_result`. This remains open until reviewed Ashr grading or audited live LLM evidence resolves the judge boundary.
+
+The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, so C5 is stronger but still partial until more reviewed disagreement cases are promoted.
 
 ## Commercial Readiness Gate
 
@@ -221,7 +227,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
 
 ## G1-G2 Boundary
 

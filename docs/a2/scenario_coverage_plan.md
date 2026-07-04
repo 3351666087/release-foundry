@@ -131,6 +131,8 @@ The first C4 semantic-harness artifact is `fixtures/a2/results/a2_semantic_harne
 
 The first C5 case-book seed is `fixtures/a2/results/a2_case_book.json`, with a reviewer-readable companion at `docs/a2/case_book.md`. It currently promotes the `sample-a2-s010-wrong-arguments` local-vs-LLM failure-class disagreement into an explicit open regression seed.
 
+The first C5 executable replay artifact is `fixtures/a2/results/a2_regression_replay_report.json`. It re-runs every case-book seed through deterministic `grade_run` and checks that local failure class preservation, pass/fail status, matrix disagreement visibility, and regression assertions still hold. This makes C5 more auditable, but the maturity status remains `seed` until more reviewed disagreements are promoted.
+
 Next A2 priorities should be chosen by ROI against this commercial target:
 
 1. collect a small authenticated Ashr grading batch and fill the `ashr_grading` column,

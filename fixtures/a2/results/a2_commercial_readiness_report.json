@@ -122,10 +122,11 @@
       "requirement": "judge disagreements become durable regression fixtures and a reviewer-facing case book",
       "evidence_refs": [
         "calibration_tags.judge_disagreement_regression",
-        "fixtures/a2/results/a2_case_book.json"
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json"
       ],
       "gaps": [
-        "Expand the case book into a mature regression suite."
+        "Expand the case book beyond the current seed into a mature regression suite."
       ]
     },
     {
@@ -155,6 +156,9 @@
     "llm_judge_offline_only": true,
     "local_vs_llm_mismatch_count": 1,
     "case_book_regression_count": 1,
+    "regression_replay_count": 1,
+    "regression_replay_ready": true,
+    "regression_replay_maturity": "seed",
     "sdk_language_count": 2,
     "sdk_parity_passed": true,
     "planned_batch_count": 5,
@@ -223,7 +227,8 @@
       "fixtures/a2/results/a2_g3_calibration_matrix.json",
       "fixtures/a2/results/a2_sdk_parity_report.json",
       "fixtures/a2/results/a2_batch_plan_report.json",
-      "fixtures/a2/results/a2_semantic_harness_report.json"
+      "fixtures/a2/results/a2_semantic_harness_report.json",
+      "fixtures/a2/results/a2_regression_replay_report.json"
     ],
     "notes": [
       "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

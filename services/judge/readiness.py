@@ -15,6 +15,7 @@ def build_commercial_readiness_report(
     sdk_parity_report: dict[str, Any] | None = None,
     batch_plan_report: dict[str, Any] | None = None,
     semantic_harness_report: dict[str, Any] | None = None,
+    regression_replay_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -40,6 +41,9 @@ def build_commercial_readiness_report(
     planned_batch_count = int((batch_plan_report or {}).get("batch_count", 0))
     semantic_harness_ready = bool((semantic_harness_report or {}).get("harness_ready"))
     semantic_live_evidence = bool((semantic_harness_report or {}).get("live_model_evidence_available"))
+    regression_replay_ready = bool((regression_replay_report or {}).get("replay_ready"))
+    regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
+    regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
 
     gates = [
         _gate(
@@ -114,12 +118,14 @@ def build_commercial_readiness_report(
             "C5",
             "Case book and regression suite",
             "judge disagreements become durable regression fixtures and a reviewer-facing case book",
-            False,
-            has_regression_candidates,
-            ["calibration_tags.judge_disagreement_regression", "fixtures/a2/results/a2_case_book.json"],
-            ["Expand the case book into a mature regression suite."]
-            if case_book_count
-            else ["Promote local-vs-LLM disagreements into regression fixtures and write the case book."],
+            regression_replay_ready and regression_replay_maturity == "mature",
+            has_regression_candidates and regression_replay_ready,
+            [
+                "calibration_tags.judge_disagreement_regression",
+                "fixtures/a2/results/a2_case_book.json",
+                "fixtures/a2/results/a2_regression_replay_report.json",
+            ],
+            _c5_gaps(case_book_count, regression_replay_ready, regression_replay_maturity),
         ),
         _gate(
             "C6",
@@ -168,6 +174,9 @@ def build_commercial_readiness_report(
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
             "case_book_regression_count": case_book_count,
+            "regression_replay_count": regression_replay_count,
+            "regression_replay_ready": regression_replay_ready,
+            "regression_replay_maturity": regression_replay_maturity,
             "sdk_language_count": sdk_language_count,
             "sdk_parity_passed": sdk_parity_passed,
             "planned_batch_count": planned_batch_count,
@@ -188,6 +197,7 @@ def build_commercial_readiness_report(
                 "fixtures/a2/results/a2_sdk_parity_report.json",
                 "fixtures/a2/results/a2_batch_plan_report.json",
                 "fixtures/a2/results/a2_semantic_harness_report.json",
+                "fixtures/a2/results/a2_regression_replay_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",
@@ -283,6 +293,17 @@ def _c4_gaps(
         gaps.append(
             "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
         )
+    return gaps
+
+
+def _c5_gaps(case_book_count: int, regression_replay_ready: bool, regression_replay_maturity: str) -> list[str]:
+    gaps = []
+    if case_book_count == 0:
+        gaps.append("Promote local-vs-LLM disagreements into regression fixtures and write the case book.")
+    if not regression_replay_ready:
+        gaps.append("Add executable replay evidence for every case-book regression seed.")
+    if regression_replay_maturity != "mature":
+        gaps.append("Expand the case book beyond the current seed into a mature regression suite.")
     return gaps
 
 

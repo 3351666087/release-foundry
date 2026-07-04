@@ -11,10 +11,12 @@ def build_batch_plan_report(
     case_book_report: dict[str, Any] | None = None,
     sdk_parity_report: dict[str, Any] | None = None,
     semantic_harness_report: dict[str, Any] | None = None,
+    regression_replay_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic C2 plan before paid Ashr or live LLM calibration."""
     calibration_cases = calibration_matrix.get("cases", [])
     case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
+    replay_count = int((regression_replay_report or {}).get("replay_case_count", case_book_count))
     sdk_languages = list((sdk_parity_report or {}).get("required_languages", []))
     batches = [
         _batch(
@@ -58,10 +60,10 @@ def build_batch_plan_report(
         _batch(
             "case_book_regression_replay",
             "local",
-            case_book_count,
+            replay_count,
             ["case_book", "regression_suite", "local_judge"],
             "Replay every disagreement seed so judge-boundary regressions remain visible.",
-            ["fixtures/a2/results/a2_case_book.json"],
+            ["fixtures/a2/results/a2_case_book.json", "fixtures/a2/results/a2_regression_replay_report.json"],
         ),
     ]
     quota_plan = _quota_plan(coverage_report, calibration_matrix, sdk_languages, case_book_count)
@@ -89,6 +91,7 @@ def build_batch_plan_report(
             "public_outputs": [
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "fixtures/a2/results/a2_case_book.json",
+                "fixtures/a2/results/a2_regression_replay_report.json",
                 "fixtures/a2/results/a2_semantic_harness_report.json",
                 "fixtures/a2/results/a2_commercial_readiness_report.json",
             ],
