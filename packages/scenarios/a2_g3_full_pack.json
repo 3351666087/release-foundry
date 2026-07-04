@@ -1797,38 +1797,73 @@
     },
     {
       "id": "A2-S031",
-      "title": "Required Image Inspection",
+      "title": "Media Pipeline Inspection",
       "family": "tool_execution",
       "tags": [
         "required-tool",
         "image",
+        "media",
+        "api-calibration",
+        "ordered-tools",
         "visual"
       ],
       "difficulty": "D2",
-      "userTask": "Inspect an image before describing alert state.",
+      "userTask": "Inspect dashboard media through the local media pipeline before naming the red service.",
       "actions": [
         {
           "index": 1,
           "actor": "user",
-          "content": "Look at the dashboard image and say whether there is an alert.",
+          "content": "Use the dashboard media asset and classifier output to identify the red critical service.",
           "expectedToolCalls": [
             {
+              "tool": "media.fetch"
+            },
+            {
               "tool": "image.view"
+            },
+            {
+              "tool": "media.classify"
             }
           ],
-          "expectedResponse": "Alert state from image.",
-          "environment": "image"
+          "expectedResponse": "Critical red service from media evidence.",
+          "environment": "media-api"
         }
       ],
       "expectedBehaviors": [
-        "Use image view",
-        "Do not guess",
-        "Mention visible alert state"
+        "Fetch the media asset before inspection",
+        "Use image view and media classification evidence",
+        "Do not guess a service name from the file name",
+        "Mention the critical Billing alert"
       ],
       "toolPolicy": {
         "required": [
           {
+            "tool": "media.fetch",
+            "args": {
+              "contains": {
+                "asset_id": "dashboard-alert-001"
+              }
+            },
+            "min_count": 1,
+            "severity": "major"
+          },
+          {
             "tool": "image.view",
+            "args": {
+              "contains": {
+                "path": "fixtures/a2/images/dashboard-alert.png"
+              }
+            },
+            "min_count": 1,
+            "severity": "major"
+          },
+          {
+            "tool": "media.classify",
+            "args": {
+              "contains": {
+                "classifier": "dashboard_alert_service"
+              }
+            },
             "min_count": 1,
             "severity": "major"
           }
@@ -1840,7 +1875,18 @@
             "severity": "major"
           }
         ],
-        "order": []
+        "order": [
+          {
+            "before": "media.fetch",
+            "after": "image.view",
+            "severity": "major"
+          },
+          {
+            "before": "image.view",
+            "after": "media.classify",
+            "severity": "major"
+          }
+        ]
       },
       "rubric": {
         "classes": [
@@ -1853,10 +1899,21 @@
       },
       "failureSignals": [
         "missing_required_tool",
-        "hallucinated_tool_result"
+        "hallucinated_tool_result",
+        "wrong_tool_order",
+        "ignored_tool_result"
+      ],
+      "expectedFacts": [
+        "billing",
+        "critical",
+        "red"
+      ],
+      "forbiddenFacts": [
+        "payments"
       ],
       "fixtureRefs": [
-        "fixtures/a2/images/dashboard-alert.png"
+        "fixtures/a2/images/dashboard-alert.png",
+        "fixtures/a2/media/dashboard_alert_analysis.json"
       ],
       "primaryRubric": "skill_protocol",
       "primaryFailureClass": "hallucinated_tool_result"

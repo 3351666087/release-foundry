@@ -93,9 +93,11 @@ It also audits executable run fixtures in `fixtures/a2/runs`:
 - `executable_failure_class_counts`,
 - `executable_failure_classes_missing`: expected to stay empty after executable G3 calibration.
 
-G3 executable calibration now includes seed and non-seed tool/workflow scenarios for shell inspection, image inspection, MCP resource lookup, calculator argument fidelity, and retry/failure recovery. These fixtures make more of the 60-pack auditable through actual runner output rather than metadata alone.
+G3 executable calibration now includes seed and non-seed tool/workflow scenarios for shell inspection, image inspection, media API pipelines, MCP resource lookup, calculator argument fidelity, and retry/failure recovery. These fixtures make more of the 60-pack auditable through actual runner output rather than metadata alone.
 
-The executable workflow calibration also includes ordered-tool checks for both cross-tool flows (`web.search` before `web.open`) and same-tool argument-aware flows (`file.read` Q1 before `file.read` Q2).
+The executable workflow calibration also includes ordered-tool checks for cross-tool flows (`web.search` before `web.open`), same-tool argument-aware flows (`file.read` Q1 before `file.read` Q2), and media API flows (`media.fetch` before `image.view` before `media.classify`).
+
+Authenticated G3 calibration is optional and separate from deterministic unit tests. `scripts/a2_real_api_smoke.py` uses `ASHR_LABS_API_KEY` from the environment, performs read/list API calls, and writes only a redacted summary to `docs/evidence/a2_real_api_smoke.json`.
 
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 

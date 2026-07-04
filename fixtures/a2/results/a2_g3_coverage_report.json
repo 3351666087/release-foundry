@@ -87,9 +87,10 @@
   "environment_counts": {
     "dialogue": 6,
     "filesystem": 4,
-    "image": 2,
+    "image": 1,
     "local": 38,
     "mcp": 2,
+    "media-api": 1,
     "shell": 2,
     "tool": 1,
     "web": 9
@@ -98,6 +99,7 @@
     "allowed": 1,
     "ambiguity": 1,
     "ambiguous-intent": 1,
+    "api-calibration": 1,
     "argument-fidelity": 1,
     "arithmetic": 3,
     "audit": 1,
@@ -140,6 +142,7 @@
     "json": 1,
     "judgment": 2,
     "mcp": 2,
+    "media": 1,
     "medical": 1,
     "memory": 4,
     "metadata": 1,
@@ -149,7 +152,7 @@
     "multi-turn": 4,
     "no-tool": 12,
     "optional-tool": 2,
-    "ordered-tools": 3,
+    "ordered-tools": 4,
     "path-validation": 1,
     "permission": 1,
     "personal-data": 1,
@@ -192,7 +195,7 @@
     "wrong-arguments": 2
   },
   "scenario_dimension_counts": {
-    "argument_fidelity": 21,
+    "argument_fidelity": 22,
     "clarification": 7,
     "failure_recovery": 6,
     "fixture_grounding": 30,
@@ -202,7 +205,7 @@
     "multi_turn_dialogue": 4,
     "no_tool_or_direct_answer": 12,
     "optional_tool_choice": 17,
-    "ordered_tool_sequence": 4,
+    "ordered_tool_sequence": 5,
     "output_contract": 10,
     "required_tool_use": 24,
     "safety_boundary": 20,
@@ -218,6 +221,7 @@
       "A2-S019",
       "A2-S020",
       "A2-S026",
+      "A2-S031",
       "A2-S032",
       "A2-S033",
       "A2-S034",
@@ -428,6 +432,7 @@
     ],
     "ordered_tool_sequence": [
       "A2-S009",
+      "A2-S031",
       "A2-S040",
       "A2-S042",
       "A2-S047"
@@ -512,7 +517,7 @@
     "forbidden_tool": 56,
     "no_required_tool": 36,
     "optional_tool": 17,
-    "ordered_tools": 4,
+    "ordered_tools": 5,
     "required_plus_forbidden": 20,
     "required_tool": 24,
     "wildcard_forbid": 14
@@ -522,6 +527,8 @@
     "file.read": 9,
     "image.view": 2,
     "mcp.resource": 2,
+    "media.classify": 1,
+    "media.fetch": 1,
     "shell.exec": 2,
     "web.open": 5,
     "web.search": 6
@@ -546,9 +553,11 @@
     "web.open": 2,
     "web.search": 17
   },
-  "ordered_tool_count": 4,
+  "ordered_tool_count": 5,
   "ordered_tool_pairs": {
     "file.read -> file.read": 1,
+    "image.view -> media.classify": 1,
+    "media.fetch -> image.view": 1,
     "web.search -> web.open": 3
   },
   "rubric_classes": [
@@ -771,8 +780,8 @@
   },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
-  "executable_run_case_count": 28,
-  "executable_failure_case_count": 27,
+  "executable_run_case_count": 30,
+  "executable_failure_case_count": 28,
   "executable_failure_class_counts": {
     "forbidden_tool_call": 2,
     "hallucinated_tool_result": 3,
@@ -785,7 +794,7 @@
     "wrong_arguments": 3,
     "wrong_intent": 2,
     "wrong_tool": 2,
-    "wrong_tool_order": 3
+    "wrong_tool_order": 4
   },
   "executable_failure_class_cases": {
     "forbidden_tool_call": [
@@ -912,6 +921,10 @@
         "scenario_id": "A2-S009"
       },
       {
+        "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+        "scenario_id": "A2-S031"
+      },
+      {
         "case_id": "sample-a2-s040-wrong-tool-order",
         "scenario_id": "A2-S040"
       },
@@ -924,7 +937,7 @@
   "executable_failure_classes_missing": [],
   "thin_executable_failure_classes": {},
   "coverage_warnings": [],
-  "fixture_ref_count": 36,
+  "fixture_ref_count": 37,
   "fixture_scenario_count": 30,
   "fixture_type_counts": {
     "calculator": 1,
@@ -934,6 +947,7 @@
     "errors": 1,
     "images": 2,
     "mcp": 2,
+    "media": 1,
     "notes": 1,
     "safety": 1,
     "shell": 2,
@@ -957,7 +971,7 @@
     "A2-S020": 3,
     "A2-S029": 1,
     "A2-S030": 1,
-    "A2-S031": 1,
+    "A2-S031": 2,
     "A2-S032": 1,
     "A2-S033": 1,
     "A2-S035": 1,

@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 from collections import Counter
 from pathlib import Path
@@ -210,7 +211,7 @@ class A2ContractTests(unittest.TestCase):
         run_dir = ROOT / "fixtures/a2/runs"
         fixtures = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(run_dir.glob("*.json"))]
         by_scenario = {fixture["scenario_id"]: fixture for fixture in fixtures}
-        for scenario_id in {"A2-S016", "A2-S018", "A2-S019", "A2-S033", "A2-S041"}:
+        for scenario_id in {"A2-S016", "A2-S018", "A2-S019", "A2-S031", "A2-S033", "A2-S041"}:
             with self.subTest(scenario=scenario_id):
                 self.assertIn(scenario_id, by_scenario)
                 self.assertFalse(by_scenario[scenario_id]["expected"]["passed"])
@@ -305,18 +306,21 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["thin_scenario_dimensions"], {})
         self.assertEqual(report["scenario_dimension_counts"]["required_tool_use"], 24)
         self.assertEqual(report["scenario_dimension_counts"]["fixture_grounding"], 30)
-        self.assertEqual(report["scenario_dimension_counts"]["ordered_tool_sequence"], 4)
+        self.assertEqual(report["scenario_dimension_counts"]["ordered_tool_sequence"], 5)
         self.assertEqual(report["difficulty_counts"]["D4"], 2)
         self.assertEqual(report["multi_turn_scenario_count"], 4)
         self.assertEqual(report["environment_counts"]["local"], 38)
-        self.assertEqual(report["tool_policy_shape_counts"]["ordered_tools"], 4)
+        self.assertEqual(report["tool_policy_shape_counts"]["ordered_tools"], 5)
         self.assertEqual(report["required_tool_counts"]["web.search"], 6)
         self.assertEqual(report["required_tool_counts"]["web.open"], 5)
         self.assertEqual(report["ordered_tool_pairs"]["web.search -> web.open"], 3)
         self.assertEqual(report["ordered_tool_pairs"]["file.read -> file.read"], 1)
+        self.assertEqual(report["ordered_tool_pairs"]["media.fetch -> image.view"], 1)
+        self.assertEqual(report["ordered_tool_pairs"]["image.view -> media.classify"], 1)
         self.assertEqual(report["fixture_scenario_count"], 30)
         self.assertEqual(report["fixture_type_counts"]["web"], 9)
         self.assertEqual(report["fixture_type_counts"]["calculator"], 1)
+        self.assertEqual(report["fixture_type_counts"]["media"], 1)
         self.assertEqual(report["scenario_quality_warnings"], [])
         self.assertEqual(set(report["primary_rubric_counts"].values()), {12})
         self.assertEqual(len(report["primary_failure_class_counts"]), 12)
@@ -344,8 +348,8 @@ class A2ContractTests(unittest.TestCase):
         }
         self.assertIn("GC-A2-S033-fail-wrong-calculator-arguments", golden_wrong_arguments)
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertGreaterEqual(report["executable_run_case_count"], 28)
-        self.assertGreaterEqual(report["executable_failure_case_count"], 27)
+        self.assertGreaterEqual(report["executable_run_case_count"], 30)
+        self.assertGreaterEqual(report["executable_failure_case_count"], 28)
         self.assertEqual(report["executable_failure_classes_missing"], [])
         self.assertEqual(report["thin_executable_failure_classes"], {})
         for failure_class in CANONICAL_FAILURE_CLASSES:
@@ -365,8 +369,25 @@ class A2ContractTests(unittest.TestCase):
             for case_ref in report["executable_failure_class_cases"]["wrong_tool_order"]
         }
         self.assertIn("sample-a2-s042-wrong-read-order", executable_wrong_order)
+        self.assertIn("sample-a2-s031-media-pipeline-wrong-order", executable_wrong_order)
         self.assertEqual(report["coverage_warnings"], [])
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
+
+    def test_real_api_smoke_evidence_is_redacted(self):
+        evidence_path = ROOT / "docs/evidence/a2_real_api_smoke.json"
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+
+        self.assertEqual(payload["schema_version"], "a2.real_api_smoke.v1")
+        self.assertEqual(payload["api_call_count"], 6)
+        self.assertTrue(payload["all_required_calls_reached"])
+        self.assertEqual([call["status"] for call in payload["calls"]], ["ok"] * 6)
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotIn("@", payload_text)
+        for call in payload["calls"]:
+            self.assertNotIn("payload", call)
+            self.assertNotIn("response", call)
 
 
 if __name__ == "__main__":

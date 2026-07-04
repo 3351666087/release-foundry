@@ -28,7 +28,8 @@ This module provides the local G1-G2 foundation for:
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
-- 28 executable calibration run fixtures, including G3 tool/workflow cases in `fixtures/a2/runs`
+- 30 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
+- Optional real Ashr API smoke script: `scripts/a2_real_api_smoke.py`
 
 ## Local Run Shapes
 
@@ -77,7 +78,7 @@ Local debug signals such as `bad_final_response` can appear inside `failure_anal
 
 G1-G2 is deterministic and local. It should not depend on real Ashr API access, LLM judge calls, or live external tools.
 
-G3 can add Ashr server-side grading calibration after the local contract is stable.
+G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided.
 
 ## Agent Workflow
 
