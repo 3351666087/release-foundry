@@ -63,9 +63,11 @@ The result contains:
 
 - overall `passed`,
 - average `score`,
-- `primary_failure_class`,
+- canonical `primary_failure_class` for A3 clustering,
 - 5 per-judge `GradeResult` entries,
 - nested `FailureAnalysis` objects for A3 display.
+
+Local debug signals such as `bad_final_response` can appear inside `failure_analysis.failure_classes`, but they should not be used as the top-level `primary_failure_class`.
 
 ## G1-G2 Boundary
 

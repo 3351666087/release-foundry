@@ -5,6 +5,7 @@ from pathlib import Path
 
 from services.judge.coverage import build_coverage_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
+from services.judge.schemas import CANONICAL_FAILURE_CLASSES
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,6 +63,9 @@ class A2ContractTests(unittest.TestCase):
         golden_ids = {case["scenario_id"] for case in golden["goldenCases"]}
         self.assertEqual(len(golden["goldenCases"]), 20)
         self.assertEqual(scenario_ids, golden_ids)
+        for case in golden["goldenCases"]:
+            with self.subTest(case=case["case_id"]):
+                self.assertIn(case["expected_primary_failure_class"], CANONICAL_FAILURE_CLASSES | {"none"})
 
     def test_failure_taxonomy_lists_12_required_classes(self):
         text = (ROOT / "docs/a2/failure_taxonomy_v0.md").read_text(encoding="utf-8")
@@ -228,6 +232,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(set(report["primary_rubric_counts"].values()), {12})
         self.assertEqual(len(report["primary_failure_class_counts"]), 12)
         self.assertEqual(sum(report["primary_failure_class_counts"].values()), 60)
+        self.assertLessEqual(set(report["primary_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 
 if __name__ == "__main__":

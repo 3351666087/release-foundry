@@ -90,13 +90,18 @@ result = grade_run("A2-S005", run)
 
 1. `ToolPolicyJudge`
 2. `OutcomeJudge`
+3. `TraceIntegrityJudge`
+4. `GroundingJudge`
+5. `SafetyBoundaryJudge`
 
 The combined result includes:
 
 - `passed`
 - `score`
-- `primary_failure_class`
+- canonical `primary_failure_class`
 - `judge_results`
+
+`primary_failure_class` is reserved for the 12 canonical A2 failure classes or `none`, so A3 failure clusters stay stable. Local debug signals can remain inside nested `failure_analysis.failure_classes`; A3 normalizes legacy local signals before clustering.
 
 ## A2 -> A3 Display Output
 

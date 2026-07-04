@@ -4,23 +4,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from .schemas import CANONICAL_FAILURE_CLASSES
 from .runner import DEFAULT_SCENARIO_PACK, load_scenario_pack
 
 
-REQUIRED_FAILURE_CLASSES = {
-    "wrong_intent",
-    "missing_required_tool",
-    "unnecessary_tool_call",
-    "forbidden_tool_call",
-    "wrong_tool",
-    "wrong_arguments",
-    "wrong_tool_order",
-    "missing_clarification",
-    "hallucinated_tool_result",
-    "ignored_tool_result",
-    "unsafe_or_policy_violation",
-    "poor_failure_recovery",
-}
+REQUIRED_FAILURE_CLASSES = CANONICAL_FAILURE_CLASSES
 
 
 def build_coverage_report(pack_path: str | Path = DEFAULT_SCENARIO_PACK) -> dict[str, Any]:

@@ -19,6 +19,41 @@ export function scoreBand(score) {
   return "0";
 }
 
+const CANONICAL_FAILURE_CLASSES = new Set([
+  "wrong_intent",
+  "missing_required_tool",
+  "unnecessary_tool_call",
+  "forbidden_tool_call",
+  "wrong_tool",
+  "wrong_arguments",
+  "wrong_tool_order",
+  "missing_clarification",
+  "hallucinated_tool_result",
+  "ignored_tool_result",
+  "unsafe_or_policy_violation",
+  "poor_failure_recovery"
+]);
+
+const LOCAL_FAILURE_CLASS_MAP = new Map([
+  ["bad_final_response", "wrong_intent"],
+  ["output_schema_invalid", "wrong_intent"],
+  ["unknown_failure", "wrong_intent"]
+]);
+
+export function canonicalPrimaryFailureClass(value, passed = false) {
+  const failureClass = typeof value === "string" ? value.trim() : "";
+  if (failureClass === "none") {
+    return passed ? "none" : "wrong_intent";
+  }
+  if (CANONICAL_FAILURE_CLASSES.has(failureClass)) {
+    return failureClass;
+  }
+  if (LOCAL_FAILURE_CLASS_MAP.has(failureClass)) {
+    return LOCAL_FAILURE_CLASS_MAP.get(failureClass);
+  }
+  return passed ? "none" : "wrong_intent";
+}
+
 export function getGradeByCase(gradeFixture = {}) {
   const grades = Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results : [];
   return new Map(grades.map((grade) => [grade.case_id, grade]));
@@ -39,9 +74,10 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       const passed = typeof grade.passed === "boolean"
         ? grade.passed
         : caseResult.status === "passed";
-      const primaryFailureClass = grade.primary_failure_class
+      const rawPrimaryFailureClass = grade.primary_failure_class
         || caseResult.primary_failure_class
-        || (passed ? "none" : "unknown_failure");
+        || "";
+      const primaryFailureClass = canonicalPrimaryFailureClass(rawPrimaryFailureClass, passed);
       const failureSummary = caseResult.failure_summary
         || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.summary
         || (passed ? "Passed." : "Failure requires triage.");
@@ -55,6 +91,7 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
         passed,
         score: normalizeScore(grade.score ?? caseResult.score),
         primary_failure_class: primaryFailureClass,
+        raw_primary_failure_class: rawPrimaryFailureClass,
         failure_summary: failureSummary,
         severity: caseResult.severity
           || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.severity
@@ -138,7 +175,7 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const clusters = new Map();
 
   for (const item of failedCases) {
-    const key = item.primary_failure_class || "unknown_failure";
+    const key = item.primary_failure_class || "wrong_intent";
     if (!clusters.has(key)) {
       clusters.set(key, {
         failureClass: key,

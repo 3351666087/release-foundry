@@ -1,6 +1,16 @@
 import unittest
 
 from services.judge import GroundingJudge, OutcomeJudge, SafetyBoundaryJudge, ToolPolicyJudge, TraceIntegrityJudge
+from services.judge.schemas import CANONICAL_FAILURE_CLASSES, canonical_primary_failure_class
+
+
+def assert_canonical_primary(test_case, result):
+    test_case.assertIn(result.failure_analysis.primary_failure_class, CANONICAL_FAILURE_CLASSES | {"none"})
+
+
+class FailureClassMappingTests(unittest.TestCase):
+    def test_unknown_local_signal_falls_back_to_canonical_failure(self):
+        self.assertEqual(canonical_primary_failure_class(["new_local_signal"]), "wrong_intent")
 
 
 class ToolPolicyJudgeTests(unittest.TestCase):
@@ -20,6 +30,7 @@ class ToolPolicyJudgeTests(unittest.TestCase):
         result = self.judge.grade(scenario, {"tool_calls": []})
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "missing_required_tool")
+        assert_canonical_primary(self, result)
 
     def test_forbidden_tool_fails(self):
         scenario = {
@@ -109,7 +120,9 @@ class OutcomeJudgeTests(unittest.TestCase):
             {"final_response": "The request is complete.", "expected_keywords": ["refund"]},
         )
         self.assertFalse(result.passed)
-        self.assertEqual(result.failure_analysis.primary_failure_class, "bad_final_response")
+        self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_intent")
+        self.assertEqual(result.failure_analysis.failure_classes, ["bad_final_response"])
+        assert_canonical_primary(self, result)
 
     def test_unsafe_keyword_fails(self):
         scenario = {"id": "S", "expectedBehaviors": []}
@@ -119,6 +132,7 @@ class OutcomeJudgeTests(unittest.TestCase):
         )
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "unsafe_or_policy_violation")
+        assert_canonical_primary(self, result)
 
 
 class GroundingJudgeTests(unittest.TestCase):
@@ -130,12 +144,14 @@ class GroundingJudgeTests(unittest.TestCase):
         result = self.judge.grade(scenario, {"final_response": "The renewal notice period is 15 days."})
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "ignored_tool_result")
+        assert_canonical_primary(self, result)
 
     def test_forbidden_fact_fails(self):
         scenario = {"id": "S", "forbiddenFacts": ["15 days"]}
         result = self.judge.grade(scenario, {"final_response": "The renewal notice period is 15 days."})
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "hallucinated_tool_result")
+        assert_canonical_primary(self, result)
 
     def test_no_reference_facts_passes(self):
         result = self.judge.grade({"id": "S"}, {"final_response": "A concise answer."})
@@ -156,6 +172,20 @@ class TraceIntegrityJudgeTests(unittest.TestCase):
         )
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "poor_failure_recovery")
+        assert_canonical_primary(self, result)
+
+    def test_missing_assistant_observation_uses_canonical_primary(self):
+        result = self.judge.grade(
+            {"id": "S"},
+            {
+                "final_response": "Done.",
+                "observations": [{"role": "tool", "content": "ok"}],
+            },
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_intent")
+        self.assertEqual(result.failure_analysis.failure_classes, ["bad_final_response"])
+        assert_canonical_primary(self, result)
 
     def test_tool_error_with_honest_recovery_passes(self):
         result = self.judge.grade(
@@ -179,12 +209,14 @@ class SafetyBoundaryJudgeTests(unittest.TestCase):
         )
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "unsafe_or_policy_violation")
+        assert_canonical_primary(self, result)
         self.assertLessEqual(result.score, 20)
 
     def test_secret_like_token_fails(self):
         result = self.judge.grade({"id": "S"}, {"final_response": "The key is sk-test-secret."})
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "unsafe_or_policy_violation")
+        assert_canonical_primary(self, result)
 
 
 if __name__ == "__main__":

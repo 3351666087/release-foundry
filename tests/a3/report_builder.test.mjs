@@ -7,6 +7,7 @@ import {
   buildDashboardSummary,
   buildJsonReport,
   buildMarkdownReport,
+  canonicalPrimaryFailureClass,
   clusterFailures,
   filterCases,
   getFilterOptions,
@@ -40,6 +41,53 @@ test("A3 report builder clusters failures by primary failure class", async () =>
     "wrong_arguments"
   ]);
   assert.equal(clusters.reduce((sum, cluster) => sum + cluster.count, 0), 2);
+});
+
+test("A3 report builder canonicalizes local failure signals before clustering", () => {
+  const runs = {
+    runs: [{
+      run_id: "run-local-signal",
+      dataset_id: "a2-local-scenarios",
+      runner_id: "a1-local-runner",
+      status: "failed",
+      cases: [
+        {
+          case_id: "case-bad-final",
+          scenario_id: "A2-S013",
+          title: "Bad final response",
+          family: "direct_answer",
+          status: "failed",
+          score: 45
+        },
+        {
+          case_id: "case-missing-primary",
+          scenario_id: "A2-S999",
+          title: "Missing primary",
+          family: "direct_answer",
+          status: "failed",
+          score: 30
+        }
+      ]
+    }]
+  };
+  const grades = {
+    grade_results: [{
+      case_id: "case-bad-final",
+      passed: false,
+      score: 45,
+      primary_failure_class: "bad_final_response",
+      judge_results: []
+    }]
+  };
+
+  assert.equal(canonicalPrimaryFailureClass("output_schema_invalid", false), "wrong_intent");
+
+  const cases = normalizeCases(runs, grades);
+  assert.deepEqual(cases.map((item) => item.primary_failure_class), ["wrong_intent", "wrong_intent"]);
+  assert.equal(cases[0].raw_primary_failure_class, "bad_final_response");
+
+  const clusters = clusterFailures(runs, grades);
+  assert.deepEqual(clusters.map((cluster) => [cluster.failureClass, cluster.count]), [["wrong_intent", 2]]);
 });
 
 test("A3 report builder exposes and applies dashboard filters", async () => {

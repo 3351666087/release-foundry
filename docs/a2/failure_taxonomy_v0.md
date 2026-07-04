@@ -25,7 +25,7 @@ This taxonomy is intentionally stable and deterministic for G1-G2. Each judge ca
 
 ## Non-Canonical Signals
 
-Some deterministic checks emit local sub-signals for debugging. A3 clustering should prefer the 12 canonical classes above as `primary_failure_class`.
+Some deterministic checks emit local sub-signals for debugging. Runtime judges must keep `primary_failure_class` canonical, using one of the 12 classes above or `none`. Local sub-signals can still appear in `failure_analysis.failure_classes` or evidence for debugging.
 
 | Local signal | Canonical class |
 |---|---|

@@ -3,7 +3,7 @@
 from typing import Any
 
 from .common import get_tool_args, get_tool_name
-from .schemas import FailureAnalysis, GradeResult, rubric_entry, weighted_score
+from .schemas import FailureAnalysis, GradeResult, canonical_primary_failure_class, rubric_entry, weighted_score
 
 
 class TraceIntegrityJudge:
@@ -42,7 +42,7 @@ class TraceIntegrityJudge:
 
         trace_score = 1.0 if not failures else 0.55
         failure_analysis = FailureAnalysis(
-            primary_failure_class=list(dict.fromkeys(failures))[0] if failures else "none",
+            primary_failure_class=canonical_primary_failure_class(list(dict.fromkeys(failures))),
             failure_classes=list(dict.fromkeys(failures)),
             severity="major" if failures else "none",
             blame_stage="trace" if failures else "reasoning",

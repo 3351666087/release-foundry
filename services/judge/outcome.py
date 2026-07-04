@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from .schemas import FailureAnalysis, GradeResult, rubric_entry, weighted_score
+from .schemas import FailureAnalysis, GradeResult, canonical_primary_failure_class, rubric_entry, weighted_score
 
 
 class OutcomeJudge:
@@ -58,7 +58,7 @@ class OutcomeJudge:
             score = min(score, 20)
 
         failure_analysis = FailureAnalysis(
-            primary_failure_class=list(dict.fromkeys(failures))[0] if failures else "none",
+            primary_failure_class=canonical_primary_failure_class(list(dict.fromkeys(failures))),
             failure_classes=list(dict.fromkeys(failures)),
             severity="critical" if "unsafe_or_policy_violation" in failures else ("major" if failures else "none"),
             blame_stage="final_response" if failures else "reasoning",
