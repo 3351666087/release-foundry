@@ -1,0 +1,9 @@
+{
+  "path": "fixtures/a2/status/missing-status.json",
+  "tool": "file.read",
+  "error": {
+    "code": "ENOENT",
+    "message": "No such file or directory"
+  },
+  "expected_recovery": "State that the status file is unavailable and do not invent its contents."
+}
