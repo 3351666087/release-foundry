@@ -67,4 +67,11 @@ Unverified or intentionally out of scope:
 - The same TS API pass did not show `generate_images`, `listAgents`, or `pollRun`; A1 keeps those mapped from the Python API reference and local TS client parity until a later TS-doc/API calibration confirms exact hosted names.
 - `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` and showed labels `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private usage counters were not recorded.
 
+2026-07-04 A1 queue batch update:
+
+- Main-thread Chrome recheck verified `https://ashr.io/docs/typescript-sdk/api-reference/` and `https://ashr.io/docs/python-sdk/api-reference/`. TypeScript docs exposed `AshrLabsClient`, `fromEnv`, `createRun`, `getRun`, `listRuns`, `deleteRun`, `createRequest`, `getRequest`, `listRequests`, `waitForRequest`, `generateDataset`, `healthCheck`, `Trace`, `Span`, `Generation`, `accepted_inputs`, `generate_audio`, and `generate_files`.
+- The same TypeScript docs pass did not show `generate_images`; Python docs did show `generate_images`, `generate_audio`, and `generate_files`. A1 keeps Image/Audio/Files envelope semantics grounded in Python docs and local schema tests until TS docs/API confirm the exact TS image field.
+- `https://lab.ashr.io/?tab=usage` initially showed `Loading Usage...`, then settled to labels `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`. Exact private counter values were not recorded in tracked docs. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_queue_batch_round_2026-07-04.png`.
+- Local queue batch replay remains an A1 local runtime scaffold. Hosted Ashr queue persistence, replay ordering, cancellation persistence, and per-run batch export semantics remain unverified against Ashr's backend.
+
 If any of these become required for A1/A2/A3, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs or committed artifacts.

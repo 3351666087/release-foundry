@@ -415,6 +415,194 @@ def test_cloud_api_cli_queue_state_replay_and_export_roundtrip(tmp_path):
     assert export_summary["export"] == {"allow_incomplete": False, "run_id": run_id, "status": "completed"}
 
 
+def test_cloud_api_cli_batch_queue_replay_exports_per_run_outputs(tmp_path):
+    cases_path = _write_cases(tmp_path)
+    state_path = tmp_path / "batch_queued_state.json"
+    queued_summary_path = tmp_path / "batch_queued_summary.json"
+    replayed_state_path = tmp_path / "batch_replayed_state.json"
+    replay_summary_path = tmp_path / "batch_replay_summary.json"
+    fixture_dir = tmp_path / "fixtures"
+    run_dir = tmp_path / "runs"
+    run_ids = ["run_cli_batch_second", "run_cli_batch_first"]
+
+    queued = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "queue-run",
+            "--input",
+            str(cases_path),
+            "--state-output",
+            str(state_path),
+            "--summary-output",
+            str(queued_summary_path),
+            "--tenant-id",
+            "tenant_cli_batch_replay_test",
+            "--project-id",
+            "project_cli_batch_replay_test",
+            "--dataset-id",
+            "dataset_cli_batch_replay_test",
+            "--runner-id",
+            "a1-cli-batch-replay-test",
+            "--run-id",
+            run_ids[0],
+            "--run-id",
+            run_ids[1],
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert queued.returncode == 0, queued.stderr
+    queued_summary = json.loads(queued_summary_path.read_text(encoding="utf-8"))
+    queued_state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert queued_summary["run_ids"] == run_ids
+    assert queued_summary["queue"]["batch_size"] == 2
+    assert queued_summary["queue"]["run_ids"] == run_ids
+    assert [queued_state["store"]["runs"][run_id]["metadata"]["batch_index"] for run_id in run_ids] == [0, 1]
+
+    replayed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "replay-queued",
+            "--state-input",
+            str(state_path),
+            "--agent",
+            AGENT_TARGET,
+            "--tenant-id",
+            "tenant_cli_batch_replay_test",
+            "--project-id",
+            "project_cli_batch_replay_test",
+            "--dataset-id",
+            "dataset_cli_batch_replay_test",
+            "--fixture-output-dir",
+            str(fixture_dir),
+            "--summary-output",
+            str(replay_summary_path),
+            "--run-output-dir",
+            str(run_dir),
+            "--state-output",
+            str(replayed_state_path),
+            "--queue-workers",
+            "1",
+            "--max-workers",
+            "1",
+            "--timeout",
+            "5",
+            "--wait-timeout",
+            "10",
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert replayed.returncode == 0, replayed.stderr
+    replay_summary = json.loads(replay_summary_path.read_text(encoding="utf-8"))
+    replayed_state = json.loads(replayed_state_path.read_text(encoding="utf-8"))
+    assert replay_summary["replay"]["replayed"] == run_ids
+    assert replay_summary["replay"]["completed"] == [{"run_id": run_id, "status": "completed"} for run_id in run_ids]
+    assert replay_summary["run_ids"] == run_ids
+    assert replay_summary["quota"]["used"]["dataset.create"] == 1
+    assert replay_summary["quota"]["used"]["run.submit"] == 2
+    assert replay_summary["quota"]["used"]["observation.write"] == 8
+    assert replay_summary["outputs"]["fixture"] is None
+    assert replay_summary["outputs"]["run_result"] is None
+    assert set(replay_summary["outputs"]["fixtures"]) == set(run_ids)
+    assert set(replay_summary["outputs"]["run_results"]) == set(run_ids)
+    for run_id in run_ids:
+        fixture = json.loads(Path(replay_summary["outputs"]["fixtures"][run_id]).read_text(encoding="utf-8"))
+        run_result = json.loads(Path(replay_summary["outputs"]["run_results"][run_id]).read_text(encoding="utf-8"))
+        assert fixture["run_id"] == run_id
+        assert fixture["status"] == "completed"
+        assert fixture["metadata"]["ashr_api_used"] is False
+        assert run_result["run_id"] == run_id
+        assert replayed_state["store"]["runs"][run_id]["status"] == "completed"
+        assert replayed_state["store"]["runs"][run_id]["metadata"]["queue_workers"] == 4
+        assert replayed_state["store"]["runs"][run_id]["metadata"]["runner_max_workers"] == 4
+
+
+def test_cloud_api_cli_batch_replay_requires_output_dirs_for_multiple_runs(tmp_path):
+    state_path = tmp_path / "batch_queued_state.json"
+    fixture_output = tmp_path / "single_fixture.json"
+    run_ids = ["run_cli_batch_guard_a", "run_cli_batch_guard_b"]
+    queued = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "queue-run",
+            "--input",
+            str(_write_cases(tmp_path)),
+            "--state-output",
+            str(state_path),
+            "--tenant-id",
+            "tenant_cli_batch_guard_test",
+            "--project-id",
+            "project_cli_batch_guard_test",
+            "--dataset-id",
+            "dataset_cli_batch_guard_test",
+            "--run-id",
+            run_ids[0],
+            "--run-id",
+            run_ids[1],
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert queued.returncode == 0, queued.stderr
+
+    replayed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "replay-queued",
+            "--state-input",
+            str(state_path),
+            "--agent",
+            AGENT_TARGET,
+            "--tenant-id",
+            "tenant_cli_batch_guard_test",
+            "--project-id",
+            "project_cli_batch_guard_test",
+            "--dataset-id",
+            "dataset_cli_batch_guard_test",
+            "--fixture-output",
+            str(fixture_output),
+            "--queue-workers",
+            "1",
+            "--max-workers",
+            "1",
+            "--timeout",
+            "5",
+            "--wait-timeout",
+            "10",
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert replayed.returncode == 2
+    assert "use fixture output dir for multiple runs" in replayed.stderr
+    assert "Traceback" not in replayed.stderr
+    assert not fixture_output.exists()
+
+
 def test_cloud_api_cli_export_fixture_blocks_incomplete_state(tmp_path):
     state_path = tmp_path / "queued_state.json"
     fixture_output = tmp_path / "queued_fixture.json"

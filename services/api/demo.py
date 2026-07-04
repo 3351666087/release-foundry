@@ -169,6 +169,8 @@ def create_agent_cloud_queue_state(
     dataset_name: str = "Local Queue State Dataset",
     runner_id: str = "a1-cloud-queue-runner",
     run_id: str | None = None,
+    run_ids: Iterable[str] | None = None,
+    run_count: int = 1,
 ) -> JsonDict:
     cases = load_cases(input_path)
     service = CloudApiService()
@@ -182,25 +184,35 @@ def create_agent_cloud_queue_state(
         dataset_id=dataset_id,
         metadata={"source": "services.api.demo.queue_state", "input_path": str(input_path)},
     )
-    queued = service.create_queued_run(
-        tenant["tenant_id"],
-        project["project_id"],
-        dataset_id=dataset["dataset_id"],
-        runner_id=runner_id,
-        run_id=run_id,
-        metadata={"source": "services.api.demo.queue_state"},
-    )
+    queue_run_ids = _queue_run_ids(dataset["dataset_id"], run_id=run_id, run_ids=run_ids, run_count=run_count)
+    queued_runs = []
+    for index, queued_run_id in enumerate(queue_run_ids):
+        queued_runs.append(
+            service.create_queued_run(
+                tenant["tenant_id"],
+                project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                runner_id=runner_id,
+                run_id=queued_run_id,
+                metadata={
+                    "source": "services.api.demo.queue_state",
+                    "batch_index": index,
+                    "batch_size": len(queue_run_ids),
+                    "replay_order": index,
+                },
+            )
+        )
     state_path = service.write_state(state_output_path)
     summary = _state_summary(
         tenant=tenant,
         project=project,
         dataset=dataset,
-        runs=[queued],
+        runs=queued_runs,
         quota=service.quota_snapshot(tenant["tenant_id"], project["project_id"]),
         state_input_path=None,
         state_output_path=state_path,
     )
-    summary["queue"] = {"queued_status": queued["status"], "status_history": queued.get("status_history", [])}
+    summary["queue"] = _queue_batch_summary(queued_runs)
     if summary_output_path is not None:
         _write_json(summary, summary_output_path)
     return summary
@@ -213,12 +225,14 @@ def replay_agent_cloud_queue_state(
     tenant_id: str,
     project_id: str,
     fixture_output_path: str | Path | None = None,
+    fixture_output_dir: str | Path | None = None,
     summary_output_path: str | Path | None = None,
     run_output_path: str | Path | None = None,
+    run_output_dir: str | Path | None = None,
     state_output_path: str | Path | None = None,
     dataset_id: str | None = None,
     statuses: Iterable[str] = ("queued", "running"),
-    max_runs: int = 1,
+    max_runs: int = 100,
     queue_workers: int | None = DEFAULT_MAX_WORKERS,
     max_workers: int | None = DEFAULT_MAX_WORKERS,
     timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
@@ -247,16 +261,16 @@ def replay_agent_cloud_queue_state(
             )["run"]
             for run in replayed
         ]
-    if (fixture_output_path is not None or run_output_path is not None) and len(completed) != 1:
-        raise ValidationError("fixture/run output requires exactly one replayed run")
-    fixture_path: Path | None = None
-    run_output: str | Path | None = None
-    if completed and fixture_output_path is not None:
-        run = completed[0]
-        fixture_path = service.write_run_fixture(tenant_id, project_id, str(run["run_id"]), fixture_output_path)
-    if completed and run_output_path is not None:
-        write_results_json(completed[0]["result"], run_output_path)
-        run_output = run_output_path
+    outputs = _write_replayed_outputs(
+        service=service,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        runs=completed,
+        fixture_output_path=fixture_output_path,
+        fixture_output_dir=fixture_output_dir,
+        run_output_path=run_output_path,
+        run_output_dir=run_output_dir,
+    )
     state_path = service.write_state(state_output_path) if state_output_path is not None else None
     quota = service.quota_snapshot(tenant_id, project_id)
     summary = _state_summary(
@@ -271,15 +285,11 @@ def replay_agent_cloud_queue_state(
     summary["replay"] = {
         "replayed": [run["run_id"] for run in replayed],
         "completed": [{"run_id": run["run_id"], "status": run["status"]} for run in completed],
+        "status_histories": {str(run["run_id"]): run.get("status_history", []) for run in completed},
         "statuses": [str(status) for status in statuses],
         "max_runs": int(max_runs),
     }
-    summary["outputs"].update(
-        {
-            "fixture": str(fixture_path) if fixture_path is not None else None,
-            "run_result": str(run_output) if run_output is not None else None,
-        }
-    )
+    summary["outputs"].update(outputs)
     if summary_output_path is not None:
         _write_json(summary, summary_output_path)
     return summary
@@ -374,6 +384,7 @@ def _state_summary(
     state_input_path: str | Path | None,
     state_output_path: str | Path | None,
 ) -> JsonDict:
+    run_list = list(runs)
     run_summaries = [
         {
             "run_id": run["run_id"],
@@ -382,10 +393,14 @@ def _state_summary(
             "result_status": run["result_status"],
             "runner_id": run["runner_id"],
             "total_cases": run["total_cases"],
+            "passed": (run.get("result") or {}).get("passed") if isinstance(run.get("result"), Mapping) else None,
+            "failed": (run.get("result") or {}).get("failed") if isinstance(run.get("result"), Mapping) else None,
+            "errored": (run.get("result") or {}).get("errored") if isinstance(run.get("result"), Mapping) else None,
+            "timed_out": (run.get("result") or {}).get("timed_out") if isinstance(run.get("result"), Mapping) else None,
             "observations": len(run.get("observations") or []),
             "status_history": run.get("status_history", []),
         }
-        for run in runs
+        for run in run_list
     ]
     return {
         "schema_version": CLOUD_API_SCHEMA_VERSION,
@@ -396,6 +411,7 @@ def _state_summary(
             if dataset is not None
             else None
         ),
+        "run_ids": [run["run_id"] for run in run_list],
         "runs": run_summaries,
         "quota": {
             "used": quota.get("used", {}),
@@ -407,6 +423,106 @@ def _state_summary(
         },
         "metadata": {"local_only": True, "ashr_api_used": False},
     }
+
+
+def _queue_run_ids(
+    dataset_id: str,
+    *,
+    run_id: str | None,
+    run_ids: Iterable[str] | None,
+    run_count: int,
+) -> list[str | None]:
+    try:
+        count = int(run_count)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("run_count must be positive") from exc
+    if count < 1:
+        raise ValidationError("run_count must be positive")
+    explicit_run_ids = []
+    if run_id is not None:
+        explicit_run_ids.append(str(run_id))
+    explicit_run_ids.extend(str(item) for item in (run_ids or []))
+    if explicit_run_ids:
+        if count != 1 and count != len(explicit_run_ids):
+            raise ValidationError("run_count must match the number of explicit run IDs")
+        if len(set(explicit_run_ids)) != len(explicit_run_ids):
+            raise ValidationError("run IDs must be unique")
+        return explicit_run_ids
+    if count == 1:
+        return [None]
+    prefix = _safe_run_filename(str(dataset_id)) or "dataset"
+    return [f"run_{prefix}_{index + 1:03d}" for index in range(count)]
+
+
+def _queue_batch_summary(runs: Iterable[Mapping[str, Any]]) -> JsonDict:
+    run_list = list(runs)
+    first = run_list[0] if run_list else {}
+    return {
+        "queued_status": first.get("status"),
+        "status_history": first.get("status_history", []),
+        "run_ids": [run["run_id"] for run in run_list],
+        "queued_statuses": [{"run_id": run["run_id"], "status": run["status"]} for run in run_list],
+        "status_histories": {str(run["run_id"]): run.get("status_history", []) for run in run_list},
+        "batch_size": len(run_list),
+    }
+
+
+def _write_replayed_outputs(
+    *,
+    service: CloudApiService,
+    tenant_id: str,
+    project_id: str,
+    runs: Iterable[Mapping[str, Any]],
+    fixture_output_path: str | Path | None,
+    fixture_output_dir: str | Path | None,
+    run_output_path: str | Path | None,
+    run_output_dir: str | Path | None,
+) -> JsonDict:
+    run_list = list(runs)
+    if fixture_output_path is not None and fixture_output_dir is not None:
+        raise ValidationError("use either fixture_output_path or fixture_output_dir")
+    if run_output_path is not None and run_output_dir is not None:
+        raise ValidationError("use either run_output_path or run_output_dir")
+    if fixture_output_path is not None and len(run_list) != 1:
+        raise ValidationError("fixture output path requires exactly one replayed run; use fixture output dir for multiple runs")
+    if run_output_path is not None and len(run_list) != 1:
+        raise ValidationError("run output path requires exactly one replayed run; use run output dir for multiple runs")
+
+    fixture_path: Path | None = None
+    run_result_path: Path | None = None
+    fixture_paths: dict[str, str] = {}
+    run_result_paths: dict[str, str] = {}
+
+    if fixture_output_path is not None and run_list:
+        run = run_list[0]
+        fixture_path = service.write_run_fixture(tenant_id, project_id, str(run["run_id"]), fixture_output_path)
+    if run_output_path is not None and run_list:
+        run = run_list[0]
+        run_result_path = write_results_json(run["result"], run_output_path)
+    if fixture_output_dir is not None:
+        output_dir = Path(fixture_output_dir)
+        for run in run_list:
+            run_id = str(run["run_id"])
+            output_path = output_dir / f"{_safe_run_filename(run_id)}.fixture.json"
+            fixture_paths[run_id] = str(service.write_run_fixture(tenant_id, project_id, run_id, output_path))
+    if run_output_dir is not None:
+        output_dir = Path(run_output_dir)
+        for run in run_list:
+            run_id = str(run["run_id"])
+            output_path = output_dir / f"{_safe_run_filename(run_id)}.run.json"
+            run_result_paths[run_id] = str(write_results_json(run["result"], output_path))
+
+    return {
+        "fixture": str(fixture_path) if fixture_path is not None else None,
+        "run_result": str(run_result_path) if run_result_path is not None else None,
+        "fixtures": fixture_paths,
+        "run_results": run_result_paths,
+    }
+
+
+def _safe_run_filename(run_id: str) -> str:
+    safe = "".join(character if character.isalnum() or character in {"-", "_", "."} else "_" for character in run_id)
+    return safe.strip("._") or "run"
 
 
 def _write_json(payload: Mapping[str, Any], output_path: str | Path) -> Path:

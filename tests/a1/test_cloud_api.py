@@ -417,6 +417,53 @@ def test_cloud_queue_worker_replay_respects_max_runs_bound(tmp_path):
     assert restored.poll_run(tenant["tenant_id"], project["project_id"], "run_queue_replay_b")["status"] == "queued"
 
 
+def test_cloud_queue_worker_replay_uses_batch_order_metadata(tmp_path):
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Ordered Replay Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_queue_ordered_replay",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        runner_id="a1-queue-order-test",
+        run_id="run_order_second",
+        metadata={"batch_index": 1, "batch_size": 2},
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        runner_id="a1-queue-order-test",
+        run_id="run_order_first",
+        metadata={"batch_index": 0, "batch_size": 2},
+    )
+
+    with CloudQueueWorker(CloudApiService.from_state(service.snapshot_state()), queue_workers=1) as worker:
+        replayed = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent=RespondingMockAgent,
+            max_runs=2,
+            max_workers=1,
+            timeout_seconds=5,
+        )
+        completed = [
+            worker.wait_for_run(tenant["tenant_id"], project["project_id"], run["run_id"], timeout_seconds=10, require_terminal=True)["run"]
+            for run in replayed
+        ]
+
+    assert [run["run_id"] for run in replayed] == ["run_order_first", "run_order_second"]
+    assert [run["run_id"] for run in completed] == ["run_order_first", "run_order_second"]
+    assert all(run["status"] == "completed" for run in completed)
+    assert all(run["metadata"]["queue_workers"] == 4 for run in completed)
+    assert all(run["metadata"]["runner_max_workers"] == 4 for run in completed)
+
+
 def test_cloud_api_demo_runs_agent_submits_polls_and_writes_outputs(tmp_path):
     input_path = tmp_path / "cases.json"
     fixture_path = tmp_path / "fixture.json"
