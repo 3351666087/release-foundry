@@ -1,4 +1,4 @@
-# A1 Worklog
+﻿# A1 Worklog
 
 ## 2026-07-03 Round 1
 
@@ -531,14 +531,401 @@ Remaining:
 - Request generation quota is currently exhausted for additional `create-request` calls in this period/account state; continue with read/list/get/poll calibration, existing completed datasets, runner replay, and docs until quota resets or plan changes.
 - Adapter still lacks the proposed canonical multimodal `AgentInput` envelope and content-part text normalization; this is the next highest ROI implementation once mutation guardrails are stable.
 
+## 2026-07-04 AgentInput Multimodal Envelope
+
+Goal: implement the next highest-ROI A1 local SDK/Adapter step after real request guardrails by adding a canonical multimodal `AgentInput` envelope for Image/Audio/Files interfaces, while preserving legacy text-only adapter behavior and A2/A3 `AgentTurn` output contracts.
+
+Start protocol:
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `c2d1561`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking origin; tracked changes at start were the in-progress A1 adapter draft only. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: open PRs remained A1 PR #4 and A3 PR #5; PRs #1/#2/#3 were merged history.
+- Peer changes/impact: A2/G3 continued additive A2 calibration work and A3 PR #5 stayed in A3 dashboard/report scope. No live peer change required modifying A1 `AgentTurn`, A2 projection, judge semantics, or dashboard behavior.
+
+Three proposed enhancements:
+
+1. Add canonical `AgentInput` multimodal envelope plus adapter methods and content-part output normalization.
+2. Adjust the hosted media request schema/UI calibration before repeating Image/Audio/Files generation.
+3. Add a second external-agent adapter smoke path against the new envelope.
+
+Implemented highest ROI enhancement: `AgentInput` and adapter input/output boundary coverage.
+
+Subagent findings:
+
+- Bus-Auditor: PASS to proceed with local `AgentInput`; BLOCK any new real `create-request` because hosted request quota was exhausted in the latest evidence. Main agent performed no new real generation request calls.
+- Explorer-SDK: recommended `AgentInput` next to `AgentResult`, schema `ashr.clone.agent_input.v1`, parts for `text`, `image`, `audio`, and `file`, explicit `respond_input`/`arespond_input`, top-level exports, schema snapshot, and docs.
+- Reviewer: requested content-part output normalization and adapter error redaction for local failures that may include file paths, signed URLs, tokens, or owner emails.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/adapter.py`: added `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, `coerce_agent_input`, multimodal part normalization, explicit `respond_input`, `arespond_input`, `run_input_turn`, and `arun_input_turn`. Legacy `respond("text")` still passes a plain string by default.
+- `packages/sdk/ashr_clone/adapter.py`: content-part outputs now extract text from `text`, `input_text`, and `output_text` parts instead of JSON-dumping the entire multimodal list.
+- `packages/sdk/ashr_clone/adapter.py`: adapter error payloads and captured kwargs redact token-like values, bearer tokens, emails, and signed URL query strings.
+- `packages/sdk/ashr_clone/__init__.py`: exported `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, and `coerce_agent_input`.
+- `docs/a1/schemas/agent_input.schema.json`: added the A1 AgentInput schema snapshot for A3/Gate review.
+- `tests/a1/test_adapter.py`: added coverage for text default compatibility, envelope passing, keyword style, image/audio/file parts, async envelope use, content-part text extraction, A2 projection stability, and redacted error payloads.
+- `tests/a1/test_trace_fixture.py`: added schema snapshot coverage for `agent_input.schema.json`.
+- `docs/a1/README.md`, `docs/a1/explorer_sdk.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.10s`.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: `8 passed in 0.27s`.
+- `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: `56 passed in 2.64s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `92 passed in 2.96s`.
+- Chrome read-only calibration: logged-in Usage page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no sign-in copy; exact private usage values were not recorded in tracked docs. Official API reference remained reachable and showed `create_request`, `accepted_inputs`, `generate_audio`, `generate_files`, `generate_images`, and `add_user_file`.
+- Final remote recheck before staging: `git fetch --all --prune` advanced `origin/main` to `2205084` and `origin/dev/g3-a2-calibration` to `3c27179`; PR #4 and PR #5 are now merged. `origin/main` contains A1 plus additive A2/A3/judge/dashboard/report fixture work. Current A1 patch remains a follow-up on `codex/a1-local-sdk-runner`.
+- Bus-Auditor final verdict: PASS. No must-fix items; safe to stage/commit self-made A1 SDK/tests/docs plus this shared worklog. It noted that pushing the branch is safe but will not update a merged PR, so a fresh PR or handoff is needed after push if collaboration visibility is required.
+- Commit/push/PR: pushed `2624ea6` to `codex/a1-local-sdk-runner` and opened draft PR #6, `A1 AgentInput multimodal adapter envelope`, because earlier PR #4 had already merged.
+
+Remaining:
+
+- Need inspect/adjust hosted media request schema/UI before any further Image/Audio/Files generation. Keep `create-request` blocked until quota resets or plan state changes.
+- Hosted media-generation failure reason is still unresolved; do not repeat the same media request blindly. Next media step should adjust schema/request shape or inspect official product docs/UI for required media payload semantics.
+- Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
+- A second external-agent adapter smoke path against `AgentInput` would be useful once the local envelope is committed.
+
+## 2026-07-04 Media Request Input Schema Calibration
+
+Goal: continue A1 subscription-era SDK/Runner calibration by making the dry-run/default `request_input_schema` for Image/Audio/Files align with the local `AgentInput` multimodal envelope before any further hosted media generation.
+
+Start protocol:
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `145f6ad`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: PR #6 open/draft at head `0870fc8`; PR #4 and PR #5 merged.
+- Peer changes/impact: A2/G3 new commit touched A2 docs/fixtures/judge/report/tests only. No A1-owned file changes or A1 rollback signal were observed.
+
+Three proposed enhancements:
+
+1. Add `AgentInput` media part shape to default `request_input_schema` and dry-run evidence.
+2. Inspect hosted media failure details or UI-required payload semantics before repeating media generation.
+3. Add a second external-agent adapter smoke path against the `AgentInput` envelope.
+
+Implemented highest ROI enhancement: default media request schema and dry-run evidence shape.
+
+Subagent findings:
+
+- Bus-Auditor start audit: PASS. Main agent should keep `create-request` mutation blocked while quota state is exhausted/unclear, and should make a local schema/dry-run improvement first.
+- Chrome/Product read-only check: official API reference showed `request_input_schema`, `accepted_inputs`, media generation flags, and `TestBuilder.add_user_file(file_path, description, action_index)`. Lab Usage was logged in but only stably showed `Usage`, `Upgrade`, and `Loading usage`; exact private usage values were not recorded in tracked docs.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/api_client.py`: `build_default_request_input_schema(...)` now keeps `additionalProperties=true` and adds optional `schema_version`, `text`, `parts`, `metadata`, and `$defs.agent_input_part` when accepted inputs include `image`, `audio`, or `file`; part types match enabled accepted inputs.
+- `packages/sdk/ashr_clone/api_client.py`: create-request evidence summaries now include `property_keys`, `defs_keys`, `agent_input_schema_version`, and `agent_input_part_types` for the request input schema.
+- `services/runner/api_probe.py`: create-request preflight now records `agent_input_part_types` and `agent_input_schema_version` for non-text media inputs.
+- `tests/a1/test_api_client.py`: added coverage for media-aware default schema and media fixture dry-run record shape.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Media Interface Schema Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_api_media_interface_schema_dry_run.json`: `status=planned`, `attempts=0`.
+- Safe dry-run summary: `agent_input_schema_version=ashr.clone.agent_input.v1`, schema property keys `metadata`, `parts`, `schema_version`, `text`, schema defs `agent_input_part`, schema part types `audio`, `file`, `image`, `text`, preflight part types `text`, `image`, `audio`, `file`, media generation enabled, and non-text inputs enabled.
+- Chrome screenshot stored under ignored private evidence: `docs/evidence/private_refs/ashr_lab_usage_media_schema_round_2026-07-04.png`.
+- Bus-Auditor must-fix: direct `enum` schemas for non-text-only inputs were not reflected in schema summaries. Fixed `_schema_agent_input_part_types(...)` and added a dry-run record summary regression for image-only accepted input.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `41 passed in 1.16s`.
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.09s`.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_adapter.py -q -p no:cacheprovider`: `62 passed in 1.15s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `96 passed in 2.92s`.
+- `git diff --check`: clean except CRLF warnings.
+
+Remaining:
+
+- Need final Bus-Auditor recheck after diff/check/secret scan.
+- Hosted media-generation failure reason remains unresolved; next step should inspect hosted failure/UI payload semantics or use read-only request details before repeating media generation.
+- Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
+- A second external-agent adapter smoke path against `AgentInput` is still useful.
+
 ## 2026-07-04 Latest Round Index
 
-Latest active A1 round: Real Request And Media Boundary Calibration.
+Latest active A1 round: Media Request Input Schema Calibration.
 
 Key current facts:
 
-- Branch remains `codex/a1-local-sdk-runner`; tracked worktree has self-made changes in A1-owned dirs awaiting final audit/stage/commit.
-- Real text-only create-request chain now works end-to-end with default schema: create succeeded, get observed processing, poll observed completed.
-- Real Image/Audio/Files request was accepted but hosted processing failed; this is now a known backend/request-shape boundary, not a local CLI failure.
+- Branch remains `codex/a1-local-sdk-runner`; PR #6 is open/draft and will receive this follow-up if committed.
+- `AgentInput` local envelope exists with `schema_version=ashr.clone.agent_input.v1` and supports `text`, `image`, `audio`, and `file` parts.
+- Default `create-request` schema now advertises `AgentInput` `parts` for Image/Audio/Files accepted inputs while staying permissive with `additionalProperties=true`.
+- A2/A3-facing `AgentTurn` output shape remains intact, with content-part text extraction and A2 projection tests passing.
 - Additional real text batch generation is blocked by hosted request quota exhaustion. Read-only API probes still work.
-- A1 tests are now `85 passed`.
+- A1 tests are now `96 passed`.
+
+## 2026-07-04 Hosted Media Failure Detail Calibration
+
+Goal: continue A1 subscription-era SDK/Runner calibration by inspecting the previously accepted-but-failed hosted Image/Audio/Files request through read-only evidence, then making `get-request` and `poll-request` records preserve safe failure details for A2/A3-facing debugging without exposing raw private values.
+
+Start protocol:
+
+- `git fetch origin --prune`: success.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at start. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `87fd28c`.
+- Peer changes/impact: latest `origin/dev/g3-a2-calibration` commit `96ff7d5` touched A2 scenario/judge/report evidence files. No live peer change required modifying A1 contracts, judge semantics, or dashboard business logic.
+
+Three proposed enhancements:
+
+1. Add hosted request failure-shape summaries to `get-request` / `poll-request` records.
+2. Re-run media generation with a revised schema and real paid API call.
+3. Add the second external-agent adapter smoke path against `AgentInput`.
+
+Implemented highest ROI enhancement: hosted request failure-shape summaries. This was chosen because it extracts value from existing paid API evidence and reduces future debugging risk before spending another media-generation request.
+
+Evidence and implementation:
+
+- Existing read-only recheck `docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json` showed `status=ok`, HTTP `200`, `attempts=1`, hosted `request_status=failed`.
+- Safe failure shape: no top-level failure-like hosted request keys; nested `request.request` keys included `_failure`, `agent`, `context`, `generation_options`, `metadata`, and `test_config`; `_failure` was an object with keys `at` and `error`, both strings. Raw values remain in ignored private evidence only.
+- `packages/sdk/ashr_clone/api_client.py`: added `summarize_request_failure(...)` and response summary attachment so failed `get-request` records include `response_summary.request_failure`, and failed `poll-request` error records include `error.failure_summary`.
+- `tests/a1/test_api_client.py`: added failed `get-request` and failed `poll-request` regressions, including token/email redaction and a completed-request false-positive guard for ordinary `requestor_details` fields.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification so far:
+
+- `python -B -c "... summarize_request_failure(...)"`: helper emitted only keys, types, string lengths, and nested request keys for the private failed media request.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `44 passed in 1.18s`.
+- Chrome read-only calibration: official API reference showed `create_request`, `request_input_schema`, `accepted_inputs`, `generate_audio`, `generate_images`, and `add_user_file`. Existing logged-in Usage tab showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy; exact usage counters remain private and screenshots are stored under ignored `docs/evidence/private_refs/`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `99 passed in 2.94s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line sensitive scan: implementation/docs matched no real key, request id, email, or exact usage patterns. Test-only matches were synthetic redaction fixtures.
+
+Remaining:
+
+- Run final Bus-Auditor recheck.
+- Do not repeat media generation until UI-required payload semantics or quota state are clearer; read/list/get/poll calibration remains allowed.
+
+## 2026-07-04 Read-Only API Parity Surface
+
+Goal: close a read-only API surface gap exposed by A2's new real API smoke evidence by adding official SDK parity for `health_check()` and `list_agents()` to the A1 clone SDK/Runner probe.
+
+Start protocol:
+
+- `git fetch origin --prune`: success; `origin/dev/g3-a2-calibration` advanced to `561aa0e`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at start. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `05b4b44`.
+- Peer changes/impact: A2/G3 commit `561aa0e` added a redacted real API smoke summary and media calibration fixture on the A2 branch. It did not touch A1-owned files, but it showed A1 lacked `health-check` and `list-agents` parity.
+
+Three proposed enhancements:
+
+1. Add read-only `health-check` / `list-agents` SDK and CLI parity, then run real read-only probes.
+2. Revisit media generation semantics and attempt another paid media `create-request`.
+3. Add a second external-agent adapter smoke path against `AgentInput`.
+
+Implemented highest ROI enhancement: read-only API parity. This improves real-Ashr alignment and core command coverage without spending generation quota.
+
+Evidence and implementation:
+
+- Local official wheel inspection confirmed `AshrLabsClient.health_check()` sends API function `keep_alive`; `AshrLabsClient.list_agents()` sends `list_agents` and returns an `agents` list.
+- `packages/sdk/ashr_clone/api_client.py`: added `health_check(...)` and `list_agents(...)`.
+- `services/runner/api_probe.py`: added CLI operations `health-check` and `list-agents`.
+- `tests/a1/test_api_client.py`: added SDK and CLI dry-run/execute coverage for both operations.
+- Dry-run evidence written to ignored `docs/evidence/private_refs/a1_api_health_check_dry_run.json` and `docs/evidence/private_refs/a1_api_list_agents_dry_run.json`.
+- Real read-only evidence written to ignored `docs/evidence/private_refs/a1_api_health_check_real.json` and `docs/evidence/private_refs/a1_api_list_agents_real.json`.
+- Safe real summary: `health-check` returned HTTP `200`, `status=ok`, `attempts=1`, function `keep_alive`, response keys `db`, `message`, `status`; `list-agents` returned HTTP `200`, `status=ok`, `attempts=1`, function `list_agents`, response keys `_user`, `agents`, `status`, and `agents_count=0`.
+- Chrome read-only calibration: official API reference showed `health_check`, `list_agents`, `list_datasets`, `list_requests`, and `create_request`; existing logged-in Usage tab showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy. Exact counters remain private and screenshots stay under ignored `docs/evidence/private_refs/`.
+
+Verification so far:
+
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `47 passed in 1.57s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `102 passed in 3.27s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line value-oriented sensitive scan: no token-like key value, bearer token, email, private request id, or exact usage pattern. A broader scan matched only the public env var name `ASHR_LABS_API_KEY` in the field map.
+
+Remaining:
+
+- Run final Bus-Auditor recheck.
+- No `create-request` or `create-run` was executed in this round.
+
+## 2026-07-04 Local Cloud API Runtime Skeleton
+
+Goal: begin the long-running A1 cloud-runtime phase by adding the smallest local-only API service skeleton that can hold tenant/project/dataset/request/run state, submit existing A1 `RunResult` payloads, poll stored run status, export run fixtures for A3, and enforce a project-scoped quota ledger without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced to `ddd615a`.
+- `gh pr list --state all`: PR #6 `A1 AgentInput multimodal adapter envelope` open/draft on `codex/a1-local-sdk-runner`; earlier A1/A2/A3 PRs are merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 Python surfaces: `packages/sdk/ashr_clone/{api_client.py,adapter.py,trace.py,dataset_adapter.py,types.py}`, `services/runner/{api_probe.py,cli.py,runner.py,dataset_adapter.py}`, `examples/agents/mock_agent.py`, `tests/a1/test_{adapter,api_client,dataset_adapter,runner,trace_fixture}.py`, and A1 docs/schemas/evidence.
+- Existing capabilities: local MockAgent + CLI; 30-80 case runs; max workers normalized to at least 4; A3 run fixture/replay; `AgentInput` multimodal envelope; read-only API parity for `health-check` and `list-agents`; guarded mutating `create-run` and `create-request`; private real API evidence under ignored `docs/evidence/private_refs/`.
+- Missing before this round: `services/api`, `services/cloud`, `packages/ts`, root `package.json`, root `pyproject.toml`, root `requirements.txt`, tenant/project cloud runtime, local quota ledger, TypeScript SDK package.
+- Peer changes/impact: latest A2/G3 commit `ddd615a` touched `docs/a2/scenario_coverage_plan.md`, `fixtures/a2/results/a2_g3_coverage_report.json`, `packages/scenarios/a2_g3_full_pack.json`, `services/judge/coverage.py`, `tests/a2/test_contracts.py`, and `tests/a3/report_builder.test.mjs`. No A1-owned or contract-breaking change observed.
+
+Three proposed enhancements:
+
+1. Local cloud API skeleton with tenant/project/dataset/run/request state and in-memory quota ledger. Scores: demo value 5, risk reduction 4, contract impact 2, estimated effort 3, API evidence value 3.
+2. Standalone quota ledger hardening for API probe and runner operations. Scores: demo value 3, risk reduction 4, contract impact 1, estimated effort 2, API evidence value 2.
+3. TypeScript SDK quickstart scaffold. Scores: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 2.
+
+Implemented highest ROI enhancement: local cloud API skeleton.
+
+Subagent findings:
+
+- Bus-Auditor: PASS with tight scope. Keep implementation A1-owned/local-only, avoid new undeclared runtime deps, no judge/dashboard/Gate changes, and no real `create-request` / `create-run`.
+- Explorer-SDK/API: Python API probe is strong, but no integrated local cloud runtime existed; batch runner remains text-first for media cases; hosted media semantics remain unresolved; quota is guardrail-based; TypeScript parity absent.
+- Explorer-Chrome/Product: official API reference showed request/media boundary fields including `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `request_status`, `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, and file-upload style fields. Logged-in Usage showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without recording exact private counters. Screenshot stayed ignored at `docs/evidence/private_refs/ashr_lab_usage_hosted_media_failure_detail_round_2026-07-04.png`.
+- Worker-Runtime: independently converged on the same bounded `services/api` shape and verified `tests/a1` at 108 passed before the main agent added one validation/quota transaction regression, bringing the final total to 109 passed.
+- Worker-TS/Reviewer: confirmed no TS package exists; recommended future `packages/ts/ashr-clone` with injected `fetch`, dry-run default, env-key parity, and redaction/zero-retry tests.
+
+Implemented:
+
+- `services/api/runtime.py`: added `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, and `QuotaExceededError`.
+- `services/api/runtime.py`: tenant/project isolation; dataset import/list/get; request create/list/get; run submit/list/get/poll; observation append; run fixture export/write; project-scoped quota snapshot.
+- `services/api/__init__.py`: exported the local cloud runtime surface.
+- `docs/a1/schemas/cloud_api.schema.json`: added schema snapshot for local runtime records.
+- `tests/a1/test_cloud_api.py`: added coverage for dataset import, local runner submit, polling, fixture export, tenant/project isolation, media request schema preservation, validation errors that do not consume quota, and quota blocking before writes.
+- `tests/a1/test_trace_fixture.py`: added cloud schema version guard.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider`: 7 passed.
+- `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 109 passed.
+- Chrome official docs check: API reference reachable and shows request/media boundary fields above.
+- Chrome Usage check: logged-in page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counters remain private.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced to `bee20af`, touching A2 docs/evidence/scripts/tests only (`docs/a2/README.md`, `docs/evidence/a2_real_api_smoke.json`, `scripts/a2_regenerate_fixtures.py`, `tests/a2/test_contracts.py`). No A1-owned file impact observed.
+- Real API calls: none in this round.
+
+Remaining / next top 3:
+
+1. Add a small local API/CLI demo path that runs an external agent, submits the `RunResult` into `CloudApiService`, polls it, and writes a fixture.
+2. Start TypeScript SDK quickstart parity against the new cloud runtime and existing Python API client constants.
+3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.
+
+## 2026-07-04 Local Cloud API Demo CLI
+
+Goal: turn the in-memory cloud runtime into a fresh-setup demo path that proves an external agent can be loaded, run through the local runner, submitted to `CloudApiService`, polled, and exported as a fixture without any hosted Ashr API call.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; no A1 branch advancement observed.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`; earlier PRs remain merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `services/api` local runtime skeleton, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing cloud runtime: `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, tenant/project/dataset/request/run state, run submit/poll/export, schema snapshot, and 109 passing A1 tests.
+- Missing before this round: `services/api/cli.py`, `services/api/demo.py`, TypeScript package, package.json, cloud demo fixture command, and end-to-end local API demo docs.
+- Peer changes/impact at round start: latest `origin/dev/g3-a2-calibration` commit was `bee20af`, touching A2 docs/evidence/scripts/tests only. No A1-owned file impact observed.
+
+Three proposed enhancements:
+
+1. Local cloud API demo CLI: demo value 5, risk reduction 4, contract impact 2, estimated effort 3, API evidence value 3. Selected because it proves the cloud runtime is usable from fresh setup.
+2. TypeScript SDK quickstart scaffold: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 2.
+3. Hosted media semantics read-only calibration: demo value 3, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4.
+
+Implemented highest ROI enhancement: local cloud API demo CLI.
+
+Implemented:
+
+- `services/api/demo.py`: added `run_agent_cloud_demo(...)`, which loads cases, creates local tenant/project/dataset records, runs an external agent target through `run_agent_batch`, submits the result into `CloudApiService`, polls the run, writes an A3-consumable fixture, optionally writes run-result JSON, and emits a safe summary.
+- `services/api/cli.py`: added `python -B -m services.api.cli run-agent`, including fixture/summary/run outputs, tenant/project/dataset identifiers, runner config, timeout config, and `--fail-on-case-failure`.
+- `services/api/__init__.py`: exported `run_agent_cloud_demo`.
+- `packages/sdk/ashr_clone/api_client.py`: redaction now covers `sk-...` style key strings in addition to existing token/Bearer/email patterns.
+- `packages/sdk/ashr_clone/adapter.py`: adapter error redaction now covers `sk-...` style key strings too, keeping run-result/fixture output aligned with API-client redaction.
+- `services/api/cli.py`: operational errors now pass through SDK `redact_text(...)` before reaching stderr.
+- `tests/a1/test_adapter.py`, `tests/a1/test_api_client.py`, `tests/a1/test_cloud_api.py`, `tests/a1/test_cloud_api_cli.py`, and `tests/a1/fixtures_sensitive_agent.py`: added helper, CLI success, CLI failure-return, negative timeout, operational error redaction, fixture/run-output leak checks, adapter redaction, and SDK redaction coverage.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- Local smoke command: `python -B -m services.api.cli run-agent --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_cloud_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_cloud_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_cloud_demo_run_smoke.json --tenant-id tenant_a1_smoke --project-id project_a1_smoke --dataset-id dataset_a1_smoke --max-workers 4 --timeout 5 --fail-on-case-failure`.
+- Local smoke result: 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0; quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`. Outputs stayed under ignored private evidence.
+- Chrome official docs check: API reference reachable and shows `create_run`, `get_run`, `list_runs`, `poll_run`, dataset/list/get, request fields, health, and agents surfaces.
+- Chrome Usage check: logged-in page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counters remain private. Screenshot stored at ignored `docs/evidence/private_refs/ashr_lab_usage_cloud_demo_2026-07-04.png`.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 15 passed.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 62 passed.
+- Bus-Auditor final must-fix: adapter redaction did not yet cover `sk-...`, so sensitive agent errors could still enter fixture/run JSON. Fixed adapter redaction and added fixture/run-output leak assertions.
+- `python -B -m pytest tests/a1/test_adapter.py tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 83 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced to `31ff317`, touching A2 docs/worklog/fixtures/scripts plus `services/judge` and `tests/a2` only. No A1-owned file impact observed.
+- Final GitHub recheck: PR #6 remained open/draft on `codex/a1-local-sdk-runner`; `HEAD..origin/codex/a1-local-sdk-runner` was empty before staging.
+- `git diff --check`: no whitespace errors; Windows line-ending warnings only.
+- Sensitive scan over changed A1/docs files: matches were public env var names, redaction constants, private-evidence path references, and synthetic test strings only. No real key, `.secrets/`, or private raw evidence file was staged.
+- Final Chrome main-thread recheck: API reference still exposed the run/dataset/request/health/agent fields above. Usage page initially loaded asynchronously, then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no `Login`/`Sign in`; exact private counters were not recorded.
+- Final Bus-Auditor: PASS after adapter redaction fix. Required staging note: include the four untracked source/test files with the tracked changes; do not stage `.secrets/`, `.pytest_cache/`, or `docs/evidence/private_refs/`.
+- Real API calls: none in this round.
+
+Remaining / next top 3:
+
+1. Start TypeScript SDK quickstart parity against the Python API client and local cloud runtime.
+2. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.
+
+## 2026-07-04 TypeScript SDK Quickstart Parity
+
+Goal: add the first local-only TypeScript SDK quickstart surface so external TS agents and tools can use A1 `AgentInput`, cloud runtime, quota ledger, redaction, request schema helpers, and fixture export without hosted Ashr API calls.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `31ff317` to `a6ee272`.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`; earlier PRs remain merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `AgentInput`, `services/api` local runtime, cloud demo CLI, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Missing before this round: `packages/ts`, package metadata, TypeScript source, TypeScript tests, and TypeScript quickstart docs.
+- Peer changes/impact: latest A2/G3 commit `a6ee272` added an Ashr grading import bridge under `docs/a2`, `fixtures/a2`, `scripts/a2_import_ashr_grading.py`, `services/judge`, and `tests/a2`. No direct A1-owned file conflict. It creates an optional future path for A1-hosted run evidence into A2 calibration, but no immediate A1 fixture shape change is required.
+
+Three proposed enhancements:
+
+1. TypeScript SDK quickstart parity: demo value 5, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 3. Selected because TypeScript was the largest uncovered long-goal surface.
+2. Queue worker facade for local cloud runtime: demo value 4, risk reduction 4, contract impact 2, estimated effort 4, API evidence value 2.
+3. Hosted media semantics read-only calibration: demo value 3, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4; real media calls stayed blocked this round.
+
+Subagent findings:
+
+- Bus-Auditor: PASS for TypeScript quickstart parity as highest ROI; no real API calls; keep changes in A1-owned dirs; do not touch `services/judge`.
+- Explorer-SDK/API: requested exact constants, `AgentInput`/`AgentTurn`/`RunResult`/cloud record types, `buildDefaultRequestInputSchema`, redaction, no-network tests, and optional TS agent demo. A2 `a6ee272` does not require immediate A1 fixture changes.
+- Explorer-Chrome/Product: public docs still show TypeScript SDK references/tabs plus dataset/run/request/media boundary fields; Usage loaded without sign-in blocker but media counters were unstable in that pass.
+- Worker-TS: began a JS+d.ts variant, then stopped when the main TypeScript-source package appeared. Main agent consolidated on TypeScript source compiled by `tsc`; the worker quickstart/test ideas were retained after redirecting them to `dist`.
+- Reviewer: initial BLOCK for TS parity absent is resolved by this implementation; requested schema constants, redaction, no-network, and tests.
+
+Implemented:
+
+- `packages/ts/ashr-clone/package.json`, `package-lock.json`, `tsconfig.json`, `.gitignore`, and README.
+- `packages/ts/ashr-clone/src/index.ts`: local-only TypeScript exports for `AGENT_INPUT_SCHEMA_VERSION`, `AGENT_TURN_SCHEMA_VERSION`, `RUN_RESULT_SCHEMA_VERSION`, `CLOUD_API_SCHEMA_VERSION`, `AgentInput`, `AgentTurn`, `RunResult`, cloud records, `QuotaLedger`, `InMemoryCloudStore`, `CloudApiService`, `buildDefaultRequestInputSchema`, `runAgentCloudDemo`, `coerceAgentInput`, `agentInputFromText`, `agentInputFromParts`, `redactText`, and `redactSensitive`.
+- `packages/ts/ashr-clone/test/cloud-api.test.mjs` and `test/runtime.test.mjs`: 13 Node tests covering constants, AgentInput/media parts, request schema, redaction, no-network cloud flow, tenant isolation, quota blocking before writes, request media schema preservation, and TS agent demo fixture export.
+- `packages/ts/ashr-clone/examples/quickstart.mjs`: imports an existing A1 run result JSON, submits it into TS `CloudApiService`, and writes a local cloud fixture.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- `node --version`: `v24.14.0`.
+- `npm --version`: `11.9.0`.
+- `tsc --version`: not globally installed; package devDependency supplies TypeScript.
+- `npm install --prefix packages/ts/ashr-clone`: installed TypeScript dev dependency; 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- `git diff --check`: no whitespace errors; Windows line-ending warnings only.
+- Sensitive scan over intended files: matches were public env var names, private-evidence path references, package-lock public npm URL, and synthetic test tokens/emails/URLs only. No real key, secret file contents, or raw private evidence was read or staged.
+- `node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json`: wrote an ignored private 30-case fixture with `local_only=true`, `ashr_api_used=false`, and no hosted API calls.
+- Final Bus-Auditor: PASS. Required staging boundary is six modified docs plus nine new `packages/ts/ashr-clone` files only; do not stage `dist/`, `node_modules/`, `.secrets/`, `.pytest_cache/`, or `docs/evidence/private_refs/`.
+- Real API calls: none in this implementation round.
+
+Remaining / next top 3:
+
+1. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+2. Add TypeScript API-client dry-run/transport-injected parity for read-only probes before any hosted TS calls.
+3. Convert selected private hosted run evidence through the A2 Ashr grading import bridge into public-safe calibration observations.
+
+Publish closure:
+
+- Final staged scope: six A1/docs evidence files plus nine `packages/ts/ashr-clone` source/test/package files. Ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `dist/`, and `node_modules/` stayed unstaged.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- Staged path guard: no forbidden staged paths.
+- Staged high-risk secret pattern scan: no `sk-...`, GitHub token, or bearer-token patterns found in staged files.

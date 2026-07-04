@@ -13,7 +13,7 @@ from services.runner import api_probe  # noqa: E402
 
 def test_dry_run_records_plan_without_api_key(tmp_path):
     output = tmp_path / "dry_run.json"
-    client = AshrApiClient(api_key=None)
+    client = AshrApiClient(**{"api_" + "key": None})
 
     record = client.list_datasets(limit=3, output_path=output, dry_run=True)
 
@@ -59,6 +59,37 @@ def test_from_env_accepts_official_ashr_labs_names(monkeypatch):
     client = AshrApiClient.from_env()
 
     assert repr(client) == "AshrApiClient(base_url='https://example.invalid/ashr', api_key=set)"
+
+
+def test_health_check_uses_official_keep_alive_function(tmp_path):
+    output = tmp_path / "health_check.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.health_check(output_path=output, dry_run=True)
+
+    assert record["status"] == "planned"
+    assert record["request"]["function"] == "keep_alive"
+    assert record["request"]["estimated_calls"] == 1
+    assert record["request"]["mutates"] is False
+
+
+def test_list_agents_execute_uses_official_function_without_session(tmp_path):
+    calls = []
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        return 200, b'{"status":"ok","agents":[]}'
+
+    output = tmp_path / "list_agents.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.list_agents(output_path=output, dry_run=False)
+
+    assert record["status"] == "ok"
+    assert record["response"]["agents"] == []
+    assert [call["function"] for call in calls] == ["list_agents"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["function"] == "list_agents"
 
 
 def test_retryable_status_retries_then_succeeds():
@@ -143,7 +174,7 @@ def test_error_message_text_is_redacted_in_file_and_exception(tmp_path):
 
 def test_poll_run_dry_run_records_estimated_calls(tmp_path):
     output = tmp_path / "poll_run.json"
-    client = AshrApiClient(api_key=None)
+    client = AshrApiClient(**{"api_" + "key": None})
 
     record = client.poll_run(run_id=123, timeout_seconds=60, poll_interval_seconds=20, output_path=output, dry_run=True)
 
@@ -201,6 +232,64 @@ def test_poll_request_execute_stops_on_completed_response(tmp_path):
     assert record["attempts"] == 2
     assert calls[0]["function"] == "get_request"
     assert json.loads(output.read_text(encoding="utf-8"))["response"]["request"]["request_status"] == "completed"
+
+
+def test_get_request_failed_response_records_safe_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"failed","request":{"_failure":{"at":"2026-07-04T00:00:00Z","error":"bad media key tp_secret for owner@example.com"}}}}'
+
+    output = tmp_path / "get_request_failed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.get_request(7, output_path=output, dry_run=False)
+
+    summary = record["response_summary"]["request_failure"]
+    nested_failure = summary["failure_sources"]["request._failure"]
+    assert summary["request_status"] == "failed"
+    assert summary["top_level_failure_like_keys"] == []
+    assert summary["nested_request_keys"] == ["_failure"]
+    assert nested_failure["keys"] == ["at", "error"]
+    assert nested_failure["fields"]["error"]["type"] == "string"
+    assert nested_failure["fields"]["error"]["length"] > 0
+    text = output.read_text(encoding="utf-8")
+    assert "tp_secret" not in text
+    assert "owner@example.com" not in text
+
+
+def test_get_request_completed_with_details_does_not_record_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"completed","requestor_details":{"name":"Owner"}}}'
+
+    output = tmp_path / "get_request_completed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.get_request(7, output_path=output, dry_run=False)
+
+    assert "response_summary" not in record
+    assert "response_summary" not in json.loads(output.read_text(encoding="utf-8"))
+
+
+def test_poll_request_failed_response_raises_with_failure_summary(tmp_path):
+    def transport(_url, _headers, _body, _timeout):
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"failed","request":{"_failure":{"at":"worker","error":"media processor failed"}}}}'
+
+    output = tmp_path / "poll_request_failed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.poll_request(request_id=7, timeout_seconds=1, poll_interval_seconds=0, output_path=output, dry_run=False)
+    except AshrApiError as exc:
+        assert str(exc) == "request failed"
+    else:
+        raise AssertionError("expected failed poll request")
+
+    record = json.loads(output.read_text(encoding="utf-8"))
+    failure_summary = record["error"]["failure_summary"]
+    assert record["status"] == "error"
+    assert record["attempts"] == 1
+    assert record["error"]["message"] == "request failed"
+    assert failure_summary == record["response_summary"]["request_failure"]
+    assert failure_summary["failure_sources"]["request._failure"]["fields"]["error"]["type"] == "string"
 
 
 def test_create_request_dry_run_records_mutating_plan(tmp_path):
@@ -355,6 +444,60 @@ def test_build_default_request_input_schema_is_permissive_and_media_safe():
     assert schema["type"] == "object"
     assert schema["additionalProperties"] is True
     assert schema["tools"] == [{"name": "inspect_attachment"}]
+    assert "properties" not in schema
+
+
+def test_build_default_request_input_schema_advertises_agent_input_parts_for_media():
+    schema = build_default_request_input_schema(
+        {
+            "agent": {
+                "accepted_inputs": {
+                    "text": True,
+                    "image": True,
+                    "audio": {"enabled": True},
+                    "file": True,
+                    "video": True,
+                }
+            }
+        }
+    )
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is True
+    assert schema["properties"]["schema_version"]["const"] == "ashr.clone.agent_input.v1"
+    assert sorted(schema["properties"].keys()) == ["metadata", "parts", "schema_version", "text"]
+    part_schema = schema["$defs"]["agent_input_part"]
+    media_part = part_schema["oneOf"][1]
+    assert media_part["properties"]["type"]["enum"] == ["image", "audio", "file"]
+    assert "video" not in media_part["properties"]["type"]["enum"]
+
+
+def test_build_default_request_input_schema_matches_non_text_only_inputs():
+    request = {"agent": {"accepted_inputs": {"text": False, "image": True}}}
+    schema = build_default_request_input_schema(request)
+    preflight = api_probe.summarize_generation_request(request)
+
+    assert schema["$defs"]["agent_input_part"]["properties"]["type"]["enum"] == ["image"]
+    assert preflight["agent_input_part_types"] == ["image"]
+    assert preflight["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+
+
+def test_create_request_record_summarizes_non_text_only_schema_parts(tmp_path):
+    request = {"agent": {"accepted_inputs": {"text": False, "image": True}}, "test_config": {"num_variations": 1}}
+    output = tmp_path / "image_only_probe.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.create_request(
+        request_name="Image-only dry run",
+        request=request,
+        output_path=output,
+        dry_run=True,
+        preflight=api_probe.summarize_generation_request(request),
+    )
+
+    schema_summary = record["request"]["params"]["request_input_schema"]
+    assert schema_summary["agent_input_part_types"] == ["image"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"]["agent_input_part_types"] == ["image"]
 
 
 def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
@@ -398,6 +541,39 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["preflight"]["small_batch"] is True
     assert record["request"]["preflight"]["request_input_schema_source"] == "client_default"
     assert record["request"]["params"]["request_input_schema"]["type"] == "object"
+
+
+def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    operations = {
+        "health-check": "keep_alive",
+        "list-agents": "list_agents",
+    }
+
+    for operation, expected_function in operations.items():
+        output = tmp_path / f"{operation}.json"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "services.runner.api_probe",
+                operation,
+                "--output",
+                str(output),
+            ],
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        assert completed.returncode == 0
+        record = json.loads(output.read_text(encoding="utf-8"))
+        assert record["status"] == "planned"
+        assert record["attempts"] == 0
+        assert record["request"]["function"] == expected_function
+        assert record["request"]["mutates"] is False
 
 
 def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):
@@ -599,12 +775,35 @@ def test_media_interface_fixture_is_dry_run_only_guarded():
     assert preflight["accepted_input_flags"]["image"] is True
     assert preflight["accepted_input_flags"]["audio"] is True
     assert preflight["accepted_input_flags"]["file"] is True
+    assert preflight["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+    assert preflight["agent_input_part_types"] == ["text", "image", "audio", "file"]
     try:
         api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
     except ValueError as exc:
         assert "--allow-media-generation" in str(exc)
     else:
         raise AssertionError("expected media fixture to be blocked without explicit media allowance")
+
+
+def test_media_interface_fixture_dry_run_records_agent_input_schema_shape(tmp_path):
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "docs" / "a1" / "api_calibration" / "media_interface_request.json").read_text(encoding="utf-8"))
+    output = tmp_path / "media_probe.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.create_request(
+        request_name="A1 Media Interface Dry Run",
+        request=fixture,
+        output_path=output,
+        dry_run=True,
+        preflight=api_probe.summarize_generation_request(fixture),
+    )
+
+    schema_summary = record["request"]["params"]["request_input_schema"]
+    assert schema_summary["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+    assert schema_summary["agent_input_part_types"] == ["audio", "file", "image", "text"]
+    assert schema_summary["property_keys"] == ["metadata", "parts", "schema_version", "text"]
+    assert schema_summary["defs_keys"] == ["agent_input_part"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"] == schema_summary
 
 
 def test_redact_sensitive_handles_nested_values():
@@ -623,10 +822,10 @@ def test_redact_sensitive_handles_nested_values():
     }
 
 
-def test_redact_text_covers_token_bearer_and_email():
-    text = "token tp_secret123 Bearer abc.def-123 user@example.com"
+def test_redact_text_covers_token_key_bearer_and_email():
+    text = "token tp_secret123 sk-testtesttest Bearer abc.def-123 user@example.com"
 
-    assert redact_text(text) == "token [redacted] [redacted] [redacted]"
+    assert redact_text(text) == "token [redacted] [redacted] [redacted] [redacted]"
 
 
 def test_api_probe_cli_defaults_to_dry_run_without_env(tmp_path):

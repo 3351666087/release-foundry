@@ -24,4 +24,20 @@ Unverified or intentionally out of scope:
 - TypeScript SDK runtime parity; the TypeScript docs were calibrated only to avoid field/process guessing.
 - Voice-minute metering, data retention enforcement, and tenant/project limit enforcement.
 
+2026-07-04 A1 update:
+
+- Read-only Chrome recheck confirmed the public API reference exposed `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `request_status`, `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, and file-upload style media fields.
+- A logged-in Usage page check showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without a sign-in blocker; exact private counter values were not recorded in tracked docs.
+- Public pricing/plans still did not clearly define per-category Image/Audio/File generation quota semantics, reset timing, or hosted media failure semantics. Keep those as known gaps and do not infer them from private counters.
+
+2026-07-04 A1 cloud demo update:
+
+- Read-only Chrome recheck confirmed the public API reference exposed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_dataset`, `list_datasets`, `request_input_schema`, `accepted_inputs`, `request_status`, `health_check`, and `list_agents`.
+- Logged-in Usage page loaded asynchronously and then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private counter values were not recorded. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_cloud_demo_2026-07-04.png`.
+
+2026-07-04 A1 TypeScript quickstart update:
+
+- Read-only Chrome recheck confirmed public TypeScript SDK references/tabs remain visible and the Python API reference still exposes dataset, run, request, and media-envelope fields used for parity.
+- TypeScript runtime parity is now local-only in `packages/ts/ashr-clone`; hosted TypeScript API-client behavior, auth, and billing/usage semantics remain unverified and should stay dry-run/transport-injected until separately calibrated.
+
 If any of these become required for A1, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs.

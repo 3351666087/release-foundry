@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 JsonDict = dict[str, Any]
 TransportResponse = tuple[int, bytes] | tuple[int, bytes, Mapping[str, str]]
 Transport = Callable[[str, Mapping[str, str], bytes, int], TransportResponse]
+FailureResult = str | Mapping[str, Any] | None
 
 ASHR_DEFAULT_BASE_URL = "https://api.ashr.io/testing-platform-api"
 ASHR_API_ENV_VAR = "ASHR_API_KEY"
@@ -21,13 +22,20 @@ ASHR_LABS_API_ENV_VAR = "ASHR_LABS_API_KEY"
 ASHR_LABS_BASE_URL_ENV_VAR = "ASHR_LABS_BASE_URL"
 ASHR_API_FIELD_MAP_VERSION = "a1-api-calibration-2026-07-04"
 DEFAULT_REQUEST_INPUT_SCHEMA: JsonDict = {"type": "object", "additionalProperties": True}
+AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1"
+AGENT_INPUT_PART_TYPES = ("text", "image", "audio", "file")
+_NON_TEXT_AGENT_INPUT_PART_TYPES = ("image", "audio", "file")
 
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")
 _SENSITIVE_EXACT_KEYS = {"key"}
+_FAILURE_EXACT_KEYS = {"_failure", "failure", "failures", "failed", "error", "errors", "reason", "reasons", "message", "messages", "detail", "details", "exception", "traceback"}
+_FAILURE_KEY_PREFIXES = ("failure_", "error_", "reason_", "message_", "detail_", "exception_", "traceback_")
+_FAILURE_KEY_SUFFIXES = ("_failure", "_error", "_reason", "_message", "_detail", "_exception", "_traceback")
 _RETRYABLE_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 _SECRET_LIKE_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
 )
@@ -222,6 +230,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 return payload
             except AshrApiError as exc:
@@ -251,6 +260,9 @@ class AshrApiClient:
 
     def init(self, **kwargs: Any) -> JsonDict:
         return self.call("init", purpose="Resolve Ashr session context", estimated_calls=1, mutates=False, **kwargs)
+
+    def health_check(self, **kwargs: Any) -> JsonDict:
+        return self.call("keep_alive", purpose="Check Ashr API reachability", estimated_calls=1, mutates=False, **kwargs)
 
     def list_datasets(self, *, limit: int = 5, cursor: int | None = None, **kwargs: Any) -> JsonDict:
         params: JsonDict = {"limit": limit, "include_signed_urls": False}
@@ -312,6 +324,9 @@ class AshrApiClient:
             params["cursor"] = cursor
         return self._call_with_session("list_requests", params=params, tenant=True, purpose="List generation request shapes", estimated_calls=2, mutates=False, **kwargs)
 
+    def list_agents(self, **kwargs: Any) -> JsonDict:
+        return self.call("list_agents", purpose="List tenant agents for SDK parity calibration", estimated_calls=1, mutates=False, **kwargs)
+
     def get_request(self, request_id: int, **kwargs: Any) -> JsonDict:
         return self.call("get_request", params={"request_id": request_id}, purpose="Poll one generation request", estimated_calls=1, mutates=False, **kwargs)
 
@@ -324,7 +339,7 @@ class AshrApiClient:
             function="get_request",
             params={"request_id": request_id},
             complete=lambda response: response.get("request", {}).get("request_status") == "completed",
-            failure=lambda response: "request failed" if response.get("request", {}).get("request_status") == "failed" else None,
+            failure=_request_failure_result,
             purpose="Poll generation request status",
             estimated_calls=estimated_calls,
             timeout_seconds=timeout_seconds,
@@ -338,7 +353,7 @@ class AshrApiClient:
         function: str,
         params: Mapping[str, Any],
         complete: Callable[[JsonDict], bool],
-        failure: Callable[[JsonDict], str | None],
+        failure: Callable[[JsonDict], FailureResult],
         purpose: str,
         estimated_calls: int,
         timeout_seconds: int,
@@ -355,8 +370,9 @@ class AshrApiClient:
             attempts += 1
             status_code, response, response_headers = self._request(function, params)
             last_response = response
-            failure_message = failure(response)
-            if failure_message:
+            failure_result = failure(response)
+            if failure_result:
+                failure_error = _poll_failure_error(failure_result, status_code)
                 record = AshrApiCallRecord(
                     function=function,
                     dry_run=dry_run,
@@ -370,12 +386,13 @@ class AshrApiClient:
                     request={"function": function, "params": redact_sensitive(params), "estimated_calls": estimated_calls, "mutates": mutates},
                     response=response,
                     response_headers=response_headers,
-                    error={"message": failure_message, "status_code": status_code},
+                    error=failure_error,
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
-                raise AshrApiError(failure_message, status_code=status_code, response=payload)
+                raise AshrApiError(failure_error["message"], status_code=status_code, response=payload)
             if complete(response):
                 record = AshrApiCallRecord(
                     function=function,
@@ -393,6 +410,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 return payload
             if (time.monotonic() - start) >= timeout_seconds:
@@ -413,6 +431,7 @@ class AshrApiClient:
                     output_path=str(output_path) if output_path is not None else None,
                 )
                 payload = record.to_dict()
+                _attach_response_summary(payload)
                 maybe_write_json(output_path, payload)
                 raise TimeoutError(payload["error"]["message"])
             time.sleep(max(0, poll_interval_seconds))
@@ -498,11 +517,35 @@ def redact_text(value: str) -> str:
     return redacted
 
 
+def summarize_request_failure(response: Mapping[str, Any]) -> JsonDict:
+    request = response.get("request") if isinstance(response.get("request"), Mapping) else {}
+    nested_request = request.get("request") if isinstance(request.get("request"), Mapping) else {}
+    summary: JsonDict = {
+        "request_status": request.get("request_status") if isinstance(request.get("request_status"), str) else None,
+        "top_level_failure_like_keys": _failure_like_keys(request),
+        "nested_request_keys": sorted(str(key) for key in nested_request.keys()) if isinstance(nested_request, Mapping) else [],
+    }
+    failure_sources: JsonDict = {}
+    if isinstance(nested_request, Mapping) and nested_request.get("_failure") is not None:
+        failure_sources["request._failure"] = _safe_value_shape(nested_request["_failure"], depth=2)
+    if request.get("_failure") is not None:
+        failure_sources["_failure"] = _safe_value_shape(request["_failure"], depth=2)
+    for key in ("failure", "error", "message", "detail", "reason"):
+        if request.get(key) is not None:
+            failure_sources[key] = _safe_value_shape(request[key], depth=1)
+    if failure_sources:
+        summary["failure_sources"] = failure_sources
+    return summary
+
+
 def build_default_request_input_schema(request: Mapping[str, Any] | None = None) -> JsonDict:
     schema: JsonDict = dict(DEFAULT_REQUEST_INPUT_SCHEMA)
     agent = request.get("agent") if isinstance(request, Mapping) else None
     if isinstance(agent, Mapping) and isinstance(agent.get("tools"), list):
         schema["tools"] = redact_sensitive(agent["tools"])
+    enabled_part_types = _enabled_agent_input_part_types(request)
+    if any(part_type in enabled_part_types for part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES):
+        schema.update(_agent_input_schema(enabled_part_types))
     return schema
 
 
@@ -541,11 +584,18 @@ def _generation_request_shape(request: Mapping[str, Any]) -> JsonDict:
 
 
 def _schema_shape(schema: Mapping[str, Any]) -> JsonDict:
+    properties = schema.get("properties") if isinstance(schema.get("properties"), Mapping) else {}
+    defs = schema.get("$defs") if isinstance(schema.get("$defs"), Mapping) else {}
+    agent_input_parts = defs.get("agent_input_part") if isinstance(defs.get("agent_input_part"), Mapping) else {}
     return {
         "keys": sorted(str(key) for key in schema.keys()),
         "type": schema.get("type"),
         "additionalProperties": schema.get("additionalProperties"),
         "tools_count": len(schema.get("tools", [])) if isinstance(schema.get("tools"), list) else 0,
+        "property_keys": sorted(str(key) for key in properties.keys()),
+        "defs_keys": sorted(str(key) for key in defs.keys()),
+        "agent_input_schema_version": properties.get("schema_version", {}).get("const") if isinstance(properties.get("schema_version"), Mapping) else None,
+        "agent_input_part_types": _schema_agent_input_part_types(agent_input_parts),
     }
 
 
@@ -553,6 +603,168 @@ def _truthy_enabled(value: Any) -> bool:
     if isinstance(value, Mapping):
         return bool(value.get("enabled"))
     return bool(value)
+
+
+def _enabled_agent_input_part_types(request: Mapping[str, Any] | None) -> list[str]:
+    agent = request.get("agent") if isinstance(request, Mapping) else None
+    accepted_inputs = agent.get("accepted_inputs") if isinstance(agent, Mapping) and isinstance(agent.get("accepted_inputs"), Mapping) else None
+    enabled: list[str] = []
+    if accepted_inputs is None or _truthy_enabled(accepted_inputs.get("text")):
+        enabled.append("text")
+    for part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES:
+        if accepted_inputs is not None and _truthy_enabled(accepted_inputs.get(part_type)):
+            enabled.append(part_type)
+    return enabled
+
+
+def _agent_input_schema(enabled_part_types: list[str]) -> JsonDict:
+    part_types = [part_type for part_type in AGENT_INPUT_PART_TYPES if part_type in set(enabled_part_types)]
+    return {
+        "properties": {
+            "schema_version": {"const": AGENT_INPUT_SCHEMA_VERSION},
+            "text": {"type": "string"},
+            "parts": {"type": "array", "items": {"$ref": "#/$defs/agent_input_part"}},
+            "metadata": {"type": "object"},
+        },
+        "$defs": {"agent_input_part": _agent_input_part_schema(part_types)},
+    }
+
+
+def _agent_input_part_schema(part_types: list[str]) -> JsonDict:
+    text_part: JsonDict = {
+        "type": "object",
+        "required": ["type", "text"],
+        "properties": {"type": {"const": "text"}, "text": {"type": "string"}},
+        "additionalProperties": True,
+    }
+    media_part_types = [part_type for part_type in part_types if part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES]
+    variants: list[JsonDict] = []
+    if "text" in part_types:
+        variants.append(text_part)
+    if media_part_types:
+        variants.append(
+            {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"enum": media_part_types},
+                    "path": {"type": "string"},
+                    "url": {"type": "string"},
+                    "source": {"type": "string"},
+                    "mime_type": {"type": "string"},
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "additionalProperties": True,
+            }
+        )
+    if not variants:
+        return text_part
+    if len(variants) == 1:
+        return variants[0]
+    return {"oneOf": variants}
+
+
+def _schema_agent_input_part_types(part_schema: Mapping[str, Any]) -> list[str]:
+    if part_schema.get("properties") and isinstance(part_schema.get("properties"), Mapping):
+        part_type_schema = part_schema["properties"].get("type")
+        if isinstance(part_type_schema, Mapping):
+            if part_type_schema.get("const"):
+                return [str(part_type_schema["const"])]
+            enum = part_type_schema.get("enum")
+            if isinstance(enum, list):
+                return sorted(str(item) for item in enum)
+    types: set[str] = set()
+    for variant in part_schema.get("oneOf", []) if isinstance(part_schema.get("oneOf"), list) else []:
+        if not isinstance(variant, Mapping):
+            continue
+        properties = variant.get("properties") if isinstance(variant.get("properties"), Mapping) else {}
+        part_type_schema = properties.get("type") if isinstance(properties.get("type"), Mapping) else {}
+        if part_type_schema.get("const"):
+            types.add(str(part_type_schema["const"]))
+        enum = part_type_schema.get("enum")
+        if isinstance(enum, list):
+            types.update(str(item) for item in enum)
+    return sorted(types)
+
+
+def _request_failure_result(response: JsonDict) -> JsonDict | None:
+    request = response.get("request") if isinstance(response.get("request"), Mapping) else {}
+    if request.get("request_status") != "failed":
+        return None
+    return {"message": "request failed", "failure_summary": summarize_request_failure(response)}
+
+
+def _poll_failure_error(failure_result: str | Mapping[str, Any], status_code: int | None) -> JsonDict:
+    if isinstance(failure_result, Mapping):
+        error = redact_sensitive(dict(failure_result))
+        message = error.get("message")
+        if not isinstance(message, str) or not message:
+            message = "request failed"
+        error["message"] = redact_text(message)
+        error["status_code"] = status_code
+        return error
+    return {"message": redact_text(str(failure_result)), "status_code": status_code}
+
+
+def _attach_response_summary(payload: JsonDict) -> None:
+    response = payload.get("response")
+    if not isinstance(response, Mapping):
+        return
+    request_failure = summarize_request_failure(response)
+    if _has_request_failure_summary(request_failure):
+        response_summary = payload.setdefault("response_summary", {})
+        if isinstance(response_summary, dict):
+            response_summary["request_failure"] = request_failure
+
+
+def _has_request_failure_summary(summary: Mapping[str, Any]) -> bool:
+    return (
+        summary.get("request_status") == "failed"
+        or bool(summary.get("top_level_failure_like_keys"))
+        or bool(summary.get("failure_sources"))
+    )
+
+
+def _failure_like_keys(value: Mapping[str, Any]) -> list[str]:
+    return sorted(str(key) for key in value.keys() if _is_failure_like_key(str(key)))
+
+
+def _is_failure_like_key(key: str) -> bool:
+    normalized = key.lower().replace("-", "_")
+    return normalized in _FAILURE_EXACT_KEYS or normalized.startswith(_FAILURE_KEY_PREFIXES) or normalized.endswith(_FAILURE_KEY_SUFFIXES)
+
+
+def _safe_value_shape(value: Any, *, depth: int) -> JsonDict:
+    shape: JsonDict = {"type": _safe_type_name(value), "present": value is not None}
+    if isinstance(value, Mapping):
+        shape["keys"] = sorted(str(key) for key in value.keys())
+        if depth > 0:
+            shape["fields"] = {str(key): _safe_value_shape(item, depth=depth - 1) for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))}
+    elif isinstance(value, list):
+        shape["count"] = len(value)
+        shape["item_types"] = sorted({_safe_type_name(item) for item in value})
+    elif isinstance(value, str):
+        shape["length"] = len(value)
+    return shape
+
+
+def _safe_type_name(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, Mapping):
+        return "object"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    return type(value).__name__
 
 
 def maybe_write_json(path: str | Path | None, payload: Mapping[str, Any]) -> None:
