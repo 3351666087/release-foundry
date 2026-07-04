@@ -101,6 +101,29 @@ Media API calibration also checks tool-output grounding. A2-S031 uses `expectedT
 
 Authenticated G3 calibration is optional and separate from deterministic unit tests. `scripts/a2_real_api_smoke.py` uses `ASHR_LABS_API_KEY` from the environment, performs read/list API calls, and writes only a redacted summary to `docs/evidence/a2_real_api_smoke.json`.
 
+## Commercial-Grade A2 Goal Addendum
+
+The July 4 commercial goal PDF upgrades A2 from an assignment checklist into a product-line evaluation system.
+
+A2's commercial target is:
+
+- keep the 60-scenario / 5-rubric / 5-judge / 20-golden / 12-failure minimums green,
+- turn local rule judges into a calibratable judge engine,
+- compare `local_judge`, future Ashr server-side `ashr_grading`, and `llm_judge` results on the same cases,
+- record semantic/LLM judge cost and confidence instead of treating model calls as free or opaque,
+- convert disagreements into regression fixtures or calibration follow-ups,
+- keep evidence honest when a source is missing instead of fabricating high-fidelity results.
+
+The first commercial-readiness artifact is `fixtures/a2/results/a2_g3_calibration_matrix.json`.
+It currently includes six representative cases across pass control, argument fidelity, media/tool-output grounding, failure recovery, safety, and clarification.
+The matrix deliberately marks `ashr_grading` as missing until a real server-side grading batch is collected.
+
+Next A2 priorities should be chosen by ROI against this commercial target:
+
+1. collect a small authenticated Ashr grading batch and fill the `ashr_grading` column,
+2. replace offline `llm_judge` samples with audited model calls and a real cost ledger,
+3. promote local-vs-LLM disagreements into regression fixtures or judge improvements.
+
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 
 After the G3 calibration pass, both `thin_golden_failure_classes` and `thin_executable_failure_classes` are expected to stay empty, meaning every canonical failure class has at least two golden cases and at least two executable run fixtures.

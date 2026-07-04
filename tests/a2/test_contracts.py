@@ -6,6 +6,7 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
+from services.judge.calibration import build_calibration_matrix
 from services.judge.coverage import build_coverage_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
@@ -264,13 +265,17 @@ class A2ContractTests(unittest.TestCase):
         schema_dir = ROOT / "docs/a2/schemas"
         grade_schema = json.loads((schema_dir / "grade_results.schema.json").read_text(encoding="utf-8"))
         coverage_schema = json.loads((schema_dir / "coverage_report.schema.json").read_text(encoding="utf-8"))
+        calibration_schema = json.loads((schema_dir / "calibration_matrix.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
+        calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
+        self.assertEqual(calibration_schema["properties"]["schema_version"]["const"], calibration_matrix["schema_version"])
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
+        self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -301,6 +306,15 @@ class A2ContractTests(unittest.TestCase):
                     self.assertGreaterEqual(len(refs), 2)
                     for ref in refs:
                         self.assertLessEqual(case_ref_required, set(ref))
+
+        calibration_case_required = set(calibration_schema["$defs"]["calibration_case"]["required"])
+        source_result_required = set(calibration_schema["$defs"]["source_result"]["required"])
+        for case in calibration_matrix["cases"]:
+            with self.subTest(calibration_case=case["case_id"]):
+                self.assertLessEqual(calibration_case_required, set(case))
+                self.assertEqual(set(case["sources"]), {"local_judge", "ashr_grading", "llm_judge"})
+                for source_result in case["sources"].values():
+                    self.assertLessEqual(source_result_required, set(source_result))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -392,6 +406,36 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("sample-a2-s031-media-pipeline-wrong-order", executable_wrong_order)
         self.assertEqual(report["coverage_warnings"], [])
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
+
+    def test_g3_calibration_matrix_tracks_local_ashr_llm_sources(self):
+        matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        expected_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
+        self.assertEqual(matrix, expected_matrix)
+        self.assertEqual(matrix["schema_version"], "a2.calibration_matrix.v1")
+        self.assertEqual(matrix["sources"], ["local_judge", "ashr_grading", "llm_judge"])
+        self.assertEqual(matrix["case_count"], 6)
+        self.assertEqual(matrix["source_coverage"]["local_judge"]["available"], 6)
+        self.assertEqual(matrix["source_coverage"]["llm_judge"]["available"], 6)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 6)
+        self.assertEqual(matrix["agreement_summary"]["local_vs_llm_judge"]["comparable"], 6)
+        self.assertEqual(matrix["agreement_summary"]["local_vs_llm_judge"]["mismatch_count"], 1)
+        self.assertEqual(
+            matrix["agreement_summary"]["local_vs_llm_judge"]["mismatches"][0]["case_id"],
+            "sample-a2-s010-wrong-arguments",
+        )
+        cost_ledger = {row["source"]: row for row in matrix["cost_ledger"]}
+        self.assertEqual(cost_ledger["llm_judge"]["sample_count"], 6)
+        self.assertGreater(cost_ledger["llm_judge"]["prompt_tokens"], 0)
+        self.assertGreater(cost_ledger["llm_judge"]["estimated_usd"], 0)
+        self.assertIn("needs_ashr_grading", matrix["cases"][0]["calibration_tags"])
+        disagreement = next(
+            case for case in matrix["cases"] if case["case_id"] == "sample-a2-s010-wrong-arguments"
+        )
+        self.assertIn("judge_disagreement_regression", disagreement["calibration_tags"])
 
     def test_real_api_smoke_evidence_is_redacted(self):
         evidence_path = ROOT / "docs/evidence/a2_real_api_smoke.json"

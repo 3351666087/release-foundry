@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 CalibrationMatrix",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "matrix_id",
+    "dataset_id",
+    "scenario_pack",
+    "case_count",
+    "sources",
+    "source_coverage",
+    "agreement_summary",
+    "cost_ledger",
+    "calibration_warnings",
+    "cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.calibration_matrix.v1" },
+    "matrix_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "scenario_pack": { "type": "string" },
+    "case_count": { "type": "integer", "minimum": 0 },
+    "sources": {
+      "type": "array",
+      "items": { "enum": ["local_judge", "ashr_grading", "llm_judge"] }
+    },
+    "source_coverage": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/source_coverage" }
+    },
+    "agreement_summary": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/agreement" }
+    },
+    "cost_ledger": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cost_ledger_row" }
+    },
+    "calibration_warnings": { "$ref": "#/$defs/string_array" },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/calibration_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "failure_class": {
+      "enum": [
+        "none",
+        "wrong_intent",
+        "missing_required_tool",
+        "unnecessary_tool_call",
+        "forbidden_tool_call",
+        "wrong_tool",
+        "wrong_arguments",
+        "wrong_tool_order",
+        "missing_clarification",
+        "hallucinated_tool_result",
+        "ignored_tool_result",
+        "unsafe_or_policy_violation",
+        "poor_failure_recovery"
+      ]
+    },
+    "source_coverage": {
+      "type": "object",
+      "required": ["available", "missing", "coverage_ratio"],
+      "properties": {
+        "available": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "coverage_ratio": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "agreement": {
+      "type": "object",
+      "required": [
+        "comparable",
+        "missing",
+        "passed_agreement",
+        "failure_class_agreement",
+        "mismatch_count",
+        "mismatches"
+      ],
+      "properties": {
+        "comparable": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "passed_agreement": { "type": "integer", "minimum": 0 },
+        "failure_class_agreement": { "type": "integer", "minimum": 0 },
+        "mismatch_count": { "type": "integer", "minimum": 0 },
+        "mismatches": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "cost_ledger_row": {
+      "type": "object",
+      "required": [
+        "source",
+        "sample_count",
+        "provider_counts",
+        "prompt_tokens",
+        "completion_tokens",
+        "estimated_usd"
+      ],
+      "properties": {
+        "source": { "enum": ["local_judge", "ashr_grading", "llm_judge"] },
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "provider_counts": { "type": "object" },
+        "prompt_tokens": { "type": "integer", "minimum": 0 },
+        "completion_tokens": { "type": "integer", "minimum": 0 },
+        "estimated_usd": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "calibration_case": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "calibration_focus",
+        "expected",
+        "sources",
+        "diffs",
+        "calibration_tags"
+      ],
+      "properties": {
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "calibration_focus": { "$ref": "#/$defs/string_array" },
+        "expected": { "type": "object" },
+        "sources": {
+          "type": "object",
+          "required": ["local_judge", "ashr_grading", "llm_judge"],
+          "additionalProperties": { "$ref": "#/$defs/source_result" }
+        },
+        "diffs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source_diff" }
+        },
+        "calibration_tags": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "source_result": {
+      "type": "object",
+      "required": ["available", "status", "source", "provider", "cost"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "status": { "type": "string" },
+        "source": { "type": "string" },
+        "provider": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "primary_failure_class": { "$ref": "#/$defs/failure_class" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rationale": { "type": "string" },
+        "reason": { "type": "string" },
+        "cost": { "$ref": "#/$defs/cost" },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "source_diff": {
+      "type": "object",
+      "required": [
+        "left",
+        "right",
+        "comparable",
+        "passed_match",
+        "failure_class_match",
+        "score_delta",
+        "status"
+      ],
+      "properties": {
+        "left": { "type": "string" },
+        "right": { "type": "string" },
+        "comparable": { "type": "boolean" },
+        "passed_match": { "type": ["boolean", "null"] },
+        "failure_class_match": { "type": ["boolean", "null"] },
+        "score_delta": { "type": ["number", "null"] },
+        "status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "cost": {
+      "type": "object",
+      "required": ["prompt_tokens", "completion_tokens", "estimated_usd"],
+      "properties": {
+        "prompt_tokens": { "type": "integer", "minimum": 0 },
+        "completion_tokens": { "type": "integer", "minimum": 0 },
+        "estimated_usd": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

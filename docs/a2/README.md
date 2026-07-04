@@ -24,9 +24,11 @@ This module provides the local G1-G2 foundation for:
 - Safety boundary judge: `services/judge/safety_boundary.py`
 - Local runner: `services/judge/runner.py`
 - Coverage report helper: `services/judge/coverage.py`
+- Calibration matrix helper: `services/judge/calibration.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
+- G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
 - 31 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
@@ -90,6 +92,18 @@ python scripts/a2_regenerate_fixtures.py --write
 ```
 
 This script only uses local fixtures and does not require an Ashr API key.
+
+## Commercial Calibration Matrix
+
+G3 also keeps a calibration matrix for comparing:
+
+- `local_judge`: deterministic A2 runner output,
+- `ashr_grading`: future Ashr server-side grading output,
+- `llm_judge`: audited semantic/LLM judge observations.
+
+The current matrix is generated from `fixtures/a2/calibration/a2_g3_calibration_observations.json` and written to `fixtures/a2/results/a2_g3_calibration_matrix.json`.
+
+It is intentionally honest about missing evidence: `ashr_grading` is marked missing until a server-side grading batch is collected. `llm_judge` observations are offline reference samples with cost metadata, so local tests stay deterministic while the contract is ready for real model calls later.
 
 ## G1-G2 Boundary
 

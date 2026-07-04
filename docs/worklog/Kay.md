@@ -226,3 +226,47 @@ SubAgent review impact:
 Verification:
 - `python -m unittest discover -s tests/a2 -v`
 - `node --test tests/a3/report_builder.test.mjs`
+
+## 2026-07-04 - Commercial A2 calibration matrix pass
+
+Reason:
+- Kay provided `Ashr_Commercial_Grade_Goals_CN.pdf`, which changes A2's working target from "meet G3 minimums" to "build a commercial-grade semantic evaluation product line."
+- The PDF specifically names A2's next P1 as `semantic judge + calibration matrix`, with `LLM judge harness`, `Ashr/local/LLM diff table`, misjudgment regression fixtures, `eval report`, `cost ledger`, and `judge tests`.
+
+Updated A2 goal interpretation:
+- Keep all hard minimums green: 60 scenarios, 5 rubric classes, 5 judge modes, 20+ golden cases, and 12 canonical failure classes.
+- Add commercial calibration evidence on top: compare deterministic `local_judge`, future Ashr server-side `ashr_grading`, and `llm_judge` observations on the same cases.
+- Be explicit when evidence is missing. Current read/list Ashr API smoke is not the same as server-side grading, so `ashr_grading` remains marked missing until a real grading batch exists.
+- Track model/cost/confidence metadata for semantic judging instead of treating LLM judge outputs as opaque.
+
+Implemented:
+- Added `services/judge/calibration.py` to build `a2.calibration_matrix.v1`.
+- Added `fixtures/a2/calibration/a2_g3_calibration_observations.json` with six representative cases and offline `llm_judge` reference observations.
+- Added generated result fixture `fixtures/a2/results/a2_g3_calibration_matrix.json`.
+- Added `docs/a2/schemas/calibration_matrix.schema.json`.
+- Extended `scripts/a2_regenerate_fixtures.py` so `--check` and `--write` include the calibration matrix.
+- Updated `docs/a2/README.md`, `docs/a2/a1_a3_handoff.md`, and `docs/a2/scenario_coverage_plan.md` with the PDF-aligned commercial target.
+- Added tests that verify source coverage, local-vs-LLM agreement, cost ledger fields, schema shape, and the intentionally tracked disagreement case.
+
+Current matrix facts:
+- `local_judge`: 6/6 available.
+- `llm_judge`: 6/6 offline reference observations available.
+- `ashr_grading`: 0/6 available, intentionally missing until real server-side grading evidence exists.
+- `local_judge` vs `llm_judge`: 6 comparable cases, 1 failure-class disagreement on `sample-a2-s010-wrong-arguments`.
+
+Peer/GitHub context:
+- `gh pr list --state all` showed A1 draft PR #6, merged A3 P3 PR #5, and prior A1/A2/A3 merged PRs.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` initially hit a transient network reset, then succeeded.
+- `origin/main` now includes merged A1/A3 work and diverges from this A2 branch; this pass did not merge main to avoid mixing peer changes into a scoped A2 commit.
+
+Verification:
+- `python -B scripts/a2_regenerate_fixtures.py --check`
+- `python -B -m unittest discover -s tests/a2 -v`
+- `python -B -m unittest discover -s tests/a1 -v`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs`
+- `git diff --check`
+
+Next top 3:
+1. Collect a small authenticated Ashr grading batch and fill the `ashr_grading` column.
+2. Replace offline `llm_judge` observations with audited model calls and real cost evidence.
+3. Promote the `wrong_arguments` vs `ignored_tool_result` disagreement into a regression case or judge calibration note.

@@ -11,6 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
 
@@ -21,6 +22,8 @@ DEFAULT_RUN_DIR = Path("fixtures/a2/runs")
 DEFAULT_RESULT_DIR = Path("fixtures/a2/results")
 DEFAULT_GRADE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_grade_results.json"
 DEFAULT_COVERAGE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_coverage_report.json"
+DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
+DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
 
 
 def main() -> int:
@@ -35,6 +38,8 @@ def main() -> int:
     parser.add_argument("--result-dir", default=DEFAULT_RESULT_DIR.as_posix())
     parser.add_argument("--grade-report", default=DEFAULT_GRADE_REPORT.as_posix())
     parser.add_argument("--coverage-report", default=DEFAULT_COVERAGE_REPORT.as_posix())
+    parser.add_argument("--calibration-observations", default=DEFAULT_CALIBRATION_OBSERVATIONS.as_posix())
+    parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -48,6 +53,8 @@ def main() -> int:
         result_dir=Path(args.result_dir),
         grade_report_path=Path(args.grade_report),
         coverage_report_path=Path(args.coverage_report),
+        calibration_observations_path=Path(args.calibration_observations),
+        calibration_matrix_path=Path(args.calibration_matrix),
     )
 
     if args.check:
@@ -66,6 +73,8 @@ def generate_outputs(
     result_dir: Path,
     grade_report_path: Path,
     coverage_report_path: Path,
+    calibration_observations_path: Path,
+    calibration_matrix_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -89,6 +98,11 @@ def generate_outputs(
         pack_path=pack_path,
         golden_path=golden_path,
         run_dir=run_dir,
+    )
+    outputs[calibration_matrix_path] = build_calibration_matrix(
+        pack_path=pack_path,
+        run_dir=run_dir,
+        observations_path=calibration_observations_path,
     )
     return outputs
 

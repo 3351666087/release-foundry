@@ -125,6 +125,7 @@ For dashboard/report consumption, A2 also provides an aggregate wrapper:
 
 - `fixtures/a2/results/a2_g3_grade_results.json`
 - `fixtures/a2/results/a2_g3_coverage_report.json`
+- `fixtures/a2/results/a2_g3_calibration_matrix.json`
 
 The aggregate wrapper uses:
 
@@ -140,6 +141,8 @@ The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 di
 A3 can also use `golden_failure_class_cases` and `executable_failure_class_cases` as drilldown evidence for each canonical failure class. The Markdown report surfaces the same evidence in a compact `Failure Class Evidence` section for manual review.
 
 For scenario-quality review, A3 can read `scenario_dimension_counts`, `scenario_dimension_scenarios`, tool-surface counts, fixture type counts, and `scenario_quality_warnings`. The Markdown report surfaces the advisory warning details, but these warnings do not change `meets_assignment_minimums`.
+
+The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a G3 commercial-readiness artifact for comparing `local_judge`, future `ashr_grading`, and `llm_judge` observations on the same cases. It exposes source coverage, agreement summaries, per-case diffs, cost ledger rows, and calibration warnings. A3 can surface this as a calibration panel without treating missing Ashr grading as a broken local test.
 
 ## Known Boundary
 
