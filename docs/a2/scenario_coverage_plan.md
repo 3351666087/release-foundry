@@ -125,12 +125,14 @@ The first C1 SDK-parity artifact is `fixtures/a2/results/a2_sdk_parity_report.js
 
 The first C2 batch-plan artifact is `fixtures/a2/results/a2_batch_plan_report.json`. It defines local, SDK parity, Ashr grading, semantic judge, and regression replay batches and mirrors A1's queue-worker quota phases without requiring live API keys.
 
+The first C4 semantic-harness artifact is `fixtures/a2/results/a2_semantic_harness_report.json`. It defines the prompt contract, output schema, model/cost/redaction policy, and six calibration cases for audited LLM judge calls. It explicitly keeps both Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths visible, including the media/tool-output grounding case. The current artifact is harness-ready but still marks live model evidence as missing.
+
 The first C5 case-book seed is `fixtures/a2/results/a2_case_book.json`, with a reviewer-readable companion at `docs/a2/case_book.md`. It currently promotes the `sample-a2-s010-wrong-arguments` local-vs-LLM failure-class disagreement into an explicit open regression seed.
 
 Next A2 priorities should be chosen by ROI against this commercial target:
 
 1. collect a small authenticated Ashr grading batch and fill the `ashr_grading` column,
-2. replace offline `llm_judge` samples with audited model calls and a real cost ledger,
+2. run the semantic harness with audited model calls and a real cost ledger,
 3. promote local-vs-LLM disagreements into regression fixtures or judge improvements.
 
 `scripts/a2_import_ashr_grading.py` is the bridge for the first item. It converts redacted Ashr `run.result.tests[].action_results[]` records into `ashr_grading` observations with canonical A2 failure classes. `scripts/a2_merge_calibration_observations.py` is the review gate that merges those observations into the calibration payload after checking source and known case ids. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed observation summaries and private evidence references.

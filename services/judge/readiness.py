@@ -14,6 +14,7 @@ def build_commercial_readiness_report(
     case_book_report: dict[str, Any] | None = None,
     sdk_parity_report: dict[str, Any] | None = None,
     batch_plan_report: dict[str, Any] | None = None,
+    semantic_harness_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -37,6 +38,8 @@ def build_commercial_readiness_report(
     sdk_language_count = int((sdk_parity_report or {}).get("sdk_language_count", 0))
     batch_plan_ready = bool((batch_plan_report or {}).get("plan_ready"))
     planned_batch_count = int((batch_plan_report or {}).get("batch_count", 0))
+    semantic_harness_ready = bool((semantic_harness_report or {}).get("harness_ready"))
+    semantic_live_evidence = bool((semantic_harness_report or {}).get("live_model_evidence_available"))
 
     gates = [
         _gate(
@@ -97,16 +100,15 @@ def build_commercial_readiness_report(
             "C4",
             "Semantic judge",
             "semantic/LLM judge evidence includes cost, confidence, false-positive tracking, and model provenance",
-            llm_cost_ready and llm_confidence_ready and not llm_is_offline_only,
-            llm_cost_ready and llm_confidence_ready,
+            llm_cost_ready and llm_confidence_ready and semantic_live_evidence and not llm_is_offline_only,
+            llm_cost_ready and llm_confidence_ready and semantic_harness_ready,
             [
                 "calibration_matrix.cost_ledger",
                 "calibration_matrix.cases[].sources.llm_judge.confidence",
                 "calibration_matrix.cases[].calibration_tags",
+                "fixtures/a2/results/a2_semantic_harness_report.json",
             ],
-            ["Replace offline llm_judge references with audited model-call evidence and prompt/model/cost metadata."]
-            if llm_is_offline_only
-            else [],
+            _c4_gaps(llm_is_offline_only, semantic_harness_ready, semantic_live_evidence),
         ),
         _gate(
             "C5",
@@ -170,6 +172,8 @@ def build_commercial_readiness_report(
             "sdk_parity_passed": sdk_parity_passed,
             "planned_batch_count": planned_batch_count,
             "batch_plan_ready": batch_plan_ready,
+            "semantic_harness_ready": semantic_harness_ready,
+            "semantic_harness_live_evidence": semantic_live_evidence,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -183,6 +187,7 @@ def build_commercial_readiness_report(
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "fixtures/a2/results/a2_sdk_parity_report.json",
                 "fixtures/a2/results/a2_batch_plan_report.json",
+                "fixtures/a2/results/a2_semantic_harness_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",
@@ -264,6 +269,21 @@ def _gate(
         "evidence_refs": evidence_refs,
         "gaps": gaps,
     }
+
+
+def _c4_gaps(
+    llm_is_offline_only: bool,
+    semantic_harness_ready: bool,
+    semantic_live_evidence: bool,
+) -> list[str]:
+    gaps = []
+    if not semantic_harness_ready:
+        gaps.append("Add a semantic judge harness with prompt, output schema, cost, redaction, and SDK-chain coverage.")
+    if llm_is_offline_only or not semantic_live_evidence:
+        gaps.append(
+            "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        )
+    return gaps
 
 
 def _current_gate(gates: list[dict[str, Any]]) -> str:

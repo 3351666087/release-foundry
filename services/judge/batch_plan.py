@@ -10,6 +10,7 @@ def build_batch_plan_report(
     calibration_matrix: dict[str, Any],
     case_book_report: dict[str, Any] | None = None,
     sdk_parity_report: dict[str, Any] | None = None,
+    semantic_harness_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic C2 plan before paid Ashr or live LLM calibration."""
     calibration_cases = calibration_matrix.get("cases", [])
@@ -49,9 +50,9 @@ def build_batch_plan_report(
             "semantic_llm_judge_audit",
             "model_call_private_evidence",
             len(calibration_cases),
-            ["llm_judge", "local_judge"],
-            "Replace offline LLM references with audited prompt/model/cost observations.",
-            ["fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"],
+            ["llm_judge", "local_judge", "python_sdk", "typescript_sdk"],
+            "Replace offline LLM references with audited prompt/model/cost observations across both SDK chains.",
+            _semantic_evidence_refs(semantic_harness_report),
             requires_private_evidence=True,
         ),
         _batch(
@@ -88,6 +89,7 @@ def build_batch_plan_report(
             "public_outputs": [
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "fixtures/a2/results/a2_case_book.json",
+                "fixtures/a2/results/a2_semantic_harness_report.json",
                 "fixtures/a2/results/a2_commercial_readiness_report.json",
             ],
             "secret_rule": "API keys and raw model/API payloads stay outside committed fixtures.",
@@ -154,6 +156,13 @@ def _quota_plan(
             "local_full_pack_regression": int(coverage_report.get("scenario_count", 0)),
         },
     }
+
+
+def _semantic_evidence_refs(semantic_harness_report: dict[str, Any] | None) -> list[str]:
+    refs = ["fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"]
+    if semantic_harness_report:
+        refs.insert(0, "fixtures/a2/results/a2_semantic_harness_report.json")
+    return refs
 
 
 def _has_batch(batches: list[dict[str, Any]], batch_id: str) -> bool:

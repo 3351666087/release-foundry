@@ -108,10 +108,11 @@
       "evidence_refs": [
         "calibration_matrix.cost_ledger",
         "calibration_matrix.cases[].sources.llm_judge.confidence",
-        "calibration_matrix.cases[].calibration_tags"
+        "calibration_matrix.cases[].calibration_tags",
+        "fixtures/a2/results/a2_semantic_harness_report.json"
       ],
       "gaps": [
-        "Replace offline llm_judge references with audited model-call evidence and prompt/model/cost metadata."
+        "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
       ]
     },
     {
@@ -157,7 +158,9 @@
     "sdk_language_count": 2,
     "sdk_parity_passed": true,
     "planned_batch_count": 5,
-    "batch_plan_ready": true
+    "batch_plan_ready": true,
+    "semantic_harness_ready": true,
+    "semantic_harness_live_evidence": false
   },
   "next_top_3": [
     {
@@ -219,7 +222,8 @@
       "fixtures/a2/results/a2_g3_coverage_report.json",
       "fixtures/a2/results/a2_g3_calibration_matrix.json",
       "fixtures/a2/results/a2_sdk_parity_report.json",
-      "fixtures/a2/results/a2_batch_plan_report.json"
+      "fixtures/a2/results/a2_batch_plan_report.json",
+      "fixtures/a2/results/a2_semantic_harness_report.json"
     ],
     "notes": [
       "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

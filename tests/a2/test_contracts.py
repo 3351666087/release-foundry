@@ -19,6 +19,7 @@ from services.judge.readiness import build_commercial_readiness_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
 from services.judge.sdk_parity import build_sdk_parity_report
+from services.judge.semantic_harness import build_semantic_harness_report
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -308,6 +309,7 @@ class A2ContractTests(unittest.TestCase):
         case_book_schema = json.loads((schema_dir / "case_book.schema.json").read_text(encoding="utf-8"))
         sdk_parity_schema = json.loads((schema_dir / "sdk_parity.schema.json").read_text(encoding="utf-8"))
         batch_plan_schema = json.loads((schema_dir / "batch_plan.schema.json").read_text(encoding="utf-8"))
+        semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -315,6 +317,7 @@ class A2ContractTests(unittest.TestCase):
         case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
         sdk_parity = json.loads((ROOT / "fixtures/a2/results/a2_sdk_parity_report.json").read_text(encoding="utf-8"))
         batch_plan = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
+        semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -323,6 +326,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(case_book_schema["properties"]["schema_version"]["const"], case_book["schema_version"])
         self.assertEqual(sdk_parity_schema["properties"]["schema_version"]["const"], sdk_parity["schema_version"])
         self.assertEqual(batch_plan_schema["properties"]["schema_version"]["const"], batch_plan["schema_version"])
+        self.assertEqual(
+            semantic_harness_schema["properties"]["schema_version"]["const"],
+            semantic_harness["schema_version"],
+        )
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
@@ -330,6 +337,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(case_book_schema["required"]), set(case_book))
         self.assertLessEqual(set(sdk_parity_schema["required"]), set(sdk_parity))
         self.assertLessEqual(set(batch_plan_schema["required"]), set(batch_plan))
+        self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -394,6 +402,11 @@ class A2ContractTests(unittest.TestCase):
         for batch in batch_plan["batches"]:
             with self.subTest(batch_plan_batch=batch["batch_id"]):
                 self.assertLessEqual(batch_required, set(batch))
+
+        harness_case_required = set(semantic_harness_schema["$defs"]["harness_case"]["required"])
+        for harness_case in semantic_harness["cases"]:
+            with self.subTest(semantic_harness_case=harness_case["case_id"]):
+                self.assertLessEqual(harness_case_required, set(harness_case))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -563,7 +576,8 @@ class A2ContractTests(unittest.TestCase):
         )
         case_book = build_case_book_report(calibration_matrix)
         sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
-        report = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity)
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        report = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity, semantic_harness)
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(report, expected_report)
@@ -582,6 +596,36 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["quota_plan"]["planned_quota_units"]["run.submit"], 5)
         self.assertGreater(report["quota_plan"]["planned_quota_units"]["observation.write"], 0)
         self.assertTrue(report["readiness_checks"]["has_cost_ledger"])
+        semantic_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "semantic_llm_judge_audit")
+        self.assertIn("fixtures/a2/results/a2_semantic_harness_report.json", semantic_batch["evidence_refs"])
+
+    def test_semantic_harness_tracks_prompt_cost_redaction_and_dual_sdk_chains(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        report = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.semantic_harness.v1")
+        self.assertTrue(report["harness_ready"])
+        self.assertFalse(report["live_model_evidence_available"])
+        self.assertEqual(report["status"], "offline_reference_only")
+        self.assertEqual(report["case_count"], 6)
+        self.assertEqual(report["source_matrix"]["required_languages"], ["python", "typescript"])
+        self.assertEqual(set(report["source_matrix"]["covered_languages"]), {"python", "typescript"})
+        self.assertTrue(report["readiness_checks"]["covers_python_and_typescript"])
+        self.assertFalse(report["readiness_checks"]["live_model_evidence_available"])
+        self.assertIn("prompt_tokens", report["cost_policy"]["required_fields"])
+        self.assertIn("tp_* API keys", report["redaction_policy"]["secret_patterns"])
+        self.assertIn("primary_failure_class", report["output_schema"]["required_fields"])
+        self.assertIn("wrong_arguments", report["output_schema"]["failure_class_enum"])
+        media_case = next(case for case in report["cases"] if case["case_id"] == "sample-a2-s031-media-pipeline-unsupported-output")
+        self.assertIn("media", media_case["calibration_focus"])
+        self.assertIn("typescript", media_case["sdk_input_paths"])
 
     def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
@@ -605,13 +649,15 @@ class A2ContractTests(unittest.TestCase):
         )
         case_book = build_case_book_report(calibration_matrix)
         sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
-        batch_plan = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity)
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        batch_plan = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity, semantic_harness)
         report = build_commercial_readiness_report(
             coverage_report,
             calibration_matrix,
             case_book_report=case_book,
             sdk_parity_report=sdk_parity,
             batch_plan_report=batch_plan,
+            semantic_harness_report=semantic_harness,
         )
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
 
@@ -636,8 +682,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("Collect reviewed Ashr grading observations", gates["C3"]["gaps"][0])
         self.assertEqual(gates["C4"]["status"], "partial")
         self.assertIn("offline", gates["C4"]["gaps"][0])
+        self.assertIn("fixtures/a2/results/a2_semantic_harness_report.json", gates["C4"]["evidence_refs"])
         self.assertEqual(report["evidence_snapshot"]["ashr_grading_missing"], 6)
         self.assertTrue(report["evidence_snapshot"]["llm_judge_offline_only"])
+        self.assertTrue(report["evidence_snapshot"]["semantic_harness_ready"])
+        self.assertFalse(report["evidence_snapshot"]["semantic_harness_live_evidence"])
         self.assertEqual(report["evidence_snapshot"]["case_book_regression_count"], 1)
         self.assertEqual(report["evidence_snapshot"]["sdk_language_count"], 2)
         self.assertTrue(report["evidence_snapshot"]["sdk_parity_passed"])

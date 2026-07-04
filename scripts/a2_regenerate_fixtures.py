@@ -18,6 +18,7 @@ from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
+from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
 
 
 DEFAULT_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
@@ -32,6 +33,7 @@ DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_rep
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
 DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
 DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
+DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json"
 
 
 def main() -> int:
@@ -52,6 +54,7 @@ def main() -> int:
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
     parser.add_argument("--sdk-parity", default=DEFAULT_SDK_PARITY.as_posix())
     parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
+    parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -71,6 +74,7 @@ def main() -> int:
         case_book_path=Path(args.case_book),
         sdk_parity_path=Path(args.sdk_parity),
         batch_plan_path=Path(args.batch_plan),
+        semantic_harness_path=Path(args.semantic_harness),
     )
 
     if args.check:
@@ -95,6 +99,7 @@ def generate_outputs(
     case_book_path: Path,
     sdk_parity_path: Path,
     batch_plan_path: Path,
+    semantic_harness_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -130,11 +135,14 @@ def generate_outputs(
     outputs[case_book_path] = case_book
     sdk_parity = build_sdk_parity_report(pack_path=pack_path)
     outputs[sdk_parity_path] = sdk_parity
+    semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+    outputs[semantic_harness_path] = semantic_harness
     batch_plan = build_batch_plan_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
         case_book_report=case_book,
         sdk_parity_report=sdk_parity,
+        semantic_harness_report=semantic_harness,
     )
     outputs[batch_plan_path] = batch_plan
     outputs[commercial_readiness_path] = build_commercial_readiness_report(
@@ -143,6 +151,7 @@ def generate_outputs(
         case_book_report=case_book,
         sdk_parity_report=sdk_parity,
         batch_plan_report=batch_plan,
+        semantic_harness_report=semantic_harness,
     )
     return outputs
 

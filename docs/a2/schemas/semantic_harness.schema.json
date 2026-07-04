@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SemanticHarnessReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "harness_id",
+    "dataset_id",
+    "case_count",
+    "status",
+    "harness_ready",
+    "live_model_evidence_available",
+    "source_matrix",
+    "prompt_contract",
+    "output_schema",
+    "model_policy",
+    "cost_policy",
+    "redaction_policy",
+    "readiness_checks",
+    "cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.semantic_harness.v1" },
+    "harness_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "case_count": { "type": "integer", "minimum": 0 },
+    "status": { "type": "string" },
+    "harness_ready": { "type": "boolean" },
+    "live_model_evidence_available": { "type": "boolean" },
+    "source_matrix": { "type": "object" },
+    "prompt_contract": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "model_policy": { "type": "object" },
+    "cost_policy": { "type": "object" },
+    "redaction_policy": { "type": "object" },
+    "readiness_checks": { "type": "object" },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/harness_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "harness_case": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "calibration_focus",
+        "expected",
+        "local_judge",
+        "offline_reference",
+        "sdk_input_paths",
+        "semantic_prompt_fields",
+        "audit_target"
+      ],
+      "properties": {
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "calibration_focus": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "expected": { "type": "object" },
+        "local_judge": { "type": "object" },
+        "offline_reference": { "type": "object" },
+        "sdk_input_paths": { "type": "object" },
+        "semantic_prompt_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "audit_target": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

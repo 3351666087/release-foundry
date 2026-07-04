@@ -419,3 +419,27 @@ Next top 3:
 1. Run the planned tiny Ashr grading calibration batch when private evidence is available.
 2. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.
 3. Expand the case book from one seed into a broader regression suite.
+
+## 2026-07-04 - C4 semantic judge harness with dual SDK chains
+
+Reason:
+- Kay flagged that the official Ashr docs expose both Python and TypeScript SDK entrypoints.
+- A2 already had C1 SDK parity, but C4 semantic/LLM judging also needed to keep the TypeScript chain visible instead of becoming Python-only.
+
+Implemented:
+- Added `services/judge/semantic_harness.py` to build deterministic `a2.semantic_harness.v1` evidence.
+- Added generated fixture `fixtures/a2/results/a2_semantic_harness_report.json`.
+- Added schema snapshot `docs/a2/schemas/semantic_harness.schema.json`.
+- Integrated the semantic harness into `scripts/a2_regenerate_fixtures.py`.
+- Updated the batch plan so `semantic_llm_judge_audit` names Python SDK, TypeScript SDK, local judge, and LLM judge sources together.
+- Updated commercial readiness so C4 cites the semantic harness, while still staying partial because live model evidence is missing.
+- Added tests for harness reproducibility, prompt/output/cost/redaction policy, media calibration coverage, and Python/TypeScript prompt paths.
+
+Boundary:
+- This pass does not call a live LLM and does not read `Ashr_key.txt`.
+- The harness is ready for audited private model-call evidence, but `live_model_evidence_available` remains false until that evidence is collected and reviewed.
+
+Next top 3:
+1. Fill the `ashr_grading` column with reviewed Ashr server-side grading evidence.
+2. Run the semantic harness with audited live model calls and commit only redacted summaries, hashes, costs, and confidence.
+3. Expand the case book once real Ashr/LLM disagreements are available.
