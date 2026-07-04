@@ -9,10 +9,12 @@ from .runtime import (
     QuotaLedger,
     ValidationError,
 )
-from .demo import run_agent_cloud_demo
+from .demo import run_agent_cloud_demo, run_agent_cloud_queue_demo
+from .queue_worker import CloudQueueWorker, QueueRunRequest
 
 __all__ = [
     "CLOUD_API_SCHEMA_VERSION",
+    "CloudQueueWorker",
     "DEFAULT_QUOTA_LIMITS",
     "CloudApiError",
     "CloudApiService",
@@ -20,6 +22,8 @@ __all__ = [
     "NotFoundError",
     "QuotaExceededError",
     "QuotaLedger",
+    "QueueRunRequest",
     "ValidationError",
     "run_agent_cloud_demo",
+    "run_agent_cloud_queue_demo",
 ]

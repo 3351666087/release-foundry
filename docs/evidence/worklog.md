@@ -929,3 +929,69 @@ Publish closure:
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
 - Staged path guard: no forbidden staged paths.
 - Staged high-risk secret pattern scan: no `sk-...`, GitHub token, or bearer-token patterns found in staged files.
+
+## 2026-07-04 Local Queue Worker Facade
+
+Goal: add a local queue worker facade so cloud-runtime runs can be accepted as queued work, progress through queued/running/completed or failed states, preserve A3 fixture shape, and obey quota ledger phase boundaries without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `2c43237` to `fe01f94`.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `packages/ts/ashr-clone/dist/`, and `node_modules/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `AgentInput`, `services/api` local runtime, cloud demo CLI, TypeScript local SDK quickstart, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing cloud runtime before this round could create tenant/project/dataset/request records, submit completed run results, poll stored runs, export fixtures, and enforce quota checks.
+- Missing before this round: queued run creation, worker-owned queued/running/completed transitions, timeout-safe queued demo behavior, queued CLI, and status history in cloud schema docs.
+- Peer changes/impact: latest peer commit `fe01f94` added A2 grading merge gate files under A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`. No A1-owned file impact; no Gate contract change required from A1.
+
+Three proposed enhancements:
+
+1. Queue worker facade: demo value 5, risk reduction 5, contract impact 2, estimated effort 3, API evidence value 2. Selected because queue lifecycle is an explicit phase target and makes the local cloud runtime closer to hosted run behavior.
+2. TypeScript API-client dry-run/transport-injected parity: demo value 4, risk reduction 4, contract impact 1, estimated effort 4, API evidence value 4.
+3. Public-safe A2 grading import from private hosted evidence: demo value 3, risk reduction 3, contract impact 2, estimated effort 3, API evidence value 3.
+
+Subagent / auditor status:
+
+- Reused existing subagent threads because the thread limit prevented spawning new ones. Four old threads initially returned empty completed states after requeue; this limitation is recorded as a tooling/evidence gap for the role protocol.
+- Bus-Auditor final recheck succeeded after an explicit resend. Initial verdict: BLOCK because queued wait timeout could return a non-terminal poll and `run_agent_cloud_queue_demo(...)` would then write an incomplete fixture/run/summary and CLI could exit 0.
+- Bus-Auditor required fix: require terminal status before writing queued demo outputs, add helper/CLI timeout regressions, and keep staging inside A1-owned dirs.
+- Implemented the required fix and reran queue/full tests.
+
+Implemented:
+
+- `services/api/queue_worker.py`: added `QueueRunRequest`, `CloudQueueWorker`, queued background execution, max-worker normalization, poll/wait/cancel methods, terminal wait enforcement, and redacted failure handling.
+- `services/api/runtime.py`: added queued run creation, running/completed/failed/cancelled transitions, `status_history`, phase-correct `run.submit` and `observation.write` quota consumption, and completion into the existing fixture/export shape.
+- `services/runner/runner.py`: added optional `run_id` injection for queued runs so `RunResult` and observations share the cloud run id.
+- `services/api/demo.py`: added `run_agent_cloud_queue_demo(...)`, which waits for terminal status before writing outputs.
+- `services/api/cli.py`: added `run-agent-queued` with `--queue-workers`, `--wait-timeout`, and existing output/failure controls.
+- `services/api/__init__.py`: exported queue worker symbols and queued demo helper.
+- `tests/a1/test_cloud_api.py`: added queue transition/fixture/quota tests and observation-quota failure coverage.
+- `tests/a1/test_cloud_api_cli.py`: added queued helper/CLI success tests and wait-timeout no-output regressions.
+- `tests/a1/fixtures_sensitive_agent.py`: added `SlowAgent` for bounded wait-timeout regressions.
+- `docs/a1/schemas/cloud_api.schema.json`: added `status_history` shape.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- Chrome docs check: official API reference showed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `request_status`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- Chrome Usage check: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were not confirmed. No private counters recorded.
+- Final remote recheck: PR #6 was merged; `origin/main` advanced to `e786c98` and contains prior A1 head `7c94460`. The current branch was fast-forwarded to `origin/main` before staging this round. Latest peer `4af23c4` added A2 case book regression seed files under A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`; no A1-owned conflict after conflict resolution in `docs/evidence/official_site_gaps.md`.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 21 passed.
+- `python -B -m pytest tests/a1/test_runner.py -q -p no:cacheprovider`: 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 123 passed.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m services.api.cli run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_queue_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_demo_run_smoke.json --tenant-id tenant_a1_queue_smoke --project-id project_a1_queue_smoke --dataset-id dataset_a1_queue_smoke --runner-id a1-queue-smoke --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: completed locally with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, status history `queued -> running -> completed`, and quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- Real API calls: none in this implementation round.
+
+Remaining / next top 3:
+
+1. Add TypeScript API-client dry-run/transport-injected parity for read-only probes before any hosted TS calls.
+2. Add queue persistence/replay controls so queued run state can survive process boundaries and produce deterministic replay artifacts.
+3. Convert selected private hosted run evidence through the A2 Ashr grading import/merge bridge into public-safe calibration observations.

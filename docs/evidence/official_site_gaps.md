@@ -40,4 +40,10 @@ Unverified or intentionally out of scope:
 - Read-only Chrome recheck confirmed public TypeScript SDK references/tabs remain visible and the Python API reference still exposes dataset, run, request, and media-envelope fields used for parity.
 - TypeScript runtime parity is now local-only in `packages/ts/ashr-clone`; hosted TypeScript API-client behavior, auth, and billing/usage semantics remain unverified and should stay dry-run/transport-injected until separately calibrated.
 
+2026-07-04 A1 queue worker update:
+
+- Read-only Chrome recheck confirmed the public API reference still exposes `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `request_status`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- The Usage page at `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy during this pass. `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were therefore not confirmed in this pass, and no private counters were recorded.
+- Local queue worker status names (`queued`, `running`, `completed`, `failed`, `cancelled`) remain an A1 local runtime scaffold for polling and replay. Hosted Ashr queue semantics, cancellation semantics, and billing/quota timing remain unverified.
+
 If any of these become required for A1/A2/A3, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs or committed artifacts.

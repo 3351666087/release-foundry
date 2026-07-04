@@ -7,7 +7,7 @@ import pytest
 
 from examples.agents.mock_agent import RespondingMockAgent
 from packages.sdk.ashr_clone.api_client import build_default_request_input_schema
-from services.api import CloudApiService, NotFoundError, QuotaExceededError, ValidationError, run_agent_cloud_demo
+from services.api import CloudApiService, CloudQueueWorker, NotFoundError, QueueRunRequest, QuotaExceededError, ValidationError, run_agent_cloud_demo
 from services.runner.runner import run_agent_batch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -133,6 +133,88 @@ def test_cloud_api_can_write_a_synthetic_run_fixture(tmp_path):
     payload = json.loads(Path(output).read_text(encoding="utf-8"))
     assert payload["schema_version"] == "ashr.clone.cloud_api.v1"
     assert payload["observations"]
+
+
+def test_cloud_queue_worker_transitions_run_and_preserves_fixture_shape(tmp_path):
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Queued Dataset",
+        cases=[
+            {"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}},
+            {"id": "math", "prompt": "What is 19 + 23?", "expected": {"text": "The answer is 42.", "tool_calls": [{"name": "calculator"}]}},
+        ],
+        dataset_id="dataset_queued",
+    )
+
+    with CloudQueueWorker(service, queue_workers=1) as worker:
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                agent="examples.agents.mock_agent:RespondingMockAgent",
+                runner_id="a1-queue-test",
+                max_workers=1,
+                timeout_seconds=5,
+                run_id="run_queued_test",
+            )
+        )
+        completed = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=10)["run"]
+
+    fixture_path = service.write_run_fixture(tenant["tenant_id"], project["project_id"], completed["run_id"], tmp_path / "queued_fixture.json")
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    statuses = [item["status"] for item in completed["status_history"]]
+    quota = service.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    assert queued["status"] == "queued"
+    assert completed["status"] == "completed"
+    assert completed["result_status"] == "passed"
+    assert statuses == ["queued", "running", "completed"]
+    assert completed["metadata"]["queue_workers"] == 4
+    assert completed["metadata"]["runner_max_workers"] == 4
+    assert completed["result"]["max_workers"] == 4
+    assert len(completed["observations"]) == 4
+    assert quota["run.submit"] == 1
+    assert quota["observation.write"] == 4
+    assert fixture["run_result"]["run_id"] == "run_queued_test"
+    assert fixture["metadata"]["ashr_api_used"] is False
+
+
+def test_cloud_queue_worker_quota_failure_keeps_failed_run_without_observation_write():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Queued Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_queued_quota",
+    )
+    service.quota.configure(tenant["tenant_id"], project["project_id"], {"observation.write": 1})
+
+    with CloudQueueWorker(service, queue_workers=4) as worker:
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                agent=RespondingMockAgent,
+                runner_id="a1-queue-quota-test",
+                timeout_seconds=5,
+                run_id="run_queued_quota",
+            )
+        )
+        failed = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=10)["run"]
+
+    quota = service.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    statuses = [item["status"] for item in failed["status_history"]]
+    assert failed["status"] == "failed"
+    assert failed["result_status"] == "error"
+    assert failed["error"]["type"] == "QuotaExceededError"
+    assert statuses == ["queued", "running", "failed"]
+    assert quota["run.submit"] == 1
+    assert quota.get("observation.write") is None
+    assert service.list_runs(tenant["tenant_id"], project["project_id"])[0]["run_id"] == "run_queued_quota"
 
 
 def test_cloud_api_demo_runs_agent_submits_polls_and_writes_outputs(tmp_path):

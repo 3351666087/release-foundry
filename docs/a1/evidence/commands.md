@@ -313,3 +313,29 @@ Cleanup note:
 - Chrome/Product subagent recheck: public API reference still exposed TypeScript reference/tab and dataset/run/request/media boundary terms. Lab Usage loaded without sign-in blocker, but media counters were still asynchronous/unstable in that pass.
 - Final Bus-Auditor: PASS. Stage only six modified docs and nine new `packages/ts/ashr-clone` package/source/test/example files; leave `dist/`, `node_modules/`, `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` unstaged.
 - Real Ashr API calls: none in this implementation round.
+
+## 2026-07-04 Local Queue Worker Facade
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced to `fe01f94`.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced again to `4af23c4`, PR #6 was merged, and `origin/main` advanced to `e786c98` containing prior A1 head `7c94460`. The current A1 branch was fast-forwarded to `origin/main`, then this round's stash was reapplied; only `docs/evidence/official_site_gaps.md` conflicted and was resolved by preserving main's A1/A2/A3 gap wording plus the new A1 queue-worker gap.
+- Round-start `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `gh pr list --state all`: repo root `C:/Users/33516/Documents/Ashr`, remote `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, PR #6 open/draft at that time.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `packages/ts/ashr-clone/dist/`, and `node_modules/` present.
+- Peer impact: latest `fe01f94` touched A2 docs/worklog/fixtures, A2 merge script, `services/judge`, and `tests/a2`; no A1-owned file or Gate contract impact observed.
+- Three scored enhancements:
+  - Queue worker facade: demo 5, risk reduction 5, contract impact 2, effort 3, API evidence 2. Selected because queue/run lifecycle is an explicit phase target and unblocks batch/cloud runtime behavior.
+  - TypeScript API-client dry-run/transport-injected parity: demo 4, risk reduction 4, contract impact 1, effort 4, API evidence 4.
+  - Public-safe A2 grading import from private hosted evidence: demo 3, risk reduction 3, contract impact 2, effort 3, API evidence 3.
+- Chrome read-only calibration: public API reference still exposed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `request_status`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- Chrome Usage calibration: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Images`, `Audio`, `Files`, `Usage`, and `Upgrade` were not confirmed. No private counters recorded.
+- Implemented `services/api/queue_worker.py`: `CloudQueueWorker` and `QueueRunRequest` for local queued agent runs, max worker normalization to at least 4, background execution, status polling, cancellation guard, quota-safe completion, and redacted failure handling.
+- Extended `services/api/runtime.py`: queued run creation, running/completed/failed/cancelled transitions, `status_history`, phase-correct quota consumption, and completion into the existing A3 fixture/export shape.
+- Extended `services/runner/runner.py`: optional `run_id` injection so queued run ids match `RunResult` and observation `run_id` values.
+- Extended `services/api/demo.py` and `services/api/cli.py`: `run_agent_cloud_queue_demo(...)` and `python -B -m services.api.cli run-agent-queued ...`.
+- Updated `services/api/__init__.py`, `docs/a1/schemas/cloud_api.schema.json`, `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, and this command log.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 21 passed after adding queue worker and wait-timeout coverage.
+- `python -B -m pytest tests/a1/test_runner.py -q -p no:cacheprovider`: 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 123 passed.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m services.api.cli run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_queue_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_demo_run_smoke.json --tenant-id tenant_a1_queue_smoke --project-id project_a1_queue_smoke --dataset-id dataset_a1_queue_smoke --runner-id a1-queue-smoke --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: local-only queued smoke completed with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, status history `queued -> running -> completed`, and quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- Bus-Auditor must-fix: queued demo could export incomplete output after wait timeout. Fixed by requiring terminal status before writing fixture/run/summary output, and added helper/CLI timeout regressions that assert no incomplete outputs are written and CLI exits nonzero.
+- Real Ashr API calls: none in this implementation round.

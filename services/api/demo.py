@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 from services.runner.runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, load_cases, normalize_timeout_seconds, run_agent_batch, write_results_json
 
+from .queue_worker import CloudQueueWorker, QueueRunRequest
 from .runtime import CLOUD_API_SCHEMA_VERSION, CloudApiService
 
 JsonDict = dict[str, Any]
@@ -69,6 +70,81 @@ def run_agent_cloud_demo(
         fixture_path=fixture_path,
         run_output_path=run_output_path,
     )
+    if summary_output_path is not None:
+        _write_json(summary, summary_output_path)
+    return summary
+
+
+def run_agent_cloud_queue_demo(
+    *,
+    input_path: str | Path,
+    agent: str,
+    fixture_output_path: str | Path,
+    summary_output_path: str | Path | None = None,
+    run_output_path: str | Path | None = None,
+    tenant_id: str = "tenant_local_queue_demo",
+    project_id: str = "project_local_queue_demo",
+    tenant_name: str = "Local Queue Demo Tenant",
+    project_name: str = "Local Queue Demo Project",
+    dataset_id: str = "dataset_local_queue_demo",
+    dataset_name: str = "Local Queue Demo Dataset",
+    runner_id: str = "a1-cloud-queue-runner",
+    queue_workers: int | None = DEFAULT_MAX_WORKERS,
+    max_workers: int | None = DEFAULT_MAX_WORKERS,
+    timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
+    wait_timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
+) -> JsonDict:
+    cases = load_cases(input_path)
+    service = CloudApiService()
+    tenant = service.create_tenant(tenant_name, tenant_id=tenant_id, metadata={"local_only": True})
+    project = service.create_project(tenant["tenant_id"], project_name, project_id=project_id, metadata={"local_only": True})
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name=dataset_name,
+        cases=cases,
+        dataset_id=dataset_id,
+        metadata={"source": "services.api.demo.queue", "input_path": str(input_path)},
+    )
+    with CloudQueueWorker(service, queue_workers=queue_workers) as worker:
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                agent=agent,
+                runner_id=runner_id,
+                max_workers=max_workers,
+                timeout_seconds=normalize_timeout_seconds(timeout_seconds),
+                metadata={"source": "services.api.demo.queue"},
+            )
+        )
+        completed = worker.wait_for_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            queued["run_id"],
+            timeout_seconds=wait_timeout_seconds,
+            require_terminal=True,
+        )["run"]
+    fixture_path = service.write_run_fixture(tenant["tenant_id"], project["project_id"], completed["run_id"], fixture_output_path)
+    if run_output_path is not None:
+        write_results_json(completed["result"], run_output_path)
+    summary = _demo_summary(
+        tenant=tenant,
+        project=project,
+        dataset=dataset,
+        run=completed,
+        poll=service.poll_run(tenant["tenant_id"], project["project_id"], completed["run_id"]),
+        quota=service.quota_snapshot(tenant["tenant_id"], project["project_id"]),
+        fixture_path=fixture_path,
+        run_output_path=run_output_path,
+    )
+    summary["queue"] = {
+        "queued_status": queued["status"],
+        "queue_workers": completed.get("metadata", {}).get("queue_workers"),
+        "runner_max_workers": completed.get("metadata", {}).get("runner_max_workers"),
+        "status_history": completed.get("status_history", []),
+    }
     if summary_output_path is not None:
         _write_json(summary, summary_output_path)
     return summary
