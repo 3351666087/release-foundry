@@ -16,6 +16,7 @@
     "model_policy",
     "cost_policy",
     "redaction_policy",
+    "risk_assessment",
     "readiness_checks",
     "cases",
     "metadata"
@@ -34,6 +35,7 @@
     "model_policy": { "type": "object" },
     "cost_policy": { "type": "object" },
     "redaction_policy": { "type": "object" },
+    "risk_assessment": { "type": "object" },
     "readiness_checks": { "type": "object" },
     "cases": {
       "type": "array",

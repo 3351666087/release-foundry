@@ -62,12 +62,14 @@ def build_evidence_readiness_report(
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
+    semantic_risk = semantic_harness_report.get("risk_assessment", {})
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
         "ashr_case_map_covers_cases": not ashr_missing and len(ashr_case_map) == len(cases),
         "ashr_import_commands_documented": True,
         "semantic_harness_ready": bool(semantic_harness_report.get("harness_ready")),
+        "semantic_false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
         "semantic_required_fields_documented": bool(REQUIRED_SEMANTIC_FIELDS),
         "semantic_sdk_language_matrix_ready": set(semantic_languages) >= {"python", "typescript"},
         "private_payload_boundary_documented": True,
@@ -110,6 +112,13 @@ def build_evidence_readiness_report(
             "offline_reference_only": llm_offline_only,
             "expected_observation_count": len(cases),
             "expected_reviewed_observation_count": len(cases),
+            "risk_assessment_status": semantic_risk.get("status", "unknown"),
+            "false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
+            "false_positive_candidate_count": int(semantic_risk.get("false_positive_candidate_count", 0)),
+            "false_negative_candidate_count": int(semantic_risk.get("false_negative_candidate_count", 0)),
+            "failure_class_drift_candidate_count": int(semantic_risk.get("failure_class_drift_candidate_count", 0)),
+            "score_delta_review_count": int(semantic_risk.get("score_delta_review_count", 0)),
+            "risk_case_count": int(semantic_risk.get("risk_case_count", 0)),
             "required_fields": REQUIRED_SEMANTIC_FIELDS,
             "required_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("required_languages", []),
             "covered_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("covered_languages", []),

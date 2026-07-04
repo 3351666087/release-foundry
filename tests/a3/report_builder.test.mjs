@@ -358,6 +358,13 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(summary.ashr_public_merge_blocking_reason, /before C3 is met/);
   assert.equal(summary.semantic_offline_reference_only, true);
   assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.equal(summary.semantic_risk_assessment_status, "offline_reference_risk_register");
+  assert.equal(summary.semantic_false_positive_tracking_ready, true);
+  assert.equal(summary.semantic_false_positive_candidate_count, 0);
+  assert.equal(summary.semantic_false_negative_candidate_count, 0);
+  assert.equal(summary.semantic_failure_class_drift_candidate_count, 1);
+  assert.equal(summary.semantic_score_delta_review_count, 4);
+  assert.equal(summary.semantic_risk_case_count, 4);
   assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
   assert.equal(summary.semantic_audited_live_evidence_merged, false);
   assert.equal(summary.semantic_safe_to_mark_c4_met, false);
@@ -373,6 +380,10 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
   assert.equal(json.evidence_readiness.ashr_public_merge_status, "not_merged");
   assert.equal(json.evidence_readiness.ashr_safe_to_mark_c3_met, false);
+  assert.equal(json.evidence_readiness.semantic_risk_assessment_status, "offline_reference_risk_register");
+  assert.equal(json.evidence_readiness.semantic_false_positive_candidate_count, 0);
+  assert.equal(json.evidence_readiness.semantic_failure_class_drift_candidate_count, 1);
+  assert.equal(json.evidence_readiness.semantic_score_delta_review_count, 4);
   assert.equal(json.evidence_readiness.semantic_live_merge_status, "offline_reference_only");
   assert.equal(json.evidence_readiness.semantic_safe_to_mark_c4_met, false);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
@@ -383,6 +394,10 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /Ashr public merge: not_merged/);
   assert.match(markdown, /C3 safe to mark met: no/);
+  assert.match(markdown, /Semantic risk register: offline_reference_risk_register/);
+  assert.match(markdown, /Semantic false-positive candidates: 0/);
+  assert.match(markdown, /Semantic failure-class drift candidates: 1/);
+  assert.match(markdown, /Semantic score-delta reviews: 4/);
   assert.match(markdown, /Semantic live merge: offline_reference_only/);
   assert.match(markdown, /C4 safe to mark met: no/);
   assert.match(markdown, /SDK languages covered: python, typescript/);

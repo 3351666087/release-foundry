@@ -112,6 +112,7 @@
         "calibration_matrix.cases[].sources.llm_judge.confidence",
         "calibration_matrix.cases[].calibration_tags",
         "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_semantic_harness_report.json::risk_assessment",
         "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
@@ -177,7 +178,14 @@
     "semantic_live_merge_status": "offline_reference_only",
     "semantic_audited_live_evidence_merged": false,
     "semantic_safe_to_mark_c4_met": false,
-    "semantic_missing_audited_observations": 6
+    "semantic_missing_audited_observations": 6,
+    "semantic_risk_assessment_status": "offline_reference_risk_register",
+    "semantic_false_positive_tracking_ready": true,
+    "semantic_false_positive_candidates": 0,
+    "semantic_false_negative_candidates": 0,
+    "semantic_failure_class_drift_candidates": 1,
+    "semantic_score_delta_reviews": 4,
+    "semantic_risk_case_count": 4
   },
   "next_top_3": [
     {
