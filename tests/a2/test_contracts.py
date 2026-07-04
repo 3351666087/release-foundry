@@ -1,5 +1,7 @@
 import json
 import re
+import subprocess
+import sys
 import unittest
 from collections import Counter
 from pathlib import Path
@@ -246,6 +248,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(actual_report["total_cases"], len(fixtures))
         failure_classes = {result["primary_failure_class"] for result in actual_report["grade_results"]}
         self.assertLessEqual(CANONICAL_FAILURE_CLASSES | {"none"}, failure_classes)
+
+    def test_generated_a2_fixtures_are_reproducible(self):
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/a2_regenerate_fixtures.py"), "--check"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("A2 generated fixture files match", result.stdout)
 
     def test_a2_schema_snapshots_match_committed_fixtures(self):
         schema_dir = ROOT / "docs/a2/schemas"

@@ -24,6 +24,7 @@ This module provides the local G1-G2 foundation for:
 - Safety boundary judge: `services/judge/safety_boundary.py`
 - Local runner: `services/judge/runner.py`
 - Coverage report helper: `services/judge/coverage.py`
+- Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
@@ -73,6 +74,22 @@ The result contains:
 - nested `FailureAnalysis` objects for A3 display.
 
 Local debug signals such as `bad_final_response` can appear inside `failure_analysis.failure_classes`, but they should not be used as the top-level `primary_failure_class`.
+
+## Regenerating Fixtures
+
+Generated A2 grade fixtures and the G3 coverage report are deterministic. Before handing results to A3, run:
+
+```bash
+python scripts/a2_regenerate_fixtures.py --check
+```
+
+If a scenario, judge, or calibration run intentionally changes, refresh the committed output with:
+
+```bash
+python scripts/a2_regenerate_fixtures.py --write
+```
+
+This script only uses local fixtures and does not require an Ashr API key.
 
 ## G1-G2 Boundary
 
