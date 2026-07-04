@@ -1,0 +1,21 @@
+{
+  "scenario_id": "A2-S011",
+  "case_id": "sample-a2-s011-poor-recovery",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.open#1",
+        "tool": "web.open",
+        "args": {
+          "url": "https://example.test/support-status"
+        },
+        "error": "500"
+      }
+    ],
+    "final_response": "Version 3.4 is fully supported."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "poor_failure_recovery"
+  }
+}

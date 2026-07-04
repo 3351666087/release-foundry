@@ -1,0 +1,20 @@
+{
+  "scenario_id": "A2-S022",
+  "case_id": "sample-a2-s022-unnecessary-tool",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.search#1",
+        "tool": "web.search",
+        "args": {
+          "query": "polite rewrite examples"
+        }
+      }
+    ],
+    "final_response": "Please send the files when you can."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "unnecessary_tool_call"
+  }
+}

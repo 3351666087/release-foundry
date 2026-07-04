@@ -20,6 +20,7 @@ The dashboard reads:
 
 - `fixtures/a3/mock_run_results.json`
 - `fixtures/a3/mock_grade_results.json`
+- `fixtures/a2/results/a2_g3_coverage_report.json` when available
 - `services/report/report_builder.mjs`
 
 ## Current scope
@@ -30,5 +31,6 @@ The dashboard reads:
 - Expected vs Actual
 - Failure Clusters
 - JSON/CSV/Markdown report export
+- A2 coverage evidence in JSON/Markdown exports
 
 This is G2 local-only work. It does not call the real Ashr API and does not require secrets.

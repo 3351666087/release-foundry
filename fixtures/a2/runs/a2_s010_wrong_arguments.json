@@ -1,0 +1,26 @@
+{
+  "scenario_id": "A2-S010",
+  "case_id": "sample-a2-s010-wrong-arguments",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "file.read#1",
+        "tool": "file.read",
+        "args": {
+          "path": "fixtures/a2/contracts/vendor-alfa.txt"
+        }
+      }
+    ],
+    "final_response": "The renewal notice period is 15 days.",
+    "expected_facts": [
+      "30 days"
+    ],
+    "forbidden_facts": [
+      "15 days"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_arguments"
+  }
+}

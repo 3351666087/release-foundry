@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 CoverageReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "pack_id",
+    "assignment_minimums",
+    "assignment_checks",
+    "meets_assignment_minimums",
+    "calibration_redundancy_targets",
+    "scenario_count",
+    "family_counts",
+    "rubric_classes",
+    "primary_rubric_counts",
+    "judge_modes",
+    "primary_failure_class_counts",
+    "failure_signal_count",
+    "failure_signals",
+    "required_failure_classes_covered",
+    "required_failure_classes_missing",
+    "golden_case_count",
+    "golden_pass_case_count",
+    "golden_failure_case_count",
+    "golden_failure_class_counts",
+    "golden_failure_class_cases",
+    "golden_failure_classes_missing",
+    "thin_golden_failure_classes",
+    "executable_run_case_count",
+    "executable_failure_case_count",
+    "executable_failure_class_counts",
+    "executable_failure_class_cases",
+    "executable_failure_classes_missing",
+    "thin_executable_failure_classes",
+    "coverage_warnings",
+    "fixture_ref_count"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.coverage_report.v1" },
+    "pack_id": { "type": "string" },
+    "assignment_minimums": { "$ref": "#/$defs/count_map" },
+    "assignment_checks": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "meets_assignment_minimums": { "type": "boolean" },
+    "calibration_redundancy_targets": { "$ref": "#/$defs/count_map" },
+    "scenario_count": { "type": "integer", "minimum": 0 },
+    "family_counts": { "$ref": "#/$defs/count_map" },
+    "rubric_classes": { "$ref": "#/$defs/string_array" },
+    "primary_rubric_counts": { "$ref": "#/$defs/count_map" },
+    "judge_modes": { "$ref": "#/$defs/string_array" },
+    "primary_failure_class_counts": { "$ref": "#/$defs/count_map" },
+    "failure_signal_count": { "type": "integer", "minimum": 0 },
+    "failure_signals": { "$ref": "#/$defs/string_array" },
+    "required_failure_classes_covered": { "$ref": "#/$defs/string_array" },
+    "required_failure_classes_missing": { "$ref": "#/$defs/string_array" },
+    "golden_case_count": { "type": "integer", "minimum": 0 },
+    "golden_pass_case_count": { "type": "integer", "minimum": 0 },
+    "golden_failure_case_count": { "type": "integer", "minimum": 0 },
+    "golden_failure_class_counts": { "$ref": "#/$defs/count_map" },
+    "golden_failure_class_cases": { "$ref": "#/$defs/failure_case_ref_map" },
+    "golden_failure_classes_missing": { "$ref": "#/$defs/string_array" },
+    "thin_golden_failure_classes": { "$ref": "#/$defs/count_map" },
+    "executable_run_case_count": { "type": "integer", "minimum": 0 },
+    "executable_failure_case_count": { "type": "integer", "minimum": 0 },
+    "executable_failure_class_counts": { "$ref": "#/$defs/count_map" },
+    "executable_failure_class_cases": { "$ref": "#/$defs/failure_case_ref_map" },
+    "executable_failure_classes_missing": { "$ref": "#/$defs/string_array" },
+    "thin_executable_failure_classes": { "$ref": "#/$defs/count_map" },
+    "coverage_warnings": { "$ref": "#/$defs/string_array" },
+    "fixture_ref_count": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "count_map": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "case_ref": {
+      "type": "object",
+      "required": ["case_id", "scenario_id"],
+      "properties": {
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "failure_case_ref_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/case_ref" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -12,6 +12,35 @@ RUBRIC_WEIGHTS = {
     "final_response_quality": 15,
 }
 
+CANONICAL_FAILURE_CLASSES = {
+    "wrong_intent",
+    "missing_required_tool",
+    "unnecessary_tool_call",
+    "forbidden_tool_call",
+    "wrong_tool",
+    "wrong_arguments",
+    "wrong_tool_order",
+    "missing_clarification",
+    "hallucinated_tool_result",
+    "ignored_tool_result",
+    "unsafe_or_policy_violation",
+    "poor_failure_recovery",
+}
+
+LOCAL_FAILURE_CLASS_MAP = {
+    "bad_final_response": "wrong_intent",
+    "output_schema_invalid": "wrong_intent",
+}
+
+
+def canonical_primary_failure_class(failures: list[str]) -> str:
+    for failure in failures:
+        if failure in CANONICAL_FAILURE_CLASSES:
+            return failure
+        if failure in LOCAL_FAILURE_CLASS_MAP:
+            return LOCAL_FAILURE_CLASS_MAP[failure]
+    return "wrong_intent" if failures else "none"
+
 
 @dataclass
 class FailureAnalysis:

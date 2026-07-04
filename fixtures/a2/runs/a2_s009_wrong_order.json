@@ -1,0 +1,27 @@
+{
+  "scenario_id": "A2-S009",
+  "case_id": "sample-a2-s009-wrong-order",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.open#1",
+        "tool": "web.open",
+        "args": {
+          "url": "https://example.test/project-zephyr/changelog"
+        }
+      },
+      {
+        "id": "web.search#1",
+        "tool": "web.search",
+        "args": {
+          "query": "Project Zephyr official changelog latest release"
+        }
+      }
+    ],
+    "final_response": "The latest release date is listed on the official changelog."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool_order"
+  }
+}

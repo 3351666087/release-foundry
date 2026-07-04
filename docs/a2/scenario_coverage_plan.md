@@ -18,16 +18,13 @@ Final A2 target:
 
 ## Judge Modes
 
-G1-G2 deterministic local modes:
+G3 deterministic local modes:
 
 1. `g1_trace_contract_judge`
 2. `g2_output_contract_judge`
-
-Later calibration modes:
-
-3. `g3_semantic_reference_judge`
-4. `g3_replay_sandbox_judge`
-5. `g4_panel_adjudication_judge`
+3. `g3_replay_sandbox_judge`
+4. `g3_semantic_reference_judge`
+5. `g3_safety_boundary_judge`
 
 ## 60-Scenario Families
 
@@ -57,6 +54,52 @@ The first 20 scenarios live in `packages/scenarios/a2_g2_seed_pack.json`. They c
 - multi-turn memory
 - unsafe request
 - recovery after refusal
+
+## G3 Full Pack
+
+The full 60-scenario pack lives in `packages/scenarios/a2_g3_full_pack.json`.
+
+It keeps 10 scenarios per family and is the default pack for `services.judge.runner.grade_run`.
+
+G3 also adds:
+
+- 5 active deterministic judge modes,
+- A2 aggregate grade report fixture at `fixtures/a2/results/a2_g3_grade_results.json`,
+- executable A2 run fixtures covering all 12 canonical failure classes plus one passing baseline,
+- coverage reporting via `services.judge.coverage.build_coverage_report`,
+- saved coverage audit fixture at `fixtures/a2/results/a2_g3_coverage_report.json`.
+
+Each G3 scenario also has coverage-audit metadata:
+
+- `primaryRubric`: one of the 5 rubric classes. The 60-pack assigns exactly 12 primary scenarios to each rubric class.
+- `primaryFailureClass`: one of the 12 canonical failure classes. The 60-pack covers every canonical class at least once.
+
+These fields make coverage auditable; runtime judges still grade actual run behavior.
+
+The coverage report also reads `fixtures/golden/a2_g2_golden_cases.json` and reports:
+
+- `golden_case_count`: expected to stay at 20 or higher. The first 20 cases cover the 20 G2 seed scenarios; extra cases may be added as failure calibration seeds.
+- `golden_pass_case_count`,
+- `golden_failure_case_count`: expected to stay at 12 or higher,
+- `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds,
+- `golden_failure_classes_missing`: expected to stay empty after G3 calibration.
+
+The golden set now contains at least two calibration cases for every canonical failure class, so `thin_golden_failure_classes` is expected to stay empty.
+
+It also audits executable run fixtures in `fixtures/a2/runs`:
+
+- `executable_run_case_count`,
+- `executable_failure_case_count`: expected to stay at 12 or higher,
+- `executable_failure_class_counts`,
+- `executable_failure_classes_missing`: expected to stay empty after executable G3 calibration.
+
+G3 executable calibration now includes seed and non-seed tool/workflow scenarios for shell inspection, image inspection, MCP resource lookup, calculator argument fidelity, and retry/failure recovery. These fixtures make more of the 60-pack auditable through actual runner output rather than metadata alone.
+
+The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
+
+After the G3 calibration pass, both `thin_golden_failure_classes` and `thin_executable_failure_classes` are expected to stay empty, meaning every canonical failure class has at least two golden cases and at least two executable run fixtures.
+
+For auditability, the coverage report also exposes `golden_failure_class_cases` and `executable_failure_class_cases`, which list the case/scenario evidence behind each canonical failure class count.
 
 ## Later Enhancements
 

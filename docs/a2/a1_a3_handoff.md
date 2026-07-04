@@ -90,13 +90,18 @@ result = grade_run("A2-S005", run)
 
 1. `ToolPolicyJudge`
 2. `OutcomeJudge`
+3. `TraceIntegrityJudge`
+4. `GroundingJudge`
+5. `SafetyBoundaryJudge`
 
 The combined result includes:
 
 - `passed`
 - `score`
-- `primary_failure_class`
+- canonical `primary_failure_class`
 - `judge_results`
+
+`primary_failure_class` is reserved for the 12 canonical A2 failure classes or `none`, so A3 failure clusters stay stable. Local debug signals can remain inside nested `failure_analysis.failure_classes`; A3 normalizes legacy local signals before clustering.
 
 ## A2 -> A3 Display Output
 
@@ -114,6 +119,25 @@ Sample outputs:
 
 - `fixtures/a2/results/a2_s001_pass_grade.json`
 - `fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- `fixtures/a2/results/a2_s010_wrong_arguments_grade.json`
+
+For dashboard/report consumption, A2 also provides an aggregate wrapper:
+
+- `fixtures/a2/results/a2_g3_grade_results.json`
+- `fixtures/a2/results/a2_g3_coverage_report.json`
+
+The aggregate wrapper uses:
+
+- `schema_version`: `a2.grade_results.v1`
+- `grade_results[]`: list of normal `grade_run` outputs
+- `total_cases`, `passed`, `failed`
+- `scenario_pack`, `dataset_id`, `report_id`
+
+A2 aggregate scores use a 0-100 scale with `max_score: 100` on per-judge results. A3 also normalizes A1 nested `case.grade.score` values on the 0-1 scale when no A2 aggregate grade is joined.
+
+The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, executable failure calibration coverage, assignment minimum checks, and thin-calibration warnings without rerunning A2 code.
+
+A3 can also use `golden_failure_class_cases` and `executable_failure_class_cases` as drilldown evidence for each canonical failure class. The Markdown report surfaces the same evidence in a compact `Failure Class Evidence` section for manual review.
 
 ## Known Boundary
 

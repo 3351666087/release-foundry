@@ -19,9 +19,75 @@ export function scoreBand(score) {
   return "0";
 }
 
+const CANONICAL_FAILURE_CLASSES = new Set([
+  "wrong_intent",
+  "missing_required_tool",
+  "unnecessary_tool_call",
+  "forbidden_tool_call",
+  "wrong_tool",
+  "wrong_arguments",
+  "wrong_tool_order",
+  "missing_clarification",
+  "hallucinated_tool_result",
+  "ignored_tool_result",
+  "unsafe_or_policy_violation",
+  "poor_failure_recovery"
+]);
+
+const LOCAL_FAILURE_CLASS_MAP = new Map([
+  ["bad_final_response", "wrong_intent"],
+  ["output_schema_invalid", "wrong_intent"],
+  ["unknown_failure", "wrong_intent"]
+]);
+
+export function canonicalPrimaryFailureClass(value, passed = false) {
+  const failureClass = typeof value === "string" ? value.trim() : "";
+  if (failureClass === "none") {
+    return passed ? "none" : "wrong_intent";
+  }
+  if (CANONICAL_FAILURE_CLASSES.has(failureClass)) {
+    return failureClass;
+  }
+  if (LOCAL_FAILURE_CLASS_MAP.has(failureClass)) {
+    return LOCAL_FAILURE_CLASS_MAP.get(failureClass);
+  }
+  return passed ? "none" : "wrong_intent";
+}
+
 export function getGradeByCase(gradeFixture = {}) {
   const grades = Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results : [];
   return new Map(grades.map((grade) => [grade.case_id, grade]));
+}
+
+function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed = false) {
+  const judgeResults = Array.isArray(grade.judge_results) ? grade.judge_results : [];
+  const analyses = judgeResults
+    .map((judge) => judge.failure_analysis)
+    .filter((analysis) => analysis && typeof analysis === "object");
+
+  if (passed) {
+    return analyses.find((analysis) => analysis.primary_failure_class !== "none") || null;
+  }
+
+  const matchingPrimary = analyses.find((analysis) => (
+    analysis.primary_failure_class
+    && analysis.primary_failure_class !== "none"
+    && canonicalPrimaryFailureClass(analysis.primary_failure_class, false) === primaryFailureClass
+  ));
+  if (matchingPrimary) {
+    return matchingPrimary;
+  }
+
+  const failedJudge = judgeResults.find((judge) => (
+    judge.passed === false
+    && judge.failure_analysis
+    && judge.failure_analysis.primary_failure_class !== "none"
+  ));
+  if (failedJudge) {
+    return failedJudge.failure_analysis;
+  }
+
+  return analyses.find((analysis) => analysis.primary_failure_class !== "none") || null;
 }
 
 export function normalizeCases(runFixture = {}, gradeFixture = {}) {
@@ -39,11 +105,13 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       const passed = typeof grade.passed === "boolean"
         ? grade.passed
         : caseResult.status === "passed";
-      const primaryFailureClass = grade.primary_failure_class
+      const rawPrimaryFailureClass = grade.primary_failure_class
         || caseResult.primary_failure_class
-        || (passed ? "none" : "unknown_failure");
+        || "";
+      const primaryFailureClass = canonicalPrimaryFailureClass(rawPrimaryFailureClass, passed);
+      const failureAnalysis = selectFailureAnalysis(grade, primaryFailureClass, passed);
       const failureSummary = caseResult.failure_summary
-        || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.summary
+        || failureAnalysis?.summary
         || (passed ? "Passed." : "Failure requires triage.");
 
       return {
@@ -55,9 +123,10 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
         passed,
         score: normalizeScore(grade.score ?? caseResult.score),
         primary_failure_class: primaryFailureClass,
+        raw_primary_failure_class: rawPrimaryFailureClass,
         failure_summary: failureSummary,
         severity: caseResult.severity
-          || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.severity
+          || failureAnalysis?.severity
           || (passed ? "none" : "major"),
         judge_results: grade.judge_results || [],
         judge_modes: (grade.judge_results || []).map((judge) => judge.judge_mode).filter(Boolean),
@@ -132,13 +201,65 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
   };
 }
 
+export function summarizeCoverage(coverageFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const available = isObject(coverageFixture) && Object.keys(coverageFixture).length > 0;
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const countKeys = (value) => Object.keys(mapping(value)).length;
+
+  return {
+    available,
+    schema_version: available ? coverageFixture.schema_version || "unknown" : "none",
+    pack_id: available ? coverageFixture.pack_id || "unknown" : "none",
+    meets_assignment_minimums: coverageFixture.meets_assignment_minimums === true,
+    assignment_checks: mapping(coverageFixture.assignment_checks),
+    scenario_count: coverageFixture.scenario_count || 0,
+    rubric_class_count: Array.isArray(coverageFixture.rubric_classes) ? coverageFixture.rubric_classes.length : 0,
+    judge_mode_count: Array.isArray(coverageFixture.judge_modes) ? coverageFixture.judge_modes.length : 0,
+    primary_failure_class_count: countKeys(coverageFixture.primary_failure_class_counts),
+    golden_case_count: coverageFixture.golden_case_count || 0,
+    golden_failure_class_count: countKeys(coverageFixture.golden_failure_class_counts),
+    golden_failure_class_cases: mapping(coverageFixture.golden_failure_class_cases),
+    golden_failure_classes_missing: missing(coverageFixture.golden_failure_classes_missing),
+    thin_golden_failure_classes: mapping(coverageFixture.thin_golden_failure_classes),
+    executable_run_case_count: coverageFixture.executable_run_case_count || 0,
+    executable_failure_class_count: countKeys(coverageFixture.executable_failure_class_counts),
+    executable_failure_class_cases: mapping(coverageFixture.executable_failure_class_cases),
+    executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing),
+    thin_executable_failure_classes: mapping(coverageFixture.thin_executable_failure_classes),
+    coverage_warnings: missing(coverageFixture.coverage_warnings),
+    coverage_warning_count: missing(coverageFixture.coverage_warnings).length
+  };
+}
+
+function formatCoverageCaseRefs(refs = []) {
+  if (!Array.isArray(refs) || refs.length === 0) {
+    return "none";
+  }
+  return refs
+    .map((item) => `${item.case_id || "unknown_case"}/${item.scenario_id || "unknown_scenario"}`)
+    .join(", ");
+}
+
+function coverageEvidenceLines(coverage = {}) {
+  const goldenClasses = Object.keys(coverage.golden_failure_class_cases || {});
+  const executableClasses = Object.keys(coverage.executable_failure_class_cases || {});
+  return [...new Set([...goldenClasses, ...executableClasses])]
+    .sort()
+    .map((failureClass) => (
+      `- ${failureClass}: golden ${formatCoverageCaseRefs(coverage.golden_failure_class_cases[failureClass])}; `
+      + `executable ${formatCoverageCaseRefs(coverage.executable_failure_class_cases[failureClass])}`
+    ));
+}
+
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const failedCases = normalizeCases(runFixture, gradeFixture)
     .filter((item) => !item.passed && item.primary_failure_class !== "none");
   const clusters = new Map();
 
   for (const item of failedCases) {
-    const key = item.primary_failure_class || "unknown_failure";
+    const key = item.primary_failure_class || "wrong_intent";
     if (!clusters.has(key)) {
       clusters.set(key, {
         failureClass: key,
@@ -169,8 +290,9 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   })).sort((left, right) => right.count - left.count || left.failureClass.localeCompare(right.failureClass));
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
+  const coverage = summarizeCoverage(coverageFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -181,10 +303,38 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}) {
     `- Pass rate: ${summary.passRate}%`,
     `- Average score: ${summary.avgScore}`,
     `- Trace completeness: ${summary.traceCompleteness}%`,
-    "",
-    "## Failure Clusters",
     ""
   ];
+
+  if (coverage.available) {
+    const evidenceLines = coverageEvidenceLines(coverage);
+    lines.push(
+      "## Coverage",
+      "",
+      `- Assignment minimums met: ${coverage.meets_assignment_minimums ? "yes" : "no"}`,
+      `- Scenarios: ${coverage.scenario_count}`,
+      `- Rubric classes: ${coverage.rubric_class_count}`,
+      `- Judge modes: ${coverage.judge_mode_count}`,
+      `- Golden cases: ${coverage.golden_case_count}`,
+      `- Executable run cases: ${coverage.executable_run_case_count}`,
+      `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
+      `- Coverage warnings: ${coverage.coverage_warning_count}`,
+      ""
+    );
+    if (evidenceLines.length > 0) {
+      lines.push(
+        "### Failure Class Evidence",
+        "",
+        ...evidenceLines,
+        ""
+      );
+    }
+  }
+
+  lines.push(
+    "## Failure Clusters",
+    ""
+  );
 
   if (clusters.length === 0) {
     lines.push("- No failures.");
@@ -230,10 +380,11 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
+    coverage: summarizeCoverage(coverageFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,
