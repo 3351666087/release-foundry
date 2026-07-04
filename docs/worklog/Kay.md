@@ -160,3 +160,36 @@ Verification:
 - `python -m json.tool fixtures/a2/results/a2_s004_missing_tool_grade.json`
 - `python -m unittest discover -s tests/a2 -v`
 - Result: 15 tests passed.
+
+## 2026-07-04 - A1 native output compatibility pass
+
+Reason:
+- A1 added a local SDK/runner loop on `origin/codex/a1-local-sdk-runner`.
+- A1's native output uses `AgentTurn` / `CaseResult` with `text` and `tool_calls[].name` / `arguments`, while A2 originally documented only `final_response` and `tool_calls[].tool` / `args`.
+
+Implemented:
+- Added A2-side run normalization in `services/judge/runner.py`.
+- `grade_run` now accepts:
+  - existing A2 normalized run objects,
+  - A1 `AgentTurn` / `agent_output`,
+  - A1 `CaseResult` with nested `agent_output`.
+- Added compatibility for OpenAI-style `function.name` / `function.arguments` tool calls.
+- Preserved JSON-string `function.arguments` so exact argument checks still work.
+- Added contract tests for A1 native `agent_output` and `CaseResult` shapes.
+- Updated A2 README and A1/A3 handoff docs.
+
+Workflow update:
+- Keep current thread as the main supervisor/integrator.
+- Use background subAgents for read-only audits or narrow disjoint implementation tasks.
+- Main supervisor owns final code review, tests, explicit staging, commit, and push.
+- Visible Codex threads are optional for long design discussions, not required for every iteration.
+- A read-only subAgent review caught the `function.arguments` string compatibility risk before push.
+
+Boundary:
+- A2 regrades behavior and does not inherit A1 `status`, `grade`, or `expected`.
+- Tool names remain exact A2 contract names; no alias mapping is added in G1-G2.
+- Do not merge the A1 branch into the A2 branch yet; keep structure compatibility until the integration branch/Gate review.
+
+Verification:
+- `python -m unittest discover -s tests/a2 -v`
+- Result: 18 tests passed.

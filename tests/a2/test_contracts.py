@@ -74,6 +74,82 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(result["primary_failure_class"], "none")
         self.assertEqual(len(result["judge_results"]), 2)
 
+    def test_runner_accepts_a1_agent_output_shape(self):
+        result = grade_run(
+            "A2-S005",
+            {
+                "schema_version": "ashr.clone.agent_turn.v1",
+                "text": "- Launch risk is dependency timing.\n- Mitigation is owner review.\n- Next step is Friday signoff.",
+                "tool_calls": [
+                    {
+                        "name": "file.read",
+                        "arguments": {"path": "fixtures/a2/notes/launch-review.md"},
+                        "call_id": "a1-call-1",
+                    }
+                ],
+                "status": "ok",
+                "latency_ms": 0,
+                "metadata": {"adapter_name": "A1Agent"},
+            },
+            pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+            case_id="a1-agent-output-smoke",
+        )
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["primary_failure_class"], "none")
+        self.assertEqual(result["judge_results"][0]["evidence"]["tool_call_ids"], ["a1-call-1"])
+
+    def test_runner_accepts_a1_case_result_shape_and_case_id(self):
+        result = grade_run(
+            "A2-S004",
+            {
+                "case_id": "a1-case-result-smoke",
+                "scenario_id": "A2-S004",
+                "status": "passed",
+                "agent_output": {
+                    "schema_version": "ashr.clone.agent_turn.v1",
+                    "text": "The official product page lists the Acme MiniDock at $79.",
+                    "tool_calls": [
+                        {
+                            "name": "web.search",
+                            "arguments": {"query": "Acme MiniDock official price"},
+                            "output": {"url": "https://example.test/acme-minidock"},
+                        }
+                    ],
+                    "status": "ok",
+                    "latency_ms": 0,
+                    "metadata": {},
+                },
+                "observations": [],
+                "expected": {},
+                "metadata": {},
+            },
+            pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+        )
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["case_id"], "a1-case-result-smoke")
+        self.assertEqual(result["primary_failure_class"], "none")
+
+    def test_runner_accepts_function_style_tool_calls(self):
+        result = grade_run(
+            "A2-S005",
+            {
+                "final_response": "- Launch risk is dependency timing.\n- Mitigation is owner review.\n- Next step is Friday signoff.",
+                "tool_calls": [
+                    {
+                        "id": "call-function-1",
+                        "function": {
+                            "name": "file.read",
+                            "arguments": "{\"path\":\"fixtures/a2/notes/launch-review.md\"}",
+                        },
+                    }
+                ],
+            },
+            pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+            case_id="function-tool-call-smoke",
+        )
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["primary_failure_class"], "none")
+
     def test_sample_run_fixtures_grade_as_expected(self):
         run_dir = ROOT / "fixtures/a2/runs"
         for path in sorted(run_dir.glob("*.json")):
