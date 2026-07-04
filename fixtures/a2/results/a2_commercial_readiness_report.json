@@ -98,7 +98,8 @@
         "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
-        "Collect reviewed Ashr grading observations for 6 missing calibration cases."
+        "Collect reviewed Ashr grading observations for 6 missing calibration cases.",
+        "Public Ashr grading merge gate is not_merged; import, merge, and regenerate before marking C3 met."
       ]
     },
     {
@@ -154,6 +155,10 @@
     "calibration_case_count": 6,
     "ashr_grading_available": 0,
     "ashr_grading_missing": 6,
+    "ashr_public_merge_status": "not_merged",
+    "ashr_public_matrix_merged": false,
+    "ashr_safe_to_mark_c3_met": false,
+    "ashr_public_missing_observations": 6,
     "llm_judge_coverage_ratio": 1.0,
     "llm_judge_offline_only": true,
     "local_vs_llm_mismatch_count": 1,

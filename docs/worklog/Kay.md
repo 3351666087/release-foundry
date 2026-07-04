@@ -641,3 +641,24 @@ Next top 3:
 1. Collect the six reviewed Ashr grading observations under private evidence.
 2. Import and merge them through the documented scripts.
 3. Regenerate fixtures and verify `ashr_public_merge_gate.safe_to_mark_c3_met` turns true before claiming C3 met.
+
+## 2026-07-04 - Commercial readiness uses C3 merge gate
+
+Reason:
+- `a2_commercial_readiness_report.json` should reflect the same C3 public-merge truth as evidence readiness.
+- Reviewers should not need to cross-check two files to know that Ashr grading is still not publicly merged.
+
+Implemented:
+- Commercial readiness now reads `ashr_public_merge_gate` from evidence readiness.
+- C3 met requires `ashr_safe_to_mark_c3_met` in addition to Ashr/LLM coverage ratios.
+- The evidence snapshot now includes Ashr public merge status, public matrix merged flag, C3-safe flag, and missing public observations.
+- Added tests locking the current `not_merged` state.
+
+Boundary:
+- This is status propagation only.
+- It does not call Ashr, read keys, or add reviewed grading rows.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for all six calibration cases.
+2. Merge them into `a2_g3_calibration_observations.json` through the reviewed import path.
+3. Regenerate fixtures and confirm both evidence readiness and commercial readiness agree that C3 is safe.

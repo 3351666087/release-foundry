@@ -263,7 +263,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet. The commercial snapshot also mirrors `ashr_public_merge_gate`, so C3 remains partial while `ashr_safe_to_mark_c3_met` is false.
 
 ## G1-G2 Boundary
 

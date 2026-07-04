@@ -46,6 +46,11 @@ def build_commercial_readiness_report(
     regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
     regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
     evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
+    ashr_public_merge_gate = (evidence_readiness_report or {}).get("ashr_public_merge_gate", {})
+    ashr_public_merge_status = str(ashr_public_merge_gate.get("status", "unknown"))
+    ashr_public_matrix_merged = bool(ashr_public_merge_gate.get("public_matrix_merged"))
+    ashr_safe_to_mark_c3_met = bool(ashr_public_merge_gate.get("safe_to_mark_c3_met"))
+    ashr_public_missing = int(ashr_public_merge_gate.get("missing_public_observation_count", ashr_missing))
 
     gates = [
         _gate(
@@ -92,16 +97,14 @@ def build_commercial_readiness_report(
             "C3",
             "Paid batch calibration",
             "Ashr grading diff and LLM judge diff are both comparable",
-            ashr_ratio == 1.0 and llm_ratio == 1.0,
+            ashr_ratio == 1.0 and llm_ratio == 1.0 and ashr_safe_to_mark_c3_met,
             llm_ratio > 0 or ashr_available > 0,
             [
                 "calibration_matrix.agreement_summary.local_vs_ashr_grading",
                 "calibration_matrix.agreement_summary.local_vs_llm_judge",
                 "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
-            [f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases."]
-            if ashr_missing
-            else [],
+            _c3_gaps(ashr_missing, ashr_public_merge_status, ashr_safe_to_mark_c3_met),
         ),
         _gate(
             "C4",
@@ -174,6 +177,10 @@ def build_commercial_readiness_report(
             "calibration_case_count": calibration_matrix.get("case_count", 0),
             "ashr_grading_available": ashr_available,
             "ashr_grading_missing": ashr_missing,
+            "ashr_public_merge_status": ashr_public_merge_status,
+            "ashr_public_matrix_merged": ashr_public_matrix_merged,
+            "ashr_safe_to_mark_c3_met": ashr_safe_to_mark_c3_met,
+            "ashr_public_missing_observations": ashr_public_missing,
             "llm_judge_coverage_ratio": llm_ratio,
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
@@ -298,6 +305,17 @@ def _c4_gaps(
     if llm_is_offline_only or not semantic_live_evidence:
         gaps.append(
             "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        )
+    return gaps
+
+
+def _c3_gaps(ashr_missing: int, ashr_public_merge_status: str, ashr_safe_to_mark_c3_met: bool) -> list[str]:
+    gaps = []
+    if ashr_missing:
+        gaps.append(f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases.")
+    if not ashr_safe_to_mark_c3_met:
+        gaps.append(
+            f"Public Ashr grading merge gate is {ashr_public_merge_status}; import, merge, and regenerate before marking C3 met."
         )
     return gaps
 
