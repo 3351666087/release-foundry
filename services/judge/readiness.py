@@ -51,6 +51,11 @@ def build_commercial_readiness_report(
     ashr_public_matrix_merged = bool(ashr_public_merge_gate.get("public_matrix_merged"))
     ashr_safe_to_mark_c3_met = bool(ashr_public_merge_gate.get("safe_to_mark_c3_met"))
     ashr_public_missing = int(ashr_public_merge_gate.get("missing_public_observation_count", ashr_missing))
+    semantic_live_merge_gate = (evidence_readiness_report or {}).get("semantic_live_merge_gate", {})
+    semantic_live_merge_status = str(semantic_live_merge_gate.get("status", "unknown"))
+    semantic_audited_live_evidence_merged = bool(semantic_live_merge_gate.get("audited_live_evidence_merged"))
+    semantic_safe_to_mark_c4_met = bool(semantic_live_merge_gate.get("safe_to_mark_c4_met"))
+    semantic_missing_audited = int(semantic_live_merge_gate.get("missing_audited_observation_count", 0))
 
     gates = [
         _gate(
@@ -110,7 +115,11 @@ def build_commercial_readiness_report(
             "C4",
             "Semantic judge",
             "semantic/LLM judge evidence includes cost, confidence, false-positive tracking, and model provenance",
-            llm_cost_ready and llm_confidence_ready and semantic_live_evidence and not llm_is_offline_only,
+            llm_cost_ready
+            and llm_confidence_ready
+            and semantic_live_evidence
+            and not llm_is_offline_only
+            and semantic_safe_to_mark_c4_met,
             llm_cost_ready and llm_confidence_ready and semantic_harness_ready,
             [
                 "calibration_matrix.cost_ledger",
@@ -119,7 +128,13 @@ def build_commercial_readiness_report(
                 "fixtures/a2/results/a2_semantic_harness_report.json",
                 "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
-            _c4_gaps(llm_is_offline_only, semantic_harness_ready, semantic_live_evidence),
+            _c4_gaps(
+                llm_is_offline_only,
+                semantic_harness_ready,
+                semantic_live_evidence,
+                semantic_live_merge_status,
+                semantic_safe_to_mark_c4_met,
+            ),
         ),
         _gate(
             "C5",
@@ -195,6 +210,10 @@ def build_commercial_readiness_report(
             "batch_plan_ready": batch_plan_ready,
             "semantic_harness_ready": semantic_harness_ready,
             "semantic_harness_live_evidence": semantic_live_evidence,
+            "semantic_live_merge_status": semantic_live_merge_status,
+            "semantic_audited_live_evidence_merged": semantic_audited_live_evidence_merged,
+            "semantic_safe_to_mark_c4_met": semantic_safe_to_mark_c4_met,
+            "semantic_missing_audited_observations": semantic_missing_audited,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -298,6 +317,8 @@ def _c4_gaps(
     llm_is_offline_only: bool,
     semantic_harness_ready: bool,
     semantic_live_evidence: bool,
+    semantic_live_merge_status: str = "unknown",
+    semantic_safe_to_mark_c4_met: bool = False,
 ) -> list[str]:
     gaps = []
     if not semantic_harness_ready:
@@ -305,6 +326,10 @@ def _c4_gaps(
     if llm_is_offline_only or not semantic_live_evidence:
         gaps.append(
             "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        )
+    if not semantic_safe_to_mark_c4_met:
+        gaps.append(
+            f"Semantic live merge gate is {semantic_live_merge_status}; import audited semantic judge summaries before marking C4 met."
         )
     return gaps
 

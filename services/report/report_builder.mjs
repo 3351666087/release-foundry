@@ -268,6 +268,7 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
   const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
+  const semanticMergeGate = mapping(evidenceFixture.semantic_live_merge_gate);
   const redaction = mapping(evidenceFixture.redaction_policy);
 
   return {
@@ -287,6 +288,11 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
+    semantic_live_merge_status: semanticMergeGate.status || "unknown",
+    semantic_audited_live_evidence_merged: semanticMergeGate.audited_live_evidence_merged === true,
+    semantic_safe_to_mark_c4_met: semanticMergeGate.safe_to_mark_c4_met === true,
+    semantic_missing_audited_observation_count: semanticMergeGate.missing_audited_observation_count || 0,
+    semantic_live_merge_blocking_reason: semanticMergeGate.blocking_reason || "",
     semantic_required_fields: missing(semantic.required_fields),
     required_sdk_languages: missing(semantic.required_sdk_languages),
     covered_sdk_languages: missing(semantic.covered_sdk_languages),
@@ -457,6 +463,8 @@ export function buildMarkdownReport(
       `- Ashr public merge: ${evidenceReadiness.ashr_public_merge_status}`,
       `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
+      `- Semantic live merge: ${evidenceReadiness.semantic_live_merge_status}`,
+      `- C4 safe to mark met: ${evidenceReadiness.semantic_safe_to_mark_c4_met ? "yes" : "no"}`,
       `- SDK languages covered: ${evidenceReadiness.covered_sdk_languages.join(", ") || "none"}`,
       `- Private evidence path: ${evidenceReadiness.private_raw_path || "none"}`,
       ""

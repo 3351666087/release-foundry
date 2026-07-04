@@ -57,6 +57,11 @@ def build_evidence_readiness_report(
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
+    semantic_import_commands = [
+        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_regenerate_fixtures.py --write",
+    ]
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -109,12 +114,15 @@ def build_evidence_readiness_report(
             "required_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("required_languages", []),
             "covered_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("covered_languages", []),
             "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
-            "commands": [
-                "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-                "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
-                "python scripts/a2_regenerate_fixtures.py --write",
-            ],
+            "commands": semantic_import_commands,
         },
+        "semantic_live_merge_gate": _semantic_live_merge_gate(
+            llm_counts,
+            llm_offline_only,
+            len(cases),
+            semantic_harness_report,
+            semantic_import_commands,
+        ),
         "batch_plan_refs": [
             batch.get("batch_id", "")
             for batch in batch_plan_report.get("batches", [])
@@ -136,6 +144,42 @@ def build_evidence_readiness_report(
             "deterministic": True,
             "purpose": "Make C3/C4 evidence collection auditable without committing private payloads.",
         },
+    }
+
+
+def _semantic_live_merge_gate(
+    llm_counts: dict[str, Any],
+    llm_offline_only: bool,
+    expected_count: int,
+    semantic_harness_report: dict[str, Any],
+    commands: list[str],
+) -> dict[str, Any]:
+    current_available = int(llm_counts.get("available", 0))
+    live_model_evidence = bool(semantic_harness_report.get("live_model_evidence_available"))
+    merged = expected_count > 0 and current_available >= expected_count and live_model_evidence and not llm_offline_only
+    if merged:
+        status = "audited_live_model_evidence"
+    elif llm_offline_only:
+        status = "offline_reference_only"
+    else:
+        status = "not_audited"
+    return {
+        "source": "llm_judge",
+        "status": status,
+        "audited_live_evidence_merged": merged,
+        "safe_to_mark_c4_met": merged,
+        "current_public_observation_count": current_available,
+        "audited_public_observation_count": current_available if merged else 0,
+        "missing_audited_observation_count": 0 if merged else expected_count,
+        "expected_reviewed_observation_count": expected_count,
+        "offline_reference_only": llm_offline_only,
+        "live_model_evidence_available": live_model_evidence,
+        "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "reviewed_private_import_ref": "docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+        "blocking_reason": ""
+        if merged
+        else "Audited semantic judge observations must replace offline references before C4 is met.",
+        "required_commands": commands,
     }
 
 

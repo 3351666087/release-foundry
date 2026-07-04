@@ -115,7 +115,8 @@
         "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
-        "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata.",
+        "Semantic live merge gate is offline_reference_only; import audited semantic judge summaries before marking C4 met."
       ]
     },
     {
@@ -172,7 +173,11 @@
     "planned_batch_count": 5,
     "batch_plan_ready": true,
     "semantic_harness_ready": true,
-    "semantic_harness_live_evidence": false
+    "semantic_harness_live_evidence": false,
+    "semantic_live_merge_status": "offline_reference_only",
+    "semantic_audited_live_evidence_merged": false,
+    "semantic_safe_to_mark_c4_met": false,
+    "semantic_missing_audited_observations": 6
   },
   "next_top_3": [
     {

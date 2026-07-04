@@ -336,6 +336,11 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(summary.ashr_public_merge_blocking_reason, /before C3 is met/);
   assert.equal(summary.semantic_offline_reference_only, true);
   assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
+  assert.equal(summary.semantic_audited_live_evidence_merged, false);
+  assert.equal(summary.semantic_safe_to_mark_c4_met, false);
+  assert.equal(summary.semantic_missing_audited_observation_count, 6);
+  assert.match(summary.semantic_live_merge_blocking_reason, /before C4 is met/);
   assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
   assert.deepEqual(summary.covered_sdk_languages, ["python", "typescript"]);
   assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
@@ -346,6 +351,8 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
   assert.equal(json.evidence_readiness.ashr_public_merge_status, "not_merged");
   assert.equal(json.evidence_readiness.ashr_safe_to_mark_c3_met, false);
+  assert.equal(json.evidence_readiness.semantic_live_merge_status, "offline_reference_only");
+  assert.equal(json.evidence_readiness.semantic_safe_to_mark_c4_met, false);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
@@ -354,6 +361,8 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /Ashr public merge: not_merged/);
   assert.match(markdown, /C3 safe to mark met: no/);
+  assert.match(markdown, /Semantic live merge: offline_reference_only/);
+  assert.match(markdown, /C4 safe to mark met: no/);
   assert.match(markdown, /SDK languages covered: python, typescript/);
 });
 
