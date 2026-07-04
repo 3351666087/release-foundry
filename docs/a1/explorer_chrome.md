@@ -62,6 +62,14 @@ Mode: read-only Chrome checks. No Ashr API key, password, payment data, or other
 ## Round 5 Recheck
 
 - Main-agent read-only Chrome check again found public homepage/docs/API/VM/TypeScript pages accessible and consistent with the field map: homepage title `Ashr`; H1 `Evals for Agents That Actually Work`; public nav Home/Docs/Plans/Blog/Book a Call/Login; Python docs show `pip install ashr-labs`; API reference shows `list_api_keys`, `revoke_api_key`, `set_vm_stream`, and observability feature-flag language.
+
+## 2026-07-04 Logged-In Dashboard Check
+
+- Chrome was already logged in to `lab.ashr.io`.
+- Main-agent read-only check navigated only to `https://lab.ashr.io/?tab=analysis`, not to API key pages.
+- Page title was `Ashr Labs`; login/sign-in text was not present.
+- Dashboard shell hints included `Datasets` and `Runs`.
+- Screenshot path: `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png` (ignored private evidence, not for commit).
 - Public pricing copy remained visible: Developer `$39 /mo`, Startup `$500 /mo`; Explorer-Chrome also verified annual Developer `$390 /yr` and Startup `$5,000 /yr`.
 - VM docs still state EvalRunner does not auto-capture VM logs, show `test.set_vm_stream(...)`, and describe VM log fields `ts`, `type`, and `data`.
 - Lab shell was variable across read-only checks in the same round. Main-agent Chrome saw title `Ashr Labs` with a `Datasets` loading shell at `https://lab.ashr.io/?tab=analysis`; Explorer-Chrome reproduced the unauthenticated sign-in/onboarding shell with `Continue with Google`, `Continue with Microsoft`, `Create your workspace`, `Pick a plan`, `FREE`, `$0/mo`, and quota copy. No private dashboard data, authenticated state, key creation/enforcement, billing, hosted grading, or observability rendering was verified.
