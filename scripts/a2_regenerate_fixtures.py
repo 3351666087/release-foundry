@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
+from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
 
 
@@ -24,6 +25,7 @@ DEFAULT_GRADE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_grade_results.json"
 DEFAULT_COVERAGE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_coverage_report.json"
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
+DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 
 
 def main() -> int:
@@ -40,6 +42,7 @@ def main() -> int:
     parser.add_argument("--coverage-report", default=DEFAULT_COVERAGE_REPORT.as_posix())
     parser.add_argument("--calibration-observations", default=DEFAULT_CALIBRATION_OBSERVATIONS.as_posix())
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
+    parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -55,6 +58,7 @@ def main() -> int:
         coverage_report_path=Path(args.coverage_report),
         calibration_observations_path=Path(args.calibration_observations),
         calibration_matrix_path=Path(args.calibration_matrix),
+        commercial_readiness_path=Path(args.commercial_readiness),
     )
 
     if args.check:
@@ -75,6 +79,7 @@ def generate_outputs(
     coverage_report_path: Path,
     calibration_observations_path: Path,
     calibration_matrix_path: Path,
+    commercial_readiness_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -94,15 +99,21 @@ def generate_outputs(
         report_id="a2_g3_grade_results",
         dataset_id="a2-g3-calibration",
     )
-    outputs[coverage_report_path] = build_coverage_report(
+    coverage_report = build_coverage_report(
         pack_path=pack_path,
         golden_path=golden_path,
         run_dir=run_dir,
     )
-    outputs[calibration_matrix_path] = build_calibration_matrix(
+    outputs[coverage_report_path] = coverage_report
+    calibration_matrix = build_calibration_matrix(
         pack_path=pack_path,
         run_dir=run_dir,
         observations_path=calibration_observations_path,
+    )
+    outputs[calibration_matrix_path] = calibration_matrix
+    outputs[commercial_readiness_path] = build_commercial_readiness_report(
+        coverage_report=coverage_report,
+        calibration_matrix=calibration_matrix,
     )
     return outputs
 

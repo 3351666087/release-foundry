@@ -1,0 +1,222 @@
+{
+  "schema_version": "a2.commercial_readiness.v1",
+  "report_id": "a2_commercial_readiness",
+  "source_goal": {
+    "artifact": "Ashr_Commercial_Grade_Goals_CN.pdf",
+    "a2_summary": "Scenario, Judge, and open-ended semantic evaluation commercial growth.",
+    "success_sentence": "The clone can fail real agents for the right reasons and explain those reasons under calibration evidence."
+  },
+  "current_gate": "C0",
+  "ready_for_commercial_gate": false,
+  "commercial_dimensions": [
+    {
+      "dimension": "operability",
+      "weight": 25,
+      "status": "met",
+      "evidence": "A2 deterministic fixtures, coverage, and local tests stay reproducible."
+    },
+    {
+      "dimension": "high_fidelity",
+      "weight": 25,
+      "status": "partial",
+      "evidence": "Calibration matrix compares local_judge, ashr_grading, and llm_judge sources.",
+      "gap": "Ashr grading is missing or LLM evidence is offline-only."
+    },
+    {
+      "dimension": "product_workflow",
+      "weight": 20,
+      "status": "partial",
+      "evidence": "A2 publishes coverage and calibration feeds for A3 dashboard/report consumption.",
+      "gap": "Case book and product workflow evidence are not mature yet."
+    },
+    {
+      "dimension": "evaluation_quality",
+      "weight": 20,
+      "status": "partial",
+      "evidence": "Judge disagreement candidates, confidence, and cost metadata are visible.",
+      "gap": "Semantic judge harness is not yet backed by audited live model calls."
+    },
+    {
+      "dimension": "collaboration",
+      "weight": 10,
+      "status": "partial",
+      "evidence": "A2 handoff docs and generated fixtures make A1/A3 integration explicit.",
+      "gap": "Peer branch impact and PR readiness still need to be refreshed every round."
+    }
+  ],
+  "contract_invariants": [
+    "grade_run remains deterministic and local; live Ashr or LLM calls enter calibration/readiness only.",
+    "a2.grade_results.v1 required fields, 0-100 score scale, and case_id join remain stable.",
+    "top-level primary_failure_class remains one of the canonical A2 failure classes or none.",
+    "calibration sources remain local_judge, ashr_grading, and llm_judge.",
+    "new commercial artifacts are additive and optional for A3 consumers."
+  ],
+  "gate_status": [
+    {
+      "gate": "C0",
+      "name": "Baseline stable",
+      "status": "met",
+      "requirement": "coverage/golden/executable fixtures do not regress",
+      "evidence_refs": [
+        "coverage_report.meets_assignment_minimums",
+        "coverage_report.coverage_warnings",
+        "coverage_report.scenario_quality_warnings"
+      ],
+      "gaps": []
+    },
+    {
+      "gate": "C1",
+      "name": "SDK runner consumption",
+      "status": "partial",
+      "requirement": "scenario outputs can be consumed through the shared A1/A2 runner contract",
+      "evidence_refs": [
+        "tests/a2/test_contracts.py::test_runner_accepts_a1_agent_output_shape",
+        "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id"
+      ],
+      "gaps": [
+        "Keep A1 runner-shape tests green and add TS SDK parity evidence from A1 when available."
+      ]
+    },
+    {
+      "gate": "C2",
+      "name": "Batch plan and cost ledger",
+      "status": "partial",
+      "requirement": "batch generation plan and judge cost ledger exist",
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"
+      ],
+      "gaps": [
+        "Add a real quota-aware batch generation plan tied to A1 request/run evidence."
+      ]
+    },
+    {
+      "gate": "C3",
+      "name": "Paid batch calibration",
+      "status": "partial",
+      "requirement": "Ashr grading diff and LLM judge diff are both comparable",
+      "evidence_refs": [
+        "calibration_matrix.agreement_summary.local_vs_ashr_grading",
+        "calibration_matrix.agreement_summary.local_vs_llm_judge"
+      ],
+      "gaps": [
+        "Collect reviewed Ashr grading observations for 6 missing calibration cases."
+      ]
+    },
+    {
+      "gate": "C4",
+      "name": "Semantic judge",
+      "status": "partial",
+      "requirement": "semantic/LLM judge evidence includes cost, confidence, false-positive tracking, and model provenance",
+      "evidence_refs": [
+        "calibration_matrix.cost_ledger",
+        "calibration_matrix.cases[].sources.llm_judge.confidence",
+        "calibration_matrix.cases[].calibration_tags"
+      ],
+      "gaps": [
+        "Replace offline llm_judge references with audited model-call evidence and prompt/model/cost metadata."
+      ]
+    },
+    {
+      "gate": "C5",
+      "name": "Case book and regression suite",
+      "status": "partial",
+      "requirement": "judge disagreements become durable regression fixtures and a reviewer-facing case book",
+      "evidence_refs": [
+        "calibration_tags.judge_disagreement_regression"
+      ],
+      "gaps": [
+        "Promote local-vs-LLM disagreements into regression fixtures and write the case book."
+      ]
+    },
+    {
+      "gate": "C6",
+      "name": "Final hardening",
+      "status": "partial",
+      "requirement": "scoring boundaries, approximation boundaries, budgets, and evidence safety are final-deliverable ready",
+      "evidence_refs": [
+        "docs/a2/failure_taxonomy_v0.md",
+        "docs/a2/scenario_coverage_plan.md"
+      ],
+      "gaps": [
+        "Finish boundary docs after C3-C5 evidence is no longer partial."
+      ]
+    }
+  ],
+  "evidence_snapshot": {
+    "assignment_minimums_green": true,
+    "scenario_count": 60,
+    "golden_case_count": 32,
+    "executable_run_case_count": 31,
+    "failure_class_count": 12,
+    "calibration_case_count": 6,
+    "ashr_grading_available": 0,
+    "ashr_grading_missing": 6,
+    "llm_judge_coverage_ratio": 1.0,
+    "llm_judge_offline_only": true,
+    "local_vs_llm_mismatch_count": 1
+  },
+  "next_top_3": [
+    {
+      "id": "fill_ashr_grading_column",
+      "title": "Collect and import a tiny reviewed Ashr grading batch",
+      "why_now": "6 calibration cases still lack server-side Ashr grading evidence.",
+      "scores": {
+        "evaluation_value": 4,
+        "calibration_value": 5,
+        "false_positive_risk": 2,
+        "contract_impact": 2,
+        "effort": 3
+      },
+      "smallest_delivery": [
+        "private redacted get-run/list-runs evidence",
+        "reviewed ashr_grading observations",
+        "regenerated calibration matrix"
+      ]
+    },
+    {
+      "id": "audited_llm_judge_harness",
+      "title": "Replace offline LLM references with audited semantic judge calls",
+      "why_now": "C4 needs prompt/model/cost/confidence evidence instead of offline reference samples.",
+      "scores": {
+        "evaluation_value": 5,
+        "calibration_value": 4,
+        "false_positive_risk": 3,
+        "contract_impact": 2,
+        "effort": 4
+      },
+      "smallest_delivery": [
+        "semantic judge prompt template",
+        "model/cost ledger rows",
+        "redacted eval evidence summary"
+      ]
+    },
+    {
+      "id": "promote_disagreement_regressions",
+      "title": "Turn judge disagreements into regression fixtures and a case book seed",
+      "why_now": "The matrix already exposes disagreement candidates.",
+      "scores": {
+        "evaluation_value": 4,
+        "calibration_value": 4,
+        "false_positive_risk": 2,
+        "contract_impact": 1,
+        "effort": 2
+      },
+      "smallest_delivery": [
+        "regression fixture for the current local-vs-LLM mismatch",
+        "case-book markdown entry",
+        "test asserting the regression remains visible"
+      ]
+    }
+  ],
+  "metadata": {
+    "deterministic": true,
+    "inputs": [
+      "fixtures/a2/results/a2_g3_coverage_report.json",
+      "fixtures/a2/results/a2_g3_calibration_matrix.json"
+    ],
+    "notes": [
+      "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",
+      "It is a readiness overlay and does not replace the A2 grade, coverage, or calibration schemas."
+    ]
+  }
+}

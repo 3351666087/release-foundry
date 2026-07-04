@@ -25,10 +25,12 @@ This module provides the local G1-G2 foundation for:
 - Local runner: `services/judge/runner.py`
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
+- Commercial readiness helper: `services/judge/readiness.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
+- Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
 - 31 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
@@ -115,6 +117,16 @@ python scripts/a2_import_ashr_grading.py \
 ```
 
 The import command prints `ashr_grading` observations that can be reviewed before merging into `fixtures/a2/calibration/a2_g3_calibration_observations.json`.
+
+## Commercial Readiness Gate
+
+The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness overlay:
+
+- source code: `services/judge/readiness.py`
+- schema: `docs/a2/schemas/commercial_readiness.schema.json`
+- generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
+
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C0 met with C3-C5 still partial because Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
 
 ## G1-G2 Boundary
 

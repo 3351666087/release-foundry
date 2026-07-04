@@ -9,6 +9,7 @@ from pathlib import Path
 
 from services.judge.calibration import build_calibration_matrix, import_ashr_grading_observations
 from services.judge.coverage import build_coverage_report
+from services.judge.readiness import build_commercial_readiness_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
 
@@ -267,16 +268,20 @@ class A2ContractTests(unittest.TestCase):
         grade_schema = json.loads((schema_dir / "grade_results.schema.json").read_text(encoding="utf-8"))
         coverage_schema = json.loads((schema_dir / "coverage_report.schema.json").read_text(encoding="utf-8"))
         calibration_schema = json.loads((schema_dir / "calibration_matrix.schema.json").read_text(encoding="utf-8"))
+        readiness_schema = json.loads((schema_dir / "commercial_readiness.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
+        readiness_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
         self.assertEqual(calibration_schema["properties"]["schema_version"]["const"], calibration_matrix["schema_version"])
+        self.assertEqual(readiness_schema["properties"]["schema_version"]["const"], readiness_report["schema_version"])
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
+        self.assertLessEqual(set(readiness_schema["required"]), set(readiness_report))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -316,6 +321,11 @@ class A2ContractTests(unittest.TestCase):
                 self.assertEqual(set(case["sources"]), {"local_judge", "ashr_grading", "llm_judge"})
                 for source_result in case["sources"].values():
                     self.assertLessEqual(source_result_required, set(source_result))
+
+        gate_required = set(readiness_schema["$defs"]["gate_status"]["required"])
+        for gate in readiness_report["gate_status"]:
+            with self.subTest(readiness_gate=gate["gate"]):
+                self.assertLessEqual(gate_required, set(gate))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -437,6 +447,39 @@ class A2ContractTests(unittest.TestCase):
             case for case in matrix["cases"] if case["case_id"] == "sample-a2-s010-wrong-arguments"
         )
         self.assertIn("judge_disagreement_regression", disagreement["calibration_tags"])
+
+    def test_commercial_readiness_report_tracks_pdf_gates(self):
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        report = build_commercial_readiness_report(coverage_report, calibration_matrix)
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.commercial_readiness.v1")
+        self.assertEqual(report["source_goal"]["artifact"], "Ashr_Commercial_Grade_Goals_CN.pdf")
+        self.assertEqual(report["current_gate"], "C0")
+        self.assertFalse(report["ready_for_commercial_gate"])
+        self.assertIn(
+            "grade_run remains deterministic and local; live Ashr or LLM calls enter calibration/readiness only.",
+            report["contract_invariants"],
+        )
+        self.assertIn(
+            "top-level primary_failure_class remains one of the canonical A2 failure classes or none.",
+            report["contract_invariants"],
+        )
+        gates = {gate["gate"]: gate for gate in report["gate_status"]}
+        self.assertEqual(gates["C0"]["status"], "met")
+        self.assertEqual(gates["C3"]["status"], "partial")
+        self.assertIn("Collect reviewed Ashr grading observations", gates["C3"]["gaps"][0])
+        self.assertEqual(gates["C4"]["status"], "partial")
+        self.assertIn("offline", gates["C4"]["gaps"][0])
+        self.assertEqual(report["evidence_snapshot"]["ashr_grading_missing"], 6)
+        self.assertTrue(report["evidence_snapshot"]["llm_judge_offline_only"])
+        self.assertEqual(report["next_top_3"][0]["id"], "fill_ashr_grading_column")
 
     def test_ashr_grading_import_can_fill_calibration_matrix_source(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))

@@ -118,6 +118,9 @@ The first commercial-readiness artifact is `fixtures/a2/results/a2_g3_calibratio
 It currently includes six representative cases across pass control, argument fidelity, media/tool-output grounding, failure recovery, safety, and clarification.
 The matrix deliberately marks `ashr_grading` as missing until a real server-side grading batch is collected.
 
+The July 4 PDF gate logic is also encoded in `fixtures/a2/results/a2_commercial_readiness_report.json`.
+This report marks C0 as met and C3-C5 as partial, because A2 has local/LLM calibration structure but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
+
 Next A2 priorities should be chosen by ROI against this commercial target:
 
 1. collect a small authenticated Ashr grading batch and fill the `ashr_grading` column,

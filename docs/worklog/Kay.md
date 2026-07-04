@@ -300,3 +300,29 @@ Next top 3:
 1. Use A1's real API probe to collect a tiny private `get-run` or `poll-run` record for A2 mapped cases.
 2. Run `scripts/a2_import_ashr_grading.py` against that private evidence and review the imported observations.
 3. Merge reviewed `ashr_grading` observations into `a2_g3_calibration_observations.json` and regenerate the matrix.
+
+## 2026-07-04 - Commercial readiness gate from new PDF
+
+Reason:
+- The new `Ashr_Commercial_Grade_Goals_CN.pdf` raises A2 from assignment minimums to a commercial-grade semantic evaluation product line.
+- The PDF's A2 success condition is not just 60 scenarios; it is failing real agents for the right reasons and explaining those reasons under calibration evidence.
+
+Implemented:
+- Added `services/judge/readiness.py` to summarize PDF-derived C0-C6 commercial gate status from deterministic A2 coverage and calibration artifacts.
+- Added generated report `fixtures/a2/results/a2_commercial_readiness_report.json`.
+- Added schema snapshot `docs/a2/schemas/commercial_readiness.schema.json`.
+- Integrated the report into `scripts/a2_regenerate_fixtures.py`, so `--check` now protects 35 A2 generated fixtures.
+- Added tests for C0/C3/C4 status, missing Ashr grading evidence, offline-only LLM evidence, and the next top 3.
+- Updated A2 README, scenario coverage plan, and A1/A3 handoff docs.
+- Added contract invariants so commercial upgrades remain additive and do not break A1/A3 grade or coverage consumers.
+
+Current commercial gate:
+- C0 is met: assignment minimums, coverage, scenario quality, golden cases, and executable failures are stable.
+- C3 is partial: local-vs-LLM diff exists, but all six calibration cases still lack reviewed Ashr server-side grading.
+- C4 is partial: LLM judge confidence/cost fields exist, but current samples are offline references, not audited live model calls.
+- C5 is partial: a judge disagreement candidate exists, but it has not yet been promoted into a regression fixture and case-book entry.
+
+Next top 3:
+1. Fill the `ashr_grading` column with a tiny reviewed private Ashr grading batch.
+2. Replace offline LLM references with audited semantic judge calls and prompt/model/cost evidence.
+3. Promote the current local-vs-LLM disagreement into regression fixtures and a case-book seed.

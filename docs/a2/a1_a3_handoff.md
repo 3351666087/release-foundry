@@ -146,6 +146,15 @@ The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a 
 
 A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, and private evidence path.
 
+The commercial readiness report uses `schema_version: a2.commercial_readiness.v1` and lives at `fixtures/a2/results/a2_commercial_readiness_report.json`. It is an optional planning/status feed for A3: it records the PDF-derived C0-C6 gate status, current evidence snapshot, commercial dimensions, and A2 next top 3. It is intentionally additive; A1/A3 should not depend on it for the existing grade or coverage join paths.
+
+Commercial-readiness invariants:
+
+- `grade_run` remains deterministic and local; live Ashr or LLM calls enter calibration/readiness artifacts only.
+- A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
+- Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
+- A3 may load `a2.commercial_readiness.v1` as an optional feed, but missing readiness data must not break existing dashboard/report paths.
+
 ## Known Boundary
 
 This is primarily a local deterministic handoff. A2 now also keeps an optional real Ashr API smoke path in `scripts/a2_real_api_smoke.py`: when `ASHR_LABS_API_KEY` is set, it validates authentication and read/list endpoint reachability, then stores only a redacted summary in `docs/evidence/a2_real_api_smoke.json`. Hosted/server-side grading with `run.deploy` remains a later calibration step.
