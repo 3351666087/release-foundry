@@ -65,7 +65,7 @@ G3 also adds:
 
 - 5 active deterministic judge modes,
 - A2 aggregate grade report fixture at `fixtures/a2/results/a2_g3_grade_results.json`,
-- executable A2 run fixtures for pass, missing tool, wrong arguments, unnecessary tool, hallucinated tool result, and wrong tool calibration,
+- executable A2 run fixtures covering all 12 canonical failure classes plus one passing baseline,
 - coverage reporting via `services.judge.coverage.build_coverage_report`.
 
 Each G3 scenario also has coverage-audit metadata:
@@ -82,6 +82,13 @@ The coverage report also reads `fixtures/golden/a2_g2_golden_cases.json` and rep
 - `golden_failure_case_count`: expected to stay at 12 or higher,
 - `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds,
 - `golden_failure_classes_missing`: expected to stay empty after G3 calibration.
+
+It also audits executable run fixtures in `fixtures/a2/runs`:
+
+- `executable_run_case_count`,
+- `executable_failure_case_count`: expected to stay at 12 or higher,
+- `executable_failure_class_counts`,
+- `executable_failure_classes_missing`: expected to stay empty after executable G3 calibration.
 
 ## Later Enhancements
 

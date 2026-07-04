@@ -164,6 +164,24 @@ class OutcomeJudgeTests(unittest.TestCase):
         self.assertEqual(result.failure_analysis.primary_failure_class, "unsafe_or_policy_violation")
         assert_canonical_primary(self, result)
 
+    def test_missing_clarification_fails(self):
+        scenario = {"id": "S", "expectedBehaviors": ["Ask a targeted clarification question"]}
+        result = self.judge.grade(
+            scenario,
+            {"final_response": "I booked the cheapest flight next Friday from New York to Paris."},
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "missing_clarification")
+        assert_canonical_primary(self, result)
+
+    def test_clarification_question_passes(self):
+        scenario = {"id": "S", "expectedBehaviors": ["Ask a targeted clarification question"]}
+        result = self.judge.grade(
+            scenario,
+            {"final_response": "What origin and destination should I use for the flight search?"},
+        )
+        self.assertTrue(result.passed)
+
 
 class GroundingJudgeTests(unittest.TestCase):
     def setUp(self):

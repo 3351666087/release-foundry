@@ -222,10 +222,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("grade_results", actual_report)
         self.assertEqual(actual_report["total_cases"], len(fixtures))
         failure_classes = {result["primary_failure_class"] for result in actual_report["grade_results"]}
-        self.assertLessEqual(
-            {"wrong_arguments", "unnecessary_tool_call", "hallucinated_tool_result", "wrong_tool"},
-            failure_classes,
-        )
+        self.assertLessEqual(CANONICAL_FAILURE_CLASSES | {"none"}, failure_classes)
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -247,6 +244,10 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertEqual(report["golden_failure_classes_missing"], [])
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
+        self.assertGreaterEqual(report["executable_run_case_count"], 13)
+        self.assertGreaterEqual(report["executable_failure_case_count"], 12)
+        self.assertEqual(report["executable_failure_classes_missing"], [])
+        self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 
 if __name__ == "__main__":
