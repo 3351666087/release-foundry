@@ -61,6 +61,37 @@ def test_from_env_accepts_official_ashr_labs_names(monkeypatch):
     assert repr(client) == "AshrApiClient(base_url='https://example.invalid/ashr', api_key=set)"
 
 
+def test_health_check_uses_official_keep_alive_function(tmp_path):
+    output = tmp_path / "health_check.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.health_check(output_path=output, dry_run=True)
+
+    assert record["status"] == "planned"
+    assert record["request"]["function"] == "keep_alive"
+    assert record["request"]["estimated_calls"] == 1
+    assert record["request"]["mutates"] is False
+
+
+def test_list_agents_execute_uses_official_function_without_session(tmp_path):
+    calls = []
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        return 200, b'{"status":"ok","agents":[]}'
+
+    output = tmp_path / "list_agents.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.list_agents(output_path=output, dry_run=False)
+
+    assert record["status"] == "ok"
+    assert record["response"]["agents"] == []
+    assert [call["function"] for call in calls] == ["list_agents"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["function"] == "list_agents"
+
+
 def test_retryable_status_retries_then_succeeds():
     calls = []
 
@@ -510,6 +541,39 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["preflight"]["small_batch"] is True
     assert record["request"]["preflight"]["request_input_schema_source"] == "client_default"
     assert record["request"]["params"]["request_input_schema"]["type"] == "object"
+
+
+def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    operations = {
+        "health-check": "keep_alive",
+        "list-agents": "list_agents",
+    }
+
+    for operation, expected_function in operations.items():
+        output = tmp_path / f"{operation}.json"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "services.runner.api_probe",
+                operation,
+                "--output",
+                str(output),
+            ],
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        assert completed.returncode == 0
+        record = json.loads(output.read_text(encoding="utf-8"))
+        assert record["status"] == "planned"
+        assert record["attempts"] == 0
+        assert record["request"]["function"] == expected_function
+        assert record["request"]["mutates"] is False
 
 
 def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):

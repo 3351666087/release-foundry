@@ -1,6 +1,6 @@
 # A1 SDK Field Map
 
-Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_request`, `request_name`, `request_input_schema`, `properties`, `$defs`, `agent_input_part`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `AgentInput`, `schema_version`, `text`, `parts`, `image`, `audio`, `file`, `path`, `url`, `source`, `mime_type`, `name`, `tool_calls`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`.
+Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `health_check`, `keep_alive`, `list_agents`, `agents`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_request`, `request_name`, `request_input_schema`, `properties`, `$defs`, `agent_input_part`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `AgentInput`, `schema_version`, `text`, `parts`, `image`, `audio`, `file`, `path`, `url`, `source`, `mime_type`, `name`, `tool_calls`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`.
 
 Source groups:
 
@@ -20,6 +20,8 @@ Dataset source adapter exports now include `DATASET_SOURCE_ADAPTER_VERSION`, `ca
 Post-subscription A1 probes confirmed these additional real API fields without committing raw responses:
 
 - `init`: `features`, `notes`, `status`, `tenant`, `user`.
+- `health_check`: official SDK method name; underlying API function `keep_alive`; real response keys `db`, `message`, `status`.
+- `list_agents`: real response keys `_user`, `agents`, `status`; current private account returned `agents` as an empty list.
 - `user`: `created_at`, `email`, `id`, `is_active`, `is_owner`, `name`, `tenant_id`.
 - `tenant`: `created_at`, `id`, `is_active`, `owner_email`, `plan`, `signup_method`, `tenant_name`.
 - `list_datasets`: `_user`, `datasets`, `next_cursor`, `status`.

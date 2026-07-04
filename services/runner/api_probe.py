@@ -15,7 +15,7 @@ from ashr_clone.api_client import ASHR_API_ENV_VAR, ASHR_LABS_API_ENV_VAR, AshrA
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Quota-safe Ashr API calibration probe.")
-    parser.add_argument("operation", choices=["init", "list-datasets", "get-dataset", "list-runs", "get-run", "poll-run", "list-requests", "get-request", "poll-request", "create-request", "create-run"])
+    parser.add_argument("operation", choices=["init", "health-check", "list-datasets", "get-dataset", "list-runs", "get-run", "poll-run", "list-requests", "list-agents", "get-request", "poll-request", "create-request", "create-run"])
     parser.add_argument("--execute", action="store_true", help="Perform the real API call. Omit for dry-run planning.")
     parser.add_argument("--allow-mutate", action="store_true", help="Required with --execute for create-run and create-request.")
     parser.add_argument("--output", help="JSON output path. Defaults to docs/evidence/private_refs.")
@@ -67,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
 def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Path, dry_run: bool) -> dict[str, Any]:
     if args.operation == "init":
         return client.init(output_path=output, dry_run=dry_run)
+    if args.operation == "health-check":
+        return client.health_check(output_path=output, dry_run=dry_run)
     if args.operation == "list-datasets":
         return client.list_datasets(limit=args.limit, output_path=output, dry_run=dry_run)
     if args.operation == "get-dataset":
@@ -82,6 +84,8 @@ def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Pa
         return client.poll_run(run_id=args.run_id, timeout_seconds=args.poll_timeout, poll_interval_seconds=args.poll_interval, output_path=output, dry_run=dry_run)
     if args.operation == "list-requests":
         return client.list_requests(limit=args.limit, output_path=output, dry_run=dry_run)
+    if args.operation == "list-agents":
+        return client.list_agents(output_path=output, dry_run=dry_run)
     if args.operation == "get-request":
         require(args.request_id, "--request-id is required for get-request")
         return client.get_request(args.request_id, output_path=output, dry_run=dry_run)

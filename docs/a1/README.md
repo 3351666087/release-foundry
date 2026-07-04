@@ -12,7 +12,7 @@ python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.j
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `99 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` now sends a permissive default `request_input_schema` when omitted, matching the official SDK docs and the observed API requirement; for Image/Audio/Files accepted inputs, that default schema also advertises the local `AgentInput` `parts` envelope and reports part types that match accepted inputs. A text-only real `create-request -> get-request -> poll-request` chain completed successfully. A real Image/Audio/Files interface request was accepted but ended in hosted `request_status=failed`; read-only recheck found failure detail under a nested `_failure` object and the SDK now records only its safe field shape. A follow-up text batch probe hit the hosted request usage boundary. The CLI and direct SDK block unsafe mutating retries before real execution.
+Current follow-up verification: `102 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `health-check`, `list-datasets`, `list-runs`, `list-requests`, `list-agents`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` now sends a permissive default `request_input_schema` when omitted, matching the official SDK docs and the observed API requirement; for Image/Audio/Files accepted inputs, that default schema also advertises the local `AgentInput` `parts` envelope and reports part types that match accepted inputs. A text-only real `create-request -> get-request -> poll-request` chain completed successfully. A real Image/Audio/Files interface request was accepted but ended in hosted `request_status=failed`; read-only recheck found failure detail under a nested `_failure` object and the SDK now records only its safe field shape. A follow-up text batch probe hit the hosted request usage boundary. The CLI and direct SDK block unsafe mutating retries before real execution.
 
 Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentInput`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.
 
@@ -28,6 +28,10 @@ python -B -m services.runner.api_probe init --output docs/evidence/private_refs/
 
 # Real read-only probe. Load ASHR_API_KEY or ASHR_LABS_API_KEY in the current process first.
 python -B -m services.runner.api_probe init --execute --max-retries 0 --output docs/evidence/private_refs/a1_api_init_real.json
+
+# Real read-only SDK parity probes.
+python -B -m services.runner.api_probe health-check --execute --max-retries 0 --output docs/evidence/private_refs/a1_api_health_check_real.json
+python -B -m services.runner.api_probe list-agents --execute --max-retries 0 --output docs/evidence/private_refs/a1_api_list_agents_real.json
 
 # Mutating probes need --execute, --allow-mutate, and --max-retries 0 after reviewing the dry-run plan.
 python -B -m services.runner.api_probe create-run --execute --allow-mutate --max-retries 0 --dataset-id <id> --result-file <run-result.json>

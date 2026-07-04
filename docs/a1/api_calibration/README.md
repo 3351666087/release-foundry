@@ -18,12 +18,14 @@ This folder records public, non-sensitive summaries from subscription-era A1 cal
 Implemented in `packages/sdk/ashr_clone/api_client.py` and `services/runner/api_probe.py`:
 
 - `init`
+- `health-check`
 - `list-datasets`
 - `get-dataset`
 - `list-runs`
 - `get-run`
 - `poll-run`
 - `list-requests`
+- `list-agents`
 - `get-request`
 - `poll-request`
 - `create-request`
@@ -36,6 +38,10 @@ The client follows the observed official Python SDK shape: one POST endpoint at 
 Private evidence files:
 
 - `docs/evidence/private_refs/a1_api_init_real_v2.json`
+- `docs/evidence/private_refs/a1_api_health_check_dry_run.json`
+- `docs/evidence/private_refs/a1_api_health_check_real.json`
+- `docs/evidence/private_refs/a1_api_list_agents_dry_run.json`
+- `docs/evidence/private_refs/a1_api_list_agents_real.json`
 - `docs/evidence/private_refs/a1_api_list_datasets_real_v2.json`
 - `docs/evidence/private_refs/a1_api_list_runs_real.json`
 - `docs/evidence/private_refs/a1_api_list_requests_real.json`
@@ -62,8 +68,10 @@ Private evidence files:
 Observed non-sensitive field keys:
 
 - `init` response keys: `features`, `notes`, `status`, `tenant`, `user`.
+- `health_check` official SDK method sends API function `keep_alive`; response keys: `db`, `message`, `status`.
 - `init.user` keys: `created_at`, `email`, `id`, `is_active`, `is_owner`, `name`, `tenant_id`.
 - `init.tenant` keys: `created_at`, `id`, `is_active`, `owner_email`, `plan`, `signup_method`, `tenant_name`.
+- `list_agents` response keys: `_user`, `agents`, `status`; current private real account returned an empty `agents` list.
 - `list_datasets` response keys: `_user`, `datasets`, `next_cursor`, `status`.
 - Dataset item keys: `agent_details`, `agent_id`, `created_at`, `creator`, `creator_details`, `dataset_source`, `dataset_type`, `description`, `id`, `name`, `repo_id`, `request_id`, `run_count`, `tenant`.
 - Full dataset source keys observed by Explorer-API: `dataset_type`, `runs`, `total_runs`; first run shape included `run_id`, `title`, `description`, `intent`, `intent_tags`, `audio_tags`, `simulation`, `actions`.
@@ -161,12 +169,12 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 44 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 47 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
 - `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: 21 passed.
 - `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: 56 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 99 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 102 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
@@ -175,6 +183,7 @@ Private real-shape smoke test:
 - Local multimodal adapter coverage now includes `AgentInput` with `text`, `image`, `audio`, and `file` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
 - Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Image/Audio/Files before real execution is allowed, and that part types match enabled accepted inputs.
 - Local hosted request failure coverage verifies that failed `get-request` / `poll-request` records include safe nested `_failure` field-shape summaries without recording raw failure text in tracked docs.
+- Local read-only SDK parity coverage now includes `health-check` and `list-agents`, matching official SDK `health_check()` / `list_agents()` and A2's real API smoke surface.
 
 ## Next Candidates
 

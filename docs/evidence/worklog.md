@@ -689,3 +689,45 @@ Remaining:
 
 - Run final Bus-Auditor recheck.
 - Do not repeat media generation until UI-required payload semantics or quota state are clearer; read/list/get/poll calibration remains allowed.
+
+## 2026-07-04 Read-Only API Parity Surface
+
+Goal: close a read-only API surface gap exposed by A2's new real API smoke evidence by adding official SDK parity for `health_check()` and `list_agents()` to the A1 clone SDK/Runner probe.
+
+Start protocol:
+
+- `git fetch origin --prune`: success; `origin/dev/g3-a2-calibration` advanced to `561aa0e`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at start. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present and unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `05b4b44`.
+- Peer changes/impact: A2/G3 commit `561aa0e` added a redacted real API smoke summary and media calibration fixture on the A2 branch. It did not touch A1-owned files, but it showed A1 lacked `health-check` and `list-agents` parity.
+
+Three proposed enhancements:
+
+1. Add read-only `health-check` / `list-agents` SDK and CLI parity, then run real read-only probes.
+2. Revisit media generation semantics and attempt another paid media `create-request`.
+3. Add a second external-agent adapter smoke path against `AgentInput`.
+
+Implemented highest ROI enhancement: read-only API parity. This improves real-Ashr alignment and core command coverage without spending generation quota.
+
+Evidence and implementation:
+
+- Local official wheel inspection confirmed `AshrLabsClient.health_check()` sends API function `keep_alive`; `AshrLabsClient.list_agents()` sends `list_agents` and returns an `agents` list.
+- `packages/sdk/ashr_clone/api_client.py`: added `health_check(...)` and `list_agents(...)`.
+- `services/runner/api_probe.py`: added CLI operations `health-check` and `list-agents`.
+- `tests/a1/test_api_client.py`: added SDK and CLI dry-run/execute coverage for both operations.
+- Dry-run evidence written to ignored `docs/evidence/private_refs/a1_api_health_check_dry_run.json` and `docs/evidence/private_refs/a1_api_list_agents_dry_run.json`.
+- Real read-only evidence written to ignored `docs/evidence/private_refs/a1_api_health_check_real.json` and `docs/evidence/private_refs/a1_api_list_agents_real.json`.
+- Safe real summary: `health-check` returned HTTP `200`, `status=ok`, `attempts=1`, function `keep_alive`, response keys `db`, `message`, `status`; `list-agents` returned HTTP `200`, `status=ok`, `attempts=1`, function `list_agents`, response keys `_user`, `agents`, `status`, and `agents_count=0`.
+- Chrome read-only calibration: official API reference showed `health_check`, `list_agents`, `list_datasets`, `list_requests`, and `create_request`; existing logged-in Usage tab showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy. Exact counters remain private and screenshots stay under ignored `docs/evidence/private_refs/`.
+
+Verification so far:
+
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `47 passed in 1.57s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `102 passed in 3.27s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line value-oriented sensitive scan: no token-like key value, bearer token, email, private request id, or exact usage pattern. A broader scan matched only the public env var name `ASHR_LABS_API_KEY` in the field map.
+
+Remaining:
+
+- Run final Bus-Auditor recheck.
+- No `create-request` or `create-run` was executed in this round.

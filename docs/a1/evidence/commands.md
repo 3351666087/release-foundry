@@ -217,3 +217,22 @@ Cleanup note:
 - `git diff --check`: exit 0; CRLF warnings only.
 - Added-line sensitive scan: implementation/docs matched no real key, request id, email, or exact usage patterns. Test-only hits were synthetic redaction fixtures.
 - No new real `create-request` was executed in this round.
+
+## 2026-07-04 Read-Only API Parity Surface
+
+- `git fetch origin --prune`: success; `origin/dev/g3-a2-calibration` advanced to `561aa0e`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracked `origin/codex/a1-local-sdk-runner`; tracked worktree clean at round start. Ignored `.secrets/`, `.pytest_cache/`, and private evidence remained unstaged.
+- `gh pr view 6 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #6 open/draft/mergeable at head `05b4b44`.
+- Peer impact: A2 commit `561aa0e` added a real API smoke summary with `init`, `health_check`, `list_datasets`, `list_runs`, `list_requests`, and `list_agents`; this exposed A1's missing read-only `health-check` / `list-agents` probe surface. No A2 files were merged into the A1 branch.
+- Local official wheel check: `AshrLabsClient.health_check()` calls API function `keep_alive`; `AshrLabsClient.list_agents()` calls API function `list_agents`.
+- Implemented `AshrApiClient.health_check(...)`, `AshrApiClient.list_agents(...)`, and CLI operations `health-check` and `list-agents`.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `47 passed in 1.57s`.
+- `python -B -m services.runner.api_probe health-check --output docs/evidence/private_refs/a1_api_health_check_dry_run.json`: planned read-only probe, `status=planned`, `attempts=0`.
+- `python -B -m services.runner.api_probe list-agents --output docs/evidence/private_refs/a1_api_list_agents_dry_run.json`: planned read-only probe, `status=planned`, `attempts=0`.
+- `python -B -m services.runner.api_probe health-check --execute --max-retries 0 --output docs/evidence/private_refs/a1_api_health_check_real.json`: real read-only probe succeeded, HTTP `200`, `status=ok`, `attempts=1`; safe response keys `db`, `message`, `status`.
+- `python -B -m services.runner.api_probe list-agents --execute --max-retries 0 --output docs/evidence/private_refs/a1_api_list_agents_real.json`: real read-only probe succeeded, HTTP `200`, `status=ok`, `attempts=1`; safe response keys `_user`, `agents`, `status`, with current `agents_count=0`.
+- Chrome read-only calibration: official API reference showed `health_check`, `list_agents`, `list_datasets`, `list_requests`, and `create_request`. Existing logged-in Usage tab showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without sign-in copy; exact counters remain private. Screenshots stored under ignored private evidence as `ashr_lab_analysis_readonly_parity_2026-07-04.png` and `ashr_lab_usage_readonly_parity_2026-07-04.png`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `102 passed in 3.27s`.
+- `git diff --check`: exit 0; CRLF warnings only.
+- Added-line value-oriented sensitive scan: no token-like key value, bearer token, email, private request id, or exact usage pattern. A broader scan matched only the public env var name `ASHR_LABS_API_KEY` in the field map.
+- No real `create-request` or `create-run` was executed in this round.

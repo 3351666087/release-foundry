@@ -260,6 +260,9 @@ class AshrApiClient:
     def init(self, **kwargs: Any) -> JsonDict:
         return self.call("init", purpose="Resolve Ashr session context", estimated_calls=1, mutates=False, **kwargs)
 
+    def health_check(self, **kwargs: Any) -> JsonDict:
+        return self.call("keep_alive", purpose="Check Ashr API reachability", estimated_calls=1, mutates=False, **kwargs)
+
     def list_datasets(self, *, limit: int = 5, cursor: int | None = None, **kwargs: Any) -> JsonDict:
         params: JsonDict = {"limit": limit, "include_signed_urls": False}
         if cursor is not None:
@@ -319,6 +322,9 @@ class AshrApiClient:
         if cursor is not None:
             params["cursor"] = cursor
         return self._call_with_session("list_requests", params=params, tenant=True, purpose="List generation request shapes", estimated_calls=2, mutates=False, **kwargs)
+
+    def list_agents(self, **kwargs: Any) -> JsonDict:
+        return self.call("list_agents", purpose="List tenant agents for SDK parity calibration", estimated_calls=1, mutates=False, **kwargs)
 
     def get_request(self, request_id: int, **kwargs: Any) -> JsonDict:
         return self.call("get_request", params={"request_id": request_id}, purpose="Poll one generation request", estimated_calls=1, mutates=False, **kwargs)
