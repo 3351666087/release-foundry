@@ -576,10 +576,11 @@ Verification:
 - Chrome read-only calibration: logged-in Usage page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no sign-in copy; exact private usage values were not recorded in tracked docs. Official API reference remained reachable and showed `create_request`, `accepted_inputs`, `generate_audio`, `generate_files`, `generate_images`, and `add_user_file`.
 - Final remote recheck before staging: `git fetch --all --prune` advanced `origin/main` to `2205084` and `origin/dev/g3-a2-calibration` to `3c27179`; PR #4 and PR #5 are now merged. `origin/main` contains A1 plus additive A2/A3/judge/dashboard/report fixture work. Current A1 patch remains a follow-up on `codex/a1-local-sdk-runner`.
 - Bus-Auditor final verdict: PASS. No must-fix items; safe to stage/commit self-made A1 SDK/tests/docs plus this shared worklog. It noted that pushing the branch is safe but will not update a merged PR, so a fresh PR or handoff is needed after push if collaboration visibility is required.
+- Commit/push/PR: pushed `2624ea6` to `codex/a1-local-sdk-runner` and opened draft PR #6, `A1 AgentInput multimodal adapter envelope`, because earlier PR #4 had already merged.
 
 Remaining:
 
-- Need stage/commit/push this self-made follow-up patch, then create a fresh PR or handoff because PR #4 has already merged.
+- Need inspect/adjust hosted media request schema/UI before any further Image/Audio/Files generation. Keep `create-request` blocked until quota resets or plan state changes.
 - Hosted media-generation failure reason is still unresolved; do not repeat the same media request blindly. Next media step should adjust schema/request shape or inspect official product docs/UI for required media payload semantics.
 - Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
 - A second external-agent adapter smoke path against `AgentInput` would be useful once the local envelope is committed.
@@ -590,7 +591,7 @@ Latest active A1 round: AgentInput Multimodal Envelope.
 
 Key current facts:
 
-- Branch remains `codex/a1-local-sdk-runner`; tracked worktree has self-made A1 SDK/tests/docs changes awaiting stage/commit/push. PR #4 has already merged, so this follow-up needs a fresh PR or explicit handoff after push.
+- Branch remains `codex/a1-local-sdk-runner`; A1 AgentInput follow-up has a fresh draft PR #6 after PR #4 merged.
 - `AgentInput` local envelope exists with `schema_version=ashr.clone.agent_input.v1` and supports `text`, `image`, `audio`, and `file` parts.
 - Legacy `AgentAdapter.respond("text")` still passes plain strings; `respond_input(...)` and async/input-turn variants pass the canonical envelope.
 - A2/A3-facing `AgentTurn` output shape remains intact, with content-part text extraction and A2 projection tests passing.
