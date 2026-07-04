@@ -101,6 +101,12 @@ After the G3 calibration pass, both `thin_golden_failure_classes` and `thin_exec
 
 For auditability, the coverage report also exposes `golden_failure_class_cases` and `executable_failure_class_cases`, which list the case/scenario evidence behind each canonical failure class count.
 
+G3 now also audits scenario quality dimensions beyond the assignment minimums:
+
+- `scenario_dimension_counts`, `scenario_dimension_checks`, and `scenario_dimension_scenarios` show coverage for task shapes such as required tool use, optional tool choice, forbidden-tool boundaries, ordered tool sequences, multi-turn dialogue, fixture grounding, clarification, failure recovery, safety, grounding/reference, argument fidelity, output contracts, and freshness/current-info.
+- `difficulty_counts`, `action_count_counts`, `environment_counts`, `tag_counts`, `tool_policy_shape_counts`, tool-surface counts, `ordered_tool_pairs`, and fixture type counts expose the underlying shape of the 60 scenarios.
+- `scenario_quality_warnings` is intentionally advisory. It does not affect `meets_assignment_minimums`; it highlights improvement targets such as the current thin D4, multi-turn, ordered-tool, and fixture-backed depth.
+
 ## Later Enhancements
 
 Community metadata such as GitHub stars, issue activity, adoption, and documentation quality can become later metadata signals. They should not affect G1-G2 deterministic scores.

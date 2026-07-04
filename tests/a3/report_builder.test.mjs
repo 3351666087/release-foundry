@@ -242,6 +242,12 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.available, true);
   assert.equal(summary.meets_assignment_minimums, true);
   assert.equal(summary.scenario_count, 60);
+  assert.equal(summary.scenario_dimension_counts.required_tool_use, 24);
+  assert.equal(summary.scenario_dimension_counts.fixture_grounding, 25);
+  assert.equal(summary.scenario_quality_warning_count, 4);
+  assert.equal(summary.difficulty_counts.D4, 1);
+  assert.equal(summary.multi_turn_scenario_count, 2);
+  assert.equal(summary.ordered_tool_pairs["web.search -> web.open"], 2);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
   assert.equal(summary.primary_failure_class_count, 12);
@@ -260,12 +266,17 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
   assert.equal(json.coverage.coverage_warning_count, 0);
+  assert.equal(json.coverage.scenario_quality_warnings.length, 4);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
   assert.match(markdown, /## Coverage/);
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
+  assert.match(markdown, /Scenario dimensions met: 15\/15/);
+  assert.match(markdown, /Scenario quality warnings: 4/);
+  assert.match(markdown, /### Scenario Quality Warnings/);
+  assert.match(markdown, /D4 scenario count is 1/);
   assert.match(markdown, /Coverage warnings: 0/);
   assert.match(markdown, /### Failure Class Evidence/);
   assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);

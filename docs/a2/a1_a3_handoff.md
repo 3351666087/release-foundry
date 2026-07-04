@@ -139,6 +139,8 @@ The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 di
 
 A3 can also use `golden_failure_class_cases` and `executable_failure_class_cases` as drilldown evidence for each canonical failure class. The Markdown report surfaces the same evidence in a compact `Failure Class Evidence` section for manual review.
 
+For scenario-quality review, A3 can read `scenario_dimension_counts`, `scenario_dimension_scenarios`, tool-surface counts, fixture type counts, and `scenario_quality_warnings`. The Markdown report surfaces the advisory warning details, but these warnings do not change `meets_assignment_minimums`.
+
 ## Known Boundary
 
 This is a local deterministic handoff. It is intentionally not yet the real Ashr server-side grading result. G3 will calibrate field names and scoring behavior against real Ashr API evidence.
