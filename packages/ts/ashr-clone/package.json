@@ -6,11 +6,17 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "ashr-clone-api-probe": "./dist/probe.js",
+    "ashr-clone-probe": "./dist/probe.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "probe": "node dist/probe.js",
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "devDependencies": {
+    "@types/node": "^26.1.0",
     "typescript": "^5.9.3"
   }
 }

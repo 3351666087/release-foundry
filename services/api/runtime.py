@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import threading
 from typing import Any, Iterable, Mapping
 from uuid import uuid4
 
@@ -128,6 +129,7 @@ class CloudApiService:
     def __init__(self, *, store: InMemoryCloudStore | None = None, quota: QuotaLedger | None = None) -> None:
         self.store = store or InMemoryCloudStore()
         self.quota = quota or QuotaLedger()
+        self._lock = threading.RLock()
 
     def create_tenant(self, name: str, *, tenant_id: str | None = None, metadata: Mapping[str, Any] | None = None) -> JsonDict:
         tenant_id = tenant_id or _new_id("tenant")
@@ -308,10 +310,156 @@ class CloudApiService:
             "result": result_payload,
             "created_at": now,
             "updated_at": now,
+            "status_history": [{"status": _cloud_run_status(result_payload), "at": now}],
             "metadata": _jsonable(dict(metadata or {})),
         }
         self.store.runs[run_id] = record
         return _copy(record)
+
+    def create_queued_run(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        dataset_id: str,
+        runner_id: str = "a1-local-queue-worker",
+        run_id: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        dataset = self.get_dataset(tenant_id, project_id, dataset_id)
+        with self._lock:
+            self.quota.check(dataset["tenant_id"], dataset["project_id"], "run.submit")
+            run_id = run_id or _new_id("run")
+            _require_id(run_id, "run_id")
+            if run_id in self.store.runs:
+                raise ValidationError(f"run already exists: {run_id}")
+            self.quota.consume(dataset["tenant_id"], dataset["project_id"], "run.submit")
+            now = _utc_now()
+            result = {
+                "schema_version": "ashr.clone.run_result.v1",
+                "run_id": run_id,
+                "dataset_id": dataset["dataset_id"],
+                "runner_id": str(runner_id),
+                "status": "queued",
+                "total_cases": dataset["case_count"],
+                "passed": 0,
+                "failed": 0,
+                "errored": 0,
+                "timed_out": 0,
+                "cases": [],
+                "metadata": {"local_only": True, "ashr_api_used": False, "queued": True},
+            }
+            record = {
+                "schema_version": CLOUD_API_SCHEMA_VERSION,
+                "tenant_id": dataset["tenant_id"],
+                "project_id": dataset["project_id"],
+                "dataset_id": dataset["dataset_id"],
+                "run_id": run_id,
+                "status": "queued",
+                "result_status": "queued",
+                "runner_id": str(runner_id),
+                "total_cases": dataset["case_count"],
+                "observations": [],
+                "result": _jsonable(result),
+                "created_at": now,
+                "updated_at": now,
+                "status_history": [{"status": "queued", "at": now}],
+                "metadata": _jsonable(dict(metadata or {})),
+            }
+            self.store.runs[run_id] = record
+            return _copy(record)
+
+    def mark_run_running(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") == "cancelled":
+                return _copy(run)
+            if run.get("status") not in {"queued", "submitted", "running"}:
+                raise ValidationError(f"run cannot transition to running from {run.get('status')}")
+            now = _utc_now()
+            run["status"] = "running"
+            run["result_status"] = "running"
+            run["updated_at"] = now
+            if isinstance(run.get("result"), dict):
+                run["result"]["status"] = "running"
+            _append_status_history(run, "running", now)
+            return _copy(run)
+
+    def complete_run(self, tenant_id: str, project_id: str, run_id: str, run_result: Mapping[str, Any]) -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") == "cancelled":
+                return _copy(run)
+            if run.get("status") not in {"queued", "running", "submitted"}:
+                raise ValidationError(f"run cannot complete from {run.get('status')}")
+            result_payload = _jsonable(dict(run_result))
+            observations = _extract_observations(result_payload)
+            self.quota.check(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
+            self.quota.consume(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
+            now = _utc_now()
+            run["status"] = _cloud_run_status(result_payload)
+            run["result_status"] = str(result_payload.get("status") or "")
+            run["runner_id"] = str(result_payload.get("runner_id") or run.get("runner_id") or "a1-local-runner")
+            run["total_cases"] = int(result_payload.get("total_cases") or len(result_payload.get("cases") or []))
+            run["observations"] = observations
+            run["result"] = result_payload
+            run["updated_at"] = now
+            _append_status_history(run, run["status"], now)
+            return _copy(run)
+
+    def fail_run(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        *,
+        error: Mapping[str, Any],
+        result_status: str = "error",
+    ) -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") == "cancelled":
+                return _copy(run)
+            now = _utc_now()
+            error_payload = _jsonable(dict(error))
+            run["status"] = "failed"
+            run["result_status"] = str(result_status)
+            run["updated_at"] = now
+            run["observations"] = []
+            run["result"] = {
+                "schema_version": "ashr.clone.run_result.v1",
+                "run_id": run["run_id"],
+                "dataset_id": run["dataset_id"],
+                "runner_id": run["runner_id"],
+                "status": result_status,
+                "total_cases": run["total_cases"],
+                "passed": 0,
+                "failed": 0,
+                "errored": run["total_cases"],
+                "timed_out": 0,
+                "cases": [],
+                "error": error_payload,
+                "metadata": {"local_only": True, "ashr_api_used": False, "queued": True},
+            }
+            run["error"] = error_payload
+            _append_status_history(run, "failed", now)
+            return _copy(run)
+
+    def cancel_run(self, tenant_id: str, project_id: str, run_id: str, *, reason: str = "cancelled") -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") in {"completed", "failed"}:
+                raise ValidationError(f"run cannot be cancelled from {run.get('status')}")
+            now = _utc_now()
+            run["status"] = "cancelled"
+            run["result_status"] = "cancelled"
+            run["updated_at"] = now
+            run["error"] = {"type": "Cancelled", "message": str(reason)}
+            if isinstance(run.get("result"), dict):
+                run["result"]["status"] = "cancelled"
+                run["result"]["error"] = run["error"]
+            _append_status_history(run, "cancelled", now)
+            return _copy(run)
 
     def append_observation(self, tenant_id: str, project_id: str, run_id: str, observation: Mapping[str, Any]) -> JsonDict:
         run = self._get_run_record(tenant_id, project_id, run_id)
@@ -370,6 +518,33 @@ class CloudApiService:
         path.write_text(json.dumps(self.export_run_fixture(tenant_id, project_id, run_id), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         return path
 
+    def snapshot_state(self) -> JsonDict:
+        with self._lock:
+            return {
+                "schema_version": CLOUD_API_SCHEMA_VERSION,
+                "state_version": 1,
+                "kind": "local_cloud_state",
+                "store": self.store.snapshot(),
+                "quota": _quota_state(self.quota),
+                "metadata": {"local_only": True, "ashr_api_used": False},
+            }
+
+    def write_state(self, output_path: str | Path) -> Path:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.snapshot_state(), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        return path
+
+    @classmethod
+    def from_state(cls, payload: Mapping[str, Any]) -> CloudApiService:
+        if not isinstance(payload, Mapping):
+            raise ValidationError("cloud state payload must be a JSON object")
+        return cls(store=_store_from_state(payload), quota=_quota_from_state(payload.get("quota", {})))
+
+    @classmethod
+    def from_state_file(cls, input_path: str | Path) -> CloudApiService:
+        return cls.from_state(json.loads(Path(input_path).read_text(encoding="utf-8")))
+
     def _get_run_record(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
         run = self.store.runs.get(str(run_id))
         if not run or run.get("tenant_id") != str(tenant_id) or run.get("project_id") != str(project_id):
@@ -394,6 +569,85 @@ def _cloud_run_status(run_result: Mapping[str, Any]) -> str:
     if run_result.get("ended_at") and isinstance(run_result.get("cases"), list):
         return "completed"
     return "submitted"
+
+
+def _append_status_history(run: JsonDict, status: str, at: str) -> None:
+    history = run.setdefault("status_history", [])
+    if not isinstance(history, list):
+        history = []
+        run["status_history"] = history
+    if history and isinstance(history[-1], Mapping) and history[-1].get("status") == status:
+        history[-1]["at"] = at
+        return
+    history.append({"status": status, "at": at})
+
+
+def _quota_state(quota: QuotaLedger) -> JsonDict:
+    project_keys = set(quota.limits) | set(quota.used)
+    return _jsonable(
+        {
+            "default_limits": dict(quota.default_limits),
+            "projects": [
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "limits": dict(quota.limits.get((tenant_id, project_id), {})),
+                    "used": dict(quota.used.get((tenant_id, project_id), {})),
+                }
+                for tenant_id, project_id in sorted(project_keys)
+            ],
+        }
+    )
+
+
+def _quota_from_state(payload: Any) -> QuotaLedger:
+    if not isinstance(payload, Mapping):
+        return QuotaLedger()
+    default_limits = payload.get("default_limits")
+    ledger = QuotaLedger(default_limits=dict(default_limits) if isinstance(default_limits, Mapping) else dict(DEFAULT_QUOTA_LIMITS))
+    projects = payload.get("projects") or []
+    if not isinstance(projects, list):
+        raise ValidationError("quota projects must be a list")
+    for entry in projects:
+        if not isinstance(entry, Mapping):
+            raise ValidationError("quota project entries must be objects")
+        tenant_id = str(entry.get("tenant_id") or "")
+        project_id = str(entry.get("project_id") or "")
+        _require_id(tenant_id, "tenant_id")
+        _require_id(project_id, "project_id")
+        key = (tenant_id, project_id)
+        limits = entry.get("limits") or {}
+        used = entry.get("used") or {}
+        if not isinstance(limits, Mapping) or not isinstance(used, Mapping):
+            raise ValidationError("quota limits and used values must be objects")
+        ledger.limits[key] = {str(operation): int(limit) for operation, limit in limits.items()}
+        ledger.used[key] = {str(operation): int(units) for operation, units in used.items()}
+    return ledger
+
+
+def _store_from_state(payload: Mapping[str, Any]) -> InMemoryCloudStore:
+    store_payload = payload.get("store", payload)
+    if not isinstance(store_payload, Mapping):
+        raise ValidationError("cloud state store must be a JSON object")
+    return InMemoryCloudStore(
+        tenants=_state_bucket(store_payload, "tenants"),
+        projects=_state_bucket(store_payload, "projects"),
+        datasets=_state_bucket(store_payload, "datasets"),
+        requests=_state_bucket(store_payload, "requests"),
+        runs=_state_bucket(store_payload, "runs"),
+    )
+
+
+def _state_bucket(payload: Mapping[str, Any], key: str) -> dict[str, JsonDict]:
+    bucket = payload.get(key) or {}
+    if not isinstance(bucket, Mapping):
+        raise ValidationError(f"cloud state {key} must be an object")
+    records: dict[str, JsonDict] = {}
+    for item_key, item_value in bucket.items():
+        if not isinstance(item_value, Mapping):
+            raise ValidationError(f"cloud state {key} records must be objects")
+        records[str(item_key)] = _jsonable(dict(item_value))
+    return records
 
 
 def _positive_units(units: int) -> int:

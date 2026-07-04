@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { buildDashboardSummary, clusterFailures, normalizeCases } from "../../services/report/report_builder.mjs";
+import { buildDashboardSummary, buildJsonReport, clusterFailures, normalizeCases } from "../../services/report/report_builder.mjs";
 import { extractAshrRuns, mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
 async function loadJson(path) {
@@ -157,4 +157,31 @@ test("P3 mapper can read the committed redacted smoke fixture shape", async () =
   assert.ok(runFixture.runs.length >= 1);
   assert.ok(runFixture.runs[0].cases.length >= 1);
   assert.equal(gradeFixture.grade_results.length, runFixture.runs[0].cases.length);
+});
+
+test("P3 mapper preserves media evidence from real Ashr result.cases samples", async () => {
+  const mediaSample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
+  const { runFixture, gradeFixture } = mapAshrSampleToA3Fixtures(mediaSample);
+
+  assert.equal(runFixture.runs.length, 1);
+  assert.equal(runFixture.runs[0].cases.length, 3);
+  assert.equal(gradeFixture.grade_results.length, 3);
+
+  const mediaCase = runFixture.runs[0].cases.find((item) => item.media_evidence?.media_types.includes("audio"));
+  assert.ok(mediaCase);
+  assert.equal(mediaCase.media_evidence.primary_media_type, "audio");
+  assert.equal(mediaCase.media_evidence.vm_streams.length > 0, true);
+  assert.equal(mediaCase.trace_events.some((event) => event.event_type === "media.vm_stream"), true);
+
+  const toolMissingCase = runFixture.runs[0].cases.find((item) => item.expected.tool_calls.length > 0);
+  assert.ok(toolMissingCase);
+  assert.equal(toolMissingCase.primary_failure_class, "missing_required_tool");
+  assert.equal(toolMissingCase.media_evidence.evidence_items.some((item) => item.type === "vm_stream"), true);
+
+  const summary = buildDashboardSummary(runFixture, gradeFixture);
+  assert.equal(summary.mediaEvidenceCases, 3);
+  assert.equal(summary.vmStreamCases, 3);
+
+  const report = buildJsonReport(runFixture, gradeFixture);
+  assert.equal(report.cases.some((item) => item.media_evidence?.primary_media_type === "audio"), true);
 });

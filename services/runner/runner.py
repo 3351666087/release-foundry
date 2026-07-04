@@ -138,13 +138,22 @@ def execute_case(case: Any, *, index: int = 0) -> dict[str, Any]:
     return _execute_case(case, index)
 
 
-def run_agent_batch(agent: Any, cases: Iterable[Any], *, dataset_id: str = "local-dataset", runner_id: str = "a1-local-runner", max_workers: int | None = DEFAULT_MAX_WORKERS, timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS) -> dict[str, Any]:
+def run_agent_batch(
+    agent: Any,
+    cases: Iterable[Any],
+    *,
+    dataset_id: str = "local-dataset",
+    runner_id: str = "a1-local-runner",
+    max_workers: int | None = DEFAULT_MAX_WORKERS,
+    timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
+    run_id: str | None = None,
+) -> dict[str, Any]:
     case_list = list(cases)
     worker_count = normalize_max_workers(max_workers)
     default_timeout = normalize_timeout_seconds(timeout_seconds)
     agent_factory = _agent_factory(agent)
     started_at = _utc_now()
-    run_id = _stable_run_id(dataset_id, runner_id, case_list, started_at)
+    run_id = run_id or _stable_run_id(dataset_id, runner_id, case_list, started_at)
     ordered: list[dict[str, Any] | None] = [None] * len(case_list)
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = {executor.submit(_run_agent_case, agent_factory, case, index, run_id, default_timeout): index for index, case in enumerate(case_list)}

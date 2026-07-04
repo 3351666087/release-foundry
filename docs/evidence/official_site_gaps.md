@@ -40,4 +40,31 @@ Unverified or intentionally out of scope:
 - Read-only Chrome recheck confirmed public TypeScript SDK references/tabs remain visible and the Python API reference still exposes dataset, run, request, and media-envelope fields used for parity.
 - TypeScript runtime parity is now local-only in `packages/ts/ashr-clone`; hosted TypeScript API-client behavior, auth, and billing/usage semantics remain unverified and should stay dry-run/transport-injected until separately calibrated.
 
+2026-07-04 A1 queue worker update:
+
+- Read-only Chrome recheck confirmed the public API reference still exposes `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `request_status`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- The Usage page at `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy during this pass. `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were therefore not confirmed in this pass, and no private counters were recorded.
+- Local queue worker status names (`queued`, `running`, `completed`, `failed`, `cancelled`) remain an A1 local runtime scaffold for polling and replay. Hosted Ashr queue semantics, cancellation semantics, and billing/quota timing remain unverified.
+
+2026-07-04 A1 TypeScript API-client update:
+
+- Main-thread Chrome recheck found that `https://ashr.io/docs/api-reference/` currently returns `404 Not Found`; the public API reference is reachable at `https://ashr.io/docs/python-sdk/api-reference/`.
+- The current public API reference exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, `generate_files`, `Trace`, `Span`, and `Generation`.
+- `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were not confirmed. No private counters were recorded.
+- TypeScript `AshrApiClient` now mirrors the Python dry-run/client guardrail surface locally, but no hosted TS API call has been executed. Hosted TS auth behavior, quota headers, media processing behavior, and billing/usage timing remain unverified.
+
+2026-07-04 A1 queue persistence/replay update:
+
+- Main-thread Chrome recheck confirmed the public API reference at `https://ashr.io/docs/python-sdk/api-reference/` exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` in the current Chrome session and showed the labels `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private usage counters were not recorded in tracked docs.
+- Local queue snapshot/replay state remains an A1 clone scaffold. Hosted persistence semantics, queue replay behavior, cancellation persistence, and Image/Audio/File quota reset/enforcement semantics remain unverified against Ashr's backend.
+
+2026-07-04 A1 TypeScript probe CLI update:
+
+- Chrome read-only checks verified `https://ashr.io/docs/typescript-sdk/api-reference/` and `https://ashr.io/docs/typescript-sdk/authentication/`. The TypeScript docs group showed Overview, Installation, Quick Start, Testing Your Agent, Authentication, VM Integration, API Reference, Error Handling, and Examples.
+- TypeScript authentication docs showed `ASHR_LABS_API_KEY`, optional `ASHR_LABS_BASE_URL`, `fromEnv`, direct `apiKey` / `baseUrl` construction, API key list/revoke docs, and key-security guidance.
+- TypeScript API reference exposed `AshrLabsClient`, `fromEnv`, `createRun`, `getRun`, `listRuns`, `deleteRun`, `createRequest`, `getRequest`, `listRequests`, `waitForRequest`, `generateDataset`, `healthCheck`, `Trace`, `Span`, `Generation`, `accepted_inputs`, `generate_audio`, and `generate_files`.
+- The same TS API pass did not show `generate_images`, `listAgents`, or `pollRun`; A1 keeps those mapped from the Python API reference and local TS client parity until a later TS-doc/API calibration confirms exact hosted names.
+- `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` and showed labels `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private usage counters were not recorded.
+
 If any of these become required for A1/A2/A3, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs or committed artifacts.

@@ -39,7 +39,14 @@ Status legend:
 | `failure_summary` | `divergence_notes` or generated summary from mismatch | Triage text | Yes | verified/derived | Sample field exists; mapper falls back when null. |
 | `severity` | backend severity or derived class severity | Cluster severity | Nice | unknown | Need real graded sample. |
 | `judge_results[]` | A3 synthetic wrapper around Ashr action checks | Drilldown | Nice | derived | Mapper emits `p3_ashr_action_results_judge` for dashboard compatibility. |
-| `vm_stream` | `test.vm_stream` | Replay/browser evidence | Later | probable | `TestBuilder.set_vm_stream()` supports it. |
+| `media_evidence.primary_media_type` | `case.metadata.action_type` or `action_results[].action_type` | Case-level media type | Yes | verified | Seen as `audio` in `fixtures/a3/p3/ashr_run_detail_sample.redacted.json`. |
+| `media_evidence.media_types[]` | `audio` / `file` / `image` / `video` action types | Media filtering and evidence badges | Yes | verified | Dataset sample includes `audio` and `file`; request config also mentions image/video generation flags. |
+| `media_evidence.action_tags` | `actions[].action_tags` or `case.metadata.action_tags` | Structured media metadata | Yes | verified | File action tags include file metadata such as format/style fields. |
+| `media_evidence.output_paths[]` | `actions[].output_path` | Linkable/generated media artifact path | Yes | verified | Present for file action in dataset sample; absent for sanitized audio case sample. |
+| `media_evidence.audio_tags` | `dataset_source.runs.*.audio_tags` or `case.metadata.audio_tags` | Audio profile evidence | Yes | verified | Seen with tone/accent/background-noise-like fields after redaction. |
+| `media_evidence.intent_tags` | `dataset_source.runs.*.intent_tags` or `case.metadata.intent_tags` | Scenario intent grouping | Nice | verified | Seen in dataset and run detail samples. |
+| `vm_stream` | `case.observations[].vm_stream` | Replay/browser evidence | Yes | verified | Run detail sample includes provider, session id, duration, logs, and synthetic metadata. |
+| `trace_events[].event_type` for media | derived as `media.<type>` or `media.vm_stream` | Timeline evidence display | Yes | derived | A3 mapper emits media timeline events from real case observations. |
 
 ## Smoke sample findings
 
@@ -53,6 +60,8 @@ Status legend:
 - `list_runs()` confirmed expected vs actual text and tool call fields.
 - `list_requests()` succeeded and showed generation request shape.
 - `list_observability_traces()` failed because this account's `init().features.observability` is `false`.
+- Follow-up media calibration saw `audio`, `file`, `action_tags`, `output_path`, and `vm_stream` in sanitized dataset/run detail samples.
+- Real run detail can also use an A1-like `run.result.cases[]` shape instead of `run.result.tests[]`; A3 mapper now supports both.
 
 ## Object mapping by product concept
 
@@ -95,3 +104,4 @@ The mapper should emit:
 - Does the dashboard API expose eval/evaluation objects separately from datasets?
 - Are production observability traces linkable to testing runs when the feature is enabled?
 - Should A3 keep `semantic_similarity` as the score, or wait for a server-side grade field when available?
+- Direct signed media URLs for audio/image/video were not available in the sanitized sample; A3 records this as `known_gaps`.

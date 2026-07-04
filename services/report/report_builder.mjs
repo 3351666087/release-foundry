@@ -183,6 +183,8 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
   const totalCases = cases.length;
   const passed = cases.filter((item) => item.passed).length;
   const failed = totalCases - passed;
+  const mediaEvidenceCases = cases.filter(hasMediaEvidence).length;
+  const vmStreamCases = cases.filter((item) => (item.media_evidence?.vm_streams || []).length > 0).length;
   const avgScore = totalCases
     ? Math.round((cases.reduce((sum, item) => sum + normalizeScore(item.score), 0) / totalCases) * 10) / 10
     : 0;
@@ -197,6 +199,8 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
     traceCompleteness: runs.length
       ? Math.round((runs.reduce((sum, run) => sum + (run.trace_completeness || 0), 0) / runs.length) * 1000) / 10
       : 0,
+    mediaEvidenceCases,
+    vmStreamCases,
     lastRunId: runs[0]?.run_id || "none"
   };
 }
@@ -390,6 +394,28 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   })).sort((left, right) => right.count - left.count || left.failureClass.localeCompare(right.failureClass));
 }
 
+export function buildToolCallDiffs(caseResult = {}) {
+  const expected = normalizeToolCalls(caseResult.expected?.tool_calls);
+  const actual = normalizeToolCalls(caseResult.actual?.tool_calls);
+  const total = Math.max(expected.length, actual.length);
+  const diffs = [];
+
+  for (let index = 0; index < total; index += 1) {
+    const expectedCall = expected[index] || null;
+    const actualCall = actual[index] || null;
+    const status = toolDiffStatus(expectedCall, actualCall);
+    diffs.push({
+      index,
+      status,
+      expected: expectedCall,
+      actual: actualCall,
+      summary: toolDiffSummary(status, expectedCall, actualCall)
+    });
+  }
+
+  return diffs;
+}
+
 export function buildMarkdownReport(
   runFixture = {},
   gradeFixture = {},
@@ -517,7 +543,10 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     "score",
     "severity",
     "primary_failure_class",
-    "failure_summary"
+    "failure_summary",
+    "media_types",
+    "media_evidence_count",
+    "vm_stream_count"
   ];
   const rows = normalizeCases(runFixture, gradeFixture).map((item) => [
     item.run_id,
@@ -528,7 +557,10 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     item.score,
     item.severity,
     item.primary_failure_class,
-    item.failure_summary
+    item.failure_summary,
+    (item.media_evidence?.media_types || []).join("|"),
+    item.media_evidence?.evidence_items?.length || 0,
+    item.media_evidence?.vm_streams?.length || 0
   ]);
   return [header, ...rows]
     .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
@@ -563,7 +595,84 @@ export function buildJsonReport(
       primary_failure_class: item.primary_failure_class,
       failure_summary: item.failure_summary,
       expected: item.expected,
-      actual: item.actual
+      actual: item.actual,
+      tool_call_diffs: buildToolCallDiffs(item),
+      media_evidence: item.media_evidence || null
     }))
   };
+}
+
+function hasMediaEvidence(item = {}) {
+  const mediaEvidence = item.media_evidence || {};
+  return (mediaEvidence.media_types || []).length > 0
+    || (mediaEvidence.evidence_items || []).length > 0
+    || (mediaEvidence.vm_streams || []).length > 0;
+}
+
+function normalizeToolCalls(toolCalls) {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+
+  return toolCalls.map((call) => ({
+    name: call.tool_name || call.name || call.tool || "unknown_tool",
+    arguments: call.arguments || call.args || call.parameters || {},
+    raw: call
+  }));
+}
+
+function toolDiffStatus(expectedCall, actualCall) {
+  if (expectedCall && !actualCall) {
+    return "missing_required_tool";
+  }
+  if (!expectedCall && actualCall) {
+    return "unexpected_tool_call";
+  }
+  if (!expectedCall && !actualCall) {
+    return "none";
+  }
+  if (expectedCall.name !== actualCall.name) {
+    return "wrong_tool";
+  }
+  if (stableJson(expectedCall.arguments) !== stableJson(actualCall.arguments)) {
+    return "wrong_arguments";
+  }
+  return "match";
+}
+
+function toolDiffSummary(status, expectedCall, actualCall) {
+  if (status === "match") {
+    return `Matched ${expectedCall.name}.`;
+  }
+  if (status === "missing_required_tool") {
+    return `Expected ${expectedCall.name}, but no actual tool call was present at this position.`;
+  }
+  if (status === "unexpected_tool_call") {
+    return `Unexpected actual tool call ${actualCall.name}.`;
+  }
+  if (status === "wrong_tool") {
+    return `Expected ${expectedCall.name}, but actual tool was ${actualCall.name}.`;
+  }
+  if (status === "wrong_arguments") {
+    return `Tool ${expectedCall.name} was called with different arguments.`;
+  }
+  return "No tool call expected or observed.";
+}
+
+function stableJson(value) {
+  return JSON.stringify(sortForStableJson(value));
+}
+
+function sortForStableJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(sortForStableJson);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, sortForStableJson(item)])
+    );
+  }
+  return value;
 }
