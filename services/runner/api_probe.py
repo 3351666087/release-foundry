@@ -46,6 +46,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.execute and args.operation in MUTATING_OPERATIONS and not args.allow_mutate:
             raise ValueError(f"{args.operation} is mutating; rerun with --allow-mutate after reviewing the dry-run plan")
+        if args.execute and args.operation in MUTATING_OPERATIONS and args.max_retries != 0:
+            raise ValueError(f"{args.operation} execution requires --max-retries 0 to avoid duplicate mutation on retry")
         client_kwargs: dict[str, Any] = {"timeout": args.timeout, "max_retries": args.max_retries}
         if args.base_url:
             client_kwargs["base_url"] = args.base_url
@@ -130,9 +132,22 @@ def require(value: Any, message: str) -> None:
 def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
     generation_options = request.get("generation_options") if isinstance(request.get("generation_options"), dict) else {}
     test_config = request.get("test_config") if isinstance(request.get("test_config"), dict) else {}
-    accepted_inputs = request.get("agent", {}).get("accepted_inputs") if isinstance(request.get("agent"), dict) else {}
-    if not isinstance(accepted_inputs, dict):
-        accepted_inputs = {}
+    agent = request.get("agent") if isinstance(request.get("agent"), dict) else {}
+    accepted_inputs_raw = agent.get("accepted_inputs") if isinstance(agent, dict) else None
+    accepted_inputs_provided = accepted_inputs_raw is not None
+    accepted_inputs_shape_supported = accepted_inputs_raw is None or isinstance(accepted_inputs_raw, dict)
+    accepted_inputs = accepted_inputs_raw if isinstance(accepted_inputs_raw, dict) else {}
+    accepted_flags: dict[str, bool] = {}
+    accepted_flag_shapes: dict[str, bool] = {}
+    for key in ("text", "audio", "file", "image", "video", "conversation"):
+        if not accepted_inputs_provided:
+            accepted_flags[key] = key == "text"
+            accepted_flag_shapes[key] = True
+            continue
+        enabled, shape_supported = _accepted_input_enabled(accepted_inputs.get(key))
+        accepted_flags[key] = enabled
+        accepted_flag_shapes[key] = shape_supported
+    accepted_inputs_known = accepted_inputs_shape_supported and all(accepted_flag_shapes.values())
     media_flags = {
         "audio": bool(generation_options.get("generate_audio")),
         "files": bool(generation_options.get("generate_files")),
@@ -147,18 +162,21 @@ def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
         "num_variations_known": num_variations is not None,
         "media_generation": media_flags,
         "media_generation_enabled": any(media_flags.values()),
-        "accepted_input_flags": {key: bool(accepted_inputs.get(key)) for key in ("text", "audio", "file", "image", "video", "conversation")},
-        "non_text_inputs_enabled": any(bool(accepted_inputs.get(key)) for key in ("audio", "file", "image", "video", "conversation")),
+        "accepted_inputs_known": accepted_inputs_known,
+        "accepted_input_flags": accepted_flags,
+        "non_text_inputs_enabled": any(accepted_flags[key] for key in ("audio", "file", "image", "video", "conversation")),
         "small_batch": num_variations is not None and num_variations <= 1,
         "notes": [
             "dry-run-first mutating create_request calibration",
             "use --max-retries 0 for real mutating execution",
-            "raw request content stays in private evidence",
+            "request params are recorded as shape summaries; raw API responses stay private",
         ],
     }
 
 
 def enforce_create_request_preflight(preflight: dict[str, Any], *, allow_media_generation: bool, allow_non_text_inputs: bool, max_request_variations: int) -> None:
+    if not preflight.get("accepted_inputs_known", True):
+        raise ValueError("create-request accepted_inputs shape is unsupported; use booleans or {enabled: bool} before real execution")
     if not preflight.get("num_variations_known"):
         raise ValueError("create-request num_variations is unknown; set test_config.num_variations before real execution")
     if preflight.get("media_generation_enabled") and not allow_media_generation:
@@ -173,11 +191,24 @@ def enforce_create_request_preflight(preflight: dict[str, Any], *, allow_media_g
 def _coerce_positive_int(value: Any) -> int | None:
     if value is None:
         return None
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
+    if isinstance(value, bool):
         return None
-    return parsed if parsed >= 0 else None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.isdecimal():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _accepted_input_enabled(value: Any) -> tuple[bool, bool]:
+    if value is None:
+        return False, True
+    if isinstance(value, bool):
+        return value, True
+    if isinstance(value, dict) and isinstance(value.get("enabled"), bool):
+        return value["enabled"], True
+    return False, False
 
 
 MUTATING_OPERATIONS = {"create-run", "create-request"}

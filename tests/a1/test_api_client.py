@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
@@ -258,6 +259,96 @@ def test_create_request_uses_default_request_input_schema_for_sdk_parity(tmp_pat
     assert sent["request_input_schema"]["tools"] == [{"name": "lookup_order"}]
 
 
+def test_create_request_preserves_explicit_request_input_schema(tmp_path):
+    calls = []
+    explicit_schema = {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        if payload["function"] == "init":
+            return 200, b'{"status":"ok","user":{"id":1},"tenant":{"id":2}}'
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"pending"}}'
+
+    output = tmp_path / "create_request.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.create_request(
+        request_name="Explicit schema",
+        request={"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}},
+        request_input_schema=explicit_schema,
+        output_path=output,
+        dry_run=False,
+    )
+
+    assert record["status"] == "ok"
+    assert calls[1]["request_input_schema"] == explicit_schema
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"]["keys"] == ["properties", "required", "type"]
+
+
+def test_create_request_record_summarizes_request_without_raw_prompt(tmp_path):
+    calls = []
+    marker = "DO_NOT_RECORD_RAW_PROMPT"
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        if payload["function"] == "init":
+            return 200, b'{"status":"ok","user":{"id":1},"tenant":{"id":2}}'
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"pending"}}'
+
+    output = tmp_path / "create_request.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    client.create_request(
+        request_name="Raw marker",
+        request={
+            "agent": {"name": "Mock", "accepted_inputs": {"text": True}},
+            "context": {"scenario_context": marker},
+            "generation_options": {"generate_audio": False},
+            "test_config": {"num_variations": 1},
+        },
+        output_path=output,
+        dry_run=False,
+        preflight={"num_variations": 1, "request_input_schema_source": "client_default"},
+    )
+
+    assert calls[1]["request"]["context"]["scenario_context"] == marker
+    text = output.read_text(encoding="utf-8")
+    assert marker not in text
+    record = json.loads(text)
+    assert record["request"]["params"]["request"]["top_level_keys"] == ["agent", "context", "generation_options", "test_config"]
+    assert record["request"]["params"]["preflight_summary"]["request_input_schema_source"] == "client_default"
+
+
+def test_direct_sdk_create_request_requires_zero_retries_for_real_execution():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport)
+
+    try:
+        client.create_request(request_name="Blocked", request={"agent": {"name": "Mock"}}, dry_run=False)
+    except ValueError as exc:
+        assert "max_retries=0" in str(exc)
+    else:
+        raise AssertionError("expected direct create_request retry guardrail")
+
+
+def test_direct_sdk_create_run_requires_zero_retries_for_real_execution():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport)
+
+    try:
+        client.create_run(dataset_id=1, result={"status": "completed"}, dry_run=False)
+    except ValueError as exc:
+        assert "max_retries=0" in str(exc)
+    else:
+        raise AssertionError("expected direct create_run retry guardrail")
+
+
 def test_build_default_request_input_schema_is_permissive_and_media_safe():
     schema = build_default_request_input_schema({"agent": {"tools": [{"name": "inspect_attachment"}]}})
 
@@ -309,6 +400,39 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["params"]["request_input_schema"]["type"] == "object"
 
 
+def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):
+    request_file = tmp_path / "request.json"
+    schema_file = tmp_path / "schema.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    schema = {"type": "object", "properties": {"query": {"type": "string"}}}
+    schema_file.write_text(json.dumps(schema), encoding="utf-8")
+
+    class FakeClient:
+        def create_request(self, **kwargs):
+            return {
+                "request_schema": kwargs["request_input_schema"],
+                "preflight": kwargs["preflight"],
+            }
+
+    record = api_probe.run_operation(
+        FakeClient(),
+        Namespace(
+            operation="create-request",
+            request_name="Schema file",
+            request_file=str(request_file),
+            request_schema_file=str(schema_file),
+            allow_media_generation=False,
+            allow_non_text_inputs=False,
+            max_request_variations=1,
+        ),
+        output=tmp_path / "probe.json",
+        dry_run=True,
+    )
+
+    assert record["request_schema"] == schema
+    assert record["preflight"]["request_input_schema_source"] == "file"
+
+
 def test_api_probe_create_request_preflight_blocks_media_generation():
     preflight = api_probe.summarize_generation_request(
         {
@@ -357,6 +481,19 @@ def test_api_probe_create_request_preflight_blocks_unknown_variation_count():
         raise AssertionError("expected unknown variation guardrail to block execution")
 
 
+def test_api_probe_create_request_preflight_blocks_invalid_variation_shapes():
+    for value in (0, False, True, 1.5, "1.5"):
+        preflight = api_probe.summarize_generation_request({"generation_options": {}, "test_config": {"num_variations": value}})
+        assert preflight["num_variations"] is None
+        assert preflight["num_variations_known"] is False
+        try:
+            api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+        except ValueError as exc:
+            assert "num_variations is unknown" in str(exc)
+        else:
+            raise AssertionError(f"expected invalid variation {value!r} to block execution")
+
+
 def test_api_probe_create_request_preflight_blocks_non_text_inputs():
     preflight = api_probe.summarize_generation_request(
         {
@@ -374,14 +511,94 @@ def test_api_probe_create_request_preflight_blocks_non_text_inputs():
         raise AssertionError("expected non-text input guardrail to block execution")
 
 
+def test_api_probe_create_request_preflight_supports_enabled_dict_inputs():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "agent": {"accepted_inputs": {"text": {"enabled": True}, "image": {"enabled": False}}},
+            "generation_options": {"generate_audio": False},
+            "test_config": {"num_variations": "1"},
+        }
+    )
+
+    assert preflight["accepted_inputs_known"] is True
+    assert preflight["accepted_input_flags"]["text"] is True
+    assert preflight["accepted_input_flags"]["image"] is False
+    assert preflight["num_variations"] == 1
+    api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+
+
+def test_api_probe_create_request_preflight_blocks_unsupported_accepted_inputs_shape():
+    preflight = api_probe.summarize_generation_request(
+        {
+            "agent": {"accepted_inputs": ["image"]},
+            "generation_options": {},
+            "test_config": {"num_variations": 1},
+        }
+    )
+
+    assert preflight["accepted_inputs_known"] is False
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "accepted_inputs shape is unsupported" in str(exc)
+    else:
+        raise AssertionError("expected unsupported accepted_inputs shape to block execution")
+
+
+def test_api_probe_create_request_preflight_blocks_each_non_text_input():
+    for input_name in ("audio", "file", "image", "video", "conversation"):
+        preflight = api_probe.summarize_generation_request(
+            {
+                "agent": {"accepted_inputs": {"text": True, input_name: True}},
+                "generation_options": {},
+                "test_config": {"num_variations": 1},
+            }
+        )
+
+        assert preflight["accepted_input_flags"][input_name] is True
+        try:
+            api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+        except ValueError as exc:
+            assert "--allow-non-text-inputs" in str(exc)
+        else:
+            raise AssertionError(f"expected {input_name} input guardrail to block execution")
+
+
+def test_api_probe_create_request_preflight_blocks_each_media_generation_flag():
+    cases = {
+        "generate_audio": "audio",
+        "generate_files": "files",
+        "generate_images": "images",
+        "generate_videos": "videos",
+        "generate_simulations": "simulations",
+    }
+    for raw_flag, normalized_flag in cases.items():
+        preflight = api_probe.summarize_generation_request(
+            {
+                "generation_options": {raw_flag: True},
+                "test_config": {"num_variations": 1},
+            }
+        )
+
+        assert preflight["media_generation"][normalized_flag] is True
+        try:
+            api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+        except ValueError as exc:
+            assert "--allow-media-generation" in str(exc)
+        else:
+            raise AssertionError(f"expected {raw_flag} generation guardrail to block execution")
+
+
 def test_media_interface_fixture_is_dry_run_only_guarded():
     fixture = json.loads((Path(__file__).resolve().parents[2] / "docs" / "a1" / "api_calibration" / "media_interface_request.json").read_text(encoding="utf-8"))
     preflight = api_probe.summarize_generation_request(fixture)
 
     assert preflight["media_generation"]["images"] is True
     assert preflight["media_generation"]["audio"] is True
+    assert preflight["media_generation"]["files"] is True
     assert preflight["accepted_input_flags"]["image"] is True
     assert preflight["accepted_input_flags"]["audio"] is True
+    assert preflight["accepted_input_flags"]["file"] is True
     try:
         api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
     except ValueError as exc:
@@ -446,6 +663,82 @@ def test_api_probe_cli_requires_allow_mutate_for_execute(tmp_path):
     assert completed.returncode == 2
     assert "--allow-mutate" in completed.stderr
     assert "ASHR_API_KEY" not in completed.stderr
+
+
+def test_api_probe_cli_create_request_execute_requires_zero_retries_before_env(tmp_path):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("ASHR_API_KEY", None)
+    env.pop("ASHR_LABS_API_KEY", None)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.runner.api_probe",
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "1",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+        ],
+        cwd=str(Path(__file__).resolve().parents[2]),
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert completed.returncode == 2
+    assert "--max-retries 0" in completed.stderr
+    assert "ASHR_API_KEY" not in completed.stderr
+
+
+def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(
+        json.dumps(
+            {
+                "agent": {"name": "Mock", "accepted_inputs": {"text": True, "image": True}},
+                "generation_options": {"generate_images": True},
+                "test_config": {"num_variations": 2},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeClient:
+        def create_request(self, **_kwargs):
+            raise AssertionError("create_request should be blocked before client call")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: FakeClient()))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--output",
+            str(tmp_path / "blocked.json"),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "--allow-media-generation" in captured.err
+    assert not (tmp_path / "blocked.json").exists()
 
 
 def test_api_probe_cli_reports_timeout_without_traceback(monkeypatch, capsys, tmp_path):

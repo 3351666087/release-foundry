@@ -1,11 +1,11 @@
 {
   "agent": {
     "name": "A1 Mock Multimodal Support Agent",
-    "description": "A dry-run-only media interface fixture for image and audio calibration.",
+    "description": "A dry-run-only media interface fixture for image, audio, and file calibration.",
     "accepted_inputs": {
       "text": true,
       "audio": true,
-      "file": false,
+      "file": true,
       "image": true,
       "video": false,
       "conversation": false
@@ -19,7 +19,7 @@
           "properties": {
             "attachment_type": {
               "type": "string",
-              "enum": ["image", "audio"]
+              "enum": ["image", "audio", "file"]
             }
           },
           "required": ["attachment_type"]
@@ -32,12 +32,12 @@
   },
   "context": {
     "domain": "support operations",
-    "use_case": "Dry-run image and audio interface calibration only.",
+    "use_case": "Dry-run image, audio, and file interface calibration only.",
     "scenario_context": "Use synthetic non-sensitive media descriptions only."
   },
   "generation_options": {
     "generate_audio": true,
-    "generate_files": false,
+    "generate_files": true,
     "generate_images": true,
     "generate_videos": false,
     "generate_simulations": false
@@ -53,6 +53,6 @@
   },
   "metadata": {
     "dataset_name": "A1 Media Interface Dry Run",
-    "description": "Dry-run-only fixture to keep image/audio request interfaces visible without consuming quota."
+    "description": "Dry-run-only fixture to keep Image/Audio/Files request interfaces visible without consuming quota."
   }
 }

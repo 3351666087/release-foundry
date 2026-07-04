@@ -100,23 +100,33 @@ The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.j
 - media generation: audio/files/images/videos/simulations all disabled
 - `mutates=true`, `estimated_calls=2`, `attempts=0`
 
-Images/Audio interface coverage now has a committed dry-run-only fixture at `docs/a1/api_calibration/media_interface_request.json`:
+Image/Audio/Files interface coverage now has a committed dry-run-first fixture at `docs/a1/api_calibration/media_interface_request.json`:
 
-- accepted inputs include text, image, and audio
-- `generate_images=true`, `generate_audio=true`
-- files/videos/simulations remain false
+- accepted inputs include text, image, audio, and file
+- `generate_images=true`, `generate_audio=true`, `generate_files=true`
+- videos/simulations remain false
 - `num_variations=1`
 - dry-run only; real execution is blocked by default because both `media_generation_enabled` and `non_text_inputs_enabled` are true
+
+Real request calibration after the default schema patch:
+
+- Text-only tiny request with `num_variations=1` succeeded: `create-request` returned `status=ok`, HTTP `200`, `attempts=1`, response keys `_user`, `request`, `status`.
+- Follow-up `get-request` returned `request_status=processing`, then bounded `poll-request` returned `request_status=completed` with `status=ok`, HTTP `200`, `attempts=1`.
+- The completed request shape includes `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `prompt_version_id`, `request`, `request_input_schema`, `request_name`, `request_status`, `requestor_id`, and `requestor_tenant`.
+- One real Image/Audio/Files interface request was submitted after a fresh Usage page review and explicit `--allow-media-generation --allow-non-text-inputs`; it returned `create-request status=ok`, then `get-request request_status=failed`. Bounded `poll-request` recorded an error summary with HTTP `200`, `attempts=1`, and message `request failed`.
+- A text-only 3-variation batch dry-run passed local preflight, but real execution returned a hosted API-level usage error: request quota exhausted for the current period. No retry was attempted.
 
 Execution guardrails:
 
 - `create-request --execute` still requires `--allow-mutate`.
-- Real mutating calibration should use `--max-retries 0` to avoid duplicate creation on retry.
+- Real mutating `create-run` and `create-request` execution requires `--max-retries 0` to avoid duplicate creation on retry.
 - Real execution blocks unknown `num_variations`; the request config must set a known value no larger than `--max-request-variations` before mutation.
+- `num_variations` must be a positive integer or digit-only positive integer string; `0`, booleans, floats, and decimal strings are treated as unknown and blocked before mutation.
+- `accepted_inputs` may use booleans or `{enabled: bool}` values. Unsupported shapes are treated as unknown and blocked before mutation.
 - The CLI blocks media generation unless `--allow-media-generation` is passed.
 - The CLI blocks non-text accepted inputs unless `--allow-non-text-inputs` is passed.
 - The CLI blocks known `num_variations` values above `--max-request-variations`, which defaults to `1`.
-- Chrome usage checks reached the logged-in Usage page. The page sometimes showed counters including `Images 0 of 100`, `Audio 0 of 200`, and `Files 1 of 100`; a direct reload also sometimes showed only `Loading usage...`. Treat usage counters as visible but unstable, and do not execute media generation without a fresh usage read.
+- Chrome usage checks reached the logged-in Usage page. The page sometimes showed visible Image/Audio/Files usage counters; a direct reload also sometimes showed only `Loading usage...`. Treat usage counters as visible but unstable, and do not execute media generation without a fresh usage read.
 
 ## Dataset Source Adapter
 
@@ -146,17 +156,17 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 25 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 37 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 73 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 85 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
-- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`. One real text-only `create-request` attempt was made after dry-run review and returned an API-level schema-required error; no successful `create-request` generation has completed.
-- Real read-only follow-up probes executed against the created run: `get-run` and fixed `poll-run`.
+- Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
+- Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 
 ## Next Candidates
 
-1. Re-run the text-only `create-request` with the default request input schema after committing the schema parity patch and confirming a clean branch.
-2. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.
-3. Add a public-safe redacted run fixture derived from private `create-run` evidence for A3 mapper regression tests.
+1. Add a canonical multimodal `AgentInput` envelope to `AgentAdapter` so future Image/Audio/Files inputs can be wrapped consistently while preserving legacy text behavior.
+2. Inspect/adjust the media request schema or official UI/docs before repeating media generation; the first real media request was accepted but hosted processing failed.
+3. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.

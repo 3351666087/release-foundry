@@ -32,13 +32,17 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Created run item: `created_at`, `dataset`, `id`, `result`, `runner`, `tenant`.
 - Hosted run result: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
 - `list_requests`: `_user`, `next_cursor`, `requests`, `status`.
-- Request item: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
+- Request item: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `prompt_version_id`, `request`, `request_input_schema`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
 - `create_request` request: `request_name`, `request`, `request_input_schema`, `tenant_id`, `requestor_id`.
 - Default request input schema: `type`, `additionalProperties`, and optional `tools`.
-- Local create-request preflight record: `num_variations`, `num_variations_known`, `media_generation`, `media_generation_enabled`, `accepted_input_flags`, `non_text_inputs_enabled`, `small_batch`, `request_input_schema_source`, `notes`.
+- Request config media source paths: `request.agent.accepted_inputs.{text,audio,file,image,video,conversation}` and `request.generation_options.{generate_audio,generate_files,generate_images,generate_videos,generate_simulations}`.
+- Local create-request preflight record: `num_variations`, `num_variations_known`, `media_generation`, `media_generation_enabled`, `accepted_inputs_known`, `accepted_input_flags`, `non_text_inputs_enabled`, `small_batch`, `request_input_schema_source`, `notes`.
+- Local create-request record params are summary-shaped before evidence writing: `request.top_level_keys`, `request.agent_keys`, `request.tools_count`, `request.accepted_input_flags`, `request.generation_options`, `request.metadata_keys`, `request.test_config_keys`, `request.num_variations`, and `request_input_schema.{keys,type,additionalProperties,tools_count}`.
 - Media interface flags: `generate_images`, `generate_audio`, `generate_files`, `generate_videos`, `generate_simulations`, plus accepted input flags for `image`, `audio`, `file`, `video`, `conversation`, and `text`.
 
 Error calibration:
 
 - API-level errors can be HTTP `200` with body `status: error`; local records label this as `error_kind: api`.
+- Hosted request generation can end with `request_status: failed` after an accepted `create_request`; local `poll-request` records this as an error summary without retrying creation.
+- Hosted request quota errors can also arrive as HTTP `200` / `status: error`; one real text-batch probe returned a request usage limit message after local preflight passed.
 - Rate-limit and retry headers were not present in the small successful calls, but the wrapper captures `retry-after` and `x-ratelimit-*` when returned.

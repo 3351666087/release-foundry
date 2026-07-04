@@ -156,6 +156,7 @@ class AshrApiClient:
         function: str,
         *,
         params: Mapping[str, Any] | None = None,
+        record_params: Mapping[str, Any] | None = None,
         purpose: str = "",
         estimated_calls: int = 1,
         mutates: bool = False,
@@ -165,7 +166,7 @@ class AshrApiClient:
     ) -> JsonDict:
         plan = self.plan(
             function,
-            params=params,
+            params=record_params if record_params is not None else params,
             purpose=purpose,
             estimated_calls=estimated_calls,
             mutates=mutates,
@@ -270,6 +271,7 @@ class AshrApiClient:
         return self.call("get_run", params={"run_id": run_id}, purpose="Fetch one run shape for polling calibration", estimated_calls=1, mutates=False, **kwargs)
 
     def create_run(self, *, dataset_id: int, result: Mapping[str, Any], runner_id: int | None = None, **kwargs: Any) -> JsonDict:
+        self._require_zero_retries_for_mutation("create_run", dry_run=bool(kwargs.get("dry_run", True)))
         params: JsonDict = {"dataset_id": dataset_id, "result": dict(result)}
         if runner_id is not None:
             params["runner_id"] = runner_id
@@ -293,11 +295,14 @@ class AshrApiClient:
         )
 
     def create_request(self, *, request_name: str, request: Mapping[str, Any], request_input_schema: Mapping[str, Any] | None = None, requestor_id: int | None = None, **kwargs: Any) -> JsonDict:
+        self._require_zero_retries_for_mutation("create_request", dry_run=bool(kwargs.get("dry_run", True)))
         params: JsonDict = {"request_name": request_name, "request": dict(request)}
         params["request_input_schema"] = build_default_request_input_schema(request) if request_input_schema is None else dict(request_input_schema)
         if requestor_id is not None:
             params["requestor_id"] = requestor_id
-        return self._call_with_session("create_request", params=params, tenant=True, user=requestor_id is None, purpose="Create dataset generation request", estimated_calls=2, mutates=True, **kwargs)
+        preflight = kwargs.get("preflight") if isinstance(kwargs.get("preflight"), Mapping) else None
+        record_params = _create_request_record_params(params, preflight=preflight)
+        return self._call_with_session("create_request", params=params, record_params=record_params, tenant=True, user=requestor_id is None, purpose="Create dataset generation request", estimated_calls=2, mutates=True, **kwargs)
 
     def list_requests(self, *, limit: int = 5, status: str | None = None, cursor: int | None = None, **kwargs: Any) -> JsonDict:
         params: JsonDict = {"limit": limit}
@@ -442,6 +447,10 @@ class AshrApiClient:
         self._tenant_id = int(tenant["id"])
         self._user_id = int(user["id"])
 
+    def _require_zero_retries_for_mutation(self, function: str, *, dry_run: bool) -> None:
+        if not dry_run and self.max_retries != 0:
+            raise ValueError(f"{function} execution requires max_retries=0 to avoid duplicate mutation on retry")
+
     def _request(self, function: str, params: Mapping[str, Any]) -> tuple[int, JsonDict, JsonDict]:
         payload = {"function": function, **dict(params)}
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -495,6 +504,55 @@ def build_default_request_input_schema(request: Mapping[str, Any] | None = None)
     if isinstance(agent, Mapping) and isinstance(agent.get("tools"), list):
         schema["tools"] = redact_sensitive(agent["tools"])
     return schema
+
+
+def _create_request_record_params(params: Mapping[str, Any], *, preflight: Mapping[str, Any] | None = None) -> JsonDict:
+    request = params.get("request") if isinstance(params.get("request"), Mapping) else {}
+    schema = params.get("request_input_schema") if isinstance(params.get("request_input_schema"), Mapping) else {}
+    record: JsonDict = {
+        "request_name": params.get("request_name"),
+        "request": _generation_request_shape(request),
+        "request_input_schema": _schema_shape(schema),
+    }
+    if "requestor_id" in params:
+        record["requestor_id_present"] = params.get("requestor_id") is not None
+    if preflight is not None:
+        record["preflight_summary"] = redact_sensitive(preflight)
+    return record
+
+
+def _generation_request_shape(request: Mapping[str, Any]) -> JsonDict:
+    agent = request.get("agent") if isinstance(request.get("agent"), Mapping) else {}
+    generation_options = request.get("generation_options") if isinstance(request.get("generation_options"), Mapping) else {}
+    test_config = request.get("test_config") if isinstance(request.get("test_config"), Mapping) else {}
+    metadata = request.get("metadata") if isinstance(request.get("metadata"), Mapping) else {}
+    accepted_inputs = agent.get("accepted_inputs") if isinstance(agent, Mapping) and isinstance(agent.get("accepted_inputs"), Mapping) else {}
+    return {
+        "top_level_keys": sorted(str(key) for key in request.keys()),
+        "agent_keys": sorted(str(key) for key in agent.keys()) if isinstance(agent, Mapping) else [],
+        "agent_name_present": bool(agent.get("name")) if isinstance(agent, Mapping) else False,
+        "tools_count": len(agent.get("tools", [])) if isinstance(agent, Mapping) and isinstance(agent.get("tools"), list) else 0,
+        "accepted_input_flags": {key: _truthy_enabled(accepted_inputs.get(key)) for key in ("text", "audio", "file", "image", "video", "conversation")},
+        "generation_options": {key: bool(generation_options.get(key)) for key in ("generate_audio", "generate_files", "generate_images", "generate_videos", "generate_simulations")},
+        "metadata_keys": sorted(str(key) for key in metadata.keys()) if isinstance(metadata, Mapping) else [],
+        "test_config_keys": sorted(str(key) for key in test_config.keys()) if isinstance(test_config, Mapping) else [],
+        "num_variations": test_config.get("num_variations") if isinstance(test_config, Mapping) else None,
+    }
+
+
+def _schema_shape(schema: Mapping[str, Any]) -> JsonDict:
+    return {
+        "keys": sorted(str(key) for key in schema.keys()),
+        "type": schema.get("type"),
+        "additionalProperties": schema.get("additionalProperties"),
+        "tools_count": len(schema.get("tools", [])) if isinstance(schema.get("tools"), list) else 0,
+    }
+
+
+def _truthy_enabled(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return bool(value.get("enabled"))
+    return bool(value)
 
 
 def maybe_write_json(path: str | Path | None, payload: Mapping[str, Any]) -> None:

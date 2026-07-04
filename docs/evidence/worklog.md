@@ -464,10 +464,81 @@ Key current facts:
 - Branch remains `codex/a1-local-sdk-runner`; PR #4 was open/draft/mergeable at head `f8e0f8b` at round start.
 - `origin/dev/g3-a2-calibration` advanced to `815eb31`; its A1-file deletions are stale ancestry, not an A1 rollback signal.
 - Chrome/public docs check: official docs live at `https://ashr.io/docs/python-sdk/overview/`; `/docs` returned 404. API reference lists `create_request` and says `request_input_schema` is optional with a permissive default.
-- Chrome Usage page intermittently showed `Images 0 of 100`, `Audio 0 of 200`, and `Files 1 of 100`, but direct reload sometimes showed only `Loading usage...`.
+- Chrome Usage page intermittently showed visible Image/Audio/Files usage counters, but direct reload sometimes showed only `Loading usage...`.
 - First real text-only `create-request` attempt after dry-run returned API-level error: HTTP `200`, `attempts=1`, `request_input_schema is required`.
 - Implemented SDK parity: `AshrApiClient.create_request(...)` now sends a permissive default `request_input_schema` when omitted; agent tools are included under `tools`.
-- Added dry-run-only Image/Audio media interface fixture at `docs/a1/api_calibration/media_interface_request.json`.
+- Added dry-run-only Image/Audio/Files media interface fixture at `docs/a1/api_calibration/media_interface_request.json`.
 - Verification: `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider` -> `25 passed`; `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `73 passed`.
 - Dry-run evidence: text-only tiny request now records `request_input_schema_source=client_default` and schema keys `additionalProperties`, `tools`, `type`; media-interface dry-run records `generate_images=true`, `generate_audio=true`, `media_generation_enabled=true`, and `non_text_inputs_enabled=true`.
 - No successful real `create-request` has completed yet. Next step is to commit the schema/media coverage patch, then retry exactly one text-only schema-backed real `create-request` from a clean branch with `--max-retries 0`.
+
+## 2026-07-04 Real Request And Media Boundary Calibration
+
+Goal: continue A1 subscription-era SDK/Runner calibration by running the schema-backed real `create-request`, expanding Image/Audio/Files interface coverage, using paid API calls more actively within dry-run-first controls, and hardening runner guardrails before additional real generation.
+
+Start protocol:
+
+- `git fetch origin`: success; `origin/dev/g3-a2-calibration` advanced from `815eb31` to `ab51ced`, then `git fetch --all --prune` advanced it again to `eec51c6`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracked `origin/codex/a1-local-sdk-runner`; tracked worktree was clean at the start. Ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` were present.
+- `gh pr view 4 --repo 3351666087/ashr-codex-factory --json number,state,isDraft,mergeable,headRefName,headRefOid,url`: PR #4 open/draft at head `7b15ad5`.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: open PRs were A1 PR #4 and A3 PR #5; PRs #1/#2/#3 were merged history.
+- Peer changes/impact: A2/G3 and A3/P3 branches are additive in A2/A3/judge/report areas. Their stale-ancestry diffs still show A1 API file deletion relative to this branch; this remains a branch ancestry artifact, not an A1 rollback signal.
+
+Three proposed enhancements:
+
+1. Harden real mutating API guardrails before more paid generation: force `--max-retries 0`, stricter `num_variations`, official `{enabled: bool}` accepted-input parsing, unsupported-shape blocking, and safer evidence params.
+2. Add canonical `AgentInput` multimodal envelope in `AgentAdapter` and expand default request schema to advertise `parts`.
+3. Add larger real generation batches and media-generation calibration.
+
+Implemented highest ROI enhancement: guardrail and evidence hardening, plus concrete Image/Audio/Files dry-run fixture coverage. After the guardrail patch passed tests, the main agent also ran one real text-only success chain, one real media-boundary chain, and one attempted text batch that exposed hosted request quota exhaustion.
+
+Subagent findings:
+
+- Bus-Auditor: PASS for exactly one text-only schema-backed real request with explicit private output, `--execute --allow-mutate --max-retries 0`, and public-safe summaries. Warned not to execute the media fixture without a fresh usage review.
+- Worker-Adapter: flagged future multimodal input gaps in `AgentAdapter`, including lack of a canonical `AgentInput` envelope and content-part text normalization. Deferred to the next round because runner guardrails were the immediate prerequisite for more real API use.
+- Explorer-SDK: flagged missing positive Files coverage, direct-client guardrail docs, explicit schema passthrough tests, and non-exhaustive media/non-text guardrail tests. Files fixture and tests were implemented; direct-client thin/unguarded posture remains a docs/future-SDK decision.
+- Explorer-Chrome/Product: confirmed official Python API reference fields for `create_request`, `accepted_inputs` keys, media generation flags, request object fields, and builder file APIs. Lab Usage showed Image/Audio/Files used-of-limit counters; exact private values remain private evidence.
+- Worker-Runner: flagged P1 duplicate-generation risk because CLI default retries were still allowed for real `create-request`, plus permissive variation coercion and unsupported `accepted_inputs` shapes. All were fixed and tested.
+
+Implemented:
+
+- `services/runner/api_probe.py`: real mutating API calls now refuse nonzero `--max-retries` before env/key resolution; `num_variations` accepts only positive ints or digit-only positive strings; `accepted_inputs` supports booleans and `{enabled: bool}`; unsupported accepted-input shapes are blocked before mutation.
+- `packages/sdk/ashr_clone/api_client.py`: direct SDK `create_run(..., dry_run=False)` and `create_request(..., dry_run=False)` now require `max_retries=0` to avoid duplicate mutation on retry.
+- `packages/sdk/ashr_clone/api_client.py`: `call(...)` accepts `record_params`; `create_request(...)` still sends the full API body but records a summary-shaped request/schema params object to reduce raw prompt/context exposure in evidence records.
+- `docs/a1/api_calibration/media_interface_request.json`: expanded from Image/Audio to Image/Audio/Files coverage with `generate_files=true` and accepted `file=true`.
+- `docs/a1/api_calibration/text_batch_generation_request.json`: added a 3-variation text-only paid API calibration fixture.
+- `tests/a1/test_api_client.py`: added coverage for explicit request schema passthrough, request evidence shape summaries, schema-file source labeling, strict variation parsing, `{enabled: bool}` accepted inputs, unsupported accepted-input blocking, exhaustive non-text input/media generation flags, zero-retry enforcement before env lookup, and execute-path guardrail blocking before client calls.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe evidence.
+
+Verification and real API evidence:
+
+- Chrome Usage check: logged-in Usage page visible; Image/Audio/Files counters and period text were visible; screenshot stored under ignored private evidence.
+- Official docs check: Python API reference confirmed `accepted_inputs` keys `text`, `audio`, `file`, `image`, `video`, `conversation`, generation flags `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, and request fields including `request_status`.
+- Text-only schema-backed `create-request`: real call succeeded with HTTP `200`, `status=ok`, `attempts=1`, response keys `_user`, `request`, `status`.
+- Text-only `get-request`: real read-only follow-up succeeded with HTTP `200`, `status=ok`, `attempts=1`, request status initially `processing`.
+- Text-only `poll-request`: real poll succeeded with HTTP `200`, `status=ok`, `attempts=1`, request status `completed`; completed request includes duration/completion fields and `request_input_schema`.
+- Image/Audio/Files dry-run: planned record shows media generation `audio/files/images=true`, accepted input flags `audio/file/image/text=true`, `num_variations=1`.
+- Image/Audio/Files real request: `create-request` was accepted with HTTP `200`, `status=ok`, `attempts=1`; follow-up `get-request` returned hosted `request_status=failed` with completion/duration fields present. `poll-request` recorded a public-safe error summary, HTTP `200`, `attempts=1`, message `request failed`.
+- Text-only 3-variation batch dry-run passed local preflight, but real execution returned hosted API-level usage error: request quota exhausted for the current period. No retry was attempted.
+- Read-only `list-requests --limit 5` after the real probes succeeded with HTTP `200`, `status=ok`, `attempts=1`; public-safe aggregate: 5 requests, status distribution `completed=3`, `failed=2`.
+- Read-only `list-datasets --limit 5` succeeded with HTTP `200`, `status=ok`, `attempts=1`; public-safe aggregate: 3 datasets.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `37 passed in 1.22s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `85 passed in 3.13s`.
+
+Remaining:
+
+- Hosted media-generation failure reason is not visible in the public-safe request fields observed so far; do not repeat the same media request blindly. Next media step should adjust schema/request shape or inspect official product docs/UI for required media payload semantics.
+- Request generation quota is currently exhausted for additional `create-request` calls in this period/account state; continue with read/list/get/poll calibration, existing completed datasets, runner replay, and docs until quota resets or plan changes.
+- Adapter still lacks the proposed canonical multimodal `AgentInput` envelope and content-part text normalization; this is the next highest ROI implementation once mutation guardrails are stable.
+
+## 2026-07-04 Latest Round Index
+
+Latest active A1 round: Real Request And Media Boundary Calibration.
+
+Key current facts:
+
+- Branch remains `codex/a1-local-sdk-runner`; tracked worktree has self-made changes in A1-owned dirs awaiting final audit/stage/commit.
+- Real text-only create-request chain now works end-to-end with default schema: create succeeded, get observed processing, poll observed completed.
+- Real Image/Audio/Files request was accepted but hosted processing failed; this is now a known backend/request-shape boundary, not a local CLI failure.
+- Additional real text batch generation is blocked by hosted request quota exhaustion. Read-only API probes still work.
+- A1 tests are now `85 passed`.
