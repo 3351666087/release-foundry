@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,13 @@ from .runner import DEFAULT_SCENARIO_PACK, grade_run
 
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
 REQUIRED_SOURCES = ("local_judge", "ashr_grading", "llm_judge")
+PASSING_TEXT_STATUSES = {"exact", "similar", "match"}
+PASSING_TOOL_STATUSES = {"exact", "match"}
+SECRET_LIKE_PATTERNS = (
+    re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
+    re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
+)
 
 
 def build_calibration_matrix(
@@ -96,6 +104,71 @@ def load_run_fixtures_by_case(path: str | Path = DEFAULT_RUN_FIXTURES) -> dict[s
     return fixtures
 
 
+def import_ashr_grading_observations(
+    payload: dict[str, Any] | list[Any],
+    *,
+    case_map: dict[str, str] | None = None,
+    evidence_ref: str = "",
+    provider: str = "ashr server-side grading",
+) -> list[dict[str, Any]]:
+    """Convert redacted Ashr run records into A2 calibration observations."""
+    mapped_cases = case_map or {}
+    observations = []
+    for run in extract_ashr_runs(payload):
+        run_id = str(run.get("id", ""))
+        for test in _ashr_tests(run):
+            raw_case_id = str(test.get("test_id") or test.get("case_id") or "")
+            if not raw_case_id:
+                continue
+            case_id = str(mapped_cases.get(raw_case_id, raw_case_id))
+            failure = _classify_ashr_test(test)
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": case_id,
+                    "source": "ashr_grading",
+                    "status": "available",
+                    "provider": provider,
+                    "model": "ashr-server-side",
+                    "passed": failure["primary_failure_class"] == "none",
+                    "primary_failure_class": failure["primary_failure_class"],
+                    "score": _ashr_score(test, failure["primary_failure_class"] == "none"),
+                    "confidence": failure["confidence"],
+                    "rationale": _redact_text(failure["summary"]),
+                    "cost": _empty_cost(),
+                    "evidence_ref": _redact_text(evidence_ref),
+                    "metadata": {
+                        "raw_case_id": _redact_text(raw_case_id),
+                        "run_id": _redact_text(run_id),
+                        "action_indexes": failure["action_indexes"],
+                        "match_statuses": _ashr_match_statuses(test),
+                    },
+                }
+            )
+    return observations
+
+
+def extract_ashr_runs(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    response = payload.get("response")
+    if isinstance(response, dict):
+        runs = extract_ashr_runs(response)
+        if runs:
+            return runs
+    run = payload.get("run")
+    if isinstance(run, dict):
+        return [run]
+    runs = payload.get("runs")
+    if isinstance(runs, list):
+        return [item for item in runs if isinstance(item, dict)]
+    if payload.get("id") is not None and isinstance(payload.get("result"), dict):
+        return [payload]
+    return []
+
+
 def _observations_by_case_and_source(observations: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
     return {
         (str(observation["case_id"]), str(observation["source"])): observation
@@ -132,7 +205,7 @@ def _external_source(observation: dict[str, Any] | None, source_note: dict[str, 
             "cost": _empty_cost(),
         }
 
-    return {
+    source = {
         "available": True,
         "status": "available",
         "source": observation["source"],
@@ -146,6 +219,9 @@ def _external_source(observation: dict[str, Any] | None, source_note: dict[str, 
         "cost": _normalize_cost(observation.get("cost", {})),
         "evidence_ref": observation.get("evidence_ref", ""),
     }
+    if isinstance(observation.get("metadata"), dict):
+        source["metadata"] = observation["metadata"]
+    return source
 
 
 def _case_diffs(sources: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -293,6 +369,130 @@ def _normalize_cost(cost: dict[str, Any]) -> dict[str, Any]:
 
 def _empty_cost() -> dict[str, Any]:
     return {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0}
+
+
+def _ashr_tests(run: dict[str, Any]) -> list[dict[str, Any]]:
+    result = run.get("result") if isinstance(run.get("result"), dict) else {}
+    tests = result.get("tests")
+    return [item for item in tests if isinstance(item, dict)] if isinstance(tests, list) else []
+
+
+def _classify_ashr_test(test: dict[str, Any]) -> dict[str, Any]:
+    action_results = test.get("action_results") if isinstance(test.get("action_results"), list) else []
+    for action in action_results:
+        if not isinstance(action, dict) or action.get("action_type") != "tool_call":
+            continue
+        for call in action.get("tool_calls", []) if isinstance(action.get("tool_calls"), list) else []:
+            if not isinstance(call, dict):
+                continue
+            status = _tool_match_status(action, call)
+            if not status or status in PASSING_TOOL_STATUSES:
+                continue
+            expected = call.get("expected") if isinstance(call.get("expected"), dict) else {}
+            actual = call.get("actual") if isinstance(call.get("actual"), dict) else {}
+            primary = _tool_failure_class(expected, actual)
+            return {
+                "primary_failure_class": primary,
+                "confidence": 0.86,
+                "summary": call.get("divergence_notes")
+                or action.get("divergence_notes")
+                or f"Ashr tool-call match status was {status}.",
+                "action_indexes": _action_indexes(action),
+            }
+
+    for action in action_results:
+        if not isinstance(action, dict):
+            continue
+        status = str(action.get("match_status", ""))
+        if action.get("actor") == "agent" and action.get("action_type") == "text" and status and status not in PASSING_TEXT_STATUSES:
+            return {
+                "primary_failure_class": "wrong_intent",
+                "confidence": 0.72,
+                "summary": action.get("divergence_notes") or f"Ashr text match status was {status}.",
+                "action_indexes": _action_indexes(action),
+            }
+
+    test_status = str(test.get("status", ""))
+    if test_status and test_status not in {"completed", "passed"}:
+        return {
+            "primary_failure_class": "poor_failure_recovery",
+            "confidence": 0.6,
+            "summary": f"Ashr test status was {test_status}.",
+            "action_indexes": [],
+        }
+
+    return {
+        "primary_failure_class": "none",
+        "confidence": 0.82,
+        "summary": "Ashr action results passed or had no failure signal.",
+        "action_indexes": [],
+    }
+
+
+def _tool_match_status(action: dict[str, Any], call: dict[str, Any]) -> str:
+    comparison = call.get("argument_comparison") if isinstance(call.get("argument_comparison"), dict) else {}
+    return str(call.get("match_status") or action.get("match_status") or comparison.get("status") or "")
+
+
+def _tool_failure_class(expected: dict[str, Any], actual: dict[str, Any]) -> str:
+    expected_tool = expected.get("tool_name") or expected.get("name")
+    actual_tool = actual.get("tool_name") or actual.get("name")
+    if not actual_tool:
+        return "missing_required_tool"
+    if not expected_tool:
+        return "unnecessary_tool_call"
+    if str(expected_tool) != str(actual_tool):
+        return "wrong_tool"
+    return "wrong_arguments"
+
+
+def _ashr_score(test: dict[str, Any], passed: bool) -> float:
+    action_results = test.get("action_results") if isinstance(test.get("action_results"), list) else []
+    scores = [
+        _normalize_score(action.get("semantic_similarity"))
+        for action in action_results
+        if isinstance(action, dict) and action.get("semantic_similarity") is not None
+    ]
+    scores = [score for score in scores if score is not None]
+    if scores:
+        return round(sum(scores) / len(scores), 2)
+    return 100.0 if passed else 0.0
+
+
+def _normalize_score(value: Any) -> float | None:
+    if not isinstance(value, (int, float)):
+        return None
+    if value < 0:
+        return 0.0
+    if value <= 1:
+        return round(value * 100, 2)
+    return round(min(float(value), 100.0), 2)
+
+
+def _ashr_match_statuses(test: dict[str, Any]) -> list[str]:
+    action_results = test.get("action_results") if isinstance(test.get("action_results"), list) else []
+    statuses = []
+    for action in action_results:
+        if not isinstance(action, dict):
+            continue
+        if action.get("match_status"):
+            statuses.append(str(action["match_status"]))
+        for call in action.get("tool_calls", []) if isinstance(action.get("tool_calls"), list) else []:
+            if isinstance(call, dict) and call.get("match_status"):
+                statuses.append(str(call["match_status"]))
+    return statuses
+
+
+def _action_indexes(action: dict[str, Any]) -> list[int]:
+    index = action.get("action_index")
+    return [int(index)] if isinstance(index, int) else []
+
+
+def _redact_text(value: str) -> str:
+    redacted = str(value)
+    for pattern in SECRET_LIKE_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted
 
 
 def _display_path(path: str | Path) -> str:

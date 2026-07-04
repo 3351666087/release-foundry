@@ -124,6 +124,8 @@ Next A2 priorities should be chosen by ROI against this commercial target:
 2. replace offline `llm_judge` samples with audited model calls and a real cost ledger,
 3. promote local-vs-LLM disagreements into regression fixtures or judge improvements.
 
+`scripts/a2_import_ashr_grading.py` is the bridge for the first item. It converts redacted Ashr `run.result.tests[].action_results[]` records into `ashr_grading` observations with canonical A2 failure classes. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed observation summaries and private evidence references.
+
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 
 After the G3 calibration pass, both `thin_golden_failure_classes` and `thin_executable_failure_classes` are expected to stay empty, meaning every canonical failure class has at least two golden cases and at least two executable run fixtures.

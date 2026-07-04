@@ -2,11 +2,12 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
 
-from services.judge.calibration import build_calibration_matrix
+from services.judge.calibration import build_calibration_matrix, import_ashr_grading_observations
 from services.judge.coverage import build_coverage_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
@@ -436,6 +437,69 @@ class A2ContractTests(unittest.TestCase):
             case for case in matrix["cases"] if case["case_id"] == "sample-a2-s010-wrong-arguments"
         )
         self.assertIn("judge_disagreement_regression", disagreement["calibration_tags"])
+
+    def test_ashr_grading_import_can_fill_calibration_matrix_source(self):
+        sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))
+        case_map = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json").read_text(encoding="utf-8"))
+        observations = import_ashr_grading_observations(
+            sample,
+            case_map=case_map,
+            evidence_ref="docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json",
+        )
+        self.assertEqual(len(observations), 2)
+        self.assertEqual([observation["source"] for observation in observations], ["ashr_grading", "ashr_grading"])
+        self.assertEqual(observations[0]["case_id"], "sample-a2-s001-pass")
+        self.assertEqual(observations[0]["primary_failure_class"], "none")
+        self.assertEqual(observations[1]["case_id"], "sample-a2-s010-wrong-arguments")
+        self.assertEqual(observations[1]["primary_failure_class"], "wrong_arguments")
+        self.assertEqual(observations[1]["metadata"]["raw_case_id"], "ashr-wrong-contract-path")
+        secret_sample = json.loads(json.dumps(sample))
+        secret_sample["response"]["run"]["result"]["tests"][1]["action_results"][0]["divergence_notes"] = (
+            "Bearer secret-token for kay@example.test"
+        )
+        redacted = import_ashr_grading_observations(secret_sample, case_map=case_map)
+        self.assertNotIn("Bearer ", redacted[1]["rationale"])
+        self.assertNotIn("@", redacted[1]["rationale"])
+
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        payload["observations"] = payload["observations"] + observations
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["available"], 2)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 4)
+        self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["comparable"], 2)
+        self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["mismatch_count"], 0)
+
+    def test_ashr_grading_import_cli_outputs_redacted_observations(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_import_ashr_grading.py"),
+                "--input",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json"),
+                "--case-map",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json"),
+                "--evidence-ref",
+                "docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["schema_version"], "a2.ashr_grading_import.v1")
+        self.assertEqual(payload["observation_count"], 2)
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotIn("@", result.stdout)
 
     def test_real_api_smoke_evidence_is_redacted(self):
         evidence_path = ROOT / "docs/evidence/a2_real_api_smoke.json"

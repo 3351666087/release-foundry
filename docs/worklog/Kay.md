@@ -270,3 +270,33 @@ Next top 3:
 1. Collect a small authenticated Ashr grading batch and fill the `ashr_grading` column.
 2. Replace offline `llm_judge` observations with audited model calls and real cost evidence.
 3. Promote the `wrong_arguments` vs `ignored_tool_result` disagreement into a regression case or judge calibration note.
+
+## 2026-07-04 - Ashr grading import bridge
+
+Reason:
+- The commercial matrix pass made `ashr_grading` visible but still missing. The next useful step is a deterministic bridge from real Ashr `get-run/list-runs` evidence into A2 calibration observations.
+- A1 on `origin/main` already has API probe support for `create-run`, `get-run`, `poll-run`, and redacted private evidence. A3 P3 already mapped real Ashr `run.result.tests[].action_results[]` fields. A2 needs its own small importer so it can fill the matrix without copying raw private records.
+
+Implemented:
+- Extended `services/judge/calibration.py` with `import_ashr_grading_observations(...)` and Ashr run extraction/classification helpers.
+- Added `scripts/a2_import_ashr_grading.py`, a local CLI that converts a redacted Ashr run record plus a `test_id` to `case_id` map into `ashr_grading` observations.
+- Added synthetic redacted import fixtures:
+  - `fixtures/a2/calibration/ashr_grading_import_sample.json`
+  - `fixtures/a2/calibration/ashr_grading_import_case_map.json`
+- Added tests proving imported Ashr observations can raise matrix `ashr_grading` coverage from 0/6 to 2/6 and agree with local judge on the two mapped sample cases.
+- Updated README, handoff docs, and scenario coverage plan with the importer workflow.
+
+Boundary:
+- This pass does not call the real Ashr API and does not read any key file.
+- Raw/private API evidence should remain under `docs/evidence/private_refs`; committed A2 fixtures should contain only reviewed summaries and evidence refs.
+- The current committed calibration matrix still marks `ashr_grading` as missing until a real batch is reviewed and merged.
+
+Verification:
+- `python -B scripts/a2_import_ashr_grading.py --input fixtures/a2/calibration/ashr_grading_import_sample.json --case-map fixtures/a2/calibration/ashr_grading_import_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json`
+- `python -B scripts/a2_regenerate_fixtures.py --check`
+- `python -B -m unittest discover -s tests/a2 -v`
+
+Next top 3:
+1. Use A1's real API probe to collect a tiny private `get-run` or `poll-run` record for A2 mapped cases.
+2. Run `scripts/a2_import_ashr_grading.py` against that private evidence and review the imported observations.
+3. Merge reviewed `ashr_grading` observations into `a2_g3_calibration_observations.json` and regenerate the matrix.

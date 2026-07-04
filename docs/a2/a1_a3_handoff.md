@@ -144,6 +144,8 @@ For scenario-quality review, A3 can read `scenario_dimension_counts`, `scenario_
 
 The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a G3 commercial-readiness artifact for comparing `local_judge`, future `ashr_grading`, and `llm_judge` observations on the same cases. It exposes source coverage, agreement summaries, per-case diffs, cost ledger rows, and calibration warnings. A3 can surface this as a calibration panel without treating missing Ashr grading as a broken local test.
 
+A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, and private evidence path.
+
 ## Known Boundary
 
 This is primarily a local deterministic handoff. A2 now also keeps an optional real Ashr API smoke path in `scripts/a2_real_api_smoke.py`: when `ASHR_LABS_API_KEY` is set, it validates authentication and read/list endpoint reachability, then stores only a redacted summary in `docs/evidence/a2_real_api_smoke.json`. Hosted/server-side grading with `run.deploy` remains a later calibration step.
