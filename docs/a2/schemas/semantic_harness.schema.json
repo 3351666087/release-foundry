@@ -56,6 +56,7 @@
         "offline_reference",
         "sdk_input_paths",
         "semantic_prompt_fields",
+        "risk_flags",
         "audit_target"
       ],
       "properties": {
@@ -71,6 +72,10 @@
         "offline_reference": { "type": "object" },
         "sdk_input_paths": { "type": "object" },
         "semantic_prompt_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "risk_flags": {
           "type": "array",
           "items": { "type": "string" }
         },

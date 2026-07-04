@@ -355,6 +355,9 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
+        self.assertIn("risk_assessment", semantic_harness_schema["required"])
+        self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
+        self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -421,6 +424,7 @@ class A2ContractTests(unittest.TestCase):
                 self.assertLessEqual(batch_required, set(batch))
 
         harness_case_required = set(semantic_harness_schema["$defs"]["harness_case"]["required"])
+        self.assertIn("risk_flags", harness_case_required)
         for harness_case in semantic_harness["cases"]:
             with self.subTest(semantic_harness_case=harness_case["case_id"]):
                 self.assertLessEqual(harness_case_required, set(harness_case))
