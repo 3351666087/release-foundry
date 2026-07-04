@@ -1,0 +1,13 @@
+{
+  "scenario_id": "A2-S004",
+  "case_id": "sample-a2-s004-missing-tool",
+  "run": {
+    "tool_calls": [],
+    "final_response": "The Acme MiniDock costs $79.",
+    "expected_keywords": ["$79"]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "missing_required_tool"
+  }
+}

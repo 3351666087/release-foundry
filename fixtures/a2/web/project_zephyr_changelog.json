@@ -1,0 +1,11 @@
+{
+  "search_results": [
+    {"title": "Project Zephyr Official Changelog", "url": "https://zephyr.example/changelog"},
+    {"title": "Project Zephyr Blog Recap", "url": "https://blog.example/zephyr-old"}
+  ],
+  "official_page": {
+    "url": "https://zephyr.example/changelog",
+    "latest_release": "3.4.0",
+    "release_date": "2026-06-28"
+  }
+}
