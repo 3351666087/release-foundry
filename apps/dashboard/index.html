@@ -536,6 +536,9 @@
         runs: null,
         grades: null,
         coverage: {},
+        evidenceReadiness: {},
+        caseBook: {},
+        regressionReplay: {},
         cases: [],
         filteredCases: [],
         selectedCaseId: null
@@ -726,6 +729,9 @@
         state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
         state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
         state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+        state.evidenceReadiness = await loadOptionalJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+        state.caseBook = await loadOptionalJson("../../fixtures/a2/results/a2_case_book.json");
+        state.regressionReplay = await loadOptionalJson("../../fixtures/a2/results/a2_regression_replay_report.json");
         state.cases = normalizeCases(state.runs, state.grades);
         state.filteredCases = state.cases;
         state.selectedCaseId = state.cases[0]?.case_id || null;
@@ -742,13 +748,39 @@
         }
 
         $("export-json").addEventListener("click", () => {
-          download("a3-dashboard-report.json", JSON.stringify(buildJsonReport(state.runs, state.grades, state.coverage), null, 2), "application/json");
+          download(
+            "a3-dashboard-report.json",
+            JSON.stringify(
+              buildJsonReport(
+                state.runs,
+                state.grades,
+                state.coverage,
+                state.evidenceReadiness,
+                state.caseBook,
+                state.regressionReplay
+              ),
+              null,
+              2
+            ),
+            "application/json"
+          );
         });
         $("export-csv").addEventListener("click", () => {
           download("a3-dashboard-report.csv", buildCsvReport(state.runs, state.grades), "text/csv");
         });
         $("export-md").addEventListener("click", () => {
-          download("a3-dashboard-report.md", buildMarkdownReport(state.runs, state.grades, state.coverage), "text/markdown");
+          download(
+            "a3-dashboard-report.md",
+            buildMarkdownReport(
+              state.runs,
+              state.grades,
+              state.coverage,
+              state.evidenceReadiness,
+              state.caseBook,
+              state.regressionReplay
+            ),
+            "text/markdown"
+          );
         });
 
         renderSummary();

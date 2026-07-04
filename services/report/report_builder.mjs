@@ -290,6 +290,37 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   };
 }
 
+export function summarizeRegressionReadiness(caseBookFixture = {}, regressionReplayFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const caseBookAvailable = isObject(caseBookFixture) && Object.keys(caseBookFixture).length > 0;
+  const replayAvailable = isObject(regressionReplayFixture) && Object.keys(regressionReplayFixture).length > 0;
+  const candidatePool = mapping(caseBookFixture.candidate_pool);
+  const caseBookGate = mapping(caseBookFixture.maturity_gate);
+  const replayGate = mapping(regressionReplayFixture.maturity_gate);
+
+  return {
+    available: caseBookAvailable || replayAvailable,
+    case_book_schema_version: caseBookAvailable ? caseBookFixture.schema_version || "unknown" : "none",
+    replay_schema_version: replayAvailable ? regressionReplayFixture.schema_version || "unknown" : "none",
+    regression_case_count: caseBookFixture.regression_case_count || 0,
+    replay_case_count: regressionReplayFixture.replay_case_count || 0,
+    replay_ready: regressionReplayFixture.replay_ready === true,
+    maturity_status: regressionReplayFixture.maturity_status || caseBookGate.status || "none",
+    case_book_ready: caseBookGate.ready === true,
+    replay_gate_ready: replayGate.ready === true,
+    target_regression_case_count: caseBookGate.target_regression_case_count || 0,
+    current_regression_case_count: caseBookGate.current_regression_case_count || caseBookFixture.regression_case_count || 0,
+    target_replay_case_count: replayGate.target_replay_case_count || 0,
+    current_replay_case_count: replayGate.current_replay_case_count || regressionReplayFixture.replay_case_count || 0,
+    failed_replay_case_count: replayGate.failed_replay_case_count || regressionReplayFixture.failed_count || 0,
+    local_llm_mismatch_count: candidatePool.local_llm_mismatch_count || 0,
+    ashr_grading_missing_count: candidatePool.ashr_grading_missing_count || 0,
+    gaps: [...missing(caseBookGate.gaps), ...missing(replayGate.gaps)]
+  };
+}
+
 function formatCoverageCaseRefs(refs = []) {
   if (!Array.isArray(refs) || refs.length === 0) {
     return "none";
@@ -347,10 +378,18 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   })).sort((left, right) => right.count - left.count || left.failureClass.localeCompare(right.failureClass));
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
+export function buildMarkdownReport(
+  runFixture = {},
+  gradeFixture = {},
+  coverageFixture = {},
+  evidenceReadinessFixture = {},
+  caseBookFixture = {},
+  regressionReplayFixture = {}
+) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
+  const regressionReadiness = summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -416,6 +455,21 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     );
   }
 
+  if (regressionReadiness.available) {
+    lines.push(
+      "## Regression Readiness",
+      "",
+      `- Maturity status: ${regressionReadiness.maturity_status}`,
+      `- Case book regressions: ${regressionReadiness.current_regression_case_count}/${regressionReadiness.target_regression_case_count || "unknown"}`,
+      `- Replay cases: ${regressionReadiness.current_replay_case_count}/${regressionReadiness.target_replay_case_count || "unknown"}`,
+      `- Replay ready: ${regressionReadiness.replay_ready ? "yes" : "no"}`,
+      `- Local-vs-LLM mismatches: ${regressionReadiness.local_llm_mismatch_count}`,
+      `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,
+      `- Maturity gaps: ${regressionReadiness.gaps.join(" | ") || "none"}`,
+      ""
+    );
+  }
+
   lines.push(
     "## Failure Clusters",
     ""
@@ -465,12 +519,20 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
+export function buildJsonReport(
+  runFixture = {},
+  gradeFixture = {},
+  coverageFixture = {},
+  evidenceReadinessFixture = {},
+  caseBookFixture = {},
+  regressionReplayFixture = {}
+) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
     coverage: summarizeCoverage(coverageFixture),
     evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
+    regression_readiness: summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

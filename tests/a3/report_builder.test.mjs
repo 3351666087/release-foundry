@@ -13,7 +13,8 @@ import {
   getFilterOptions,
   normalizeCases,
   summarizeCoverage,
-  summarizeEvidenceReadiness
+  summarizeEvidenceReadiness,
+  summarizeRegressionReadiness
 } from "../../services/report/report_builder.mjs";
 
 async function loadJson(path) {
@@ -345,4 +346,45 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(markdown, /Status: awaiting_private_evidence/);
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /SDK languages covered: python, typescript/);
+});
+
+test("A3 report builder can summarize A2 C5 regression readiness fixtures", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const caseBook = await loadJson("../../fixtures/a2/results/a2_case_book.json");
+  const regressionReplay = await loadJson("../../fixtures/a2/results/a2_regression_replay_report.json");
+
+  const summary = summarizeRegressionReadiness(caseBook, regressionReplay);
+  assert.equal(summary.available, true);
+  assert.equal(summary.case_book_schema_version, "a2.case_book.v1");
+  assert.equal(summary.replay_schema_version, "a2.regression_replay.v1");
+  assert.equal(summary.regression_case_count, 1);
+  assert.equal(summary.replay_case_count, 1);
+  assert.equal(summary.replay_ready, true);
+  assert.equal(summary.maturity_status, "seed");
+  assert.equal(summary.case_book_ready, false);
+  assert.equal(summary.replay_gate_ready, false);
+  assert.equal(summary.target_regression_case_count, 3);
+  assert.equal(summary.current_regression_case_count, 1);
+  assert.equal(summary.target_replay_case_count, 3);
+  assert.equal(summary.current_replay_case_count, 1);
+  assert.equal(summary.failed_replay_case_count, 0);
+  assert.equal(summary.local_llm_mismatch_count, 1);
+  assert.equal(summary.ashr_grading_missing_count, 6);
+  assert.ok(summary.gaps.some((gap) => gap.includes("Promote 2 more")));
+  assert.ok(summary.gaps.some((gap) => gap.includes("Replay 2 more")));
+
+  const json = buildJsonReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
+  assert.equal(json.regression_readiness.available, true);
+  assert.equal(json.regression_readiness.maturity_status, "seed");
+  assert.equal(json.regression_readiness.target_replay_case_count, 3);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
+  assert.match(markdown, /## Regression Readiness/);
+  assert.match(markdown, /Maturity status: seed/);
+  assert.match(markdown, /Case book regressions: 1\/3/);
+  assert.match(markdown, /Replay cases: 1\/3/);
+  assert.match(markdown, /Ashr grading missing: 6/);
 });

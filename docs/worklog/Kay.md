@@ -599,3 +599,24 @@ Next top 3:
 1. Collect reviewed Ashr grading for the six calibration cases.
 2. Replace offline LLM references with audited semantic judge summaries.
 3. Promote new reviewed disagreements into the case book until the maturity gate reaches 3 clean replay cases.
+
+## 2026-07-04 - A3 C5 regression readiness export
+
+Reason:
+- A2 now exposes C5 maturity gates, but A3 exports also need to surface that status for reviewers.
+- The goal is to make the 1/3 C5 maturity state visible without changing the A2 grade-result contract.
+
+Implemented:
+- Added `summarizeRegressionReadiness(...)` to `services/report/report_builder.mjs`.
+- Extended A3 JSON/Markdown report builders with optional case-book and regression-replay fixtures.
+- Wired dashboard exports to load optional `a2_case_book.json`, `a2_regression_replay_report.json`, and evidence readiness fixtures.
+- Added A3 tests that assert C5 status remains `seed`, target is 3, current replay count is 1, and gaps mention the 2 missing reviewed cases.
+
+Boundary:
+- This is A3 export support only; it does not change A2 scoring or promote new regressions.
+- Missing optional C5 feeds still leave core grade and coverage reports usable.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for the six calibration cases.
+2. Import audited semantic judge summaries to replace offline references.
+3. Promote two more reviewed disagreements into the case book and replay suite.
