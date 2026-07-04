@@ -68,13 +68,16 @@ class A2ContractTests(unittest.TestCase):
 
     def test_golden_cases_cover_seed_scenarios(self):
         pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g2_seed_pack.json")
+        full_pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         golden = json.loads((ROOT / "fixtures/golden/a2_g2_golden_cases.json").read_text(encoding="utf-8"))
         scenario_ids = {scenario["id"] for scenario in pack["scenarios"]}
+        full_scenario_ids = {scenario["id"] for scenario in full_pack["scenarios"]}
         golden_ids = {case["scenario_id"] for case in golden["goldenCases"]}
         case_ids = [case["case_id"] for case in golden["goldenCases"]]
         self.assertGreaterEqual(len(golden["goldenCases"]), 20)
         self.assertEqual(len(case_ids), len(set(case_ids)))
         self.assertLessEqual(scenario_ids, golden_ids)
+        self.assertLessEqual(golden_ids, full_scenario_ids)
         for case in golden["goldenCases"]:
             with self.subTest(case=case["case_id"]):
                 self.assertIn(case["expected_primary_failure_class"], CANONICAL_FAILURE_CLASSES | {"none"})
@@ -260,15 +263,18 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(len(report["primary_failure_class_counts"]), 12)
         self.assertEqual(sum(report["primary_failure_class_counts"].values()), 60)
         self.assertLessEqual(set(report["primary_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertGreaterEqual(report["golden_case_count"], 20)
-        self.assertGreaterEqual(report["golden_failure_case_count"], 12)
+        self.assertGreaterEqual(report["golden_case_count"], 32)
+        self.assertGreaterEqual(report["golden_failure_case_count"], 27)
         self.assertGreaterEqual(report["golden_pass_case_count"], 1)
         self.assertEqual(
             sum(report["golden_failure_class_counts"].values()),
             report["golden_failure_case_count"],
         )
         self.assertEqual(report["golden_failure_classes_missing"], [])
-        self.assertIn("wrong_arguments", report["thin_golden_failure_classes"])
+        self.assertEqual(report["thin_golden_failure_classes"], {})
+        for failure_class in CANONICAL_FAILURE_CLASSES:
+            with self.subTest(golden_failure_class=failure_class):
+                self.assertGreaterEqual(report["golden_failure_class_counts"][failure_class], 2)
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
         self.assertGreaterEqual(report["executable_run_case_count"], 18)
         self.assertGreaterEqual(report["executable_failure_case_count"], 17)
@@ -280,7 +286,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotIn("hallucinated_tool_result", report["thin_executable_failure_classes"])
         self.assertNotIn("wrong_arguments", report["thin_executable_failure_classes"])
         self.assertNotIn("poor_failure_recovery", report["thin_executable_failure_classes"])
-        self.assertEqual(len(report["coverage_warnings"]), 2)
+        self.assertEqual(report["coverage_warnings"], ["9 executable failure classes have fewer than 2 run fixtures."])
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 

@@ -247,8 +247,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
-  assert.equal(summary.coverage_warning_count, 2);
-  assert.equal(Object.keys(summary.thin_golden_failure_classes).length, 9);
+  assert.equal(summary.coverage_warning_count, 1);
+  assert.equal(Object.keys(summary.thin_golden_failure_classes).length, 0);
   assert.equal(Object.keys(summary.thin_executable_failure_classes).length, 9);
   assert.equal(summary.thin_executable_failure_classes.hallucinated_tool_result, undefined);
   assert.equal(summary.thin_executable_failure_classes.wrong_arguments, undefined);
@@ -256,11 +256,11 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
-  assert.equal(json.coverage.coverage_warning_count, 2);
+  assert.equal(json.coverage.coverage_warning_count, 1);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
   assert.match(markdown, /## Coverage/);
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
-  assert.match(markdown, /Coverage warnings: 2/);
+  assert.match(markdown, /Coverage warnings: 1/);
 });

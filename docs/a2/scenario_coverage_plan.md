@@ -84,6 +84,8 @@ The coverage report also reads `fixtures/golden/a2_g2_golden_cases.json` and rep
 - `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds,
 - `golden_failure_classes_missing`: expected to stay empty after G3 calibration.
 
+The golden set now contains at least two calibration cases for every canonical failure class, so `thin_golden_failure_classes` is expected to stay empty.
+
 It also audits executable run fixtures in `fixtures/a2/runs`:
 
 - `executable_run_case_count`,
