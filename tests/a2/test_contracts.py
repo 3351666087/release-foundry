@@ -601,6 +601,12 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["required_languages"], ["python", "typescript"])
         self.assertEqual(set(report["passed_languages"]), {"python", "typescript"})
         self.assertEqual({case["language"] for case in report["cases"]}, {"python", "typescript"})
+        official_chains = {chain["language"]: chain for chain in report["official_sdk_chains"]}
+        self.assertEqual(set(official_chains), {"python", "typescript"})
+        self.assertEqual(official_chains["python"]["a2_consumed_shape"], "AgentTurn or AgentResult.to_dict()")
+        self.assertEqual(official_chains["typescript"]["install"], "npm install ashr-labs")
+        self.assertIn("runAndDeploy", official_chains["typescript"]["run_and_deploy_entrypoint"])
+        self.assertEqual(official_chains["typescript"]["a2_consumed_shape"], "CaseResult.agent_output")
         for case in report["cases"]:
             with self.subTest(language=case["language"]):
                 self.assertTrue(case["a2_grade"]["passed"])
@@ -672,7 +678,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["source_matrix"]["required_languages"], ["python", "typescript"])
         self.assertEqual(set(report["source_matrix"]["covered_languages"]), {"python", "typescript"})
         self.assertTrue(report["readiness_checks"]["covers_python_and_typescript"])
+        self.assertTrue(report["readiness_checks"]["has_official_sdk_chain_map"])
         self.assertFalse(report["readiness_checks"]["live_model_evidence_available"])
+        official_chains = {chain["language"]: chain for chain in report["source_matrix"]["official_sdk_chains"]}
+        self.assertEqual(official_chains["typescript"]["a2_consumed_shape"], "CaseResult.agent_output")
+        self.assertIn("runAndDeploy", official_chains["typescript"]["run_and_deploy_entrypoint"])
         self.assertIn("prompt_tokens", report["cost_policy"]["required_fields"])
         self.assertIn("tp_* API keys", report["redaction_policy"]["secret_patterns"])
         self.assertIn("primary_failure_class", report["output_schema"]["required_fields"])

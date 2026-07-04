@@ -488,3 +488,24 @@ Next top 3:
 1. Add more reviewed Ashr/local/LLM disagreement cases to the case book and replay suite.
 2. Fill the `ashr_grading` column for the six calibration cases.
 3. Replace offline `llm_judge` rows with audited semantic judge imports.
+
+## 2026-07-04 - Official TypeScript chain made explicit
+
+Reason:
+- Kay flagged that the Ashr docs show one Python SDK route and one TypeScript SDK route.
+- A2 already consumed TypeScript-shaped output, but the generated evidence needed to make the official `runAndDeploy` chain visible enough for reviewers.
+
+Implemented:
+- Added `official_sdk_chains` to the SDK parity report, mapping Python `EvalRunner.from_dataset(...)` / `run_and_deploy(...)` and TypeScript `EvalRunner.fromDataset(...)` / `runAndDeploy(...)` to A2-consumed shapes.
+- Threaded that map into the semantic judge harness source matrix.
+- Added tests that lock the TypeScript `npm install ashr-labs` and `CaseResult.agent_output` path.
+- Updated A2 README and coverage planning docs.
+
+Boundary:
+- This is still deterministic A2 contract evidence.
+- It does not claim hosted TypeScript API parity or run real Ashr grading.
+
+Next top 3:
+1. Keep the TypeScript chain green when A1/A3 update their TS package or report mapper.
+2. Fill the `ashr_grading` column with reviewed server-side evidence.
+3. Run audited semantic judge calls across both SDK chains and import reviewed summaries.

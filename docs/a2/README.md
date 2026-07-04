@@ -83,10 +83,17 @@ result = grade_run("A2-S004", run)
 
 The Ashr docs expose both Python and TypeScript SDK entrypoints, so A2 must not silently become Python-only.
 
+In plain terms, these are two official ways to reach the same Testing Platform workflow:
+
+- Python chain: `pip install ashr-labs` -> `AshrLabsClient` -> `EvalRunner.from_dataset(...)` -> `run_and_deploy(...)` -> A2 consumes `AgentTurn` / `AgentResult.to_dict()` output.
+- TypeScript chain: `npm install ashr-labs` -> `new AshrLabsClient(...)` -> `EvalRunner.fromDataset(...)` -> `runAndDeploy(...)` -> A2 consumes `CaseResult.agent_output` output.
+
 A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/judge/sdk_parity.py`. The report grades the same scenario through:
 
 - Python-style `AgentTurn` / `AgentResult.to_dict()` metadata from `packages/sdk/ashr_clone/adapter.py`
 - TypeScript-style `CaseResult.agent_output` metadata from `packages/ts/ashr-clone/src/index.ts`
+
+The report also records `official_sdk_chains` so reviewers can see exactly how the official Python and TypeScript quickstart surfaces map into A2's local runner contract.
 
 This is deterministic contract evidence for C1: A2 can consume both SDK-language runner shapes. It does not claim hosted TypeScript API parity or live Ashr grading; those remain A1/C3 calibration work.
 

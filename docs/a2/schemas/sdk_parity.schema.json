@@ -10,6 +10,7 @@
     "passed_languages",
     "sdk_language_count",
     "parity_passed",
+    "official_sdk_chains",
     "source_contracts",
     "cases",
     "metadata"
@@ -22,6 +23,10 @@
     "passed_languages": { "$ref": "#/$defs/string_array" },
     "sdk_language_count": { "type": "integer", "minimum": 0 },
     "parity_passed": { "type": "boolean" },
+    "official_sdk_chains": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/official_sdk_chain" }
+    },
     "source_contracts": {
       "type": "array",
       "items": { "$ref": "#/$defs/source_contract" }
@@ -45,6 +50,32 @@
         "sdk_path": { "type": "string" },
         "schema_versions": { "$ref": "#/$defs/string_array" },
         "runner_shape": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "official_sdk_chain": {
+      "type": "object",
+      "required": [
+        "language",
+        "docs_url",
+        "install",
+        "runtime",
+        "client_entrypoint",
+        "runner_entrypoint",
+        "run_and_deploy_entrypoint",
+        "testing_surface",
+        "a2_consumed_shape"
+      ],
+      "properties": {
+        "language": { "type": "string" },
+        "docs_url": { "type": "string" },
+        "install": { "type": "string" },
+        "runtime": { "type": "string" },
+        "client_entrypoint": { "type": "string" },
+        "runner_entrypoint": { "type": "string" },
+        "run_and_deploy_entrypoint": { "type": "string" },
+        "testing_surface": { "type": "string" },
+        "a2_consumed_shape": { "type": "string" }
       },
       "additionalProperties": true
     },

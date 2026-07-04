@@ -44,6 +44,9 @@ def build_semantic_harness_report(
         "has_redaction_policy": True,
         "covers_calibration_cases": len(cases) == int(calibration_matrix.get("case_count", 0)) and bool(cases),
         "covers_python_and_typescript": set(REQUIRED_SDK_LANGUAGES).issubset(sdk_languages),
+        "has_official_sdk_chain_map": set(REQUIRED_SDK_LANGUAGES).issubset(
+            {chain.get("language") for chain in _official_sdk_chains(sdk_parity_report)}
+        ),
         "live_model_evidence_available": live_model_evidence_available,
     }
     audit_ready_checks = {
@@ -63,6 +66,7 @@ def build_semantic_harness_report(
             "covered_languages": sorted(sdk_languages),
             "sdk_parity_passed": bool((sdk_parity_report or {}).get("parity_passed")),
             "language_contracts": _language_contracts(sdk_parity_report),
+            "official_sdk_chains": _official_sdk_chains(sdk_parity_report),
             "official_docs_refs": {
                 "python": "https://ashr.io/docs/python-sdk/overview",
                 "typescript": "https://ashr.io/docs/typescript-sdk/overview",
@@ -115,6 +119,28 @@ def _language_contracts(sdk_parity_report: dict[str, Any] | None) -> list[dict[s
             "sdk_path": "packages/ts/ashr-clone/src/index.ts",
             "runner_shape": "CaseResult.agent_output -> A2 normalize_run_input",
             "semantic_prompt_path": _semantic_prompt_path("typescript"),
+        },
+    ]
+
+
+def _official_sdk_chains(sdk_parity_report: dict[str, Any] | None) -> list[dict[str, Any]]:
+    chains = (sdk_parity_report or {}).get("official_sdk_chains", [])
+    if chains:
+        return [dict(chain) for chain in chains if isinstance(chain, dict)]
+    return [
+        {
+            "language": "python",
+            "docs_url": "https://ashr.io/docs/python-sdk/overview",
+            "runner_entrypoint": "EvalRunner.from_dataset(client, dataset_id=...)",
+            "run_and_deploy_entrypoint": "runner.run_and_deploy(agent, client, dataset_id=...)",
+            "a2_consumed_shape": "AgentTurn or AgentResult.to_dict()",
+        },
+        {
+            "language": "typescript",
+            "docs_url": "https://ashr.io/docs/typescript-sdk/overview",
+            "runner_entrypoint": "await EvalRunner.fromDataset(client, datasetId)",
+            "run_and_deploy_entrypoint": "await runner.runAndDeploy(agent, client, datasetId)",
+            "a2_consumed_shape": "CaseResult.agent_output",
         },
     ]
 

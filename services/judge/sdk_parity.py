@@ -11,6 +11,30 @@ from .runner import DEFAULT_SCENARIO_PACK, grade_run
 SDK_PARITY_SCENARIO_ID = "A2-S005"
 SDK_PARITY_RESPONSE = "- Launch risk is dependency timing.\n- Mitigation is owner review.\n- Next step is Friday signoff."
 SDK_PARITY_TOOL_ARGS = {"path": "fixtures/a2/notes/launch-review.md"}
+OFFICIAL_SDK_CHAINS = [
+    {
+        "language": "python",
+        "docs_url": "https://ashr.io/docs/python-sdk/overview",
+        "install": "pip install ashr-labs",
+        "runtime": "Python 3.10+",
+        "client_entrypoint": "AshrLabsClient(api_key=...)",
+        "runner_entrypoint": "EvalRunner.from_dataset(client, dataset_id=...)",
+        "run_and_deploy_entrypoint": "runner.run_and_deploy(agent, client, dataset_id=...)",
+        "testing_surface": "EvalRunner / RunBuilder / Agent / comparators",
+        "a2_consumed_shape": "AgentTurn or AgentResult.to_dict()",
+    },
+    {
+        "language": "typescript",
+        "docs_url": "https://ashr.io/docs/typescript-sdk/overview",
+        "install": "npm install ashr-labs",
+        "runtime": "Node.js 18+ and TypeScript 5.4+ recommended",
+        "client_entrypoint": "new AshrLabsClient(apiKey)",
+        "runner_entrypoint": "await EvalRunner.fromDataset(client, datasetId)",
+        "run_and_deploy_entrypoint": "await runner.runAndDeploy(agent, client, datasetId)",
+        "testing_surface": "EvalRunner / RunBuilder / Agent / comparators",
+        "a2_consumed_shape": "CaseResult.agent_output",
+    },
+]
 
 
 def build_sdk_parity_report(pack_path: str | Path = DEFAULT_SCENARIO_PACK) -> dict[str, Any]:
@@ -29,6 +53,7 @@ def build_sdk_parity_report(pack_path: str | Path = DEFAULT_SCENARIO_PACK) -> di
         "passed_languages": passed_languages,
         "sdk_language_count": len(passed_languages),
         "parity_passed": set(passed_languages) == set(required_languages),
+        "official_sdk_chains": [dict(chain) for chain in OFFICIAL_SDK_CHAINS],
         "source_contracts": [
             {
                 "language": "python",

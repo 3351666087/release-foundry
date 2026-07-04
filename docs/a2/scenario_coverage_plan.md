@@ -122,6 +122,7 @@ The July 4 PDF gate logic is also encoded in `fixtures/a2/results/a2_commercial_
 This report marks C2 as met and C3-C5 as partial, because A2 can consume both Python and TypeScript SDK runner shapes and has a quota-aware batch plan, but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
 
 The first C1 SDK-parity artifact is `fixtures/a2/results/a2_sdk_parity_report.json`. It grades the same A2 scenario through a Python-style `AgentTurn` shape and a TypeScript-style `CaseResult.agent_output` shape so the official dual-SDK chain stays visible in A2.
+It also records an `official_sdk_chains` map for the two Ashr quickstart routes: Python uses `EvalRunner.from_dataset(...)` / `run_and_deploy(...)`, while TypeScript uses `EvalRunner.fromDataset(...)` / `runAndDeploy(...)`. A2's responsibility is to keep both resulting runner-output shapes gradable, not to collapse the project into a Python-only clone.
 
 The first C2 batch-plan artifact is `fixtures/a2/results/a2_batch_plan_report.json`. It defines local, SDK parity, Ashr grading, semantic judge, and regression replay batches and mirrors A1's queue-worker quota phases without requiring live API keys.
 
