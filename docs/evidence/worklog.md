@@ -929,3 +929,251 @@ Publish closure:
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
 - Staged path guard: no forbidden staged paths.
 - Staged high-risk secret pattern scan: no `sk-...`, GitHub token, or bearer-token patterns found in staged files.
+
+## 2026-07-04 Local Queue Worker Facade
+
+Goal: add a local queue worker facade so cloud-runtime runs can be accepted as queued work, progress through queued/running/completed or failed states, preserve A3 fixture shape, and obey quota ledger phase boundaries without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `2c43237` to `fe01f94`.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `packages/ts/ashr-clone/dist/`, and `node_modules/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `AgentInput`, `services/api` local runtime, cloud demo CLI, TypeScript local SDK quickstart, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing cloud runtime before this round could create tenant/project/dataset/request records, submit completed run results, poll stored runs, export fixtures, and enforce quota checks.
+- Missing before this round: queued run creation, worker-owned queued/running/completed transitions, timeout-safe queued demo behavior, queued CLI, and status history in cloud schema docs.
+- Peer changes/impact: latest peer commit `fe01f94` added A2 grading merge gate files under A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`. No A1-owned file impact; no Gate contract change required from A1.
+
+Three proposed enhancements:
+
+1. Queue worker facade: demo value 5, risk reduction 5, contract impact 2, estimated effort 3, API evidence value 2. Selected because queue lifecycle is an explicit phase target and makes the local cloud runtime closer to hosted run behavior.
+2. TypeScript API-client dry-run/transport-injected parity: demo value 4, risk reduction 4, contract impact 1, estimated effort 4, API evidence value 4.
+3. Public-safe A2 grading import from private hosted evidence: demo value 3, risk reduction 3, contract impact 2, estimated effort 3, API evidence value 3.
+
+Subagent / auditor status:
+
+- Reused existing subagent threads because the thread limit prevented spawning new ones. Four old threads initially returned empty completed states after requeue; this limitation is recorded as a tooling/evidence gap for the role protocol.
+- Bus-Auditor final recheck succeeded after an explicit resend. Initial verdict: BLOCK because queued wait timeout could return a non-terminal poll and `run_agent_cloud_queue_demo(...)` would then write an incomplete fixture/run/summary and CLI could exit 0.
+- Bus-Auditor required fix: require terminal status before writing queued demo outputs, add helper/CLI timeout regressions, and keep staging inside A1-owned dirs.
+- Implemented the required fix and reran queue/full tests.
+
+Implemented:
+
+- `services/api/queue_worker.py`: added `QueueRunRequest`, `CloudQueueWorker`, queued background execution, max-worker normalization, poll/wait/cancel methods, terminal wait enforcement, and redacted failure handling.
+- `services/api/runtime.py`: added queued run creation, running/completed/failed/cancelled transitions, `status_history`, phase-correct `run.submit` and `observation.write` quota consumption, and completion into the existing fixture/export shape.
+- `services/runner/runner.py`: added optional `run_id` injection for queued runs so `RunResult` and observations share the cloud run id.
+- `services/api/demo.py`: added `run_agent_cloud_queue_demo(...)`, which waits for terminal status before writing outputs.
+- `services/api/cli.py`: added `run-agent-queued` with `--queue-workers`, `--wait-timeout`, and existing output/failure controls.
+- `services/api/__init__.py`: exported queue worker symbols and queued demo helper.
+- `tests/a1/test_cloud_api.py`: added queue transition/fixture/quota tests and observation-quota failure coverage.
+- `tests/a1/test_cloud_api_cli.py`: added queued helper/CLI success tests and wait-timeout no-output regressions.
+- `tests/a1/fixtures_sensitive_agent.py`: added `SlowAgent` for bounded wait-timeout regressions.
+- `docs/a1/schemas/cloud_api.schema.json`: added `status_history` shape.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- Chrome docs check: official API reference showed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `request_status`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- Chrome Usage check: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were not confirmed. No private counters recorded.
+- Final remote recheck: PR #6 was merged; `origin/main` advanced to `e786c98` and contains prior A1 head `7c94460`. The current branch was fast-forwarded to `origin/main` before staging this round. Latest peer `4af23c4` added A2 case book regression seed files under A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`; no A1-owned conflict after conflict resolution in `docs/evidence/official_site_gaps.md`.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 21 passed.
+- `python -B -m pytest tests/a1/test_runner.py -q -p no:cacheprovider`: 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 123 passed.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m services.api.cli run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_queue_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_demo_run_smoke.json --tenant-id tenant_a1_queue_smoke --project-id project_a1_queue_smoke --dataset-id dataset_a1_queue_smoke --runner-id a1-queue-smoke --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: completed locally with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, status history `queued -> running -> completed`, and quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- Real API calls: none in this implementation round.
+
+Remaining / next top 3:
+
+1. Add TypeScript API-client dry-run/transport-injected parity for read-only probes before any hosted TS calls.
+2. Add queue persistence/replay controls so queued run state can survive process boundaries and produce deterministic replay artifacts.
+3. Convert selected private hosted run evidence through the A2 Ashr grading import/merge bridge into public-safe calibration observations.
+
+## 2026-07-04 TypeScript API Client Dry-Run Parity
+
+Goal: add the hosted-parity TypeScript API client guardrail layer before any hosted TS calls, so TS developers can plan/read/probe Ashr API operations through the same dry-run-first, transport-injected discipline as the Python client.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `085c439` to `6efe390`.
+- `gh pr list --state all`: PR #7 remains open/draft/mergeable on `codex/a1-local-sdk-runner` at `23b4af0`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `packages/ts/ashr-clone/dist/`, and `node_modules/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, local cloud runtime, queue worker facade, cloud demo CLI, TypeScript local SDK quickstart, MockAgent, A1 tests/docs/schemas, and ignored private real API evidence.
+- Existing TS package before this round exported local runtime/agent input/cloud/quota/redaction only. Its README explicitly said it did not expose hosted API client behavior yet.
+- Peer changes/impact: latest peer `6efe390 G3: add A2 batch planning gate` touched `docs/a2`, `fixtures/a2`, `scripts/a2_regenerate_fixtures.py`, `services/judge`, `tests/a2`, and `docs/worklog/Kay.md`. No A1-owned conflict or Gate contract action required from A1.
+
+Three proposed enhancements:
+
+1. TypeScript API-client dry-run/transport parity: demo value 4, risk reduction 5, contract impact 1, estimated effort 3, API evidence value 5. Selected because it closes the largest remaining TS gap before any paid or real TS call.
+2. Queue persistence/replay controls: demo value 4, risk reduction 4, contract impact 2, estimated effort 4, API evidence value 2.
+3. Public-safe A2 grading import from private hosted evidence: demo value 3, risk reduction 3, contract impact 2, estimated effort 3, API evidence value 3.
+
+Subagent / auditor status:
+
+- Bus-Auditor: PASS for current implementation scope, but required evidence fixes before continuing: record peer drift to `6efe390`, update stale queue-worker next candidate, and keep ignored private evidence/build/cache paths out of staging.
+- Explorer-SDK/API: confirmed Python API client/probe already provide the parity kernel and recommended a separate TS API-client layer with dry-run default, injected transport, env constants, redaction, request preflight, failed-request summaries, and tests.
+- Explorer-Chrome: Chrome was available; public homepage/docs were reachable, lab usage was blocked by sign-in/onboarding in that subagent pass, and private screenshots/notes stayed under ignored private evidence.
+- Worker-Runtime: fixed a queue cancellation edge case in `services/api/queue_worker.py`; `wait_for_run(...)` now returns terminal cancelled runs and handles cancelled executor futures. Added two tests in `tests/a1/test_cloud_api.py`.
+- Worker-TS/Reviewer could not be spawned initially due to thread limit; main thread implemented the TS API-client work and covered it with focused Node tests.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/api-client.ts`: added `AshrApiClient`, `AshrApiError`, `MissingAshrApiKeyError`, `AshrApiCallPlan`, `AshrApiCallRecord`, `AshrApiTransport`, env/base-url constants, field-map version, dry-run call plans/records, injected transport execution, session context injection, read-only `init`/`healthCheck`/`listAgents`/dataset/run/request methods, mutating `createRun`/`createRequest` guardrails, `pollRun`/`pollRequest`, retry handling, API-level error redaction, media/non-text preflight summaries, and safe failed-request summary shapes.
+- `packages/ts/ashr-clone/src/index.ts`: exported the API client layer.
+- `packages/ts/ashr-clone/test/api-client.test.mjs`: added 11 Node tests covering dry-run no-fetch behavior, env construction without logging keys, injected transport execution, `keep_alive`, `list_agents`, missing-key guard, media schema dry-runs, mutation guardrails, retryable statuses, API error redaction, failed request summaries, and preflight helpers.
+- `services/api/queue_worker.py` and `tests/a1/test_cloud_api.py`: incorporated Worker-Runtime's cancellation fix/regressions.
+- `packages/ts/ashr-clone/README.md`, `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+- Bus-Auditor final block: `pollRun({ dryRun:false })` and `pollRequest({ dryRun:false })` could bypass the normal `call(...)` missing-key guard through `pollUntil(...)` and reach injected transport with `Bearer null`. Fixed by guarding inside `AshrApiClient.request(...)` and adding regression tests that prove no transport call happens without a configured key.
+
+Verification:
+
+- Chrome main-thread check: `https://ashr.io/docs/api-reference/` returned `404 Not Found`; the correct public API reference is `https://ashr.io/docs/python-sdk/api-reference/`.
+- Chrome API reference check: public page exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, `generate_files`, `Trace`, `Span`, and `Generation`.
+- Chrome Usage check: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were not confirmed. No private counters recorded.
+- Private screenshot paths: `docs/evidence/private_refs/ashr_api_reference_ts_client_round_2026-07-04.png` and `docs/evidence/private_refs/ashr_usage_ts_client_round_2026-07-04.png`.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 24 Node tests passed after the missing-key poll fix.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 125 passed after the queue cancellation fix.
+- Real API calls: none in this round. The desktop key file, `.secrets`, and private evidence contents were not read.
+
+Remaining / next top 3:
+
+1. Add queue persistence/replay controls so queued run state can survive process boundaries and produce deterministic replay artifacts.
+2. Add a TypeScript probe CLI wrapper around the dry-run `AshrApiClient` before any hosted TS calls.
+3. Convert selected private hosted run evidence through the A2 Ashr grading import/merge bridge into public-safe calibration observations.
+
+## 2026-07-04 Queue Persistence And Replay CLI
+
+Goal: turn the local queue persistence/replay library slice into an operator-facing loop: create a queued run state snapshot, reload it in a later process, replay incomplete queued/running runs through the local worker, write a completed state snapshot, and export A3-consumable run fixtures without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success.
+- `gh pr list --state all --limit 20`: PR #7 open/draft on `codex/a1-local-sdk-runner`; `gh pr view 7` later confirmed mergeable at head `c81e60d`.
+- `git status -sb --untracked-files=all`: tracked in-progress files were `services/api/runtime.py`, `services/api/queue_worker.py`, and `tests/a1/test_cloud_api.py`; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, and TS build/cache paths remained unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, local cloud runtime, queue worker facade, cloud demo CLI, TypeScript local SDK and hosted dry-run client, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing persistence work at round start: `CloudApiService.snapshot_state(...)`, `write_state(...)`, `from_state_file(...)`, `CloudQueueWorker.replay_incomplete_runs(...)`, and library tests for state roundtrip and replay.
+- Missing before this round: operator CLI controls for state input/output, persisted queued-state creation, replay from restored state across subprocess boundaries, and guarded fixture export from restored state.
+- Peer changes/impact: latest peer `007c650 G3: add A2 semantic judge harness` touched A2 docs/worklog/fixtures/scripts plus `services/judge` and `tests/a2`. No A1-owned conflict; do not integrate/rebase in a way that drops those peer files.
+
+Three proposed enhancements:
+
+1. Queue persistence/replay CLI controls: demo value 5, risk reduction 5, contract impact 1, estimated effort 2, API evidence value 2. Selected because it makes the newly available persistence/replay core useful to A2/A3 and fresh setup.
+2. TypeScript probe CLI wrapper around dry-run `AshrApiClient`: demo value 4, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4.
+3. Public-safe A2 grading import from selected hosted evidence: demo value 3, risk reduction 3, contract impact 2, estimated effort 3, API evidence value 3.
+
+Subagent / auditor status:
+
+- Bus-Auditor: PASS for local-only queue persistence/replay next; required updating stale PR/peer evidence to PR #7 head `c81e60d` and peer `007c650`, and preserving secret/private evidence hygiene.
+- Explorer-SDK/API: recommended TS probe CLI as a future high-ROI item, but also confirmed queue persistence/replay already had library coverage and needed CLI/product controls.
+- Explorer-Chrome: Chrome subagent could not stably claim lab tabs and made no credential/API calls; main thread completed the read-only Chrome check.
+- Worker-Runtime: implemented the bounded library slice for state snapshot/load and replay incomplete runs; main thread extended it to CLI/demo/fixture-export controls.
+- Reviewer / Worker-TS: not separately spawned at first because the thread limit was reached; main thread covered the selected Python CLI path with focused and full regression tests.
+
+Implemented:
+
+- `services/api/demo.py`: added optional `state_output_path` for direct and queued demos; added `create_agent_cloud_queue_state(...)`, `replay_agent_cloud_queue_state(...)`, and `export_run_fixture_from_state(...)`; added terminal-status guard so restored queued/running state cannot be exported as a completed fixture unless explicitly allowed.
+- `services/api/cli.py`: added `queue-run`, `replay-queued`, and `export-fixture`; added `--state-output` to `run-agent` and `run-agent-queued`.
+- `services/api/__init__.py`: exported the new demo helpers.
+- `tests/a1/test_cloud_api_cli.py`: added subprocess roundtrip coverage for `queue-run -> replay-queued -> export-fixture` and a regression that incomplete queued state cannot be exported by default.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated.
+
+Verification:
+
+- Chrome main-thread check: `https://ashr.io/docs/python-sdk/api-reference/` exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- Chrome Usage check: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` and showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private counters were not recorded.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 28 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 130 passed.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 24 Node tests passed.
+- `python -B -m services.api.cli queue-run --input docs/a1/evidence/local_agent_cases_30.json --state-output docs/evidence/private_refs/a1_queue_state_snapshot_smoke.json --summary-output docs/evidence/private_refs/a1_queue_state_summary_smoke.json --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --dataset-id dataset_a1_replay_smoke --runner-id a1-replay-smoke --run-id run_a1_replay_smoke`: wrote ignored queued local state, 30 cases, `queued` status, `run.submit=1`.
+- `python -B -m services.api.cli replay-queued --state-input docs/evidence/private_refs/a1_queue_state_snapshot_smoke.json --agent examples.agents.mock_agent:RespondingMockAgent --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --dataset-id dataset_a1_replay_smoke --fixture-output docs/evidence/private_refs/a1_queue_replay_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_replay_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_replay_run_smoke.json --state-output docs/evidence/private_refs/a1_queue_replayed_state_smoke.json --max-runs 1 --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30`: completed with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`, status history `queued -> running -> completed`.
+- `python -B -m services.api.cli export-fixture --state-input docs/evidence/private_refs/a1_queue_replayed_state_smoke.json --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --run-id run_a1_replay_smoke --fixture-output docs/evidence/private_refs/a1_queue_exported_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_export_summary_smoke.json`: exported a completed run fixture from restored state.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced from `007c650` to `18e4a96 G3: add A2 semantic judge import bridge`, touching `docs/a2`, `docs/worklog/Kay.md`, `fixtures/a2/calibration`, `scripts/a2_import_semantic_judge.py`, `scripts/a2_merge_calibration_observations.py`, `services/judge`, and `tests/a2`. No A1-owned conflict observed; current branch remained even with `origin/codex/a1-local-sdk-runner`.
+- Real Ashr API calls: none in this implementation round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.
+
+Remaining / next top 3:
+
+1. Add TypeScript probe CLI wrapper around dry-run `AshrApiClient` for cross-language API calibration ergonomics.
+2. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
+3. Convert selected private hosted run evidence through the A2 grading import/merge bridge into public-safe calibration observations after explicit evidence-selection rules.
+
+## 2026-07-04 TypeScript Probe CLI
+
+Goal: add a dry-run-first TypeScript probe CLI around the hosted-parity `AshrApiClient`, so TS users get the same operator ergonomics as Python `services.runner.api_probe`: plan/read/probe calls without keys by default, write redacted JSON records, require explicit execution/mutation flags, and keep real Ashr API usage under the dry-run -> small batch -> batch rule.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `18e4a96` to `8542b19`, and `origin/codex/a3-p3-ashr-calibration` advanced from `c30b67a` to `5872ef3`.
+- `gh pr list --state all --limit 30`: PR #7 open/draft on `codex/a1-local-sdk-runner` at `7942516`; prior A1 PRs merged.
+- `git status -sb --untracked-files=all`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, TS `dist/`, and `node_modules/` remained unstaged.
+
+Baseline scan:
+
+- Python A1 surfaces: SDK adapter/types/trace/dataset adapter/API client, runner CLI, Python API probe, local cloud runtime/queue/replay CLI, MockAgent, A1 tests/schemas/docs.
+- TypeScript surfaces: `packages/ts/ashr-clone` exports local SDK/runtime/quota/redaction plus hosted dry-run `AshrApiClient`; tests cover API client library parity, but package metadata has no `bin` or probe CLI yet.
+- Private evidence: many ignored `docs/evidence/private_refs/a1_api_*`, queue smoke, TS quickstart, and Chrome screenshot/note files exist; only filenames were listed, raw contents were not read.
+- Known gaps: hosted TS auth/quota/media behavior remains unverified; no TS operator CLI exists; hosted queue persistence/cancellation semantics remain local-only; request generation quota was previously exhausted/unclear for additional create-request calls.
+- Peer changes/impact: A2 latest `8542b19 G3: add A2 regression replay evidence` touched A2 docs/fixtures/scripts plus `services/judge` and `tests/a2`; A3 latest `5872ef3 Add A3 product console media evidence` touched dashboard/report/A3 docs/screenshots/fixtures/tests. No A1-owned conflict; do not stage or alter A2/A3/judge/dashboard changes.
+
+Three proposed enhancements:
+
+1. TypeScript probe CLI wrapper around dry-run `AshrApiClient`: demo value 5, risk reduction 5, contract impact 1, estimated effort 3, API evidence value 5. Selected because it converts existing TS library parity into an operator/fresh-setup surface without real API calls by default.
+2. Persistent queue batch controls for multiple queued runs: demo value 4, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 2.
+3. Public-safe A2/A3 calibration bridge from selected hosted evidence: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 4.
+
+Round-start subagents:
+
+- Bus-Auditor, Explorer-SDK/API, Explorer-Chrome, and Worker-TS were spawned. Runtime/Reviewer could not be spawned initially because the agent thread limit was reached; main thread will retry after an agent finishes.
+- Bus-Auditor initial verdict: BLOCK until the TS probe CLI draft stopped printing full real records to stdout, defaulted to ignored private evidence output, and wrote redacted error records for failures.
+- Explorer-SDK/API: confirmed the exact TS CLI surface should mirror Python `services.runner.api_probe` operations and flags, with `health-check -> keep_alive`, dry-run `poll-run -> poll_run`, real polling through `get_run`, and create-request summary-shaped params.
+- Explorer-Chrome: verified public TypeScript API/auth docs plus Usage labels. TS API docs showed `AshrLabsClient`, `fromEnv`, run/request APIs, `healthCheck`, accepted input and media generation fields; TS docs did not show `generate_images`, `listAgents`, or `pollRun` in that pass.
+- Worker-TS: created the first `src/probe.ts`, package bin/script, and probe tests. Main thread retained the structure, then tightened stdout/error-record safeguards per Bus-Auditor.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/probe.ts`: added dry-run-first API probe CLI with Python-parity operations, env-only key loading, mutating execution gates, media/non-text/variation guardrails, default ignored private evidence output paths, one-line stdout summaries by default, opt-in `--print-record`, output-file JSON writing, and redacted error-record persistence.
+- `packages/ts/ashr-clone/test/probe.test.mjs`: added CLI tests for dry-run no-network behavior, output-file writing, `--print-record`, read-only operation mapping, create-request preflight shape summaries, create-run dry-run plans, missing-key handling, mutating guardrails, and media guard blocking before transport.
+- `packages/ts/ashr-clone/package.json` and `package-lock.json`: added `ashr-clone-probe` / `ashr-clone-api-probe` bin entries, `npm run probe`, and Node types for CLI compilation.
+- `packages/ts/ashr-clone/README.md`, `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/explorer_sdk.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated.
+
+Verification:
+
+- `npm install --package-lock-only --prefix packages/ts/ashr-clone`: up to date, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 33 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 130 passed.
+- `node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json`: planned dry-run, wrote ignored private evidence, stdout summary only.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: planned dry-run for Image/Audio/Files interface, wrote ignored private evidence, stdout summary only.
+- Final remote recheck before staging: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` from `8542b19` to `1cc07a7 G3: deepen A2 media API calibration` and `origin/codex/a3-p3-ashr-calibration` from `5872ef3` to `02f6ce7 Add A3 tool call diff panel`. Peer changes stayed in A2/A3 docs/fixtures/tests plus `services/judge`, `services/report`, and `apps/dashboard`; no A1-owned conflict observed.
+- Final validation: `npm test --prefix packages/ts/ashr-clone` passed 33 Node tests; `python -B -m pytest tests/a1 -q -p no:cacheprovider` passed 130 tests; `git diff --check` exited 0 with only CRLF warnings.
+- Public-file secret scan: `rg` checks for desktop key paths, local key filenames, GitHub-token prefixes, model-key prefixes, and bearer-token literals in intended TS/A1 docs files found no matches.
+- Real Ashr API calls: none in this implementation round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.
+
+Remaining / next top 3:
+
+1. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
+2. Convert selected private hosted run evidence through the A2/A3 calibration import bridges into public-safe observations after explicit evidence-selection rules.
+3. Add optional TypeScript injected-transport probe fixtures for API-level error/quota header shapes before any hosted TS execution.
