@@ -27,6 +27,7 @@
     "failed_count": { "type": "integer", "minimum": 0 },
     "replay_ready": { "type": "boolean" },
     "maturity_status": { "type": "string" },
+    "maturity_gate": { "type": "object" },
     "cases": {
       "type": "array",
       "items": { "$ref": "#/$defs/replay_case" }

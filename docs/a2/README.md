@@ -250,7 +250,9 @@ A2 now generates:
 
 The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies `wrong_arguments` and the offline LLM reference identifies `ignored_tool_result`. This remains open until reviewed Ashr grading or audited live LLM evidence resolves the judge boundary.
 
-The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, so C5 is stronger but still partial until more reviewed disagreement cases are promoted.
+The case book now exposes a `candidate_pool` and `maturity_gate` so reviewers can see why C5 is still partial: the current calibration batch has 6 local-vs-LLM comparable cases, 1 mismatch promoted into the case book, and 6 missing Ashr grading observations. The maturity target is 3 reviewed disagreement regressions.
+
+The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, while `maturity_gate.ready: false` explains that 2 more reviewed replay cases are needed before C5 can be called mature.
 
 ## Commercial Readiness Gate
 

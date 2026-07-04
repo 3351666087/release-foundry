@@ -578,3 +578,24 @@ Next top 3:
 1. Use the readiness report when collecting reviewed Ashr grading evidence.
 2. Import audited semantic judge summaries when available.
 3. Keep A3 optional feeds additive so missing readiness artifacts never break core grade reports.
+
+## 2026-07-04 - C5 maturity gate audit
+
+Reason:
+- C5 replay was executable, but reviewers could only see `maturity_status: seed` without a structured explanation.
+- A2 should avoid pretending C5 is mature while still making the remaining path explicit and machine-readable.
+
+Implemented:
+- Added `candidate_pool` and `maturity_gate` to `fixtures/a2/results/a2_case_book.json`.
+- Added `maturity_gate` to `fixtures/a2/results/a2_regression_replay_report.json`.
+- Kept both additions optional under the existing `a2.case_book.v1` and `a2.regression_replay.v1` schemas.
+- Updated A2 tests and reviewer-facing docs to show the current 1/3 maturity state.
+
+Boundary:
+- This does not promote synthetic or unreviewed cases.
+- C5 remains partial until at least 2 more reviewed disagreement regressions are added and replay cleanly.
+
+Next top 3:
+1. Collect reviewed Ashr grading for the six calibration cases.
+2. Replace offline LLM references with audited semantic judge summaries.
+3. Promote new reviewed disagreements into the case book until the maturity gate reaches 3 clean replay cases.

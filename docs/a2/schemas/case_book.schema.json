@@ -17,6 +17,8 @@
     "source_matrix": { "type": "string" },
     "dataset_id": { "type": "string" },
     "regression_case_count": { "type": "integer", "minimum": 0 },
+    "candidate_pool": { "type": "object" },
+    "maturity_gate": { "type": "object" },
     "regression_cases": {
       "type": "array",
       "items": { "$ref": "#/$defs/regression_case" }

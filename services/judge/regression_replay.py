@@ -9,6 +9,9 @@ from typing import Any
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
 
 
+MATURE_REPLAY_CASE_TARGET = 3
+
+
 def build_regression_replay_report(
     calibration_matrix: dict[str, Any],
     case_book_report: dict[str, Any],
@@ -22,6 +25,7 @@ def build_regression_replay_report(
         for regression in case_book_report.get("regression_cases", [])
     ]
     failed_cases = [case for case in cases if case.get("replay_status") != "passed"]
+    maturity_gate = _maturity_gate(cases, failed_cases)
     return {
         "schema_version": "a2.regression_replay.v1",
         "replay_id": "a2_case_book_regression_replay",
@@ -32,7 +36,8 @@ def build_regression_replay_report(
         "passed_count": len(cases) - len(failed_cases),
         "failed_count": len(failed_cases),
         "replay_ready": bool(cases) and not failed_cases,
-        "maturity_status": "mature" if len(cases) >= 3 and not failed_cases else "seed",
+        "maturity_status": maturity_gate["status"],
+        "maturity_gate": maturity_gate,
         "cases": cases,
         "metadata": {
             "deterministic": True,
@@ -43,6 +48,30 @@ def build_regression_replay_report(
             ],
         },
     }
+
+
+def _maturity_gate(cases: list[dict[str, Any]], failed_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    current_count = len(cases)
+    ready = current_count >= MATURE_REPLAY_CASE_TARGET and not failed_cases
+    return {
+        "status": "mature" if ready else "seed",
+        "ready": ready,
+        "target_replay_case_count": MATURE_REPLAY_CASE_TARGET,
+        "current_replay_case_count": current_count,
+        "failed_replay_case_count": len(failed_cases),
+        "gaps": _maturity_gaps(current_count, failed_cases),
+    }
+
+
+def _maturity_gaps(current_count: int, failed_cases: list[dict[str, Any]]) -> list[str]:
+    gaps = []
+    if current_count < MATURE_REPLAY_CASE_TARGET:
+        remaining = MATURE_REPLAY_CASE_TARGET - current_count
+        gaps.append(f"Replay {remaining} more reviewed case-book regression(s) before marking C5 mature.")
+    if failed_cases:
+        failed_ids = ", ".join(str(case.get("case_id", "")) for case in failed_cases if case.get("case_id"))
+        gaps.append(f"Fix failed replay case(s): {failed_ids or 'unknown'}.")
+    return gaps
 
 
 def _replay_case(
