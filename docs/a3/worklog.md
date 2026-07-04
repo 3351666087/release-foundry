@@ -100,3 +100,48 @@ Browser checks:
 1. Add judge-mode filter after A2 has more varied sample judge modes.
 2. Create a transform script after A1/A2 PRs merge so A3 can replace mock fixtures with real outputs.
 3. Replace the static HTML shell with the team's final frontend stack if the repo standardizes on one.
+
+## 2026-07-04 - P3 Ashr calibration
+
+### Goal
+
+Start P3/G3 real Ashr calibration after A1, A2, and A3 merged into main. Keep the work small and safe: verify key hygiene, inspect real Ashr field shapes, save redacted evidence, and add only a narrow mapper for A3.
+
+### Implemented
+
+- Added `docs/a3/p3_ashr_calibration_plan.md`.
+- Added `docs/a3/p3_field_mapping.md`.
+- Added `docs/a3/p3_worklog.md`.
+- Saved redacted Ashr smoke fixtures under `fixtures/a3/p3`.
+- Added `services/report/p3_ashr_mapper.mjs`.
+- Added `tests/a3/p3_ashr_mapper.test.mjs`.
+- Updated `docs/a3/acceptance_checklist.md`.
+
+### Smoke test summary
+
+- `.env.local` exists and is ignored by Git.
+- The key was read only through environment variables and was not printed.
+- `init()`, `health_check()`, `list_datasets()`, `list_runs()`, and `list_requests()` succeeded.
+- `list_agents()` succeeded but returned an empty list.
+- `list_observability_traces()` failed because this account has `features.observability == false`.
+
+### Verification
+
+```text
+node --test tests/a3/report_builder.test.mjs
+node --test tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+tests 8
+pass 8
+fail 0
+```
+
+### Next top 3
+
+1. Verify native backend failure-class fields with a real failing Ashr run.
+2. Decide whether A3 should display `semantic_similarity` as the score or wait for a stronger server grade field.
+3. Join `list_runs()` with `list_datasets()` so A3 cases can use real scenario titles.
