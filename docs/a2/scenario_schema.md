@@ -45,10 +45,14 @@ Each scenario evaluates the behavior required for that specific task. A tool cal
   "rubric": {
     "classes": ["task_completion", "skill_protocol", "argument_fidelity", "safety_permissions", "final_response_quality"]
   },
+  "primaryRubric": "final_response_quality",
+  "primaryFailureClass": "unnecessary_tool_call",
   "failureSignals": ["unnecessary_tool_call", "output_schema_invalid"],
   "fixtureRefs": []
 }
 ```
+
+`primaryRubric` and `primaryFailureClass` are coverage-audit metadata. They help prove the 60-scenario G3 pack covers all assignment targets; they are not used as hidden answers by the runtime judges.
 
 ## Judge Output
 

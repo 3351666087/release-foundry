@@ -14,11 +14,17 @@ This module provides the local G1-G2 foundation for:
 ## Current Deliverables
 
 - 20 G2 seed scenarios: `packages/scenarios/a2_g2_seed_pack.json`
+- 60 G3 full scenarios: `packages/scenarios/a2_g3_full_pack.json`
 - 20 golden case seeds: `fixtures/golden/a2_g2_golden_cases.json`
 - 12 failure classes: `docs/a2/failure_taxonomy_v0.md`
 - Tool policy judge: `services/judge/tool_policy.py`
 - Output contract judge: `services/judge/outcome.py`
+- Replay/trace recovery judge: `services/judge/trace_integrity.py`
+- Grounding judge: `services/judge/grounding.py`
+- Safety boundary judge: `services/judge/safety_boundary.py`
 - Local runner: `services/judge/runner.py`
+- Coverage report helper: `services/judge/coverage.py`
+- A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 
 ## Local Run Shapes
 
@@ -58,7 +64,7 @@ The result contains:
 - overall `passed`,
 - average `score`,
 - `primary_failure_class`,
-- per-judge `GradeResult` entries,
+- 5 per-judge `GradeResult` entries,
 - nested `FailureAnalysis` objects for A3 display.
 
 ## G1-G2 Boundary

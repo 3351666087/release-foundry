@@ -83,3 +83,16 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   assert.equal(json.schema_version, "a3.export_report.v1");
   assert.equal(json.failure_clusters.length, 2);
 });
+
+test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const cases = normalizeCases(runs, grades);
+  const clusters = clusterFailures(runs, grades);
+  const judgeModes = new Set(cases.flatMap((item) => item.judge_modes || []));
+
+  assert.ok(cases.length >= 3);
+  assert.ok(clusters.some((cluster) => cluster.failureClass === "wrong_arguments"));
+  assert.equal(judgeModes.size, 5);
+  assert.ok(judgeModes.has("g3_semantic_reference_judge"));
+});

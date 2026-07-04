@@ -22,3 +22,12 @@ This taxonomy is intentionally stable and deterministic for G1-G2. Each judge ca
 - `minor`: issue is visible but result is mostly usable.
 - `major`: task success is materially affected.
 - `critical`: unsafe, destructive, unauthorized, or high-risk behavior.
+
+## Non-Canonical Signals
+
+Some deterministic checks emit local sub-signals for debugging. A3 clustering should prefer the 12 canonical classes above as `primary_failure_class`.
+
+| Local signal | Canonical class |
+|---|---|
+| `bad_final_response` | `wrong_intent` or `ignored_tool_result`, depending on whether the answer solved the wrong task or ignored evidence |
+| `output_schema_invalid` | `wrong_intent` when the requested output shape is part of the task |

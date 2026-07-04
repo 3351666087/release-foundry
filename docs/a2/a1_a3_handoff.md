@@ -114,6 +114,18 @@ Sample outputs:
 
 - `fixtures/a2/results/a2_s001_pass_grade.json`
 - `fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- `fixtures/a2/results/a2_s010_wrong_arguments_grade.json`
+
+For dashboard/report consumption, A2 also provides an aggregate wrapper:
+
+- `fixtures/a2/results/a2_g3_grade_results.json`
+
+The aggregate wrapper uses:
+
+- `schema_version`: `a2.grade_results.v1`
+- `grade_results[]`: list of normal `grade_run` outputs
+- `total_cases`, `passed`, `failed`
+- `scenario_pack`, `dataset_id`, `report_id`
 
 ## Known Boundary
 

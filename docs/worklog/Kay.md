@@ -193,3 +193,36 @@ Boundary:
 Verification:
 - `python -m unittest discover -s tests/a2 -v`
 - Result: 18 tests passed.
+
+## 2026-07-04 - G3 A2 minimum coverage pass
+
+Goal:
+- Move A2 from the 20-scenario G2 seed into the G3 minimum assignment target.
+- Keep the work local and deterministic before using real Ashr API credentials.
+
+Implemented:
+- Added `packages/scenarios/a2_g3_full_pack.json` with 60 scenarios:
+  - 10 `direct_answer`
+  - 10 `retrieval_grounding`
+  - 10 `tool_execution`
+  - 10 `workflow_planning`
+  - 10 `safety_policy`
+  - 10 `ambiguous_or_conflicting`
+- Expanded runner output to 5 judge modes:
+  - `g1_trace_contract_judge`
+  - `g2_output_contract_judge`
+  - `g3_replay_sandbox_judge`
+  - `g3_semantic_reference_judge`
+  - `g3_safety_boundary_judge`
+- Added deterministic judges for replay/trace recovery, grounding facts, and safety boundaries.
+- Added A2-S010 wrong-arguments run/result fixtures so A3 failure clustering no longer depends only on synthetic A3 data.
+- Added `fixtures/a2/results/a2_g3_grade_results.json` aggregate grade report for A3.
+- Added `services/judge/coverage.py` for assignment coverage reporting.
+
+SubAgent review impact:
+- A3 review identified the need for an aggregate `grade_results[]` wrapper.
+- Judge review identified mode naming, grounding fact placement, and fixture/test drift.
+
+Verification:
+- `python -m unittest discover -s tests/a2 -v`
+- `node --test tests/a3/report_builder.test.mjs`

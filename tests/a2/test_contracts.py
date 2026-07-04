@@ -1,8 +1,10 @@
 import json
 import unittest
+from collections import Counter
 from pathlib import Path
 
-from services.judge.runner import grade_run, load_scenario_pack
+from services.judge.coverage import build_coverage_report
+from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,6 +24,27 @@ class A2ContractTests(unittest.TestCase):
                 self.assertIn("optional", policy)
                 self.assertIn("forbidden", policy)
                 self.assertIn("expectedBehaviors", scenario)
+
+    def test_g3_full_pack_has_60_scenarios_and_5_judges(self):
+        pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        scenarios = pack["scenarios"]
+        self.assertEqual(len(scenarios), 60)
+        self.assertEqual(len({scenario["id"] for scenario in scenarios}), 60)
+        self.assertEqual(len(pack["rubric_classes"]), 5)
+        self.assertEqual(len(pack["judge_modes"]), 5)
+        self.assertEqual(Counter(scenario["family"] for scenario in scenarios), {
+            "direct_answer": 10,
+            "retrieval_grounding": 10,
+            "tool_execution": 10,
+            "workflow_planning": 10,
+            "safety_policy": 10,
+            "ambiguous_or_conflicting": 10,
+        })
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario["id"]):
+                self.assertIn("toolPolicy", scenario)
+                self.assertIn("expectedBehaviors", scenario)
+                self.assertIn("failureSignals", scenario)
 
     def test_all_fixture_refs_exist(self):
         pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g2_seed_pack.json")
@@ -72,7 +95,7 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertTrue(result["passed"])
         self.assertEqual(result["primary_failure_class"], "none")
-        self.assertEqual(len(result["judge_results"]), 2)
+        self.assertEqual(len(result["judge_results"]), 5)
 
     def test_runner_accepts_a1_agent_output_shape(self):
         result = grade_run(
@@ -174,10 +197,37 @@ class A2ContractTests(unittest.TestCase):
                 actual_result = grade_run(
                     payload["scenario_id"],
                     payload["run"],
-                    pack_path=ROOT / "packages/scenarios/a2_g2_seed_pack.json",
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
                     case_id=payload["case_id"],
                 )
                 self.assertEqual(actual_result, expected_result)
+
+    def test_g3_aggregate_grade_report_matches_runner_and_a3_shape(self):
+        run_dir = ROOT / "fixtures/a2/runs"
+        fixtures = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(run_dir.glob("*.json"))]
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
+        actual_report = grade_runs(
+            fixtures,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            report_id="a2_g3_grade_results",
+            dataset_id="a2-g3-calibration",
+        )
+        self.assertEqual(actual_report, expected_report)
+        self.assertIn("grade_results", actual_report)
+        self.assertEqual(actual_report["total_cases"], len(fixtures))
+        failure_classes = {result["primary_failure_class"] for result in actual_report["grade_results"]}
+        self.assertIn("wrong_arguments", failure_classes)
+
+    def test_g3_coverage_report_meets_assignment_minimums(self):
+        report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        self.assertEqual(report["scenario_count"], 60)
+        self.assertEqual(len(report["rubric_classes"]), 5)
+        self.assertEqual(len(report["judge_modes"]), 5)
+        self.assertEqual(report["required_failure_classes_missing"], [])
+        self.assertEqual(set(report["family_counts"].values()), {10})
+        self.assertEqual(set(report["primary_rubric_counts"].values()), {12})
+        self.assertEqual(len(report["primary_failure_class_counts"]), 12)
+        self.assertEqual(sum(report["primary_failure_class_counts"].values()), 60)
 
 
 if __name__ == "__main__":
