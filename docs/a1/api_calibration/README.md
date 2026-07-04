@@ -41,6 +41,8 @@ Private evidence files:
 - `docs/evidence/private_refs/a1_api_list_requests_real.json`
 - `docs/evidence/private_refs/a1_api_get_dataset_first_real.json`
 - `docs/evidence/private_refs/a1_api_get_dataset_0_error_real.json`
+- `docs/evidence/private_refs/a1_real_dataset_cases.json`
+- `docs/evidence/private_refs/a1_real_dataset_run_mock.json`
 - `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png`
 
 Observed non-sensitive field keys:
@@ -56,6 +58,24 @@ Observed non-sensitive field keys:
 - `list_requests` response keys: `_user`, `next_cursor`, `requests`, `status`.
 - Request item keys: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
 
+## Dataset Source Adapter
+
+Implemented in `packages/sdk/ashr_clone/dataset_adapter.py` and `services/runner/dataset_adapter.py`.
+
+- `dataset_source.runs` accepts either a map or list.
+- `cases_from_dataset_source(...)` emits one A1 local runner case per agent-side source action.
+- `case_from_source_run(...)` selects a single agent action by absolute `action_index` or agent action ordinal.
+- `replay_fixture_from_source_run(...)` builds strict A3 replay fixtures through `TraceRecorder` and `build_run_fixture(...)`; VM frames are not hand-written.
+- Case metadata is summary-only and does not include raw actions or raw source run ids. Missing machine-checkable expected output is marked with `requires_external_judge: true`.
+- Converted cases are content-bearing because `prompt`, `expected`, `title`, and identifiers are derived from source actions. Real conversions must stay in ignored private evidence or be redacted before committing.
+- Local runner grading now compares tool-call arguments when the expected tool call explicitly includes `arguments`, `args`, `input`, or `arguments_json`; name-only expectations remain name-only for backward compatibility.
+
+Private real-shape smoke test:
+
+- `a1_api_get_dataset_first_real.json` converted to 3 local runner cases.
+- The first real source run produced a replay fixture with 11 trace events and 11 VM stream frames; `validate_run_fixture(...)` passed.
+- The converted cases ran through the local mock agent with `0 errors`, `0 timeouts`, and trace completeness `100%`; content mismatches failed as expected for the mock agent.
+
 ## Error And Retry Findings
 
 - API-level errors can arrive with HTTP 200 and body `status: error`.
@@ -67,13 +87,14 @@ Observed non-sensitive field keys:
 ## Current Verification
 
 - `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 14 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 53 passed.
+- `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 62 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 
 ## Next Candidates
 
-1. Add a minimal second adapter that maps a real `dataset_source.runs` scenario into the existing A1 local runner cases.
-2. Run one mutating `create-run` against an existing dataset after a reviewed dry-run plan and `--allow-mutate`.
-3. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after quota/plan wording is confirmed in the dashboard.
+1. Run one mutating `create-run` against an existing dataset after a reviewed dry-run plan and `--allow-mutate`.
+2. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after quota/plan wording is confirmed in the dashboard.
+3. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.

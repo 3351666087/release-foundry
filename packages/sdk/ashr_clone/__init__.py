@@ -15,6 +15,18 @@ from .api_client import (
     redact_text,
 )
 from .adapter import AGENT_TURN_SCHEMA_VERSION, AgentAdapter, AgentAdapterError, AgentResult, AgentTurn, to_a2_judge_run
+from .dataset_adapter import (
+    DATASET_ADAPTER_VERSION,
+    DATASET_SOURCE_ADAPTER_VERSION,
+    api_record_to_cases,
+    case_from_source_run,
+    cases_from_dataset_source,
+    dataset_source_to_cases,
+    extract_dataset_source,
+    load_cases_from_api_record,
+    replay_fixture_from_source_run,
+    write_cases,
+)
 from .trace import (
     TraceEvent,
     TraceRecorder,
@@ -48,6 +60,16 @@ __all__ = [
     "AgentTurn",
     "AGENT_TURN_SCHEMA_VERSION",
     "to_a2_judge_run",
+    "DATASET_ADAPTER_VERSION",
+    "DATASET_SOURCE_ADAPTER_VERSION",
+    "api_record_to_cases",
+    "case_from_source_run",
+    "cases_from_dataset_source",
+    "dataset_source_to_cases",
+    "extract_dataset_source",
+    "load_cases_from_api_record",
+    "replay_fixture_from_source_run",
+    "write_cases",
     "CaseResult",
     "GradeResult",
     "Observation",

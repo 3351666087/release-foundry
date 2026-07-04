@@ -1,6 +1,6 @@
 # A1 Local SDK/Runner
 
-Local SDK/Runner/Adapter/Trace loop. The G2 baseline wraps external agents, runs 30-80 case batches, records observations and VM stream metadata, and emits JSON fixtures for A2/A3. Subscription-era A1 calibration now adds a quota-safe Ashr API probe wrapper without committing keys or private responses.
+Local SDK/Runner/Adapter/Trace loop. The G2 baseline wraps external agents, runs 30-80 case batches, records observations and VM stream metadata, and emits JSON fixtures for A2/A3. Subscription-era A1 calibration now adds a quota-safe Ashr API probe wrapper and a real `dataset_source.runs` adapter without committing keys or private responses.
 
 Fresh setup:
 
@@ -12,7 +12,7 @@ python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.j
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `51 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, and real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, and negative `get-dataset` recorded under private evidence.
+Current follow-up verification: `62 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, and negative `get-dataset` recorded under private evidence, plus a private real dataset source smoke test that converted 3 cases and preserved runner trace completeness at 100%.
 
 Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.
 
@@ -35,3 +35,12 @@ python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Ca
 ```
 
 Non-sensitive API calibration notes live in `docs/a1/api_calibration/`. Raw records and screenshots stay in ignored `docs/evidence/private_refs/`.
+
+Dataset source adapter quickstart:
+
+```powershell
+python -B -m services.runner.dataset_adapter --input docs/evidence/private_refs/a1_api_get_dataset_first_real.json --output docs/evidence/private_refs/a1_real_dataset_cases.json --max-cases 10
+python -B -m services.runner.cli --input docs/evidence/private_refs/a1_real_dataset_cases.json --output docs/evidence/private_refs/a1_real_dataset_run_mock.json --agent examples.agents.mock_agent:RespondingMockAgent --dataset-id ashr-real-dataset-private --runner-id a1-real-dataset-adapter --max-workers 4 --timeout 5
+```
+
+Public SDK helpers for this path are `cases_from_dataset_source(...)`, `case_from_source_run(...)`, and `replay_fixture_from_source_run(...)`.

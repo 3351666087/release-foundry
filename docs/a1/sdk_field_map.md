@@ -11,6 +11,8 @@ Source groups:
 
 Top-level local SDK exports now include `TraceEvent`, `build_run_fixture`, `load_run_fixture`, `write_run_fixture`, `validate_run_fixture`, and `trace_events_from_vm_stream` so A3 can import fixture helpers without depending on internal module paths.
 
+Dataset source adapter exports now include `DATASET_SOURCE_ADAPTER_VERSION`, `cases_from_dataset_source`, `case_from_source_run`, and `replay_fixture_from_source_run`. The adapter maps observed `dataset_source.runs` shapes into existing A1 runner cases and strict A3 replay fixtures without changing Gate contracts.
+
 ## 2026-07-04 API Calibration Addendum
 
 Post-subscription A1 probes confirmed these additional real API fields without committing raw responses:
@@ -22,6 +24,8 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Dataset item: `agent_details`, `agent_id`, `created_at`, `creator`, `creator_details`, `dataset_source`, `dataset_type`, `description`, `id`, `name`, `repo_id`, `request_id`, `run_count`, `tenant`.
 - `dataset_source`: `dataset_type`, `runs`, `total_runs`.
 - Source run item: `run_id`, `title`, `description`, `intent`, `intent_tags`, `audio_tags`, `simulation`, `actions`.
+- Source action item: `actor`, `content`, `name`, `action_type`, `output_path`, `expected_response`, `action_tags`.
+- Source expected response: `tool_calls`; observed as either object or list and normalized to local `{name, arguments}` calls.
 - `list_runs`: `_user`, `runs`, `status`.
 - Run item: `created_at`, `dataset`, `dataset_details`, `id`, `result`, `runner`, `runner_details`, `tenant`.
 - `list_requests`: `_user`, `next_cursor`, `requests`, `status`.
