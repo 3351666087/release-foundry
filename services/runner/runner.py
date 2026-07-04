@@ -350,8 +350,51 @@ def _tools_match(expected: Any, actual: list[Mapping[str, Any]]) -> bool:
         return True
     if isinstance(expected, Mapping):
         expected = [expected]
-    names = [str(item.get("name")) for item in actual]
-    return all((item in names if isinstance(item, str) else str(item.get("name")) in names) for item in expected)
+    if not isinstance(expected, list):
+        expected = [expected]
+    used_actual: set[int] = set()
+    for item in expected:
+        expected_name, expected_arguments, compare_arguments = _expected_tool_matcher(item)
+        matched_index = _matching_tool_index(expected_name, expected_arguments, compare_arguments, actual, used_actual)
+        if matched_index is None:
+            return False
+        used_actual.add(matched_index)
+    return True
+
+
+def _expected_tool_matcher(expected: Any) -> tuple[str, Any, bool]:
+    if not isinstance(expected, Mapping):
+        return str(expected), {}, False
+    name = str(expected.get("name") or expected.get("tool") or expected.get("type") or "")
+    compare_arguments = any(key in expected for key in ("arguments", "args", "input", "arguments_json"))
+    return name, _tool_arguments(expected), compare_arguments
+
+
+def _matching_tool_index(expected_name: str, expected_arguments: Any, compare_arguments: bool, actual: list[Mapping[str, Any]], used_actual: set[int]) -> int | None:
+    for index, call in enumerate(actual):
+        if index in used_actual:
+            continue
+        actual_name = str(call.get("name") or call.get("tool") or call.get("type") or "")
+        if actual_name != expected_name:
+            continue
+        if compare_arguments and _jsonable(_tool_arguments(call)) != _jsonable(expected_arguments):
+            continue
+        return index
+    return None
+
+
+def _tool_arguments(call: Mapping[str, Any]) -> Any:
+    arguments = call.get("arguments", call.get("args", call.get("input", {})))
+    if (arguments is None or arguments == {}) and call.get("arguments_json") is not None:
+        arguments = call.get("arguments_json")
+    if isinstance(arguments, str):
+        try:
+            return json.loads(arguments)
+        except json.JSONDecodeError:
+            return {"value": arguments}
+    if arguments is None:
+        return {}
+    return arguments
 
 
 def _observation(run_id: str, case_id: str, turn_index: int, event_type: str, role: str, content: Any, started_at: str, ended_at: str, *, tool_calls: list[Mapping[str, Any]] | None = None, latency_ms: int | None = None, status: str = "ok", error: str | None = None, metadata: Mapping[str, Any] | None = None, vm_stream: Mapping[str, Any] | None = None) -> dict[str, Any]:
