@@ -222,7 +222,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("grade_results", actual_report)
         self.assertEqual(actual_report["total_cases"], len(fixtures))
         failure_classes = {result["primary_failure_class"] for result in actual_report["grade_results"]}
-        self.assertIn("wrong_arguments", failure_classes)
+        self.assertLessEqual(
+            {"wrong_arguments", "unnecessary_tool_call", "hallucinated_tool_result", "wrong_tool"},
+            failure_classes,
+        )
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")

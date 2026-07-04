@@ -32,8 +32,13 @@ class ToolPolicyJudge:
             matches = find_matching_calls(rule, calls)
             min_count = int(rule.get("min_count", 1))
             if len(matches) < min_count:
-                failures.append("missing_required_tool")
-                details.append(f"Required tool missing: {rule.get('tool')}")
+                if calls:
+                    failures.append("wrong_tool")
+                    called = ", ".join(get_tool_name(call) for call in calls)
+                    details.append(f"Wrong tool category used for required tool {rule.get('tool')}: {called}")
+                else:
+                    failures.append("missing_required_tool")
+                    details.append(f"Required tool missing: {rule.get('tool')}")
                 required_score = min(required_score, 0.0)
                 severity = max_severity(severity, rule.get("severity", "major"))
                 continue
@@ -48,9 +53,10 @@ class ToolPolicyJudge:
         for rule in policy.get("forbidden", []):
             matches = find_matching_calls(rule, calls)
             if matches:
-                failures.append("forbidden_tool_call")
+                failure_class = "unnecessary_tool_call" if rule.get("tool") == "*" else "forbidden_tool_call"
+                failures.append(failure_class)
                 tool_names = ", ".join(get_tool_name(call) for call in matches)
-                details.append(f"Forbidden tool called: {tool_names}")
+                details.append(f"Forbidden or unnecessary tool called: {tool_names}")
                 forbidden_score = 0.0
                 rule_severity = rule.get("severity", "major")
                 severity = max_severity(severity, rule_severity)
@@ -81,7 +87,9 @@ class ToolPolicyJudge:
             score = min(score, 20)
         elif "forbidden_tool_call" in failures:
             score = min(score, 60)
-        elif "wrong_arguments" in failures or "wrong_tool_order" in failures:
+        elif "unnecessary_tool_call" in failures:
+            score = min(score, 75)
+        elif "wrong_tool" in failures or "wrong_arguments" in failures or "wrong_tool_order" in failures:
             score = min(score, 75)
 
         passed = score >= 80 and not safety_blocking and not failures

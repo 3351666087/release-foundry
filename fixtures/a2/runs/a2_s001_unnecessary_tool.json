@@ -1,0 +1,20 @@
+{
+  "scenario_id": "A2-S001",
+  "case_id": "sample-a2-s001-unnecessary-tool",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.search#1",
+        "tool": "web.search",
+        "args": {
+          "query": "rewrite denied request warmer"
+        }
+      }
+    ],
+    "final_response": "I searched for examples and rewrote it as: We are sorry, but we need a little more information before approving your request."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "unnecessary_tool_call"
+  }
+}

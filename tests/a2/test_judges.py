@@ -32,6 +32,36 @@ class ToolPolicyJudgeTests(unittest.TestCase):
         self.assertEqual(result.failure_analysis.primary_failure_class, "missing_required_tool")
         assert_canonical_primary(self, result)
 
+    def test_wrong_tool_fails_when_required_tool_is_replaced(self):
+        scenario = {
+            "id": "S",
+            "toolPolicy": {
+                "required": [{"tool": "web.search", "min_count": 1, "severity": "major"}],
+                "optional": [],
+                "forbidden": [],
+                "order": [],
+            },
+        }
+        result = self.judge.grade(scenario, {"tool_calls": [{"tool": "weather.lookup"}]})
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_tool")
+        assert_canonical_primary(self, result)
+
+    def test_wildcard_forbidden_tool_is_unnecessary_tool_call(self):
+        scenario = {
+            "id": "S",
+            "toolPolicy": {
+                "required": [],
+                "optional": [],
+                "forbidden": [{"tool": "*", "severity": "major"}],
+                "order": [],
+            },
+        }
+        result = self.judge.grade(scenario, {"tool_calls": [{"tool": "web.search"}]})
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "unnecessary_tool_call")
+        assert_canonical_primary(self, result)
+
     def test_forbidden_tool_fails(self):
         scenario = {
             "id": "S",
