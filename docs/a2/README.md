@@ -25,11 +25,13 @@ This module provides the local G1-G2 foundation for:
 - Local runner: `services/judge/runner.py`
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
+- Case book helper: `services/judge/casebook.py`
 - Commercial readiness helper: `services/judge/readiness.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
+- Case book regression seed: `fixtures/a2/results/a2_case_book.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
@@ -130,6 +132,18 @@ python scripts/a2_merge_calibration_observations.py \
 Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
 
 The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
+
+## Case Book
+
+C5 requires disagreements to become durable regression evidence, not only comments in a calibration matrix.
+
+A2 now generates:
+
+- machine-readable case book: `fixtures/a2/results/a2_case_book.json`
+- reviewer-facing case book: `docs/a2/case_book.md`
+- schema: `docs/a2/schemas/case_book.schema.json`
+
+The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies `wrong_arguments` and the offline LLM reference identifies `ignored_tool_result`. This remains open until reviewed Ashr grading or audited live LLM evidence resolves the judge boundary.
 
 ## Commercial Readiness Gate
 

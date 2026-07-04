@@ -1,6 +1,7 @@
 """A2 local deterministic judges."""
 
 from .calibration import build_calibration_matrix, import_ashr_grading_observations, merge_calibration_observations
+from .casebook import build_case_book_report
 from .coverage import build_coverage_report
 from .readiness import build_commercial_readiness_report
 from .grounding import GroundingJudge
@@ -19,6 +20,7 @@ __all__ = [
     "TraceIntegrityJudge",
     "ToolPolicyJudge",
     "build_calibration_matrix",
+    "build_case_book_report",
     "build_commercial_readiness_report",
     "build_coverage_report",
     "import_ashr_grading_observations",

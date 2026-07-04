@@ -11,6 +11,7 @@ COMMERCIAL_GOAL_SOURCE = "Ashr_Commercial_Grade_Goals_CN.pdf"
 def build_commercial_readiness_report(
     coverage_report: dict[str, Any],
     calibration_matrix: dict[str, Any],
+    case_book_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -29,6 +30,7 @@ def build_commercial_readiness_report(
         "judge_disagreement_regression" in case.get("calibration_tags", [])
         for case in calibration_matrix.get("cases", [])
     )
+    case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
 
     gates = [
         _gate(
@@ -100,8 +102,10 @@ def build_commercial_readiness_report(
             "judge disagreements become durable regression fixtures and a reviewer-facing case book",
             False,
             has_regression_candidates,
-            ["calibration_tags.judge_disagreement_regression"],
-            ["Promote local-vs-LLM disagreements into regression fixtures and write the case book."],
+            ["calibration_tags.judge_disagreement_regression", "fixtures/a2/results/a2_case_book.json"],
+            ["Expand the case book into a mature regression suite."]
+            if case_book_count
+            else ["Promote local-vs-LLM disagreements into regression fixtures and write the case book."],
         ),
         _gate(
             "C6",
@@ -149,6 +153,7 @@ def build_commercial_readiness_report(
             "llm_judge_coverage_ratio": llm_ratio,
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
+            "case_book_regression_count": case_book_count,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,

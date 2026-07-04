@@ -122,10 +122,11 @@
       "status": "partial",
       "requirement": "judge disagreements become durable regression fixtures and a reviewer-facing case book",
       "evidence_refs": [
-        "calibration_tags.judge_disagreement_regression"
+        "calibration_tags.judge_disagreement_regression",
+        "fixtures/a2/results/a2_case_book.json"
       ],
       "gaps": [
-        "Promote local-vs-LLM disagreements into regression fixtures and write the case book."
+        "Expand the case book into a mature regression suite."
       ]
     },
     {
@@ -153,7 +154,8 @@
     "ashr_grading_missing": 6,
     "llm_judge_coverage_ratio": 1.0,
     "llm_judge_offline_only": true,
-    "local_vs_llm_mismatch_count": 1
+    "local_vs_llm_mismatch_count": 1,
+    "case_book_regression_count": 1
   },
   "next_top_3": [
     {
