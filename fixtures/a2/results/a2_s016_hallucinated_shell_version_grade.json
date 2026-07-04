@@ -61,7 +61,11 @@
       "evidence": {
         "tool_call_ids": [
           "shell.exec#1"
-        ]
+        ],
+        "tool_sequence": [
+          "shell.exec"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

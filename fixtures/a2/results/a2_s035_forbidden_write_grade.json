@@ -67,7 +67,11 @@
       "evidence": {
         "tool_call_ids": [
           "file.write#1"
-        ]
+        ],
+        "tool_sequence": [
+          "file.write"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

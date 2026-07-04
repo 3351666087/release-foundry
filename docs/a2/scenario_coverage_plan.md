@@ -95,6 +95,8 @@ It also audits executable run fixtures in `fixtures/a2/runs`:
 
 G3 executable calibration now includes seed and non-seed tool/workflow scenarios for shell inspection, image inspection, MCP resource lookup, calculator argument fidelity, and retry/failure recovery. These fixtures make more of the 60-pack auditable through actual runner output rather than metadata alone.
 
+The executable workflow calibration also includes ordered-tool checks for both cross-tool flows (`web.search` before `web.open`) and same-tool argument-aware flows (`file.read` Q1 before `file.read` Q2).
+
 The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
 
 After the G3 calibration pass, both `thin_golden_failure_classes` and `thin_executable_failure_classes` are expected to stay empty, meaning every canonical failure class has at least two golden cases and at least two executable run fixtures.

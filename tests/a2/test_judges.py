@@ -130,6 +130,36 @@ class ToolPolicyJudgeTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_tool_order")
 
+    def test_same_tool_order_can_match_arguments(self):
+        scenario = {
+            "id": "S",
+            "toolPolicy": {
+                "required": [{"tool": "file.read", "min_count": 2}],
+                "optional": [],
+                "forbidden": [],
+                "order": [
+                    {
+                        "before": "file.read",
+                        "before_args": {"contains": {"path": "fixtures/a2/data/sales_q1.csv"}},
+                        "after": "file.read",
+                        "after_args": {"contains": {"path": "fixtures/a2/data/sales_q2.csv"}},
+                    }
+                ],
+            },
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [
+                    {"id": "q2", "tool": "file.read", "args": {"path": "fixtures/a2/data/sales_q2.csv"}},
+                    {"id": "q1", "tool": "file.read", "args": {"path": "fixtures/a2/data/sales_q1.csv"}},
+                ]
+            },
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "wrong_tool_order")
+        self.assertEqual(result.evidence["tool_sequence"], ["file.read", "file.read"])
+
 
 class OutcomeJudgeTests(unittest.TestCase):
     def setUp(self):

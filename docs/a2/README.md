@@ -28,7 +28,7 @@ This module provides the local G1-G2 foundation for:
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
-- 27 executable calibration run fixtures, including G3 tool/workflow cases in `fixtures/a2/runs`
+- 28 executable calibration run fixtures, including G3 tool/workflow cases in `fixtures/a2/runs`
 
 ## Local Run Shapes
 

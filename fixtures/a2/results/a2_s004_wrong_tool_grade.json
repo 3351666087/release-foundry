@@ -67,7 +67,11 @@
       "evidence": {
         "tool_call_ids": [
           "weather.lookup#1"
-        ]
+        ],
+        "tool_sequence": [
+          "weather.lookup"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true

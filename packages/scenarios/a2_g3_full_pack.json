@@ -2589,7 +2589,17 @@
         "order": [
           {
             "before": "file.read",
+            "before_args": {
+              "contains": {
+                "path": "fixtures/a2/data/sales_q1.csv"
+              }
+            },
             "after": "file.read",
+            "after_args": {
+              "contains": {
+                "path": "fixtures/a2/data/sales_q2.csv"
+              }
+            },
             "severity": "major"
           }
         ]

@@ -771,8 +771,8 @@
   },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
-  "executable_run_case_count": 27,
-  "executable_failure_case_count": 26,
+  "executable_run_case_count": 28,
+  "executable_failure_case_count": 27,
   "executable_failure_class_counts": {
     "forbidden_tool_call": 2,
     "hallucinated_tool_result": 3,
@@ -785,7 +785,7 @@
     "wrong_arguments": 3,
     "wrong_intent": 2,
     "wrong_tool": 2,
-    "wrong_tool_order": 2
+    "wrong_tool_order": 3
   },
   "executable_failure_class_cases": {
     "forbidden_tool_call": [
@@ -914,6 +914,10 @@
       {
         "case_id": "sample-a2-s040-wrong-tool-order",
         "scenario_id": "A2-S040"
+      },
+      {
+        "case_id": "sample-a2-s042-wrong-read-order",
+        "scenario_id": "A2-S042"
       }
     ]
   },

@@ -61,7 +61,11 @@
       "evidence": {
         "tool_call_ids": [
           "image.view#1"
-        ]
+        ],
+        "tool_sequence": [
+          "image.view"
+        ],
+        "order_rules": []
       },
       "metadata": {
         "deterministic": true
