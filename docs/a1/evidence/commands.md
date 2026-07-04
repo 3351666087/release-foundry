@@ -339,3 +339,24 @@ Cleanup note:
 - `python -B -m services.api.cli run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_queue_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_demo_run_smoke.json --tenant-id tenant_a1_queue_smoke --project-id project_a1_queue_smoke --dataset-id dataset_a1_queue_smoke --runner-id a1-queue-smoke --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: local-only queued smoke completed with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, status history `queued -> running -> completed`, and quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
 - Bus-Auditor must-fix: queued demo could export incomplete output after wait timeout. Fixed by requiring terminal status before writing fixture/run/summary output, and added helper/CLI timeout regressions that assert no incomplete outputs are written and CLI exits nonzero.
 - Real Ashr API calls: none in this implementation round.
+
+## 2026-07-04 TypeScript API Client Dry-Run Parity
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `085c439` to `6efe390`.
+- `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view --json nameWithOwner,defaultBranchRef,url`; `gh pr list --state all --limit 30 --json ...`: repo root `C:/Users/33516/Documents/Ashr`, remote `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, default branch `main`, PR #7 open/draft/mergeable at `23b4af0`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree was clean at round start; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `packages/ts/ashr-clone/dist/`, and `node_modules/` remained unstaged.
+- Peer impact: latest peer commit `6efe390 G3: add A2 batch planning gate` touched `docs/a2`, `fixtures/a2`, `scripts/a2_regenerate_fixtures.py`, `services/judge`, `tests/a2`, and `docs/worklog/Kay.md`. No A1-owned conflict observed.
+- Chrome main-thread check:
+  - `https://ashr.io/docs/api-reference/` returned `404 Not Found`.
+  - `https://ashr.io/docs/python-sdk/api-reference/` was reachable and exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, `generate_files`, `Trace`, `Span`, and `Generation`.
+  - `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy during this pass; no usage counters were recorded.
+  - Private screenshot paths: `docs/evidence/private_refs/ashr_api_reference_ts_client_round_2026-07-04.png` and `docs/evidence/private_refs/ashr_usage_ts_client_round_2026-07-04.png`.
+- Explorer-Chrome subagent also recorded private evidence under `docs/evidence/private_refs/ashr_a1_chrome_verification_2026-07-04.md` and screenshots for homepage/docs/lab login block.
+- Implemented `packages/ts/ashr-clone/src/api-client.ts`: `AshrApiClient`, `AshrApiError`, `MissingAshrApiKeyError`, env/base-url constants, field-map version, dry-run call plans/records, injected transport execution, session context injection, retry handling, read-only methods, mutating `createRun`/`createRequest` guardrails, media/non-text preflight summaries, and safe failed-request summary shapes.
+- Updated `packages/ts/ashr-clone/src/index.ts` to export the API client layer.
+- Added `packages/ts/ashr-clone/test/api-client.test.mjs`: 11 Node tests for dry-run no-fetch behavior, env construction, injected transport, `keep_alive`, `list_agents`, missing-key guard, media schema dry-runs, mutation guardrails, retry, API error redaction, failed-request summaries, and preflight helpers.
+- Incorporated Worker-Runtime follow-up in `services/api/queue_worker.py` and `tests/a1/test_cloud_api.py`: cancelled queued/running runs now return terminal `cancelled` state from `wait_for_run(...)` without leaking executor `CancelledError`.
+- Bus-Auditor final block: non-dry-run `pollRun` / `pollRequest` could reach injected transport without an API key through the internal `pollUntil(...)` path. Fixed by adding the missing-key guard inside `AshrApiClient.request(...)`; tests now assert `init`, `pollRun`, and `pollRequest` reject with `MissingAshrApiKeyError` and do not call transport when no key is configured.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 24 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 125 passed.
+- Real Ashr API calls: none in this round. No env key, `.secrets`, desktop key file, or private evidence contents were read.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -79,12 +79,24 @@ class CloudQueueWorker:
         future = self._futures.get(str(run_id))
         if future is None:
             raise NotFoundError("queued run future not found")
+        poll = self.service.poll_run(tenant_id, project_id, run_id)
+        if poll["status"] in TERMINAL_RUN_STATUSES:
+            return poll
         try:
             future.result(timeout=timeout_seconds)
         except FutureTimeoutError as exc:
             poll = self.service.poll_run(tenant_id, project_id, run_id)
+            if poll["status"] in TERMINAL_RUN_STATUSES:
+                return poll
             if require_terminal:
                 raise TimeoutError(f"queued run {run_id} did not reach a terminal status before timeout; current status={poll['status']}") from exc
+            return poll
+        except CancelledError as exc:
+            poll = self.service.poll_run(tenant_id, project_id, run_id)
+            if poll["status"] in TERMINAL_RUN_STATUSES:
+                return poll
+            if require_terminal:
+                raise TimeoutError(f"queued run {run_id} future was cancelled before reaching a terminal status; current status={poll['status']}") from exc
             return poll
         poll = self.service.poll_run(tenant_id, project_id, run_id)
         if require_terminal and poll["status"] not in TERMINAL_RUN_STATUSES:

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -215,6 +216,96 @@ def test_cloud_queue_worker_quota_failure_keeps_failed_run_without_observation_w
     assert quota["run.submit"] == 1
     assert quota.get("observation.write") is None
     assert service.list_runs(tenant["tenant_id"], project["project_id"])[0]["run_id"] == "run_queued_quota"
+
+
+def test_cloud_queue_worker_wait_returns_cancelled_running_run_without_future_timeout():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Slow Queue Dataset",
+        cases=[{"id": "slow", "prompt": "hello"}],
+        dataset_id="dataset_cancel_running",
+    )
+
+    with CloudQueueWorker(service, queue_workers=1) as worker:
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                agent="tests.a1.fixtures_sensitive_agent:SlowAgent",
+                runner_id="a1-queue-cancel-running-test",
+                max_workers=1,
+                timeout_seconds=5,
+                run_id="run_cancel_running",
+            )
+        )
+        for _ in range(50):
+            if worker.poll_run(tenant["tenant_id"], project["project_id"], queued["run_id"])["status"] == "running":
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("queued run did not reach running before cancellation")
+
+        cancelled = worker.cancel_run(tenant["tenant_id"], project["project_id"], queued["run_id"], reason="test cancellation")
+        waited = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=0.01, require_terminal=True)
+
+    assert cancelled["status"] == "cancelled"
+    assert waited["status"] == "cancelled"
+    assert [item["status"] for item in waited["run"]["status_history"]] == ["queued", "running", "cancelled"]
+
+
+def test_cloud_queue_worker_wait_returns_cancelled_pending_run_without_cancelled_error():
+    service, tenant, project = _service_with_project()
+    first_dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="First Slow Queue Dataset",
+        cases=[{"id": f"first-{index}", "prompt": "hello"} for index in range(8)],
+        dataset_id="dataset_cancel_pending_first",
+    )
+    second_dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Second Slow Queue Dataset",
+        cases=[{"id": "second", "prompt": "hello"}],
+        dataset_id="dataset_cancel_pending_second",
+    )
+
+    with CloudQueueWorker(service, queue_workers=1) as worker:
+        for index in range(worker.queue_workers):
+            worker.enqueue_agent_run(
+                QueueRunRequest(
+                    tenant_id=tenant["tenant_id"],
+                    project_id=project["project_id"],
+                    dataset_id=first_dataset["dataset_id"],
+                    agent="tests.a1.fixtures_sensitive_agent:SlowAgent",
+                    runner_id="a1-queue-cancel-pending-test",
+                    max_workers=1,
+                    timeout_seconds=5,
+                    run_id=f"run_cancel_pending_blocker_{index}",
+                )
+            )
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=second_dataset["dataset_id"],
+                agent="tests.a1.fixtures_sensitive_agent:SlowAgent",
+                runner_id="a1-queue-cancel-pending-test",
+                max_workers=1,
+                timeout_seconds=5,
+                run_id="run_cancel_pending_second",
+            )
+        )
+
+        cancelled = worker.cancel_run(tenant["tenant_id"], project["project_id"], queued["run_id"], reason="test cancellation")
+        waited = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=0.01, require_terminal=True)
+
+    assert cancelled["status"] == "cancelled"
+    assert waited["status"] == "cancelled"
+    assert [item["status"] for item in waited["run"]["status_history"]] == ["queued", "cancelled"]
 
 
 def test_cloud_api_demo_runs_agent_submits_polls_and_writes_outputs(tmp_path):

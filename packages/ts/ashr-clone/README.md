@@ -1,6 +1,6 @@
 # Ashr Clone TypeScript SDK
 
-Local-only TypeScript parity package for A1. It mirrors the Python `AgentInput`, `CloudApiService`, `QuotaLedger`, run polling, and fixture export shapes without reading API keys or making network calls.
+TypeScript parity package for A1. It mirrors the Python `AgentInput`, `CloudApiService`, `QuotaLedger`, run polling, fixture export, and dry-run-first Ashr API client surfaces.
 
 ```powershell
 npm install --prefix packages/ts/ashr-clone
@@ -37,4 +37,23 @@ console.log(service.pollRun(tenant.tenant_id, project.project_id, run.run_id).st
 console.log(service.exportRunFixture(tenant.tenant_id, project.project_id, run.run_id).metadata);
 ```
 
-This package intentionally does not expose a hosted Ashr API client yet. Real API calibration remains in the Python probe until the dry-run/small-batch discipline is mirrored in TypeScript.
+Dry-run API client quickstart:
+
+```js
+import { AshrApiClient } from "./dist/index.js";
+
+const client = new AshrApiClient();
+const plan = await client.createRequest({
+  requestName: "A1 Media Dry Run",
+  request: {
+    agent: { accepted_inputs: { text: true, image: true, audio: true, file: true } },
+    generation_options: { generate_images: true, generate_audio: true, generate_files: true },
+    test_config: { num_variations: 1 },
+  },
+});
+
+console.log(plan.status); // planned
+console.log(plan.attempts); // 0
+```
+
+`AshrApiClient` defaults to dry-run mode, does not require an API key for plans, and does not call `fetch` or an injected transport unless `dryRun: false` is passed. Real execution must use an explicit key source and should follow the dry-run -> small batch -> batch discipline recorded in A1 evidence.
