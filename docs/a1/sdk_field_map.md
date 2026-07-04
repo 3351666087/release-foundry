@@ -16,7 +16,7 @@ Adapter input envelope exports now include `AgentInput`, `coerce_agent_input`, `
 
 Dataset source adapter exports now include `DATASET_SOURCE_ADAPTER_VERSION`, `cases_from_dataset_source`, `case_from_source_run`, and `replay_fixture_from_source_run`. The adapter maps observed `dataset_source.runs` shapes into existing A1 runner cases and strict A3 replay fixtures without changing Gate contracts.
 
-Local cloud API exports now include `CLOUD_API_SCHEMA_VERSION`, `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, and `QuotaExceededError`. Current local record fields include `tenant_id`, `project_id`, `dataset_id`, `request_id`, `run_id`, `status`, `result_status`, `request_input_schema`, `accepted_inputs`, `observations`, `result`, `limits`, `used`, and `remaining`.
+Local cloud API exports now include `CLOUD_API_SCHEMA_VERSION`, `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, `QuotaExceededError`, and `run_agent_cloud_demo`. Current local record fields include `tenant_id`, `project_id`, `dataset_id`, `request_id`, `run_id`, `status`, `result_status`, `request_input_schema`, `accepted_inputs`, `observations`, `result`, `limits`, `used`, and `remaining`. The local CLI surface is `python -m services.api.cli run-agent`, which emits summary fields `tenant`, `project`, `dataset`, `run`, `poll`, `quota`, `outputs`, and `metadata`.
 
 ## 2026-07-04 API Calibration Addendum
 

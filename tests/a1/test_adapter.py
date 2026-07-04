@@ -220,15 +220,17 @@ class AgentAdapterTests(unittest.TestCase):
         def failing_agent(prompt, resource_url=None):
             bearer = "Bearer " + "abc.def-123"
             token = "tp_" + "secret123"
+            key = "sk-" + "testtesttest"
             email = "owner" + "@example.com"
             query = "token" + "=abc"
-            raise ValueError(f"bad {bearer} {token} {email} https://signed.invalid/file.png?{query}")
+            raise ValueError(f"bad {bearer} {token} {key} {email} https://signed.invalid/file.png?{query}")
 
         result = AgentAdapter(failing_agent).respond("boom", resource_url="https://private.invalid/audio.wav?" + "X-Amz-" + "Signature=abc")
         self.assertFalse(result.ok)
         message = result.error["message"]
         self.assertNotIn("abc.def-123", message)
         self.assertNotIn("tp_" + "secret123", message)
+        self.assertNotIn("sk-" + "testtesttest", message)
         self.assertNotIn("owner" + "@example.com", message)
         self.assertNotIn("token" + "=abc", message)
         self.assertEqual(result.metadata["kwargs"]["resource_url"], "https://private.invalid/audio.wav?[redacted]")

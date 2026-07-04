@@ -30,4 +30,9 @@ Unverified or intentionally out of scope:
 - A logged-in Usage page check showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` without a sign-in blocker; exact private counter values were not recorded in tracked docs.
 - Public pricing/plans still did not clearly define per-category Image/Audio/File generation quota semantics, reset timing, or hosted media failure semantics. Keep those as known gaps and do not infer them from private counters.
 
+2026-07-04 A1 cloud demo update:
+
+- Read-only Chrome recheck confirmed the public API reference exposed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_dataset`, `list_datasets`, `request_input_schema`, `accepted_inputs`, `request_status`, `health_check`, and `list_agents`.
+- Logged-in Usage page loaded asynchronously and then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private counter values were not recorded. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_cloud_demo_2026-07-04.png`.
+
 If any of these become required for A1, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs.

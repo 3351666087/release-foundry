@@ -822,10 +822,10 @@ def test_redact_sensitive_handles_nested_values():
     }
 
 
-def test_redact_text_covers_token_bearer_and_email():
-    text = "token tp_secret123 Bearer abc.def-123 user@example.com"
+def test_redact_text_covers_token_key_bearer_and_email():
+    text = "token tp_secret123 sk-testtesttest Bearer abc.def-123 user@example.com"
 
-    assert redact_text(text) == "token [redacted] [redacted] [redacted]"
+    assert redact_text(text) == "token [redacted] [redacted] [redacted] [redacted]"
 
 
 def test_api_probe_cli_defaults_to_dry_run_without_env(tmp_path):

@@ -9,6 +9,7 @@ from .runtime import (
     QuotaLedger,
     ValidationError,
 )
+from .demo import run_agent_cloud_demo
 
 __all__ = [
     "CLOUD_API_SCHEMA_VERSION",
@@ -20,4 +21,5 @@ __all__ = [
     "QuotaExceededError",
     "QuotaLedger",
     "ValidationError",
+    "run_agent_cloud_demo",
 ]

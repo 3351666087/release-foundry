@@ -35,6 +35,7 @@ _FAILURE_KEY_SUFFIXES = ("_failure", "_error", "_reason", "_message", "_detail",
 _RETRYABLE_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 _SECRET_LIKE_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
 )

@@ -794,3 +794,68 @@ Remaining / next top 3:
 1. Add a small local API/CLI demo path that runs an external agent, submits the `RunResult` into `CloudApiService`, polls it, and writes a fixture.
 2. Start TypeScript SDK quickstart parity against the new cloud runtime and existing Python API client constants.
 3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.
+
+## 2026-07-04 Local Cloud API Demo CLI
+
+Goal: turn the in-memory cloud runtime into a fresh-setup demo path that proves an external agent can be loaded, run through the local runner, submitted to `CloudApiService`, polled, and exported as a fixture without any hosted Ashr API call.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; no A1 branch advancement observed.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`; earlier PRs remain merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `services/api` local runtime skeleton, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing cloud runtime: `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, tenant/project/dataset/request/run state, run submit/poll/export, schema snapshot, and 109 passing A1 tests.
+- Missing before this round: `services/api/cli.py`, `services/api/demo.py`, TypeScript package, package.json, cloud demo fixture command, and end-to-end local API demo docs.
+- Peer changes/impact at round start: latest `origin/dev/g3-a2-calibration` commit was `bee20af`, touching A2 docs/evidence/scripts/tests only. No A1-owned file impact observed.
+
+Three proposed enhancements:
+
+1. Local cloud API demo CLI: demo value 5, risk reduction 4, contract impact 2, estimated effort 3, API evidence value 3. Selected because it proves the cloud runtime is usable from fresh setup.
+2. TypeScript SDK quickstart scaffold: demo value 4, risk reduction 3, contract impact 2, estimated effort 4, API evidence value 2.
+3. Hosted media semantics read-only calibration: demo value 3, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4.
+
+Implemented highest ROI enhancement: local cloud API demo CLI.
+
+Implemented:
+
+- `services/api/demo.py`: added `run_agent_cloud_demo(...)`, which loads cases, creates local tenant/project/dataset records, runs an external agent target through `run_agent_batch`, submits the result into `CloudApiService`, polls the run, writes an A3-consumable fixture, optionally writes run-result JSON, and emits a safe summary.
+- `services/api/cli.py`: added `python -B -m services.api.cli run-agent`, including fixture/summary/run outputs, tenant/project/dataset identifiers, runner config, timeout config, and `--fail-on-case-failure`.
+- `services/api/__init__.py`: exported `run_agent_cloud_demo`.
+- `packages/sdk/ashr_clone/api_client.py`: redaction now covers `sk-...` style key strings in addition to existing token/Bearer/email patterns.
+- `packages/sdk/ashr_clone/adapter.py`: adapter error redaction now covers `sk-...` style key strings too, keeping run-result/fixture output aligned with API-client redaction.
+- `services/api/cli.py`: operational errors now pass through SDK `redact_text(...)` before reaching stderr.
+- `tests/a1/test_adapter.py`, `tests/a1/test_api_client.py`, `tests/a1/test_cloud_api.py`, `tests/a1/test_cloud_api_cli.py`, and `tests/a1/fixtures_sensitive_agent.py`: added helper, CLI success, CLI failure-return, negative timeout, operational error redaction, fixture/run-output leak checks, adapter redaction, and SDK redaction coverage.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- Local smoke command: `python -B -m services.api.cli run-agent --input docs/a1/evidence/local_agent_cases_30.json --agent examples.agents.mock_agent:RespondingMockAgent --fixture-output docs/evidence/private_refs/a1_cloud_demo_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_cloud_demo_summary_smoke.json --run-output docs/evidence/private_refs/a1_cloud_demo_run_smoke.json --tenant-id tenant_a1_smoke --project-id project_a1_smoke --dataset-id dataset_a1_smoke --max-workers 4 --timeout 5 --fail-on-case-failure`.
+- Local smoke result: 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0; quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`. Outputs stayed under ignored private evidence.
+- Chrome official docs check: API reference reachable and shows `create_run`, `get_run`, `list_runs`, `poll_run`, dataset/list/get, request fields, health, and agents surfaces.
+- Chrome Usage check: logged-in page showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counters remain private. Screenshot stored at ignored `docs/evidence/private_refs/ashr_lab_usage_cloud_demo_2026-07-04.png`.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 15 passed.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 62 passed.
+- Bus-Auditor final must-fix: adapter redaction did not yet cover `sk-...`, so sensitive agent errors could still enter fixture/run JSON. Fixed adapter redaction and added fixture/run-output leak assertions.
+- `python -B -m pytest tests/a1/test_adapter.py tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 83 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced to `31ff317`, touching A2 docs/worklog/fixtures/scripts plus `services/judge` and `tests/a2` only. No A1-owned file impact observed.
+- Final GitHub recheck: PR #6 remained open/draft on `codex/a1-local-sdk-runner`; `HEAD..origin/codex/a1-local-sdk-runner` was empty before staging.
+- `git diff --check`: no whitespace errors; Windows line-ending warnings only.
+- Sensitive scan over changed A1/docs files: matches were public env var names, redaction constants, private-evidence path references, and synthetic test strings only. No real key, `.secrets/`, or private raw evidence file was staged.
+- Final Chrome main-thread recheck: API reference still exposed the run/dataset/request/health/agent fields above. Usage page initially loaded asynchronously, then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no `Login`/`Sign in`; exact private counters were not recorded.
+- Final Bus-Auditor: PASS after adapter redaction fix. Required staging note: include the four untracked source/test files with the tracked changes; do not stage `.secrets/`, `.pytest_cache/`, or `docs/evidence/private_refs/`.
+- Real API calls: none in this round.
+
+Remaining / next top 3:
+
+1. Start TypeScript SDK quickstart parity against the Python API client and local cloud runtime.
+2. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.

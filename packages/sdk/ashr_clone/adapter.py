@@ -23,6 +23,7 @@ _SENSITIVE_EXACT_KEYS = {"key"}
 _SIGNED_URL_PATTERN = re.compile(r"https?://[^\s?#]+(?:\?[^\s]*)", re.IGNORECASE)
 _SECRET_LIKE_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
 )
