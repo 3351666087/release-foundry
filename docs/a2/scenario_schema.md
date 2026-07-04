@@ -48,11 +48,14 @@ Each scenario evaluates the behavior required for that specific task. A tool cal
   "primaryRubric": "final_response_quality",
   "primaryFailureClass": "unnecessary_tool_call",
   "failureSignals": ["unnecessary_tool_call", "output_schema_invalid"],
+  "expectedToolOutputFacts": [],
   "fixtureRefs": []
 }
 ```
 
 `primaryRubric` and `primaryFailureClass` are coverage-audit metadata. They help prove the 60-scenario G3 pack covers all assignment targets; they are not used as hidden answers by the runtime judges.
+
+`expectedFacts` and `forbiddenFacts` check the final response against grounded facts. `expectedToolOutputFacts` is optional and checks that a tool output itself contains required support facts, for example `{"tool": "media.classify", "facts": ["billing", "critical", "red"]}`. This lets media/API scenarios distinguish answers grounded in tool output from answers that merely guess the expected final text.
 
 ## Judge Output
 

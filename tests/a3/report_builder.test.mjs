@@ -203,6 +203,7 @@ test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => 
   assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s042-wrong-read-order"));
   assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-pass"));
   assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-wrong-order"));
+  assert.ok(grades.grade_results.some((grade) => grade.case_id === "sample-a2-s031-media-pipeline-unsupported-output"));
   assert.ok(cases.length >= 3);
   assert.ok(clusters.some((cluster) => cluster.failureClass === "wrong_arguments"));
   assert.equal(judgeModes.size, 5);
@@ -257,7 +258,7 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.ordered_tool_pairs["image.view -> media.classify"], 1);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
-  assert.equal(summary.executable_run_case_count, 30);
+  assert.equal(summary.executable_run_case_count, 31);
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
@@ -269,6 +270,9 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   )));
   assert.ok(summary.executable_failure_class_cases.missing_required_tool.some((item) => (
     item.case_id === "sample-a2-s029-missing-required-search"
+  )));
+  assert.ok(summary.executable_failure_class_cases.hallucinated_tool_result.some((item) => (
+    item.case_id === "sample-a2-s031-media-pipeline-unsupported-output"
   )));
   assert.ok(summary.executable_failure_class_cases.wrong_tool_order.some((item) => (
     item.case_id === "sample-a2-s042-wrong-read-order"

@@ -348,8 +348,8 @@ class A2ContractTests(unittest.TestCase):
         }
         self.assertIn("GC-A2-S033-fail-wrong-calculator-arguments", golden_wrong_arguments)
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
-        self.assertGreaterEqual(report["executable_run_case_count"], 30)
-        self.assertGreaterEqual(report["executable_failure_case_count"], 28)
+        self.assertGreaterEqual(report["executable_run_case_count"], 31)
+        self.assertGreaterEqual(report["executable_failure_case_count"], 29)
         self.assertEqual(report["executable_failure_classes_missing"], [])
         self.assertEqual(report["thin_executable_failure_classes"], {})
         for failure_class in CANONICAL_FAILURE_CLASSES:
@@ -364,6 +364,11 @@ class A2ContractTests(unittest.TestCase):
             for case_ref in report["executable_failure_class_cases"]["missing_required_tool"]
         }
         self.assertIn("sample-a2-s029-missing-required-search", executable_missing_tool)
+        executable_hallucinated = {
+            case_ref["case_id"]
+            for case_ref in report["executable_failure_class_cases"]["hallucinated_tool_result"]
+        }
+        self.assertIn("sample-a2-s031-media-pipeline-unsupported-output", executable_hallucinated)
         executable_wrong_order = {
             case_ref["case_id"]
             for case_ref in report["executable_failure_class_cases"]["wrong_tool_order"]

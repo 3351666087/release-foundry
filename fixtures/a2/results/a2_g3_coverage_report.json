@@ -780,11 +780,11 @@
   },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
-  "executable_run_case_count": 30,
-  "executable_failure_case_count": 28,
+  "executable_run_case_count": 31,
+  "executable_failure_case_count": 29,
   "executable_failure_class_counts": {
     "forbidden_tool_call": 2,
-    "hallucinated_tool_result": 3,
+    "hallucinated_tool_result": 4,
     "ignored_tool_result": 2,
     "missing_clarification": 2,
     "missing_required_tool": 2,
@@ -819,6 +819,10 @@
       {
         "case_id": "sample-a2-s018-hallucinated-image-service",
         "scenario_id": "A2-S018"
+      },
+      {
+        "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+        "scenario_id": "A2-S031"
       }
     ],
     "ignored_tool_result": [

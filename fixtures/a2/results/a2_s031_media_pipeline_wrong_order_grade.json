@@ -265,7 +265,9 @@
       },
       "evidence": {
         "expected_fact_count": 3,
-        "forbidden_fact_count": 1
+        "forbidden_fact_count": 1,
+        "expected_tool_output_fact_count": 3,
+        "missing_tool_output_facts": []
       },
       "metadata": {
         "deterministic": true

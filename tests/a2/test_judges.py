@@ -235,6 +235,45 @@ class GroundingJudgeTests(unittest.TestCase):
         result = self.judge.grade({"id": "S"}, {"final_response": "A concise answer."})
         self.assertTrue(result.passed)
 
+    def test_missing_tool_output_fact_fails(self):
+        scenario = {
+            "id": "S",
+            "expectedFacts": ["billing"],
+            "expectedToolOutputFacts": [{"tool": "media.classify", "facts": ["billing"]}],
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [
+                    {
+                        "tool": "media.classify",
+                        "output": {"service": "Payments", "severity": "critical", "alert_color": "red"},
+                    }
+                ],
+                "final_response": "Billing has a critical red alert.",
+            },
+        )
+        self.assertFalse(result.passed)
+        self.assertEqual(result.failure_analysis.primary_failure_class, "hallucinated_tool_result")
+        self.assertEqual(result.evidence["missing_tool_output_facts"], ["media.classify:billing"])
+        assert_canonical_primary(self, result)
+
+    def test_tool_output_fact_support_passes(self):
+        scenario = {
+            "id": "S",
+            "expectedFacts": ["billing"],
+            "expectedToolOutputFacts": [{"tool": "media.classify", "facts": ["billing"]}],
+        }
+        result = self.judge.grade(
+            scenario,
+            {
+                "tool_calls": [{"tool": "media.classify", "output": {"service": "Billing"}}],
+                "final_response": "Billing has a critical red alert.",
+            },
+        )
+        self.assertTrue(result.passed)
+        self.assertEqual(result.evidence["expected_tool_output_fact_count"], 1)
+
 
 class TraceIntegrityJudgeTests(unittest.TestCase):
     def setUp(self):

@@ -1908,6 +1908,16 @@
         "critical",
         "red"
       ],
+      "expectedToolOutputFacts": [
+        {
+          "tool": "media.classify",
+          "facts": [
+            "billing",
+            "critical",
+            "red"
+          ]
+        }
+      ],
       "forbiddenFacts": [
         "payments"
       ],
