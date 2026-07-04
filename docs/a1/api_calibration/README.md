@@ -178,6 +178,8 @@ Private real-shape smoke test:
 - `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 62 passed.
 - `python -B -m pytest tests/a1/test_adapter.py tests/a1/test_api_client.py tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 83 passed.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 13 Node tests passed.
+- `node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json`: wrote a local-only TS cloud fixture for 30 cases under ignored private evidence.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
@@ -188,9 +190,10 @@ Private real-shape smoke test:
 - Local hosted request failure coverage verifies that failed `get-request` / `poll-request` records include safe nested `_failure` field-shape summaries without recording raw failure text in tracked docs.
 - Local read-only SDK parity coverage now includes `health-check` and `list-agents`, matching official SDK `health_check()` / `list_agents()` and A2's real API smoke surface.
 - Local cloud API skeleton coverage now includes in-memory tenant/project/dataset/request/run records, run polling, fixture export, and project-scoped quota blocking before writes. The local cloud demo CLI coverage runs an external agent target, submits the result into `CloudApiService`, polls the stored run, writes a summary, writes an A3-consumable fixture, preserves failure output semantics, and redacts operational error text. Adapter/API redaction now both cover `sk-...` style key strings. This path made no real Ashr API calls.
+- TypeScript quickstart parity now covers local-only `AgentInput`, media request schema construction, `CloudApiService`, `QuotaLedger`, TS agent demo execution, fixture export, no-network checks, and redaction for token-like strings, `sk-...`, bearer values, emails, and signed query values.
 
 ## Next Candidates
 
-1. Start TypeScript SDK quickstart parity against the Python API client and local cloud runtime.
-2. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+1. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+2. Add TypeScript API-client dry-run/transport-injected parity for read-only probes before any hosted TS calls.
 3. Inspect official UI-required media payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed with nested `_failure` shape only.

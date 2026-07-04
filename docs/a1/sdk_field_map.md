@@ -9,6 +9,7 @@ Source groups:
 - PyPI wheel/sdist under `docs/a1/_pypi_artifacts`: retained as evidence only, not imported by runtime code.
 - Local A1 clone: `AgentAdapter`, `AgentInput`, `LocalEvalRunner`, `TraceRecorder`, `MockAgent`, `RunResult`, `Observation`, and `GradeResult` are local-only and do not call hosted Ashr services.
 - Local A1 cloud runtime: `CloudApiService`, `InMemoryCloudStore`, and `QuotaLedger` are local-only scaffolds for tenant/project isolation, dataset import, request records, run submission/polling, fixture export, and quota checks. They do not call hosted Ashr services and are not Gate contract changes.
+- Local TypeScript parity: `packages/ts/ashr-clone` mirrors the local-only `AgentInput`, `AgentTurn`, `RunResult`, default request schema, cloud runtime, quota, redaction, TS agent demo, and fixture export surfaces without hosted API calls or env-key reads.
 
 Top-level local SDK exports now include `AgentInput`, `AGENT_INPUT_SCHEMA_VERSION`, `TraceEvent`, `build_run_fixture`, `load_run_fixture`, `write_run_fixture`, `validate_run_fixture`, and `trace_events_from_vm_stream` so A3 can import fixture helpers without depending on internal module paths.
 
@@ -17,6 +18,8 @@ Adapter input envelope exports now include `AgentInput`, `coerce_agent_input`, `
 Dataset source adapter exports now include `DATASET_SOURCE_ADAPTER_VERSION`, `cases_from_dataset_source`, `case_from_source_run`, and `replay_fixture_from_source_run`. The adapter maps observed `dataset_source.runs` shapes into existing A1 runner cases and strict A3 replay fixtures without changing Gate contracts.
 
 Local cloud API exports now include `CLOUD_API_SCHEMA_VERSION`, `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `CloudApiError`, `ValidationError`, `NotFoundError`, `QuotaExceededError`, and `run_agent_cloud_demo`. Current local record fields include `tenant_id`, `project_id`, `dataset_id`, `request_id`, `run_id`, `status`, `result_status`, `request_input_schema`, `accepted_inputs`, `observations`, `result`, `limits`, `used`, and `remaining`. The local CLI surface is `python -m services.api.cli run-agent`, which emits summary fields `tenant`, `project`, `dataset`, `run`, `poll`, `quota`, `outputs`, and `metadata`.
+
+TypeScript package exports now include `AGENT_INPUT_SCHEMA_VERSION`, `AGENT_TURN_SCHEMA_VERSION`, `RUN_RESULT_SCHEMA_VERSION`, `CLOUD_API_SCHEMA_VERSION`, `AgentInput`, `AgentTurn`, `RunResult`, `CloudApiService`, `InMemoryCloudStore`, `QuotaLedger`, `buildDefaultRequestInputSchema`, `runAgentCloudDemo`, `coerceAgentInput`, `agentInputFromText`, `agentInputFromParts`, `redactText`, and `redactSensitive`.
 
 ## 2026-07-04 API Calibration Addendum
 

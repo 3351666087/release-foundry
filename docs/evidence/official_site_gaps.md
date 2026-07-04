@@ -35,4 +35,9 @@ Unverified or intentionally out of scope:
 - Read-only Chrome recheck confirmed the public API reference exposed `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_dataset`, `list_datasets`, `request_input_schema`, `accepted_inputs`, `request_status`, `health_check`, and `list_agents`.
 - Logged-in Usage page loaded asynchronously and then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private counter values were not recorded. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_cloud_demo_2026-07-04.png`.
 
+2026-07-04 A1 TypeScript quickstart update:
+
+- Read-only Chrome recheck confirmed public TypeScript SDK references/tabs remain visible and the Python API reference still exposes dataset, run, request, and media-envelope fields used for parity.
+- TypeScript runtime parity is now local-only in `packages/ts/ashr-clone`; hosted TypeScript API-client behavior, auth, and billing/usage semantics remain unverified and should stay dry-run/transport-injected until separately calibrated.
+
 If any of these become required for A1, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs.

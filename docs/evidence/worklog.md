@@ -859,3 +859,73 @@ Remaining / next top 3:
 1. Start TypeScript SDK quickstart parity against the Python API client and local cloud runtime.
 2. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
 3. Investigate hosted media payload semantics/read-only failure details before any repeat Image/Audio/Files generation.
+
+## 2026-07-04 TypeScript SDK Quickstart Parity
+
+Goal: add the first local-only TypeScript SDK quickstart surface so external TS agents and tools can use A1 `AgentInput`, cloud runtime, quota ledger, redaction, request schema helpers, and fixture export without hosted Ashr API calls.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success; `origin/dev/g3-a2-calibration` advanced from `31ff317` to `a6ee272`.
+- `gh pr list --state all`: PR #6 remains open/draft on `codex/a1-local-sdk-runner`; earlier PRs remain merged history.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present and unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, `AgentInput`, `services/api` local runtime, cloud demo CLI, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Missing before this round: `packages/ts`, package metadata, TypeScript source, TypeScript tests, and TypeScript quickstart docs.
+- Peer changes/impact: latest A2/G3 commit `a6ee272` added an Ashr grading import bridge under `docs/a2`, `fixtures/a2`, `scripts/a2_import_ashr_grading.py`, `services/judge`, and `tests/a2`. No direct A1-owned file conflict. It creates an optional future path for A1-hosted run evidence into A2 calibration, but no immediate A1 fixture shape change is required.
+
+Three proposed enhancements:
+
+1. TypeScript SDK quickstart parity: demo value 5, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 3. Selected because TypeScript was the largest uncovered long-goal surface.
+2. Queue worker facade for local cloud runtime: demo value 4, risk reduction 4, contract impact 2, estimated effort 4, API evidence value 2.
+3. Hosted media semantics read-only calibration: demo value 3, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4; real media calls stayed blocked this round.
+
+Subagent findings:
+
+- Bus-Auditor: PASS for TypeScript quickstart parity as highest ROI; no real API calls; keep changes in A1-owned dirs; do not touch `services/judge`.
+- Explorer-SDK/API: requested exact constants, `AgentInput`/`AgentTurn`/`RunResult`/cloud record types, `buildDefaultRequestInputSchema`, redaction, no-network tests, and optional TS agent demo. A2 `a6ee272` does not require immediate A1 fixture changes.
+- Explorer-Chrome/Product: public docs still show TypeScript SDK references/tabs plus dataset/run/request/media boundary fields; Usage loaded without sign-in blocker but media counters were unstable in that pass.
+- Worker-TS: began a JS+d.ts variant, then stopped when the main TypeScript-source package appeared. Main agent consolidated on TypeScript source compiled by `tsc`; the worker quickstart/test ideas were retained after redirecting them to `dist`.
+- Reviewer: initial BLOCK for TS parity absent is resolved by this implementation; requested schema constants, redaction, no-network, and tests.
+
+Implemented:
+
+- `packages/ts/ashr-clone/package.json`, `package-lock.json`, `tsconfig.json`, `.gitignore`, and README.
+- `packages/ts/ashr-clone/src/index.ts`: local-only TypeScript exports for `AGENT_INPUT_SCHEMA_VERSION`, `AGENT_TURN_SCHEMA_VERSION`, `RUN_RESULT_SCHEMA_VERSION`, `CLOUD_API_SCHEMA_VERSION`, `AgentInput`, `AgentTurn`, `RunResult`, cloud records, `QuotaLedger`, `InMemoryCloudStore`, `CloudApiService`, `buildDefaultRequestInputSchema`, `runAgentCloudDemo`, `coerceAgentInput`, `agentInputFromText`, `agentInputFromParts`, `redactText`, and `redactSensitive`.
+- `packages/ts/ashr-clone/test/cloud-api.test.mjs` and `test/runtime.test.mjs`: 13 Node tests covering constants, AgentInput/media parts, request schema, redaction, no-network cloud flow, tenant isolation, quota blocking before writes, request media schema preservation, and TS agent demo fixture export.
+- `packages/ts/ashr-clone/examples/quickstart.mjs`: imports an existing A1 run result JSON, submits it into TS `CloudApiService`, and writes a local cloud fixture.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`, `docs/evidence/official_site_gaps.md`, and this worklog were updated.
+
+Verification:
+
+- `node --version`: `v24.14.0`.
+- `npm --version`: `11.9.0`.
+- `tsc --version`: not globally installed; package devDependency supplies TypeScript.
+- `npm install --prefix packages/ts/ashr-clone`: installed TypeScript dev dependency; 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- `git diff --check`: no whitespace errors; Windows line-ending warnings only.
+- Sensitive scan over intended files: matches were public env var names, private-evidence path references, package-lock public npm URL, and synthetic test tokens/emails/URLs only. No real key, secret file contents, or raw private evidence was read or staged.
+- `node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json`: wrote an ignored private 30-case fixture with `local_only=true`, `ashr_api_used=false`, and no hosted API calls.
+- Final Bus-Auditor: PASS. Required staging boundary is six modified docs plus nine new `packages/ts/ashr-clone` files only; do not stage `dist/`, `node_modules/`, `.secrets/`, `.pytest_cache/`, or `docs/evidence/private_refs/`.
+- Real API calls: none in this implementation round.
+
+Remaining / next top 3:
+
+1. Add a queue worker facade around the local cloud runtime so submitted runs can move through queued/running/completed states.
+2. Add TypeScript API-client dry-run/transport-injected parity for read-only probes before any hosted TS calls.
+3. Convert selected private hosted run evidence through the A2 Ashr grading import bridge into public-safe calibration observations.
+
+Publish closure:
+
+- Final staged scope: six A1/docs evidence files plus nine `packages/ts/ashr-clone` source/test/package files. Ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, `dist/`, and `node_modules/` stayed unstaged.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- Staged path guard: no forbidden staged paths.
+- Staged high-risk secret pattern scan: no `sk-...`, GitHub token, or bearer-token patterns found in staged files.

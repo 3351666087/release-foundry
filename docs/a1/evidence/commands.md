@@ -291,3 +291,25 @@ Cleanup note:
 - Final Chrome main-thread recheck: API reference still exposed run/dataset/request/health/agent fields; Usage page loaded asynchronously and then showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` with no `Login`/`Sign in`. Exact private counters were not recorded.
 - Final Bus-Auditor: PASS after adapter redaction fix; required staging note was to include the four untracked source/test files with tracked changes and leave `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` unstaged.
 - Real Ashr API calls: none in this implementation round.
+
+## 2026-07-04 TypeScript SDK Quickstart Parity
+
+- `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `gh pr list --state all`: repo root `C:/Users/33516/Documents/Ashr`, remote `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, PR #6 open/draft. Fetch advanced `origin/dev/g3-a2-calibration` to `a6ee272`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at round start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present.
+- Peer impact: `a6ee272` touched A2 docs/fixtures/importer plus `services/judge` and `tests/a2`; no A1-owned conflict. A1 did not modify `services/judge`.
+- A1 scan: Python SDK/Adapter/Runner/Trace/API probe, `services/api` runtime, cloud demo CLI, and A1 docs/tests present; `packages/ts` absent before this round.
+- Three scored enhancements:
+  - TypeScript SDK quickstart parity: demo 5, risk 4, contract impact 1, effort 3, API evidence 3. Selected as highest ROI.
+  - Queue worker facade: demo 4, risk 4, contract impact 2, effort 4, API evidence 2.
+  - Hosted media semantics read-only calibration: demo 3, risk 4, contract impact 1, effort 3, API evidence 4; real calls blocked this round.
+- Implemented `packages/ts/ashr-clone`: TypeScript source, package metadata, package lock, tests, README, and quickstart example.
+- Consolidated concurrent Worker-TS JS+d.ts draft into the TypeScript-source package and removed the duplicate source JS/d.ts path before staging.
+- `npm install --prefix packages/ts/ashr-clone`: installed TypeScript dev dependency, audited 2 packages, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: `tsc` build plus 13 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 117 passed.
+- `git diff --check`: no whitespace errors; Windows line-ending warnings only.
+- `node packages/ts/ashr-clone/examples/quickstart.mjs docs/a1/evidence/local_run_30.json docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json`: wrote a local-only 30-case TS fixture under ignored private evidence; summary status `ok`, `total_cases=30`, `local_only=true`, `ashr_api_used=false`.
+- Sensitive scan over intended files: matches were public env var names, private-evidence path references, package-lock public npm URL, and synthetic test tokens/emails/URLs only. No real key, secret file contents, or raw private evidence was read or staged.
+- Chrome/Product subagent recheck: public API reference still exposed TypeScript reference/tab and dataset/run/request/media boundary terms. Lab Usage loaded without sign-in blocker, but media counters were still asynchronous/unstable in that pass.
+- Final Bus-Auditor: PASS. Stage only six modified docs and nine new `packages/ts/ashr-clone` package/source/test/example files; leave `dist/`, `node_modules/`, `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` unstaged.
+- Real Ashr API calls: none in this implementation round.
