@@ -532,3 +532,27 @@ Next top 3:
 1. Keep collecting real Ashr grading evidence for the six C3 calibration cases.
 2. Run audited semantic judge calls for both Python and TypeScript SDK chains.
 3. Add more media/audio/file scenarios only if the assignment/product target expands beyond the current 60-pack.
+
+## 2026-07-04 - C3/C4 evidence readiness preflight
+
+Reason:
+- C3/C4 still need reviewed private Ashr grading and audited live semantic judge evidence.
+- Before using any key or account payload, A2 should make the evidence collection contract explicit and testable.
+
+Implemented:
+- Added `services/judge/evidence_readiness.py` to generate `a2.evidence_readiness.v1`.
+- Added generated fixture `fixtures/a2/results/a2_evidence_readiness_report.json`.
+- Added schema snapshot `docs/a2/schemas/evidence_readiness.schema.json`.
+- Integrated evidence readiness into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C3/C4 cite the evidence readiness artifact while staying partial.
+- Added tests for case-map coverage, Ashr/semantic import commands, required semantic fields, SDK-language coverage, and private evidence boundaries.
+- Updated README and scenario coverage docs.
+
+Boundary:
+- This does not call Ashr or a live LLM.
+- It does not mark C3/C4 met; it only proves A2 is ready to collect and review the missing private evidence.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for all six calibration cases.
+2. Replace offline `llm_judge` rows with audited semantic judge summaries.
+3. Promote any new cross-judge disagreements into the case book and replay suite.

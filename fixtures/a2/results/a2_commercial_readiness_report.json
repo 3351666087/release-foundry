@@ -94,7 +94,8 @@
       "requirement": "Ashr grading diff and LLM judge diff are both comparable",
       "evidence_refs": [
         "calibration_matrix.agreement_summary.local_vs_ashr_grading",
-        "calibration_matrix.agreement_summary.local_vs_llm_judge"
+        "calibration_matrix.agreement_summary.local_vs_llm_judge",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
         "Collect reviewed Ashr grading observations for 6 missing calibration cases."
@@ -109,7 +110,8 @@
         "calibration_matrix.cost_ledger",
         "calibration_matrix.cases[].sources.llm_judge.confidence",
         "calibration_matrix.cases[].calibration_tags",
-        "fixtures/a2/results/a2_semantic_harness_report.json"
+        "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
         "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
@@ -159,6 +161,7 @@
     "regression_replay_count": 1,
     "regression_replay_ready": true,
     "regression_replay_maturity": "seed",
+    "evidence_readiness_ready": true,
     "sdk_language_count": 2,
     "sdk_parity_passed": true,
     "planned_batch_count": 5,
@@ -228,7 +231,8 @@
       "fixtures/a2/results/a2_sdk_parity_report.json",
       "fixtures/a2/results/a2_batch_plan_report.json",
       "fixtures/a2/results/a2_semantic_harness_report.json",
-      "fixtures/a2/results/a2_regression_replay_report.json"
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_evidence_readiness_report.json"
     ],
     "notes": [
       "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

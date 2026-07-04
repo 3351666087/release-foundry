@@ -16,6 +16,7 @@ def build_commercial_readiness_report(
     batch_plan_report: dict[str, Any] | None = None,
     semantic_harness_report: dict[str, Any] | None = None,
     regression_replay_report: dict[str, Any] | None = None,
+    evidence_readiness_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -44,6 +45,7 @@ def build_commercial_readiness_report(
     regression_replay_ready = bool((regression_replay_report or {}).get("replay_ready"))
     regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
     regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
+    evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
 
     gates = [
         _gate(
@@ -95,6 +97,7 @@ def build_commercial_readiness_report(
             [
                 "calibration_matrix.agreement_summary.local_vs_ashr_grading",
                 "calibration_matrix.agreement_summary.local_vs_llm_judge",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
             [f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases."]
             if ashr_missing
@@ -111,6 +114,7 @@ def build_commercial_readiness_report(
                 "calibration_matrix.cases[].sources.llm_judge.confidence",
                 "calibration_matrix.cases[].calibration_tags",
                 "fixtures/a2/results/a2_semantic_harness_report.json",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
             _c4_gaps(llm_is_offline_only, semantic_harness_ready, semantic_live_evidence),
         ),
@@ -177,6 +181,7 @@ def build_commercial_readiness_report(
             "regression_replay_count": regression_replay_count,
             "regression_replay_ready": regression_replay_ready,
             "regression_replay_maturity": regression_replay_maturity,
+            "evidence_readiness_ready": evidence_readiness_ready,
             "sdk_language_count": sdk_language_count,
             "sdk_parity_passed": sdk_parity_passed,
             "planned_batch_count": planned_batch_count,
@@ -198,6 +203,7 @@ def build_commercial_readiness_report(
                 "fixtures/a2/results/a2_batch_plan_report.json",
                 "fixtures/a2/results/a2_semantic_harness_report.json",
                 "fixtures/a2/results/a2_regression_replay_report.json",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

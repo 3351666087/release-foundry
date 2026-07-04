@@ -40,6 +40,7 @@ This module provides the local G1-G2 foundation for:
 - Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
 - Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
 - Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
+- External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
@@ -147,6 +148,20 @@ The result contains:
 - nested `FailureAnalysis` objects for A3 display.
 
 Local debug signals such as `bad_final_response` can appear inside `failure_analysis.failure_classes`, but they should not be used as the top-level `primary_failure_class`.
+
+## Evidence Readiness
+
+C3/C4 need private evidence, but A2 should still make the collection workflow auditable before any key or account payload is used.
+
+A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `services/judge/evidence_readiness.py`. It records:
+
+- the six calibration cases that need comparable external observations,
+- whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
+- the reviewed Ashr grading import/merge commands,
+- the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
+- the private evidence boundary: raw prompts, raw responses, account payloads, and API keys stay under `docs/evidence/private_refs/` and are not committed.
+
+This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported.
 
 ## Regenerating Fixtures
 

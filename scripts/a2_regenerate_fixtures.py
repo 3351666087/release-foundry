@@ -15,6 +15,7 @@ from services.judge.batch_plan import build_batch_plan_report  # noqa: E402
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
+from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
@@ -36,6 +37,7 @@ DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
 DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
 DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json"
 DEFAULT_REGRESSION_REPLAY = DEFAULT_RESULT_DIR / "a2_regression_replay_report.json"
+DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 
 
 def main() -> int:
@@ -58,6 +60,7 @@ def main() -> int:
     parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
     parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
     parser.add_argument("--regression-replay", default=DEFAULT_REGRESSION_REPLAY.as_posix())
+    parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -79,6 +82,7 @@ def main() -> int:
         batch_plan_path=Path(args.batch_plan),
         semantic_harness_path=Path(args.semantic_harness),
         regression_replay_path=Path(args.regression_replay),
+        evidence_readiness_path=Path(args.evidence_readiness),
     )
 
     if args.check:
@@ -105,6 +109,7 @@ def generate_outputs(
     batch_plan_path: Path,
     semantic_harness_path: Path,
     regression_replay_path: Path,
+    evidence_readiness_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -157,6 +162,12 @@ def generate_outputs(
         regression_replay_report=regression_replay,
     )
     outputs[batch_plan_path] = batch_plan
+    evidence_readiness = build_evidence_readiness_report(
+        calibration_matrix=calibration_matrix,
+        batch_plan_report=batch_plan,
+        semantic_harness_report=semantic_harness,
+    )
+    outputs[evidence_readiness_path] = evidence_readiness
     outputs[commercial_readiness_path] = build_commercial_readiness_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
@@ -165,6 +176,7 @@ def generate_outputs(
         batch_plan_report=batch_plan,
         semantic_harness_report=semantic_harness,
         regression_replay_report=regression_replay,
+        evidence_readiness_report=evidence_readiness,
     )
     return outputs
 
