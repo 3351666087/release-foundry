@@ -47,10 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--project-id", required=True)
     replay.add_argument("--dataset-id")
     replay.add_argument("--status", action="append", choices=["queued", "running"], dest="statuses")
-    replay.add_argument("--max-runs", type=int, default=1)
+    replay.add_argument("--max-runs", type=int, default=100)
     replay.add_argument("--fixture-output")
+    replay.add_argument("--fixture-output-dir")
     replay.add_argument("--summary-output")
     replay.add_argument("--run-output")
+    replay.add_argument("--run-output-dir")
     replay.add_argument("--state-output")
     replay.add_argument("--queue-workers", type=int, default=DEFAULT_MAX_WORKERS)
     replay.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
@@ -99,7 +101,8 @@ def _add_queue_state_arguments(parser: argparse.ArgumentParser, *, tenant_id: st
     parser.add_argument("--dataset-id", default=dataset_id)
     parser.add_argument("--dataset-name", default="Local Queue State Dataset")
     parser.add_argument("--runner-id", default=runner_id)
-    parser.add_argument("--run-id")
+    parser.add_argument("--run-id", action="append", dest="run_ids", help="Queued run ID. Repeat to create multiple queued runs in order.")
+    parser.add_argument("--run-count", type=int, default=1, help="Number of queued runs to create when --run-id is not supplied.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -166,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
                 dataset_id=args.dataset_id,
                 dataset_name=args.dataset_name,
                 runner_id=args.runner_id,
-                run_id=args.run_id,
+                run_ids=args.run_ids,
+                run_count=args.run_count,
             )
             print(json.dumps(summary, sort_keys=True))
             return 0
@@ -178,8 +182,10 @@ def main(argv: list[str] | None = None) -> int:
                 tenant_id=args.tenant_id,
                 project_id=args.project_id,
                 fixture_output_path=Path(args.fixture_output) if args.fixture_output else None,
+                fixture_output_dir=Path(args.fixture_output_dir) if args.fixture_output_dir else None,
                 summary_output_path=Path(args.summary_output) if args.summary_output else None,
                 run_output_path=Path(args.run_output) if args.run_output else None,
+                run_output_dir=Path(args.run_output_dir) if args.run_output_dir else None,
                 state_output_path=Path(args.state_output) if args.state_output else None,
                 dataset_id=args.dataset_id,
                 statuses=args.statuses or ("queued", "running"),

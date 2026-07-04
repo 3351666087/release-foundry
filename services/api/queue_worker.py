@@ -43,12 +43,7 @@ class CloudQueueWorker:
             dataset_id=request.dataset_id,
             runner_id=request.runner_id,
             run_id=request.run_id,
-            metadata={
-                "source": "services.api.queue_worker",
-                "queue_workers": self.queue_workers,
-                "runner_max_workers": runner_workers,
-                **dict(request.metadata or {}),
-            },
+            metadata=self._execution_metadata(request, runner_workers=runner_workers),
         )
         normalized = QueueRunRequest(
             tenant_id=request.tenant_id,
@@ -89,10 +84,7 @@ class CloudQueueWorker:
         limit = _normalize_replay_limit(max_runs)
         runner_workers = normalize_max_workers(max_workers)
         normalized_timeout = normalize_timeout_seconds(timeout_seconds)
-        candidates = sorted(
-            self.service.list_runs(tenant_id, project_id, dataset_id=dataset_id),
-            key=lambda run: (str(run.get("created_at") or ""), str(run.get("run_id") or "")),
-        )
+        candidates = sorted(self.service.list_runs(tenant_id, project_id, dataset_id=dataset_id), key=_replay_order_key)
         replayed: list[JsonDict] = []
         for run in candidates:
             if len(replayed) >= limit:
@@ -175,6 +167,7 @@ class CloudQueueWorker:
             running = self.service.mark_run_running(request.tenant_id, request.project_id, run_id)
             if running.get("status") == "cancelled":
                 return running
+            self._merge_execution_metadata(request)
             dataset = self.service.get_dataset(request.tenant_id, request.project_id, request.dataset_id)
             result = run_agent_batch(
                 request.agent,
@@ -194,9 +187,41 @@ class CloudQueueWorker:
                 error={"type": type(exc).__name__, "message": redact_text(str(exc))},
             )
 
+    def _execution_metadata(self, request: QueueRunRequest, *, runner_workers: int | None = None) -> JsonDict:
+        return {
+            "source": "services.api.queue_worker",
+            "queue_workers": self.queue_workers,
+            "runner_max_workers": normalize_max_workers(request.max_workers) if runner_workers is None else runner_workers,
+            **dict(request.metadata or {}),
+        }
+
+    def _merge_execution_metadata(self, request: QueueRunRequest) -> None:
+        metadata = self._execution_metadata(request)
+        with self.service._lock:
+            run = self.service._get_run_record(request.tenant_id, request.project_id, str(request.run_id))
+            run_metadata = run.get("metadata")
+            if not isinstance(run_metadata, dict):
+                run_metadata = {}
+            run_metadata.update(metadata)
+            run["metadata"] = run_metadata
+
 
 def _normalize_replay_limit(max_runs: int) -> int:
     limit = int(max_runs)
     if limit < 1:
         raise ValidationError("max_runs must be positive")
     return limit
+
+
+def _replay_order_key(run: Mapping[str, Any]) -> tuple[int, int, str, str]:
+    metadata = run.get("metadata")
+    order_value = None
+    if isinstance(metadata, Mapping):
+        order_value = metadata.get("replay_order", metadata.get("batch_index"))
+    try:
+        order = int(order_value) if order_value is not None else 0
+        has_order = 0 if order_value is not None else 1
+    except (TypeError, ValueError):
+        order = 0
+        has_order = 1
+    return (has_order, order, str(run.get("created_at") or ""), str(run.get("run_id") or ""))
