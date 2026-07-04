@@ -158,10 +158,11 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 - the six calibration cases that need comparable external observations,
 - whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
 - the reviewed Ashr grading import/merge commands,
+- an `ashr_public_merge_gate` that says whether the reviewed Ashr grading column is actually present in the public calibration matrix,
 - the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
 - the private evidence boundary: raw prompts, raw responses, account payloads, and API keys stay under `docs/evidence/private_refs/` and are not committed.
 
-This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported.
+This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported. `ready_for_external_collection: true` means the workflow is ready; it does not mean C3 is met. C3 is safe to mark met only when `ashr_public_merge_gate.safe_to_mark_c3_met` is true.
 
 ## Regenerating Fixtures
 

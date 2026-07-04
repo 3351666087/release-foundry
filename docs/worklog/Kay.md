@@ -620,3 +620,24 @@ Next top 3:
 1. Collect reviewed Ashr grading observations for the six calibration cases.
 2. Import audited semantic judge summaries to replace offline references.
 3. Promote two more reviewed disagreements into the case book and replay suite.
+
+## 2026-07-04 - C3 Ashr public merge gate
+
+Reason:
+- The six-case Ashr server-side grading column is not yet publicly merged into the calibration matrix.
+- A2 needed a machine-readable guard so `ready_for_external_collection` is not mistaken for C3 completion.
+
+Implemented:
+- Added `ashr_public_merge_gate` to `a2_evidence_readiness_report.json`.
+- The gate records `public_matrix_merged: false`, `safe_to_mark_c3_met: false`, and 6 missing public Ashr grading observations.
+- A3 evidence readiness summaries now expose the public merge status and C3-safe flag.
+- Added A2/A3 tests and docs that keep C3 marked partial until reviewed Ashr grading observations are imported, merged, and regenerated.
+
+Boundary:
+- This does not call Ashr or read any API key.
+- It does not add fake server-side grading rows; it only prevents readiness evidence from being confused with merged evidence.
+
+Next top 3:
+1. Collect the six reviewed Ashr grading observations under private evidence.
+2. Import and merge them through the documented scripts.
+3. Regenerate fixtures and verify `ashr_public_merge_gate.safe_to_mark_c3_met` turns true before claiming C3 met.

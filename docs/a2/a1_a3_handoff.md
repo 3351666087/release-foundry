@@ -164,7 +164,7 @@ The semantic harness report uses `schema_version: a2.semantic_harness.v1` and li
 
 The batch plan report uses `schema_version: a2.batch_plan.v1` and lives at `fixtures/a2/results/a2_batch_plan_report.json`. It is optional C2 planning evidence for A1/A3: it names planned local, SDK parity, Ashr grading, semantic judge, and regression replay batches; records expected quota phases; and keeps private evidence boundaries explicit. Missing batch-plan data must not break existing A3 dashboard/report paths.
 
-The evidence readiness report uses `schema_version: a2.evidence_readiness.v1` and lives at `fixtures/a2/results/a2_evidence_readiness_report.json`. It is optional C3/C4 preflight evidence for A1/A3: it lists the six calibration cases, verifies the Ashr grading case map, records reviewed import/merge commands, names required semantic judge review fields, and documents the private evidence boundary. A3's report builder can summarize it when supplied, but it is not live Ashr or LLM evidence, and missing readiness data must not break existing A3 dashboard/report paths.
+The evidence readiness report uses `schema_version: a2.evidence_readiness.v1` and lives at `fixtures/a2/results/a2_evidence_readiness_report.json`. It is optional C3/C4 preflight evidence for A1/A3: it lists the six calibration cases, verifies the Ashr grading case map, records reviewed import/merge commands, names required semantic judge review fields, documents the private evidence boundary, and exposes `ashr_public_merge_gate.safe_to_mark_c3_met`. A3's report builder can summarize it when supplied, but it is not live Ashr or LLM evidence, and missing readiness data must not break existing A3 dashboard/report paths.
 
 Commercial-readiness invariants:
 

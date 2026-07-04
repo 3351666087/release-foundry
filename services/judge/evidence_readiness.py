@@ -52,6 +52,11 @@ def build_evidence_readiness_report(
     ashr_counts = source_coverage.get("ashr_grading", {})
     llm_counts = source_coverage.get("llm_judge", {})
     llm_offline_only = _llm_offline_only(calibration_matrix)
+    ashr_import_commands = [
+        "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_regenerate_fixtures.py --write",
+    ]
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -90,12 +95,9 @@ def build_evidence_readiness_report(
             "case_map_covers_all_calibration_cases": not ashr_missing and len(ashr_case_map) == len(cases),
             "case_map_missing_case_ids": ashr_missing,
             "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
-            "commands": [
-                "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
-                "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
-                "python scripts/a2_regenerate_fixtures.py --write",
-            ],
+            "commands": ashr_import_commands,
         },
+        "ashr_public_merge_gate": _ashr_public_merge_gate(ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
             "current_available": int(llm_counts.get("available", 0)),
@@ -134,6 +136,31 @@ def build_evidence_readiness_report(
             "deterministic": True,
             "purpose": "Make C3/C4 evidence collection auditable without committing private payloads.",
         },
+    }
+
+
+def _ashr_public_merge_gate(
+    ashr_counts: dict[str, Any],
+    expected_count: int,
+    commands: list[str],
+) -> dict[str, Any]:
+    current_available = int(ashr_counts.get("available", 0))
+    current_missing = int(ashr_counts.get("missing", expected_count))
+    merged = expected_count > 0 and current_available >= expected_count and current_missing == 0
+    return {
+        "source": "ashr_grading",
+        "status": "merged" if merged else "not_merged",
+        "public_matrix_merged": merged,
+        "safe_to_mark_c3_met": merged,
+        "current_public_observation_count": current_available,
+        "missing_public_observation_count": current_missing,
+        "required_public_observation_count": expected_count,
+        "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "reviewed_private_import_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+        "blocking_reason": ""
+        if merged
+        else "Reviewed Ashr grading observations must be imported, merged, and regenerated before C3 is met.",
+        "required_commands": commands,
     }
 
 

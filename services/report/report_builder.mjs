@@ -266,6 +266,7 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const missing = (value) => Array.isArray(value) ? value : [];
   const mapping = (value) => isObject(value) ? value : {};
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
   const redaction = mapping(evidenceFixture.redaction_policy);
 
@@ -279,6 +280,11 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_current_missing: ashr.current_missing || 0,
     ashr_expected_observation_count: ashr.expected_observation_count || 0,
     ashr_case_map_covers_all_calibration_cases: ashr.case_map_covers_all_calibration_cases === true,
+    ashr_public_merge_status: ashrMergeGate.status || "unknown",
+    ashr_public_matrix_merged: ashrMergeGate.public_matrix_merged === true,
+    ashr_safe_to_mark_c3_met: ashrMergeGate.safe_to_mark_c3_met === true,
+    ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
+    ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
     semantic_required_fields: missing(semantic.required_fields),
@@ -448,6 +454,8 @@ export function buildMarkdownReport(
       `- Ready for external collection: ${evidenceReadiness.ready_for_external_collection ? "yes" : "no"}`,
       `- Calibration cases: ${evidenceReadiness.calibration_case_count}`,
       `- Ashr grading missing: ${evidenceReadiness.ashr_current_missing}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Ashr public merge: ${evidenceReadiness.ashr_public_merge_status}`,
+      `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
       `- SDK languages covered: ${evidenceReadiness.covered_sdk_languages.join(", ") || "none"}`,
       `- Private evidence path: ${evidenceReadiness.private_raw_path || "none"}`,
