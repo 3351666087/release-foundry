@@ -28,6 +28,9 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Source expected response: `tool_calls`; observed as either object or list and normalized to local `{name, arguments}` calls.
 - `list_runs`: `_user`, `runs`, `status`.
 - Run item: `created_at`, `dataset`, `dataset_details`, `id`, `result`, `runner`, `runner_details`, `tenant`.
+- `create_run` / `get_run` response: `_user`, `run`, `status`.
+- Created run item: `created_at`, `dataset`, `id`, `result`, `runner`, `tenant`.
+- Hosted run result: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
 - `list_requests`: `_user`, `next_cursor`, `requests`, `status`.
 - Request item: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
 

@@ -276,7 +276,7 @@ class AshrApiClient:
         return self._poll_until(
             function="get_run",
             params={"run_id": run_id},
-            complete=lambda response: response.get("run", {}).get("result", {}).get("aggregate_metrics", {}).get("tests_passed") is not None,
+            complete=lambda response: _run_has_result(response.get("run")),
             failure=lambda _response: None,
             purpose="Poll deployed run grading status",
             estimated_calls=estimated_calls,
@@ -545,3 +545,14 @@ def _error_message(response: Mapping[str, Any], fallback: str) -> str:
         if isinstance(value, str) and value:
             return redact_text(value)
     return fallback
+
+
+def _run_has_result(run: Any) -> bool:
+    if not isinstance(run, Mapping):
+        return False
+    result = run.get("result")
+    if not isinstance(result, Mapping):
+        return False
+    if result.get("aggregate_metrics") is not None:
+        return True
+    return any(key in result for key in ("status", "total_cases", "passed", "failed", "errored", "timed_out", "trace_completeness"))

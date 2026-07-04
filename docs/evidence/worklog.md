@@ -238,6 +238,57 @@ Remaining:
 - A3 should review the dataset-source replay fixture helper against P3 mapper expectations.
 - Stronger timeout isolation and TypeScript parity remain future work.
 
+## 2026-07-04 Create Run Calibration Round
+
+Goal: perform the next highest-ROI subscription-era A1 calibration by uploading one small local run result with `create-run`, then calibrating `get-run`/`poll-run` behavior against the created hosted run.
+
+Start protocol:
+
+- `git fetch origin`: success; new peer branch observed: `origin/dev/g3-a2-calibration`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking origin; no tracked changes at start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present locally.
+- PR check: draft PR #4 open, base `main`, head `codex/a1-local-sdk-runner`, mergeable, no status checks, head `de9d9f5`.
+- Recent worklog and A1 command evidence were read before implementation.
+- Peer changes/impact: A2 G3 adds `wrong_arguments` evidence, which supports the prior A1 tool-argument comparison fix. A3 P3 remains a report mapper branch; no A1 Gate/dashboard semantics changed.
+- Secret handling: key loaded only through ignored `.secrets/load-ashr-env.ps1`; no key, real ids, or raw responses were written to committed docs.
+
+Three proposed enhancements:
+
+1. Run one real `create-run` against an existing private dataset after dry-run review, using `--allow-mutate` and `--max-retries 0`.
+2. Exercise `create-request` generation with the tiny request config after quota/plan wording is clearer.
+3. Add process-level isolation for arbitrary external agents if hard cancellation becomes required.
+
+Implemented highest ROI enhancement: one real `create-run`, followed by `get-run` and fixed `poll-run` calibration. No `create-request` was executed.
+
+Subagent findings:
+
+- Bus-Auditor: PASS conditional on using the real numeric private dataset id, private result file, explicit output paths under private refs, `--execute --allow-mutate --max-retries 0`, and only public-safe summaries. Main agent followed those constraints.
+- Chrome/Product: Ashr Labs remained logged in at `https://lab.ashr.io/?tab=analysis` with `Datasets` and `Runs` visible, no sign-in text, and no visible usage/quota text. Public homepage/docs remained reachable with Docs/Plans/Python SDK/TypeScript/API links and `AshrLabsClient`, `EvalRunner`, `run_and_deploy`/deploy hints.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/api_client.py`: fixed `poll_run` completion to accept observed hosted run-result shapes, not only `aggregate_metrics.tests_passed`.
+- `services/runner/api_probe.py`: catches `TimeoutError` and emits a clean `api probe error` instead of a traceback.
+- `tests/a1/test_api_client.py`: added real-run-shape poll completion and CLI timeout reporting regressions.
+- `docs/a1/api_calibration/README.md`, `docs/a1/README.md`, `docs/a1/evidence/commands.md`, and this worklog: recorded non-sensitive create-run/get-run/poll-run evidence and updated next candidates.
+
+Verification:
+
+- Dry-run create-run: `status=planned`, `attempts=0`, `mutates=true`, `estimated_calls=2`, 3-case private result input.
+- Real create-run: `status=ok`, HTTP `200`, `attempts=1`, response keys `_user`, `run`, `status`.
+- Created hosted run keys: `created_at`, `dataset`, `id`, `result`, `runner`, `tenant`.
+- Created hosted result keys: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
+- Real get-run against the created run: `status=ok`, HTTP `200`, `attempts=1`.
+- First short poll-run before the fix: record wrote `status=timeout`, HTTP `200`, `attempts=4`, while response already contained `run.result`; CLI traceback exposed a catch gap.
+- Fixed real poll-run against the same created run: `status=ok`, HTTP `200`, `attempts=1`.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `16 passed in 0.68s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `64 passed in 2.41s`.
+
+Remaining:
+
+- `create-request` generation remains dry-run only.
+- A3 should decide whether it wants a public-safe redacted fixture derived from private hosted run evidence.
+- Stronger timeout isolation and TypeScript parity remain future work.
+
 ## 2026-07-04 Subscription API Calibration Round 1
 
 Goal: begin post-subscription A1 high-fidelity SDK/Runner calibration using the Ashr API through environment-only key handling, dry-run-first plans, private evidence, and small read-only real probes.

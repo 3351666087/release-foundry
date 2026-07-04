@@ -41,9 +41,14 @@ Private evidence files:
 - `docs/evidence/private_refs/a1_api_list_requests_real.json`
 - `docs/evidence/private_refs/a1_api_get_dataset_first_real.json`
 - `docs/evidence/private_refs/a1_api_get_dataset_0_error_real.json`
+- `docs/evidence/private_refs/a1_api_create_run_dry_run.json`
+- `docs/evidence/private_refs/a1_api_create_run_real.json`
+- `docs/evidence/private_refs/a1_api_get_created_run_real.json`
+- `docs/evidence/private_refs/a1_api_poll_created_run_real_v2.json`
 - `docs/evidence/private_refs/a1_real_dataset_cases.json`
 - `docs/evidence/private_refs/a1_real_dataset_run_mock.json`
 - `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png`
+- `docs/evidence/private_refs/ashr_lab_analysis_create_run_round_2026-07-04.png`
 
 Observed non-sensitive field keys:
 
@@ -57,6 +62,18 @@ Observed non-sensitive field keys:
 - Run item keys: `created_at`, `dataset`, `dataset_details`, `id`, `result`, `runner`, `runner_details`, `tenant`.
 - `list_requests` response keys: `_user`, `next_cursor`, `requests`, `status`.
 - Request item keys: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
+
+## Create Run And Poll Calibration
+
+One real `create-run` probe was executed after reviewing a dry-run plan:
+
+- Dry-run plan: `status=planned`, `attempts=0`, `mutates=true`, `estimated_calls=2`, 3-case private local result input.
+- Real call: `status=ok`, HTTP `200`, `attempts=1`, response keys `_user`, `run`, `status`.
+- Created run keys: `created_at`, `dataset`, `id`, `result`, `runner`, `tenant`.
+- Hosted run result keys mirrored local A1 output: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
+- Follow-up `get-run` succeeded with HTTP `200`, `attempts=1`, and the same run/result shape.
+- First short `poll-run` exposed a real parity bug: `get_run` returned a complete `run.result`, but the local poll completion predicate only looked for `aggregate_metrics.tests_passed`, then timed out after 4 attempts and the CLI printed a traceback.
+- Fixed behavior: poll completion now accepts the observed run-result shape, CLI catches `TimeoutError`, and the same private created run polls successfully with `status=ok`, HTTP `200`, `attempts=1`.
 
 ## Dataset Source Adapter
 
@@ -86,15 +103,17 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 14 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 16 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 62 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 64 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
+- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`.
+- Real read-only follow-up probes executed against the created run: `get-run` and fixed `poll-run`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 
 ## Next Candidates
 
-1. Run one mutating `create-run` against an existing dataset after a reviewed dry-run plan and `--allow-mutate`.
-2. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after quota/plan wording is confirmed in the dashboard.
-3. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.
+1. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after quota/plan wording is confirmed in the dashboard.
+2. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.
+3. Add a public-safe redacted run fixture derived from private `create-run` evidence for A3 mapper regression tests.

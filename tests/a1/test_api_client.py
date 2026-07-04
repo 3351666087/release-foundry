@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
 from ashr_clone.api_client import AshrApiClient, AshrApiError, redact_sensitive, redact_text  # noqa: E402
+from services.runner import api_probe  # noqa: E402
 
 
 def test_dry_run_records_plan_without_api_key(tmp_path):
@@ -151,6 +152,36 @@ def test_poll_run_dry_run_records_estimated_calls(tmp_path):
     assert record["request"]["params"]["run_id"] == 123
 
 
+def test_poll_run_execute_accepts_real_run_result_shape(tmp_path):
+    calls = []
+
+    def transport(_url, _headers, _body, _timeout):
+        calls.append(json.loads(_body.decode("utf-8")))
+        return 200, json.dumps(
+            {
+                "status": "ok",
+                "run": {
+                    "id": 123,
+                    "result": {
+                        "aggregate_metrics": {"trace_completeness": 1.0},
+                        "total_cases": 3,
+                        "status": "completed_with_errors",
+                    },
+                },
+            }
+        ).encode("utf-8")
+
+    output = tmp_path / "poll_run_real_shape.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport)
+
+    record = client.poll_run(run_id=123, timeout_seconds=1, poll_interval_seconds=0, output_path=output, dry_run=False)
+
+    assert record["status"] == "ok"
+    assert record["attempts"] == 1
+    assert calls[0]["function"] == "get_run"
+    assert json.loads(output.read_text(encoding="utf-8"))["response"]["run"]["result"]["total_cases"] == 3
+
+
 def test_poll_request_execute_stops_on_completed_response(tmp_path):
     calls = []
 
@@ -239,3 +270,19 @@ def test_api_probe_cli_requires_allow_mutate_for_execute(tmp_path):
     assert completed.returncode == 2
     assert "--allow-mutate" in completed.stderr
     assert "ASHR_API_KEY" not in completed.stderr
+
+
+def test_api_probe_cli_reports_timeout_without_traceback(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: object()))
+
+    def raise_timeout(*_args, **_kwargs):
+        raise TimeoutError("get_run did not complete within 1s")
+
+    monkeypatch.setattr(api_probe, "run_operation", raise_timeout)
+
+    code = api_probe.main(["poll-run", "--execute", "--run-id", "123", "--output", str(tmp_path / "poll.json")])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "api probe error: get_run did not complete within 1s" in captured.err
+    assert "Traceback" not in captured.err

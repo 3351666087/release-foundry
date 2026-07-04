@@ -12,7 +12,7 @@ python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.j
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `62 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, and negative `get-dataset` recorded under private evidence, plus a private real dataset source smoke test that converted 3 cases and preserved runner trace completeness at 100%.
+Current follow-up verification: `64 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%.
 
 Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.
 

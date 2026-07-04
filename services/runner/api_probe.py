@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"api probe error: {exc}", file=sys.stderr)
         print(f"hint: set {ASHR_API_ENV_VAR} or {ASHR_LABS_API_ENV_VAR} in the current process", file=sys.stderr)
         return 2
-    except (AshrApiError, RuntimeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+    except (AshrApiError, RuntimeError, TimeoutError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         print(f"api probe error: {exc}", file=sys.stderr)
         return 2
 
