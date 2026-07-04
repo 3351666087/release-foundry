@@ -233,6 +233,26 @@ export function summarizeCoverage(coverageFixture = {}) {
   };
 }
 
+function formatCoverageCaseRefs(refs = []) {
+  if (!Array.isArray(refs) || refs.length === 0) {
+    return "none";
+  }
+  return refs
+    .map((item) => `${item.case_id || "unknown_case"}/${item.scenario_id || "unknown_scenario"}`)
+    .join(", ");
+}
+
+function coverageEvidenceLines(coverage = {}) {
+  const goldenClasses = Object.keys(coverage.golden_failure_class_cases || {});
+  const executableClasses = Object.keys(coverage.executable_failure_class_cases || {});
+  return [...new Set([...goldenClasses, ...executableClasses])]
+    .sort()
+    .map((failureClass) => (
+      `- ${failureClass}: golden ${formatCoverageCaseRefs(coverage.golden_failure_class_cases[failureClass])}; `
+      + `executable ${formatCoverageCaseRefs(coverage.executable_failure_class_cases[failureClass])}`
+    ));
+}
+
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const failedCases = normalizeCases(runFixture, gradeFixture)
     .filter((item) => !item.passed && item.primary_failure_class !== "none");
@@ -287,6 +307,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   ];
 
   if (coverage.available) {
+    const evidenceLines = coverageEvidenceLines(coverage);
     lines.push(
       "## Coverage",
       "",
@@ -300,6 +321,14 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Coverage warnings: ${coverage.coverage_warning_count}`,
       ""
     );
+    if (evidenceLines.length > 0) {
+      lines.push(
+        "### Failure Class Evidence",
+        "",
+        ...evidenceLines,
+        ""
+      );
+    }
   }
 
   lines.push(

@@ -267,4 +267,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
   assert.match(markdown, /Coverage warnings: 0/);
+  assert.match(markdown, /### Failure Class Evidence/);
+  assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);
+  assert.match(markdown, /missing_required_tool: golden GC-A2-S004-fail\/A2-S004/);
+  assert.match(markdown, /sample-a2-s029-missing-required-search\/A2-S029/);
 });
