@@ -556,3 +556,25 @@ Next top 3:
 1. Collect reviewed Ashr grading observations for all six calibration cases.
 2. Replace offline `llm_judge` rows with audited semantic judge summaries.
 3. Promote any new cross-judge disagreements into the case book and replay suite.
+
+## 2026-07-04 - A3 evidence readiness summary
+
+Reason:
+- A2 now publishes an evidence-readiness preflight report, but A3 needed an optional display path for it.
+- This keeps C3/C4 missing-evidence status visible to reviewers without changing the grade-result join.
+- The official SDK surface is a parallel Python plus TypeScript matrix, so A3 evidence summaries should keep the TypeScript chain visible.
+
+Implemented:
+- Added `summarizeEvidenceReadiness(...)` to `services/report/report_builder.mjs`.
+- Extended `buildJsonReport(...)` and `buildMarkdownReport(...)` with an optional fourth `evidenceReadinessFixture` argument.
+- Added A3 tests that load `fixtures/a2/results/a2_evidence_readiness_report.json` and assert readiness status, Ashr missing count, SDK languages, and private evidence boundary.
+- Updated A1/A3 handoff docs.
+
+Boundary:
+- This is optional A3 display support only.
+- Existing three-argument report-builder calls remain valid.
+
+Next top 3:
+1. Use the readiness report when collecting reviewed Ashr grading evidence.
+2. Import audited semantic judge summaries when available.
+3. Keep A3 optional feeds additive so missing readiness artifacts never break core grade reports.

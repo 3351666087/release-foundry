@@ -12,7 +12,8 @@ import {
   filterCases,
   getFilterOptions,
   normalizeCases,
-  summarizeCoverage
+  summarizeCoverage,
+  summarizeEvidenceReadiness
 } from "../../services/report/report_builder.mjs";
 
 async function loadJson(path) {
@@ -310,4 +311,38 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);
   assert.match(markdown, /missing_required_tool: golden GC-A2-S004-fail\/A2-S004/);
   assert.match(markdown, /sample-a2-s029-missing-required-search\/A2-S029/);
+});
+
+test("A3 report builder can summarize A2 evidence readiness fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+
+  const summary = summarizeEvidenceReadiness(readiness);
+  assert.equal(summary.available, true);
+  assert.equal(summary.schema_version, "a2.evidence_readiness.v1");
+  assert.equal(summary.status, "awaiting_private_evidence");
+  assert.equal(summary.ready_for_external_collection, true);
+  assert.equal(summary.calibration_case_count, 6);
+  assert.equal(summary.ashr_current_missing, 6);
+  assert.equal(summary.ashr_expected_observation_count, 6);
+  assert.equal(summary.ashr_case_map_covers_all_calibration_cases, true);
+  assert.equal(summary.semantic_offline_reference_only, true);
+  assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
+  assert.deepEqual(summary.covered_sdk_languages, ["python", "typescript"]);
+  assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
+  assert.ok(summary.never_commit.includes("raw prompts"));
+
+  const json = buildJsonReport(runs, grades, coverage, readiness);
+  assert.equal(json.evidence_readiness.available, true);
+  assert.equal(json.evidence_readiness.ashr_current_missing, 6);
+  assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
+  assert.match(markdown, /## Evidence Readiness/);
+  assert.match(markdown, /Status: awaiting_private_evidence/);
+  assert.match(markdown, /Ashr grading missing: 6\/6/);
+  assert.match(markdown, /SDK languages covered: python, typescript/);
 });
