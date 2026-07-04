@@ -7,12 +7,14 @@ import {
   buildDashboardSummary,
   buildJsonReport,
   buildMarkdownReport,
+  buildToolCallDiffs,
   canonicalPrimaryFailureClass,
   clusterFailures,
   filterCases,
   getFilterOptions,
   normalizeCases,
-  summarizeCoverage
+  summarizeCoverage,
+  summarizeEvidenceReadiness
 } from "../../services/report/report_builder.mjs";
 
 async function loadJson(path) {
@@ -186,11 +188,32 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   const csv = buildCsvReport(runs, grades);
   assert.match(csv, /"case_id"/);
   assert.match(csv, /"sample-a2-s004-missing-tool"/);
+  assert.match(csv, /"media_types"/);
 
   const json = buildJsonReport(runs, grades);
   assert.equal(json.schema_version, "a3.export_report.v1");
   assert.equal(json.coverage.available, false);
   assert.equal(json.failure_clusters.length, 2);
+  assert.ok(Array.isArray(json.cases[0].tool_call_diffs));
+});
+
+test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const cases = normalizeCases(runs, grades);
+
+  const missingToolCase = cases.find((item) => item.case_id === "sample-a2-s004-missing-tool");
+  const missingDiffs = buildToolCallDiffs(missingToolCase);
+  assert.equal(missingDiffs.length, 1);
+  assert.equal(missingDiffs[0].status, "missing_required_tool");
+  assert.equal(missingDiffs[0].expected.name, "web.search");
+
+  const wrongArgumentCase = cases.find((item) => item.case_id === "sample-a2-s010-wrong-argument");
+  const wrongArgumentDiffs = buildToolCallDiffs(wrongArgumentCase);
+  assert.equal(wrongArgumentDiffs.length, 1);
+  assert.equal(wrongArgumentDiffs[0].status, "wrong_arguments");
+  assert.equal(wrongArgumentDiffs[0].expected.name, "file.read");
+  assert.equal(wrongArgumentDiffs[0].actual.name, "file.read");
 });
 
 test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => {
@@ -260,7 +283,10 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.ordered_tool_pairs["image.view -> media.classify"], 1);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
-  assert.equal(summary.executable_run_case_count, 31);
+  assert.equal(summary.executable_run_case_count, 32);
+  assert.equal(summary.executable_media_case_count, 4);
+  assert.equal(summary.executable_tool_output_grounding_case_count, 4);
+  assert.equal(summary.executable_media_expected_class_counts.wrong_arguments, 1);
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
@@ -282,9 +308,13 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.ok(summary.executable_failure_class_cases.wrong_tool_order.some((item) => (
     item.case_id === "sample-a2-s031-media-pipeline-wrong-order"
   )));
+  assert.ok(summary.executable_media_case_refs.some((item) => (
+    item.case_id === "sample-a2-s031-media-pipeline-wrong-classifier-args"
+  )));
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
+  assert.equal(json.coverage.executable_media_case_count, 4);
   assert.equal(json.coverage.coverage_warning_count, 0);
   assert.equal(json.coverage.scenario_quality_warnings.length, 0);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
@@ -297,8 +327,44 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);
+  assert.match(markdown, /Media executable cases: 4/);
+  assert.match(markdown, /Tool-output grounding executable cases: 4/);
   assert.match(markdown, /### Failure Class Evidence/);
   assert.match(markdown, /wrong_arguments: golden GC-A2-S010-fail\/A2-S010/);
   assert.match(markdown, /missing_required_tool: golden GC-A2-S004-fail\/A2-S004/);
   assert.match(markdown, /sample-a2-s029-missing-required-search\/A2-S029/);
+});
+
+test("A3 report builder can summarize A2 evidence readiness fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+
+  const summary = summarizeEvidenceReadiness(readiness);
+  assert.equal(summary.available, true);
+  assert.equal(summary.schema_version, "a2.evidence_readiness.v1");
+  assert.equal(summary.status, "awaiting_private_evidence");
+  assert.equal(summary.ready_for_external_collection, true);
+  assert.equal(summary.calibration_case_count, 6);
+  assert.equal(summary.ashr_current_missing, 6);
+  assert.equal(summary.ashr_expected_observation_count, 6);
+  assert.equal(summary.ashr_case_map_covers_all_calibration_cases, true);
+  assert.equal(summary.semantic_offline_reference_only, true);
+  assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
+  assert.deepEqual(summary.covered_sdk_languages, ["python", "typescript"]);
+  assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
+  assert.ok(summary.never_commit.includes("raw prompts"));
+
+  const json = buildJsonReport(runs, grades, coverage, readiness);
+  assert.equal(json.evidence_readiness.available, true);
+  assert.equal(json.evidence_readiness.ashr_current_missing, 6);
+  assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
+  assert.match(markdown, /## Evidence Readiness/);
+  assert.match(markdown, /Status: awaiting_private_evidence/);
+  assert.match(markdown, /Ashr grading missing: 6\/6/);
+  assert.match(markdown, /SDK languages covered: python, typescript/);
 });

@@ -26,16 +26,25 @@ This module provides the local G1-G2 foundation for:
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
 - Case book helper: `services/judge/casebook.py`
+- Regression replay helper: `services/judge/regression_replay.py`
+- SDK parity helper: `services/judge/sdk_parity.py`
+- Semantic judge harness helper: `services/judge/semantic_harness.py`
+- Semantic judge import helper: `scripts/a2_import_semantic_judge.py`
 - Commercial readiness helper: `services/judge/readiness.py`
 - Generated fixture reproducibility check: `scripts/a2_regenerate_fixtures.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
 - G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
 - Case book regression seed: `fixtures/a2/results/a2_case_book.json`
+- Case book regression replay report: `fixtures/a2/results/a2_regression_replay_report.json`
+- Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
+- Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
+- Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
+- External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
-- 31 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
+- 32 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
 - Optional real Ashr API smoke script: `scripts/a2_real_api_smoke.py`
 
 ## Local Run Shapes
@@ -71,6 +80,65 @@ from services.judge.runner import grade_run
 result = grade_run("A2-S004", run)
 ```
 
+## SDK Parity
+
+The Ashr docs expose both Python and TypeScript SDK entrypoints, so A2 must not silently become Python-only.
+
+In plain terms, these are two official ways to reach the same Testing Platform workflow:
+
+- Python chain: `pip install ashr-labs` -> `AshrLabsClient` -> `EvalRunner.from_dataset(...)` -> `run_and_deploy(...)` -> A2 consumes `AgentTurn` / `AgentResult.to_dict()` output.
+- TypeScript chain: `npm install ashr-labs` -> `new AshrLabsClient(...)` -> `EvalRunner.fromDataset(...)` -> `runAndDeploy(...)` -> A2 consumes `CaseResult.agent_output` output.
+
+A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/judge/sdk_parity.py`. The report grades the same scenario through:
+
+- Python-style `AgentTurn` / `AgentResult.to_dict()` metadata from `packages/sdk/ashr_clone/adapter.py`
+- TypeScript-style `CaseResult.agent_output` metadata from `packages/ts/ashr-clone/src/index.ts`
+
+The report also records `official_sdk_chains` so reviewers can see exactly how the official Python and TypeScript quickstart surfaces map into A2's local runner contract.
+
+This is deterministic contract evidence for C1: A2 can consume both SDK-language runner shapes. It does not claim hosted TypeScript API parity or live Ashr grading; those remain A1/C3 calibration work.
+
+## Media API Calibration
+
+A2-S031 is the current media/tool-output grounding scenario. It now has four executable calibration cases:
+
+- passing media pipeline,
+- classifier output contradicts the final answer: `hallucinated_tool_result`,
+- tool order is wrong: `wrong_tool_order`,
+- media classifier API argument is wrong: `wrong_arguments`.
+
+`fixtures/a2/results/a2_g3_coverage_report.json` exposes these through `executable_media_case_count`, `executable_tool_output_grounding_case_count`, `executable_media_expected_class_counts`, and the corresponding case refs. This keeps media coverage visible without changing the A3 grade-result contract.
+
+## Semantic Judge Harness
+
+C4 needs a semantic judge path that is auditable before it is trusted.
+
+A2 now generates `fixtures/a2/results/a2_semantic_harness_report.json` from `services/judge/semantic_harness.py`. This report defines:
+
+- prompt input fields for scenario contract, `toolPolicy`, expected behavior, final response, tool calls, and observed tool results,
+- required semantic judge output fields: `passed`, `primary_failure_class`, `score`, `confidence`, `rationale`, and `evidence_refs`,
+- model, cost, and redaction policies for audited live model calls,
+- per-case calibration targets for the six C3/C4 cases, including the media/tool-output grounding case,
+- Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths.
+
+The current harness is ready for audited model calls but still reports `live_model_evidence_available: false`. That is intentional: offline `llm_judge` samples are useful deterministic references, but C4 is not met until private live model evidence is reviewed and summarized.
+
+`scripts/a2_import_semantic_judge.py` is the bridge from reviewed private model-call summaries into the calibration matrix. It preserves provider/model, prompt and response hashes, prompt template id, cost, confidence, review status, and SDK language while redacting token-like or email-like text. The checked-in sample fixture is only an importer test shape; it is not counted as C4 live evidence.
+
+## Batch Plan
+
+C2 requires a batch generation plan and cost ledger before paid calibration scales up.
+
+A2 now generates `fixtures/a2/results/a2_batch_plan_report.json` from `services/judge/batch_plan.py`. It plans five batches:
+
+- full local scenario-pack regression,
+- Python/TypeScript SDK parity smoke,
+- tiny Ashr grading calibration batch,
+- semantic/LLM judge audit batch across Python and TypeScript chains,
+- case-book regression replay.
+
+The report also records queue-style quota phases aligned with A1's local cloud worker direction: `run.submit` is planned at enqueue/direct-submit time, `observation.write` at completion, and status history must preserve queued/running/completed plus failed/cancelled terminal states. This is C2 planning evidence; it does not replace the missing C3 real Ashr grading observations.
+
 The result contains:
 
 - overall `passed`,
@@ -80,6 +148,20 @@ The result contains:
 - nested `FailureAnalysis` objects for A3 display.
 
 Local debug signals such as `bad_final_response` can appear inside `failure_analysis.failure_classes`, but they should not be used as the top-level `primary_failure_class`.
+
+## Evidence Readiness
+
+C3/C4 need private evidence, but A2 should still make the collection workflow auditable before any key or account payload is used.
+
+A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `services/judge/evidence_readiness.py`. It records:
+
+- the six calibration cases that need comparable external observations,
+- whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
+- the reviewed Ashr grading import/merge commands,
+- the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
+- the private evidence boundary: raw prompts, raw responses, account payloads, and API keys stay under `docs/evidence/private_refs/` and are not committed.
+
+This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported.
 
 ## Regenerating Fixtures
 
@@ -133,6 +215,27 @@ Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.p
 
 The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
 
+Reviewed semantic judge summaries use the same merge gate. Convert redacted model-call summaries into `llm_judge` observations with:
+
+```bash
+python scripts/a2_import_semantic_judge.py \
+  --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
+  --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
+  --output docs/evidence/private_refs/a2_semantic_judge_import.review.json
+```
+
+Then merge reviewed rows with:
+
+```bash
+python scripts/a2_merge_calibration_observations.py \
+  --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json \
+  --source llm_judge \
+  --min-count 6 \
+  --output fixtures/a2/calibration/a2_g3_calibration_observations.json
+```
+
+The importer expects reviewed summaries, not raw prompts or raw responses. Raw/private model payloads stay under `docs/evidence/private_refs`.
+
 ## Case Book
 
 C5 requires disagreements to become durable regression evidence, not only comments in a calibration matrix.
@@ -140,10 +243,14 @@ C5 requires disagreements to become durable regression evidence, not only commen
 A2 now generates:
 
 - machine-readable case book: `fixtures/a2/results/a2_case_book.json`
+- executable replay report: `fixtures/a2/results/a2_regression_replay_report.json`
 - reviewer-facing case book: `docs/a2/case_book.md`
 - schema: `docs/a2/schemas/case_book.schema.json`
+- replay schema: `docs/a2/schemas/regression_replay.schema.json`
 
 The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies `wrong_arguments` and the offline LLM reference identifies `ignored_tool_result`. This remains open until reviewed Ashr grading or audited live LLM evidence resolves the judge boundary.
+
+The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, so C5 is stronger but still partial until more reviewed disagreement cases are promoted.
 
 ## Commercial Readiness Gate
 
@@ -153,7 +260,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C0 met with C3-C5 still partial because Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
 
 ## G1-G2 Boundary
 

@@ -57,10 +57,12 @@ def build_coverage_report(
 ) -> dict[str, Any]:
     pack = load_scenario_pack(pack_path)
     scenarios = pack.get("scenarios", [])
+    scenario_by_id = {str(scenario.get("id", "")): scenario for scenario in scenarios}
     golden_cases = load_golden_cases(golden_path)
     run_fixtures = load_run_fixtures(run_dir)
     failure_signals = {failure for scenario in scenarios for failure in scenario.get("failureSignals", [])}
     scenario_quality = _scenario_quality_metrics(scenarios)
+    executable_calibration = _executable_calibration_metrics(run_fixtures, scenario_by_id)
     scenario_quality_warnings = _scenario_quality_warnings(scenario_quality)
     scenario_dimensions = _scenario_dimension_refs(scenarios)
     scenario_dimension_counts = {key: len(value) for key, value in scenario_dimensions.items()}
@@ -154,6 +156,11 @@ def build_coverage_report(
         "executable_failure_class_cases": executable_failure_class_cases,
         "executable_failure_classes_missing": sorted(REQUIRED_FAILURE_CLASSES - set(executable_failure_classes)),
         "thin_executable_failure_classes": thin_executable_failure_classes,
+        "executable_media_case_count": executable_calibration["media_case_count"],
+        "executable_tool_output_grounding_case_count": executable_calibration["tool_output_grounding_case_count"],
+        "executable_media_expected_class_counts": executable_calibration["media_expected_class_counts"],
+        "executable_media_case_refs": executable_calibration["media_case_refs"],
+        "executable_tool_output_grounding_case_refs": executable_calibration["tool_output_grounding_case_refs"],
         "coverage_warnings": _coverage_warnings(
             thin_golden_failure_classes,
             thin_executable_failure_classes,
@@ -201,6 +208,50 @@ def _case_ref(payload: dict[str, Any]) -> dict[str, str]:
         "case_id": str(payload.get("case_id", "")),
         "scenario_id": str(payload.get("scenario_id", "")),
     }
+
+
+def _executable_calibration_metrics(
+    fixtures: list[dict[str, Any]],
+    scenario_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    media_refs = []
+    tool_output_grounding_refs = []
+    media_expected_classes = Counter()
+
+    for fixture in fixtures:
+        scenario = scenario_by_id.get(str(fixture.get("scenario_id", "")), {})
+        if _fixture_is_media_calibration(fixture, scenario):
+            media_refs.append(_case_ref(fixture))
+            expected_class = str(fixture.get("expected", {}).get("primary_failure_class", "none"))
+            media_expected_classes[expected_class] += 1
+        if _fixture_is_tool_output_grounding_calibration(fixture, scenario):
+            tool_output_grounding_refs.append(_case_ref(fixture))
+
+    return {
+        "media_case_count": len(media_refs),
+        "tool_output_grounding_case_count": len(tool_output_grounding_refs),
+        "media_expected_class_counts": dict(sorted(media_expected_classes.items())),
+        "media_case_refs": sorted(media_refs, key=lambda item: (item["scenario_id"], item["case_id"])),
+        "tool_output_grounding_case_refs": sorted(
+            tool_output_grounding_refs,
+            key=lambda item: (item["scenario_id"], item["case_id"]),
+        ),
+    }
+
+
+def _fixture_is_media_calibration(fixture: dict[str, Any], scenario: dict[str, Any]) -> bool:
+    if "media" in _tags(scenario):
+        return True
+    for call in fixture.get("run", {}).get("tool_calls", []):
+        if str(call.get("tool", call.get("name", ""))).startswith("media."):
+            return True
+    return False
+
+
+def _fixture_is_tool_output_grounding_calibration(fixture: dict[str, Any], scenario: dict[str, Any]) -> bool:
+    return bool(scenario.get("expectedToolOutputFacts")) or bool(
+        fixture.get("run", {}).get("expected_tool_output_facts")
+    )
 
 
 def _scenario_dimension_refs(scenarios: list[dict[str, Any]]) -> dict[str, list[str]]:

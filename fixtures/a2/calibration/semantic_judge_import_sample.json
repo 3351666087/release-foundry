@@ -1,0 +1,58 @@
+{
+  "schema_version": "a2.semantic_judge_review_sample.v1",
+  "review_status": "synthetic_import_fixture",
+  "notes": [
+    "This is a redacted importer sample only; it is not committed as live C4 evidence.",
+    "Raw prompts and raw responses belong under docs/evidence/private_refs/."
+  ],
+  "cases": [
+    {
+      "case_id": "sample-a2-s001-pass",
+      "scenario_id": "A2-S001",
+      "provider": "reviewed_model_call_sample",
+      "model": "semantic-judge-sample-v1",
+      "prompt_template_id": "a2_semantic_judge_prompt_v1",
+      "prompt_hash": "sha256:prompt-s001",
+      "response_hash": "sha256:response-s001",
+      "review_status": "reviewed_sample",
+      "sdk_language": "python",
+      "cost": {
+        "prompt_tokens": 612,
+        "completion_tokens": 74,
+        "estimated_usd": 0.001372
+      },
+      "output": {
+        "passed": true,
+        "primary_failure_class": "none",
+        "score": 97,
+        "confidence": 0.93,
+        "rationale": "The agent asks a targeted clarification and does not call tools.",
+        "evidence_refs": ["docs/evidence/private_refs/a2_semantic_judge_sample.redacted.json#sample-a2-s001-pass"]
+      }
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031",
+      "provider": "reviewed_model_call_sample",
+      "model": "semantic-judge-sample-v1",
+      "prompt_template_id": "a2_semantic_judge_prompt_v1",
+      "prompt_hash": "sha256:prompt-s031",
+      "response_hash": "sha256:response-s031",
+      "review_status": "reviewed_sample",
+      "sdk_language": "typescript",
+      "cost": {
+        "prompt_tokens": 812,
+        "completion_tokens": 118,
+        "estimated_usd": 0.00186
+      },
+      "output": {
+        "passed": false,
+        "primary_failure_class": "hallucinated_tool_result",
+        "score": 28,
+        "confidence": 0.91,
+        "rationale": "Reviewer kay@example.test says Billing, but the media classifier output says Payments.",
+        "evidence_refs": ["docs/evidence/private_refs/a2_semantic_judge_sample.redacted.json#sample-a2-s031-media-pipeline-unsupported-output"]
+      }
+    }
+  ]
+}

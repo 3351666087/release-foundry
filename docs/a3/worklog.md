@@ -145,3 +145,115 @@ fail 0
 1. Verify native backend failure-class fields with a real failing Ashr run.
 2. Decide whether A3 should display `semantic_similarity` as the score or wait for a stronger server grade field.
 3. Join `list_runs()` with `list_datasets()` so A3 cases can use real scenario titles.
+
+## 2026-07-04 - Product console media evidence iteration
+
+### Goal
+
+Continue A3 after P3 calibration and move the dashboard toward a commercial-grade product console. This round chose one highest ROI enhancement: media evidence calibration and display.
+
+### Implemented
+
+- Added `docs/a3/p3_media_calibration.md`.
+- Added `docs/a3/p3_official_frontend_notes.md`.
+- Extended `services/report/p3_ashr_mapper.mjs` to support real Ashr `run.result.cases[]` samples.
+- Added `media_evidence` mapping for media type, action tags, output paths, audio tags, intent tags, VM stream summaries, and known gaps.
+- Added media timeline events such as `media.vm_stream`.
+- Extended `services/report/report_builder.mjs` so summary/export includes media evidence.
+- Added P3 media sample coverage in `tests/a3/p3_ashr_mapper.test.mjs`.
+- Updated `apps/dashboard/index.html` from a demo dashboard toward a product console:
+  - data source switcher
+  - workflow overview
+  - Usage / Quota known-gap panel
+  - Requests / datasets / runs object summary
+  - case-level Media Evidence panel
+  - P3 media sample mode
+
+### Verification
+
+```text
+node --test tests/a3/report_builder.test.mjs
+node --test tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+tests 9
+pass 9
+fail 0
+```
+
+Browser checks:
+
+- Opened `http://127.0.0.1:5173/apps/dashboard/index.html?source=p3-media`.
+- Confirmed title, P3 data source, 3 case rows, 3 media-evidence cases, and Media Evidence panel.
+- Confirmed no browser console warnings/errors.
+- Confirmed mobile viewport width 390 has no horizontal overflow.
+
+### Evidence paths
+
+- `fixtures/a3/p3/ashr_media_field_sample.redacted.json`
+- `fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json`
+- `fixtures/a3/p3/ashr_run_detail_sample.redacted.json`
+- `fixtures/a3/p3/ashr_request_detail_sample.redacted.json`
+- `docs/a3/p3_media_calibration.md`
+- `docs/a3/p3_official_frontend_notes.md`
+- `docs/screenshots/a3-p3-product-console-media-overview.png`
+- `docs/screenshots/a3-p3-product-console-media-mobile.png`
+
+### Known gaps
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` failed with a network reset, so local remote refs may lag GitHub API state.
+- Authenticated `lab.ashr.io` dashboard observation is blocked until a logged-in session is available.
+- Real signed media URLs for audio/image/video are not confirmed in the sanitized sample.
+- Native Ashr backend failure-class fields remain unconfirmed; A3 still derives failure class for the media sample.
+
+### Next top 3
+
+1. Add trace/tool-call expected-vs-actual diff.
+2. Add report center / PDF-ready report layout.
+3. Observe authenticated Ashr Lab after manual login and update A3 navigation assumptions.
+
+## 2026-07-04 - Tool-call diff follow-up
+
+### Goal
+
+Continue the next A3 backlog item: make tool-call failures directly readable in the dashboard and exported JSON.
+
+### Implemented
+
+- Added `buildToolCallDiffs(caseResult)` to `services/report/report_builder.mjs`.
+- Added `tool_call_diffs` to JSON export.
+- Added test coverage in `tests/a3/report_builder.test.mjs`.
+- Added dashboard `Tool Call Diff` panel under Case Detail.
+- Added `docs/a3/p3_tool_call_diff.md`.
+- Captured `docs/screenshots/a3-p3-tool-call-diff.png`.
+
+### Verification
+
+```text
+node --test tests/a3/report_builder.test.mjs
+node --test tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+tests 10
+pass 10
+fail 0
+```
+
+Browser checks:
+
+- Missing required tool case showed `missing_required_tool`.
+- Wrong argument case showed `wrong_arguments`.
+- Tool name and argument JSON rendered in expected/actual columns.
+- Desktop check showed no horizontal overflow.
+
+### Next top 3
+
+1. Add field-level argument highlighting.
+2. Add report center / PDF-ready report layout.
+3. Observe authenticated Ashr Lab after manual login.

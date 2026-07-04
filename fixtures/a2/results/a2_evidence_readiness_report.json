@@ -1,0 +1,156 @@
+{
+  "schema_version": "a2.evidence_readiness.v1",
+  "report_id": "a2_g3_evidence_readiness",
+  "dataset_id": "a2-g3-calibration",
+  "status": "awaiting_private_evidence",
+  "ready_for_external_collection": true,
+  "readiness_checks": {
+    "has_calibration_cases": true,
+    "ashr_case_map_covers_cases": true,
+    "ashr_import_commands_documented": true,
+    "semantic_harness_ready": true,
+    "semantic_required_fields_documented": true,
+    "semantic_sdk_language_matrix_ready": true,
+    "private_payload_boundary_documented": true
+  },
+  "calibration_case_count": 6,
+  "calibration_cases": [
+    {
+      "case_id": "sample-a2-s001-pass",
+      "scenario_id": "A2-S001",
+      "fixture_ref": "fixtures/a2/runs/a2_s001_pass.json",
+      "calibration_focus": [
+        "direct_answer",
+        "pass_control"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "scenario_id": "A2-S010",
+      "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+      "calibration_focus": [
+        "argument_fidelity",
+        "misclassification_probe"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031",
+      "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_unsupported_output.json",
+      "calibration_focus": [
+        "media",
+        "tool_output_grounding"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "scenario_id": "A2-S041",
+      "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "calibration_focus": [
+        "failure_recovery",
+        "tool_error"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s048-secret-leak",
+      "scenario_id": "A2-S048",
+      "fixture_ref": "fixtures/a2/runs/a2_s048_secret_leak.json",
+      "calibration_focus": [
+        "safety",
+        "secret_leak"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s054-missing-clarification",
+      "scenario_id": "A2-S054",
+      "fixture_ref": "fixtures/a2/runs/a2_s054_missing_clarification.json",
+      "calibration_focus": [
+        "clarification",
+        "ambiguous_request"
+      ]
+    }
+  ],
+  "ashr_grading_preflight": {
+    "source": "ashr_grading",
+    "current_available": 0,
+    "current_missing": 6,
+    "expected_observation_count": 6,
+    "case_map_path": "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+    "case_map_count": 6,
+    "case_map_covers_all_calibration_cases": true,
+    "case_map_missing_case_ids": [],
+    "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
+    "commands": [
+      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "semantic_judge_preflight": {
+    "source": "llm_judge",
+    "current_available": 6,
+    "current_missing": 0,
+    "offline_reference_only": true,
+    "expected_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "required_fields": [
+      "case_id",
+      "scenario_id",
+      "provider",
+      "model",
+      "prompt_template_id",
+      "prompt_hash",
+      "response_hash",
+      "review_status",
+      "sdk_language",
+      "cost.prompt_tokens",
+      "cost.completion_tokens",
+      "cost.estimated_usd",
+      "output.passed",
+      "output.primary_failure_class",
+      "output.score",
+      "output.confidence",
+      "output.rationale",
+      "output.evidence_refs"
+    ],
+    "required_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "covered_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+    "commands": [
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "batch_plan_refs": [
+    "ashr_grading_tiny_calibration",
+    "semantic_llm_judge_audit"
+  ],
+  "redaction_policy": {
+    "raw_private_path": "docs/evidence/private_refs/",
+    "commit_only": [
+      "reviewed observation summaries",
+      "provider/model names",
+      "prompt and response hashes",
+      "cost totals",
+      "confidence and review status",
+      "private evidence refs"
+    ],
+    "never_commit": [
+      "API keys",
+      "raw prompts",
+      "raw model responses",
+      "raw account payloads"
+    ]
+  },
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make C3/C4 evidence collection auditable without committing private payloads."
+  }
+}
