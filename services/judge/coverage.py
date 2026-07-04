@@ -42,11 +42,13 @@ def build_coverage_report(
         for case in golden_cases
         if not case.get("expected_passed", False)
     )
+    golden_failure_class_cases = _golden_failure_case_refs(golden_cases, REQUIRED_FAILURE_CLASSES)
     executable_failure_classes = Counter(
         canonical_primary_failure_class([str(fixture.get("expected", {}).get("primary_failure_class", ""))])
         for fixture in run_fixtures
         if fixture.get("expected", {}).get("passed") is not True
     )
+    executable_failure_class_cases = _executable_failure_case_refs(run_fixtures, REQUIRED_FAILURE_CLASSES)
     thin_golden_failure_classes = _thin_counts(
         golden_failure_classes,
         REQUIRED_FAILURE_CLASSES,
@@ -87,11 +89,13 @@ def build_coverage_report(
         "golden_pass_case_count": sum(1 for case in golden_cases if case.get("expected_passed") is True),
         "golden_failure_case_count": sum(1 for case in golden_cases if case.get("expected_passed") is not True),
         "golden_failure_class_counts": dict(sorted(golden_failure_classes.items())),
+        "golden_failure_class_cases": golden_failure_class_cases,
         "golden_failure_classes_missing": sorted(REQUIRED_FAILURE_CLASSES - set(golden_failure_classes)),
         "thin_golden_failure_classes": thin_golden_failure_classes,
         "executable_run_case_count": len(run_fixtures),
         "executable_failure_case_count": sum(1 for fixture in run_fixtures if fixture.get("expected", {}).get("passed") is not True),
         "executable_failure_class_counts": dict(sorted(executable_failure_classes.items())),
+        "executable_failure_class_cases": executable_failure_class_cases,
         "executable_failure_classes_missing": sorted(REQUIRED_FAILURE_CLASSES - set(executable_failure_classes)),
         "thin_executable_failure_classes": thin_executable_failure_classes,
         "coverage_warnings": _coverage_warnings(thin_golden_failure_classes, thin_executable_failure_classes),
@@ -104,6 +108,35 @@ def _thin_counts(counts: Counter[str], required: set[str], target: int) -> dict[
         failure_class: counts.get(failure_class, 0)
         for failure_class in sorted(required)
         if counts.get(failure_class, 0) < target
+    }
+
+
+def _golden_failure_case_refs(cases: list[dict[str, Any]], required: set[str]) -> dict[str, list[dict[str, str]]]:
+    refs = {failure_class: [] for failure_class in sorted(required)}
+    for case in cases:
+        if case.get("expected_passed") is True:
+            continue
+        failure_class = canonical_primary_failure_class([str(case.get("expected_primary_failure_class", ""))])
+        if failure_class in refs:
+            refs[failure_class].append(_case_ref(case))
+    return {key: sorted(value, key=lambda item: (item["scenario_id"], item["case_id"])) for key, value in refs.items()}
+
+
+def _executable_failure_case_refs(fixtures: list[dict[str, Any]], required: set[str]) -> dict[str, list[dict[str, str]]]:
+    refs = {failure_class: [] for failure_class in sorted(required)}
+    for fixture in fixtures:
+        if fixture.get("expected", {}).get("passed") is True:
+            continue
+        failure_class = canonical_primary_failure_class([str(fixture.get("expected", {}).get("primary_failure_class", ""))])
+        if failure_class in refs:
+            refs[failure_class].append(_case_ref(fixture))
+    return {key: sorted(value, key=lambda item: (item["scenario_id"], item["case_id"])) for key, value in refs.items()}
+
+
+def _case_ref(payload: dict[str, Any]) -> dict[str, str]:
+    return {
+        "case_id": str(payload.get("case_id", "")),
+        "scenario_id": str(payload.get("scenario_id", "")),
     }
 
 

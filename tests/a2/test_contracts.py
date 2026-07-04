@@ -275,6 +275,15 @@ class A2ContractTests(unittest.TestCase):
         for failure_class in CANONICAL_FAILURE_CLASSES:
             with self.subTest(golden_failure_class=failure_class):
                 self.assertGreaterEqual(report["golden_failure_class_counts"][failure_class], 2)
+                self.assertGreaterEqual(len(report["golden_failure_class_cases"][failure_class]), 2)
+                for case_ref in report["golden_failure_class_cases"][failure_class]:
+                    self.assertIn("case_id", case_ref)
+                    self.assertIn("scenario_id", case_ref)
+        golden_wrong_arguments = {
+            case_ref["case_id"]
+            for case_ref in report["golden_failure_class_cases"]["wrong_arguments"]
+        }
+        self.assertIn("GC-A2-S033-fail-wrong-calculator-arguments", golden_wrong_arguments)
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
         self.assertGreaterEqual(report["executable_run_case_count"], 27)
         self.assertGreaterEqual(report["executable_failure_case_count"], 26)
@@ -283,6 +292,15 @@ class A2ContractTests(unittest.TestCase):
         for failure_class in CANONICAL_FAILURE_CLASSES:
             with self.subTest(executable_failure_class=failure_class):
                 self.assertGreaterEqual(report["executable_failure_class_counts"][failure_class], 2)
+                self.assertGreaterEqual(len(report["executable_failure_class_cases"][failure_class]), 2)
+                for case_ref in report["executable_failure_class_cases"][failure_class]:
+                    self.assertIn("case_id", case_ref)
+                    self.assertIn("scenario_id", case_ref)
+        executable_missing_tool = {
+            case_ref["case_id"]
+            for case_ref in report["executable_failure_class_cases"]["missing_required_tool"]
+        }
+        self.assertIn("sample-a2-s029-missing-required-search", executable_missing_tool)
         self.assertEqual(report["coverage_warnings"], [])
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 

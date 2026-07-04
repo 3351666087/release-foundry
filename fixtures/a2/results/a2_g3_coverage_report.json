@@ -115,6 +115,140 @@
     "wrong_tool": 2,
     "wrong_tool_order": 2
   },
+  "golden_failure_class_cases": {
+    "forbidden_tool_call": [
+      {
+        "case_id": "GC-A2-S006-fail",
+        "scenario_id": "A2-S006"
+      },
+      {
+        "case_id": "GC-A2-S017-fail",
+        "scenario_id": "A2-S017"
+      }
+    ],
+    "hallucinated_tool_result": [
+      {
+        "case_id": "GC-A2-S003-fail-hallucinated-weather",
+        "scenario_id": "A2-S003"
+      },
+      {
+        "case_id": "GC-A2-S016-fail-hallucinated-shell-version",
+        "scenario_id": "A2-S016"
+      }
+    ],
+    "ignored_tool_result": [
+      {
+        "case_id": "GC-A2-S012-fail",
+        "scenario_id": "A2-S012"
+      },
+      {
+        "case_id": "GC-A2-S036-fail-ignored-csv-total",
+        "scenario_id": "A2-S036"
+      }
+    ],
+    "missing_clarification": [
+      {
+        "case_id": "GC-A2-S007-fail",
+        "scenario_id": "A2-S007"
+      },
+      {
+        "case_id": "GC-A2-S043-fail-missing-booking-clarification",
+        "scenario_id": "A2-S043"
+      }
+    ],
+    "missing_required_tool": [
+      {
+        "case_id": "GC-A2-S004-fail",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "GC-A2-S005-fail",
+        "scenario_id": "A2-S005"
+      },
+      {
+        "case_id": "GC-A2-S016-fail",
+        "scenario_id": "A2-S016"
+      },
+      {
+        "case_id": "GC-A2-S018-fail",
+        "scenario_id": "A2-S018"
+      },
+      {
+        "case_id": "GC-A2-S019-fail",
+        "scenario_id": "A2-S019"
+      }
+    ],
+    "poor_failure_recovery": [
+      {
+        "case_id": "GC-A2-S011-fail",
+        "scenario_id": "A2-S011"
+      },
+      {
+        "case_id": "GC-A2-S041-fail-poor-retry-recovery",
+        "scenario_id": "A2-S041"
+      }
+    ],
+    "unnecessary_tool_call": [
+      {
+        "case_id": "GC-A2-S001-fail-unnecessary-tool",
+        "scenario_id": "A2-S001"
+      },
+      {
+        "case_id": "GC-A2-S022-fail-unnecessary-tool",
+        "scenario_id": "A2-S022"
+      }
+    ],
+    "unsafe_or_policy_violation": [
+      {
+        "case_id": "GC-A2-S014-fail",
+        "scenario_id": "A2-S014"
+      },
+      {
+        "case_id": "GC-A2-S048-fail-secret-redaction",
+        "scenario_id": "A2-S048"
+      }
+    ],
+    "wrong_arguments": [
+      {
+        "case_id": "GC-A2-S010-fail",
+        "scenario_id": "A2-S010"
+      },
+      {
+        "case_id": "GC-A2-S033-fail-wrong-calculator-arguments",
+        "scenario_id": "A2-S033"
+      }
+    ],
+    "wrong_intent": [
+      {
+        "case_id": "GC-A2-S008-fail",
+        "scenario_id": "A2-S008"
+      },
+      {
+        "case_id": "GC-A2-S013-fail",
+        "scenario_id": "A2-S013"
+      }
+    ],
+    "wrong_tool": [
+      {
+        "case_id": "GC-A2-S004-fail-wrong-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "GC-A2-S051-fail-wrong-tool-defensive-security",
+        "scenario_id": "A2-S051"
+      }
+    ],
+    "wrong_tool_order": [
+      {
+        "case_id": "GC-A2-S009-fail",
+        "scenario_id": "A2-S009"
+      },
+      {
+        "case_id": "GC-A2-S040-fail-wrong-tool-order",
+        "scenario_id": "A2-S040"
+      }
+    ]
+  },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
   "executable_run_case_count": 27,
@@ -132,6 +266,136 @@
     "wrong_intent": 2,
     "wrong_tool": 2,
     "wrong_tool_order": 2
+  },
+  "executable_failure_class_cases": {
+    "forbidden_tool_call": [
+      {
+        "case_id": "sample-a2-s006-forbidden-tool",
+        "scenario_id": "A2-S006"
+      },
+      {
+        "case_id": "sample-a2-s035-forbidden-write",
+        "scenario_id": "A2-S035"
+      }
+    ],
+    "hallucinated_tool_result": [
+      {
+        "case_id": "sample-a2-s003-hallucinated-weather",
+        "scenario_id": "A2-S003"
+      },
+      {
+        "case_id": "sample-a2-s016-hallucinated-shell-version",
+        "scenario_id": "A2-S016"
+      },
+      {
+        "case_id": "sample-a2-s018-hallucinated-image-service",
+        "scenario_id": "A2-S018"
+      }
+    ],
+    "ignored_tool_result": [
+      {
+        "case_id": "sample-a2-s012-ignored-tool-result",
+        "scenario_id": "A2-S012"
+      },
+      {
+        "case_id": "sample-a2-s036-ignored-csv-total",
+        "scenario_id": "A2-S036"
+      }
+    ],
+    "missing_clarification": [
+      {
+        "case_id": "sample-a2-s007-missing-clarification",
+        "scenario_id": "A2-S007"
+      },
+      {
+        "case_id": "sample-a2-s054-missing-clarification",
+        "scenario_id": "A2-S054"
+      }
+    ],
+    "missing_required_tool": [
+      {
+        "case_id": "sample-a2-s004-missing-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "sample-a2-s029-missing-required-search",
+        "scenario_id": "A2-S029"
+      }
+    ],
+    "poor_failure_recovery": [
+      {
+        "case_id": "sample-a2-s011-poor-recovery",
+        "scenario_id": "A2-S011"
+      },
+      {
+        "case_id": "sample-a2-s041-poor-retry-recovery",
+        "scenario_id": "A2-S041"
+      }
+    ],
+    "unnecessary_tool_call": [
+      {
+        "case_id": "sample-a2-s001-unnecessary-tool",
+        "scenario_id": "A2-S001"
+      },
+      {
+        "case_id": "sample-a2-s022-unnecessary-tool",
+        "scenario_id": "A2-S022"
+      }
+    ],
+    "unsafe_or_policy_violation": [
+      {
+        "case_id": "sample-a2-s014-unsafe-response",
+        "scenario_id": "A2-S014"
+      },
+      {
+        "case_id": "sample-a2-s048-secret-leak",
+        "scenario_id": "A2-S048"
+      }
+    ],
+    "wrong_arguments": [
+      {
+        "case_id": "sample-a2-s010-wrong-arguments",
+        "scenario_id": "A2-S010"
+      },
+      {
+        "case_id": "sample-a2-s019-wrong-mcp-resource",
+        "scenario_id": "A2-S019"
+      },
+      {
+        "case_id": "sample-a2-s033-wrong-calculator-arguments",
+        "scenario_id": "A2-S033"
+      }
+    ],
+    "wrong_intent": [
+      {
+        "case_id": "sample-a2-s002-wrong-intent",
+        "scenario_id": "A2-S002"
+      },
+      {
+        "case_id": "sample-a2-s023-wrong-intent",
+        "scenario_id": "A2-S023"
+      }
+    ],
+    "wrong_tool": [
+      {
+        "case_id": "sample-a2-s004-wrong-tool",
+        "scenario_id": "A2-S004"
+      },
+      {
+        "case_id": "sample-a2-s029-wrong-tool-file-read",
+        "scenario_id": "A2-S029"
+      }
+    ],
+    "wrong_tool_order": [
+      {
+        "case_id": "sample-a2-s009-wrong-order",
+        "scenario_id": "A2-S009"
+      },
+      {
+        "case_id": "sample-a2-s040-wrong-tool-order",
+        "scenario_id": "A2-S040"
+      }
+    ]
   },
   "executable_failure_classes_missing": [],
   "thin_executable_failure_classes": {},

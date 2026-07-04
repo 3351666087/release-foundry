@@ -250,10 +250,17 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.coverage_warning_count, 0);
   assert.equal(Object.keys(summary.thin_golden_failure_classes).length, 0);
   assert.equal(Object.keys(summary.thin_executable_failure_classes).length, 0);
+  assert.ok(summary.golden_failure_class_cases.wrong_arguments.some((item) => (
+    item.case_id === "GC-A2-S033-fail-wrong-calculator-arguments"
+  )));
+  assert.ok(summary.executable_failure_class_cases.missing_required_tool.some((item) => (
+    item.case_id === "sample-a2-s029-missing-required-search"
+  )));
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
   assert.equal(json.coverage.coverage_warning_count, 0);
+  assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
   assert.match(markdown, /## Coverage/);

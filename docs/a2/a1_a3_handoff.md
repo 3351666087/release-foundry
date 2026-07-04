@@ -137,6 +137,8 @@ A2 aggregate scores use a 0-100 scale with `max_score: 100` on per-judge results
 
 The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, executable failure calibration coverage, assignment minimum checks, and thin-calibration warnings without rerunning A2 code.
 
+A3 can also use `golden_failure_class_cases` and `executable_failure_class_cases` as drilldown evidence for each canonical failure class.
+
 ## Known Boundary
 
 This is a local deterministic handoff. It is intentionally not yet the real Ashr server-side grading result. G3 will calibrate field names and scoring behavior against real Ashr API evidence.
