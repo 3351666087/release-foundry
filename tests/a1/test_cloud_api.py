@@ -308,6 +308,115 @@ def test_cloud_queue_worker_wait_returns_cancelled_pending_run_without_cancelled
     assert [item["status"] for item in waited["run"]["status_history"]] == ["queued", "cancelled"]
 
 
+def test_cloud_api_state_snapshot_roundtrips_store_and_quota(tmp_path):
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Persisted Queue Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_state_roundtrip",
+    )
+    queued = service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        runner_id="a1-state-roundtrip-test",
+        run_id="run_state_roundtrip",
+        metadata={"source": "state-roundtrip-test"},
+    )
+
+    state_path = service.write_state(tmp_path / "cloud_state.json")
+    state_payload = json.loads(state_path.read_text(encoding="utf-8"))
+    restored = CloudApiService.from_state_file(state_path)
+
+    assert state_payload["kind"] == "local_cloud_state"
+    assert state_payload["metadata"]["ashr_api_used"] is False
+    assert restored.get_dataset(tenant["tenant_id"], project["project_id"], dataset["dataset_id"])["case_count"] == 1
+    assert restored.poll_run(tenant["tenant_id"], project["project_id"], queued["run_id"])["status"] == "queued"
+    quota = restored.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    assert quota["dataset.create"] == 1
+    assert quota["run.submit"] == 1
+
+
+def test_cloud_queue_worker_replays_persisted_queued_run_and_writes_fixture(tmp_path):
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Replay Queue Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_queue_replay",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        runner_id="a1-queue-replay-test",
+        run_id="run_queue_replay",
+    )
+    restored = CloudApiService.from_state_file(service.write_state(tmp_path / "cloud_state.json"))
+
+    with CloudQueueWorker(restored, queue_workers=1) as worker:
+        replayed = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent="examples.agents.mock_agent:RespondingMockAgent",
+            max_runs=1,
+            max_workers=1,
+            timeout_seconds=5,
+        )
+        completed = worker.wait_for_run(tenant["tenant_id"], project["project_id"], "run_queue_replay", timeout_seconds=10, require_terminal=True)["run"]
+
+    fixture_path = restored.write_run_fixture(tenant["tenant_id"], project["project_id"], "run_queue_replay", tmp_path / "queue_replay_fixture.json")
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    quota = restored.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    assert [run["run_id"] for run in replayed] == ["run_queue_replay"]
+    assert [item["status"] for item in completed["status_history"]] == ["queued", "running", "completed"]
+    assert completed["result"]["run_id"] == "run_queue_replay"
+    assert completed["result_status"] == "passed"
+    assert len(completed["observations"]) == 2
+    assert quota["run.submit"] == 1
+    assert quota["observation.write"] == 2
+    assert fixture["run_result"]["run_id"] == "run_queue_replay"
+    assert fixture["metadata"]["ashr_api_used"] is False
+
+
+def test_cloud_queue_worker_replay_respects_max_runs_bound(tmp_path):
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Bounded Replay Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_queue_replay_bound",
+    )
+    for run_id in ("run_queue_replay_a", "run_queue_replay_b"):
+        service.create_queued_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            dataset_id=dataset["dataset_id"],
+            runner_id="a1-queue-replay-bound-test",
+            run_id=run_id,
+        )
+    restored = CloudApiService.from_state(service.snapshot_state())
+
+    with CloudQueueWorker(restored, queue_workers=1) as worker:
+        replayed = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent=RespondingMockAgent,
+            max_runs=1,
+            max_workers=1,
+            timeout_seconds=5,
+        )
+        completed = worker.wait_for_run(tenant["tenant_id"], project["project_id"], replayed[0]["run_id"], timeout_seconds=10, require_terminal=True)
+
+    assert [run["run_id"] for run in replayed] == ["run_queue_replay_a"]
+    assert completed["status"] == "completed"
+    assert restored.poll_run(tenant["tenant_id"], project["project_id"], "run_queue_replay_b")["status"] == "queued"
+
+
 def test_cloud_api_demo_runs_agent_submits_polls_and_writes_outputs(tmp_path):
     input_path = tmp_path / "cases.json"
     fixture_path = tmp_path / "fixture.json"

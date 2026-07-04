@@ -53,4 +53,10 @@ Unverified or intentionally out of scope:
 - `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but showed sign-in copy in this pass; `Usage`, `Images`, `Audio`, `Files`, and `Upgrade` labels were not confirmed. No private counters were recorded.
 - TypeScript `AshrApiClient` now mirrors the Python dry-run/client guardrail surface locally, but no hosted TS API call has been executed. Hosted TS auth behavior, quota headers, media processing behavior, and billing/usage timing remain unverified.
 
+2026-07-04 A1 queue persistence/replay update:
+
+- Main-thread Chrome recheck confirmed the public API reference at `https://ashr.io/docs/python-sdk/api-reference/` exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` in the current Chrome session and showed the labels `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private usage counters were not recorded in tracked docs.
+- Local queue snapshot/replay state remains an A1 clone scaffold. Hosted persistence semantics, queue replay behavior, cancellation persistence, and Image/Audio/File quota reset/enforcement semantics remain unverified against Ashr's backend.
+
 If any of these become required for A1/A2/A3, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs or committed artifacts.

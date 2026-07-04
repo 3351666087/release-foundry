@@ -518,6 +518,33 @@ class CloudApiService:
         path.write_text(json.dumps(self.export_run_fixture(tenant_id, project_id, run_id), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         return path
 
+    def snapshot_state(self) -> JsonDict:
+        with self._lock:
+            return {
+                "schema_version": CLOUD_API_SCHEMA_VERSION,
+                "state_version": 1,
+                "kind": "local_cloud_state",
+                "store": self.store.snapshot(),
+                "quota": _quota_state(self.quota),
+                "metadata": {"local_only": True, "ashr_api_used": False},
+            }
+
+    def write_state(self, output_path: str | Path) -> Path:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.snapshot_state(), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        return path
+
+    @classmethod
+    def from_state(cls, payload: Mapping[str, Any]) -> CloudApiService:
+        if not isinstance(payload, Mapping):
+            raise ValidationError("cloud state payload must be a JSON object")
+        return cls(store=_store_from_state(payload), quota=_quota_from_state(payload.get("quota", {})))
+
+    @classmethod
+    def from_state_file(cls, input_path: str | Path) -> CloudApiService:
+        return cls.from_state(json.loads(Path(input_path).read_text(encoding="utf-8")))
+
     def _get_run_record(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
         run = self.store.runs.get(str(run_id))
         if not run or run.get("tenant_id") != str(tenant_id) or run.get("project_id") != str(project_id):
@@ -553,6 +580,74 @@ def _append_status_history(run: JsonDict, status: str, at: str) -> None:
         history[-1]["at"] = at
         return
     history.append({"status": status, "at": at})
+
+
+def _quota_state(quota: QuotaLedger) -> JsonDict:
+    project_keys = set(quota.limits) | set(quota.used)
+    return _jsonable(
+        {
+            "default_limits": dict(quota.default_limits),
+            "projects": [
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "limits": dict(quota.limits.get((tenant_id, project_id), {})),
+                    "used": dict(quota.used.get((tenant_id, project_id), {})),
+                }
+                for tenant_id, project_id in sorted(project_keys)
+            ],
+        }
+    )
+
+
+def _quota_from_state(payload: Any) -> QuotaLedger:
+    if not isinstance(payload, Mapping):
+        return QuotaLedger()
+    default_limits = payload.get("default_limits")
+    ledger = QuotaLedger(default_limits=dict(default_limits) if isinstance(default_limits, Mapping) else dict(DEFAULT_QUOTA_LIMITS))
+    projects = payload.get("projects") or []
+    if not isinstance(projects, list):
+        raise ValidationError("quota projects must be a list")
+    for entry in projects:
+        if not isinstance(entry, Mapping):
+            raise ValidationError("quota project entries must be objects")
+        tenant_id = str(entry.get("tenant_id") or "")
+        project_id = str(entry.get("project_id") or "")
+        _require_id(tenant_id, "tenant_id")
+        _require_id(project_id, "project_id")
+        key = (tenant_id, project_id)
+        limits = entry.get("limits") or {}
+        used = entry.get("used") or {}
+        if not isinstance(limits, Mapping) or not isinstance(used, Mapping):
+            raise ValidationError("quota limits and used values must be objects")
+        ledger.limits[key] = {str(operation): int(limit) for operation, limit in limits.items()}
+        ledger.used[key] = {str(operation): int(units) for operation, units in used.items()}
+    return ledger
+
+
+def _store_from_state(payload: Mapping[str, Any]) -> InMemoryCloudStore:
+    store_payload = payload.get("store", payload)
+    if not isinstance(store_payload, Mapping):
+        raise ValidationError("cloud state store must be a JSON object")
+    return InMemoryCloudStore(
+        tenants=_state_bucket(store_payload, "tenants"),
+        projects=_state_bucket(store_payload, "projects"),
+        datasets=_state_bucket(store_payload, "datasets"),
+        requests=_state_bucket(store_payload, "requests"),
+        runs=_state_bucket(store_payload, "runs"),
+    )
+
+
+def _state_bucket(payload: Mapping[str, Any], key: str) -> dict[str, JsonDict]:
+    bucket = payload.get(key) or {}
+    if not isinstance(bucket, Mapping):
+        raise ValidationError(f"cloud state {key} must be an object")
+    records: dict[str, JsonDict] = {}
+    for item_key, item_value in bucket.items():
+        if not isinstance(item_value, Mapping):
+            raise ValidationError(f"cloud state {key} records must be objects")
+        records[str(item_key)] = _jsonable(dict(item_value))
+    return records
 
 
 def _positive_units(units: int) -> int:

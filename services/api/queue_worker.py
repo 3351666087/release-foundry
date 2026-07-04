@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from packages.sdk.ashr_clone.api_client import redact_text
 from services.runner.runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalize_max_workers, normalize_timeout_seconds, run_agent_batch
 
-from .runtime import CloudApiService, JsonDict, NotFoundError
+from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError
 
 TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled"}
 
@@ -66,6 +66,57 @@ class CloudQueueWorker:
 
     def poll_run(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
         return self.service.poll_run(tenant_id, project_id, run_id)
+
+    def replay_incomplete_runs(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        agent: Any,
+        dataset_id: str | None = None,
+        statuses: Iterable[str] = ("queued", "running"),
+        max_runs: int = 100,
+        max_workers: int | None = DEFAULT_MAX_WORKERS,
+        timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> list[JsonDict]:
+        replay_statuses = {str(status) for status in statuses}
+        if not replay_statuses:
+            raise ValidationError("replay statuses must not be empty")
+        unsupported = replay_statuses - {"queued", "running"}
+        if unsupported:
+            raise ValidationError(f"unsupported replay statuses: {', '.join(sorted(unsupported))}")
+        limit = _normalize_replay_limit(max_runs)
+        runner_workers = normalize_max_workers(max_workers)
+        normalized_timeout = normalize_timeout_seconds(timeout_seconds)
+        candidates = sorted(
+            self.service.list_runs(tenant_id, project_id, dataset_id=dataset_id),
+            key=lambda run: (str(run.get("created_at") or ""), str(run.get("run_id") or "")),
+        )
+        replayed: list[JsonDict] = []
+        for run in candidates:
+            if len(replayed) >= limit:
+                break
+            if run.get("status") not in replay_statuses:
+                continue
+            run_id = str(run["run_id"])
+            future = self._futures.get(run_id)
+            if future is not None and not future.done():
+                continue
+            request = QueueRunRequest(
+                tenant_id=str(run["tenant_id"]),
+                project_id=str(run["project_id"]),
+                dataset_id=str(run["dataset_id"]),
+                agent=agent,
+                runner_id=str(run.get("runner_id") or "a1-local-queue-worker"),
+                run_id=run_id,
+                max_workers=runner_workers,
+                timeout_seconds=normalized_timeout,
+                metadata=metadata,
+            )
+            self._futures[run_id] = self._executor.submit(self._execute, request)
+            replayed.append(run)
+        return replayed
 
     def wait_for_run(
         self,
@@ -142,3 +193,10 @@ class CloudQueueWorker:
                 run_id,
                 error={"type": type(exc).__name__, "message": redact_text(str(exc))},
             )
+
+
+def _normalize_replay_limit(max_runs: int) -> int:
+    limit = int(max_runs)
+    if limit < 1:
+        raise ValidationError("max_runs must be positive")
+    return limit

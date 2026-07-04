@@ -274,6 +274,208 @@ def test_cloud_api_cli_queued_demo_timeout_returns_nonzero_without_outputs(tmp_p
     assert not run_output.exists()
 
 
+def test_cloud_api_cli_queue_state_replay_and_export_roundtrip(tmp_path):
+    cases_path = _write_cases(tmp_path)
+    state_path = tmp_path / "queued_state.json"
+    queued_summary_path = tmp_path / "queued_summary.json"
+    replayed_state_path = tmp_path / "replayed_state.json"
+    replay_summary_path = tmp_path / "replay_summary.json"
+    fixture_output = tmp_path / "replay_fixture.json"
+    run_output = tmp_path / "replay_run.json"
+    exported_fixture = tmp_path / "exported_fixture.json"
+    export_summary_path = tmp_path / "export_summary.json"
+    run_id = "run_cli_replay_roundtrip"
+
+    queued = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "queue-run",
+            "--input",
+            str(cases_path),
+            "--state-output",
+            str(state_path),
+            "--summary-output",
+            str(queued_summary_path),
+            "--tenant-id",
+            "tenant_cli_replay_test",
+            "--project-id",
+            "project_cli_replay_test",
+            "--dataset-id",
+            "dataset_cli_replay_test",
+            "--runner-id",
+            "a1-cli-replay-test",
+            "--run-id",
+            run_id,
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert queued.returncode == 0, queued.stderr
+    queued_summary = json.loads(queued_summary_path.read_text(encoding="utf-8"))
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert queued_summary["runs"][0]["status"] == "queued"
+    assert state["kind"] == "local_cloud_state"
+    assert state["metadata"]["ashr_api_used"] is False
+    assert state["store"]["runs"][run_id]["status"] == "queued"
+
+    replayed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "replay-queued",
+            "--state-input",
+            str(state_path),
+            "--agent",
+            AGENT_TARGET,
+            "--tenant-id",
+            "tenant_cli_replay_test",
+            "--project-id",
+            "project_cli_replay_test",
+            "--dataset-id",
+            "dataset_cli_replay_test",
+            "--fixture-output",
+            str(fixture_output),
+            "--summary-output",
+            str(replay_summary_path),
+            "--run-output",
+            str(run_output),
+            "--state-output",
+            str(replayed_state_path),
+            "--max-runs",
+            "1",
+            "--queue-workers",
+            "1",
+            "--max-workers",
+            "1",
+            "--timeout",
+            "5",
+            "--wait-timeout",
+            "10",
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert replayed.returncode == 0, replayed.stderr
+    replay_summary = json.loads(replay_summary_path.read_text(encoding="utf-8"))
+    fixture = json.loads(fixture_output.read_text(encoding="utf-8"))
+    run_result = json.loads(run_output.read_text(encoding="utf-8"))
+    replayed_state = json.loads(replayed_state_path.read_text(encoding="utf-8"))
+    assert replay_summary["replay"]["replayed"] == [run_id]
+    assert replay_summary["replay"]["completed"] == [{"run_id": run_id, "status": "completed"}]
+    assert replay_summary["metadata"]["ashr_api_used"] is False
+    assert replay_summary["outputs"]["state"] == str(replayed_state_path)
+    assert fixture["run_id"] == run_id
+    assert fixture["status"] == "completed"
+    assert fixture["metadata"]["ashr_api_used"] is False
+    assert run_result["run_id"] == run_id
+    assert replayed_state["store"]["runs"][run_id]["status"] == "completed"
+
+    exported = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "export-fixture",
+            "--state-input",
+            str(replayed_state_path),
+            "--tenant-id",
+            "tenant_cli_replay_test",
+            "--project-id",
+            "project_cli_replay_test",
+            "--run-id",
+            run_id,
+            "--fixture-output",
+            str(exported_fixture),
+            "--summary-output",
+            str(export_summary_path),
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert exported.returncode == 0, exported.stderr
+    exported_payload = json.loads(exported_fixture.read_text(encoding="utf-8"))
+    export_summary = json.loads(export_summary_path.read_text(encoding="utf-8"))
+    assert exported_payload["run_id"] == run_id
+    assert exported_payload["status"] == "completed"
+    assert export_summary["export"] == {"allow_incomplete": False, "run_id": run_id, "status": "completed"}
+
+
+def test_cloud_api_cli_export_fixture_blocks_incomplete_state(tmp_path):
+    state_path = tmp_path / "queued_state.json"
+    fixture_output = tmp_path / "queued_fixture.json"
+    run_id = "run_cli_incomplete_export"
+    queued = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "queue-run",
+            "--input",
+            str(_write_cases(tmp_path)),
+            "--state-output",
+            str(state_path),
+            "--tenant-id",
+            "tenant_cli_incomplete_export_test",
+            "--project-id",
+            "project_cli_incomplete_export_test",
+            "--dataset-id",
+            "dataset_cli_incomplete_export_test",
+            "--run-id",
+            run_id,
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert queued.returncode == 0, queued.stderr
+
+    exported = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.api.cli",
+            "export-fixture",
+            "--state-input",
+            str(state_path),
+            "--tenant-id",
+            "tenant_cli_incomplete_export_test",
+            "--project-id",
+            "project_cli_incomplete_export_test",
+            "--run-id",
+            run_id,
+            "--fixture-output",
+            str(fixture_output),
+        ],
+        cwd=str(ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert exported.returncode == 2
+    assert "must be terminal before fixture export" in exported.stderr
+    assert "Traceback" not in exported.stderr
+    assert not fixture_output.exists()
+
+
 def test_cloud_api_cli_redacts_operational_errors(tmp_path):
     cases_path = _write_cases(tmp_path)
     fixture_output = tmp_path / "redacted_fixture.json"

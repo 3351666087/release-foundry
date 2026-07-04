@@ -9,7 +9,13 @@ from .runtime import (
     QuotaLedger,
     ValidationError,
 )
-from .demo import run_agent_cloud_demo, run_agent_cloud_queue_demo
+from .demo import (
+    create_agent_cloud_queue_state,
+    export_run_fixture_from_state,
+    replay_agent_cloud_queue_state,
+    run_agent_cloud_demo,
+    run_agent_cloud_queue_demo,
+)
 from .queue_worker import CloudQueueWorker, QueueRunRequest
 
 __all__ = [
@@ -24,6 +30,9 @@ __all__ = [
     "QuotaLedger",
     "QueueRunRequest",
     "ValidationError",
+    "create_agent_cloud_queue_state",
+    "export_run_fixture_from_state",
+    "replay_agent_cloud_queue_state",
     "run_agent_cloud_demo",
     "run_agent_cloud_queue_demo",
 ]

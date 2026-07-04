@@ -1054,3 +1054,65 @@ Remaining / next top 3:
 1. Add queue persistence/replay controls so queued run state can survive process boundaries and produce deterministic replay artifacts.
 2. Add a TypeScript probe CLI wrapper around the dry-run `AshrApiClient` before any hosted TS calls.
 3. Convert selected private hosted run evidence through the A2 Ashr grading import/merge bridge into public-safe calibration observations.
+
+## 2026-07-04 Queue Persistence And Replay CLI
+
+Goal: turn the local queue persistence/replay library slice into an operator-facing loop: create a queued run state snapshot, reload it in a later process, replay incomplete queued/running runs through the local worker, write a completed state snapshot, and export A3-consumable run fixtures without calling hosted Ashr APIs.
+
+Start protocol:
+
+- `pwd`: `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel`: `C:/Users/33516/Documents/Ashr`.
+- `git remote -v`: origin is `https://github.com/3351666087/ashr-codex-factory`.
+- `gh repo view`: repo `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success.
+- `gh pr list --state all --limit 20`: PR #7 open/draft on `codex/a1-local-sdk-runner`; `gh pr view 7` later confirmed mergeable at head `c81e60d`.
+- `git status -sb --untracked-files=all`: tracked in-progress files were `services/api/runtime.py`, `services/api/queue_worker.py`, and `tests/a1/test_cloud_api.py`; ignored `.secrets/`, `.pytest_cache/`, `docs/evidence/private_refs/`, and TS build/cache paths remained unstaged.
+
+Baseline scan:
+
+- Existing A1 surfaces: Python SDK/Adapter/Runner/Trace/API probe, local cloud runtime, queue worker facade, cloud demo CLI, TypeScript local SDK and hosted dry-run client, MockAgent, A1 tests/docs/schemas, ignored private real API evidence.
+- Existing persistence work at round start: `CloudApiService.snapshot_state(...)`, `write_state(...)`, `from_state_file(...)`, `CloudQueueWorker.replay_incomplete_runs(...)`, and library tests for state roundtrip and replay.
+- Missing before this round: operator CLI controls for state input/output, persisted queued-state creation, replay from restored state across subprocess boundaries, and guarded fixture export from restored state.
+- Peer changes/impact: latest peer `007c650 G3: add A2 semantic judge harness` touched A2 docs/worklog/fixtures/scripts plus `services/judge` and `tests/a2`. No A1-owned conflict; do not integrate/rebase in a way that drops those peer files.
+
+Three proposed enhancements:
+
+1. Queue persistence/replay CLI controls: demo value 5, risk reduction 5, contract impact 1, estimated effort 2, API evidence value 2. Selected because it makes the newly available persistence/replay core useful to A2/A3 and fresh setup.
+2. TypeScript probe CLI wrapper around dry-run `AshrApiClient`: demo value 4, risk reduction 4, contract impact 1, estimated effort 3, API evidence value 4.
+3. Public-safe A2 grading import from selected hosted evidence: demo value 3, risk reduction 3, contract impact 2, estimated effort 3, API evidence value 3.
+
+Subagent / auditor status:
+
+- Bus-Auditor: PASS for local-only queue persistence/replay next; required updating stale PR/peer evidence to PR #7 head `c81e60d` and peer `007c650`, and preserving secret/private evidence hygiene.
+- Explorer-SDK/API: recommended TS probe CLI as a future high-ROI item, but also confirmed queue persistence/replay already had library coverage and needed CLI/product controls.
+- Explorer-Chrome: Chrome subagent could not stably claim lab tabs and made no credential/API calls; main thread completed the read-only Chrome check.
+- Worker-Runtime: implemented the bounded library slice for state snapshot/load and replay incomplete runs; main thread extended it to CLI/demo/fixture-export controls.
+- Reviewer / Worker-TS: not separately spawned at first because the thread limit was reached; main thread covered the selected Python CLI path with focused and full regression tests.
+
+Implemented:
+
+- `services/api/demo.py`: added optional `state_output_path` for direct and queued demos; added `create_agent_cloud_queue_state(...)`, `replay_agent_cloud_queue_state(...)`, and `export_run_fixture_from_state(...)`; added terminal-status guard so restored queued/running state cannot be exported as a completed fixture unless explicitly allowed.
+- `services/api/cli.py`: added `queue-run`, `replay-queued`, and `export-fixture`; added `--state-output` to `run-agent` and `run-agent-queued`.
+- `services/api/__init__.py`: exported the new demo helpers.
+- `tests/a1/test_cloud_api_cli.py`: added subprocess roundtrip coverage for `queue-run -> replay-queued -> export-fixture` and a regression that incomplete queued state cannot be exported by default.
+- `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and this worklog were updated.
+
+Verification:
+
+- Chrome main-thread check: `https://ashr.io/docs/python-sdk/api-reference/` exposed `AshrLabsClient`, `health_check`, `list_agents`, `create_run`, `get_run`, `list_runs`, `poll_run`, `create_request`, `get_request`, `list_requests`, `request_input_schema`, `accepted_inputs`, `generate_images`, `generate_audio`, and `generate_files`.
+- Chrome Usage check: `https://lab.ashr.io/?tab=usage` loaded as `Ashr Labs` and showed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact private counters were not recorded.
+- `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 28 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 130 passed.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 24 Node tests passed.
+- `python -B -m services.api.cli queue-run --input docs/a1/evidence/local_agent_cases_30.json --state-output docs/evidence/private_refs/a1_queue_state_snapshot_smoke.json --summary-output docs/evidence/private_refs/a1_queue_state_summary_smoke.json --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --dataset-id dataset_a1_replay_smoke --runner-id a1-replay-smoke --run-id run_a1_replay_smoke`: wrote ignored queued local state, 30 cases, `queued` status, `run.submit=1`.
+- `python -B -m services.api.cli replay-queued --state-input docs/evidence/private_refs/a1_queue_state_snapshot_smoke.json --agent examples.agents.mock_agent:RespondingMockAgent --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --dataset-id dataset_a1_replay_smoke --fixture-output docs/evidence/private_refs/a1_queue_replay_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_replay_summary_smoke.json --run-output docs/evidence/private_refs/a1_queue_replay_run_smoke.json --state-output docs/evidence/private_refs/a1_queue_replayed_state_smoke.json --max-runs 1 --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30`: completed with 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, trace completeness 1.0, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`, status history `queued -> running -> completed`.
+- `python -B -m services.api.cli export-fixture --state-input docs/evidence/private_refs/a1_queue_replayed_state_smoke.json --tenant-id tenant_a1_replay_smoke --project-id project_a1_replay_smoke --run-id run_a1_replay_smoke --fixture-output docs/evidence/private_refs/a1_queue_exported_fixture_smoke.json --summary-output docs/evidence/private_refs/a1_queue_export_summary_smoke.json`: exported a completed run fixture from restored state.
+- Final remote recheck before staging: `origin/dev/g3-a2-calibration` advanced from `007c650` to `18e4a96 G3: add A2 semantic judge import bridge`, touching `docs/a2`, `docs/worklog/Kay.md`, `fixtures/a2/calibration`, `scripts/a2_import_semantic_judge.py`, `scripts/a2_merge_calibration_observations.py`, `services/judge`, and `tests/a2`. No A1-owned conflict observed; current branch remained even with `origin/codex/a1-local-sdk-runner`.
+- Real Ashr API calls: none in this implementation round. No env key, `.secrets`, desktop key file, or raw private evidence contents were read.
+
+Remaining / next top 3:
+
+1. Add TypeScript probe CLI wrapper around dry-run `AshrApiClient` for cross-language API calibration ergonomics.
+2. Add persistent queue batch controls for multiple queued runs with deterministic replay ordering and summary export.
+3. Convert selected private hosted run evidence through the A2 grading import/merge bridge into public-safe calibration observations after explicit evidence-selection rules.
