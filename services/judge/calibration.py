@@ -10,6 +10,7 @@ from typing import Any
 
 from .coverage import DEFAULT_RUN_FIXTURES
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
+from .schemas import CANONICAL_FAILURE_CLASSES
 
 
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
@@ -148,6 +149,47 @@ def import_ashr_grading_observations(
     return observations
 
 
+def import_semantic_judge_observations(
+    payload: dict[str, Any] | list[Any],
+    *,
+    case_map: dict[str, str] | None = None,
+    evidence_ref: str = "",
+) -> list[dict[str, Any]]:
+    """Convert reviewed semantic judge summaries into A2 llm_judge observations."""
+    mapped_cases = case_map or {}
+    observations = []
+    for item in _semantic_judge_items(payload):
+        raw_case_id = str(item.get("case_id") or item.get("raw_case_id") or "")
+        if not raw_case_id:
+            continue
+        case_id = str(mapped_cases.get(raw_case_id, raw_case_id))
+        output = item.get("output") if isinstance(item.get("output"), dict) else item
+        primary = str(output.get("primary_failure_class", ""))
+        if primary not in CANONICAL_FAILURE_CLASSES | {"none"}:
+            raise ValueError(f"semantic judge case {case_id!r} has unknown primary_failure_class {primary!r}")
+
+        cost = _normalize_cost(item.get("cost", {}) if isinstance(item.get("cost"), dict) else {})
+        observations.append(
+            {
+                "case_id": case_id,
+                "scenario_id": str(item.get("scenario_id") or case_id),
+                "source": "llm_judge",
+                "status": "available",
+                "provider": _redact_text(str(item.get("provider", ""))),
+                "model": _redact_text(str(item.get("model", ""))),
+                "passed": bool(output.get("passed")),
+                "primary_failure_class": primary,
+                "score": _normalize_score(output.get("score")) or 0.0,
+                "confidence": _normalize_confidence(output.get("confidence")),
+                "rationale": _redact_text(str(output.get("rationale", ""))),
+                "cost": cost,
+                "evidence_ref": _semantic_evidence_ref(item, output, evidence_ref),
+                "metadata": _semantic_metadata(item, raw_case_id),
+            }
+        )
+    return observations
+
+
 def merge_calibration_observations(
     base_payload: dict[str, Any],
     incoming_payload: dict[str, Any] | list[Any],
@@ -208,6 +250,22 @@ def extract_ashr_runs(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any
     if isinstance(runs, list):
         return [item for item in runs if isinstance(item, dict)]
     if payload.get("id") is not None and isinstance(payload.get("result"), dict):
+        return [payload]
+    return []
+
+
+def _semantic_judge_items(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    observations = payload.get("observations")
+    if isinstance(observations, list):
+        return [item for item in observations if isinstance(item, dict)]
+    cases = payload.get("cases")
+    if isinstance(cases, list):
+        return [item for item in cases if isinstance(item, dict)]
+    if payload.get("case_id") or payload.get("raw_case_id"):
         return [payload]
     return []
 
@@ -543,6 +601,32 @@ def _normalize_score(value: Any) -> float | None:
     if value <= 1:
         return round(value * 100, 2)
     return round(min(float(value), 100.0), 2)
+
+
+def _normalize_confidence(value: Any) -> float:
+    if not isinstance(value, (int, float)):
+        return 0.0
+    return round(max(0.0, min(float(value), 1.0)), 3)
+
+
+def _semantic_metadata(item: dict[str, Any], raw_case_id: str) -> dict[str, Any]:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    result = {
+        "raw_case_id": _redact_text(raw_case_id),
+        "prompt_template_id": _redact_text(str(item.get("prompt_template_id") or metadata.get("prompt_template_id", ""))),
+        "prompt_hash": _redact_text(str(item.get("prompt_hash") or metadata.get("prompt_hash", ""))),
+        "response_hash": _redact_text(str(item.get("response_hash") or metadata.get("response_hash", ""))),
+        "review_status": _redact_text(str(item.get("review_status") or metadata.get("review_status", ""))),
+        "sdk_language": _redact_text(str(item.get("sdk_language") or metadata.get("sdk_language", ""))),
+    }
+    return {key: value for key, value in result.items() if value}
+
+
+def _semantic_evidence_ref(item: dict[str, Any], output: dict[str, Any], fallback: str) -> str:
+    evidence_refs = output.get("evidence_refs")
+    if isinstance(evidence_refs, list) and evidence_refs:
+        return _redact_text(str(evidence_refs[0]))
+    return _redact_text(str(item.get("evidence_ref") or fallback))
 
 
 def _ashr_match_statuses(test: dict[str, Any]) -> list[str]:

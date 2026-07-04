@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2EvidenceReadinessReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "dataset_id",
+    "status",
+    "ready_for_external_collection",
+    "readiness_checks",
+    "calibration_case_count",
+    "calibration_cases",
+    "ashr_grading_preflight",
+    "semantic_judge_preflight",
+    "batch_plan_refs",
+    "redaction_policy",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.evidence_readiness.v1" },
+    "report_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "status": { "type": "string" },
+    "ready_for_external_collection": { "type": "boolean" },
+    "readiness_checks": { "$ref": "#/$defs/boolean_map" },
+    "calibration_case_count": { "type": "integer", "minimum": 0 },
+    "calibration_cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/calibration_case" }
+    },
+    "ashr_grading_preflight": { "$ref": "#/$defs/preflight" },
+    "semantic_judge_preflight": { "$ref": "#/$defs/preflight" },
+    "batch_plan_refs": { "$ref": "#/$defs/string_array" },
+    "redaction_policy": { "type": "object" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "boolean_map": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "calibration_case": {
+      "type": "object",
+      "required": ["case_id", "scenario_id", "fixture_ref", "calibration_focus"],
+      "properties": {
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "calibration_focus": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "preflight": {
+      "type": "object",
+      "required": ["source", "expected_observation_count", "commands"],
+      "properties": {
+        "source": { "type": "string" },
+        "expected_observation_count": { "type": "integer", "minimum": 0 },
+        "commands": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

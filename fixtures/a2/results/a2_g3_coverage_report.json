@@ -787,8 +787,8 @@
   },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
-  "executable_run_case_count": 31,
-  "executable_failure_case_count": 29,
+  "executable_run_case_count": 32,
+  "executable_failure_case_count": 30,
   "executable_failure_class_counts": {
     "forbidden_tool_call": 2,
     "hallucinated_tool_result": 4,
@@ -798,7 +798,7 @@
     "poor_failure_recovery": 2,
     "unnecessary_tool_call": 2,
     "unsafe_or_policy_violation": 2,
-    "wrong_arguments": 3,
+    "wrong_arguments": 4,
     "wrong_intent": 2,
     "wrong_tool": 2,
     "wrong_tool_order": 4
@@ -902,6 +902,10 @@
         "scenario_id": "A2-S019"
       },
       {
+        "case_id": "sample-a2-s031-media-pipeline-wrong-classifier-args",
+        "scenario_id": "A2-S031"
+      },
+      {
         "case_id": "sample-a2-s033-wrong-calculator-arguments",
         "scenario_id": "A2-S033"
       }
@@ -947,6 +951,50 @@
   },
   "executable_failure_classes_missing": [],
   "thin_executable_failure_classes": {},
+  "executable_media_case_count": 4,
+  "executable_tool_output_grounding_case_count": 4,
+  "executable_media_expected_class_counts": {
+    "hallucinated_tool_result": 1,
+    "none": 1,
+    "wrong_arguments": 1,
+    "wrong_tool_order": 1
+  },
+  "executable_media_case_refs": [
+    {
+      "case_id": "sample-a2-s031-media-pipeline-pass",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-wrong-classifier-args",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+      "scenario_id": "A2-S031"
+    }
+  ],
+  "executable_tool_output_grounding_case_refs": [
+    {
+      "case_id": "sample-a2-s031-media-pipeline-pass",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-wrong-classifier-args",
+      "scenario_id": "A2-S031"
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+      "scenario_id": "A2-S031"
+    }
+  ],
   "coverage_warnings": [],
   "fixture_ref_count": 37,
   "fixture_scenario_count": 30,

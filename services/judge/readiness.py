@@ -12,6 +12,11 @@ def build_commercial_readiness_report(
     coverage_report: dict[str, Any],
     calibration_matrix: dict[str, Any],
     case_book_report: dict[str, Any] | None = None,
+    sdk_parity_report: dict[str, Any] | None = None,
+    batch_plan_report: dict[str, Any] | None = None,
+    semantic_harness_report: dict[str, Any] | None = None,
+    regression_replay_report: dict[str, Any] | None = None,
+    evidence_readiness_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -31,6 +36,16 @@ def build_commercial_readiness_report(
         for case in calibration_matrix.get("cases", [])
     )
     case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
+    sdk_parity_passed = bool((sdk_parity_report or {}).get("parity_passed"))
+    sdk_language_count = int((sdk_parity_report or {}).get("sdk_language_count", 0))
+    batch_plan_ready = bool((batch_plan_report or {}).get("plan_ready"))
+    planned_batch_count = int((batch_plan_report or {}).get("batch_count", 0))
+    semantic_harness_ready = bool((semantic_harness_report or {}).get("harness_ready"))
+    semantic_live_evidence = bool((semantic_harness_report or {}).get("live_model_evidence_available"))
+    regression_replay_ready = bool((regression_replay_report or {}).get("replay_ready"))
+    regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
+    regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
+    evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
 
     gates = [
         _gate(
@@ -49,23 +64,29 @@ def build_commercial_readiness_report(
         _gate(
             "C1",
             "SDK runner consumption",
-            "scenario outputs can be consumed through the shared A1/A2 runner contract",
-            False,
-            coverage_stable,
+            "scenario outputs can be consumed through both Python and TypeScript SDK runner contracts",
+            coverage_stable and sdk_parity_passed,
+            coverage_stable or sdk_language_count > 0,
             [
                 "tests/a2/test_contracts.py::test_runner_accepts_a1_agent_output_shape",
                 "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id",
+                "fixtures/a2/results/a2_sdk_parity_report.json",
             ],
-            ["Keep A1 runner-shape tests green and add TS SDK parity evidence from A1 when available."],
+            []
+            if sdk_parity_passed
+            else ["Add Python and TypeScript SDK parity evidence for A2 runner consumption."],
         ),
         _gate(
             "C2",
             "Batch plan and cost ledger",
             "batch generation plan and judge cost ledger exist",
-            False,
-            bool(calibration_matrix.get("cost_ledger")),
-            ["fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"],
-            ["Add a real quota-aware batch generation plan tied to A1 request/run evidence."],
+            bool(calibration_matrix.get("cost_ledger")) and batch_plan_ready,
+            bool(calibration_matrix.get("cost_ledger")) or planned_batch_count > 0,
+            [
+                "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger",
+                "fixtures/a2/results/a2_batch_plan_report.json",
+            ],
+            [] if batch_plan_ready else ["Add a real quota-aware batch generation plan tied to A1 request/run evidence."],
         ),
         _gate(
             "C3",
@@ -76,6 +97,7 @@ def build_commercial_readiness_report(
             [
                 "calibration_matrix.agreement_summary.local_vs_ashr_grading",
                 "calibration_matrix.agreement_summary.local_vs_llm_judge",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
             [f"Collect reviewed Ashr grading observations for {ashr_missing} missing calibration cases."]
             if ashr_missing
@@ -85,27 +107,29 @@ def build_commercial_readiness_report(
             "C4",
             "Semantic judge",
             "semantic/LLM judge evidence includes cost, confidence, false-positive tracking, and model provenance",
-            llm_cost_ready and llm_confidence_ready and not llm_is_offline_only,
-            llm_cost_ready and llm_confidence_ready,
+            llm_cost_ready and llm_confidence_ready and semantic_live_evidence and not llm_is_offline_only,
+            llm_cost_ready and llm_confidence_ready and semantic_harness_ready,
             [
                 "calibration_matrix.cost_ledger",
                 "calibration_matrix.cases[].sources.llm_judge.confidence",
                 "calibration_matrix.cases[].calibration_tags",
+                "fixtures/a2/results/a2_semantic_harness_report.json",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
-            ["Replace offline llm_judge references with audited model-call evidence and prompt/model/cost metadata."]
-            if llm_is_offline_only
-            else [],
+            _c4_gaps(llm_is_offline_only, semantic_harness_ready, semantic_live_evidence),
         ),
         _gate(
             "C5",
             "Case book and regression suite",
             "judge disagreements become durable regression fixtures and a reviewer-facing case book",
-            False,
-            has_regression_candidates,
-            ["calibration_tags.judge_disagreement_regression", "fixtures/a2/results/a2_case_book.json"],
-            ["Expand the case book into a mature regression suite."]
-            if case_book_count
-            else ["Promote local-vs-LLM disagreements into regression fixtures and write the case book."],
+            regression_replay_ready and regression_replay_maturity == "mature",
+            has_regression_candidates and regression_replay_ready,
+            [
+                "calibration_tags.judge_disagreement_regression",
+                "fixtures/a2/results/a2_case_book.json",
+                "fixtures/a2/results/a2_regression_replay_report.json",
+            ],
+            _c5_gaps(case_book_count, regression_replay_ready, regression_replay_maturity),
         ),
         _gate(
             "C6",
@@ -154,6 +178,16 @@ def build_commercial_readiness_report(
             "llm_judge_offline_only": llm_is_offline_only,
             "local_vs_llm_mismatch_count": local_llm_mismatches,
             "case_book_regression_count": case_book_count,
+            "regression_replay_count": regression_replay_count,
+            "regression_replay_ready": regression_replay_ready,
+            "regression_replay_maturity": regression_replay_maturity,
+            "evidence_readiness_ready": evidence_readiness_ready,
+            "sdk_language_count": sdk_language_count,
+            "sdk_parity_passed": sdk_parity_passed,
+            "planned_batch_count": planned_batch_count,
+            "batch_plan_ready": batch_plan_ready,
+            "semantic_harness_ready": semantic_harness_ready,
+            "semantic_harness_live_evidence": semantic_live_evidence,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -165,6 +199,11 @@ def build_commercial_readiness_report(
             "inputs": [
                 "fixtures/a2/results/a2_g3_coverage_report.json",
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
+                "fixtures/a2/results/a2_sdk_parity_report.json",
+                "fixtures/a2/results/a2_batch_plan_report.json",
+                "fixtures/a2/results/a2_semantic_harness_report.json",
+                "fixtures/a2/results/a2_regression_replay_report.json",
+                "fixtures/a2/results/a2_evidence_readiness_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",
@@ -246,6 +285,32 @@ def _gate(
         "evidence_refs": evidence_refs,
         "gaps": gaps,
     }
+
+
+def _c4_gaps(
+    llm_is_offline_only: bool,
+    semantic_harness_ready: bool,
+    semantic_live_evidence: bool,
+) -> list[str]:
+    gaps = []
+    if not semantic_harness_ready:
+        gaps.append("Add a semantic judge harness with prompt, output schema, cost, redaction, and SDK-chain coverage.")
+    if llm_is_offline_only or not semantic_live_evidence:
+        gaps.append(
+            "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
+        )
+    return gaps
+
+
+def _c5_gaps(case_book_count: int, regression_replay_ready: bool, regression_replay_maturity: str) -> list[str]:
+    gaps = []
+    if case_book_count == 0:
+        gaps.append("Promote local-vs-LLM disagreements into regression fixtures and write the case book.")
+    if not regression_replay_ready:
+        gaps.append("Add executable replay evidence for every case-book regression seed.")
+    if regression_replay_maturity != "mature":
+        gaps.append("Expand the case book beyond the current seed into a mature regression suite.")
+    return gaps
 
 
 def _current_gate(gates: list[dict[str, Any]]) -> str:

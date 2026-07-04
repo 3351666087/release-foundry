@@ -97,7 +97,7 @@ G3 executable calibration now includes seed and non-seed tool/workflow scenarios
 
 The executable workflow calibration also includes ordered-tool checks for cross-tool flows (`web.search` before `web.open`), same-tool argument-aware flows (`file.read` Q1 before `file.read` Q2), and media API flows (`media.fetch` before `image.view` before `media.classify`).
 
-Media API calibration also checks tool-output grounding. A2-S031 uses `expectedToolOutputFacts` so a final answer must be supported by the `media.classify` output, not only by the final response text.
+Media API calibration also checks tool-output grounding. A2-S031 uses `expectedToolOutputFacts` so a final answer must be supported by the `media.classify` output, not only by the final response text. The executable media set now covers pass, wrong classifier arguments, wrong tool order, and unsupported classifier output; these are summarized in the coverage report's `executable_media_*` and `executable_tool_output_grounding_*` fields.
 
 Authenticated G3 calibration is optional and separate from deterministic unit tests. `scripts/a2_real_api_smoke.py` uses `ASHR_LABS_API_KEY` from the environment, performs read/list API calls, and writes only a redacted summary to `docs/evidence/a2_real_api_smoke.json`.
 
@@ -119,14 +119,27 @@ It currently includes six representative cases across pass control, argument fid
 The matrix deliberately marks `ashr_grading` as missing until a real server-side grading batch is collected.
 
 The July 4 PDF gate logic is also encoded in `fixtures/a2/results/a2_commercial_readiness_report.json`.
-This report marks C0 as met and C3-C5 as partial, because A2 has local/LLM calibration structure but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
+This report marks C2 as met and C3-C5 as partial, because A2 can consume both Python and TypeScript SDK runner shapes and has a quota-aware batch plan, but still lacks reviewed Ashr grading observations, audited live LLM judge calls, and a mature case book/regression suite.
+
+The first C1 SDK-parity artifact is `fixtures/a2/results/a2_sdk_parity_report.json`. It grades the same A2 scenario through a Python-style `AgentTurn` shape and a TypeScript-style `CaseResult.agent_output` shape so the official dual-SDK chain stays visible in A2.
+It also records an `official_sdk_chains` map for the two Ashr quickstart routes: Python uses `EvalRunner.from_dataset(...)` / `run_and_deploy(...)`, while TypeScript uses `EvalRunner.fromDataset(...)` / `runAndDeploy(...)`. A2's responsibility is to keep both resulting runner-output shapes gradable, not to collapse the project into a Python-only clone.
+
+The first C2 batch-plan artifact is `fixtures/a2/results/a2_batch_plan_report.json`. It defines local, SDK parity, Ashr grading, semantic judge, and regression replay batches and mirrors A1's queue-worker quota phases without requiring live API keys.
+
+The first C4 semantic-harness artifact is `fixtures/a2/results/a2_semantic_harness_report.json`. It defines the prompt contract, output schema, model/cost/redaction policy, and six calibration cases for audited LLM judge calls. It explicitly keeps both Python `AgentTurn` and TypeScript `CaseResult.agent_output` prompt paths visible, including the media/tool-output grounding case. The current artifact is harness-ready but still marks live model evidence as missing.
+
+`scripts/a2_import_semantic_judge.py` is the C4 import bridge. It converts reviewed semantic judge summaries into `llm_judge` observations with provider/model, cost, confidence, prompt/response hashes, review status, and SDK language. This lets A2 replace offline references with audited summaries later without committing raw prompts, raw model responses, API keys, or account-specific payloads.
+
+`fixtures/a2/results/a2_evidence_readiness_report.json` is the C3/C4 preflight artifact. It lists the six calibration cases, verifies the Ashr grading case map covers them, records the reviewed import/merge commands, and names the semantic judge fields that must be present before offline references can be replaced. It is intentionally a readiness report, not external evidence.
 
 The first C5 case-book seed is `fixtures/a2/results/a2_case_book.json`, with a reviewer-readable companion at `docs/a2/case_book.md`. It currently promotes the `sample-a2-s010-wrong-arguments` local-vs-LLM failure-class disagreement into an explicit open regression seed.
+
+The first C5 executable replay artifact is `fixtures/a2/results/a2_regression_replay_report.json`. It re-runs every case-book seed through deterministic `grade_run` and checks that local failure class preservation, pass/fail status, matrix disagreement visibility, and regression assertions still hold. This makes C5 more auditable, but the maturity status remains `seed` until more reviewed disagreements are promoted.
 
 Next A2 priorities should be chosen by ROI against this commercial target:
 
 1. collect a small authenticated Ashr grading batch and fill the `ashr_grading` column,
-2. replace offline `llm_judge` samples with audited model calls and a real cost ledger,
+2. run the semantic harness with audited model calls and import reviewed `llm_judge` rows through the C4 bridge,
 3. promote local-vs-LLM disagreements into regression fixtures or judge improvements.
 
 `scripts/a2_import_ashr_grading.py` is the bridge for the first item. It converts redacted Ashr `run.result.tests[].action_results[]` records into `ashr_grading` observations with canonical A2 failure classes. `scripts/a2_merge_calibration_observations.py` is the review gate that merges those observations into the calibration payload after checking source and known case ids. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed observation summaries and private evidence references.

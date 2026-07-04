@@ -50,6 +50,11 @@
     "executable_failure_class_cases",
     "executable_failure_classes_missing",
     "thin_executable_failure_classes",
+    "executable_media_case_count",
+    "executable_tool_output_grounding_case_count",
+    "executable_media_expected_class_counts",
+    "executable_media_case_refs",
+    "executable_tool_output_grounding_case_refs",
     "coverage_warnings",
     "fixture_ref_count",
     "fixture_scenario_count",
@@ -107,6 +112,17 @@
     "executable_failure_class_cases": { "$ref": "#/$defs/failure_case_ref_map" },
     "executable_failure_classes_missing": { "$ref": "#/$defs/string_array" },
     "thin_executable_failure_classes": { "$ref": "#/$defs/count_map" },
+    "executable_media_case_count": { "type": "integer", "minimum": 0 },
+    "executable_tool_output_grounding_case_count": { "type": "integer", "minimum": 0 },
+    "executable_media_expected_class_counts": { "$ref": "#/$defs/count_map" },
+    "executable_media_case_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/case_ref" }
+    },
+    "executable_tool_output_grounding_case_refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/case_ref" }
+    },
     "coverage_warnings": { "$ref": "#/$defs/string_array" },
     "fixture_ref_count": { "type": "integer", "minimum": 0 },
     "fixture_scenario_count": { "type": "integer", "minimum": 0 },

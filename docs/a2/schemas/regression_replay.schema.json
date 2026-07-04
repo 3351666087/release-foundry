@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2RegressionReplayReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "replay_id",
+    "source_case_book",
+    "source_matrix",
+    "dataset_id",
+    "replay_case_count",
+    "passed_count",
+    "failed_count",
+    "replay_ready",
+    "maturity_status",
+    "cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.regression_replay.v1" },
+    "replay_id": { "type": "string" },
+    "source_case_book": { "type": "string" },
+    "source_matrix": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "replay_case_count": { "type": "integer", "minimum": 0 },
+    "passed_count": { "type": "integer", "minimum": 0 },
+    "failed_count": { "type": "integer", "minimum": 0 },
+    "replay_ready": { "type": "boolean" },
+    "maturity_status": { "type": "string" },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/replay_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "replay_case": {
+      "type": "object",
+      "required": [
+        "regression_id",
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "replay_status",
+        "checks",
+        "expected_local_failure_class",
+        "observed_local_failure_class",
+        "expected_llm_failure_class",
+        "replay_grade",
+        "evidence_refs"
+      ],
+      "properties": {
+        "regression_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "replay_status": { "type": "string" },
+        "checks": { "type": "object" },
+        "expected_local_failure_class": { "type": "string" },
+        "observed_local_failure_class": { "type": "string" },
+        "expected_llm_failure_class": { "type": "string" },
+        "replay_grade": { "type": "object" },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

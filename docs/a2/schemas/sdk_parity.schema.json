@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SdkParityReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "scenario_id",
+    "required_languages",
+    "passed_languages",
+    "sdk_language_count",
+    "parity_passed",
+    "official_sdk_chains",
+    "source_contracts",
+    "cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.sdk_parity.v1" },
+    "report_id": { "type": "string" },
+    "scenario_id": { "type": "string" },
+    "required_languages": { "$ref": "#/$defs/string_array" },
+    "passed_languages": { "$ref": "#/$defs/string_array" },
+    "sdk_language_count": { "type": "integer", "minimum": 0 },
+    "parity_passed": { "type": "boolean" },
+    "official_sdk_chains": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/official_sdk_chain" }
+    },
+    "source_contracts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_contract" }
+    },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parity_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_contract": {
+      "type": "object",
+      "required": ["language", "sdk_path", "schema_versions", "runner_shape"],
+      "properties": {
+        "language": { "type": "string" },
+        "sdk_path": { "type": "string" },
+        "schema_versions": { "$ref": "#/$defs/string_array" },
+        "runner_shape": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "official_sdk_chain": {
+      "type": "object",
+      "required": [
+        "language",
+        "docs_url",
+        "install",
+        "runtime",
+        "client_entrypoint",
+        "runner_entrypoint",
+        "run_and_deploy_entrypoint",
+        "testing_surface",
+        "a2_consumed_shape"
+      ],
+      "properties": {
+        "language": { "type": "string" },
+        "docs_url": { "type": "string" },
+        "install": { "type": "string" },
+        "runtime": { "type": "string" },
+        "client_entrypoint": { "type": "string" },
+        "runner_entrypoint": { "type": "string" },
+        "run_and_deploy_entrypoint": { "type": "string" },
+        "testing_surface": { "type": "string" },
+        "a2_consumed_shape": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "parity_case": {
+      "type": "object",
+      "required": ["language", "case_id", "input_shape", "runner_metadata", "a2_grade"],
+      "properties": {
+        "language": { "type": "string" },
+        "case_id": { "type": "string" },
+        "input_shape": { "type": "string" },
+        "runner_metadata": { "type": "object" },
+        "a2_grade": { "$ref": "#/$defs/a2_grade" }
+      },
+      "additionalProperties": true
+    },
+    "a2_grade": {
+      "type": "object",
+      "required": ["passed", "score", "primary_failure_class", "judge_count"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "score": { "type": "number" },
+        "primary_failure_class": { "type": "string" },
+        "judge_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

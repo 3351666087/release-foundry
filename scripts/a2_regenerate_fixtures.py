@@ -11,11 +11,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from services.judge.batch_plan import build_batch_plan_report  # noqa: E402
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
+from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
+from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
+from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
+from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
 
 
 DEFAULT_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
@@ -28,6 +33,11 @@ DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibrati
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
 DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
+DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
+DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
+DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json"
+DEFAULT_REGRESSION_REPLAY = DEFAULT_RESULT_DIR / "a2_regression_replay_report.json"
+DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 
 
 def main() -> int:
@@ -46,6 +56,11 @@ def main() -> int:
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
+    parser.add_argument("--sdk-parity", default=DEFAULT_SDK_PARITY.as_posix())
+    parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
+    parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
+    parser.add_argument("--regression-replay", default=DEFAULT_REGRESSION_REPLAY.as_posix())
+    parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -63,6 +78,11 @@ def main() -> int:
         calibration_matrix_path=Path(args.calibration_matrix),
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
+        sdk_parity_path=Path(args.sdk_parity),
+        batch_plan_path=Path(args.batch_plan),
+        semantic_harness_path=Path(args.semantic_harness),
+        regression_replay_path=Path(args.regression_replay),
+        evidence_readiness_path=Path(args.evidence_readiness),
     )
 
     if args.check:
@@ -85,6 +105,11 @@ def generate_outputs(
     calibration_matrix_path: Path,
     commercial_readiness_path: Path,
     case_book_path: Path,
+    sdk_parity_path: Path,
+    batch_plan_path: Path,
+    semantic_harness_path: Path,
+    regression_replay_path: Path,
+    evidence_readiness_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -118,10 +143,40 @@ def generate_outputs(
     outputs[calibration_matrix_path] = calibration_matrix
     case_book = build_case_book_report(calibration_matrix)
     outputs[case_book_path] = case_book
+    regression_replay = build_regression_replay_report(
+        calibration_matrix,
+        case_book,
+        pack_path=pack_path,
+    )
+    outputs[regression_replay_path] = regression_replay
+    sdk_parity = build_sdk_parity_report(pack_path=pack_path)
+    outputs[sdk_parity_path] = sdk_parity
+    semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+    outputs[semantic_harness_path] = semantic_harness
+    batch_plan = build_batch_plan_report(
+        coverage_report=coverage_report,
+        calibration_matrix=calibration_matrix,
+        case_book_report=case_book,
+        sdk_parity_report=sdk_parity,
+        semantic_harness_report=semantic_harness,
+        regression_replay_report=regression_replay,
+    )
+    outputs[batch_plan_path] = batch_plan
+    evidence_readiness = build_evidence_readiness_report(
+        calibration_matrix=calibration_matrix,
+        batch_plan_report=batch_plan,
+        semantic_harness_report=semantic_harness,
+    )
+    outputs[evidence_readiness_path] = evidence_readiness
     outputs[commercial_readiness_path] = build_commercial_readiness_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
         case_book_report=case_book,
+        sdk_parity_report=sdk_parity,
+        batch_plan_report=batch_plan,
+        semantic_harness_report=semantic_harness,
+        regression_replay_report=regression_replay,
+        evidence_readiness_report=evidence_readiness,
     )
     return outputs
 

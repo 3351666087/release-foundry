@@ -250,8 +250,43 @@ export function summarizeCoverage(coverageFixture = {}) {
     executable_failure_class_cases: mapping(coverageFixture.executable_failure_class_cases),
     executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing),
     thin_executable_failure_classes: mapping(coverageFixture.thin_executable_failure_classes),
+    executable_media_case_count: coverageFixture.executable_media_case_count || 0,
+    executable_tool_output_grounding_case_count: coverageFixture.executable_tool_output_grounding_case_count || 0,
+    executable_media_expected_class_counts: mapping(coverageFixture.executable_media_expected_class_counts),
+    executable_media_case_refs: missing(coverageFixture.executable_media_case_refs),
+    executable_tool_output_grounding_case_refs: missing(coverageFixture.executable_tool_output_grounding_case_refs),
     coverage_warnings: missing(coverageFixture.coverage_warnings),
     coverage_warning_count: missing(coverageFixture.coverage_warnings).length
+  };
+}
+
+export function summarizeEvidenceReadiness(evidenceFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const available = isObject(evidenceFixture) && Object.keys(evidenceFixture).length > 0;
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const semantic = mapping(evidenceFixture.semantic_judge_preflight);
+  const redaction = mapping(evidenceFixture.redaction_policy);
+
+  return {
+    available,
+    schema_version: available ? evidenceFixture.schema_version || "unknown" : "none",
+    status: available ? evidenceFixture.status || "unknown" : "none",
+    ready_for_external_collection: evidenceFixture.ready_for_external_collection === true,
+    calibration_case_count: evidenceFixture.calibration_case_count || 0,
+    readiness_checks: mapping(evidenceFixture.readiness_checks),
+    ashr_current_missing: ashr.current_missing || 0,
+    ashr_expected_observation_count: ashr.expected_observation_count || 0,
+    ashr_case_map_covers_all_calibration_cases: ashr.case_map_covers_all_calibration_cases === true,
+    semantic_offline_reference_only: semantic.offline_reference_only === true,
+    semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
+    semantic_required_fields: missing(semantic.required_fields),
+    required_sdk_languages: missing(semantic.required_sdk_languages),
+    covered_sdk_languages: missing(semantic.covered_sdk_languages),
+    batch_plan_refs: missing(evidenceFixture.batch_plan_refs),
+    private_raw_path: redaction.raw_private_path || "",
+    never_commit: missing(redaction.never_commit)
   };
 }
 
@@ -312,9 +347,10 @@ export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   })).sort((left, right) => right.count - left.count || left.failureClass.localeCompare(right.failureClass));
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
+  const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -341,6 +377,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Judge modes: ${coverage.judge_mode_count}`,
       `- Golden cases: ${coverage.golden_case_count}`,
       `- Executable run cases: ${coverage.executable_run_case_count}`,
+      `- Media executable cases: ${coverage.executable_media_case_count}`,
+      `- Tool-output grounding executable cases: ${coverage.executable_tool_output_grounding_case_count}`,
       `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
       `- Coverage warnings: ${coverage.coverage_warning_count}`,
       ""
@@ -361,6 +399,21 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
         ""
       );
     }
+  }
+
+  if (evidenceReadiness.available) {
+    lines.push(
+      "## Evidence Readiness",
+      "",
+      `- Status: ${evidenceReadiness.status}`,
+      `- Ready for external collection: ${evidenceReadiness.ready_for_external_collection ? "yes" : "no"}`,
+      `- Calibration cases: ${evidenceReadiness.calibration_case_count}`,
+      `- Ashr grading missing: ${evidenceReadiness.ashr_current_missing}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
+      `- SDK languages covered: ${evidenceReadiness.covered_sdk_languages.join(", ") || "none"}`,
+      `- Private evidence path: ${evidenceReadiness.private_raw_path || "none"}`,
+      ""
+    );
   }
 
   lines.push(
@@ -412,11 +465,12 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
     coverage: summarizeCoverage(coverageFixture),
+    evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

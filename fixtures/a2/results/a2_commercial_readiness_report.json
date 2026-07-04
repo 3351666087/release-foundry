@@ -6,7 +6,7 @@
     "a2_summary": "Scenario, Judge, and open-ended semantic evaluation commercial growth.",
     "success_sentence": "The clone can fail real agents for the right reasons and explain those reasons under calibration evidence."
   },
-  "current_gate": "C0",
+  "current_gate": "C2",
   "ready_for_commercial_gate": false,
   "commercial_dimensions": [
     {
@@ -67,27 +67,25 @@
     {
       "gate": "C1",
       "name": "SDK runner consumption",
-      "status": "partial",
-      "requirement": "scenario outputs can be consumed through the shared A1/A2 runner contract",
+      "status": "met",
+      "requirement": "scenario outputs can be consumed through both Python and TypeScript SDK runner contracts",
       "evidence_refs": [
         "tests/a2/test_contracts.py::test_runner_accepts_a1_agent_output_shape",
-        "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id"
+        "tests/a2/test_contracts.py::test_runner_accepts_a1_case_result_shape_and_case_id",
+        "fixtures/a2/results/a2_sdk_parity_report.json"
       ],
-      "gaps": [
-        "Keep A1 runner-shape tests green and add TS SDK parity evidence from A1 when available."
-      ]
+      "gaps": []
     },
     {
       "gate": "C2",
       "name": "Batch plan and cost ledger",
-      "status": "partial",
+      "status": "met",
       "requirement": "batch generation plan and judge cost ledger exist",
       "evidence_refs": [
-        "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"
+        "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger",
+        "fixtures/a2/results/a2_batch_plan_report.json"
       ],
-      "gaps": [
-        "Add a real quota-aware batch generation plan tied to A1 request/run evidence."
-      ]
+      "gaps": []
     },
     {
       "gate": "C3",
@@ -96,7 +94,8 @@
       "requirement": "Ashr grading diff and LLM judge diff are both comparable",
       "evidence_refs": [
         "calibration_matrix.agreement_summary.local_vs_ashr_grading",
-        "calibration_matrix.agreement_summary.local_vs_llm_judge"
+        "calibration_matrix.agreement_summary.local_vs_llm_judge",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
         "Collect reviewed Ashr grading observations for 6 missing calibration cases."
@@ -110,10 +109,12 @@
       "evidence_refs": [
         "calibration_matrix.cost_ledger",
         "calibration_matrix.cases[].sources.llm_judge.confidence",
-        "calibration_matrix.cases[].calibration_tags"
+        "calibration_matrix.cases[].calibration_tags",
+        "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
       ],
       "gaps": [
-        "Replace offline llm_judge references with audited model-call evidence and prompt/model/cost metadata."
+        "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata."
       ]
     },
     {
@@ -123,10 +124,11 @@
       "requirement": "judge disagreements become durable regression fixtures and a reviewer-facing case book",
       "evidence_refs": [
         "calibration_tags.judge_disagreement_regression",
-        "fixtures/a2/results/a2_case_book.json"
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json"
       ],
       "gaps": [
-        "Expand the case book into a mature regression suite."
+        "Expand the case book beyond the current seed into a mature regression suite."
       ]
     },
     {
@@ -147,7 +149,7 @@
     "assignment_minimums_green": true,
     "scenario_count": 60,
     "golden_case_count": 32,
-    "executable_run_case_count": 31,
+    "executable_run_case_count": 32,
     "failure_class_count": 12,
     "calibration_case_count": 6,
     "ashr_grading_available": 0,
@@ -155,7 +157,17 @@
     "llm_judge_coverage_ratio": 1.0,
     "llm_judge_offline_only": true,
     "local_vs_llm_mismatch_count": 1,
-    "case_book_regression_count": 1
+    "case_book_regression_count": 1,
+    "regression_replay_count": 1,
+    "regression_replay_ready": true,
+    "regression_replay_maturity": "seed",
+    "evidence_readiness_ready": true,
+    "sdk_language_count": 2,
+    "sdk_parity_passed": true,
+    "planned_batch_count": 5,
+    "batch_plan_ready": true,
+    "semantic_harness_ready": true,
+    "semantic_harness_live_evidence": false
   },
   "next_top_3": [
     {
@@ -215,7 +227,12 @@
     "deterministic": true,
     "inputs": [
       "fixtures/a2/results/a2_g3_coverage_report.json",
-      "fixtures/a2/results/a2_g3_calibration_matrix.json"
+      "fixtures/a2/results/a2_g3_calibration_matrix.json",
+      "fixtures/a2/results/a2_sdk_parity_report.json",
+      "fixtures/a2/results/a2_batch_plan_report.json",
+      "fixtures/a2/results/a2_semantic_harness_report.json",
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_evidence_readiness_report.json"
     ],
     "notes": [
       "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

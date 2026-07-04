@@ -372,3 +372,209 @@ Next top 3:
 1. Resolve the seed with reviewed Ashr grading or audited live LLM evidence.
 2. Add any new Ashr/local/LLM disagreements to the case book automatically.
 3. Let A3 optionally surface `a2_case_book.json` in a judge drilldown panel.
+
+## 2026-07-04 - Python and TypeScript SDK parity evidence
+
+Reason:
+- The commercial-goals PDF and official Ashr docs treat Python and TypeScript as two SDK entrypoints.
+- A2 should prove its judge runner can consume both SDK-language output shapes, not only Python-style fixtures.
+
+Implemented:
+- Merged latest `origin/main`, including A1's TypeScript SDK package under `packages/ts/ashr-clone`.
+- Added `services/judge/sdk_parity.py` to build deterministic `a2.sdk_parity.v1` evidence.
+- Added generated fixture `fixtures/a2/results/a2_sdk_parity_report.json`.
+- Added schema snapshot `docs/a2/schemas/sdk_parity.schema.json`.
+- Integrated SDK parity into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C1 is met when Python and TypeScript runner shapes both pass A2 grading.
+- Added A2 tests for TypeScript `CaseResult.agent_output` consumption and SDK parity report reproducibility.
+
+Boundary:
+- This is A2 contract evidence, not a claim that A2 owns TypeScript SDK implementation.
+- Hosted TypeScript API parity and real Ashr server-side grading remain A1/C3 calibration work.
+
+Next top 3:
+1. Keep the SDK parity report green as A1 changes Python or TypeScript runner schemas.
+2. Fill the `ashr_grading` column with reviewed Ashr evidence for the six calibration cases.
+3. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.
+
+## 2026-07-04 - C2 quota-aware batch plan
+
+Reason:
+- The commercial-goals PDF requires A2 to move beyond static fixtures into batch generation and cost/quota planning.
+- A1's draft queue-worker direction exposes queued/running/completed lifecycle and quota phases that A2 should be ready to consume.
+
+Implemented:
+- Added `services/judge/batch_plan.py` to build deterministic `a2.batch_plan.v1` planning evidence.
+- Added generated fixture `fixtures/a2/results/a2_batch_plan_report.json`.
+- Added schema snapshot `docs/a2/schemas/batch_plan.schema.json`.
+- Integrated batch-plan generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C2 is met when batch plan and calibration cost ledger both exist.
+- Added A2 tests for batch membership, quota phases, schema coverage, and C2 readiness status.
+
+Boundary:
+- This is a plan and quota ledger artifact, not real paid calibration evidence.
+- C3 remains partial until reviewed Ashr server-side grading observations are imported and merged.
+
+Next top 3:
+1. Run the planned tiny Ashr grading calibration batch when private evidence is available.
+2. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.
+3. Expand the case book from one seed into a broader regression suite.
+
+## 2026-07-04 - C4 semantic judge harness with dual SDK chains
+
+Reason:
+- Kay flagged that the official Ashr docs expose both Python and TypeScript SDK entrypoints.
+- A2 already had C1 SDK parity, but C4 semantic/LLM judging also needed to keep the TypeScript chain visible instead of becoming Python-only.
+
+Implemented:
+- Added `services/judge/semantic_harness.py` to build deterministic `a2.semantic_harness.v1` evidence.
+- Added generated fixture `fixtures/a2/results/a2_semantic_harness_report.json`.
+- Added schema snapshot `docs/a2/schemas/semantic_harness.schema.json`.
+- Integrated the semantic harness into `scripts/a2_regenerate_fixtures.py`.
+- Updated the batch plan so `semantic_llm_judge_audit` names Python SDK, TypeScript SDK, local judge, and LLM judge sources together.
+- Updated commercial readiness so C4 cites the semantic harness, while still staying partial because live model evidence is missing.
+- Added tests for harness reproducibility, prompt/output/cost/redaction policy, media calibration coverage, and Python/TypeScript prompt paths.
+
+Boundary:
+- This pass does not call a live LLM and does not read `Ashr_key.txt`.
+- The harness is ready for audited private model-call evidence, but `live_model_evidence_available` remains false until that evidence is collected and reviewed.
+
+Next top 3:
+1. Fill the `ashr_grading` column with reviewed Ashr server-side grading evidence.
+2. Run the semantic harness with audited live model calls and commit only redacted summaries, hashes, costs, and confidence.
+3. Expand the case book once real Ashr/LLM disagreements are available.
+
+## 2026-07-04 - Semantic judge import bridge
+
+Reason:
+- The C4 harness defined what audited semantic judge evidence must look like, but A2 still needed a deterministic path for reviewed model-call summaries to enter the calibration matrix.
+- The bridge should not require raw prompts, raw responses, API keys, or account-specific payloads in committed files.
+
+Implemented:
+- Added `import_semantic_judge_observations(...)` in `services/judge/calibration.py`.
+- Added `scripts/a2_import_semantic_judge.py` to convert reviewed semantic judge summaries into `llm_judge` observations.
+- Added `fixtures/a2/calibration/semantic_judge_import_sample.json` as a redaction/import shape sample only.
+- Added tests proving semantic judge imports redact sensitive-looking rationale text, preserve provider/model/cost/hash/SDK language metadata, and can replace selected offline `llm_judge` rows through the existing merge gate.
+- Updated A2 README, scenario coverage plan, and A1/A3 handoff docs.
+
+Boundary:
+- This does not mark C4 met and does not alter the committed calibration observations.
+- The sample fixture is synthetic importer coverage, not live model evidence.
+
+Next top 3:
+1. Collect reviewed Ashr grading evidence for the six C3 cases.
+2. Run the semantic harness privately and import all six reviewed `llm_judge` rows through the new bridge.
+3. Promote any new cross-judge disagreements into the case book.
+
+## 2026-07-04 - C5 regression replay report
+
+Reason:
+- The case book promoted one local-vs-LLM disagreement, but C5 also needs durable executable regression evidence.
+- The batch plan already named `case_book_regression_replay`; A2 needed a generated artifact that proves replay actually happens.
+
+Implemented:
+- Added `services/judge/regression_replay.py` to re-run every case-book seed through deterministic `grade_run`.
+- Added generated fixture `fixtures/a2/results/a2_regression_replay_report.json`.
+- Added schema snapshot `docs/a2/schemas/regression_replay.schema.json`.
+- Integrated replay generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C5 cites replay evidence and records `regression_replay_ready`, count, and maturity.
+- Added tests proving the current `sample-a2-s010-wrong-arguments` seed still preserves local `wrong_arguments` while the LLM reference remains `ignored_tool_result`.
+
+Boundary:
+- C5 remains partial because the replay suite has one seed and `maturity_status: seed`.
+- This does not alter `grade_run`, A3 grade joins, or calibration source semantics.
+
+Next top 3:
+1. Add more reviewed Ashr/local/LLM disagreement cases to the case book and replay suite.
+2. Fill the `ashr_grading` column for the six calibration cases.
+3. Replace offline `llm_judge` rows with audited semantic judge imports.
+
+## 2026-07-04 - Official TypeScript chain made explicit
+
+Reason:
+- Kay flagged that the Ashr docs show one Python SDK route and one TypeScript SDK route.
+- A2 already consumed TypeScript-shaped output, but the generated evidence needed to make the official `runAndDeploy` chain visible enough for reviewers.
+
+Implemented:
+- Added `official_sdk_chains` to the SDK parity report, mapping Python `EvalRunner.from_dataset(...)` / `run_and_deploy(...)` and TypeScript `EvalRunner.fromDataset(...)` / `runAndDeploy(...)` to A2-consumed shapes.
+- Threaded that map into the semantic judge harness source matrix.
+- Added tests that lock the TypeScript `npm install ashr-labs` and `CaseResult.agent_output` path.
+- Updated A2 README and coverage planning docs.
+
+Boundary:
+- This is still deterministic A2 contract evidence.
+- It does not claim hosted TypeScript API parity or run real Ashr grading.
+
+Next top 3:
+1. Keep the TypeScript chain green when A1/A3 update their TS package or report mapper.
+2. Fill the `ashr_grading` column with reviewed server-side evidence.
+3. Run audited semantic judge calls across both SDK chains and import reviewed summaries.
+
+## 2026-07-04 - Media API calibration depth
+
+Reason:
+- Kay asked not to forget media-direction coverage.
+- A2-S031 had media pipeline coverage, but the executable set did not explicitly include the common case where the agent calls the media API with the wrong classifier/configuration.
+
+Implemented:
+- Added `sample-a2-s031-media-pipeline-wrong-classifier-args` as an executable run fixture.
+- Added `wrong_arguments` to A2-S031's documented failure signals.
+- Extended the coverage report with executable media and tool-output-grounding calibration counts and case refs.
+- Added tests that require the media executable set to cover pass, hallucinated tool result, wrong tool order, and wrong arguments.
+- Updated A3's report builder summary to pass through the new media coverage fields.
+- Updated README and scenario coverage docs.
+
+Boundary:
+- This does not add a new scenario; it strengthens executable calibration for the existing media/API scenario.
+- It does not change `a2.grade_results.v1` or A3's grade join contract.
+
+Next top 3:
+1. Keep collecting real Ashr grading evidence for the six C3 calibration cases.
+2. Run audited semantic judge calls for both Python and TypeScript SDK chains.
+3. Add more media/audio/file scenarios only if the assignment/product target expands beyond the current 60-pack.
+
+## 2026-07-04 - C3/C4 evidence readiness preflight
+
+Reason:
+- C3/C4 still need reviewed private Ashr grading and audited live semantic judge evidence.
+- Before using any key or account payload, A2 should make the evidence collection contract explicit and testable.
+
+Implemented:
+- Added `services/judge/evidence_readiness.py` to generate `a2.evidence_readiness.v1`.
+- Added generated fixture `fixtures/a2/results/a2_evidence_readiness_report.json`.
+- Added schema snapshot `docs/a2/schemas/evidence_readiness.schema.json`.
+- Integrated evidence readiness into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C3/C4 cite the evidence readiness artifact while staying partial.
+- Added tests for case-map coverage, Ashr/semantic import commands, required semantic fields, SDK-language coverage, and private evidence boundaries.
+- Updated README and scenario coverage docs.
+
+Boundary:
+- This does not call Ashr or a live LLM.
+- It does not mark C3/C4 met; it only proves A2 is ready to collect and review the missing private evidence.
+
+Next top 3:
+1. Collect reviewed Ashr grading observations for all six calibration cases.
+2. Replace offline `llm_judge` rows with audited semantic judge summaries.
+3. Promote any new cross-judge disagreements into the case book and replay suite.
+
+## 2026-07-04 - A3 evidence readiness summary
+
+Reason:
+- A2 now publishes an evidence-readiness preflight report, but A3 needed an optional display path for it.
+- This keeps C3/C4 missing-evidence status visible to reviewers without changing the grade-result join.
+- The official SDK surface is a parallel Python plus TypeScript matrix, so A3 evidence summaries should keep the TypeScript chain visible.
+
+Implemented:
+- Added `summarizeEvidenceReadiness(...)` to `services/report/report_builder.mjs`.
+- Extended `buildJsonReport(...)` and `buildMarkdownReport(...)` with an optional fourth `evidenceReadinessFixture` argument.
+- Added A3 tests that load `fixtures/a2/results/a2_evidence_readiness_report.json` and assert readiness status, Ashr missing count, SDK languages, and private evidence boundary.
+- Updated A1/A3 handoff docs.
+
+Boundary:
+- This is optional A3 display support only.
+- Existing three-argument report-builder calls remain valid.
+
+Next top 3:
+1. Use the readiness report when collecting reviewed Ashr grading evidence.
+2. Import audited semantic judge summaries when available.
+3. Keep A3 optional feeds additive so missing readiness artifacts never break core grade reports.

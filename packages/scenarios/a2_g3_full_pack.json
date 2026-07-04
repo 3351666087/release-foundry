@@ -1900,6 +1900,7 @@
       },
       "failureSignals": [
         "missing_required_tool",
+        "wrong_arguments",
         "hallucinated_tool_result",
         "wrong_tool_order",
         "ignored_tool_result"
