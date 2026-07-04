@@ -307,6 +307,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["scenario_dimension_counts"]["required_tool_use"], 24)
         self.assertEqual(report["scenario_dimension_counts"]["fixture_grounding"], 30)
         self.assertEqual(report["scenario_dimension_counts"]["ordered_tool_sequence"], 5)
+        self.assertEqual(report["scenario_dimension_counts"]["tool_output_grounding"], 1)
+        self.assertEqual(report["scenario_dimension_scenarios"]["tool_output_grounding"], ["A2-S031"])
         self.assertEqual(report["difficulty_counts"]["D4"], 2)
         self.assertEqual(report["multi_turn_scenario_count"], 4)
         self.assertEqual(report["environment_counts"]["local"], 38)

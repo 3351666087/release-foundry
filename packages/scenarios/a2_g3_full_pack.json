@@ -1805,6 +1805,7 @@
         "media",
         "api-calibration",
         "ordered-tools",
+        "tool-output-grounding",
         "visual"
       ],
       "difficulty": "D2",

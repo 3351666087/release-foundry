@@ -249,6 +249,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.scenario_dimension_counts.required_tool_use, 24);
   assert.equal(summary.scenario_dimension_counts.fixture_grounding, 30);
   assert.equal(summary.scenario_dimension_counts.ordered_tool_sequence, 5);
+  assert.equal(summary.scenario_dimension_counts.tool_output_grounding, 1);
+  assert.deepEqual(summary.scenario_dimension_scenarios.tool_output_grounding, ["A2-S031"]);
   assert.equal(summary.scenario_quality_warning_count, 0);
   assert.equal(summary.difficulty_counts.D4, 2);
   assert.equal(summary.multi_turn_scenario_count, 4);
@@ -291,7 +293,7 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /## Coverage/);
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
-  assert.match(markdown, /Scenario dimensions met: 15\/15/);
+  assert.match(markdown, /Scenario dimensions met: 16\/16/);
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);

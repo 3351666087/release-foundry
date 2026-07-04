@@ -37,7 +37,8 @@
     "grounding_reference": 10,
     "argument_fidelity": 10,
     "output_contract": 5,
-    "freshness_current_info": 5
+    "freshness_current_info": 5,
+    "tool_output_grounding": 1
   },
   "scenario_dimension_checks": {
     "no_tool_or_direct_answer": true,
@@ -54,7 +55,8 @@
     "grounding_reference": true,
     "argument_fidelity": true,
     "output_contract": true,
-    "freshness_current_info": true
+    "freshness_current_info": true,
+    "tool_output_grounding": true
   },
   "scenario_quality_targets": {
     "d4_scenario_count": 2,
@@ -184,6 +186,7 @@
     "tool-ban": 1,
     "tool-boundary": 1,
     "tool-error": 2,
+    "tool-output-grounding": 1,
     "tool-result": 1,
     "translation": 1,
     "travel": 1,
@@ -209,6 +212,7 @@
     "output_contract": 10,
     "required_tool_use": 24,
     "safety_boundary": 20,
+    "tool_output_grounding": 1,
     "workflow_planning": 11
   },
   "scenario_dimension_scenarios": {
@@ -496,6 +500,9 @@
       "A2-S057",
       "A2-S058",
       "A2-S060"
+    ],
+    "tool_output_grounding": [
+      "A2-S031"
     ],
     "workflow_planning": [
       "A2-S011",

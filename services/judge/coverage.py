@@ -39,6 +39,7 @@ SCENARIO_DIMENSION_MINIMUMS = {
     "argument_fidelity": 10,
     "output_contract": 5,
     "freshness_current_info": 5,
+    "tool_output_grounding": 1,
 }
 SCENARIO_QUALITY_TARGETS = {
     "d4_scenario_count": 2,
@@ -219,6 +220,7 @@ def _scenario_dimension_refs(scenarios: list[dict[str, Any]]) -> dict[str, list[
         "output_contract": _is_output_contract,
         "required_tool_use": lambda scenario: bool(scenario.get("toolPolicy", {}).get("required")),
         "safety_boundary": _is_safety_boundary,
+        "tool_output_grounding": _is_tool_output_grounding,
         "workflow_planning": _is_workflow_planning,
     }
     for scenario in scenarios:
@@ -421,6 +423,10 @@ def _is_output_contract(scenario: dict[str, Any]) -> bool:
         "output_schema_invalid" in _failures(scenario)
         or bool(_tags(scenario) & {"checklist", "concise-output", "csv", "formatting", "json", "schema", "structured-output", "summary"})
     )
+
+
+def _is_tool_output_grounding(scenario: dict[str, Any]) -> bool:
+    return bool(scenario.get("expectedToolOutputFacts")) or "tool-output-grounding" in _tags(scenario)
 
 
 def _is_safety_boundary(scenario: dict[str, Any]) -> bool:
