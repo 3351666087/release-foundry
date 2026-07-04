@@ -59,6 +59,37 @@ export function getGradeByCase(gradeFixture = {}) {
   return new Map(grades.map((grade) => [grade.case_id, grade]));
 }
 
+function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed = false) {
+  const judgeResults = Array.isArray(grade.judge_results) ? grade.judge_results : [];
+  const analyses = judgeResults
+    .map((judge) => judge.failure_analysis)
+    .filter((analysis) => analysis && typeof analysis === "object");
+
+  if (passed) {
+    return analyses.find((analysis) => analysis.primary_failure_class !== "none") || null;
+  }
+
+  const matchingPrimary = analyses.find((analysis) => (
+    analysis.primary_failure_class
+    && analysis.primary_failure_class !== "none"
+    && canonicalPrimaryFailureClass(analysis.primary_failure_class, false) === primaryFailureClass
+  ));
+  if (matchingPrimary) {
+    return matchingPrimary;
+  }
+
+  const failedJudge = judgeResults.find((judge) => (
+    judge.passed === false
+    && judge.failure_analysis
+    && judge.failure_analysis.primary_failure_class !== "none"
+  ));
+  if (failedJudge) {
+    return failedJudge.failure_analysis;
+  }
+
+  return analyses.find((analysis) => analysis.primary_failure_class !== "none") || null;
+}
+
 export function normalizeCases(runFixture = {}, gradeFixture = {}) {
   const gradeByCase = getGradeByCase(gradeFixture);
   const runs = Array.isArray(runFixture.runs)
@@ -78,8 +109,9 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
         || caseResult.primary_failure_class
         || "";
       const primaryFailureClass = canonicalPrimaryFailureClass(rawPrimaryFailureClass, passed);
+      const failureAnalysis = selectFailureAnalysis(grade, primaryFailureClass, passed);
       const failureSummary = caseResult.failure_summary
-        || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.summary
+        || failureAnalysis?.summary
         || (passed ? "Passed." : "Failure requires triage.");
 
       return {
@@ -94,7 +126,7 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
         raw_primary_failure_class: rawPrimaryFailureClass,
         failure_summary: failureSummary,
         severity: caseResult.severity
-          || grade.judge_results?.find((judge) => judge.failure_analysis)?.failure_analysis?.severity
+          || failureAnalysis?.severity
           || (passed ? "none" : "major"),
         judge_results: grade.judge_results || [],
         judge_modes: (grade.judge_results || []).map((judge) => judge.judge_mode).filter(Boolean),
@@ -170,14 +202,18 @@ export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
 }
 
 export function summarizeCoverage(coverageFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const available = isObject(coverageFixture) && Object.keys(coverageFixture).length > 0;
   const missing = (value) => Array.isArray(value) ? value : [];
-  const countKeys = (value) => value && typeof value === "object" && !Array.isArray(value)
-    ? Object.keys(value).length
-    : 0;
+  const mapping = (value) => isObject(value) ? value : {};
+  const countKeys = (value) => Object.keys(mapping(value)).length;
 
   return {
-    schema_version: coverageFixture.schema_version || "unknown",
-    pack_id: coverageFixture.pack_id || "unknown",
+    available,
+    schema_version: available ? coverageFixture.schema_version || "unknown" : "none",
+    pack_id: available ? coverageFixture.pack_id || "unknown" : "none",
+    meets_assignment_minimums: coverageFixture.meets_assignment_minimums === true,
+    assignment_checks: mapping(coverageFixture.assignment_checks),
     scenario_count: coverageFixture.scenario_count || 0,
     rubric_class_count: Array.isArray(coverageFixture.rubric_classes) ? coverageFixture.rubric_classes.length : 0,
     judge_mode_count: Array.isArray(coverageFixture.judge_modes) ? coverageFixture.judge_modes.length : 0,
@@ -185,9 +221,13 @@ export function summarizeCoverage(coverageFixture = {}) {
     golden_case_count: coverageFixture.golden_case_count || 0,
     golden_failure_class_count: countKeys(coverageFixture.golden_failure_class_counts),
     golden_failure_classes_missing: missing(coverageFixture.golden_failure_classes_missing),
+    thin_golden_failure_classes: mapping(coverageFixture.thin_golden_failure_classes),
     executable_run_case_count: coverageFixture.executable_run_case_count || 0,
     executable_failure_class_count: countKeys(coverageFixture.executable_failure_class_counts),
-    executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing)
+    executable_failure_classes_missing: missing(coverageFixture.executable_failure_classes_missing),
+    thin_executable_failure_classes: mapping(coverageFixture.thin_executable_failure_classes),
+    coverage_warnings: missing(coverageFixture.coverage_warnings),
+    coverage_warning_count: missing(coverageFixture.coverage_warnings).length
   };
 }
 
@@ -241,19 +281,29 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     `- Pass rate: ${summary.passRate}%`,
     `- Average score: ${summary.avgScore}`,
     `- Trace completeness: ${summary.traceCompleteness}%`,
-    "",
-    "## Coverage",
-    "",
-    `- Scenarios: ${coverage.scenario_count}`,
-    `- Rubric classes: ${coverage.rubric_class_count}`,
-    `- Judge modes: ${coverage.judge_mode_count}`,
-    `- Golden cases: ${coverage.golden_case_count}`,
-    `- Executable run cases: ${coverage.executable_run_case_count}`,
-    `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
-    "",
-    "## Failure Clusters",
     ""
   ];
+
+  if (coverage.available) {
+    lines.push(
+      "## Coverage",
+      "",
+      `- Assignment minimums met: ${coverage.meets_assignment_minimums ? "yes" : "no"}`,
+      `- Scenarios: ${coverage.scenario_count}`,
+      `- Rubric classes: ${coverage.rubric_class_count}`,
+      `- Judge modes: ${coverage.judge_mode_count}`,
+      `- Golden cases: ${coverage.golden_case_count}`,
+      `- Executable run cases: ${coverage.executable_run_case_count}`,
+      `- Missing executable failure classes: ${coverage.executable_failure_classes_missing.join(", ") || "none"}`,
+      `- Coverage warnings: ${coverage.coverage_warning_count}`,
+      ""
+    );
+  }
+
+  lines.push(
+    "## Failure Clusters",
+    ""
+  );
 
   if (clusters.length === 0) {
     lines.push("- No failures.");

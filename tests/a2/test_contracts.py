@@ -5,7 +5,7 @@ from pathlib import Path
 
 from services.judge.coverage import build_coverage_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
-from services.judge.schemas import CANONICAL_FAILURE_CLASSES
+from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,6 +46,16 @@ class A2ContractTests(unittest.TestCase):
                 self.assertIn("toolPolicy", scenario)
                 self.assertIn("expectedBehaviors", scenario)
                 self.assertIn("failureSignals", scenario)
+                self.assertIn(scenario["primaryFailureClass"], CANONICAL_FAILURE_CLASSES)
+                self.assertLessEqual(
+                    set(scenario["failureSignals"]),
+                    CANONICAL_FAILURE_CLASSES | set(LOCAL_FAILURE_CLASS_MAP),
+                )
+                canonical_signals = {
+                    canonical_primary_failure_class([signal])
+                    for signal in scenario["failureSignals"]
+                }
+                self.assertIn(scenario["primaryFailureClass"], canonical_signals)
 
     def test_all_fixture_refs_exist(self):
         pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g2_seed_pack.json")
@@ -229,6 +239,10 @@ class A2ContractTests(unittest.TestCase):
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         self.assertEqual(report, expected_report)
         self.assertEqual(report["scenario_count"], 60)
+        self.assertTrue(report["meets_assignment_minimums"])
+        self.assertTrue(all(report["assignment_checks"].values()))
+        self.assertEqual(report["assignment_minimums"]["scenario_count"], 60)
+        self.assertEqual(report["assignment_minimums"]["golden_case_count"], 20)
         self.assertEqual(len(report["rubric_classes"]), 5)
         self.assertEqual(len(report["judge_modes"]), 5)
         self.assertEqual(report["required_failure_classes_missing"], [])
@@ -245,10 +259,13 @@ class A2ContractTests(unittest.TestCase):
             report["golden_failure_case_count"],
         )
         self.assertEqual(report["golden_failure_classes_missing"], [])
+        self.assertIn("wrong_arguments", report["thin_golden_failure_classes"])
         self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
         self.assertGreaterEqual(report["executable_run_case_count"], 13)
         self.assertGreaterEqual(report["executable_failure_case_count"], 12)
         self.assertEqual(report["executable_failure_classes_missing"], [])
+        self.assertEqual(len(report["thin_executable_failure_classes"]), 12)
+        self.assertEqual(len(report["coverage_warnings"]), 2)
         self.assertLessEqual(set(report["executable_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 

@@ -91,6 +91,8 @@ It also audits executable run fixtures in `fixtures/a2/runs`:
 - `executable_failure_class_counts`,
 - `executable_failure_classes_missing`: expected to stay empty after executable G3 calibration.
 
+The G3 coverage report also includes `assignment_minimums`, `assignment_checks`, `meets_assignment_minimums`, and calibration redundancy warnings. Thin coverage is not a failing condition by itself; it marks failure classes that only have the minimum calibration depth and should be prioritized in later iterations.
+
 ## Later Enhancements
 
 Community metadata such as GitHub stars, issue activity, adoption, and documentation quality can become later metadata signals. They should not affect G1-G2 deterministic scores.

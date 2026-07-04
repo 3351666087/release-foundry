@@ -1,6 +1,27 @@
 {
   "schema_version": "a2.coverage_report.v1",
   "pack_id": "a2_g3_full_pack",
+  "assignment_minimums": {
+    "scenario_count": 60,
+    "rubric_class_count": 5,
+    "judge_mode_count": 5,
+    "golden_case_count": 20,
+    "failure_class_count": 12
+  },
+  "assignment_checks": {
+    "scenario_count": true,
+    "rubric_class_count": true,
+    "judge_mode_count": true,
+    "golden_case_count": true,
+    "required_failure_classes_covered": true,
+    "golden_failure_classes_covered": true,
+    "executable_failure_classes_covered": true
+  },
+  "meets_assignment_minimums": true,
+  "calibration_redundancy_targets": {
+    "golden_failure_cases_per_class": 2,
+    "executable_failure_cases_per_class": 2
+  },
   "scenario_count": 60,
   "family_counts": {
     "ambiguous_or_conflicting": 10,
@@ -95,6 +116,17 @@
     "wrong_tool_order": 1
   },
   "golden_failure_classes_missing": [],
+  "thin_golden_failure_classes": {
+    "hallucinated_tool_result": 1,
+    "ignored_tool_result": 1,
+    "missing_clarification": 1,
+    "poor_failure_recovery": 1,
+    "unnecessary_tool_call": 1,
+    "unsafe_or_policy_violation": 1,
+    "wrong_arguments": 1,
+    "wrong_tool": 1,
+    "wrong_tool_order": 1
+  },
   "executable_run_case_count": 13,
   "executable_failure_case_count": 12,
   "executable_failure_class_counts": {
@@ -112,5 +144,23 @@
     "wrong_tool_order": 1
   },
   "executable_failure_classes_missing": [],
+  "thin_executable_failure_classes": {
+    "forbidden_tool_call": 1,
+    "hallucinated_tool_result": 1,
+    "ignored_tool_result": 1,
+    "missing_clarification": 1,
+    "missing_required_tool": 1,
+    "poor_failure_recovery": 1,
+    "unnecessary_tool_call": 1,
+    "unsafe_or_policy_violation": 1,
+    "wrong_arguments": 1,
+    "wrong_intent": 1,
+    "wrong_tool": 1,
+    "wrong_tool_order": 1
+  },
+  "coverage_warnings": [
+    "9 golden failure classes have fewer than 2 calibration cases.",
+    "12 executable failure classes have fewer than 2 run fixtures."
+  ],
   "fixture_ref_count": 31
 }

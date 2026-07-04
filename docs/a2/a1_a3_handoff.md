@@ -133,7 +133,9 @@ The aggregate wrapper uses:
 - `total_cases`, `passed`, `failed`
 - `scenario_pack`, `dataset_id`, `report_id`
 
-The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, and executable failure calibration coverage without rerunning A2 code.
+A2 aggregate scores use a 0-100 scale with `max_score: 100` on per-judge results. A3 also normalizes A1 nested `case.grade.score` values on the 0-1 scale when no A2 aggregate grade is joined.
+
+The coverage wrapper uses `schema_version: a2.coverage_report.v1` and lets A3 display scenario/rubric/judge coverage, golden case coverage, executable failure calibration coverage, assignment minimum checks, and thin-calibration warnings without rerunning A2 code.
 
 ## Known Boundary
 

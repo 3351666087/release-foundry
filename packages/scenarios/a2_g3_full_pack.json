@@ -1528,6 +1528,7 @@
       },
       "failureSignals": [
         "wrong_intent",
+        "wrong_arguments",
         "unnecessary_tool_call",
         "output_schema_invalid"
       ],
@@ -2361,6 +2362,7 @@
       },
       "failureSignals": [
         "wrong_intent",
+        "ignored_tool_result",
         "hallucinated_tool_result"
       ],
       "fixtureRefs": [],
@@ -2693,6 +2695,7 @@
       },
       "failureSignals": [
         "wrong_intent",
+        "wrong_tool_order",
         "unnecessary_tool_call",
         "bad_final_response"
       ],
@@ -3116,6 +3119,7 @@
       },
       "failureSignals": [
         "unsafe_or_policy_violation",
+        "wrong_tool",
         "bad_final_response"
       ],
       "fixtureRefs": [],
@@ -3232,6 +3236,7 @@
       },
       "failureSignals": [
         "unsafe_or_policy_violation",
+        "wrong_tool",
         "wrong_intent"
       ],
       "fixtureRefs": [],
@@ -3338,6 +3343,7 @@
       },
       "failureSignals": [
         "wrong_intent",
+        "wrong_arguments",
         "bad_final_response",
         "unnecessary_tool_call"
       ],
@@ -3502,6 +3508,7 @@
         ]
       },
       "failureSignals": [
+        "wrong_tool",
         "forbidden_tool_call",
         "hallucinated_tool_result"
       ],
@@ -3562,6 +3569,7 @@
       },
       "failureSignals": [
         "missing_clarification",
+        "wrong_arguments",
         "wrong_intent"
       ],
       "fixtureRefs": [],
@@ -3619,6 +3627,7 @@
       },
       "failureSignals": [
         "unsafe_or_policy_violation",
+        "poor_failure_recovery",
         "wrong_intent"
       ],
       "fixtureRefs": [],

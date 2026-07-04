@@ -91,6 +91,64 @@ test("A3 report builder canonicalizes local failure signals before clustering", 
   assert.deepEqual(clusters.map((cluster) => [cluster.failureClass, cluster.count]), [["wrong_intent", 2]]);
 });
 
+test("A3 report builder normalizes nested A1 grade scores without A2 grade joins", () => {
+  const runs = {
+    runs: [{
+      run_id: "run-a1-nested-grade",
+      dataset_id: "a1-local",
+      runner_id: "a1-local-runner",
+      status: "failed",
+      cases: [{
+        case_id: "a1-nested-grade-case",
+        scenario_id: "A2-S010",
+        title: "A1 nested grade score",
+        family: "retrieval_grounding",
+        status: "failed",
+        grade: {
+          passed: false,
+          score: 0.62,
+          primary_failure_class: "wrong_arguments",
+          judge_results: []
+        }
+      }]
+    }]
+  };
+
+  const [item] = normalizeCases(runs, {});
+  assert.equal(item.score, 62);
+  assert.equal(item.primary_failure_class, "wrong_arguments");
+  assert.equal(item.failure_summary, "Failure requires triage.");
+});
+
+test("A3 report builder uses the matching failed judge analysis for triage summaries", async () => {
+  const run = await loadJson("../../fixtures/a2/runs/a2_s003_hallucinated_weather.json");
+  const grade = await loadJson("../../fixtures/a2/results/a2_s003_hallucinated_weather_grade.json");
+  const runs = {
+    runs: [{
+      run_id: "run-a2-s003-triage",
+      dataset_id: "a2-g3-calibration",
+      runner_id: "a1-local-runner",
+      status: "failed",
+      cases: [{
+        case_id: run.case_id,
+        scenario_id: run.scenario_id,
+        title: "Optional Weather Check",
+        family: "tool_execution",
+        status: "failed",
+        expected: run.expected,
+        actual: run.run
+      }]
+    }]
+  };
+  const grades = { grade_results: [grade] };
+
+  const [item] = normalizeCases(runs, grades);
+  assert.equal(item.primary_failure_class, "hallucinated_tool_result");
+  assert.equal(item.severity, "major");
+  assert.match(item.failure_summary, /Forbidden or contradicted facts present/);
+  assert.doesNotMatch(item.failure_summary, /Tool policy satisfied/);
+});
+
 test("A3 report builder exposes and applies dashboard filters", async () => {
   const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
   const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
@@ -123,6 +181,7 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   const markdown = buildMarkdownReport(runs, grades);
   assert.match(markdown, /A3 Dashboard Triage Report/);
   assert.match(markdown, /missing_required_tool/);
+  assert.doesNotMatch(markdown, /## Coverage/);
 
   const csv = buildCsvReport(runs, grades);
   assert.match(csv, /"case_id"/);
@@ -130,6 +189,7 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
 
   const json = buildJsonReport(runs, grades);
   assert.equal(json.schema_version, "a3.export_report.v1");
+  assert.equal(json.coverage.available, false);
   assert.equal(json.failure_clusters.length, 2);
 });
 
@@ -146,23 +206,58 @@ test("A3 report builder can consume A2 G3 aggregate grade fixture", async () => 
   assert.ok(judgeModes.has("g3_semantic_reference_judge"));
 });
 
+test("A3 report builder can join every A2 G3 aggregate grade by case id", async () => {
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const runs = {
+    runs: [{
+      run_id: "run-a2-g3-aggregate-join",
+      dataset_id: grades.dataset_id,
+      runner_id: "a1-local-runner",
+      status: "failed",
+      cases: grades.grade_results.map((grade) => ({
+        case_id: grade.case_id,
+        scenario_id: grade.scenario_id,
+        title: grade.case_id,
+        family: "a2_g3_calibration",
+        status: grade.passed ? "passed" : "failed"
+      }))
+    }]
+  };
+
+  const cases = normalizeCases(runs, grades);
+  assert.equal(cases.length, grades.grade_results.length);
+  assert.equal(cases.filter((item) => item.judge_results.length === 5).length, grades.grade_results.length);
+  assert.deepEqual(
+    cases.map((item) => item.primary_failure_class).sort(),
+    grades.grade_results.map((grade) => grade.primary_failure_class).sort()
+  );
+});
+
 test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
   const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
   const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
 
   const summary = summarizeCoverage(coverage);
+  assert.equal(summary.available, true);
+  assert.equal(summary.meets_assignment_minimums, true);
   assert.equal(summary.scenario_count, 60);
   assert.equal(summary.rubric_class_count, 5);
   assert.equal(summary.judge_mode_count, 5);
   assert.equal(summary.primary_failure_class_count, 12);
   assert.equal(summary.golden_failure_classes_missing.length, 0);
   assert.equal(summary.executable_failure_classes_missing.length, 0);
+  assert.equal(summary.coverage_warning_count, 2);
+  assert.equal(Object.keys(summary.thin_golden_failure_classes).length, 9);
+  assert.equal(Object.keys(summary.thin_executable_failure_classes).length, 12);
 
   const json = buildJsonReport(runs, grades, coverage);
   assert.equal(json.coverage.executable_failure_class_count, 12);
+  assert.equal(json.coverage.coverage_warning_count, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
   assert.match(markdown, /## Coverage/);
+  assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
+  assert.match(markdown, /Coverage warnings: 2/);
 });
