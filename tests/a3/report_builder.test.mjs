@@ -7,6 +7,7 @@ import {
   buildDashboardSummary,
   buildJsonReport,
   buildMarkdownReport,
+  buildToolCallDiffs,
   clusterFailures,
   filterCases,
   getFilterOptions,
@@ -82,4 +83,24 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   const json = buildJsonReport(runs, grades);
   assert.equal(json.schema_version, "a3.export_report.v1");
   assert.equal(json.failure_clusters.length, 2);
+  assert.ok(Array.isArray(json.cases[0].tool_call_diffs));
+});
+
+test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const cases = normalizeCases(runs, grades);
+
+  const missingToolCase = cases.find((item) => item.case_id === "sample-a2-s004-missing-tool");
+  const missingDiffs = buildToolCallDiffs(missingToolCase);
+  assert.equal(missingDiffs.length, 1);
+  assert.equal(missingDiffs[0].status, "missing_required_tool");
+  assert.equal(missingDiffs[0].expected.name, "web.search");
+
+  const wrongArgumentCase = cases.find((item) => item.case_id === "sample-a2-s010-wrong-argument");
+  const wrongArgumentDiffs = buildToolCallDiffs(wrongArgumentCase);
+  assert.equal(wrongArgumentDiffs.length, 1);
+  assert.equal(wrongArgumentDiffs[0].status, "wrong_arguments");
+  assert.equal(wrongArgumentDiffs[0].expected.name, "file.read");
+  assert.equal(wrongArgumentDiffs[0].actual.name, "file.read");
 });

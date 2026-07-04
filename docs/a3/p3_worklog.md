@@ -218,3 +218,38 @@ Confirmed fields:
 1. Add a trace/tool-call diff panel for expected vs actual tool-call comparison.
 2. Add a report-center page with saved report history and PDF-ready layout.
 3. After a teammate logs into Ashr Lab, observe authenticated requests/datasets/runs/detail pages and update `p3_official_frontend_notes.md`.
+
+## 2026-07-04 - Tool-call diff follow-up
+
+### Goal
+
+Continue the next A3 backlog item after media evidence: make expected vs actual tool-call failures readable without manual JSON comparison.
+
+### Implemented
+
+- Added `buildToolCallDiffs(caseResult)` in `services/report/report_builder.mjs`.
+- Added normalized tool-call comparison statuses:
+  - `match`
+  - `missing_required_tool`
+  - `unexpected_tool_call`
+  - `wrong_tool`
+  - `wrong_arguments`
+- Added `tool_call_diffs` to JSON export output.
+- Added dashboard `Tool Call Diff` panel in Case Detail.
+- Added `docs/a3/p3_tool_call_diff.md`.
+- Added screenshot `docs/screenshots/a3-p3-tool-call-diff.png`.
+
+### Verification
+
+- `node --test tests/a3/report_builder.test.mjs`: 5 tests passed.
+- `node --test tests/a3/p3_ashr_mapper.test.mjs`: 5 tests passed.
+- Browser smoke at `http://127.0.0.1:5173/apps/dashboard/index.html`.
+- Confirmed missing tool case renders `missing_required_tool`.
+- Confirmed wrong argument case renders `wrong_arguments`.
+- Confirmed no horizontal overflow in the desktop browser check.
+
+### Next top 3
+
+1. Add field-level argument highlighting inside the tool-call diff.
+2. Add report-center page with saved report history and PDF-ready layout.
+3. Observe authenticated Ashr Lab after manual login and update official frontend notes.

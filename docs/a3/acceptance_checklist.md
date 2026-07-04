@@ -70,6 +70,19 @@
 - [ ] Authenticated Ashr Lab dashboard observed after manual login.
 - [ ] Native signed media URL field confirmed for audio/image/video.
 
+## P3 Trace / Tool-Call Diff
+
+- [x] Added `buildToolCallDiffs()` to compare expected vs actual tool calls.
+- [x] Added statuses for match, missing tool, unexpected tool, wrong tool, and wrong arguments.
+- [x] Added report JSON export field `tool_call_diffs`.
+- [x] Added dashboard Tool Call Diff panel in Case Detail.
+- [x] Added test coverage for missing required tool.
+- [x] Added test coverage for wrong arguments.
+- [x] Browser smoke confirmed missing-tool and wrong-arguments cases render.
+- [x] Screenshot saved under `docs/screenshots/a3-p3-tool-call-diff.png`.
+- [ ] Add field-level argument diff highlighting.
+- [ ] Link each diff row back to A2 judge evidence.
+
 ## Next Acceptance Targets
 
 - [ ] Replace A3 mock fixtures with generated fixtures from merged A1/A2 outputs.

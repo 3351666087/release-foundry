@@ -399,9 +399,60 @@
         background: #fbfcfe;
       }
 
-      .media-evidence h3 {
+      .media-evidence h3,
+      .tool-diff h3 {
         margin: 0 0 8px;
         font-size: 14px;
+      }
+
+      .tool-diff {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        margin-top: 12px;
+        padding: 12px;
+        background: #fff;
+      }
+
+      .diff-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .diff-row {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        background: #fbfcfe;
+      }
+
+      .diff-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .diff-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+      }
+
+      .diff-box {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        padding: 8px;
+        min-width: 0;
+      }
+
+      .diff-box pre {
+        margin: 6px 0 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+        line-height: 1.4;
       }
 
       .evidence-grid {
@@ -491,6 +542,7 @@
         .filters,
         .grid,
         .detail-grid,
+        .diff-grid,
         .workflow {
           grid-template-columns: 1fr;
         }
@@ -653,6 +705,7 @@
                   <pre id="actual-view">{}</pre>
                 </div>
               </div>
+              <div class="tool-diff" id="tool-diff-view"></div>
               <div class="media-evidence" id="media-view"></div>
               <div class="judge-list" id="judge-view"></div>
             </div>
@@ -689,6 +742,7 @@
         buildDashboardSummary,
         buildJsonReport,
         buildMarkdownReport,
+        buildToolCallDiffs,
         clusterFailures,
         filterCases,
         getFilterOptions,
@@ -852,6 +906,7 @@
           $("actual-view").textContent = "{}";
           $("timeline-view").textContent = "";
           $("judge-view").textContent = "";
+          $("tool-diff-view").textContent = "";
           $("media-view").textContent = "";
           return;
         }
@@ -861,6 +916,7 @@
         $("case-heading").textContent = `${item.case_id} / ${item.scenario_id} - ${item.failure_summary}`;
         $("expected-view").textContent = formatJson(item.expected);
         $("actual-view").textContent = formatJson(item.actual);
+        renderToolDiff(item);
         renderMediaEvidence(item);
         $("judge-view").replaceChildren(...(item.judge_results || []).map((judge) => {
           const node = document.createElement("div");
@@ -925,6 +981,41 @@
           `;
           return node;
         }));
+      }
+
+      function renderToolDiff(item) {
+        const diffs = buildToolCallDiffs(item);
+        if (!diffs.length) {
+          $("tool-diff-view").innerHTML = `
+            <h3>Tool Call Diff</h3>
+            <div class="muted">No tool calls were expected or observed for this case.</div>
+          `;
+          return;
+        }
+
+        $("tool-diff-view").innerHTML = `
+          <h3>Tool Call Diff</h3>
+          <div class="diff-list">
+            ${diffs.map((diff) => `
+              <div class="diff-row">
+                <div class="diff-head">
+                  <strong>#${diff.index + 1} ${escapeHtml(diff.summary)}</strong>
+                  <span class="badge ${diff.status === "match" ? "pass" : "fail"}">${escapeHtml(diff.status)}</span>
+                </div>
+                <div class="diff-grid">
+                  <div class="diff-box">
+                    <strong>Expected: ${escapeHtml(diff.expected?.name || "none")}</strong>
+                    <pre>${escapeHtml(formatJson(diff.expected?.arguments || {}))}</pre>
+                  </div>
+                  <div class="diff-box">
+                    <strong>Actual: ${escapeHtml(diff.actual?.name || "none")}</strong>
+                    <pre>${escapeHtml(formatJson(diff.actual?.arguments || {}))}</pre>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `;
       }
 
       function renderMediaEvidence(item) {
