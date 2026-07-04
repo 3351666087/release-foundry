@@ -450,3 +450,41 @@ Cleanup note:
 - `python -B -m services.api.cli replay-queued --state-input docs/evidence/private_refs/a1_queue_batch_state_snapshot_smoke.json --agent examples.agents.mock_agent:RespondingMockAgent --tenant-id tenant_a1_batch_replay_smoke --project-id project_a1_batch_replay_smoke --dataset-id dataset_a1_batch_replay_smoke --fixture-output-dir docs/evidence/private_refs/a1_queue_batch_replay_fixtures --summary-output docs/evidence/private_refs/a1_queue_batch_replay_summary_smoke.json --run-output-dir docs/evidence/private_refs/a1_queue_batch_replay_runs --state-output docs/evidence/private_refs/a1_queue_batch_replayed_state_smoke.json --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30`: replayed two runs in deterministic batch order; each completed 30 passed, 0 failed, 0 errored, 0 timed out, with 60 observations; total quota used `dataset.create=1`, `run.submit=2`, `observation.write=120`; per-run fixture/result files were written under ignored private evidence.
 - Final remote recheck before audit: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` to `ea1039a G3: surface A2 evidence readiness in A3 reports` and `origin/codex/a3-p3-ashr-calibration` to `e39b823 Merge latest main into A3 product console PR`. Direct new peer paths were A2 docs/worklog/fixtures/scripts/judge/tests and A3 dashboard/report/tests; no A1-owned working tree conflict or staged peer files observed.
 - Real Ashr API calls: none in this round because env keys were absent and local key files remain unread.
+
+## 2026-07-04 TypeScript Runner/Dataset/Trace Parity
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: success.
+- `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view --json nameWithOwner,url,defaultBranchRef`; `gh pr list --state all --limit 20 --json ...`: repo root `C:/Users/33516/Documents/Ashr`, branch `codex/a1-local-sdk-runner`, remote `3351666087/ashr-codex-factory`, default branch `main`, PR #7 already merged and current branch had unmerged local head `b95ef5b`.
+- `git status -sb`: clean at round start; after implementation only A1/TS-owned files were modified/added.
+- Baseline scan: Python SDK/Adapter/Runner/Trace/API probe, local cloud runtime/queue/replay CLI, TS API client/probe/cloud runtime, A1 tests/schemas/docs, and ignored private evidence filenames were present. Raw private evidence contents, `.secrets`, and desktop key files were not read.
+- Env presence check: `ASHR_API_KEY=false`, `ASHR_LABS_API_KEY=false`; no real hosted API call was run in this round.
+- Peer impact: `origin/main` had advanced beyond the A1 branch and PR #7 was merged; current A1 branch still needs a new PR for unmerged branch commits. A2/A3 remote branches touched judge/dashboard/report/doc areas with no working-tree conflict in A1-owned files observed during this implementation pass.
+- Ten scored enhancements:
+  - TS local runner/adapter/CLI: demo 5, risk 5, contract 1, effort 4, API evidence 2. Implemented.
+  - TS dataset-source adapter: demo 5, risk 4, contract 1, effort 3, API evidence 4. Implemented.
+  - TS strict trace/replay helpers: demo 4, risk 5, contract 1, effort 3, API evidence 2. Implemented.
+  - TS dataset adapter CLI: demo 4, risk 4, contract 1, effort 2, API evidence 3. Implemented.
+  - TS `runCase`/`runBatch`/`BatchRunner` and `toA2JudgeRun`: demo 4, risk 4, contract 1, effort 2, API evidence 1. Implemented.
+  - TS cloud queue/replay parity: demo 5, risk 4, contract 1, effort 5, API evidence 2. Deferred.
+  - TS quota/error injected fixture pack: demo 3, risk 4, contract 1, effort 2, API evidence 4. Deferred.
+  - Real API read-only batch when env key exists: demo 3, risk 3, contract 1, effort 2, API evidence 5. Blocked by absent env key.
+  - Hosted media failure shape calibration: demo 3, risk 4, contract 1, effort 3, API evidence 5. Blocked for mutation by quota/env; read-only docs only this round.
+  - TS docs/fresh setup polish: demo 3, risk 3, contract 1, effort 2, API evidence 1. Partially implemented through README/field map updates.
+- Bus-Auditor: PASS for TS local runner/adapter after queue PR hygiene warning; required no live API calls without env key and a new PR for unmerged branch work.
+- Explorer-SDK/API: confirmed the new TS runner/dataset files and flagged remaining TS gaps: strict trace exports, runner breadth, dataset adapter CLI, A2 projection, docs. These were implemented in this pass.
+- Explorer-Chrome/Product: verified TypeScript and Python public API docs plus logged-in Usage labels. Private screenshot path: `docs/evidence/private_refs/ashr_lab_usage_ts_python_parity_2026-07-04.png`.
+- Worker-TS: implemented the core `packages/ts/ashr-clone/src/runner.ts` slice; main thread integrated it, added dataset adapter, trace helpers, CLIs, tests, and docs.
+- Implemented `packages/ts/ashr-clone/src/runner.ts`: `AgentAdapter`, `AgentResult`, `LocalEvalRunner`, `BatchRunner`, `runAgentBatch`, `runCase`, `runBatch`, `runFile`, `runAgentFile`, `buildRunFixture`, `buildCloudRunFixture`, `loadAgentTarget`, `coerceRunnerAgentInput`, and `toA2JudgeRun`.
+- Implemented `packages/ts/ashr-clone/src/runner-cli.ts`: `ashr-clone-runner` CLI for external TS agents, 30+ case batches, `maxWorkers >= 4`, timeout, fixture output, and fail-on-case-failure.
+- Implemented `packages/ts/ashr-clone/src/dataset-adapter.ts`: `extractDatasetSource`, `datasetSourceToCases`, `caseFromSourceRun`, API-record loading/writing, and `replayFixtureFromSourceRun`.
+- Implemented `packages/ts/ashr-clone/src/dataset-adapter-cli.ts`: `ashr-clone-dataset-adapter cases` and `replay-fixture`.
+- Implemented `packages/ts/ashr-clone/src/trace.ts`: `TraceRecorder`, `TraceEvent`, VM stream frames, fixture build/validate/load/write, and VM stream replay projection.
+- Implemented `examples/agents/mock_agent_ts.mjs`: TS mock agent compatible with the 30-case local calculator/echo smoke.
+- Added tests: `packages/ts/ashr-clone/test/runner.test.mjs`, `dataset-adapter.test.mjs`, and `trace.test.mjs`.
+- Updated docs: `packages/ts/ashr-clone/README.md`, `docs/a1/README.md`, `docs/a1/sdk_field_map.md`, `docs/evidence/official_site_gaps.md`, `docs/a1/evidence/commands.md`, and `docs/evidence/worklog.md`.
+- `npm install --package-lock-only --prefix packages/ts/ashr-clone`: up to date, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 47 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed.
+- `node packages/ts/ashr-clone/dist/runner-cli.js --input docs/a1/evidence/local_agent_cases_30.json --output docs/evidence/private_refs/a1_ts_runner_run_30_smoke.json --agent examples/agents/mock_agent_ts.mjs:default --dataset-id a2-local-scenarios-ts --runner-id a1-ts-local-runner --run-id run_a1_ts_runner_30_smoke --max-workers 4 --timeout 5 --fixture-output docs/evidence/private_refs/a1_ts_runner_fixture_30_smoke.json --fail-on-case-failure`: completed 30 passed, 0 failed, 0 errored, 0 timed out, trace completeness 1.0.
+- Private evidence paths created/updated: `docs/evidence/private_refs/a1_ts_runner_run_30_smoke.json`, `docs/evidence/private_refs/a1_ts_runner_fixture_30_smoke.json`, and `docs/evidence/private_refs/ashr_lab_usage_ts_python_parity_2026-07-04.png`.
+- Real Ashr API calls: none. This process had no `ASHR_API_KEY` / `ASHR_LABS_API_KEY`; local key files were not read.

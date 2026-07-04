@@ -1,4 +1,7 @@
 export * from "./api-client.js";
+export * from "./dataset-adapter.js";
+export * from "./runner.js";
+export * from "./trace.js";
 
 export const CLOUD_API_SCHEMA_VERSION = "ashr.clone.cloud_api.v1";
 export const AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1";

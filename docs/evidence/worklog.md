@@ -1245,3 +1245,66 @@ Remaining / next top 3:
 1. Add a TypeScript local runner/adapter slice (`AgentAdapter`, `runAgentBatch`, `LocalEvalRunner`, and an `ashr-clone-runner` CLI) so TS begins matching Python SDK/Runner body, not only API probe parity.
 2. Add TypeScript injected-transport probe fixtures for API-level error/quota header shapes and hostile token-bearing error redaction coverage.
 3. Convert selected private hosted run evidence through A2/A3 calibration import bridges after explicit public-safe evidence selection rules.
+
+## 2026-07-04 TypeScript Runner/Dataset/Trace Parity
+
+Goal: respond to the updated long-term A1 objective by making TypeScript much closer to Python in actual SDK/Runner body, not only API-client parity. This round implemented the top 5 ROI items from the new top-10 list: TS local runner/adapter/CLI, TS dataset-source adapter, strict trace/replay helpers, dataset adapter CLI, and Python-style literal batch/A2 projection helpers.
+
+Start/baseline:
+
+- Repo root `C:/Users/33516/Documents/Ashr`, branch `codex/a1-local-sdk-runner`, remote `3351666087/ashr-codex-factory`, default branch `main`.
+- PR #7 for prior A1 work is merged; branch still has unmerged A1 head work and needs a new PR after this round.
+- A1 Python surfaces were already present: SDK adapter/types/trace/dataset adapter/API client, runner CLI, cloud API/queue/replay CLI, tests/docs/schemas.
+- TS surfaces at start had cloud/API/probe parity but lacked Python-sized local runner, strict trace helpers, dataset adapter CLI, and A2 projection.
+- Env key presence: `ASHR_API_KEY=false`, `ASHR_LABS_API_KEY=false`; no real hosted calls were attempted.
+
+Top 10 and decisions:
+
+1. TS local runner/adapter/CLI: implemented.
+2. TS dataset-source adapter: implemented.
+3. TS strict trace/replay helpers: implemented.
+4. TS dataset adapter CLI: implemented.
+5. TS `runCase`/`runBatch`/`BatchRunner` and `toA2JudgeRun`: implemented.
+6. TS cloud queue/replay parity: deferred.
+7. TS quota/error injected fixture pack: deferred.
+8. Real API read-only batch when env key exists: blocked by absent env key.
+9. Hosted media failure shape calibration: deferred; no blind mutating retry.
+10. TS docs/fresh setup polish: partially implemented through README/field map/worklog updates.
+
+Subagents:
+
+- Bus-Auditor: PASS for TS local runner/adapter as highest-ROI next slice; warned that current branch needs a new PR because PR #7 is merged, and no live API work should run without env keys.
+- Explorer-SDK/API: confirmed current TS runner/dataset files and remaining gaps; recommended strict trace exports, dataset adapter CLI, runner breadth, A2 projection, and docs. These were addressed.
+- Explorer-Chrome/Product: verified public TS/Python docs fields and logged-in Usage labels without recording private counters. Private screenshot: `docs/evidence/private_refs/ashr_lab_usage_ts_python_parity_2026-07-04.png`.
+- Worker-TS: implemented the core `runner.ts` slice; main thread integrated and extended it.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/runner.ts`: `AgentAdapter`, `AgentResult`, `LocalEvalRunner`, `BatchRunner`, `runAgentBatch`, `runCase`, `runBatch`, `runFile`, `runAgentFile`, `buildRunFixture`, `buildCloudRunFixture`, `loadAgentTarget`, `coerceRunnerAgentInput`, `toA2JudgeRun`.
+- `packages/ts/ashr-clone/src/runner-cli.ts`: `ashr-clone-runner` CLI.
+- `packages/ts/ashr-clone/src/dataset-adapter.ts`: dataset-source extraction/case conversion/replay fixture helpers.
+- `packages/ts/ashr-clone/src/dataset-adapter-cli.ts`: `cases` and `replay-fixture` commands.
+- `packages/ts/ashr-clone/src/trace.ts`: `TraceRecorder`, strict trace event and VM frame validation, run fixture build/load/write helpers.
+- `examples/agents/mock_agent_ts.mjs`: TS mock agent for local 30-case smoke.
+- `packages/ts/ashr-clone/test/runner.test.mjs`, `dataset-adapter.test.mjs`, `trace.test.mjs`: focused Node tests.
+- Docs updated in TS README, A1 README, field map, official site gaps, command log, and this worklog.
+
+Verification:
+
+- `npm install --package-lock-only --prefix packages/ts/ashr-clone`: up to date, 0 vulnerabilities.
+- `npm test --prefix packages/ts/ashr-clone`: 47 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed.
+- `node packages/ts/ashr-clone/dist/runner-cli.js --input docs/a1/evidence/local_agent_cases_30.json --output docs/evidence/private_refs/a1_ts_runner_run_30_smoke.json --agent examples/agents/mock_agent_ts.mjs:default --dataset-id a2-local-scenarios-ts --runner-id a1-ts-local-runner --run-id run_a1_ts_runner_30_smoke --max-workers 4 --timeout 5 --fixture-output docs/evidence/private_refs/a1_ts_runner_fixture_30_smoke.json --fail-on-case-failure`: 30 passed, trace completeness 1.0.
+
+Known gaps / next top 10:
+
+1. Open a new PR for current A1 branch work because PR #7 is merged.
+2. Add TS cloud queue/replay parity against Python `services/api` queue state flows.
+3. Add TS injected-transport quota/error fixture pack and hostile-token redaction cases.
+4. When env key exists, run dry-run -> small real read-only hosted TS probes and record redacted private evidence.
+5. Add TS strict fixture validation against Python schema snapshots where safe.
+6. Add TS media/video envelope extension once official TS `video` naming is reconciled with local Image/Audio/File envelope.
+7. Add public-safe A2/A3 hosted evidence bridge rules.
+8. Add TS cloud runtime snapshot/replay persistence if queue parity requires it.
+9. Add fresh setup script that runs Python + TS smoke in one command.
+10. Recheck official docs/Usage after any hosted API calibration; do not record private counter values.
