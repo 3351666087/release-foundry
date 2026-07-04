@@ -20,6 +20,7 @@ ASHR_API_ENV_VAR = "ASHR_API_KEY"
 ASHR_LABS_API_ENV_VAR = "ASHR_LABS_API_KEY"
 ASHR_LABS_BASE_URL_ENV_VAR = "ASHR_LABS_BASE_URL"
 ASHR_API_FIELD_MAP_VERSION = "a1-api-calibration-2026-07-04"
+DEFAULT_REQUEST_INPUT_SCHEMA: JsonDict = {"type": "object", "additionalProperties": True}
 
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")
@@ -293,8 +294,7 @@ class AshrApiClient:
 
     def create_request(self, *, request_name: str, request: Mapping[str, Any], request_input_schema: Mapping[str, Any] | None = None, requestor_id: int | None = None, **kwargs: Any) -> JsonDict:
         params: JsonDict = {"request_name": request_name, "request": dict(request)}
-        if request_input_schema is not None:
-            params["request_input_schema"] = dict(request_input_schema)
+        params["request_input_schema"] = build_default_request_input_schema(request) if request_input_schema is None else dict(request_input_schema)
         if requestor_id is not None:
             params["requestor_id"] = requestor_id
         return self._call_with_session("create_request", params=params, tenant=True, user=requestor_id is None, purpose="Create dataset generation request", estimated_calls=2, mutates=True, **kwargs)
@@ -487,6 +487,14 @@ def redact_text(value: str) -> str:
     for pattern in _SECRET_LIKE_PATTERNS:
         redacted = pattern.sub(_REDACTED, redacted)
     return redacted
+
+
+def build_default_request_input_schema(request: Mapping[str, Any] | None = None) -> JsonDict:
+    schema: JsonDict = dict(DEFAULT_REQUEST_INPUT_SCHEMA)
+    agent = request.get("agent") if isinstance(request, Mapping) else None
+    if isinstance(agent, Mapping) and isinstance(agent.get("tools"), list):
+        schema["tools"] = redact_sensitive(agent["tools"])
+    return schema
 
 
 def maybe_write_json(path: str | Path | None, payload: Mapping[str, Any]) -> None:

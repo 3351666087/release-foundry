@@ -118,3 +118,22 @@ Cleanup note:
 - `python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Calibration" --request-file docs/a1/api_calibration/tiny_generation_request.json --output docs/evidence/private_refs/a1_api_tiny_create_request_dry_run.json`: planned create-request, `status=planned`, `attempts=0`.
 - Safe preflight summary from the dry-run record: `mutates=true`, `estimated_calls=2`, `num_variations=1`, `num_variations_known=true`, `small_batch=true`, accepted input text only, `non_text_inputs_enabled=false`, media generation all false.
 - No real `create-request` was executed in this round.
+
+## 2026-07-04 Create Request Schema And Media Interface Calibration
+
+- `git fetch origin --prune`: success; `origin/dev/g3-a2-calibration` advanced to `815eb31`.
+- `git status -sb --untracked-files=all --ignored`: branch `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`; tracked worktree clean at start; ignored `.secrets/`, `.pytest_cache/`, and private evidence present.
+- `gh pr view 4 --repo 3351666087/ashr-codex-factory --json number,title,state,isDraft,mergeable,headRefName,baseRefName,headRefOid,updatedAt,url`: PR #4 open, draft, mergeable, head `f8e0f8b`.
+- Peer impact: `origin/dev/g3-a2-calibration` is additive in A2/A3/judge/dashboard areas; its stale-ancestry deletion of current A1 API files is not an A1 rollback signal.
+- Chrome read-only calibration:
+  - Official homepage links docs at `https://ashr.io/docs/python-sdk/overview/`; `/docs` returned 404.
+  - API reference lists `create_request`, `create_run`, `get_run`, `list_runs`, `get_dataset`, `list_datasets`, and `request_input_schema`.
+  - API reference says `request_input_schema` is optional and a permissive default is sent if omitted.
+  - Usage page intermittently showed `Images 0 of 100`, `Audio 0 of 200`, and `Files 1 of 100`; direct reload also sometimes showed `Loading usage...`.
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Calibration Round 2" --request-file docs/a1/api_calibration/tiny_generation_request.json --output docs/evidence/private_refs/a1_api_tiny_create_request_round2_dry_run.json`: planned text-only create-request, `status=planned`, `attempts=0`, `mutates=true`, `estimated_calls=2`.
+- `python -B -m services.runner.api_probe create-request --execute --allow-mutate --max-retries 0 --request-name "A1 Tiny Calibration Round 2" --request-file docs/a1/api_calibration/tiny_generation_request.json --output docs/evidence/private_refs/a1_api_tiny_create_request_round2_real.json`: real text-only attempt returned API-level error, HTTP `200`, `attempts=1`, message `request_input_schema is required`.
+- SDK parity fix: `AshrApiClient.create_request(...)` now sends a permissive default request input schema when omitted; agent tools are included under `tools`.
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Calibration Round 2" --request-file docs/a1/api_calibration/tiny_generation_request.json --output docs/evidence/private_refs/a1_api_tiny_create_request_round2_schema_dry_run.json`: planned create-request with default schema; schema keys `additionalProperties`, `tools`, `type`; text-only preflight still safe.
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Media Interface Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_api_media_interface_create_request_dry_run.json`: planned dry-run-only media interface request; `generate_images=true`, `generate_audio=true`, image/audio accepted inputs true, `non_text_inputs_enabled=true`, `media_generation_enabled=true`.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `25 passed in 0.89s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `73 passed in 2.68s`.

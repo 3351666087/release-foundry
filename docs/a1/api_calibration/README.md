@@ -46,11 +46,16 @@ Private evidence files:
 - `docs/evidence/private_refs/a1_api_get_created_run_real.json`
 - `docs/evidence/private_refs/a1_api_poll_created_run_real_v2.json`
 - `docs/evidence/private_refs/a1_api_tiny_create_request_dry_run.json`
+- `docs/evidence/private_refs/a1_api_tiny_create_request_round2_dry_run.json`
+- `docs/evidence/private_refs/a1_api_tiny_create_request_round2_real.json`
+- `docs/evidence/private_refs/a1_api_tiny_create_request_round2_schema_dry_run.json`
+- `docs/evidence/private_refs/a1_api_media_interface_create_request_dry_run.json`
 - `docs/evidence/private_refs/a1_real_dataset_cases.json`
 - `docs/evidence/private_refs/a1_real_dataset_run_mock.json`
 - `docs/evidence/private_refs/ashr_lab_analysis_2026-07-04.png`
 - `docs/evidence/private_refs/ashr_lab_analysis_create_run_round_2026-07-04.png`
 - `docs/evidence/private_refs/ashr_lab_analysis_request_round_2026-07-04.png`
+- `docs/evidence/private_refs/ashr_lab_usage_next_round_2026-07-04.png`
 - `docs/evidence/private_refs/ashr_lab_usage_request_round_2026-07-04.png`
 
 Observed non-sensitive field keys:
@@ -78,9 +83,13 @@ One real `create-run` probe was executed after reviewing a dry-run plan:
 - First short `poll-run` exposed a real parity bug: `get_run` returned a complete `run.result`, but the local poll completion predicate only looked for `aggregate_metrics.tests_passed`, then timed out after 4 attempts and the CLI printed a traceback.
 - Fixed behavior: poll completion now accepts the observed run-result shape, CLI catches `TimeoutError`, and the same private created run polls successfully with `status=ok`, HTTP `200`, `attempts=1`.
 
-## Create Request Preflight
+## Create Request And Media Interface Calibration
 
-No real `create-request` generation call was executed in this pass.
+Official API reference says `request_input_schema` is optional and that a permissive default is sent if omitted. A real text-only `create-request` probe without this field instead returned an API-level error: HTTP `200`, `status=error`, `attempts=1`, message `request_input_schema is required`. A1 now mirrors the documented SDK behavior by sending a permissive default schema when omitted:
+
+- default schema keys: `type`, `additionalProperties`
+- when the request agent declares tools, the default schema also includes `tools`
+- CLI dry-run preflight records `request_input_schema_source=client_default`
 
 The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.json` is text-only and bounded to one variation. The dry-run record now includes a local preflight summary:
 
@@ -91,6 +100,14 @@ The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.j
 - media generation: audio/files/images/videos/simulations all disabled
 - `mutates=true`, `estimated_calls=2`, `attempts=0`
 
+Images/Audio interface coverage now has a committed dry-run-only fixture at `docs/a1/api_calibration/media_interface_request.json`:
+
+- accepted inputs include text, image, and audio
+- `generate_images=true`, `generate_audio=true`
+- files/videos/simulations remain false
+- `num_variations=1`
+- dry-run only; real execution is blocked by default because both `media_generation_enabled` and `non_text_inputs_enabled` are true
+
 Execution guardrails:
 
 - `create-request --execute` still requires `--allow-mutate`.
@@ -99,7 +116,7 @@ Execution guardrails:
 - The CLI blocks media generation unless `--allow-media-generation` is passed.
 - The CLI blocks non-text accepted inputs unless `--allow-non-text-inputs` is passed.
 - The CLI blocks known `num_variations` values above `--max-request-variations`, which defaults to `1`.
-- Chrome usage check reached the logged-in Usage page but visible quota counters did not load; the page only showed `Usage`, `Monitor your resource consumption`, `Upgrade`, and `Loading usage...`. Real generation remains blocked until drift, dry-run, and current usage review are satisfied.
+- Chrome usage checks reached the logged-in Usage page. The page sometimes showed counters including `Images 0 of 100`, `Audio 0 of 200`, and `Files 1 of 100`; a direct reload also sometimes showed only `Loading usage...`. Treat usage counters as visible but unstable, and do not execute media generation without a fresh usage read.
 
 ## Dataset Source Adapter
 
@@ -129,17 +146,17 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 22 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 25 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 70 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 73 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
-- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`. No real `create-request` has been executed.
+- Real mutating probes executed: one `create-run` against an existing private dataset, after dry-run review, with `--allow-mutate` and `--max-retries 0`. One real text-only `create-request` attempt was made after dry-run review and returned an API-level schema-required error; no successful `create-request` generation has completed.
 - Real read-only follow-up probes executed against the created run: `get-run` and fixed `poll-run`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 
 ## Next Candidates
 
-1. Exercise `create-request` with `docs/a1/api_calibration/tiny_generation_request.json` only after current branch drift and usage/plan wording are reviewed again.
+1. Re-run the text-only `create-request` with the default request input schema after committing the schema parity patch and confirming a clean branch.
 2. Add process-level isolation for arbitrary external agents if timeout cancellation becomes a hard requirement.
 3. Add a public-safe redacted run fixture derived from private `create-run` evidence for A3 mapper regression tests.

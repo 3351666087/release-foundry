@@ -1,6 +1,6 @@
 # A1 SDK Field Map
 
-Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `text`, `tool_calls`, `name`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`.
+Confirmed public/docs/PyPI field names used for local clone shape: `AshrLabsClient`, `from_env`, `ASHR_LABS_API_KEY`, `ASHR_LABS_BASE_URL`, `api_key`, `base_url`, `timeout`, `init`, `Session`, `user.id`, `user.email`, `tenant.id`, `tenant.tenant_name`, `get_dataset`, `dataset_id`, `list_datasets`, `create_request`, `request_name`, `request_input_schema`, `create_run`, `get_run`, `list_runs`, `delete_run`, `Run`, `result`, `status`, `score`, `metrics`, `EvalRunner`, `EvalRunner.from_dataset`, `EvalRunner.run`, `EvalRunner.run_and_deploy`, `max_workers`, `RunBuilder`, `TestBuilder`, `set_vm_stream`, `Agent.respond`, `Agent.reset`, `text`, `tool_calls`, `name`, `arguments`, `arguments_json`, `expected`, `actual`, `match_status`, `client.trace`, `Trace`, `Span`, `Generation`, `observations`, `parent_observation_id`, `start_time`, `end_time`, `provider`, `session_id`, `duration_ms`, `logs`, `metadata`.
 
 Source groups:
 
@@ -33,7 +33,10 @@ Post-subscription A1 probes confirmed these additional real API fields without c
 - Hosted run result: `aggregate_metrics`, `cases`, `dataset_id`, `duration_ms`, `ended_at`, `errored`, `failed`, `field_map_version`, `max_workers`, `metadata`, `passed`, `run_id`, `runner_id`, `started_at`, `status`, `timed_out`, `total_cases`, `trace_completeness`.
 - `list_requests`: `_user`, `next_cursor`, `requests`, `status`.
 - Request item: `actual_duration_s`, `completed_at`, `created_at`, `estimated_duration_s`, `id`, `request`, `request_name`, `request_status`, `requestor_details`, `requestor_id`, `requestor_tenant`.
-- Local create-request preflight record: `num_variations`, `num_variations_known`, `media_generation`, `media_generation_enabled`, `accepted_input_flags`, `non_text_inputs_enabled`, `small_batch`, `notes`.
+- `create_request` request: `request_name`, `request`, `request_input_schema`, `tenant_id`, `requestor_id`.
+- Default request input schema: `type`, `additionalProperties`, and optional `tools`.
+- Local create-request preflight record: `num_variations`, `num_variations_known`, `media_generation`, `media_generation_enabled`, `accepted_input_flags`, `non_text_inputs_enabled`, `small_batch`, `request_input_schema_source`, `notes`.
+- Media interface flags: `generate_images`, `generate_audio`, `generate_files`, `generate_videos`, `generate_simulations`, plus accepted input flags for `image`, `audio`, `file`, `video`, `conversation`, and `text`.
 
 Error calibration:
 

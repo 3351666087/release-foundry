@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
-from ashr_clone.api_client import AshrApiClient, AshrApiError, redact_sensitive, redact_text  # noqa: E402
+from ashr_clone.api_client import AshrApiClient, AshrApiError, build_default_request_input_schema, redact_sensitive, redact_text  # noqa: E402
 from services.runner import api_probe  # noqa: E402
 
 
@@ -230,6 +230,42 @@ def test_create_request_records_preflight_summary(tmp_path):
     assert record["response"]["plan"]["preflight"]["media_generation_enabled"] is False
 
 
+def test_create_request_uses_default_request_input_schema_for_sdk_parity(tmp_path):
+    calls = []
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        if payload["function"] == "init":
+            return 200, b'{"status":"ok","user":{"id":1},"tenant":{"id":2}}'
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"pending"}}'
+
+    output = tmp_path / "create_request.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.create_request(
+        request_name="Tiny calibration",
+        request={"agent": {"name": "Mock", "tools": [{"name": "lookup_order"}]}, "test_config": {"num_variations": 1}},
+        output_path=output,
+        dry_run=False,
+    )
+
+    sent = calls[1]
+    assert record["status"] == "ok"
+    assert sent["function"] == "create_request"
+    assert sent["request_input_schema"]["type"] == "object"
+    assert sent["request_input_schema"]["additionalProperties"] is True
+    assert sent["request_input_schema"]["tools"] == [{"name": "lookup_order"}]
+
+
+def test_build_default_request_input_schema_is_permissive_and_media_safe():
+    schema = build_default_request_input_schema({"agent": {"tools": [{"name": "inspect_attachment"}]}})
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is True
+    assert schema["tools"] == [{"name": "inspect_attachment"}]
+
+
 def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     request_file = tmp_path / "request.json"
     output = tmp_path / "probe.json"
@@ -269,6 +305,8 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["preflight"]["num_variations"] == 1
     assert record["request"]["preflight"]["media_generation_enabled"] is False
     assert record["request"]["preflight"]["small_batch"] is True
+    assert record["request"]["preflight"]["request_input_schema_source"] == "client_default"
+    assert record["request"]["params"]["request_input_schema"]["type"] == "object"
 
 
 def test_api_probe_create_request_preflight_blocks_media_generation():
@@ -334,6 +372,22 @@ def test_api_probe_create_request_preflight_blocks_non_text_inputs():
         assert "--allow-non-text-inputs" in str(exc)
     else:
         raise AssertionError("expected non-text input guardrail to block execution")
+
+
+def test_media_interface_fixture_is_dry_run_only_guarded():
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "docs" / "a1" / "api_calibration" / "media_interface_request.json").read_text(encoding="utf-8"))
+    preflight = api_probe.summarize_generation_request(fixture)
+
+    assert preflight["media_generation"]["images"] is True
+    assert preflight["media_generation"]["audio"] is True
+    assert preflight["accepted_input_flags"]["image"] is True
+    assert preflight["accepted_input_flags"]["audio"] is True
+    try:
+        api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+    except ValueError as exc:
+        assert "--allow-media-generation" in str(exc)
+    else:
+        raise AssertionError("expected media fixture to be blocked without explicit media allowance")
 
 
 def test_redact_sensitive_handles_nested_values():

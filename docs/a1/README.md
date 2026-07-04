@@ -12,7 +12,7 @@ python -B -m services.runner.cli --input docs/a1/evidence/local_agent_cases_30.j
 python -B examples/agents/mock_agent.py --write-fixtures examples/agents/fixtures
 ```
 
-Current follow-up verification: `70 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` remains dry-run only; the CLI now records a preflight summary and blocks unknown or larger-than-approved variation counts, media generation, and non-text inputs before any real execution.
+Current follow-up verification: `73 passed`, 30/30 local agent cases passed, trace completeness 1.0, three A3 fixtures generated, real read-only API probes for `init`, `list-datasets`, `list-runs`, `list-requests`, `get-run`, `poll-run`, and negative `get-dataset` recorded under private evidence. One quota-safe real `create-run` probe succeeded against an existing private dataset after dry-run review; raw records remain private. A private real dataset source smoke test converted 3 cases and preserved runner trace completeness at 100%. `create-request` now sends a permissive default `request_input_schema` when omitted, matching the official SDK docs and the observed API requirement. The CLI records preflight summaries and blocks unknown or larger-than-approved variation counts, media generation, and non-text inputs before real execution.
 
 Schema snapshots for A3/Gate review live in `docs/a1/schemas/`. They describe local-only `RunResult`, `CaseResult`, `Observation`, `GradeResult`, `AgentTurn`, run fixture, trace event, and VM stream frame shapes.
 
@@ -32,6 +32,9 @@ python -B -m services.runner.api_probe create-run --execute --allow-mutate --dat
 
 # Safe generation dry-run config for later review. The record includes a preflight summary.
 python -B -m services.runner.api_probe create-request --request-name "A1 Tiny Calibration" --request-file docs/a1/api_calibration/tiny_generation_request.json
+
+# Dry-run-only media interface coverage for Images/Audio. Do not execute without explicit quota review.
+python -B -m services.runner.api_probe create-request --request-name "A1 Media Interface Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json
 ```
 
 `create-request --execute` still requires `--allow-mutate`; use `--max-retries 0` for mutating calibration and keep the default guardrails unless current usage/quota wording has been reviewed. Real execution requires a known `num_variations` value no larger than `--max-request-variations` and text-only accepted inputs by default. Media generation requires `--allow-media-generation`; non-text accepted inputs require `--allow-non-text-inputs`. Neither is part of the tiny A1 calibration path.

@@ -92,6 +92,7 @@ def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Pa
         request = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
         request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if args.request_schema_file else None
         preflight = summarize_generation_request(request)
+        preflight["request_input_schema_source"] = "file" if request_schema is not None else "client_default"
         if not dry_run:
             enforce_create_request_preflight(
                 preflight,
