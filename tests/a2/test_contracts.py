@@ -402,6 +402,11 @@ class A2ContractTests(unittest.TestCase):
         for gate in readiness_report["gate_status"]:
             with self.subTest(readiness_gate=gate["gate"]):
                 self.assertLessEqual(gate_required, set(gate))
+        readiness_snapshot_required = set(readiness_schema["$defs"]["evidence_snapshot"]["required"])
+        self.assertLessEqual(readiness_snapshot_required, set(readiness_report["evidence_snapshot"]))
+        self.assertIn("ashr_safe_to_mark_c3_met", readiness_snapshot_required)
+        self.assertIn("semantic_safe_to_mark_c4_met", readiness_snapshot_required)
+        self.assertIn("semantic_risk_assessment_status", readiness_snapshot_required)
 
         regression_case_required = set(case_book_schema["$defs"]["regression_case"]["required"])
         for regression_case in case_book["regression_cases"]:

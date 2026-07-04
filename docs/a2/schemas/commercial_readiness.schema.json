@@ -30,7 +30,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/gate_status" }
     },
-    "evidence_snapshot": { "type": "object" },
+    "evidence_snapshot": { "$ref": "#/$defs/evidence_snapshot" },
     "next_top_3": {
       "type": "array",
       "items": { "$ref": "#/$defs/next_move" }
@@ -68,6 +68,24 @@
         "evidence_refs": { "$ref": "#/$defs/string_array" },
         "gaps": { "$ref": "#/$defs/string_array" }
       },
+      "additionalProperties": true
+    },
+    "evidence_snapshot": {
+      "type": "object",
+      "required": [
+        "assignment_minimums_green",
+        "scenario_count",
+        "golden_case_count",
+        "failure_class_count",
+        "ashr_public_merge_status",
+        "ashr_safe_to_mark_c3_met",
+        "semantic_live_merge_status",
+        "semantic_safe_to_mark_c4_met",
+        "semantic_risk_assessment_status",
+        "semantic_false_positive_tracking_ready",
+        "semantic_failure_class_drift_candidates",
+        "semantic_score_delta_reviews"
+      ],
       "additionalProperties": true
     },
     "next_move": {
