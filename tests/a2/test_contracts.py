@@ -246,6 +246,48 @@ class A2ContractTests(unittest.TestCase):
         failure_classes = {result["primary_failure_class"] for result in actual_report["grade_results"]}
         self.assertLessEqual(CANONICAL_FAILURE_CLASSES | {"none"}, failure_classes)
 
+    def test_a2_schema_snapshots_match_committed_fixtures(self):
+        schema_dir = ROOT / "docs/a2/schemas"
+        grade_schema = json.loads((schema_dir / "grade_results.schema.json").read_text(encoding="utf-8"))
+        coverage_schema = json.loads((schema_dir / "coverage_report.schema.json").read_text(encoding="utf-8"))
+        grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
+        coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
+        self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
+        self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
+        self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
+
+        local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
+        judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
+        failure_required = set(grade_schema["$defs"]["failure_analysis"]["required"])
+        rubric_required = set(grade_schema["$defs"]["rubric_score"]["required"])
+        for grade in grade_report["grade_results"]:
+            with self.subTest(grade_case=grade["case_id"]):
+                self.assertLessEqual(local_run_required, set(grade))
+                self.assertEqual(grade["schema_version"], "a2.local_judge_run.v1")
+                self.assertIn(grade["primary_failure_class"], CANONICAL_FAILURE_CLASSES | {"none"})
+                for judge in grade["judge_results"]:
+                    self.assertLessEqual(judge_required, set(judge))
+                    self.assertEqual(judge["schema_version"], "a2.grade_result.v1")
+                    self.assertLessEqual(failure_required, set(judge["failure_analysis"]))
+                    self.assertEqual(judge["failure_analysis"]["schema_version"], "a2.failure_analysis.v1")
+                    self.assertIn(
+                        judge["failure_analysis"]["primary_failure_class"],
+                        CANONICAL_FAILURE_CLASSES | {"none"},
+                    )
+                    for rubric in judge["rubric_scores"]:
+                        self.assertLessEqual(rubric_required, set(rubric))
+
+        case_ref_required = set(coverage_schema["$defs"]["case_ref"]["required"])
+        for source in ("golden_failure_class_cases", "executable_failure_class_cases"):
+            for failure_class, refs in coverage_report[source].items():
+                with self.subTest(coverage_source=source, failure_class=failure_class):
+                    self.assertIn(failure_class, CANONICAL_FAILURE_CLASSES)
+                    self.assertGreaterEqual(len(refs), 2)
+                    for ref in refs:
+                        self.assertLessEqual(case_ref_required, set(ref))
+
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
