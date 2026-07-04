@@ -15,7 +15,7 @@ This module provides the local G1-G2 foundation for:
 
 - 20 G2 seed scenarios: `packages/scenarios/a2_g2_seed_pack.json`
 - 60 G3 full scenarios: `packages/scenarios/a2_g3_full_pack.json`
-- 20 golden case seeds: `fixtures/golden/a2_g2_golden_cases.json`
+- 23 golden cases: `fixtures/golden/a2_g2_golden_cases.json`
 - 12 failure classes: `docs/a2/failure_taxonomy_v0.md`
 - Tool policy judge: `services/judge/tool_policy.py`
 - Output contract judge: `services/judge/outcome.py`
@@ -25,6 +25,7 @@ This module provides the local G1-G2 foundation for:
 - Local runner: `services/judge/runner.py`
 - Coverage report helper: `services/judge/coverage.py`
 - A3 aggregate grade fixture: `fixtures/a2/results/a2_g3_grade_results.json`
+- G3 coverage audit fixture: `fixtures/a2/results/a2_g3_coverage_report.json`
 
 ## Local Run Shapes
 

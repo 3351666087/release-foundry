@@ -226,6 +226,8 @@ class A2ContractTests(unittest.TestCase):
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
+        self.assertEqual(report, expected_report)
         self.assertEqual(report["scenario_count"], 60)
         self.assertEqual(len(report["rubric_classes"]), 5)
         self.assertEqual(len(report["judge_modes"]), 5)

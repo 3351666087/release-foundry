@@ -66,7 +66,8 @@ G3 also adds:
 - 5 active deterministic judge modes,
 - A2 aggregate grade report fixture at `fixtures/a2/results/a2_g3_grade_results.json`,
 - executable A2 run fixtures covering all 12 canonical failure classes plus one passing baseline,
-- coverage reporting via `services.judge.coverage.build_coverage_report`.
+- coverage reporting via `services.judge.coverage.build_coverage_report`,
+- saved coverage audit fixture at `fixtures/a2/results/a2_g3_coverage_report.json`.
 
 Each G3 scenario also has coverage-audit metadata:
 
