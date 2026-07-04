@@ -75,6 +75,13 @@ Each G3 scenario also has coverage-audit metadata:
 
 These fields make coverage auditable; runtime judges still grade actual run behavior.
 
+The coverage report also reads `fixtures/golden/a2_g2_golden_cases.json` and reports:
+
+- `golden_case_count`: expected to stay at 20 or higher,
+- `golden_pass_case_count`,
+- `golden_failure_case_count`: expected to stay at 12 or higher,
+- `golden_failure_class_counts`: canonical expected failure distribution for calibration seeds.
+
 ## Later Enhancements
 
 Community metadata such as GitHub stars, issue activity, adoption, and documentation quality can become later metadata signals. They should not affect G1-G2 deterministic scores.

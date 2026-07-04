@@ -233,6 +233,14 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(len(report["primary_failure_class_counts"]), 12)
         self.assertEqual(sum(report["primary_failure_class_counts"].values()), 60)
         self.assertLessEqual(set(report["primary_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
+        self.assertEqual(report["golden_case_count"], 20)
+        self.assertGreaterEqual(report["golden_failure_case_count"], 12)
+        self.assertGreaterEqual(report["golden_pass_case_count"], 1)
+        self.assertEqual(
+            sum(report["golden_failure_class_counts"].values()),
+            report["golden_failure_case_count"],
+        )
+        self.assertLessEqual(set(report["golden_failure_class_counts"]), CANONICAL_FAILURE_CLASSES)
 
 
 if __name__ == "__main__":
