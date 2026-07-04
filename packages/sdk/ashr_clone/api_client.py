@@ -21,6 +21,9 @@ ASHR_LABS_API_ENV_VAR = "ASHR_LABS_API_KEY"
 ASHR_LABS_BASE_URL_ENV_VAR = "ASHR_LABS_BASE_URL"
 ASHR_API_FIELD_MAP_VERSION = "a1-api-calibration-2026-07-04"
 DEFAULT_REQUEST_INPUT_SCHEMA: JsonDict = {"type": "object", "additionalProperties": True}
+AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1"
+AGENT_INPUT_PART_TYPES = ("text", "image", "audio", "file")
+_NON_TEXT_AGENT_INPUT_PART_TYPES = ("image", "audio", "file")
 
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")
@@ -503,6 +506,9 @@ def build_default_request_input_schema(request: Mapping[str, Any] | None = None)
     agent = request.get("agent") if isinstance(request, Mapping) else None
     if isinstance(agent, Mapping) and isinstance(agent.get("tools"), list):
         schema["tools"] = redact_sensitive(agent["tools"])
+    enabled_part_types = _enabled_agent_input_part_types(request)
+    if any(part_type in enabled_part_types for part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES):
+        schema.update(_agent_input_schema(enabled_part_types))
     return schema
 
 
@@ -541,11 +547,18 @@ def _generation_request_shape(request: Mapping[str, Any]) -> JsonDict:
 
 
 def _schema_shape(schema: Mapping[str, Any]) -> JsonDict:
+    properties = schema.get("properties") if isinstance(schema.get("properties"), Mapping) else {}
+    defs = schema.get("$defs") if isinstance(schema.get("$defs"), Mapping) else {}
+    agent_input_parts = defs.get("agent_input_part") if isinstance(defs.get("agent_input_part"), Mapping) else {}
     return {
         "keys": sorted(str(key) for key in schema.keys()),
         "type": schema.get("type"),
         "additionalProperties": schema.get("additionalProperties"),
         "tools_count": len(schema.get("tools", [])) if isinstance(schema.get("tools"), list) else 0,
+        "property_keys": sorted(str(key) for key in properties.keys()),
+        "defs_keys": sorted(str(key) for key in defs.keys()),
+        "agent_input_schema_version": properties.get("schema_version", {}).get("const") if isinstance(properties.get("schema_version"), Mapping) else None,
+        "agent_input_part_types": _schema_agent_input_part_types(agent_input_parts),
     }
 
 
@@ -553,6 +566,89 @@ def _truthy_enabled(value: Any) -> bool:
     if isinstance(value, Mapping):
         return bool(value.get("enabled"))
     return bool(value)
+
+
+def _enabled_agent_input_part_types(request: Mapping[str, Any] | None) -> list[str]:
+    agent = request.get("agent") if isinstance(request, Mapping) else None
+    accepted_inputs = agent.get("accepted_inputs") if isinstance(agent, Mapping) and isinstance(agent.get("accepted_inputs"), Mapping) else None
+    enabled: list[str] = []
+    if accepted_inputs is None or _truthy_enabled(accepted_inputs.get("text")):
+        enabled.append("text")
+    for part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES:
+        if accepted_inputs is not None and _truthy_enabled(accepted_inputs.get(part_type)):
+            enabled.append(part_type)
+    return enabled
+
+
+def _agent_input_schema(enabled_part_types: list[str]) -> JsonDict:
+    part_types = [part_type for part_type in AGENT_INPUT_PART_TYPES if part_type in set(enabled_part_types)]
+    return {
+        "properties": {
+            "schema_version": {"const": AGENT_INPUT_SCHEMA_VERSION},
+            "text": {"type": "string"},
+            "parts": {"type": "array", "items": {"$ref": "#/$defs/agent_input_part"}},
+            "metadata": {"type": "object"},
+        },
+        "$defs": {"agent_input_part": _agent_input_part_schema(part_types)},
+    }
+
+
+def _agent_input_part_schema(part_types: list[str]) -> JsonDict:
+    text_part: JsonDict = {
+        "type": "object",
+        "required": ["type", "text"],
+        "properties": {"type": {"const": "text"}, "text": {"type": "string"}},
+        "additionalProperties": True,
+    }
+    media_part_types = [part_type for part_type in part_types if part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES]
+    variants: list[JsonDict] = []
+    if "text" in part_types:
+        variants.append(text_part)
+    if media_part_types:
+        variants.append(
+            {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"enum": media_part_types},
+                    "path": {"type": "string"},
+                    "url": {"type": "string"},
+                    "source": {"type": "string"},
+                    "mime_type": {"type": "string"},
+                    "name": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "additionalProperties": True,
+            }
+        )
+    if not variants:
+        return text_part
+    if len(variants) == 1:
+        return variants[0]
+    return {"oneOf": variants}
+
+
+def _schema_agent_input_part_types(part_schema: Mapping[str, Any]) -> list[str]:
+    if part_schema.get("properties") and isinstance(part_schema.get("properties"), Mapping):
+        part_type_schema = part_schema["properties"].get("type")
+        if isinstance(part_type_schema, Mapping):
+            if part_type_schema.get("const"):
+                return [str(part_type_schema["const"])]
+            enum = part_type_schema.get("enum")
+            if isinstance(enum, list):
+                return sorted(str(item) for item in enum)
+    types: set[str] = set()
+    for variant in part_schema.get("oneOf", []) if isinstance(part_schema.get("oneOf"), list) else []:
+        if not isinstance(variant, Mapping):
+            continue
+        properties = variant.get("properties") if isinstance(variant.get("properties"), Mapping) else {}
+        part_type_schema = properties.get("type") if isinstance(properties.get("type"), Mapping) else {}
+        if part_type_schema.get("const"):
+            types.add(str(part_type_schema["const"]))
+        enum = part_type_schema.get("enum")
+        if isinstance(enum, list):
+            types.update(str(item) for item in enum)
+    return sorted(types)
 
 
 def maybe_write_json(path: str | Path | None, payload: Mapping[str, Any]) -> None:

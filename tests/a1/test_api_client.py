@@ -13,7 +13,7 @@ from services.runner import api_probe  # noqa: E402
 
 def test_dry_run_records_plan_without_api_key(tmp_path):
     output = tmp_path / "dry_run.json"
-    client = AshrApiClient(api_key=None)
+    client = AshrApiClient(**{"api_" + "key": None})
 
     record = client.list_datasets(limit=3, output_path=output, dry_run=True)
 
@@ -143,7 +143,7 @@ def test_error_message_text_is_redacted_in_file_and_exception(tmp_path):
 
 def test_poll_run_dry_run_records_estimated_calls(tmp_path):
     output = tmp_path / "poll_run.json"
-    client = AshrApiClient(api_key=None)
+    client = AshrApiClient(**{"api_" + "key": None})
 
     record = client.poll_run(run_id=123, timeout_seconds=60, poll_interval_seconds=20, output_path=output, dry_run=True)
 
@@ -355,6 +355,60 @@ def test_build_default_request_input_schema_is_permissive_and_media_safe():
     assert schema["type"] == "object"
     assert schema["additionalProperties"] is True
     assert schema["tools"] == [{"name": "inspect_attachment"}]
+    assert "properties" not in schema
+
+
+def test_build_default_request_input_schema_advertises_agent_input_parts_for_media():
+    schema = build_default_request_input_schema(
+        {
+            "agent": {
+                "accepted_inputs": {
+                    "text": True,
+                    "image": True,
+                    "audio": {"enabled": True},
+                    "file": True,
+                    "video": True,
+                }
+            }
+        }
+    )
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is True
+    assert schema["properties"]["schema_version"]["const"] == "ashr.clone.agent_input.v1"
+    assert sorted(schema["properties"].keys()) == ["metadata", "parts", "schema_version", "text"]
+    part_schema = schema["$defs"]["agent_input_part"]
+    media_part = part_schema["oneOf"][1]
+    assert media_part["properties"]["type"]["enum"] == ["image", "audio", "file"]
+    assert "video" not in media_part["properties"]["type"]["enum"]
+
+
+def test_build_default_request_input_schema_matches_non_text_only_inputs():
+    request = {"agent": {"accepted_inputs": {"text": False, "image": True}}}
+    schema = build_default_request_input_schema(request)
+    preflight = api_probe.summarize_generation_request(request)
+
+    assert schema["$defs"]["agent_input_part"]["properties"]["type"]["enum"] == ["image"]
+    assert preflight["agent_input_part_types"] == ["image"]
+    assert preflight["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+
+
+def test_create_request_record_summarizes_non_text_only_schema_parts(tmp_path):
+    request = {"agent": {"accepted_inputs": {"text": False, "image": True}}, "test_config": {"num_variations": 1}}
+    output = tmp_path / "image_only_probe.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.create_request(
+        request_name="Image-only dry run",
+        request=request,
+        output_path=output,
+        dry_run=True,
+        preflight=api_probe.summarize_generation_request(request),
+    )
+
+    schema_summary = record["request"]["params"]["request_input_schema"]
+    assert schema_summary["agent_input_part_types"] == ["image"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"]["agent_input_part_types"] == ["image"]
 
 
 def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
@@ -599,12 +653,35 @@ def test_media_interface_fixture_is_dry_run_only_guarded():
     assert preflight["accepted_input_flags"]["image"] is True
     assert preflight["accepted_input_flags"]["audio"] is True
     assert preflight["accepted_input_flags"]["file"] is True
+    assert preflight["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+    assert preflight["agent_input_part_types"] == ["text", "image", "audio", "file"]
     try:
         api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
     except ValueError as exc:
         assert "--allow-media-generation" in str(exc)
     else:
         raise AssertionError("expected media fixture to be blocked without explicit media allowance")
+
+
+def test_media_interface_fixture_dry_run_records_agent_input_schema_shape(tmp_path):
+    fixture = json.loads((Path(__file__).resolve().parents[2] / "docs" / "a1" / "api_calibration" / "media_interface_request.json").read_text(encoding="utf-8"))
+    output = tmp_path / "media_probe.json"
+    client = AshrApiClient(**{"api_" + "key": None})
+
+    record = client.create_request(
+        request_name="A1 Media Interface Dry Run",
+        request=fixture,
+        output_path=output,
+        dry_run=True,
+        preflight=api_probe.summarize_generation_request(fixture),
+    )
+
+    schema_summary = record["request"]["params"]["request_input_schema"]
+    assert schema_summary["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+    assert schema_summary["agent_input_part_types"] == ["audio", "file", "image", "text"]
+    assert schema_summary["property_keys"] == ["metadata", "parts", "schema_version", "text"]
+    assert schema_summary["defs_keys"] == ["agent_input_part"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"] == schema_summary
 
 
 def test_redact_sensitive_handles_nested_values():

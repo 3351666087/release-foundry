@@ -89,6 +89,7 @@ Official API reference says `request_input_schema` is optional and that a permis
 
 - default schema keys: `type`, `additionalProperties`
 - when the request agent declares tools, the default schema also includes `tools`
+- when accepted inputs include `image`, `audio`, or `file`, the default schema also advertises the local `AgentInput` envelope: `schema_version`, `text`, `parts`, `metadata`, and `$defs.agent_input_part`
 - CLI dry-run preflight records `request_input_schema_source=client_default`
 
 The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.json` is text-only and bounded to one variation. The dry-run record now includes a local preflight summary:
@@ -106,6 +107,7 @@ Image/Audio/Files interface coverage now has a committed dry-run-first fixture a
 - `generate_images=true`, `generate_audio=true`, `generate_files=true`
 - videos/simulations remain false
 - `num_variations=1`
+- default request input schema dry-run shape includes `agent_input_schema_version=ashr.clone.agent_input.v1`, property keys `metadata`, `parts`, `schema_version`, `text`, and part types `audio`, `file`, `image`, `text`
 - dry-run only; real execution is blocked by default because both `media_generation_enabled` and `non_text_inputs_enabled` are true
 
 Real request calibration after the default schema patch:
@@ -127,6 +129,7 @@ Execution guardrails:
 - The CLI blocks non-text accepted inputs unless `--allow-non-text-inputs` is passed.
 - The CLI blocks known `num_variations` values above `--max-request-variations`, which defaults to `1`.
 - Chrome usage checks reached the logged-in Usage page. The page sometimes showed visible Image/Audio/Files usage counters; a direct reload also sometimes showed only `Loading usage...`. Treat usage counters as visible but unstable, and do not execute media generation without a fresh usage read.
+- The media-schema round reached the logged-in Usage page again, but it only stably showed `Usage`, `Upgrade`, and `Loading usage`; media counters remained unstable in tracked evidence. A private screenshot was stored under ignored private evidence.
 
 ## Dataset Source Adapter
 
@@ -156,21 +159,22 @@ Private real-shape smoke test:
 
 ## Current Verification
 
-- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 37 passed.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 41 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_dataset_adapter.py -q -p no:cacheprovider`: 26 passed.
 - `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: 21 passed.
 - `python -B -m pytest tests/a1/test_trace_fixture.py -q -p no:cacheprovider`: 8 passed.
 - `python -B -m pytest tests/a1/test_runner.py tests/a1/test_api_client.py -q -p no:cacheprovider`: 56 passed.
-- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 92 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 96 passed.
 - Real read-only probes executed: `init`, `list-datasets`, `list-runs`, `list-requests`, `get-dataset` for one existing dataset, and negative `get-dataset` for an invalid dataset.
 - Real mutating probes executed: one `create-run` against an existing private dataset; one successful text-only `create-request`; one accepted Image/Audio/Files `create-request` that later reached hosted `request_status=failed`; one blocked text-batch `create-request` that returned hosted request quota exhaustion.
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
 - Local multimodal adapter coverage now includes `AgentInput` with `text`, `image`, `audio`, and `file` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
+- Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Image/Audio/Files before real execution is allowed, and that part types match enabled accepted inputs.
 
 ## Next Candidates
 
-1. Inspect/adjust the media request schema or official UI/docs before repeating media generation; the first real media request was accepted but hosted processing failed.
+1. Inspect hosted media failure details or UI-required payload semantics before repeating media generation; the first real media request was accepted but hosted processing failed.
 2. Continue read/list/get/poll calibration and runner replay until request generation quota resets or plan changes.
 3. Add a second external-agent adapter smoke path against the new `AgentInput` envelope without changing A2/A3 `AgentTurn` output contracts.

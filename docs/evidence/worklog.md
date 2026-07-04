@@ -585,15 +585,66 @@ Remaining:
 - Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
 - A second external-agent adapter smoke path against `AgentInput` would be useful once the local envelope is committed.
 
+## 2026-07-04 Media Request Input Schema Calibration
+
+Goal: continue A1 subscription-era SDK/Runner calibration by making the dry-run/default `request_input_schema` for Image/Audio/Files align with the local `AgentInput` multimodal envelope before any further hosted media generation.
+
+Start protocol:
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `145f6ad`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` present.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: PR #6 open/draft at head `0870fc8`; PR #4 and PR #5 merged.
+- Peer changes/impact: A2/G3 new commit touched A2 docs/fixtures/judge/report/tests only. No A1-owned file changes or A1 rollback signal were observed.
+
+Three proposed enhancements:
+
+1. Add `AgentInput` media part shape to default `request_input_schema` and dry-run evidence.
+2. Inspect hosted media failure details or UI-required payload semantics before repeating media generation.
+3. Add a second external-agent adapter smoke path against the `AgentInput` envelope.
+
+Implemented highest ROI enhancement: default media request schema and dry-run evidence shape.
+
+Subagent findings:
+
+- Bus-Auditor start audit: PASS. Main agent should keep `create-request` mutation blocked while quota state is exhausted/unclear, and should make a local schema/dry-run improvement first.
+- Chrome/Product read-only check: official API reference showed `request_input_schema`, `accepted_inputs`, media generation flags, and `TestBuilder.add_user_file(file_path, description, action_index)`. Lab Usage was logged in but only stably showed `Usage`, `Upgrade`, and `Loading usage`; exact private usage values were not recorded in tracked docs.
+
+Implemented:
+
+- `packages/sdk/ashr_clone/api_client.py`: `build_default_request_input_schema(...)` now keeps `additionalProperties=true` and adds optional `schema_version`, `text`, `parts`, `metadata`, and `$defs.agent_input_part` when accepted inputs include `image`, `audio`, or `file`; part types match enabled accepted inputs.
+- `packages/sdk/ashr_clone/api_client.py`: create-request evidence summaries now include `property_keys`, `defs_keys`, `agent_input_schema_version`, and `agent_input_part_types` for the request input schema.
+- `services/runner/api_probe.py`: create-request preflight now records `agent_input_part_types` and `agent_input_schema_version` for non-text media inputs.
+- `tests/a1/test_api_client.py`: added coverage for media-aware default schema and media fixture dry-run record shape.
+- `docs/a1/README.md`, `docs/a1/api_calibration/README.md`, `docs/a1/sdk_field_map.md`, `docs/a1/evidence/commands.md`, and this worklog were updated with public-safe summaries.
+
+Verification:
+
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Media Interface Schema Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_api_media_interface_schema_dry_run.json`: `status=planned`, `attempts=0`.
+- Safe dry-run summary: `agent_input_schema_version=ashr.clone.agent_input.v1`, schema property keys `metadata`, `parts`, `schema_version`, `text`, schema defs `agent_input_part`, schema part types `audio`, `file`, `image`, `text`, preflight part types `text`, `image`, `audio`, `file`, media generation enabled, and non-text inputs enabled.
+- Chrome screenshot stored under ignored private evidence: `docs/evidence/private_refs/ashr_lab_usage_media_schema_round_2026-07-04.png`.
+- Bus-Auditor must-fix: direct `enum` schemas for non-text-only inputs were not reflected in schema summaries. Fixed `_schema_agent_input_part_types(...)` and added a dry-run record summary regression for image-only accepted input.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `41 passed in 1.16s`.
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.09s`.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_adapter.py -q -p no:cacheprovider`: `62 passed in 1.15s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `96 passed in 2.92s`.
+- `git diff --check`: clean except CRLF warnings.
+
+Remaining:
+
+- Need final Bus-Auditor recheck after diff/check/secret scan.
+- Hosted media-generation failure reason remains unresolved; next step should inspect hosted failure/UI payload semantics or use read-only request details before repeating media generation.
+- Request generation quota remains treated as exhausted for new `create-request` calls until quota resets or plan state changes; read/list/get/poll calibration remains allowed.
+- A second external-agent adapter smoke path against `AgentInput` is still useful.
+
 ## 2026-07-04 Latest Round Index
 
-Latest active A1 round: AgentInput Multimodal Envelope.
+Latest active A1 round: Media Request Input Schema Calibration.
 
 Key current facts:
 
-- Branch remains `codex/a1-local-sdk-runner`; A1 AgentInput follow-up has a fresh draft PR #6 after PR #4 merged.
+- Branch remains `codex/a1-local-sdk-runner`; PR #6 is open/draft and will receive this follow-up if committed.
 - `AgentInput` local envelope exists with `schema_version=ashr.clone.agent_input.v1` and supports `text`, `image`, `audio`, and `file` parts.
-- Legacy `AgentAdapter.respond("text")` still passes plain strings; `respond_input(...)` and async/input-turn variants pass the canonical envelope.
+- Default `create-request` schema now advertises `AgentInput` `parts` for Image/Audio/Files accepted inputs while staying permissive with `additionalProperties=true`.
 - A2/A3-facing `AgentTurn` output shape remains intact, with content-part text extraction and A2 projection tests passing.
 - Additional real text batch generation is blocked by hosted request quota exhaustion. Read-only API probes still work.
-- A1 tests are now `92 passed`.
+- A1 tests are now `96 passed`.

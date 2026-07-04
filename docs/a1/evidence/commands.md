@@ -180,3 +180,22 @@ Cleanup note:
 - Final remote recheck before staging: `git fetch --all --prune` advanced `origin/main` to `2205084` and `origin/dev/g3-a2-calibration` to `3c27179`; PR #4 and PR #5 are now merged. `origin/main` contains A1 plus additive A2/A3/judge/dashboard/report fixture work. Current A1 patch remains a follow-up on `codex/a1-local-sdk-runner`.
 - Bus-Auditor final verdict: PASS. Safe to stage/commit self-made A1 SDK/tests/docs plus this shared worklog; no private raw evidence was read, and no new real `create-request` was made.
 - Commit/push/PR: pushed `2624ea6` to `codex/a1-local-sdk-runner` and opened draft PR #6, `A1 AgentInput multimodal adapter envelope`, because earlier PR #4 had already merged.
+
+## 2026-07-04 Media Request Input Schema Calibration
+
+- `git fetch --all --prune`: success; `origin/dev/g3-a2-calibration` advanced to `145f6ad`.
+- `git status -sb --untracked-files=all --ignored`: tracked worktree clean at start; ignored `.secrets/`, `.pytest_cache/`, and `docs/evidence/private_refs/` remained untracked/ignored.
+- `gh pr list --repo 3351666087/ashr-codex-factory --state all --limit 30 --json ...`: PR #6 open/draft at head `0870fc8`; PR #4 and PR #5 merged.
+- Peer impact: A2/G3 new commit touched `docs/a2`, `fixtures/a2`, `services/judge`, `services/report`, and `tests/a2`/`tests/a3`; no A1-owned files or A1 rollback signal.
+- Bus-Auditor start verdict: PASS for local/dry-run `AgentInput.parts` request schema support; keep real `create-request` blocked while quota state is exhausted/unclear.
+- Chrome read-only calibration: official API reference showed `request_input_schema`, `accepted_inputs`, `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, `generate_simulations`, `add_user_file`, `file_path`, `description`, and `action_index`. Usage page was logged in but only stably showed `Usage`, `Upgrade`, and `Loading usage`; exact private usage values were not recorded in tracked docs. Screenshot stored in ignored private evidence as `docs/evidence/private_refs/ashr_lab_usage_media_schema_round_2026-07-04.png`.
+- Implemented default `request_input_schema` media shape: when accepted inputs include `image`, `audio`, or `file`, the client now includes permissive `AgentInput` properties and `$defs.agent_input_part` while preserving `additionalProperties=true`; part types match enabled accepted inputs.
+- Implemented dry-run evidence shape fields: `request_input_schema.property_keys`, `defs_keys`, `agent_input_schema_version`, and `agent_input_part_types`; preflight now records `agent_input_part_types` and `agent_input_schema_version`.
+- `python -B -m services.runner.api_probe create-request --request-name "A1 Media Interface Schema Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_api_media_interface_schema_dry_run.json`: planned media create-request, `status=planned`, `attempts=0`.
+- Safe dry-run summary: `agent_input_schema_version=ashr.clone.agent_input.v1`, schema property keys `metadata`, `parts`, `schema_version`, `text`, schema defs `agent_input_part`, schema part types `audio`, `file`, `image`, `text`, preflight part types `text`, `image`, `audio`, `file`, media generation enabled, non-text inputs enabled.
+- Bus-Auditor must-fix: direct `enum` schemas for non-text-only inputs were not reflected in schema summaries. Fixed `_schema_agent_input_part_types(...)` and added a dry-run record summary regression for image-only accepted input.
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: `41 passed in 1.16s`.
+- `python -B -m pytest tests/a1/test_adapter.py -q -p no:cacheprovider`: `21 passed in 0.09s`.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_adapter.py -q -p no:cacheprovider`: `62 passed in 1.15s`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `96 passed in 2.92s`.
+- `git diff --check`: clean except CRLF warnings.

@@ -148,6 +148,10 @@ def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
         accepted_flags[key] = enabled
         accepted_flag_shapes[key] = shape_supported
     accepted_inputs_known = accepted_inputs_shape_supported and all(accepted_flag_shapes.values())
+    agent_input_part_types = []
+    if accepted_flags.get("text"):
+        agent_input_part_types.append("text")
+    agent_input_part_types.extend(key for key in ("image", "audio", "file") if accepted_flags.get(key))
     media_flags = {
         "audio": bool(generation_options.get("generate_audio")),
         "files": bool(generation_options.get("generate_files")),
@@ -164,6 +168,8 @@ def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
         "media_generation_enabled": any(media_flags.values()),
         "accepted_inputs_known": accepted_inputs_known,
         "accepted_input_flags": accepted_flags,
+        "agent_input_part_types": agent_input_part_types,
+        "agent_input_schema_version": "ashr.clone.agent_input.v1" if any(part_type != "text" for part_type in agent_input_part_types) else None,
         "non_text_inputs_enabled": any(accepted_flags[key] for key in ("audio", "file", "image", "video", "conversation")),
         "small_batch": num_variations is not None and num_variations <= 1,
         "notes": [
