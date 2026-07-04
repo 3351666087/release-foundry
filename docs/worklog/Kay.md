@@ -348,3 +348,27 @@ Next top 3:
 1. Export or collect a private real Ashr `get-run/list-runs` record using the six batch test ids.
 2. Run importer -> merge gate with `--min-count 6`, then regenerate fixtures.
 3. Promote any Ashr/local/LLM disagreements into regression fixtures or case-book entries.
+
+## 2026-07-04 - Case book regression seed
+
+Reason:
+- The readiness report marked C5 partial because the calibration matrix had a disagreement candidate but no durable reviewer-facing case book.
+- `sample-a2-s010-wrong-arguments` is the first useful seed: local A2 classifies the issue as `wrong_arguments`, while the offline LLM reference labels it `ignored_tool_result`.
+
+Implemented:
+- Added `services/judge/casebook.py` to build `a2.case_book.v1` from calibration disagreement tags.
+- Added generated fixture `fixtures/a2/results/a2_case_book.json`.
+- Added reviewer-facing markdown `docs/a2/case_book.md`.
+- Added schema snapshot `docs/a2/schemas/case_book.schema.json`.
+- Integrated case-book generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness to expose `case_book_regression_count`.
+- Added tests that lock the generated case book, schema, markdown seed, and readiness count.
+
+Boundary:
+- This does not change `grade_run`, top-level `primary_failure_class`, or the A3 grade join.
+- C5 remains partial because this is one regression seed, not a mature regression suite.
+
+Next top 3:
+1. Resolve the seed with reviewed Ashr grading or audited live LLM evidence.
+2. Add any new Ashr/local/LLM disagreements to the case book automatically.
+3. Let A3 optionally surface `a2_case_book.json` in a judge drilldown panel.

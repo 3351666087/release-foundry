@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 CaseBook",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "case_book_id",
+    "source_matrix",
+    "dataset_id",
+    "regression_case_count",
+    "regression_cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.case_book.v1" },
+    "case_book_id": { "type": "string" },
+    "source_matrix": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "regression_case_count": { "type": "integer", "minimum": 0 },
+    "regression_cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/regression_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_summary": {
+      "type": "object",
+      "required": ["source", "provider", "primary_failure_class", "rationale", "evidence_ref"],
+      "properties": {
+        "source": { "type": "string" },
+        "provider": { "type": "string" },
+        "passed": { "type": ["boolean", "null"] },
+        "primary_failure_class": { "type": "string" },
+        "score": { "type": ["number", "null"] },
+        "confidence": { "type": ["number", "null"] },
+        "rationale": { "type": "string" },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "regression_case": {
+      "type": "object",
+      "required": [
+        "regression_id",
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "status",
+        "severity",
+        "calibration_focus",
+        "expected",
+        "local_judge",
+        "semantic_or_llm_judge",
+        "disagreement_pairs",
+        "regression_assertion",
+        "reviewer_note",
+        "evidence_refs"
+      ],
+      "properties": {
+        "regression_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "calibration_focus": { "$ref": "#/$defs/string_array" },
+        "expected": { "type": "object" },
+        "local_judge": { "$ref": "#/$defs/source_summary" },
+        "semantic_or_llm_judge": { "$ref": "#/$defs/source_summary" },
+        "disagreement_pairs": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "regression_assertion": { "type": "string" },
+        "reviewer_note": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

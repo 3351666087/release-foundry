@@ -12,6 +12,7 @@ from services.judge.calibration import (
     import_ashr_grading_observations,
     merge_calibration_observations,
 )
+from services.judge.casebook import build_case_book_report
 from services.judge.coverage import build_coverage_report
 from services.judge.readiness import build_commercial_readiness_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
@@ -273,19 +274,23 @@ class A2ContractTests(unittest.TestCase):
         coverage_schema = json.loads((schema_dir / "coverage_report.schema.json").read_text(encoding="utf-8"))
         calibration_schema = json.loads((schema_dir / "calibration_matrix.schema.json").read_text(encoding="utf-8"))
         readiness_schema = json.loads((schema_dir / "commercial_readiness.schema.json").read_text(encoding="utf-8"))
+        case_book_schema = json.loads((schema_dir / "case_book.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
         readiness_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
+        case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
         self.assertEqual(calibration_schema["properties"]["schema_version"]["const"], calibration_matrix["schema_version"])
         self.assertEqual(readiness_schema["properties"]["schema_version"]["const"], readiness_report["schema_version"])
+        self.assertEqual(case_book_schema["properties"]["schema_version"]["const"], case_book["schema_version"])
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
         self.assertLessEqual(set(readiness_schema["required"]), set(readiness_report))
+        self.assertLessEqual(set(case_book_schema["required"]), set(case_book))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -330,6 +335,11 @@ class A2ContractTests(unittest.TestCase):
         for gate in readiness_report["gate_status"]:
             with self.subTest(readiness_gate=gate["gate"]):
                 self.assertLessEqual(gate_required, set(gate))
+
+        regression_case_required = set(case_book_schema["$defs"]["regression_case"]["required"])
+        for regression_case in case_book["regression_cases"]:
+            with self.subTest(case_book_case=regression_case["case_id"]):
+                self.assertLessEqual(regression_case_required, set(regression_case))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -452,6 +462,28 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertIn("judge_disagreement_regression", disagreement["calibration_tags"])
 
+    def test_case_book_promotes_calibration_disagreement_regressions(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        report = build_case_book_report(calibration_matrix)
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
+        case_book_text = (ROOT / "docs/a2/case_book.md").read_text(encoding="utf-8")
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.case_book.v1")
+        self.assertEqual(report["regression_case_count"], 1)
+        regression = report["regression_cases"][0]
+        self.assertEqual(regression["case_id"], "sample-a2-s010-wrong-arguments")
+        self.assertEqual(regression["local_judge"]["primary_failure_class"], "wrong_arguments")
+        self.assertEqual(regression["semantic_or_llm_judge"]["primary_failure_class"], "ignored_tool_result")
+        self.assertEqual(regression["disagreement_pairs"][0]["status"], "mismatch")
+        self.assertIn("sample-a2-s010-wrong-arguments", case_book_text)
+        self.assertIn("wrong_arguments", case_book_text)
+        self.assertIn("ignored_tool_result", case_book_text)
+
     def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
             (ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8")
@@ -472,7 +504,8 @@ class A2ContractTests(unittest.TestCase):
             run_dir=ROOT / "fixtures/a2/runs",
             observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
         )
-        report = build_commercial_readiness_report(coverage_report, calibration_matrix)
+        case_book = build_case_book_report(calibration_matrix)
+        report = build_commercial_readiness_report(coverage_report, calibration_matrix, case_book_report=case_book)
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(report, expected_report)
@@ -496,6 +529,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("offline", gates["C4"]["gaps"][0])
         self.assertEqual(report["evidence_snapshot"]["ashr_grading_missing"], 6)
         self.assertTrue(report["evidence_snapshot"]["llm_judge_offline_only"])
+        self.assertEqual(report["evidence_snapshot"]["case_book_regression_count"], 1)
         self.assertEqual(report["next_top_3"][0]["id"], "fill_ashr_grading_column")
 
     def test_ashr_grading_import_can_fill_calibration_matrix_source(self):

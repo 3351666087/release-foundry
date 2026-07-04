@@ -150,6 +150,8 @@ For the current six-case C3 batch, A1 should use `fixtures/a2/calibration/ashr_g
 
 The commercial readiness report uses `schema_version: a2.commercial_readiness.v1` and lives at `fixtures/a2/results/a2_commercial_readiness_report.json`. It is an optional planning/status feed for A3: it records the PDF-derived C0-C6 gate status, current evidence snapshot, commercial dimensions, and A2 next top 3. It is intentionally additive; A1/A3 should not depend on it for the existing grade or coverage join paths.
 
+The case book uses `schema_version: a2.case_book.v1` and lives at `fixtures/a2/results/a2_case_book.json`. It is another optional feed for A3 or manual review: it promotes calibration disagreements into explicit regression seeds with local-vs-LLM failure class summaries, evidence refs, reviewer notes, and a regression assertion. Missing case-book data must not break existing A3 dashboard/report paths.
+
 Commercial-readiness invariants:
 
 - `grade_run` remains deterministic and local; live Ashr or LLM calls enter calibration/readiness artifacts only.
