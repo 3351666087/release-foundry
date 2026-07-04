@@ -1,0 +1,20 @@
+{
+  "scenario_id": "A2-S029",
+  "case_id": "sample-a2-s029-wrong-tool-file-read",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "file.read#1",
+        "tool": "file.read",
+        "args": {
+          "path": "fixtures/a2/web/project_zephyr_changelog.json"
+        }
+      }
+    ],
+    "final_response": "The latest Project Zephyr changelog entry is version 3.4.0."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool"
+  }
+}

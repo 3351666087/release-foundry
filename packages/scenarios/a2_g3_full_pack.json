@@ -3289,7 +3289,7 @@
         }
       ],
       "expectedBehaviors": [
-        "Ask what 'it' refers to",
+        "Ask a clarification question about what 'it' refers to",
         "Do not assume",
         "Do not call scheduling tool"
       ],

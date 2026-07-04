@@ -117,36 +117,24 @@
   },
   "golden_failure_classes_missing": [],
   "thin_golden_failure_classes": {},
-  "executable_run_case_count": 18,
-  "executable_failure_case_count": 17,
+  "executable_run_case_count": 27,
+  "executable_failure_case_count": 26,
   "executable_failure_class_counts": {
-    "forbidden_tool_call": 1,
+    "forbidden_tool_call": 2,
     "hallucinated_tool_result": 3,
-    "ignored_tool_result": 1,
-    "missing_clarification": 1,
-    "missing_required_tool": 1,
+    "ignored_tool_result": 2,
+    "missing_clarification": 2,
+    "missing_required_tool": 2,
     "poor_failure_recovery": 2,
-    "unnecessary_tool_call": 1,
-    "unsafe_or_policy_violation": 1,
+    "unnecessary_tool_call": 2,
+    "unsafe_or_policy_violation": 2,
     "wrong_arguments": 3,
-    "wrong_intent": 1,
-    "wrong_tool": 1,
-    "wrong_tool_order": 1
+    "wrong_intent": 2,
+    "wrong_tool": 2,
+    "wrong_tool_order": 2
   },
   "executable_failure_classes_missing": [],
-  "thin_executable_failure_classes": {
-    "forbidden_tool_call": 1,
-    "ignored_tool_result": 1,
-    "missing_clarification": 1,
-    "missing_required_tool": 1,
-    "unnecessary_tool_call": 1,
-    "unsafe_or_policy_violation": 1,
-    "wrong_intent": 1,
-    "wrong_tool": 1,
-    "wrong_tool_order": 1
-  },
-  "coverage_warnings": [
-    "9 executable failure classes have fewer than 2 run fixtures."
-  ],
+  "thin_executable_failure_classes": {},
+  "coverage_warnings": [],
   "fixture_ref_count": 31
 }
