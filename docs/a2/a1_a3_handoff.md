@@ -154,12 +154,14 @@ The case book uses `schema_version: a2.case_book.v1` and lives at `fixtures/a2/r
 
 The SDK parity report uses `schema_version: a2.sdk_parity.v1` and lives at `fixtures/a2/results/a2_sdk_parity_report.json`. It is optional evidence for A1/A3 that A2 can consume both Python `AgentTurn` output and TypeScript `CaseResult.agent_output` shapes without changing the grade-result schema. Missing SDK-parity data must not break existing A3 dashboard/report paths.
 
+The batch plan report uses `schema_version: a2.batch_plan.v1` and lives at `fixtures/a2/results/a2_batch_plan_report.json`. It is optional C2 planning evidence for A1/A3: it names planned local, SDK parity, Ashr grading, semantic judge, and regression replay batches; records expected quota phases; and keeps private evidence boundaries explicit. Missing batch-plan data must not break existing A3 dashboard/report paths.
+
 Commercial-readiness invariants:
 
 - `grade_run` remains deterministic and local; live Ashr or LLM calls enter calibration/readiness artifacts only.
 - A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
 - Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
-- A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, or `a2.sdk_parity.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
+- A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, `a2.sdk_parity.v1`, or `a2.batch_plan.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
 
 ## Known Boundary
 

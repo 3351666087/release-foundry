@@ -34,6 +34,7 @@ This module provides the local G1-G2 foundation for:
 - G3 local/Ashr/LLM calibration matrix: `fixtures/a2/results/a2_g3_calibration_matrix.json`
 - Case book regression seed: `fixtures/a2/results/a2_case_book.json`
 - Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
+- Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
@@ -83,6 +84,20 @@ A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/
 - TypeScript-style `CaseResult.agent_output` metadata from `packages/ts/ashr-clone/src/index.ts`
 
 This is deterministic contract evidence for C1: A2 can consume both SDK-language runner shapes. It does not claim hosted TypeScript API parity or live Ashr grading; those remain A1/C3 calibration work.
+
+## Batch Plan
+
+C2 requires a batch generation plan and cost ledger before paid calibration scales up.
+
+A2 now generates `fixtures/a2/results/a2_batch_plan_report.json` from `services/judge/batch_plan.py`. It plans five batches:
+
+- full local scenario-pack regression,
+- Python/TypeScript SDK parity smoke,
+- tiny Ashr grading calibration batch,
+- semantic/LLM judge audit batch,
+- case-book regression replay.
+
+The report also records queue-style quota phases aligned with A1's local cloud worker direction: `run.submit` is planned at enqueue/direct-submit time, `observation.write` at completion, and status history must preserve queued/running/completed plus failed/cancelled terminal states. This is C2 planning evidence; it does not replace the missing C3 real Ashr grading observations.
 
 The result contains:
 
@@ -166,7 +181,7 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - schema: `docs/a2/schemas/commercial_readiness.schema.json`
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
-The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C1 met with C3-C5 still partial because Python/TypeScript runner consumption is covered, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
+The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet.
 
 ## G1-G2 Boundary
 

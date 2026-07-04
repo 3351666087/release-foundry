@@ -13,6 +13,7 @@ def build_commercial_readiness_report(
     calibration_matrix: dict[str, Any],
     case_book_report: dict[str, Any] | None = None,
     sdk_parity_report: dict[str, Any] | None = None,
+    batch_plan_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
     coverage_stable = _coverage_stable(coverage_report)
@@ -34,6 +35,8 @@ def build_commercial_readiness_report(
     case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
     sdk_parity_passed = bool((sdk_parity_report or {}).get("parity_passed"))
     sdk_language_count = int((sdk_parity_report or {}).get("sdk_language_count", 0))
+    batch_plan_ready = bool((batch_plan_report or {}).get("plan_ready"))
+    planned_batch_count = int((batch_plan_report or {}).get("batch_count", 0))
 
     gates = [
         _gate(
@@ -68,10 +71,13 @@ def build_commercial_readiness_report(
             "C2",
             "Batch plan and cost ledger",
             "batch generation plan and judge cost ledger exist",
-            False,
-            bool(calibration_matrix.get("cost_ledger")),
-            ["fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"],
-            ["Add a real quota-aware batch generation plan tied to A1 request/run evidence."],
+            bool(calibration_matrix.get("cost_ledger")) and batch_plan_ready,
+            bool(calibration_matrix.get("cost_ledger")) or planned_batch_count > 0,
+            [
+                "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger",
+                "fixtures/a2/results/a2_batch_plan_report.json",
+            ],
+            [] if batch_plan_ready else ["Add a real quota-aware batch generation plan tied to A1 request/run evidence."],
         ),
         _gate(
             "C3",
@@ -162,6 +168,8 @@ def build_commercial_readiness_report(
             "case_book_regression_count": case_book_count,
             "sdk_language_count": sdk_language_count,
             "sdk_parity_passed": sdk_parity_passed,
+            "planned_batch_count": planned_batch_count,
+            "batch_plan_ready": batch_plan_ready,
         },
         "next_top_3": _next_top_3(
             ashr_missing=ashr_missing,
@@ -174,6 +182,7 @@ def build_commercial_readiness_report(
                 "fixtures/a2/results/a2_g3_coverage_report.json",
                 "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "fixtures/a2/results/a2_sdk_parity_report.json",
+                "fixtures/a2/results/a2_batch_plan_report.json",
             ],
             "notes": [
                 "This report encodes the July 4 commercial goal PDF as a deterministic A2 planning artifact.",

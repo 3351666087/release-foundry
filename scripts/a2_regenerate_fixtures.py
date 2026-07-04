@@ -11,6 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from services.judge.batch_plan import build_batch_plan_report  # noqa: E402
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
@@ -30,6 +31,7 @@ DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json
 DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
 DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
+DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
 
 
 def main() -> int:
@@ -49,6 +51,7 @@ def main() -> int:
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
     parser.add_argument("--sdk-parity", default=DEFAULT_SDK_PARITY.as_posix())
+    parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -67,6 +70,7 @@ def main() -> int:
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
         sdk_parity_path=Path(args.sdk_parity),
+        batch_plan_path=Path(args.batch_plan),
     )
 
     if args.check:
@@ -90,6 +94,7 @@ def generate_outputs(
     commercial_readiness_path: Path,
     case_book_path: Path,
     sdk_parity_path: Path,
+    batch_plan_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -125,11 +130,19 @@ def generate_outputs(
     outputs[case_book_path] = case_book
     sdk_parity = build_sdk_parity_report(pack_path=pack_path)
     outputs[sdk_parity_path] = sdk_parity
+    batch_plan = build_batch_plan_report(
+        coverage_report=coverage_report,
+        calibration_matrix=calibration_matrix,
+        case_book_report=case_book,
+        sdk_parity_report=sdk_parity,
+    )
+    outputs[batch_plan_path] = batch_plan
     outputs[commercial_readiness_path] = build_commercial_readiness_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
         case_book_report=case_book,
         sdk_parity_report=sdk_parity,
+        batch_plan_report=batch_plan,
     )
     return outputs
 

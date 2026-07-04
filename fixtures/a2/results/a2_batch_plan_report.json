@@ -1,0 +1,133 @@
+{
+  "schema_version": "a2.batch_plan.v1",
+  "plan_id": "a2_g3_batch_plan",
+  "scenario_pack": "a2_g3_full_pack",
+  "dataset_id": "a2-g3-calibration",
+  "plan_ready": true,
+  "readiness_checks": {
+    "has_full_pack_batch": true,
+    "has_sdk_parity_batch": true,
+    "has_ashr_grading_batch": true,
+    "has_semantic_judge_batch": true,
+    "has_regression_batch": true,
+    "has_queue_quota_phases": true,
+    "has_cost_ledger": true
+  },
+  "batch_count": 5,
+  "batches": [
+    {
+      "batch_id": "local_full_pack_regression",
+      "execution_tier": "local",
+      "case_count": 60,
+      "judge_sources": [
+        "local_judge",
+        "coverage_report"
+      ],
+      "objective": "Run the full scenario pack through deterministic A2 local judges.",
+      "requires_private_evidence": false,
+      "evidence_refs": [
+        "packages/scenarios/a2_g3_full_pack.json",
+        "fixtures/a2/results/a2_g3_grade_results.json"
+      ]
+    },
+    {
+      "batch_id": "sdk_parity_smoke",
+      "execution_tier": "local",
+      "case_count": 2,
+      "judge_sources": [
+        "python_sdk",
+        "typescript_sdk",
+        "local_judge"
+      ],
+      "objective": "Keep both official SDK-language entrypoints compatible with A2 runner input.",
+      "requires_private_evidence": false,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_sdk_parity_report.json"
+      ]
+    },
+    {
+      "batch_id": "ashr_grading_tiny_calibration",
+      "execution_tier": "paid_api_private_evidence",
+      "case_count": 6,
+      "judge_sources": [
+        "ashr_grading",
+        "local_judge"
+      ],
+      "objective": "Collect reviewed server-side Ashr grading for the six C3 calibration cases.",
+      "requires_private_evidence": true,
+      "evidence_refs": [
+        "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+        "scripts/a2_import_ashr_grading.py",
+        "scripts/a2_merge_calibration_observations.py"
+      ]
+    },
+    {
+      "batch_id": "semantic_llm_judge_audit",
+      "execution_tier": "model_call_private_evidence",
+      "case_count": 6,
+      "judge_sources": [
+        "llm_judge",
+        "local_judge"
+      ],
+      "objective": "Replace offline LLM references with audited prompt/model/cost observations.",
+      "requires_private_evidence": true,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"
+      ]
+    },
+    {
+      "batch_id": "case_book_regression_replay",
+      "execution_tier": "local",
+      "case_count": 1,
+      "judge_sources": [
+        "case_book",
+        "regression_suite",
+        "local_judge"
+      ],
+      "objective": "Replay every disagreement seed so judge-boundary regressions remain visible.",
+      "requires_private_evidence": false,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_case_book.json"
+      ]
+    }
+  ],
+  "quota_plan": {
+    "a1_queue_contract": {
+      "run_submit_phase": "enqueue or direct submit",
+      "observation_write_phase": "run completion",
+      "status_history_required": true
+    },
+    "queue_status_flow": [
+      "queued",
+      "running",
+      "completed"
+    ],
+    "failure_statuses_to_preserve": [
+      "failed",
+      "cancelled"
+    ],
+    "planned_quota_units": {
+      "run.submit": 5,
+      "observation.write": 46
+    },
+    "batch_size_limits": {
+      "ashr_grading_tiny_calibration": 6,
+      "semantic_llm_judge_audit": 6,
+      "local_full_pack_regression": 60
+    }
+  },
+  "evidence_policy": {
+    "raw_private_path": "docs/evidence/private_refs/",
+    "public_outputs": [
+      "fixtures/a2/results/a2_g3_calibration_matrix.json",
+      "fixtures/a2/results/a2_case_book.json",
+      "fixtures/a2/results/a2_commercial_readiness_report.json"
+    ],
+    "secret_rule": "API keys and raw model/API payloads stay outside committed fixtures."
+  },
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make C2 batch generation and quota planning auditable before C3 paid calibration.",
+    "peer_signal": "A1 queue-worker draft tracks queued/running/completed lifecycle and run.submit/observation.write quota phases."
+  }
+}

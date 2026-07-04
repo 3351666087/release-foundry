@@ -396,3 +396,26 @@ Next top 3:
 1. Keep the SDK parity report green as A1 changes Python or TypeScript runner schemas.
 2. Fill the `ashr_grading` column with reviewed Ashr evidence for the six calibration cases.
 3. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.
+
+## 2026-07-04 - C2 quota-aware batch plan
+
+Reason:
+- The commercial-goals PDF requires A2 to move beyond static fixtures into batch generation and cost/quota planning.
+- A1's draft queue-worker direction exposes queued/running/completed lifecycle and quota phases that A2 should be ready to consume.
+
+Implemented:
+- Added `services/judge/batch_plan.py` to build deterministic `a2.batch_plan.v1` planning evidence.
+- Added generated fixture `fixtures/a2/results/a2_batch_plan_report.json`.
+- Added schema snapshot `docs/a2/schemas/batch_plan.schema.json`.
+- Integrated batch-plan generation into `scripts/a2_regenerate_fixtures.py`.
+- Updated commercial readiness so C2 is met when batch plan and calibration cost ledger both exist.
+- Added A2 tests for batch membership, quota phases, schema coverage, and C2 readiness status.
+
+Boundary:
+- This is a plan and quota ledger artifact, not real paid calibration evidence.
+- C3 remains partial until reviewed Ashr server-side grading observations are imported and merged.
+
+Next top 3:
+1. Run the planned tiny Ashr grading calibration batch when private evidence is available.
+2. Replace offline LLM references with audited model-call evidence and cost/provenance metadata.
+3. Expand the case book from one seed into a broader regression suite.

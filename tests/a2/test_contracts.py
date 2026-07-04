@@ -7,6 +7,7 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
+from services.judge.batch_plan import build_batch_plan_report
 from services.judge.calibration import (
     build_calibration_matrix,
     import_ashr_grading_observations,
@@ -306,12 +307,14 @@ class A2ContractTests(unittest.TestCase):
         readiness_schema = json.loads((schema_dir / "commercial_readiness.schema.json").read_text(encoding="utf-8"))
         case_book_schema = json.loads((schema_dir / "case_book.schema.json").read_text(encoding="utf-8"))
         sdk_parity_schema = json.loads((schema_dir / "sdk_parity.schema.json").read_text(encoding="utf-8"))
+        batch_plan_schema = json.loads((schema_dir / "batch_plan.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
         readiness_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
         case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
         sdk_parity = json.loads((ROOT / "fixtures/a2/results/a2_sdk_parity_report.json").read_text(encoding="utf-8"))
+        batch_plan = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -319,12 +322,14 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(readiness_schema["properties"]["schema_version"]["const"], readiness_report["schema_version"])
         self.assertEqual(case_book_schema["properties"]["schema_version"]["const"], case_book["schema_version"])
         self.assertEqual(sdk_parity_schema["properties"]["schema_version"]["const"], sdk_parity["schema_version"])
+        self.assertEqual(batch_plan_schema["properties"]["schema_version"]["const"], batch_plan["schema_version"])
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
         self.assertLessEqual(set(readiness_schema["required"]), set(readiness_report))
         self.assertLessEqual(set(case_book_schema["required"]), set(case_book))
         self.assertLessEqual(set(sdk_parity_schema["required"]), set(sdk_parity))
+        self.assertLessEqual(set(batch_plan_schema["required"]), set(batch_plan))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -384,6 +389,11 @@ class A2ContractTests(unittest.TestCase):
         for parity_case in sdk_parity["cases"]:
             with self.subTest(sdk_parity_case=parity_case["case_id"]):
                 self.assertLessEqual(sdk_case_required, set(parity_case))
+
+        batch_required = set(batch_plan_schema["$defs"]["batch"]["required"])
+        for batch in batch_plan["batches"]:
+            with self.subTest(batch_plan_batch=batch["batch_id"]):
+                self.assertLessEqual(batch_required, set(batch))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -544,6 +554,35 @@ class A2ContractTests(unittest.TestCase):
                 self.assertEqual(case["a2_grade"]["primary_failure_class"], "none")
                 self.assertEqual(case["a2_grade"]["judge_count"], 5)
 
+    def test_batch_plan_report_tracks_c2_quota_and_calibration_batches(self):
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        report = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity)
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.batch_plan.v1")
+        self.assertTrue(report["plan_ready"])
+        self.assertEqual(report["batch_count"], 5)
+        self.assertEqual({batch["batch_id"] for batch in report["batches"]}, {
+            "local_full_pack_regression",
+            "sdk_parity_smoke",
+            "ashr_grading_tiny_calibration",
+            "semantic_llm_judge_audit",
+            "case_book_regression_replay",
+        })
+        self.assertEqual(report["quota_plan"]["queue_status_flow"], ["queued", "running", "completed"])
+        self.assertIn("failed", report["quota_plan"]["failure_statuses_to_preserve"])
+        self.assertEqual(report["quota_plan"]["planned_quota_units"]["run.submit"], 5)
+        self.assertGreater(report["quota_plan"]["planned_quota_units"]["observation.write"], 0)
+        self.assertTrue(report["readiness_checks"]["has_cost_ledger"])
+
     def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
             (ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8")
@@ -566,18 +605,20 @@ class A2ContractTests(unittest.TestCase):
         )
         case_book = build_case_book_report(calibration_matrix)
         sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        batch_plan = build_batch_plan_report(coverage_report, calibration_matrix, case_book, sdk_parity)
         report = build_commercial_readiness_report(
             coverage_report,
             calibration_matrix,
             case_book_report=case_book,
             sdk_parity_report=sdk_parity,
+            batch_plan_report=batch_plan,
         )
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(report, expected_report)
         self.assertEqual(report["schema_version"], "a2.commercial_readiness.v1")
         self.assertEqual(report["source_goal"]["artifact"], "Ashr_Commercial_Grade_Goals_CN.pdf")
-        self.assertEqual(report["current_gate"], "C1")
+        self.assertEqual(report["current_gate"], "C2")
         self.assertFalse(report["ready_for_commercial_gate"])
         self.assertIn(
             "grade_run remains deterministic and local; live Ashr or LLM calls enter calibration/readiness only.",
@@ -590,6 +631,7 @@ class A2ContractTests(unittest.TestCase):
         gates = {gate["gate"]: gate for gate in report["gate_status"]}
         self.assertEqual(gates["C0"]["status"], "met")
         self.assertEqual(gates["C1"]["status"], "met")
+        self.assertEqual(gates["C2"]["status"], "met")
         self.assertEqual(gates["C3"]["status"], "partial")
         self.assertIn("Collect reviewed Ashr grading observations", gates["C3"]["gaps"][0])
         self.assertEqual(gates["C4"]["status"], "partial")
@@ -599,6 +641,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["evidence_snapshot"]["case_book_regression_count"], 1)
         self.assertEqual(report["evidence_snapshot"]["sdk_language_count"], 2)
         self.assertTrue(report["evidence_snapshot"]["sdk_parity_passed"])
+        self.assertEqual(report["evidence_snapshot"]["planned_batch_count"], 5)
+        self.assertTrue(report["evidence_snapshot"]["batch_plan_ready"])
         self.assertEqual(report["next_top_3"][0]["id"], "fill_ashr_grading_column")
 
     def test_ashr_grading_import_can_fill_calibration_matrix_source(self):
