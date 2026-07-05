@@ -155,6 +155,7 @@ For auditability, the coverage report also exposes `golden_failure_class_cases` 
 G3 now also audits scenario quality dimensions beyond the assignment minimums:
 
 - `scenario_dimension_counts`, `scenario_dimension_checks`, and `scenario_dimension_scenarios` show coverage for task shapes such as required tool use, optional tool choice, forbidden-tool boundaries, ordered tool sequences, multi-turn dialogue, fixture grounding, clarification, failure recovery, safety, grounding/reference, argument fidelity, output contracts, freshness/current-info, and tool-output grounding.
+- `capability_axis_counts`, `capability_axis_checks`, and `capability_axis_scenarios` group those detailed dimensions into reviewer-facing capability axes: tool choice/policy, multi-step workflow, clarification handling, failure recovery, safety boundary, grounding/reference, trace contract, output contract, freshness/external context, and media/multimodal coverage. `missing_capability_axes` is expected to stay empty.
 - `difficulty_counts`, `action_count_counts`, `environment_counts`, `tag_counts`, `tool_policy_shape_counts`, tool-surface counts, `ordered_tool_pairs`, and fixture type counts expose the underlying shape of the 60 scenarios.
 - `scenario_quality_warnings` is intentionally advisory. It does not affect `meets_assignment_minimums`; after the latest G3 pass the tracked D4, multi-turn, ordered-tool, and fixture-backed targets are all met, so the warning list is expected to stay empty.
 

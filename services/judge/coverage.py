@@ -48,6 +48,30 @@ SCENARIO_QUALITY_TARGETS = {
     "fixture_scenario_count": 30,
     "non_local_environment_count": 20,
 }
+CAPABILITY_AXIS_TARGETS = {
+    "tool_choice_and_policy": 20,
+    "multi_step_workflow": 10,
+    "clarification_handling": 5,
+    "failure_recovery": 4,
+    "safety_boundary": 10,
+    "grounding_and_reference": 20,
+    "trace_contract": 20,
+    "output_contract": 5,
+    "freshness_and_external_context": 5,
+    "media_and_multimodal": 1,
+}
+CAPABILITY_AXIS_DIMENSIONS = {
+    "tool_choice_and_policy": ["optional_tool_choice", "required_tool_use", "forbidden_tool_boundary"],
+    "multi_step_workflow": ["ordered_tool_sequence", "workflow_planning", "multi_turn_dialogue"],
+    "clarification_handling": ["clarification"],
+    "failure_recovery": ["failure_recovery"],
+    "safety_boundary": ["safety_boundary"],
+    "grounding_and_reference": ["grounding_reference", "fixture_grounding", "tool_output_grounding"],
+    "trace_contract": ["required_tool_use", "ordered_tool_sequence", "argument_fidelity"],
+    "output_contract": ["output_contract"],
+    "freshness_and_external_context": ["freshness_current_info"],
+    "media_and_multimodal": ["media_or_multimodal"],
+}
 
 
 def build_coverage_report(
@@ -66,6 +90,12 @@ def build_coverage_report(
     scenario_quality_warnings = _scenario_quality_warnings(scenario_quality)
     scenario_dimensions = _scenario_dimension_refs(scenarios)
     scenario_dimension_counts = {key: len(value) for key, value in scenario_dimensions.items()}
+    capability_axes = _capability_axis_refs(scenarios, scenario_dimensions)
+    capability_axis_counts = {key: len(value) for key, value in capability_axes.items()}
+    capability_axis_checks = {
+        key: capability_axis_counts.get(key, 0) >= target
+        for key, target in CAPABILITY_AXIS_TARGETS.items()
+    }
     scenario_dimension_checks = {
         key: scenario_dimension_counts.get(key, 0) >= minimum
         for key, minimum in SCENARIO_DIMENSION_MINIMUMS.items()
@@ -117,6 +147,9 @@ def build_coverage_report(
         "calibration_redundancy_targets": CALIBRATION_REDUNDANCY_TARGETS,
         "scenario_dimension_minimums": SCENARIO_DIMENSION_MINIMUMS,
         "scenario_dimension_checks": scenario_dimension_checks,
+        "capability_axis_targets": CAPABILITY_AXIS_TARGETS,
+        "capability_axis_dimension_map": CAPABILITY_AXIS_DIMENSIONS,
+        "capability_axis_checks": capability_axis_checks,
         "scenario_quality_targets": SCENARIO_QUALITY_TARGETS,
         "scenario_quality_warnings": scenario_quality_warnings,
         "scenario_count": len(scenarios),
@@ -129,6 +162,11 @@ def build_coverage_report(
         "scenario_dimension_counts": dict(sorted(scenario_dimension_counts.items())),
         "scenario_dimension_scenarios": scenario_dimensions,
         "thin_scenario_dimensions": thin_scenario_dimensions,
+        "capability_axis_counts": dict(sorted(capability_axis_counts.items())),
+        "capability_axis_scenarios": capability_axes,
+        "missing_capability_axes": sorted(
+            key for key, passed in capability_axis_checks.items() if not passed
+        ),
         "tool_policy_shape_counts": scenario_quality["tool_policy_shape_counts"],
         "required_tool_counts": scenario_quality["required_tool_counts"],
         "optional_tool_counts": scenario_quality["optional_tool_counts"],
@@ -279,6 +317,26 @@ def _scenario_dimension_refs(scenarios: list[dict[str, Any]]) -> dict[str, list[
             if predicate(scenario):
                 dimensions[dimension].append(str(scenario.get("id", "")))
     return {key: sorted(value) for key, value in dimensions.items()}
+
+
+def _capability_axis_refs(
+    scenarios: list[dict[str, Any]],
+    scenario_dimensions: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    by_axis = {}
+    for axis, dimensions in CAPABILITY_AXIS_DIMENSIONS.items():
+        scenario_ids = set()
+        for dimension in dimensions:
+            if dimension == "media_or_multimodal":
+                scenario_ids.update(
+                    str(scenario.get("id", ""))
+                    for scenario in scenarios
+                    if _is_media_or_multimodal(scenario)
+                )
+            else:
+                scenario_ids.update(scenario_dimensions.get(dimension, []))
+        by_axis[axis] = sorted(scenario_id for scenario_id in scenario_ids if scenario_id)
+    return by_axis
 
 
 def _scenario_quality_metrics(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
@@ -478,6 +536,22 @@ def _is_output_contract(scenario: dict[str, Any]) -> bool:
 
 def _is_tool_output_grounding(scenario: dict[str, Any]) -> bool:
     return bool(scenario.get("expectedToolOutputFacts")) or "tool-output-grounding" in _tags(scenario)
+
+
+def _is_media_or_multimodal(scenario: dict[str, Any]) -> bool:
+    tags = _tags(scenario)
+    if tags & {"image", "media", "visual", "visual-reasoning"}:
+        return True
+    environments = {str(action.get("environment", "")) for action in scenario.get("actions", [])}
+    if environments & {"image", "media-api"}:
+        return True
+    tools = [
+        str(item.get("tool", ""))
+        for group in ("required", "optional", "forbidden")
+        for item in scenario.get("toolPolicy", {}).get(group, [])
+        if isinstance(item, dict)
+    ]
+    return any(tool.startswith(("image.", "media.")) for tool in tools)
 
 
 def _is_safety_boundary(scenario: dict[str, Any]) -> bool:
