@@ -608,3 +608,28 @@ Results:
 - `ashr-clone-calibrate` real read-only small-batch manifest succeeded with 5/5 read steps and no raw key/payload in public evidence.
 - Text-only mutating small-batch was attempted once and blocked by hosted quota: `Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining`; no retry was attempted.
 - Tests: TS `145/145`; Python A1 `133 passed`; `git diff --check` exit 0 with CRLF warnings only.
+
+## A1 Python calibrator and evidence index - 2026-07-05T06:33:05Z
+
+Commands:
+
+``powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh pr list --state all --limit 20 --json number,title,state,headRefName,baseRefName,isDraft,updatedAt,author
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+$env:ASHR_API_KEY = [Environment]::GetEnvironmentVariable('ASHR_API_KEY', 'User')
+python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json --print-record
+python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_readonly.json --print-record
+python -c "from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, write_private_evidence_index; patterns=['docs/evidence/private_refs/a1_real_*.json','docs/evidence/private_refs/a1_ts_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_calibration_*.json']; paths=[]; [paths.extend(Path('.').glob(pattern)) for pattern in patterns]; index=build_private_evidence_index(sorted(paths), label='a1-real-api-2026-07-05'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); print({'records': index['total_records'], 'status_counts': index['status_counts'], 'error_kind_counts': index['error_kind_counts'], 'quota_block_count': index['quota_block_count']})"
+git diff --check
+``
+
+Results:
+- Python A1 tests: 144 passed.
+- TypeScript tests: 145 passed.
+- Python calibrator dry-run: planned, 10 steps, five modalities covered as first-class text/image/audio/file/video create-request plans.
+- Python real read-only small-batch: ok, 5 read steps, response keys recorded under private refs.
+- Public-safe evidence index: docs/a1/api_calibration/real_api_evidence_index.json, 61 records, quota block count 1.
+- Secret policy: only environment presence/length was observed; raw API key was not printed, logged, or committed.

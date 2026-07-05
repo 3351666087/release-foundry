@@ -1573,3 +1573,71 @@ Next top 10:
 8. Add integration tests for calibrator manifest schema.
 9. Use Chrome/dashboard to verify visible usage counters against API quota response.
 10. Keep widening hosted API coverage: runs, datasets, requests, polling, media failures, and quota ledger.
+
+## A1 round - Python calibrator and public-safe API evidence index (2026-07-05T06:33:05Z)
+
+Goal slice:
+- Close the uncommitted public-safe hosted API evidence-index work and expand Python SDK parity with a first-class calibration CLI matching the TS dry-run/small-batch guardrail model.
+- Keep A1 scope only: SDK/evidence/tests/docs. No A2 judge semantics or A3 dashboard business changed.
+
+Baseline / peer state:
+- pwd: C:/Users/33516/Documents/Ashr.
+- Branch: codex/a1-local-sdk-runner; remote origin is https://github.com/3351666087/ashr-codex-factory.
+- git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags completed.
+- gh pr list --state all --limit 20: A1 PR #10 is merged; A2/A3/G3 peer PRs are merged on origin/main. No peer-owned files touched this round.
+
+Top 10 commercial enhancements considered:
+1. Python SDK calibrator CLI mirroring TS dry-run/small-batch/mutating/media guardrails. Score: demo 5, risk 5, contract 2, effort 3, API evidence 5. Implemented.
+2. Public-safe real API evidence index from ignored private refs. Score: demo 4, risk 5, contract 1, effort 2, API evidence 5. Implemented.
+3. Quota error summarizer as SDK helper. Score: demo 3, risk 5, contract 1, effort 2, API evidence 5. Implemented.
+4. Runtime queue lease/heartbeat skeleton. Score: demo 4, risk 4, contract 2, effort 4, API evidence 1. Deferred to next runtime slice.
+5. TS evidence-index CLI. Score: demo 3, risk 4, contract 1, effort 3, API evidence 4. Deferred; Python index currently aggregates TS private records.
+6. Chrome usage counter verification. Score: demo 3, risk 3, contract 1, effort 3, API evidence 3. Deferred.
+7. Mutating text real probe. Score: demo 5, risk 4, contract 1, effort 1, API evidence 5. Deferred this round because prior hosted quota block remains documented; no purposeless retry.
+8. Non-text paid media probes. Score: demo 5, risk 4, contract 2, effort 3, API evidence 5. Deferred until request quota is available.
+9. JSON schema for evidence index artifact. Score: demo 3, risk 4, contract 1, effort 2, API evidence 3. Deferred.
+10. One-command A1 readiness matrix. Score: demo 4, risk 4, contract 1, effort 3, API evidence 2. Deferred.
+
+Implemented:
+- Added packages/sdk/ashr_clone/calibrate.py: Python module CLI with dry-run default, execute/small-batch/max-retries-zero guardrail, mutating opt-in, explicit paid media opt-in, text/image/audio/file/video request plans, private step records, and safe manifest summary.
+- Added packages/sdk/ashr_clone/evidence.py: public-safe index builder for ignored private API evidence records.
+- Added summarize_quota_error() in packages/sdk/ashr_clone/api_client.py and root export in packages/sdk/ashr_clone/__init__.py.
+- Added tests tests/a1/test_python_calibrator.py and tests/a1/test_evidence_index.py.
+- Regenerated docs/a1/api_calibration/real_api_evidence_index.json from a1_real_*, a1_ts_api_calibration_*, and a1_python_api_calibration_* private records.
+
+Official API calibration:
+- Key source: environment variable presence only. No raw key printed or written.
+- Dry-run plan: python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json --print-record.
+  - Result: planned, 10 steps, 5 read + 5 mutating plans, modalities audio/file/image/text/video, estimated calls 17.
+- Real read-only small batch: python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_readonly.json --print-record.
+  - Result: ok, 5/5 read steps, status_code 200, attempts 1 each.
+  - Response key coverage: init -> features/notes/status/tenant/user; keep_alive -> db/message/status; list_agents -> _user/agents/status; list_datasets -> _user/datasets/next_cursor/status; list_requests -> _user/next_cursor/requests/status.
+- Public evidence index: docs/a1/api_calibration/real_api_evidence_index.json now reports 61 records, status counts error=4, failed=1, ok=28, partial=1, planned=26, quota block count 1.
+- Mutating hosted calls were not repeated because the prior controlled text create-request probe already captured Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining; avoiding no-purpose quota retries matches the API rule.
+
+Validation:
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 144 passed.
+- npm test --prefix packages/ts/ashr-clone: 145 passed.
+- git diff --check: exit 0 with CRLF warnings only for packages/sdk/ashr_clone/api_client.py.
+
+Bus-Auditor / reviewer feedback:
+- Commit current evidence-index slice after full tests: followed.
+- Fix error_kind_counts top-level counting bug: fixed and regenerated public index.
+- Next likely high-ROI slice: A1 runtime queue lease/heartbeat skeleton or TS public evidence-index CLI.
+
+Known gaps:
+- Request quota remains exhausted on hosted plan, so mutating text/media real probes need quota reset/upgrade before useful paid calibration.
+- Python calibrator is module-invoked rather than installed console-script because current Python SDK has no packaging entrypoint.
+- TS still lacks its own standalone evidence-index command, though the Python public index aggregates TS calibration records.
+
+Next top 10:
+1. Add runtime queue lease/heartbeat fields and reclaim tests for services/api/services/runner.
+2. Add TS evidence-index CLI/schema tests mirroring Python indexer.
+3. Add A1 readiness command/script covering Python tests, TS tests, evidence scan, diff check.
+4. Add JSON schema for ashr.clone.evidence_index.v1.
+5. Re-run text mutating real calibration when quota is available.
+6. Then run image/audio/file/video paid media probes one modality at a time.
+7. Chrome/dashboard usage counter verification against API quota response.
+8. Add hosted response-key field map markdown generated from evidence index.
+9. Add Python console script packaging if/when SDK packaging lands.
+10. Add public-safe private evidence freshness checker for stale/failed calibration files.

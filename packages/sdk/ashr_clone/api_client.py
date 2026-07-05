@@ -538,6 +538,44 @@ def summarize_request_failure(response: Mapping[str, Any]) -> JsonDict:
     return summary
 
 
+
+def summarize_quota_error(value: Mapping[str, Any]) -> JsonDict | None:
+    """Return a public-safe hosted quota summary from an API record or response."""
+    candidates = _quota_candidates(value)
+    quota_candidates = [candidate for candidate in candidates if isinstance(candidate, Mapping) and isinstance(candidate.get("quota"), Mapping)]
+    message_candidates = [candidate for candidate in candidates if isinstance(candidate, Mapping) and not isinstance(candidate.get("quota"), Mapping)]
+    for candidate in quota_candidates + message_candidates:
+        quota = candidate.get("quota")
+        message = candidate.get("message")
+        if isinstance(quota, Mapping):
+            summary: JsonDict = {
+                "blocked": True,
+                "message": redact_text(str(message)) if isinstance(message, str) else None,
+                "quota_keys": sorted(str(key) for key in quota.keys()),
+            }
+            for key in ("resource", "limit", "used", "requested", "remaining"):
+                if key in quota and isinstance(quota[key], (str, int, float, bool)):
+                    summary[key] = quota[key]
+            return redact_sensitive(summary)
+        if isinstance(message, str) and "Usage limit exceeded" in message:
+            return {"blocked": True, "message": redact_text(message), "quota_keys": []}
+    return None
+
+
+def _quota_candidates(value: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    candidates: list[Mapping[str, Any]] = [value]
+    for key in ("error", "response"):
+        nested = value.get(key)
+        if isinstance(nested, Mapping):
+            candidates.append(nested)
+            nested_response = nested.get("response")
+            if isinstance(nested_response, Mapping):
+                candidates.append(nested_response)
+            nested_error = nested.get("error")
+            if isinstance(nested_error, Mapping):
+                candidates.append(nested_error)
+    return candidates
+
 def build_default_request_input_schema(request: Mapping[str, Any] | None = None) -> JsonDict:
     schema: JsonDict = dict(DEFAULT_REQUEST_INPUT_SCHEMA)
     agent = request.get("agent") if isinstance(request, Mapping) else None
