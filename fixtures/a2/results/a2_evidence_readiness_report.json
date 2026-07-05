@@ -93,6 +93,7 @@
     "public_matrix_merged": false,
     "safe_to_mark_c3_met": false,
     "current_public_observation_count": 0,
+    "merged_public_observation_count": 0,
     "missing_public_observation_count": 6,
     "required_public_observation_count": 6,
     "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",

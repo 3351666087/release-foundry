@@ -206,6 +206,7 @@ def _ashr_public_merge_gate(
         "public_matrix_merged": merged,
         "safe_to_mark_c3_met": merged,
         "current_public_observation_count": current_available,
+        "merged_public_observation_count": current_available if merged else 0,
         "missing_public_observation_count": current_missing,
         "required_public_observation_count": expected_count,
         "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
