@@ -8,6 +8,7 @@
   "types": "dist/index.d.ts",
   "bin": {
     "ashr-clone-api-probe": "./dist/probe.js",
+    "ashr-clone-calibrate": "./dist/calibrate.js",
     "ashr-clone-cloud": "./dist/cloud-cli.js",
     "ashr-clone-dataset-adapter": "./dist/dataset-adapter-cli.js",
     "ashr-clone-probe": "./dist/probe.js",
