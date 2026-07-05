@@ -1,6 +1,6 @@
 # Ashr Clone TypeScript SDK
 
-TypeScript parity package for A1. It mirrors the Python `AgentInput`, `AgentAdapter`, local runner, dataset-source adapter, trace/replay helpers, `CloudApiService`, `QuotaLedger`, run polling, fixture export, and dry-run-first Ashr API client surfaces.
+TypeScript parity package for A1. It mirrors the Python `AgentInput`, `AgentAdapter`, local runner, dataset-source adapter, trace/replay helpers, `CloudApiService`, `CloudQueueWorker`, `QuotaLedger`, run polling, persisted queue replay, fixture export, and dry-run-first Ashr API client surfaces.
 
 ```powershell
 npm install --prefix packages/ts/ashr-clone
@@ -37,6 +37,17 @@ const run = service.submitRun(tenant.tenant_id, project.project_id, {
 console.log(service.pollRun(tenant.tenant_id, project.project_id, run.run_id).status);
 console.log(service.exportRunFixture(tenant.tenant_id, project.project_id, run.run_id).metadata);
 ```
+
+Cloud queue CLI:
+
+```powershell
+npm run build --prefix packages/ts/ashr-clone
+node packages/ts/ashr-clone/dist/cloud-cli.js queue-run --input docs/a1/evidence/local_agent_cases_30.json --state-output docs/evidence/private_refs/a1_ts_cloud_queue_state_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_cloud_queue_summary_30_smoke.json --tenant-id tenant_a1_ts_cloud_smoke --project-id project_a1_ts_cloud_smoke --dataset-id dataset_a1_ts_cloud_smoke --runner-id a1-ts-cloud-smoke --run-id run_a1_ts_cloud_002 --run-id run_a1_ts_cloud_001
+node packages/ts/ashr-clone/dist/cloud-cli.js replay-queued --state-input docs/evidence/private_refs/a1_ts_cloud_queue_state_30_smoke.json --agent examples/agents/mock_agent_ts.mjs:default --tenant-id tenant_a1_ts_cloud_smoke --project-id project_a1_ts_cloud_smoke --fixture-output-dir docs/evidence/private_refs/a1_ts_cloud_replay_fixtures_30_smoke --run-output-dir docs/evidence/private_refs/a1_ts_cloud_replay_runs_30_smoke --summary-output docs/evidence/private_refs/a1_ts_cloud_replay_summary_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_cloud_replayed_state_30_smoke.json --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30
+node packages/ts/ashr-clone/dist/cloud-cli.js export-fixture --state-input docs/evidence/private_refs/a1_ts_cloud_replayed_state_30_smoke.json --tenant-id tenant_a1_ts_cloud_smoke --project-id project_a1_ts_cloud_smoke --run-id run_a1_ts_cloud_001 --fixture-output docs/evidence/private_refs/a1_ts_cloud_exported_fixture_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_cloud_export_summary_30_smoke.json
+```
+
+The queue CLI is local-only. It writes ignored private evidence by convention, preserves per-run `status_history`, replays queued/running runs in deterministic batch order, and exports A3-consumable fixtures from restored state.
 
 Local runner quickstart:
 
@@ -80,8 +91,8 @@ const client = new AshrApiClient();
 const plan = await client.createRequest({
   requestName: "A1 Media Dry Run",
   request: {
-    agent: { accepted_inputs: { text: true, image: true, audio: true, file: true } },
-    generation_options: { generate_images: true, generate_audio: true, generate_files: true },
+    agent: { accepted_inputs: { text: true, audio: true, file: true, image: true, video: true } },
+    generation_options: { generate_audio: true, generate_files: true, generate_images: true, generate_videos: true },
     test_config: { num_variations: 1 },
   },
 });

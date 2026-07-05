@@ -601,7 +601,7 @@ export function summarizeGenerationRequest(request: ApiJsonRecord): ApiJsonRecor
   if (acceptedFlags.text) {
     agentInputPartTypes.push("text");
   }
-  for (const key of ["image", "audio", "file"]) {
+  for (const key of ["image", "audio", "file", "video"]) {
     if (acceptedFlags[key]) {
       agentInputPartTypes.push(key);
     }
@@ -724,7 +724,7 @@ function buildDefaultApiRequestInputSchema(request: ApiJsonRecord | undefined = 
     schema.tools = redactApiSensitive(agent.tools);
   }
   const enabledPartTypes = enabledAgentInputPartTypes(request);
-  if (enabledPartTypes.some((partType) => ["image", "audio", "file"].includes(partType))) {
+  if (enabledPartTypes.some((partType) => ["image", "audio", "file", "video"].includes(partType))) {
     Object.assign(schema, agentInputSchema(enabledPartTypes));
   }
   return schema;
@@ -848,7 +848,7 @@ function enabledAgentInputPartTypes(request: ApiJsonRecord | undefined): string[
   if (acceptedInputs === undefined || truthyEnabled(acceptedInputs.text)) {
     enabled.push("text");
   }
-  for (const partType of ["image", "audio", "file"]) {
+  for (const partType of ["image", "audio", "file", "video"]) {
     if (acceptedInputs !== undefined && truthyEnabled(acceptedInputs[partType])) {
       enabled.push(partType);
     }
@@ -857,7 +857,7 @@ function enabledAgentInputPartTypes(request: ApiJsonRecord | undefined): string[
 }
 
 function agentInputSchema(enabledPartTypes: string[]): ApiJsonRecord {
-  const partTypes = ["text", "image", "audio", "file"].filter((partType) => enabledPartTypes.includes(partType));
+  const partTypes = ["text", "image", "audio", "file", "video"].filter((partType) => enabledPartTypes.includes(partType));
   return {
     properties: {
       schema_version: { const: ASHR_API_AGENT_INPUT_SCHEMA_VERSION },
@@ -876,7 +876,7 @@ function agentInputPartSchema(partTypes: string[]): ApiJsonRecord {
     properties: { type: { const: "text" }, text: { type: "string" } },
     additionalProperties: true,
   };
-  const mediaPartTypes = partTypes.filter((partType) => ["image", "audio", "file"].includes(partType));
+  const mediaPartTypes = partTypes.filter((partType) => ["image", "audio", "file", "video"].includes(partType));
   const variants: ApiJsonRecord[] = [];
   if (partTypes.includes("text")) {
     variants.push(textPart);

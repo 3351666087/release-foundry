@@ -31,7 +31,7 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["image", "audio", "file"] },
+        "type": { "enum": ["image", "audio", "file", "video"] },
         "path": { "type": "string" },
         "url": { "type": "string" },
         "source": { "type": "string" },

@@ -19,7 +19,7 @@ const FAILED = "failed";
 const ERROR = "error";
 const TIMEOUT = "timeout";
 const INPUT_STYLES = ["text", "request", "keyword"] as const;
-const AGENT_INPUT_PART_TYPES = ["text", "image", "audio", "file"] as const;
+const AGENT_INPUT_PART_TYPES = ["text", "image", "audio", "file", "video"] as const;
 
 export type AgentInputStyle = (typeof INPUT_STYLES)[number];
 export type AgentLike = AgentFunction | AgentObject | AgentConstructor;

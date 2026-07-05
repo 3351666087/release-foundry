@@ -51,14 +51,16 @@ test("coerceAgentInput preserves text and media parts", () => {
       "hello",
       { type: "image", url: "https://example.invalid/image.png", mimeType: "image/png" },
       { type: "audio", path: "local.wav", description: "local fixture" },
+      { type: "video", path: "clip.mp4", mime_type: "video/mp4" },
     ],
     metadata: { case_id: "case-1" },
   });
 
   assert.equal(input.schema_version, AGENT_INPUT_SCHEMA_VERSION);
   assert.equal(input.text, "hello");
-  assert.deepEqual(input.parts.map((part) => part.type), ["text", "image", "audio"]);
+  assert.deepEqual(input.parts.map((part) => part.type), ["text", "image", "audio", "video"]);
   assert.equal(input.parts[1].mime_type, "image/png");
+  assert.equal(input.parts[3].mime_type, "video/mp4");
   assert.equal(input.metadata.case_id, "case-1");
 });
 
@@ -79,13 +81,13 @@ test("buildDefaultRequestInputSchema mirrors media AgentInput part schema", () =
 
   const media = buildDefaultRequestInputSchema({
     agent: {
-      accepted_inputs: { text: true, image: true, audio: true, file: true },
+      accepted_inputs: { text: true, image: true, audio: true, file: true, video: true },
       tools: [{ name: "secret_tool", api_key: "tp_secretvalue" }],
     },
   });
   assert.equal(media.properties.schema_version.const, AGENT_INPUT_SCHEMA_VERSION);
   assert.equal(media.properties.parts.items.$ref, "#/$defs/agent_input_part");
-  assert.deepEqual(media.$defs.agent_input_part.oneOf[1].properties.type.enum, ["image", "audio", "file"]);
+  assert.deepEqual(media.$defs.agent_input_part.oneOf[1].properties.type.enum, ["image", "audio", "file", "video"]);
   assert.equal(media.tools[0].api_key, "[redacted]");
 
   const imageOnly = buildDefaultRequestInputSchema({ agent: { accepted_inputs: { text: false, image: true } } });

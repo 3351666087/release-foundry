@@ -87,7 +87,7 @@ def test_cloud_api_validation_errors_do_not_consume_quota():
 
 def test_cloud_api_request_schema_preserves_media_agent_input_shape():
     service, tenant, project = _service_with_project()
-    accepted_inputs = {"text": True, "image": True, "audio": True, "file": True}
+    accepted_inputs = {"text": True, "image": True, "audio": True, "file": True, "video": True}
     schema = build_default_request_input_schema({"agent": {"accepted_inputs": accepted_inputs}})
 
     request = service.create_request(
@@ -108,7 +108,7 @@ def test_cloud_api_request_schema_preserves_media_agent_input_shape():
             part_types.add(type_schema["const"])
     assert request["status"] == "created"
     assert request["accepted_inputs"]["file"] is True
-    assert part_types == {"audio", "file", "image", "text"}
+    assert part_types == {"audio", "file", "image", "text", "video"}
     assert json.dumps(request, sort_keys=True)
 
 

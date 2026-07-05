@@ -1,4 +1,5 @@
 export * from "./api-client.js";
+export * from "./cloud-queue.js";
 export * from "./dataset-adapter.js";
 export * from "./runner.js";
 export * from "./trace.js";
@@ -9,7 +10,7 @@ export const AGENT_TURN_SCHEMA_VERSION = "ashr.clone.agent_turn.v1";
 export const RUN_RESULT_SCHEMA_VERSION = "ashr.clone.run_result.v1";
 
 export type JsonRecord = Record<string, unknown>;
-export type AgentInputPartType = "text" | "image" | "audio" | "file";
+export type AgentInputPartType = "text" | "image" | "audio" | "file" | "video";
 export type AgentHandler = (agentInput: AgentInput, caseRecord: JsonRecord) => AgentTurnLike | Promise<AgentTurnLike>;
 export type AgentTurnLike = string | Partial<AgentTurn> | JsonRecord;
 
@@ -52,7 +53,7 @@ export interface CaseResult extends JsonRecord {
   observations: JsonRecord[];
 }
 
-export interface TenantRecord {
+export interface TenantRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   name: string;
@@ -60,7 +61,7 @@ export interface TenantRecord {
   metadata: JsonRecord;
 }
 
-export interface ProjectRecord {
+export interface ProjectRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -69,7 +70,7 @@ export interface ProjectRecord {
   metadata: JsonRecord;
 }
 
-export interface DatasetRecord {
+export interface DatasetRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -81,7 +82,7 @@ export interface DatasetRecord {
   metadata: JsonRecord;
 }
 
-export interface RequestRecord {
+export interface RequestRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -104,7 +105,7 @@ export interface RunResult extends JsonRecord {
   cases?: JsonRecord[];
 }
 
-export interface CloudDemoSummary {
+export interface CloudDemoSummary extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant: { tenant_id: string; name: string };
   project: { tenant_id: string; project_id: string; name: string };
@@ -129,7 +130,7 @@ export interface CloudDemoSummary {
   metadata: { local_only: true; ashr_api_used: false };
 }
 
-export interface RunRecord {
+export interface RunRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -143,10 +144,12 @@ export interface RunRecord {
   result: JsonRecord;
   created_at: string;
   updated_at: string;
+  status_history?: JsonRecord[];
+  error?: JsonRecord;
   metadata: JsonRecord;
 }
 
-export interface PollRunRecord {
+export interface PollRunRecord extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -156,7 +159,7 @@ export interface PollRunRecord {
   run: RunRecord;
 }
 
-export interface QuotaSnapshot {
+export interface QuotaSnapshot extends JsonRecord {
   schema_version: typeof CLOUD_API_SCHEMA_VERSION;
   tenant_id: string;
   project_id: string;
@@ -189,6 +192,15 @@ export interface CloudStoreSnapshot {
   runs: Record<string, RunRecord>;
 }
 
+export interface CloudStateSnapshot extends JsonRecord {
+  schema_version: typeof CLOUD_API_SCHEMA_VERSION;
+  state_version: 1;
+  kind: "local_cloud_state";
+  store: CloudStoreSnapshot;
+  quota: JsonRecord;
+  metadata: { local_only: true; ashr_api_used: false };
+}
+
 export const DEFAULT_QUOTA_LIMITS: Record<string, number> = {
   "dataset.create": 1000,
   "observation.write": 100000,
@@ -201,8 +213,8 @@ export const DEFAULT_REQUEST_INPUT_SCHEMA: JsonRecord = {
   additionalProperties: true,
 };
 
-const AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["text", "image", "audio", "file"];
-const NON_TEXT_AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["image", "audio", "file"];
+const AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["text", "image", "audio", "file", "video"];
+const NON_TEXT_AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["image", "audio", "file", "video"];
 
 export class CloudApiError extends Error {
   code = "cloud_api_error";
@@ -295,8 +307,56 @@ export class QuotaLedger {
     };
   }
 
+  state(): JsonRecord {
+    const projectKeys = new Set([...this.limits.keys(), ...this.used.keys()]);
+    return cloneJson({
+      default_limits: this.defaultLimits,
+      projects: Array.from(projectKeys)
+        .sort()
+        .map((key) => {
+          const [tenantId, projectId] = this.splitKey(key);
+          return {
+            tenant_id: tenantId,
+            project_id: projectId,
+            limits: this.limits.get(key) ?? {},
+            used: this.used.get(key) ?? {},
+          };
+        }),
+    });
+  }
+
+  static fromState(payload: unknown): QuotaLedger {
+    if (!isRecord(payload)) {
+      return new QuotaLedger();
+    }
+    const defaultLimits = isRecord(payload.default_limits) ? numberRecord(payload.default_limits, "default_limits") : DEFAULT_QUOTA_LIMITS;
+    const ledger = new QuotaLedger(defaultLimits);
+    const projects = Array.isArray(payload.projects) ? payload.projects : [];
+    for (const entry of projects) {
+      if (!isRecord(entry)) {
+        throw new ValidationError("quota project entries must be objects");
+      }
+      const tenantId = String(entry.tenant_id ?? "");
+      const projectId = String(entry.project_id ?? "");
+      requireId(tenantId, "tenant_id");
+      requireId(projectId, "project_id");
+      const key = ledger.key(tenantId, projectId);
+      ledger.limits.set(key, isRecord(entry.limits) ? numberRecord(entry.limits, "quota limits") : {});
+      ledger.used.set(key, isRecord(entry.used) ? numberRecord(entry.used, "quota used") : {});
+    }
+    return ledger;
+  }
+
   private key(tenantId: string, projectId: string): string {
     return `${tenantId}\u0000${projectId}`;
+  }
+
+  private splitKey(key: string): [string, string] {
+    const index = key.indexOf("\u0000");
+    if (index === -1) {
+      return [key, ""];
+    }
+    return [key.slice(0, index), key.slice(index + 1)];
   }
 
   private limitFor(key: string, operation: string): number {
@@ -322,15 +382,37 @@ export class InMemoryCloudStore {
       runs: this.runs,
     });
   }
+
+  static fromState(payload: unknown): InMemoryCloudStore {
+    const storePayload = isRecord(payload) && isRecord(payload.store) ? payload.store : payload;
+    if (!isRecord(storePayload)) {
+      throw new ValidationError("cloud state store must be a JSON object");
+    }
+    const store = new InMemoryCloudStore();
+    store.tenants = stateBucket<TenantRecord>(storePayload, "tenants");
+    store.projects = stateBucket<ProjectRecord>(storePayload, "projects");
+    store.datasets = stateBucket<DatasetRecord>(storePayload, "datasets");
+    store.requests = stateBucket<RequestRecord>(storePayload, "requests");
+    store.runs = stateBucket<RunRecord>(storePayload, "runs");
+    return store;
+  }
+}
+
+export interface CloudApiServiceOptions {
+  store?: InMemoryCloudStore;
+  quota?: QuotaLedger;
+  clock?: () => string;
 }
 
 export class CloudApiService {
   readonly store: InMemoryCloudStore;
   readonly quota: QuotaLedger;
+  private readonly clock: () => string;
 
-  constructor(options: { store?: InMemoryCloudStore; quota?: QuotaLedger } = {}) {
+  constructor(options: CloudApiServiceOptions = {}) {
     this.store = options.store ?? new InMemoryCloudStore();
     this.quota = options.quota ?? new QuotaLedger();
+    this.clock = options.clock ?? utcNow;
   }
 
   createTenant(name: string, options: { tenantId?: string; metadata?: JsonRecord } = {}): TenantRecord {
@@ -343,7 +425,7 @@ export class CloudApiService {
       schema_version: CLOUD_API_SCHEMA_VERSION,
       tenant_id: tenantId,
       name: requireText(name, "name"),
-      created_at: utcNow(),
+      created_at: this.clock(),
       metadata: jsonRecord(options.metadata ?? {}),
     };
     this.store.tenants[tenantId] = record;
@@ -362,7 +444,7 @@ export class CloudApiService {
       tenant_id: tenant.tenant_id,
       project_id: projectId,
       name: requireText(name, "name"),
-      created_at: utcNow(),
+      created_at: this.clock(),
       metadata: jsonRecord(options.metadata ?? {}),
     };
     this.store.projects[projectId] = record;
@@ -411,7 +493,7 @@ export class CloudApiService {
       name: requireText(options.name, "name"),
       case_count: cases.length,
       cases,
-      created_at: utcNow(),
+      created_at: this.clock(),
       metadata: jsonRecord(options.metadata ?? {}),
     };
     this.store.datasets[datasetId] = record;
@@ -452,7 +534,7 @@ export class CloudApiService {
       throw new ValidationError(`request already exists: ${requestId}`);
     }
     this.quota.consume(project.tenant_id, project.project_id, "request.create");
-    const now = utcNow();
+    const now = this.clock();
     const record: RequestRecord = {
       schema_version: CLOUD_API_SCHEMA_VERSION,
       tenant_id: project.tenant_id,
@@ -502,15 +584,16 @@ export class CloudApiService {
     }
     this.quota.consume(dataset.tenant_id, dataset.project_id, "run.submit");
     this.quota.consume(dataset.tenant_id, dataset.project_id, "observation.write", Math.max(1, observations.length));
-    const now = utcNow();
+    const now = this.clock();
     const cases = Array.isArray(result.cases) ? result.cases : [];
+    const status = cloudRunStatus(result);
     const record: RunRecord = {
       schema_version: CLOUD_API_SCHEMA_VERSION,
       tenant_id: dataset.tenant_id,
       project_id: dataset.project_id,
       dataset_id: dataset.dataset_id,
       run_id: runId,
-      status: cloudRunStatus(result),
+      status,
       result_status: String(result.status ?? ""),
       runner_id: String(result.runner_id ?? "a1-local-runner"),
       total_cases: Number(result.total_cases ?? cases.length),
@@ -518,10 +601,167 @@ export class CloudApiService {
       result,
       created_at: now,
       updated_at: now,
+      status_history: [{ status, at: now }],
       metadata: jsonRecord(options.metadata ?? {}),
     };
     this.store.runs[runId] = record;
     return cloneJson(record);
+  }
+
+  createQueuedRun(
+    tenantId: string,
+    projectId: string,
+    options: { datasetId: string; runnerId?: string; runId?: string; metadata?: JsonRecord },
+  ): RunRecord {
+    const dataset = this.getDataset(tenantId, projectId, options.datasetId);
+    this.quota.check(dataset.tenant_id, dataset.project_id, "run.submit");
+    const runId = options.runId ?? newId("run");
+    requireId(runId, "run_id");
+    if (this.store.runs[runId]) {
+      throw new ValidationError(`run already exists: ${runId}`);
+    }
+    this.quota.consume(dataset.tenant_id, dataset.project_id, "run.submit");
+    const now = this.clock();
+    const runnerId = options.runnerId ?? "a1-ts-cloud-queue-worker";
+    const result: JsonRecord = {
+      schema_version: RUN_RESULT_SCHEMA_VERSION,
+      run_id: runId,
+      dataset_id: dataset.dataset_id,
+      runner_id: runnerId,
+      status: "queued",
+      total_cases: dataset.case_count,
+      passed: 0,
+      failed: 0,
+      errored: 0,
+      timed_out: 0,
+      cases: [],
+      metadata: { local_only: true, ashr_api_used: false, queued: true },
+    };
+    const record: RunRecord = {
+      schema_version: CLOUD_API_SCHEMA_VERSION,
+      tenant_id: dataset.tenant_id,
+      project_id: dataset.project_id,
+      dataset_id: dataset.dataset_id,
+      run_id: runId,
+      status: "queued",
+      result_status: "queued",
+      runner_id: runnerId,
+      total_cases: dataset.case_count,
+      observations: [],
+      result,
+      created_at: now,
+      updated_at: now,
+      status_history: [{ status: "queued", at: now }],
+      metadata: jsonRecord(options.metadata ?? {}),
+    };
+    this.store.runs[runId] = record;
+    return cloneJson(record);
+  }
+
+  markRunRunning(tenantId: string, projectId: string, runId: string): RunRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    if (run.status === "cancelled") {
+      return cloneJson(run);
+    }
+    if (!["queued", "submitted", "running"].includes(run.status)) {
+      throw new ValidationError(`run cannot transition to running from ${run.status}`);
+    }
+    const now = this.clock();
+    run.status = "running";
+    run.result_status = "running";
+    run.updated_at = now;
+    run.result.status = "running";
+    appendStatusHistory(run, "running", now);
+    return cloneJson(run);
+  }
+
+  completeRun(tenantId: string, projectId: string, runId: string, runResult: RunResult | JsonRecord): RunRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    if (run.status === "cancelled") {
+      return cloneJson(run);
+    }
+    if (!["queued", "running", "submitted"].includes(run.status)) {
+      throw new ValidationError(`run cannot complete from ${run.status}`);
+    }
+    const result = jsonRecord(runResult);
+    const observations = extractObservations(result);
+    this.quota.check(tenantId, projectId, "observation.write", Math.max(1, observations.length));
+    this.quota.consume(tenantId, projectId, "observation.write", Math.max(1, observations.length));
+    const now = this.clock();
+    run.status = cloudRunStatus(result);
+    run.result_status = String(result.status ?? "");
+    run.runner_id = String(result.runner_id ?? run.runner_id ?? "a1-local-runner");
+    run.total_cases = Number(result.total_cases ?? (Array.isArray(result.cases) ? result.cases.length : run.total_cases));
+    run.observations = observations;
+    run.result = result;
+    run.updated_at = now;
+    appendStatusHistory(run, run.status, now);
+    return cloneJson(run);
+  }
+
+  failRun(
+    tenantId: string,
+    projectId: string,
+    runId: string,
+    options: { error: unknown; resultStatus?: string } = { error: "failed" },
+  ): RunRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    if (run.status === "cancelled") {
+      return cloneJson(run);
+    }
+    const now = this.clock();
+    const errorPayload = isRecord(options.error)
+      ? (redactSensitive(options.error) as JsonRecord)
+      : { type: "Error", message: redactText(String(options.error)) };
+    const resultStatus = options.resultStatus ?? "error";
+    run.status = "failed";
+    run.result_status = resultStatus;
+    run.updated_at = now;
+    run.observations = [];
+    run.error = errorPayload;
+    run.result = {
+      schema_version: RUN_RESULT_SCHEMA_VERSION,
+      run_id: run.run_id,
+      dataset_id: run.dataset_id,
+      runner_id: run.runner_id,
+      status: resultStatus,
+      total_cases: run.total_cases,
+      passed: 0,
+      failed: 0,
+      errored: run.total_cases,
+      timed_out: 0,
+      cases: [],
+      error: errorPayload,
+      metadata: { local_only: true, ashr_api_used: false, queued: true },
+    };
+    appendStatusHistory(run, "failed", now);
+    return cloneJson(run);
+  }
+
+  cancelRun(tenantId: string, projectId: string, runId: string, options: { reason?: string } = {}): RunRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    if (["completed", "failed"].includes(run.status)) {
+      throw new ValidationError(`run cannot be cancelled from ${run.status}`);
+    }
+    const now = this.clock();
+    const error = { type: "Cancelled", message: redactText(options.reason ?? "cancelled") };
+    run.status = "cancelled";
+    run.result_status = "cancelled";
+    run.updated_at = now;
+    run.error = error;
+    run.result.status = "cancelled";
+    run.result.error = error;
+    appendStatusHistory(run, "cancelled", now);
+    return cloneJson(run);
+  }
+
+  appendObservation(tenantId: string, projectId: string, runId: string, observation: JsonRecord): JsonRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    this.quota.consume(tenantId, projectId, "observation.write");
+    const payload = jsonRecord(observation);
+    run.observations.push(payload);
+    run.updated_at = this.clock();
+    return cloneJson(payload);
   }
 
   getRun(tenantId: string, projectId: string, runId: string): RunRecord {
@@ -566,6 +806,42 @@ export class CloudApiService {
       observations: cloneJson(run.observations),
       metadata: { local_only: true, ashr_api_used: false },
     };
+  }
+
+  async writeRunFixture(tenantId: string, projectId: string, runId: string, outputPath: string): Promise<string> {
+    await writeJsonFile(outputPath, this.exportRunFixture(tenantId, projectId, runId));
+    return outputPath;
+  }
+
+  snapshotState(): CloudStateSnapshot {
+    return {
+      schema_version: CLOUD_API_SCHEMA_VERSION,
+      state_version: 1,
+      kind: "local_cloud_state",
+      store: this.store.snapshot(),
+      quota: this.quota.state(),
+      metadata: { local_only: true, ashr_api_used: false },
+    };
+  }
+
+  async writeState(outputPath: string): Promise<string> {
+    await writeJsonFile(outputPath, this.snapshotState());
+    return outputPath;
+  }
+
+  static fromState(payload: unknown): CloudApiService {
+    if (!isRecord(payload)) {
+      throw new ValidationError("cloud state payload must be a JSON object");
+    }
+    return new CloudApiService({
+      store: InMemoryCloudStore.fromState(payload),
+      quota: QuotaLedger.fromState(payload.quota),
+    });
+  }
+
+  static async fromStateFile(inputPath: string): Promise<CloudApiService> {
+    const fs = await import("node:fs/promises");
+    return CloudApiService.fromState(JSON.parse(await fs.readFile(inputPath, "utf8")) as unknown);
   }
 
   private getRunRecord(tenantId: string, projectId: string, runId: string): RunRecord {
@@ -934,6 +1210,16 @@ function extractObservations(runResult: JsonRecord): JsonRecord[] {
   return observations;
 }
 
+function appendStatusHistory(run: RunRecord, status: string, at: string): void {
+  const history = Array.isArray(run.status_history) ? run.status_history : [];
+  if (history.length > 0 && isRecord(history[history.length - 1]) && history[history.length - 1].status === status) {
+    history[history.length - 1].at = at;
+  } else {
+    history.push({ status, at });
+  }
+  run.status_history = history;
+}
+
 function cloudRunStatus(runResult: JsonRecord): string {
   const status = String(runResult.status ?? "").toLowerCase();
   if (["queued", "running", "completed", "failed", "cancelled"].includes(status)) {
@@ -962,7 +1248,7 @@ function normalizeInputPart(part: unknown, index: number): AgentInputPart {
   }
   const normalized = jsonRecord(part) as AgentInputPart;
   const partType = String(normalized.type ?? "text").toLowerCase();
-  if (!["text", "image", "audio", "file"].includes(partType)) {
+  if (!AGENT_INPUT_PART_TYPES.includes(partType as AgentInputPartType)) {
     throw new ValidationError(`agent input part ${index} has unsupported type: ${partType}`);
   }
   normalized.type = partType as AgentInputPartType;
@@ -999,6 +1285,33 @@ function positiveUnits(units: number): number {
   return parsed;
 }
 
+function numberRecord(value: JsonRecord, fieldName: string): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const parsed = Number(item);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new ValidationError(`${fieldName} values must be non-negative integers`);
+    }
+    result[key] = parsed;
+  }
+  return result;
+}
+
+function stateBucket<T extends JsonRecord>(payload: JsonRecord, key: string): Record<string, T> {
+  const bucket = payload[key] ?? {};
+  if (!isRecord(bucket)) {
+    throw new ValidationError(`cloud state ${key} must be an object`);
+  }
+  const result: Record<string, T> = {};
+  for (const [itemKey, itemValue] of Object.entries(bucket)) {
+    if (!isRecord(itemValue)) {
+      throw new ValidationError(`cloud state ${key} records must be objects`);
+    }
+    result[itemKey] = jsonRecord(itemValue) as T;
+  }
+  return result;
+}
+
 function requireId(value: string, fieldName: string): void {
   if (typeof value !== "string" || !value.trim()) {
     throw new ValidationError(`${fieldName} must be a non-empty string`);
@@ -1025,6 +1338,14 @@ function utcNow(): string {
 
 function jsonRecord(value: JsonRecord): JsonRecord {
   return cloneJson(toJson(value)) as JsonRecord;
+}
+
+async function writeJsonFile(path: string, value: unknown): Promise<void> {
+  const fs = await import("node:fs/promises");
+  const pathModule = await import("node:path");
+  const outputPath = pathModule.resolve(path);
+  await fs.mkdir(pathModule.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, `${JSON.stringify(jsonRecord(isRecord(value) ? value : { value }), null, 2)}\n`, "utf8");
 }
 
 function cloneJson<T>(value: T): T {

@@ -468,8 +468,7 @@ def test_build_default_request_input_schema_advertises_agent_input_parts_for_med
     assert sorted(schema["properties"].keys()) == ["metadata", "parts", "schema_version", "text"]
     part_schema = schema["$defs"]["agent_input_part"]
     media_part = part_schema["oneOf"][1]
-    assert media_part["properties"]["type"]["enum"] == ["image", "audio", "file"]
-    assert "video" not in media_part["properties"]["type"]["enum"]
+    assert media_part["properties"]["type"]["enum"] == ["image", "audio", "file", "video"]
 
 
 def test_build_default_request_input_schema_matches_non_text_only_inputs():
@@ -776,7 +775,9 @@ def test_media_interface_fixture_is_dry_run_only_guarded():
     assert preflight["accepted_input_flags"]["audio"] is True
     assert preflight["accepted_input_flags"]["file"] is True
     assert preflight["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
-    assert preflight["agent_input_part_types"] == ["text", "image", "audio", "file"]
+    assert preflight["media_generation"]["videos"] is True
+    assert preflight["accepted_input_flags"]["video"] is True
+    assert preflight["agent_input_part_types"] == ["text", "image", "audio", "file", "video"]
     try:
         api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
     except ValueError as exc:
@@ -800,7 +801,7 @@ def test_media_interface_fixture_dry_run_records_agent_input_schema_shape(tmp_pa
 
     schema_summary = record["request"]["params"]["request_input_schema"]
     assert schema_summary["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
-    assert schema_summary["agent_input_part_types"] == ["audio", "file", "image", "text"]
+    assert schema_summary["agent_input_part_types"] == ["audio", "file", "image", "text", "video"]
     assert schema_summary["property_keys"] == ["metadata", "parts", "schema_version", "text"]
     assert schema_summary["defs_keys"] == ["agent_input_part"]
     assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"] == schema_summary
