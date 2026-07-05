@@ -339,6 +339,10 @@ export function summarizeRegressionReadiness(caseBookFixture = {}, regressionRep
     target_replay_case_count: replayGate.target_replay_case_count || 0,
     current_replay_case_count: replayGate.current_replay_case_count || regressionReplayFixture.replay_case_count || 0,
     failed_replay_case_count: replayGate.failed_replay_case_count || regressionReplayFixture.failed_count || 0,
+    reviewed_evidence_target_count: caseBookGate.reviewed_evidence_target_count || replayGate.reviewed_evidence_target_count || 0,
+    reviewed_external_evidence_count: caseBookGate.reviewed_external_evidence_count || candidatePool.reviewed_external_evidence_count || 0,
+    review_evidence_ready: caseBookGate.review_evidence_ready === true,
+    case_book_maturity_ready: replayGate.case_book_maturity_ready === true,
     local_llm_mismatch_count: candidatePool.local_llm_mismatch_count || 0,
     ashr_grading_missing_count: candidatePool.ashr_grading_missing_count || 0,
     gaps: [...missing(caseBookGate.gaps), ...missing(replayGate.gaps)]
@@ -517,6 +521,7 @@ export function buildMarkdownReport(
       `- Maturity status: ${regressionReadiness.maturity_status}`,
       `- Case book regressions: ${regressionReadiness.current_regression_case_count}/${regressionReadiness.target_regression_case_count || "unknown"}`,
       `- Replay cases: ${regressionReadiness.current_replay_case_count}/${regressionReadiness.target_replay_case_count || "unknown"}`,
+      `- Reviewed external evidence: ${regressionReadiness.reviewed_external_evidence_count}/${regressionReadiness.reviewed_evidence_target_count || "unknown"}`,
       `- Replay ready: ${regressionReadiness.replay_ready ? "yes" : "no"}`,
       `- Local-vs-LLM mismatches: ${regressionReadiness.local_llm_mismatch_count}`,
       `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,

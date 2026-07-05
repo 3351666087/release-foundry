@@ -10,11 +10,12 @@ It records calibration disagreements that should remain visible until reviewed A
 - Local-vs-LLM comparable cases: `6`
 - Local-vs-LLM mismatch candidates: `1`
 - Promoted regression cases: `1`
+- Reviewed external evidence cases: `0`
 - Missing Ashr grading observations: `6`
 - Mature target: `3` reviewed disagreement regressions
 - Current status: `seed`
 
-C5 remains partial because 2 more reviewed disagreement regressions are needed before the case book and replay suite should be called mature.
+C5 remains partial because 2 more reviewed disagreement regressions are needed, and the regression set still needs reviewed Ashr grading or audited semantic evidence before the case book and replay suite should be called mature.
 
 ## Regression: sample-a2-s010-wrong-arguments
 

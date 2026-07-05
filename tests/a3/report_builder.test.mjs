@@ -429,20 +429,27 @@ test("A3 report builder can summarize A2 C5 regression readiness fixtures", asyn
   assert.equal(summary.target_replay_case_count, 3);
   assert.equal(summary.current_replay_case_count, 1);
   assert.equal(summary.failed_replay_case_count, 0);
+  assert.equal(summary.reviewed_evidence_target_count, 3);
+  assert.equal(summary.reviewed_external_evidence_count, 0);
+  assert.equal(summary.review_evidence_ready, false);
+  assert.equal(summary.case_book_maturity_ready, false);
   assert.equal(summary.local_llm_mismatch_count, 1);
   assert.equal(summary.ashr_grading_missing_count, 6);
   assert.ok(summary.gaps.some((gap) => gap.includes("Promote 2 more")));
+  assert.ok(summary.gaps.some((gap) => gap.includes("reviewed Ashr grading or audited semantic evidence")));
   assert.ok(summary.gaps.some((gap) => gap.includes("Replay 2 more")));
 
   const json = buildJsonReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
   assert.equal(json.regression_readiness.available, true);
   assert.equal(json.regression_readiness.maturity_status, "seed");
   assert.equal(json.regression_readiness.target_replay_case_count, 3);
+  assert.equal(json.regression_readiness.reviewed_external_evidence_count, 0);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
   assert.match(markdown, /## Regression Readiness/);
   assert.match(markdown, /Maturity status: seed/);
   assert.match(markdown, /Case book regressions: 1\/3/);
   assert.match(markdown, /Replay cases: 1\/3/);
+  assert.match(markdown, /Reviewed external evidence: 0\/3/);
   assert.match(markdown, /Ashr grading missing: 6/);
 });

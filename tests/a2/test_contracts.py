@@ -594,14 +594,21 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["regression_case_count"], 1)
         self.assertEqual(report["candidate_pool"]["local_llm_mismatch_count"], 1)
         self.assertEqual(report["candidate_pool"]["ashr_grading_missing_count"], 6)
+        self.assertEqual(report["candidate_pool"]["reviewed_external_evidence_count"], 0)
         self.assertEqual(report["maturity_gate"]["status"], "seed")
         self.assertFalse(report["maturity_gate"]["ready"])
         self.assertEqual(report["maturity_gate"]["target_regression_case_count"], 3)
+        self.assertEqual(report["maturity_gate"]["reviewed_evidence_target_count"], 3)
+        self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertFalse(report["maturity_gate"]["review_evidence_ready"])
         self.assertIn("Promote 2 more", report["maturity_gate"]["gaps"][0])
+        self.assertIn("reviewed Ashr grading or audited semantic evidence", report["maturity_gate"]["gaps"][1])
         regression = report["regression_cases"][0]
         self.assertEqual(regression["case_id"], "sample-a2-s010-wrong-arguments")
+        self.assertFalse(regression["ashr_grading"]["available"])
         self.assertEqual(regression["local_judge"]["primary_failure_class"], "wrong_arguments")
         self.assertEqual(regression["semantic_or_llm_judge"]["primary_failure_class"], "ignored_tool_result")
+        self.assertEqual(regression["semantic_or_llm_judge"]["provider"], "offline_reference")
         self.assertEqual(regression["disagreement_pairs"][0]["status"], "mismatch")
         self.assertIn("sample-a2-s010-wrong-arguments", case_book_text)
         self.assertIn("wrong_arguments", case_book_text)
@@ -630,7 +637,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["maturity_gate"]["target_replay_case_count"], 3)
         self.assertEqual(report["maturity_gate"]["current_replay_case_count"], 1)
         self.assertEqual(report["maturity_gate"]["failed_replay_case_count"], 0)
+        self.assertFalse(report["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
         self.assertIn("Replay 2 more", report["maturity_gate"]["gaps"][0])
+        self.assertIn("case-book maturity gate open", report["maturity_gate"]["gaps"][1])
         self.assertEqual(report["replay_case_count"], 1)
         replay = report["cases"][0]
         self.assertEqual(replay["case_id"], "sample-a2-s010-wrong-arguments")
@@ -638,6 +648,113 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(replay["observed_local_failure_class"], "wrong_arguments")
         self.assertEqual(replay["expected_llm_failure_class"], "ignored_tool_result")
         self.assertTrue(all(replay["checks"].values()))
+
+    def test_c5_maturity_requires_reviewed_external_evidence(self):
+        def matrix_with_three_disagreements(*, reviewed: bool) -> dict:
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            )
+            matrix = json.loads(json.dumps(matrix))
+            target_case_ids = [
+                "sample-a2-s010-wrong-arguments",
+                "sample-a2-s041-poor-retry-recovery",
+                "sample-a2-s054-missing-clarification",
+            ]
+            for case in matrix["cases"]:
+                if case["case_id"] not in target_case_ids:
+                    continue
+                local = case["sources"]["local_judge"]
+                llm = case["sources"]["llm_judge"]
+                llm_failure = (
+                    "ignored_tool_result"
+                    if local["primary_failure_class"] != "ignored_tool_result"
+                    else "wrong_arguments"
+                )
+                llm.update(
+                    {
+                        "available": True,
+                        "status": "available",
+                        "source": "llm_judge",
+                        "provider": "reviewed_model_call_sample" if reviewed else "offline_reference",
+                        "model": "llm-judge-reviewed-v1" if reviewed else "llm-judge-reference-v0",
+                        "passed": local["passed"],
+                        "primary_failure_class": llm_failure,
+                        "score": max(0, int(local["score"]) - 20),
+                        "confidence": 0.91,
+                        "rationale": "Synthetic disagreement used only to test C5 maturity gating.",
+                        "evidence_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json"
+                        if reviewed
+                        else case["fixture_ref"],
+                    }
+                )
+                case["calibration_tags"] = list(
+                    dict.fromkeys([*case.get("calibration_tags", []), "judge_disagreement_regression"])
+                )
+                case["diffs"] = [
+                    diff
+                    for diff in case.get("diffs", [])
+                    if not (diff.get("left") == "local_judge" and diff.get("right") == "llm_judge")
+                ]
+                case["diffs"].append(
+                    {
+                        "left": "local_judge",
+                        "right": "llm_judge",
+                        "comparable": True,
+                        "passed_match": True,
+                        "failure_class_match": False,
+                        "score_delta": abs(int(local["score"]) - int(llm["score"])),
+                        "status": "mismatch",
+                    }
+                )
+            matrix["agreement_summary"]["local_vs_llm_judge"]["mismatch_count"] = len(target_case_ids)
+            matrix["agreement_summary"]["local_vs_llm_judge"]["mismatches"] = [
+                {"case_id": case_id, "left_failure_class": "local", "right_failure_class": "llm"}
+                for case_id in target_case_ids
+            ]
+            return matrix
+
+        offline_matrix = matrix_with_three_disagreements(reviewed=False)
+        offline_case_book = build_case_book_report(offline_matrix)
+        offline_replay = build_regression_replay_report(
+            offline_matrix,
+            offline_case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        self.assertEqual(offline_case_book["regression_case_count"], 3)
+        self.assertEqual(offline_case_book["maturity_gate"]["status"], "seed")
+        self.assertFalse(offline_case_book["maturity_gate"]["ready"])
+        self.assertEqual(offline_case_book["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertEqual(offline_replay["replay_case_count"], 3)
+        self.assertTrue(offline_replay["replay_ready"])
+        self.assertEqual(offline_replay["maturity_status"], "seed")
+        self.assertFalse(offline_replay["maturity_gate"]["case_book_maturity_ready"])
+
+        reviewed_matrix = matrix_with_three_disagreements(reviewed=True)
+        reviewed_case_book = build_case_book_report(reviewed_matrix)
+        reviewed_replay = build_regression_replay_report(
+            reviewed_matrix,
+            reviewed_case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            reviewed_matrix,
+            case_book_report=reviewed_case_book,
+            regression_replay_report=reviewed_replay,
+        )
+        self.assertEqual(reviewed_case_book["regression_case_count"], 3)
+        self.assertEqual(reviewed_case_book["maturity_gate"]["status"], "mature")
+        self.assertTrue(reviewed_case_book["maturity_gate"]["ready"])
+        self.assertEqual(reviewed_case_book["maturity_gate"]["reviewed_external_evidence_count"], 3)
+        self.assertEqual(reviewed_case_book["maturity_gate"]["gaps"], [])
+        self.assertEqual(reviewed_replay["maturity_status"], "mature")
+        self.assertTrue(reviewed_replay["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(reviewed_replay["maturity_gate"]["gaps"], [])
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C5"]["status"], "met")
 
     def test_sdk_parity_report_tracks_python_and_typescript_runner_contracts(self):
         report = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
