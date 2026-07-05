@@ -1641,3 +1641,74 @@ Next top 10:
 8. Add hosted response-key field map markdown generated from evidence index.
 9. Add Python console script packaging if/when SDK packaging lands.
 10. Add public-safe private evidence freshness checker for stale/failed calibration files.
+
+## A1 round - queue lease runtime and TS evidence parity (2026-07-05T17:20:07Z)
+
+Goal slice:
+- Move A1 cloud runtime closer to commercial queue behavior by adding persisted run leases, heartbeat renewal, expired-lease reclaim, and owner-validated completion/failure.
+- Add TypeScript public-safe evidence-index parity with the Python SDK helper.
+- Continue real Ashr API calibration with bounded read-only and missing-resource probes using ASHR_API_KEY from environment only.
+
+Baseline / peer state:
+- Repo root: C:/Users/33516/Documents/Ashr; branch: codex/a1-local-sdk-runner; PR #11 is open draft and clean.
+- git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags completed.
+- Peer changes: origin/main and origin/dev/g3-a2-calibration have newer A2/G3 evidence/readiness work; no peer-owned files changed in this slice.
+- Untracked output/ and tmp/ remain present and intentionally unstaged.
+
+Top 10 commercial enhancements considered:
+1. Queue lease/heartbeat/reclaim runtime. Scores: demo 5, risk 5, contract 2, effort 4, API evidence 1. Implemented.
+2. TS evidence-index parity. Scores: demo 3, risk 4, contract 1, effort 2, API evidence 4. Implemented.
+3. Real API read-only and missing-resource calibration matrix. Scores: demo 4, risk 4, contract 1, effort 2, API evidence 5. Implemented.
+4. One-command A1 readiness matrix. Scores: demo 4, risk 4, contract 1, effort 3, API evidence 2. Deferred.
+5. Evidence-index JSON schema. Scores: demo 3, risk 4, contract 1, effort 2, API evidence 3. Deferred.
+6. Chrome dashboard usage counter verification. Scores: demo 3, risk 3, contract 1, effort 3, API evidence 3. Deferred.
+7. Mutating text create_request retry. Scores: demo 5, risk 4, contract 1, effort 1, API evidence 5. Deferred because prior quota block is already captured and no-purpose retry would burn failure calls.
+8. Non-text paid media probes. Scores: demo 5, risk 4, contract 2, effort 3, API evidence 5. Deferred until request quota is available.
+9. Python package console script. Scores: demo 3, risk 2, contract 1, effort 3, API evidence 1. Deferred.
+10. Ignore generated output/tmp. Scores: demo 2, risk 4, contract 1, effort 1, API evidence 0. Deferred to avoid mixing housekeeping with runtime slice.
+
+Implemented:
+- services/api/runtime.py: queued run lease fields, mark_run_running lease acquisition, heartbeat_run, reclaim_expired_run_leases, owner validation, terminal lease clearing, and permanent-lease guard.
+- services/api/queue_worker.py: worker leases queued/replayed runs, periodically renews active leases during long run_agent_batch execution, skips actively leased runs, reclaims expired leases before replay, and returns current run state on stale-owner failure paths.
+- tests/a1/test_cloud_api.py: lease owner validation, permanent lease rejection, active lease no-double-replay with slow agent, expired running lease reclaim/replay, and status-history assertions.
+- packages/ts/ashr-clone/src/evidence.ts plus index export and tests: TS public-safe evidence-index helper matching Python summary shape.
+- docs/a1/api_calibration/real_api_evidence_index.json regenerated from private real/TS/Python calibration records and round2 missing-resource probes.
+
+Real API calibration:
+- Env: ASHR_API_KEY present in process; raw key not printed or committed.
+- Dry-run: python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_dry_run.json.
+  - Result: planned, 10 steps, five modalities, estimated calls 17.
+- Real read-only: python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_real_readonly.json.
+  - Result: ok, 5 read steps, no errors.
+- Missing-resource probes: get_dataset(999999) and get_request(999999) with max_retries=0.
+  - Results: controlled API errors Dataset not found and Request not found; private evidence under docs/evidence/private_refs/a1_python_api_get_dataset_999999_round2_real.json and docs/evidence/private_refs/a1_python_api_get_request_999999_round2_real.json.
+- Public index now reports 67 records, status counts error=8/failed=1/ok=29/partial=1/planned=27, error_kind_counts api=7, quota_block_count=1.
+
+Validation:
+- python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider: 35 passed.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 148 passed.
+- npm test --prefix packages/ts/ashr-clone: 147 passed.
+- git diff --check: exit 0 with CRLF warnings only.
+
+Bus/Review feedback:
+- Bus-Auditor approved the runtime lease slice but warned not to stage output/ or tmp/: followed.
+- Reviewer found P1 active-run double execution risk with non-periodic heartbeat: fixed with active lease renewer and slow-agent test.
+- Reviewer found stale-owner exception masking risk: fixed by polling current run state if fail_run is rejected by lease owner validation.
+- Reviewer found lease_seconds=None could create unreclaimable leased runs: fixed by rejecting owner claims without a finite positive lease.
+
+Known gaps:
+- Runtime lease behavior is implemented in Python cloud runtime; TS runtime lease parity is still a follow-up.
+- Hosted request quota still blocks useful mutating create_request calibration; media paid probes remain deferred until quota is available.
+- output/ and tmp/ should be ignored or cleaned in a separate housekeeping slice.
+
+Next top 10:
+1. Add TS cloud queue lease/heartbeat parity and tests.
+2. Add one-command A1 readiness matrix script.
+3. Add JSON schema for ashr.clone.evidence_index.v1 and validate Python/TS outputs.
+4. Add public-safe hosted field-map markdown generated from evidence index.
+5. Chrome/dashboard usage counter verification against API quota evidence.
+6. Re-run one text mutating probe when quota resets or plan upgrades.
+7. Then run image/audio/file/video paid probes one modality at a time.
+8. Add evidence freshness checker for stale private refs and failed calibration manifests.
+9. Add CLI flags for Python calibrator missing-resource boundary probes.
+10. Housekeep generated output/ and tmp/ ignore rules in a dedicated non-runtime slice.

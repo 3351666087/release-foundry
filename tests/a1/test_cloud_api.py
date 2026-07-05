@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -12,6 +13,21 @@ from services.api import CloudApiService, CloudQueueWorker, NotFoundError, Queue
 from services.runner.runner import run_agent_batch
 
 ROOT = Path(__file__).resolve().parents[2]
+
+class SlowCountingAgent:
+    calls = 0
+    lock = threading.Lock()
+
+    @classmethod
+    def reset(cls):
+        with cls.lock:
+            cls.calls = 0
+
+    def respond(self, message: str):
+        with self.lock:
+            type(self).calls += 1
+        time.sleep(0.3)
+        return {"text": f"Echo: {message}"}
 
 
 def _service_with_project():
@@ -339,6 +355,70 @@ def test_cloud_api_state_snapshot_roundtrips_store_and_quota(tmp_path):
     assert quota["run.submit"] == 1
 
 
+def test_cloud_api_run_lease_heartbeat_and_owner_validation():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Lease Dataset",
+        cases=[{"id": "echo", "prompt": "hello"}],
+        dataset_id="dataset_lease",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        run_id="run_lease",
+    )
+
+    running = service.mark_run_running(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_lease",
+        lease_owner_id="worker-a",
+        lease_seconds=60,
+    )
+    heartbeat = service.heartbeat_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_lease",
+        lease_owner_id="worker-a",
+        lease_seconds=120,
+    )
+
+    with pytest.raises(ValidationError):
+        service.heartbeat_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_lease",
+            lease_owner_id="worker-b",
+            lease_seconds=60,
+        )
+    with pytest.raises(ValidationError):
+        service.complete_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_lease",
+            {"run_id": "run_lease", "dataset_id": dataset["dataset_id"], "status": "passed", "ended_at": "2026-01-01T00:00:00.000Z", "cases": []},
+            lease_owner_id="worker-b",
+        )
+
+    completed = service.complete_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_lease",
+        {"run_id": "run_lease", "dataset_id": dataset["dataset_id"], "status": "passed", "ended_at": "2026-01-01T00:00:00.000Z", "cases": []},
+        lease_owner_id="worker-a",
+    )
+
+    assert running["lease_owner_id"] == "worker-a"
+    assert running["lease_expires_at"] is not None
+    assert heartbeat["lease_expires_at"] is not None
+    assert completed["status"] == "completed"
+    assert completed["lease_owner_id"] is None
+    assert completed["lease_expires_at"] is None
+
+
 def test_cloud_queue_worker_replays_persisted_queued_run_and_writes_fixture(tmp_path):
     service, tenant, project = _service_with_project()
     dataset = service.create_dataset(
@@ -380,6 +460,124 @@ def test_cloud_queue_worker_replays_persisted_queued_run_and_writes_fixture(tmp_
     assert quota["observation.write"] == 2
     assert fixture["run_result"]["run_id"] == "run_queue_replay"
     assert fixture["metadata"]["ashr_api_used"] is False
+
+
+
+
+def test_cloud_api_rejects_permanent_queue_lease():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Permanent Lease Guard Dataset",
+        cases=[{"id": "echo", "prompt": "hello"}],
+        dataset_id="dataset_permanent_lease_guard",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        run_id="run_permanent_lease_guard",
+    )
+
+    with pytest.raises(ValidationError):
+        service.mark_run_running(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_permanent_lease_guard",
+            lease_owner_id="worker-a",
+            lease_seconds=None,
+        )
+
+def test_cloud_queue_worker_renews_active_lease_and_blocks_double_replay():
+    SlowCountingAgent.reset()
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Active Lease Dataset",
+        cases=[{"id": "slow", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_active_lease",
+    )
+
+    with CloudQueueWorker(service, queue_workers=1) as first_worker:
+        first_worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant["tenant_id"],
+                project["project_id"],
+                dataset["dataset_id"],
+                SlowCountingAgent,
+                run_id="run_active_lease",
+                max_workers=1,
+                timeout_seconds=5,
+                lease_seconds=0.15,
+            )
+        )
+        time.sleep(0.2)
+        with CloudQueueWorker(service, queue_workers=1) as second_worker:
+            replayed = second_worker.replay_incomplete_runs(
+                tenant["tenant_id"],
+                project["project_id"],
+                agent=SlowCountingAgent,
+                max_runs=1,
+                max_workers=1,
+                timeout_seconds=5,
+                lease_seconds=0.15,
+            )
+        completed = first_worker.wait_for_run(tenant["tenant_id"], project["project_id"], "run_active_lease", timeout_seconds=10, require_terminal=True)["run"]
+
+    assert replayed == []
+    assert completed["status"] == "completed"
+    assert completed["lease_reclaim_count"] == 0
+    assert completed["lease_owner_id"] is None
+    assert SlowCountingAgent.calls == 1
+
+def test_cloud_queue_worker_replay_reclaims_expired_running_lease():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Expired Lease Replay Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_expired_lease_replay",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        runner_id="a1-expired-lease-test",
+        run_id="run_expired_lease",
+    )
+    service.mark_run_running(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_expired_lease",
+        lease_owner_id="dead-worker",
+        lease_seconds=1,
+    )
+    restored = CloudApiService.from_state(service.snapshot_state())
+    restored.reclaim_expired_run_leases(
+        tenant["tenant_id"],
+        project["project_id"],
+        now="2999-01-01T00:00:00.000Z",
+    )
+
+    with CloudQueueWorker(restored, queue_workers=1) as worker:
+        replayed = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent=RespondingMockAgent,
+            max_runs=1,
+            max_workers=1,
+            timeout_seconds=5,
+        )
+        completed = worker.wait_for_run(tenant["tenant_id"], project["project_id"], "run_expired_lease", timeout_seconds=10, require_terminal=True)["run"]
+
+    assert [run["run_id"] for run in replayed] == ["run_expired_lease"]
+    assert completed["status"] == "completed"
+    assert completed["lease_reclaim_count"] == 1
+    assert completed["lease_owner_id"] is None
+    assert [item["status"] for item in completed["status_history"]] == ["queued", "running", "queued", "running", "completed"]
 
 
 def test_cloud_queue_worker_replay_respects_max_runs_bound(tmp_path):

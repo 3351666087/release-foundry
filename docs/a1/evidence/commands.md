@@ -633,3 +633,32 @@ Results:
 - Python real read-only small-batch: ok, 5 read steps, response keys recorded under private refs.
 - Public-safe evidence index: docs/a1/api_calibration/real_api_evidence_index.json, 61 records, quota block count 1.
 - Secret policy: only environment presence/length was observed; raw API key was not printed, logged, or committed.
+
+## A1 queue lease runtime and round2 API calibration - 2026-07-05T17:20:07Z
+
+Commands:
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+gh pr list --state all --limit 30 --json number,title,state,headRefName,baseRefName,isDraft,updatedAt,author,url
+python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+$env:ASHR_API_KEY = [Environment]::GetEnvironmentVariable('ASHR_API_KEY', 'User')
+python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_dry_run.json
+python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_real_readonly.json
+python -B -m services.runner.api_probe get-dataset --execute --max-retries 0 --dataset-id 999999 --output docs/evidence/private_refs/a1_python_api_get_dataset_999999_round2_real.json
+python -B -m services.runner.api_probe get-request --execute --max-retries 0 --request-id 999999 --output docs/evidence/private_refs/a1_python_api_get_request_999999_round2_real.json
+python -c "from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, write_private_evidence_index; patterns=['docs/evidence/private_refs/a1_real_*.json','docs/evidence/private_refs/a1_ts_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_get_*_round2_real.json']; paths=[]; [paths.extend(Path('.').glob(pattern)) for pattern in patterns]; index=build_private_evidence_index(sorted(paths), label='a1-real-api-2026-07-06'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); print({'records': index['total_records'], 'status_counts': index['status_counts'], 'function_counts': index['function_counts'], 'error_kind_counts': index['error_kind_counts'], 'quota_block_count': index['quota_block_count']})"
+git diff --check
+```
+
+Results:
+- Cloud API/CLI focused tests: 35 passed.
+- Python A1 tests: 148 passed.
+- TypeScript tests: 147 passed.
+- Python dry-run calibration: planned, 10 steps, five modalities.
+- Python real read-only calibration: ok, 5 read steps.
+- Missing-resource probes: controlled Dataset not found and Request not found API errors.
+- Public-safe evidence index: docs/a1/api_calibration/real_api_evidence_index.json, 67 records, quota block count 1.
+- Secret policy: key was read from process environment only; raw key and private payloads were not staged.

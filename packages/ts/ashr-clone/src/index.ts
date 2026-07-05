@@ -1,6 +1,7 @@
 export * from "./api-client.js";
 export * from "./cloud-queue.js";
 export * from "./dataset-adapter.js";
+export * from "./evidence.js";
 export * from "./runner.js";
 export * from "./trace.js";
 
