@@ -1536,6 +1536,42 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("-m unittest discover -s tests/a2", commands[1])
         self.assertIn("live Ashr API calls", plan["excluded_by_design"])
 
+    def test_external_evidence_preflight_stays_public_and_actionable(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_external_evidence_preflight.py"),
+                "--json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotRegex(result.stdout, re.compile(r"sk-[A-Za-z0-9]"))
+
+        preflight = json.loads(result.stdout)
+        self.assertEqual(preflight["schema_version"], "a2.external_evidence_preflight.v1")
+        self.assertFalse(preflight["requires_network"])
+        self.assertFalse(preflight["requires_ashr_api_key"])
+        self.assertFalse(preflight["reads_private_payloads"])
+        self.assertFalse(preflight["writes_files"])
+        self.assertTrue(preflight["environment_probe"]["value_redacted"])
+        self.assertEqual(preflight["gate_summary"]["C3"]["missing_reviewed_observations"], 6)
+        self.assertFalse(preflight["gate_summary"]["C3"]["safe_to_mark_met"])
+        self.assertEqual(preflight["gate_summary"]["C4"]["merge_status"], "offline_reference_only")
+        self.assertFalse(preflight["gate_summary"]["C4"]["safe_to_mark_met"])
+        self.assertEqual(preflight["gate_summary"]["C5"]["current_regression_cases"], 1)
+        self.assertEqual(preflight["gate_summary"]["C5"]["target_regression_cases"], 3)
+        self.assertIn(
+            "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
+            preflight["private_input_refs"],
+        )
+        self.assertIn("--review-status reviewed", " ".join(preflight["recommended_commands"]["ashr_grading"]))
+        self.assertIn("API keys", preflight["redaction_policy"]["never_commit"])
+
     def test_semantic_judge_import_can_replace_offline_llm_rows(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/semantic_judge_import_sample.json").read_text(encoding="utf-8"))
         observations = import_semantic_judge_observations(

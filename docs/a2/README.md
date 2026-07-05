@@ -164,6 +164,14 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 
 This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported. `ready_for_external_collection: true` means the workflow is ready; it does not mean C3 is met. C3 is safe to mark met only when `ashr_public_merge_gate.safe_to_mark_c3_met` is true.
 
+Before collecting or merging private evidence, run the offline preflight:
+
+```bash
+python scripts/a2_external_evidence_preflight.py --json
+```
+
+This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
+
 ## Regenerating Fixtures
 
 Generated A2 grade fixtures and the G3 coverage report are deterministic. Before handing results to A3, run:

@@ -746,3 +746,24 @@ Next top 3:
 1. Use the exemplar scorecard when reviewing whether the 60 scenarios still cover real skill behavior.
 2. Keep C3/C4 evidence gates honest until reviewed Ashr grading and audited semantic judge evidence are imported.
 3. Promote future real cross-judge disagreements into the case book and replay suite.
+
+## 2026-07-05 - External evidence preflight CLI
+
+Reason:
+- C3/C4/C5 now have readiness reports and merge gates, but reviewers still needed one safe command to see the current external-evidence state before touching private Ashr or model payloads.
+- The command should not read API keys, raw prompts, raw responses, or private evidence files.
+
+Implemented:
+- Added `scripts/a2_external_evidence_preflight.py`.
+- The CLI reads only public A2 result fixtures and reports C3 reviewed Ashr grading status, C4 audited semantic judge status, C5 case-book/replay maturity, private input refs, reviewed import commands, and redaction policy.
+- `--json` emits `a2.external_evidence_preflight.v1`; default text output gives a short reviewer summary.
+- Added contract tests proving the preflight is offline, read-only, public-fixture-only, and still reports the current 6 missing Ashr rows, offline-only semantic evidence, and 1/3 C5 maturity state.
+
+Boundary:
+- This is a preflight/checklist tool, not an API collector.
+- It does not read `docs/evidence/private_refs/`, does not read local key files, and does not mark C3/C4/C5 met.
+
+Next top 3:
+1. Run the preflight immediately before collecting or merging reviewed Ashr grading evidence.
+2. Use the same preflight after semantic judge imports to confirm C4 is no longer offline-reference-only.
+3. Keep promoting only reviewed disagreements into the C5 case book.
