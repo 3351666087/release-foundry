@@ -80,9 +80,14 @@
     "case_map_count": 6,
     "case_map_covers_all_calibration_cases": true,
     "case_map_missing_case_ids": [],
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
     "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
     "commands": [
-      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
       "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
@@ -94,13 +99,20 @@
     "safe_to_mark_c3_met": false,
     "current_public_observation_count": 0,
     "merged_public_observation_count": 0,
+    "reviewed_public_observation_count": 0,
     "missing_public_observation_count": 6,
+    "missing_reviewed_observation_count": 6,
     "required_public_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
     "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
     "reviewed_private_import_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.json",
-    "blocking_reason": "Reviewed Ashr grading observations must be imported, merged, and regenerated before C3 is met.",
+    "blocking_reason": "Reviewed Ashr grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
     "required_commands": [
-      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
       "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]

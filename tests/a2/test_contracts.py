@@ -919,12 +919,18 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["readiness_checks"]["semantic_false_positive_tracking_ready"])
         self.assertEqual(report["ashr_grading_preflight"]["current_missing"], 6)
         self.assertEqual(report["ashr_grading_preflight"]["expected_observation_count"], 6)
+        self.assertEqual(report["ashr_grading_preflight"]["expected_reviewed_observation_count"], 6)
+        self.assertIn("metadata.review_status", report["ashr_grading_preflight"]["required_review_fields"])
+        self.assertIn("--review-status reviewed", report["ashr_grading_preflight"]["commands"][0])
         self.assertEqual(report["ashr_grading_preflight"]["case_map_missing_case_ids"], [])
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
         self.assertFalse(report["ashr_public_merge_gate"]["safe_to_mark_c3_met"])
         self.assertEqual(report["ashr_public_merge_gate"]["merged_public_observation_count"], 0)
+        self.assertEqual(report["ashr_public_merge_gate"]["reviewed_public_observation_count"], 0)
         self.assertEqual(report["ashr_public_merge_gate"]["missing_public_observation_count"], 6)
+        self.assertEqual(report["ashr_public_merge_gate"]["missing_reviewed_observation_count"], 6)
+        self.assertIn("evidence_ref", report["ashr_public_merge_gate"]["required_review_fields"])
         self.assertIn("a2_ashr_grading_import.review.json", report["ashr_public_merge_gate"]["reviewed_private_import_ref"])
         self.assertIn("before C3 is met", report["ashr_public_merge_gate"]["blocking_reason"])
         self.assertTrue(report["semantic_judge_preflight"]["offline_reference_only"])
@@ -1162,6 +1168,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(observations[1]["case_id"], "sample-a2-s010-wrong-arguments")
         self.assertEqual(observations[1]["primary_failure_class"], "wrong_arguments")
         self.assertEqual(observations[1]["metadata"]["raw_case_id"], "ashr-wrong-contract-path")
+        self.assertEqual(observations[1]["metadata"]["review_status"], "unreviewed")
         secret_sample = json.loads(json.dumps(sample))
         secret_sample["response"]["run"]["result"]["tests"][1]["action_results"][0]["divergence_notes"] = (
             "Bearer secret-token for kay@example.test"
@@ -1247,12 +1254,71 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(ashr_gate["safe_to_mark_c3_met"])
         self.assertEqual(ashr_gate["current_public_observation_count"], 2)
         self.assertEqual(ashr_gate["merged_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 0)
         self.assertEqual(ashr_gate["missing_public_observation_count"], 4)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 6)
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C3"]["status"], "partial")
         self.assertIn("4 missing calibration cases", gates["C3"]["gaps"][0])
         self.assertFalse(commercial["evidence_snapshot"]["ashr_safe_to_mark_c3_met"])
         self.assertEqual(commercial["evidence_snapshot"]["ashr_public_missing_observations"], 4)
+
+    def test_complete_unreviewed_ashr_grading_import_does_not_mark_c3_safe(self):
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        observations = []
+        for case in payload["cases"]:
+            case_id = case["case_id"]
+            fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+            result = grade_run(
+                fixture["scenario_id"],
+                fixture.get("run", fixture),
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                case_id=case_id,
+            )
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "ashr_grading",
+                    "status": "available",
+                    "provider": "synthetic unreviewed Ashr grading summary",
+                    "model": "ashr-server-side",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.99,
+                    "rationale": "Synthetic unreviewed row used only to test the C3 review gate.",
+                    "cost": {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0},
+                    "evidence_ref": "docs/evidence/private_refs/a2_ashr_grading_import.unreviewed.synthetic.json",
+                    "metadata": {"review_status": "unreviewed"},
+                }
+            )
+        payload = merge_calibration_observations(payload, {"observations": observations}, source="ashr_grading")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "complete_unreviewed_observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(matrix, sdk_parity)
+        evidence_readiness = build_evidence_readiness_report(matrix, {}, semantic_harness)
+
+        ashr_gate = evidence_readiness["ashr_public_merge_gate"]
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["available"], 6)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 0)
+        self.assertEqual(ashr_gate["status"], "merged_unreviewed")
+        self.assertFalse(ashr_gate["public_matrix_merged"])
+        self.assertFalse(ashr_gate["safe_to_mark_c3_met"])
+        self.assertEqual(ashr_gate["current_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["merged_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 6)
 
     def test_complete_reviewed_ashr_grading_import_marks_c3_safe(self):
         payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
@@ -1281,6 +1347,11 @@ class A2ContractTests(unittest.TestCase):
                     "rationale": "Synthetic reviewed row used only to test the 6/6 public merge gate.",
                     "cost": {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0},
                     "evidence_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.synthetic.json",
+                    "metadata": {
+                        "raw_case_id": f"ashr-{case_id}",
+                        "run_id": "synthetic-reviewed-run",
+                        "review_status": "reviewed",
+                    },
                 }
             )
         payload = merge_calibration_observations(payload, {"observations": observations}, source="ashr_grading")
@@ -1331,7 +1402,9 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(ashr_gate["safe_to_mark_c3_met"])
         self.assertEqual(ashr_gate["current_public_observation_count"], 6)
         self.assertEqual(ashr_gate["merged_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 6)
         self.assertEqual(ashr_gate["missing_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 0)
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C3"]["status"], "met")
         self.assertEqual(gates["C3"]["gaps"], [])
@@ -1382,6 +1455,8 @@ class A2ContractTests(unittest.TestCase):
                 str(ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json"),
                 "--evidence-ref",
                 "docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json",
+                "--review-status",
+                "reviewed",
             ],
             cwd=ROOT,
             capture_output=True,
@@ -1392,6 +1467,7 @@ class A2ContractTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["schema_version"], "a2.ashr_grading_import.v1")
         self.assertEqual(payload["observation_count"], 2)
+        self.assertEqual(payload["observations"][0]["metadata"]["review_status"], "reviewed")
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
 

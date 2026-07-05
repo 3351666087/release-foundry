@@ -199,6 +199,7 @@ python scripts/a2_import_ashr_grading.py \
   --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
   --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json \
   --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
+  --review-status reviewed \
   --output docs/evidence/private_refs/a2_ashr_grading_import.review.json
 ```
 
@@ -214,7 +215,7 @@ python scripts/a2_merge_calibration_observations.py \
 
 Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
 
-The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
+The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs. C3 remains unsafe unless all six public `ashr_grading` rows include `metadata.review_status: reviewed` and a non-empty `evidence_ref`.
 
 Reviewed semantic judge summaries use the same merge gate. Convert redacted model-call summaries into `llm_judge` observations with:
 

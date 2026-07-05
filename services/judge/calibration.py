@@ -111,6 +111,7 @@ def import_ashr_grading_observations(
     case_map: dict[str, str] | None = None,
     evidence_ref: str = "",
     provider: str = "ashr server-side grading",
+    review_status: str = "unreviewed",
 ) -> list[dict[str, Any]]:
     """Convert redacted Ashr run records into A2 calibration observations."""
     mapped_cases = case_map or {}
@@ -141,6 +142,7 @@ def import_ashr_grading_observations(
                     "metadata": {
                         "raw_case_id": _redact_text(raw_case_id),
                         "run_id": _redact_text(run_id),
+                        "review_status": _redact_text(review_status),
                         "action_indexes": failure["action_indexes"],
                         "match_statuses": _ashr_match_statuses(test),
                     },

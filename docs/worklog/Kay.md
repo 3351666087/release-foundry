@@ -662,3 +662,25 @@ Next top 3:
 1. Collect reviewed Ashr grading observations for all six calibration cases.
 2. Merge them into `a2_g3_calibration_observations.json` through the reviewed import path.
 3. Regenerate fixtures and confirm both evidence readiness and commercial readiness agree that C3 is safe.
+
+## 2026-07-05 - C3 Ashr reviewed merge guard
+
+Reason:
+- A2 now has a public Ashr grading merge gate, but a complete-looking 6/6 batch should still be unsafe if the rows were not reviewed.
+- This keeps A2's larger code surface tied to auditability instead of letting fixture volume imply completion.
+
+Implemented:
+- Added `--review-status` to `scripts/a2_import_ashr_grading.py`; imports default to `unreviewed` and reviewed imports must opt in explicitly.
+- Added `reviewed_public_observation_count`, `missing_reviewed_observation_count`, and required review fields to `ashr_public_merge_gate`.
+- C3 now requires all six `ashr_grading` rows to include `metadata.review_status: reviewed` and a non-empty `evidence_ref`.
+- A3 evidence readiness summaries and Markdown exports now show the reviewed Ashr observation count.
+- Added a negative test proving that six unreviewed Ashr rows produce `merged_unreviewed` and do not mark C3 safe.
+
+Boundary:
+- This does not call Ashr, read keys, or add server-side grading rows.
+- It tightens the public merge rule so A2 cannot accidentally count unreviewed evidence as complete.
+
+Next top 3:
+1. Collect the real six-case Ashr grading batch under private evidence.
+2. Import it with `--review-status reviewed` only after human review.
+3. Regenerate fixtures and verify C3 flips from `not_merged` to `merged` only when reviewed evidence is present.

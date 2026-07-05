@@ -20,6 +20,12 @@ def main() -> int:
     parser.add_argument("--input", required=True, help="Redacted Ashr get-run/list-runs record or direct run JSON.")
     parser.add_argument("--case-map", help="Optional JSON map from Ashr test_id to A2 case_id.")
     parser.add_argument("--evidence-ref", default="", help="Private evidence path to store as a reference only.")
+    parser.add_argument(
+        "--review-status",
+        choices=["unreviewed", "reviewed"],
+        default="unreviewed",
+        help="Mark whether the redacted incoming evidence has been human reviewed.",
+    )
     parser.add_argument("--output", help="Write imported observations JSON here. Omit to print to stdout.")
     args = parser.parse_args()
 
@@ -32,6 +38,7 @@ def main() -> int:
         payload,
         case_map={str(key): str(value) for key, value in case_map.items()},
         evidence_ref=args.evidence_ref,
+        review_status=args.review_status,
     )
     output = {"schema_version": "a2.ashr_grading_import.v1", "observation_count": len(observations), "observations": observations}
     text = json.dumps(output, indent=2) + "\n"
