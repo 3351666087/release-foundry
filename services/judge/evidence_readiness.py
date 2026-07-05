@@ -8,6 +8,7 @@ from typing import Any
 
 
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
+DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
     "evidence_ref",
@@ -40,6 +41,7 @@ def build_evidence_readiness_report(
     semantic_harness_report: dict[str, Any],
     *,
     ashr_case_map_path: str | Path = DEFAULT_ASHR_CASE_MAP,
+    a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
     cases = list(calibration_matrix.get("cases", []))
@@ -68,6 +70,7 @@ def build_evidence_readiness_report(
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
     semantic_risk = semantic_harness_report.get("risk_assessment", {})
+    a1_real_api_evidence = _a1_real_api_evidence_summary(a1_real_api_evidence_index_path)
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -111,6 +114,7 @@ def build_evidence_readiness_report(
             "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
             "commands": ashr_import_commands,
         },
+        "a1_real_api_evidence": a1_real_api_evidence,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
@@ -268,6 +272,66 @@ def _load_case_map(path: str | Path) -> dict[str, str]:
     if not isinstance(payload, dict):
         return {}
     return {str(key): str(value) for key, value in payload.items()}
+
+
+def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "index_path": target.as_posix(),
+            "reason": "A1 public real API evidence index is not available yet.",
+            "c3_grading_ready": False,
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "index_path": target.as_posix(),
+            "reason": "A1 public real API evidence index is not a JSON object.",
+            "c3_grading_ready": False,
+        }
+
+    records = [record for record in payload.get("records", []) if isinstance(record, dict)]
+    real_ok_functions = sorted(
+        {
+            str(record.get("function"))
+            for record in records
+            if record.get("dry_run") is False and record.get("status") == "ok" and record.get("function")
+        }
+    )
+    mutating_functions = sorted(
+        {
+            str(record.get("function"))
+            for record in records
+            if str(record.get("function", "")).startswith("create_")
+        }
+    )
+    c3_candidate_records = [
+        record
+        for record in records
+        if record.get("function") in {"get_run", "list_runs"} and record.get("dry_run") is False
+    ]
+    return {
+        "available": True,
+        "index_path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "label": str(payload.get("label", "")),
+        "field_map_version": str(payload.get("field_map_version", "")),
+        "total_records": int(payload.get("total_records", len(records))),
+        "status_counts": payload.get("status_counts", {}),
+        "function_counts": payload.get("function_counts", {}),
+        "quota_block_count": int(payload.get("quota_block_count", 0)),
+        "real_ok_functions": real_ok_functions,
+        "mutating_functions_present": mutating_functions,
+        "c3_candidate_record_count": len(c3_candidate_records),
+        "c3_grading_ready": False,
+        "notes": [
+            "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+            "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge.",
+        ],
+    }
 
 
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:

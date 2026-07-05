@@ -93,6 +93,52 @@
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
   },
+  "a1_real_api_evidence": {
+    "available": true,
+    "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
+    "schema_version": "ashr.clone.evidence_index.v1",
+    "label": "a1-real-api-2026-07-05",
+    "field_map_version": "a1-api-calibration-2026-07-04",
+    "total_records": 61,
+    "status_counts": {
+      "error": 4,
+      "failed": 1,
+      "ok": 28,
+      "partial": 1,
+      "planned": 26
+    },
+    "function_counts": {
+      "create_request": 11,
+      "get_dataset": 2,
+      "get_request": 4,
+      "init": 6,
+      "keep_alive": 6,
+      "list_agents": 6,
+      "list_datasets": 8,
+      "list_requests": 9,
+      "list_runs": 1
+    },
+    "quota_block_count": 1,
+    "real_ok_functions": [
+      "get_dataset",
+      "get_request",
+      "init",
+      "keep_alive",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "mutating_functions_present": [
+      "create_request"
+    ],
+    "c3_candidate_record_count": 1,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+      "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
+    ]
+  },
   "ashr_public_merge_gate": {
     "source": "ashr_grading",
     "status": "not_merged",

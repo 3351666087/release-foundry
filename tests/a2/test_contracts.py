@@ -953,6 +953,14 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a2_scan_ashr_grading_evidence.py", report["ashr_grading_preflight"]["commands"][0])
         self.assertIn("--review-status reviewed", " ".join(report["ashr_grading_preflight"]["commands"]))
         self.assertEqual(report["ashr_grading_preflight"]["case_map_missing_case_ids"], [])
+        self.assertTrue(report["a1_real_api_evidence"]["available"])
+        self.assertIn("init", report["a1_real_api_evidence"]["real_ok_functions"])
+        self.assertIn("list_datasets", report["a1_real_api_evidence"]["real_ok_functions"])
+        self.assertFalse(report["a1_real_api_evidence"]["c3_grading_ready"])
+        self.assertIn(
+            "docs/a1/api_calibration/real_api_evidence_index.json",
+            report["a1_real_api_evidence"]["index_path"],
+        )
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
         self.assertFalse(report["ashr_public_merge_gate"]["safe_to_mark_c3_met"])

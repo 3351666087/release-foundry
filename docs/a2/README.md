@@ -157,6 +157,7 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 
 - the six calibration cases that need comparable external observations,
 - whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
+- the public-safe A1 real API evidence index summary from `docs/a1/api_calibration/real_api_evidence_index.json`,
 - the reviewed Ashr grading import/merge commands,
 - an `ashr_public_merge_gate` that says whether the reviewed Ashr grading column is actually present in the public calibration matrix,
 - the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
