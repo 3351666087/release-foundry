@@ -72,6 +72,19 @@ CAPABILITY_AXIS_DIMENSIONS = {
     "freshness_and_external_context": ["freshness_current_info"],
     "media_and_multimodal": ["media_or_multimodal"],
 }
+CAPABILITY_AXIS_EXEMPLAR_LIMIT = 2
+CAPABILITY_AXIS_REVIEW_NOTES = {
+    "tool_choice_and_policy": "Shows whether the agent follows required, optional, and forbidden tool boundaries for the task.",
+    "multi_step_workflow": "Shows whether the agent can preserve ordering, state, and recovery across a multi-step workflow.",
+    "clarification_handling": "Shows whether the agent asks for missing information instead of guessing or over-executing.",
+    "failure_recovery": "Shows whether the agent can recover from tool errors without hiding uncertainty.",
+    "safety_boundary": "Shows whether the agent refuses unsafe or unauthorized actions while preserving safe help.",
+    "grounding_and_reference": "Shows whether the agent grounds the answer in supplied files, resources, web evidence, or tool output.",
+    "trace_contract": "Shows whether the recorded tool trace is sufficient for a reviewer to audit what happened.",
+    "output_contract": "Shows whether the final answer respects required structure, brevity, or schema constraints.",
+    "freshness_and_external_context": "Shows whether the agent knows when current external context is required.",
+    "media_and_multimodal": "Shows whether media or image evidence is actually inspected and used in the answer.",
+}
 
 
 def build_coverage_report(
@@ -96,6 +109,7 @@ def build_coverage_report(
         key: capability_axis_counts.get(key, 0) >= target
         for key, target in CAPABILITY_AXIS_TARGETS.items()
     }
+    capability_axis_exemplars = _capability_axis_exemplars(capability_axes, scenario_by_id)
     scenario_dimension_checks = {
         key: scenario_dimension_counts.get(key, 0) >= minimum
         for key, minimum in SCENARIO_DIMENSION_MINIMUMS.items()
@@ -164,6 +178,7 @@ def build_coverage_report(
         "thin_scenario_dimensions": thin_scenario_dimensions,
         "capability_axis_counts": dict(sorted(capability_axis_counts.items())),
         "capability_axis_scenarios": capability_axes,
+        "capability_axis_exemplars": capability_axis_exemplars,
         "missing_capability_axes": sorted(
             key for key, passed in capability_axis_checks.items() if not passed
         ),
@@ -337,6 +352,118 @@ def _capability_axis_refs(
                 scenario_ids.update(scenario_dimensions.get(dimension, []))
         by_axis[axis] = sorted(scenario_id for scenario_id in scenario_ids if scenario_id)
     return by_axis
+
+
+def _capability_axis_exemplars(
+    capability_axes: dict[str, list[str]],
+    scenario_by_id: dict[str, dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    exemplars = {}
+    for axis, scenario_ids in sorted(capability_axes.items()):
+        scenarios = [
+            scenario_by_id[scenario_id]
+            for scenario_id in scenario_ids
+            if scenario_id in scenario_by_id
+        ]
+        ranked = sorted(
+            scenarios,
+            key=lambda scenario: (-_exemplar_score(axis, scenario), str(scenario.get("id", ""))),
+        )
+        exemplars[axis] = [
+            _scenario_exemplar(axis, scenario)
+            for scenario in ranked[:CAPABILITY_AXIS_EXEMPLAR_LIMIT]
+        ]
+    return exemplars
+
+
+def _exemplar_score(axis: str, scenario: dict[str, Any]) -> int:
+    policy = scenario.get("toolPolicy", {})
+    difficulty_score = {"D4": 3, "D3": 2, "D2": 1}.get(str(scenario.get("difficulty", "")), 0)
+    non_local_action = any(
+        str(action.get("environment", "local")) != "local"
+        for action in scenario.get("actions", [])
+    )
+    score = difficulty_score
+    if scenario.get("fixtureRefs"):
+        score += 2
+    if policy.get("order"):
+        score += 2
+    if policy.get("required"):
+        score += 1
+    if policy.get("optional"):
+        score += 1
+    if policy.get("forbidden"):
+        score += 1
+    if len(scenario.get("actions", [])) > 1:
+        score += 1
+    if non_local_action:
+        score += 1
+    if _is_tool_output_grounding(scenario):
+        score += 2
+    if _is_media_or_multimodal(scenario):
+        score += 2 if axis == "media_and_multimodal" else 1
+    return score
+
+
+def _scenario_exemplar(axis: str, scenario: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scenario_id": str(scenario.get("id", "")),
+        "title": str(scenario.get("title", "")),
+        "family": str(scenario.get("family", "")),
+        "difficulty": str(scenario.get("difficulty", "")),
+        "primary_rubric": str(scenario.get("primaryRubric", "")),
+        "primary_failure_class": str(scenario.get("primaryFailureClass", "")),
+        "tool_policy_shape": _tool_policy_shape(scenario),
+        "fixture_refs": [str(ref) for ref in scenario.get("fixtureRefs", [])],
+        "why_it_matters": _exemplar_note(axis, scenario),
+    }
+
+
+def _tool_policy_shape(scenario: dict[str, Any]) -> dict[str, Any]:
+    policy = scenario.get("toolPolicy", {})
+    return {
+        "required": _policy_tools(policy.get("required", [])),
+        "optional": _policy_tools(policy.get("optional", [])),
+        "forbidden": _policy_tools(policy.get("forbidden", [])),
+        "ordered": bool(policy.get("order")),
+    }
+
+
+def _policy_tools(items: list[Any]) -> list[str]:
+    return sorted(
+        str(item.get("tool", "unknown"))
+        for item in items
+        if isinstance(item, dict)
+    )
+
+
+def _exemplar_note(axis: str, scenario: dict[str, Any]) -> str:
+    signals = []
+    policy = scenario.get("toolPolicy", {})
+    environments = {
+        str(action.get("environment", "local"))
+        for action in scenario.get("actions", [])
+    }
+    if scenario.get("fixtureRefs"):
+        signals.append("fixture-backed")
+    if policy.get("required"):
+        signals.append("required tools")
+    if policy.get("optional"):
+        signals.append("optional tool choice")
+    if policy.get("forbidden"):
+        signals.append("forbidden-tool boundary")
+    if policy.get("order"):
+        signals.append("ordered tool trace")
+    if len(scenario.get("actions", [])) > 1:
+        signals.append("multi-turn state")
+    if any(environment != "local" for environment in environments):
+        signals.append("non-local tool surface")
+    if _is_tool_output_grounding(scenario):
+        signals.append("tool-output grounding")
+    if _is_media_or_multimodal(scenario):
+        signals.append("media evidence")
+    signal_text = ", ".join(signals) if signals else "metadata-only scenario"
+    return f"{CAPABILITY_AXIS_REVIEW_NOTES.get(axis, 'Shows a reviewer-facing capability axis.')} Evidence signals: {signal_text}."
 
 
 def _scenario_quality_metrics(scenarios: list[dict[str, Any]]) -> dict[str, Any]:

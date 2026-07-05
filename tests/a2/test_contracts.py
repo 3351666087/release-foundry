@@ -389,6 +389,13 @@ class A2ContractTests(unittest.TestCase):
                     for ref in refs:
                         self.assertLessEqual(case_ref_required, set(ref))
 
+        exemplar_required = set(coverage_schema["$defs"]["capability_axis_exemplar"]["required"])
+        for axis, exemplars in coverage_report["capability_axis_exemplars"].items():
+            with self.subTest(capability_axis_exemplar_schema=axis):
+                self.assertEqual(len(exemplars), 2)
+                for exemplar in exemplars:
+                    self.assertLessEqual(exemplar_required, set(exemplar))
+
         calibration_case_required = set(calibration_schema["$defs"]["calibration_case"]["required"])
         source_result_required = set(calibration_schema["$defs"]["source_result"]["required"])
         for case in calibration_matrix["cases"]:
@@ -483,6 +490,28 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["capability_axis_counts"]["media_and_multimodal"], 2)
         self.assertIn("A2-S031", report["capability_axis_scenarios"]["media_and_multimodal"])
         self.assertIn("required_tool_use", report["capability_axis_dimension_map"]["trace_contract"])
+        self.assertEqual(len(report["capability_axis_exemplars"]), 10)
+        for axis, exemplars in report["capability_axis_exemplars"].items():
+            with self.subTest(capability_axis=axis):
+                self.assertEqual(len(exemplars), 2)
+                self.assertIn(axis, report["capability_axis_scenarios"])
+                for exemplar in exemplars:
+                    self.assertIn(exemplar["scenario_id"], report["capability_axis_scenarios"][axis])
+                    self.assertTrue(exemplar["why_it_matters"].startswith("Shows "))
+                    self.assertIn("Evidence signals:", exemplar["why_it_matters"])
+                    self.assertIn("required", exemplar["tool_policy_shape"])
+                    self.assertIn(exemplar["primary_failure_class"], CANONICAL_FAILURE_CLASSES)
+        media_exemplar_ids = {
+            exemplar["scenario_id"]
+            for exemplar in report["capability_axis_exemplars"]["media_and_multimodal"]
+        }
+        self.assertIn("A2-S031", media_exemplar_ids)
+        self.assertTrue(
+            any(
+                exemplar["tool_policy_shape"]["ordered"]
+                for exemplar in report["capability_axis_exemplars"]["media_and_multimodal"]
+            )
+        )
         self.assertEqual(report["fixture_scenario_count"], 30)
         self.assertEqual(report["fixture_type_counts"]["web"], 9)
         self.assertEqual(report["fixture_type_counts"]["calculator"], 1)

@@ -280,6 +280,14 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.capability_axis_counts.trace_contract, 32);
   assert.equal(summary.capability_axis_counts.media_and_multimodal, 2);
   assert.equal(summary.capability_axis_checks.media_and_multimodal, true);
+  assert.equal(Object.keys(summary.capability_axis_exemplars).length, 10);
+  assert.ok(summary.capability_axis_exemplars.media_and_multimodal.some((item) => (
+    item.scenario_id === "A2-S031"
+  )));
+  assert.match(
+    summary.capability_axis_exemplars.media_and_multimodal[0].why_it_matters,
+    /Evidence signals:/
+  );
   assert.deepEqual(summary.missing_capability_axes, []);
   assert.equal(summary.scenario_quality_warning_count, 0);
   assert.equal(summary.difficulty_counts.D4, 2);
@@ -325,6 +333,7 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(json.coverage.coverage_warning_count, 0);
   assert.equal(json.coverage.scenario_quality_warnings.length, 0);
   assert.equal(json.coverage.missing_capability_axes.length, 0);
+  assert.equal(json.coverage.capability_axis_exemplars.media_and_multimodal.length, 2);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
@@ -333,6 +342,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /Scenarios: 60/);
   assert.match(markdown, /Scenario dimensions met: 16\/16/);
   assert.match(markdown, /Capability axes met: 10\/10/);
+  assert.match(markdown, /### Capability Axis Exemplars/);
+  assert.match(markdown, /media_and_multimodal: A2-S031/);
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);

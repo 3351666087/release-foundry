@@ -725,3 +725,24 @@ Next top 3:
 1. Use local-lite as the first command after cloning on a small machine.
 2. Run A3 Node report tests only when integration/output display needs validation.
 3. Keep real Ashr/API paths opt-in through environment variables and reviewed evidence gates.
+
+## 2026-07-05 - Capability axis exemplar scorecard
+
+Reason:
+- The G3 coverage report already proved every reviewer-facing capability axis met its count target, but counts alone did not explain which scenarios best demonstrate each axis.
+- A2 needs reviewer-readable evidence so A3 and the group lead can audit why a scenario proves tool policy, workflow, grounding, media, safety, or output-contract capability.
+
+Implemented:
+- Added `capability_axis_exemplars` to the coverage report.
+- Each axis now exposes two deterministic exemplar scenarios with scenario id, title, family, difficulty, primary rubric, primary failure class, tool policy shape, fixture refs, and a `why_it_matters` note.
+- Exemplar selection prefers higher audit value: fixture-backed scenarios, harder scenarios, ordered traces, required/forbidden tools, non-local tool surfaces, tool-output grounding, and media evidence.
+- A3 report summaries and Markdown exports now pass through and display the exemplar scorecard.
+
+Boundary:
+- This does not add new scenarios or change any grading result contract.
+- It strengthens reviewability of existing coverage rather than expanding A2's scope.
+
+Next top 3:
+1. Use the exemplar scorecard when reviewing whether the 60 scenarios still cover real skill behavior.
+2. Keep C3/C4 evidence gates honest until reviewed Ashr grading and audited semantic judge evidence are imported.
+3. Promote future real cross-judge disagreements into the case book and replay suite.

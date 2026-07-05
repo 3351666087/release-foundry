@@ -228,6 +228,7 @@ export function summarizeCoverage(coverageFixture = {}) {
     capability_axis_checks: mapping(coverageFixture.capability_axis_checks),
     capability_axis_counts: mapping(coverageFixture.capability_axis_counts),
     capability_axis_scenarios: mapping(coverageFixture.capability_axis_scenarios),
+    capability_axis_exemplars: mapping(coverageFixture.capability_axis_exemplars),
     missing_capability_axes: missing(coverageFixture.missing_capability_axes),
     scenario_quality_targets: mapping(coverageFixture.scenario_quality_targets),
     scenario_quality_warnings: missing(coverageFixture.scenario_quality_warnings),
@@ -380,6 +381,16 @@ function coverageEvidenceLines(coverage = {}) {
     ));
 }
 
+function coverageExemplarLines(exemplars = {}) {
+  return Object.entries(exemplars)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([axis, items]) => (
+      Array.isArray(items) ? items : []
+    ).map((item) => (
+      `- ${axis}: ${item.scenario_id || "unknown"} (${item.title || "untitled"}) - ${item.why_it_matters || "No reviewer note."}`
+    )));
+}
+
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const failedCases = normalizeCases(runFixture, gradeFixture)
     .filter((item) => !item.passed && item.primary_failure_class !== "none");
@@ -466,6 +477,7 @@ export function buildMarkdownReport(
 
   if (coverage.available) {
     const evidenceLines = coverageEvidenceLines(coverage);
+    const exemplarLines = coverageExemplarLines(coverage.capability_axis_exemplars);
     lines.push(
       "## Coverage",
       "",
@@ -489,6 +501,14 @@ export function buildMarkdownReport(
         "### Scenario Quality Warnings",
         "",
         ...coverage.scenario_quality_warnings.map((warning) => `- ${warning}`),
+        ""
+      );
+    }
+    if (exemplarLines.length > 0) {
+      lines.push(
+        "### Capability Axis Exemplars",
+        "",
+        ...exemplarLines,
         ""
       );
     }
