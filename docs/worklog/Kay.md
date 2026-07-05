@@ -704,3 +704,24 @@ Next top 3:
 1. Keep A2 changes tied to deterministic judges, fixtures, schemas, docs, and evidence gates.
 2. Reject runner/cloud/dashboard work unless it is only compatibility evidence.
 3. Continue C3/C4/C5 evidence collection once reviewed external data is available.
+
+## 2026-07-05 - A2 local-lite verification profile
+
+Reason:
+- The full repo can include TypeScript dependencies, browser/dashboard checks, and future private evidence paths.
+- A2 needs a tiny local run path for normal laptops before anyone attempts heavier integration or live API work.
+
+Implemented:
+- Added `scripts/a2_local_lite_check.py`.
+- The default profile runs A2 fixture reproducibility and A2 unittest discovery only.
+- `--plan` prints a machine-readable plan showing that the profile does not need network, Node modules, browser runtime, or an Ashr API key.
+- Documented the profile in the A2 README and A1/A3 handoff.
+
+Boundary:
+- This does not replace A3 integration tests or full validation.
+- It is a first-pass local confidence check for A2 only.
+
+Next top 3:
+1. Use local-lite as the first command after cloning on a small machine.
+2. Run A3 Node report tests only when integration/output display needs validation.
+3. Keep real Ashr/API paths opt-in through environment variables and reviewed evidence gates.

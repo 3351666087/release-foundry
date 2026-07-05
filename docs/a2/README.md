@@ -180,6 +180,16 @@ python scripts/a2_regenerate_fixtures.py --write
 
 This script only uses local fixtures and does not require an Ashr API key.
 
+## Local-Lite Check
+
+For low-memory local verification, run:
+
+```bash
+python scripts/a2_local_lite_check.py
+```
+
+This profile runs only deterministic A2 fixture reproducibility and A2 unit/contract tests. It does not require `node_modules`, a browser, network access, or an Ashr API key. Use `python scripts/a2_local_lite_check.py --plan` to print the exact checks without running them.
+
 ## Commercial Calibration Matrix
 
 G3 also keeps a calibration matrix for comparing:

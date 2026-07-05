@@ -178,6 +178,8 @@ Commercial-readiness invariants:
 
 This is primarily a local deterministic handoff. A2 now also keeps an optional real Ashr API smoke path in `scripts/a2_real_api_smoke.py`: when `ASHR_LABS_API_KEY` is set, it validates authentication and read/list endpoint reachability, then stores only a redacted summary in `docs/evidence/a2_real_api_smoke.json`. Hosted/server-side grading with `run.deploy` remains a later calibration step.
 
+For a small local checkout or low-memory laptop, start with `python scripts/a2_local_lite_check.py`. It intentionally skips TypeScript package install/build, browser runtime, live Ashr calls, and audited LLM judge calls while still proving A2 fixture reproducibility and deterministic A2 tests.
+
 ## Recommended Codex Workflow
 
 Use the current thread as the main supervisor/integrator. Use background subAgents for narrow audits or disjoint implementation slices, then let the supervisor review, test, commit, and push. Visible threads are useful for long design discussions, but routine A1/A2/A3 compatibility passes can use hidden subAgents so the work stays fast and the Git history stays controlled.

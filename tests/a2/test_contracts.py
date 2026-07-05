@@ -1481,6 +1481,32 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
 
+    def test_local_lite_check_plan_stays_lightweight_and_offline(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_local_lite_check.py"),
+                "--plan",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan["schema_version"], "a2.local_lite_plan.v1")
+        self.assertEqual(plan["profile"], "local-lite")
+        self.assertFalse(plan["requires_network"])
+        self.assertFalse(plan["requires_node_modules"])
+        self.assertFalse(plan["requires_browser"])
+        self.assertFalse(plan["requires_ashr_api_key"])
+        self.assertFalse(plan["writes_files"])
+        commands = [" ".join(check["command"]) for check in plan["checks"]]
+        self.assertIn("scripts/a2_regenerate_fixtures.py --check", commands[0])
+        self.assertIn("-m unittest discover -s tests/a2", commands[1])
+        self.assertIn("live Ashr API calls", plan["excluded_by_design"])
+
     def test_semantic_judge_import_can_replace_offline_llm_rows(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/semantic_judge_import_sample.json").read_text(encoding="utf-8"))
         observations = import_semantic_judge_observations(
