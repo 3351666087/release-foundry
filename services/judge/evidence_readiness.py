@@ -112,6 +112,14 @@ def build_evidence_readiness_report(
             "offline_reference_only": llm_offline_only,
             "expected_observation_count": len(cases),
             "expected_reviewed_observation_count": len(cases),
+            "reviewed_live_observation_count": int(semantic_harness_report.get("reviewed_live_observation_count", 0)),
+            "missing_reviewed_live_observation_count": int(
+                semantic_harness_report.get("missing_reviewed_live_observation_count", len(cases))
+            ),
+            "reviewed_live_sdk_languages": semantic_harness_report.get("reviewed_live_sdk_languages", []),
+            "reviewed_live_required_metadata_fields": semantic_harness_report.get(
+                "reviewed_live_required_metadata_fields", []
+            ),
             "risk_assessment_status": semantic_risk.get("status", "unknown"),
             "false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
             "false_positive_candidate_count": int(semantic_risk.get("false_positive_candidate_count", 0)),
@@ -165,6 +173,7 @@ def _semantic_live_merge_gate(
 ) -> dict[str, Any]:
     current_available = int(llm_counts.get("available", 0))
     live_model_evidence = bool(semantic_harness_report.get("live_model_evidence_available"))
+    reviewed_count = int(semantic_harness_report.get("reviewed_live_observation_count", 0))
     merged = expected_count > 0 and current_available >= expected_count and live_model_evidence and not llm_offline_only
     if merged:
         status = "audited_live_model_evidence"
@@ -178,8 +187,9 @@ def _semantic_live_merge_gate(
         "audited_live_evidence_merged": merged,
         "safe_to_mark_c4_met": merged,
         "current_public_observation_count": current_available,
-        "audited_public_observation_count": current_available if merged else 0,
-        "missing_audited_observation_count": 0 if merged else expected_count,
+        "audited_public_observation_count": reviewed_count if merged else 0,
+        "reviewed_live_observation_count": reviewed_count,
+        "missing_audited_observation_count": max(0, expected_count - reviewed_count),
         "expected_reviewed_observation_count": expected_count,
         "offline_reference_only": llm_offline_only,
         "live_model_evidence_available": live_model_evidence,

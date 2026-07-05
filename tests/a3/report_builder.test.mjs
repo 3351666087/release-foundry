@@ -359,6 +359,9 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(summary.ashr_public_merge_blocking_reason, /before C3 is met/);
   assert.equal(summary.semantic_offline_reference_only, true);
   assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.equal(summary.semantic_reviewed_live_observation_count, 0);
+  assert.equal(summary.semantic_missing_reviewed_live_observation_count, 6);
+  assert.deepEqual(summary.semantic_reviewed_live_sdk_languages, []);
   assert.equal(summary.semantic_risk_assessment_status, "offline_reference_risk_register");
   assert.equal(summary.semantic_false_positive_tracking_ready, true);
   assert.equal(summary.semantic_false_positive_candidate_count, 0);
@@ -369,6 +372,7 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
   assert.equal(summary.semantic_audited_live_evidence_merged, false);
   assert.equal(summary.semantic_safe_to_mark_c4_met, false);
+  assert.equal(summary.semantic_live_reviewed_observation_count, 0);
   assert.equal(summary.semantic_missing_audited_observation_count, 6);
   assert.match(summary.semantic_live_merge_blocking_reason, /before C4 is met/);
   assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
@@ -389,6 +393,7 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(json.evidence_readiness.semantic_live_merge_status, "offline_reference_only");
   assert.equal(json.evidence_readiness.semantic_safe_to_mark_c4_met, false);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+  assert.equal(json.evidence_readiness.semantic_reviewed_live_observation_count, 0);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
   assert.match(markdown, /## Evidence Readiness/);
@@ -397,6 +402,7 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.match(markdown, /Ashr public merge: not_merged/);
   assert.match(markdown, /Ashr safely merged observations: 0\/6/);
   assert.match(markdown, /C3 safe to mark met: no/);
+  assert.match(markdown, /Semantic reviewed live observations: 0\/6/);
   assert.match(markdown, /Semantic risk register: offline_reference_risk_register/);
   assert.match(markdown, /Semantic false-positive candidates: 0/);
   assert.match(markdown, /Semantic failure-class drift candidates: 1/);

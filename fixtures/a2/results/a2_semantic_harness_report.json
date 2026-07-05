@@ -6,6 +6,20 @@
   "status": "offline_reference_only",
   "harness_ready": true,
   "live_model_evidence_available": false,
+  "reviewed_live_observation_count": 0,
+  "missing_reviewed_live_observation_count": 6,
+  "reviewed_live_sdk_languages": [],
+  "reviewed_live_required_metadata_fields": [
+    "prompt_template_id",
+    "prompt_hash",
+    "response_hash",
+    "review_status",
+    "sdk_language"
+  ],
+  "reviewed_live_evidence_gaps": [
+    "Import 6 more audited live semantic judge observation(s).",
+    "Add audited semantic judge evidence for SDK language(s): python, typescript."
+  ],
   "source_matrix": {
     "required_languages": [
       "python",

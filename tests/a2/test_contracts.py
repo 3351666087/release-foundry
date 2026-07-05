@@ -838,6 +838,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["schema_version"], "a2.semantic_harness.v1")
         self.assertTrue(report["harness_ready"])
         self.assertFalse(report["live_model_evidence_available"])
+        self.assertEqual(report["reviewed_live_observation_count"], 0)
+        self.assertEqual(report["missing_reviewed_live_observation_count"], 6)
+        self.assertEqual(report["reviewed_live_sdk_languages"], [])
+        self.assertIn("prompt_hash", report["reviewed_live_required_metadata_fields"])
+        self.assertIn("Import 6 more", report["reviewed_live_evidence_gaps"][0])
         self.assertEqual(report["status"], "offline_reference_only")
         self.assertEqual(report["case_count"], 6)
         self.assertEqual(report["source_matrix"]["required_languages"], ["python", "typescript"])
@@ -915,6 +920,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("before C3 is met", report["ashr_public_merge_gate"]["blocking_reason"])
         self.assertTrue(report["semantic_judge_preflight"]["offline_reference_only"])
         self.assertEqual(report["semantic_judge_preflight"]["expected_reviewed_observation_count"], 6)
+        self.assertEqual(report["semantic_judge_preflight"]["reviewed_live_observation_count"], 0)
+        self.assertEqual(report["semantic_judge_preflight"]["missing_reviewed_live_observation_count"], 6)
+        self.assertEqual(report["semantic_judge_preflight"]["reviewed_live_sdk_languages"], [])
+        self.assertIn("response_hash", report["semantic_judge_preflight"]["reviewed_live_required_metadata_fields"])
         self.assertEqual(report["semantic_judge_preflight"]["risk_assessment_status"], "offline_reference_risk_register")
         self.assertTrue(report["semantic_judge_preflight"]["false_positive_tracking_ready"])
         self.assertEqual(report["semantic_judge_preflight"]["false_positive_candidate_count"], 0)
@@ -927,6 +936,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(report["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
         self.assertEqual(report["semantic_live_merge_gate"]["current_public_observation_count"], 6)
         self.assertEqual(report["semantic_live_merge_gate"]["audited_public_observation_count"], 0)
+        self.assertEqual(report["semantic_live_merge_gate"]["reviewed_live_observation_count"], 0)
         self.assertEqual(report["semantic_live_merge_gate"]["missing_audited_observation_count"], 6)
         self.assertIn("before C4 is met", report["semantic_live_merge_gate"]["blocking_reason"])
         self.assertIn("prompt_hash", report["semantic_judge_preflight"]["required_fields"])
@@ -934,6 +944,94 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("ashr_grading_tiny_calibration", report["batch_plan_refs"])
         self.assertIn("semantic_llm_judge_audit", report["batch_plan_refs"])
         self.assertIn("raw prompts", report["redaction_policy"]["never_commit"])
+
+    def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
+        def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
+            payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+            observations = []
+            for index, case in enumerate(payload["cases"]):
+                case_id = case["case_id"]
+                fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+                result = grade_run(
+                    fixture["scenario_id"],
+                    fixture.get("run", fixture),
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                    case_id=case_id,
+                )
+                sdk_language = "typescript" if include_typescript and index % 2 else "python"
+                observation = {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "llm_judge",
+                    "status": "available",
+                    "provider": "reviewed_model_call_sample",
+                    "model": "semantic-judge-reviewed-v1",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.92,
+                    "rationale": "Synthetic reviewed semantic row used only to test the C4 live evidence gate.",
+                    "cost": {"prompt_tokens": 700 + index, "completion_tokens": 90 + index, "estimated_usd": 0.0015},
+                    "evidence_ref": f"docs/evidence/private_refs/a2_semantic_judge_review.redacted.json#{case_id}",
+                }
+                if complete_metadata:
+                    observation["metadata"] = {
+                        "raw_case_id": case_id,
+                        "prompt_template_id": "a2_semantic_judge_prompt_v1",
+                        "prompt_hash": f"sha256:prompt-{index}",
+                        "response_hash": f"sha256:response-{index}",
+                        "review_status": "reviewed",
+                        "sdk_language": sdk_language,
+                    }
+                observations.append(observation)
+            payload = merge_calibration_observations(payload, {"observations": observations}, source="llm_judge")
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = Path(tmp_dir) / "semantic_observations.json"
+                path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+                return build_calibration_matrix(
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                    run_dir=ROOT / "fixtures/a2/runs",
+                    observations_path=path,
+                )
+
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        incomplete_matrix = reviewed_semantic_matrix(complete_metadata=False, include_typescript=True)
+        incomplete_harness = build_semantic_harness_report(incomplete_matrix, sdk_parity)
+        incomplete_readiness = build_evidence_readiness_report(incomplete_matrix, {}, incomplete_harness)
+        self.assertEqual(incomplete_harness["reviewed_live_observation_count"], 0)
+        self.assertFalse(incomplete_harness["live_model_evidence_available"])
+        self.assertEqual(incomplete_readiness["semantic_live_merge_gate"]["status"], "not_audited")
+        self.assertFalse(incomplete_readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
+        self.assertEqual(incomplete_readiness["semantic_live_merge_gate"]["missing_audited_observation_count"], 6)
+
+        single_language_matrix = reviewed_semantic_matrix(complete_metadata=True, include_typescript=False)
+        single_language_harness = build_semantic_harness_report(single_language_matrix, sdk_parity)
+        self.assertEqual(single_language_harness["reviewed_live_observation_count"], 6)
+        self.assertEqual(single_language_harness["reviewed_live_sdk_languages"], ["python"])
+        self.assertFalse(single_language_harness["live_model_evidence_available"])
+        self.assertIn("typescript", single_language_harness["reviewed_live_evidence_gaps"][0])
+
+        complete_matrix = reviewed_semantic_matrix(complete_metadata=True, include_typescript=True)
+        complete_harness = build_semantic_harness_report(complete_matrix, sdk_parity)
+        complete_readiness = build_evidence_readiness_report(complete_matrix, {}, complete_harness)
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            complete_matrix,
+            semantic_harness_report=complete_harness,
+            evidence_readiness_report=complete_readiness,
+        )
+        self.assertTrue(complete_harness["live_model_evidence_available"])
+        self.assertEqual(complete_harness["reviewed_live_observation_count"], 6)
+        self.assertEqual(complete_harness["missing_reviewed_live_observation_count"], 0)
+        self.assertEqual(complete_harness["reviewed_live_sdk_languages"], ["python", "typescript"])
+        self.assertEqual(complete_harness["reviewed_live_evidence_gaps"], [])
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["status"], "audited_live_model_evidence")
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["audited_public_observation_count"], 6)
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["missing_audited_observation_count"], 0)
+        self.assertTrue(complete_readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C4"]["status"], "met")
 
     def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
