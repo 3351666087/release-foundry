@@ -1,4 +1,4 @@
-﻿# A1 Worklog
+# A1 Worklog
 
 ## 2026-07-03 Round 1
 
@@ -1445,3 +1445,67 @@ Next top 10:
 8. Add CI-friendly command matrix for A1 owned tests.
 9. Add private evidence manifest summarizing generated ignored fixture paths without payload content.
 10. Recheck official Ashr dashboard/API docs with Chrome before the next hosted API calibration.
+## 2026-07-05 TS Schema Contract and Cross-Runtime Loader
+
+Goal: close the TypeScript/Python schema drift after the full TS parity sprint, so TS-generated run fixtures validate against A1 JSON schemas and load through the Python A1 fixture loader.
+
+Baseline and peer state:
+
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; remote: `3351666087/ashr-codex-factory`; active draft PR: #10.
+- Commands run first: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr list --state all --limit 20`.
+- Peer changes/impact: no new peer changes observed after fetch. Current dirty files were A1/TS/schema/evidence only. `docs/evidence/private_refs/`, `.secrets/`, `dist/`, and `node_modules/` stayed ignored and were not staged/read for payload content.
+
+Top 10 and decision:
+
+1. Make TS run fixture schema match Python/A1 `ashr.clone.run.v1`: implemented.
+2. Make TS trace event shape match A1 schema fields (`seq`, `phase`, `source`, `tags`, `observation`, `metadata`): implemented.
+3. Make TS VM stream shape and stream mapping mirror Python `build_vm_frame`: implemented.
+4. Add TS schema contract tests against `docs/a1/schemas`: implemented.
+5. Add cross-runtime test proving Python `load_run_fixture()` accepts TS-generated fixtures: implemented.
+6. Re-run TS 30-case direct cloud smoke: implemented.
+7. Re-run TS 30-case queued cloud smoke: implemented.
+8. Add real API small-batch calibration: deferred to next slice; no environment key was consumed here.
+9. Add fresh setup one-command matrix: deferred.
+10. Add media/non-text replay fixture pack: deferred.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/trace.ts`: aligned run fixture, trace event, and VM stream validation/build helpers with the A1/Python schema contract.
+- `packages/ts/ashr-clone/src/runner.ts`: `buildRunFixture` now emits A1 run fields and builds VM stream frames from the exact same canonical event objects emitted in `events`.
+- `packages/ts/ashr-clone/test/schema-contract.test.mjs`: validates TS RunResult, runner fixture, trace fixture, and cloud fixture outputs against A1 schemas; also runs a Python subprocess to load a TS-generated run fixture.
+- Updated existing TS tests that still expected the old TS-only `ashr.clone.run_fixture.v1` schema.
+
+Validation:
+
+- `npm test --prefix packages/ts/ashr-clone`: passed, 138 tests, 138 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: passed, 133 passed in 9.31s.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent ... a1_ts_direct_schema_*`: 30/30 cases passed, trace completeness 1, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent-queued ... a1_ts_queued_schema_*`: completed queued 30-case run, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `git diff --check`: exit 0; CRLF warnings only.
+
+Failure points and fixes:
+
+- The Python loader initially rejected TS-generated fixtures with `ValueError: vm_stream frames must match trace events`. Fixed by generating TS events once and deriving VM frames from those exact event objects with Python-equivalent stream mapping and JSON-normalized observation data.
+- JSON Schema validation alone was insufficient because Python performs semantic replay equality for VM frames; the new test now covers that.
+
+Real API and private evidence:
+
+- Real Ashr API was not called in this schema-contract slice. No `D:/desktop/Ashr_key.txt`, `.secrets`, or raw private refs were read or stored.
+- Private smoke outputs stayed under ignored paths: `docs/evidence/private_refs/a1_ts_direct_schema_*_30_smoke.json` and `docs/evidence/private_refs/a1_ts_queued_schema_*_30_smoke.json`.
+
+Bus-Auditor follow-up:
+
+- Bus-Auditor flagged the pre-fix Python loader failure and required TS/Python/diff validation before staging. The final validation above satisfies that ready bar.
+
+Next top 10:
+
+1. Real Ashr API field-map dry-run/small-batch probe from `ASHR_API_KEY` / `ASHR_LABS_API_KEY` environment variables only.
+2. TS fresh-setup one-command demo for install/build/test/smoke.
+3. Expand TS/Python media fixture replay for text/audio/file/image/video parity.
+4. Add hosted injected-transport quota/error fixture pack.
+5. Add private evidence manifest summarizing ignored smoke output paths without payload content.
+6. Add CI-friendly A1 command matrix.
+7. Add TS examples mirroring Python docs one-for-one.
+8. Add cloud quota ledger persistence docs.
+9. Add `tests/integration` scaffold for A1 integration smokes.
+10. Recheck Ashr dashboard/API docs with Chrome before hosted calibration.

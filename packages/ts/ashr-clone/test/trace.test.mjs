@@ -28,7 +28,8 @@ test("TraceRecorder builds strict events and VM stream frames", () => {
 
   assert.equal(events.length, 3);
   assert.equal(validateTraceEvent(events[0]).schema, "ashr.clone.trace.v1");
-  assert.equal(validateVmStreamFrame(frames[0]).provider, "test-provider");
+  assert.equal(validateVmStreamFrame(frames[0]).schema, "ashr.clone.vm_stream.v1");
+  assert.equal(frames[0].stream, "stdin");
   assert.equal(traceEventsFromVmStream("run_trace", frames).length, 3);
 });
 
@@ -50,10 +51,10 @@ test("validateRunFixture rejects malformed traces and accepts generated fixture"
     await writeRunFixture(path, fixture);
     const loaded = await loadRunFixture(path);
 
-    assert.equal(validateRunFixture(fixture).schema, "ashr.clone.run_fixture.v1");
+    assert.equal(validateRunFixture(fixture).schema, "ashr.clone.run.v1");
     assert.equal(loaded.run.run_id, "run_fixture");
     assert.throws(() => validateRunFixture({ ...fixture, vm_stream: [{ bad: true }] }), TraceValidationError);
-    assert.throws(() => validateTraceEvent({ ...fixture.events[0], payload: "bad" }), TraceValidationError);
+    assert.throws(() => validateTraceEvent({ ...fixture.events[0], observation: "bad" }), TraceValidationError);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

@@ -1,4 +1,4 @@
-﻿# A1 Round 1 Command Evidence
+# A1 Round 1 Command Evidence
 
 Commands:
 
@@ -554,3 +554,27 @@ Results:
 - TS queued cloud `run-agent-queued`: run completed with quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
 - Real Ashr API: not called in this sprint. Environment keys were not used or read from files; no secrets were written to logs or repo files.
 ```
+## 2026-07-05 TS Schema Contract Commands
+
+```powershell
+pwd
+git rev-parse --show-toplevel
+git remote -v
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh pr list --state all --limit 20
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+node packages/ts/ashr-clone/dist/cloud-cli.js run-agent --input docs/a1/evidence/local_agent_cases_30.json --agent examples/agents/mock_agent_ts.mjs:default --fixture-output docs/evidence/private_refs/a1_ts_direct_schema_fixture_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_direct_schema_summary_30_smoke.json --run-output docs/evidence/private_refs/a1_ts_direct_schema_run_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_direct_schema_state_30_smoke.json --tenant-id tenant_a1_ts_schema_direct --project-id project_a1_ts_schema_direct --dataset-id dataset_a1_ts_schema_direct --runner-id a1-ts-schema-direct --max-workers 4 --timeout 5 --fail-on-case-failure
+node packages/ts/ashr-clone/dist/cloud-cli.js run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples/agents/mock_agent_ts.mjs:default --fixture-output docs/evidence/private_refs/a1_ts_queued_schema_fixture_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_queued_schema_summary_30_smoke.json --run-output docs/evidence/private_refs/a1_ts_queued_schema_run_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_queued_schema_state_30_smoke.json --tenant-id tenant_a1_ts_schema_queued --project-id project_a1_ts_schema_queued --dataset-id dataset_a1_ts_schema_queued --runner-id a1-ts-schema-queued --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure
+git diff --check
+```
+
+Results:
+
+- TypeScript: `npm test --prefix packages/ts/ashr-clone` passed with `138` Node test items and `138` passes.
+- Python: `python -B -m pytest tests/a1 -q -p no:cacheprovider` passed with `133 passed in 9.31s`.
+- TS direct schema smoke: 30/30 cases passed, trace completeness `1`, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- TS queued schema smoke: completed, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Real Ashr API: not called; no key files or private payloads read or stored.

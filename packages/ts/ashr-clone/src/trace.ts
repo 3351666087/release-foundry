@@ -4,30 +4,44 @@ import { dirname } from "node:path";
 export type TraceJsonRecord = Record<string, unknown>;
 
 export const TRACE_EVENT_SCHEMA_VERSION = "ashr.clone.trace.v1";
-export const RUN_FIXTURE_SCHEMA_VERSION = "ashr.clone.run_fixture.v1";
+export const RUN_FIXTURE_SCHEMA_VERSION = "ashr.clone.run.v1";
+export const VM_STREAM_SCHEMA_VERSION = "ashr.clone.vm_stream.v1";
+
+const VM_STREAMS = new Set(["stdin", "stdout", "tool_call", "tool_result", "lifecycle", "metric", "stderr", "state"]);
+
+export interface TraceObservation extends TraceJsonRecord {
+  kind: string;
+  channel: string;
+  status: string;
+  text: string;
+  data: TraceJsonRecord;
+}
 
 export interface TraceEvent extends TraceJsonRecord {
   schema: typeof TRACE_EVENT_SCHEMA_VERSION;
   type: "trace_event";
-  event_id: string;
-  timestamp: string;
-  run_id: string;
-  case_id?: string;
-  turn_index?: number;
   event_type: string;
-  role?: string;
-  payload: TraceJsonRecord;
+  run_id: string;
+  event_id: string;
+  seq: number;
+  timestamp: string;
+  phase: string;
+  source: string;
+  parent_id: string | null;
+  tags: string[];
+  observation: TraceObservation;
+  metadata: TraceJsonRecord;
 }
 
 export interface VmStreamFrame extends TraceJsonRecord {
-  frame_id: string;
-  observation_id?: string;
-  provider: string;
-  session_id: string;
-  ts: number;
-  type: string;
+  schema: typeof VM_STREAM_SCHEMA_VERSION;
+  seq: number;
+  timestamp: string;
+  event_id: string;
+  stream: string;
+  status: string;
+  text: string;
   data: TraceJsonRecord;
-  metadata: TraceJsonRecord;
 }
 
 export class TraceValidationError extends Error {
@@ -46,28 +60,34 @@ export class TraceRecorder {
   constructor(options: { runId: string; source?: string; startedAt?: string }) {
     this.runId = options.runId;
     this.source = options.source ?? "ts-trace-recorder";
-    this.startedAt = options.startedAt ?? new Date().toISOString();
+    this.startedAt = options.startedAt ?? "2026-01-01T00:00:00.000Z";
   }
 
-  append(eventType: string, payload: TraceJsonRecord = {}, options: { role?: string; caseId?: string; turnIndex?: number } = {}): TraceEvent {
+  append(eventType: string, payload: TraceJsonRecord = {}, options: { role?: string; caseId?: string; turnIndex?: number; phase?: string; tags?: string[]; metadata?: TraceJsonRecord } = {}): TraceEvent {
+    const seq = this.items.length;
+    const phase = options.phase ?? eventTypePhase(eventType);
+    const observation = observationFromPayload(eventType, payload, options.role);
     const event: TraceEvent = {
       schema: TRACE_EVENT_SCHEMA_VERSION,
       type: "trace_event",
-      event_id: `evt_${this.items.length + 1}`,
-      timestamp: new Date().toISOString(),
+      event_type: `${phase}.${observation.kind}`,
       run_id: this.runId,
-      case_id: options.caseId,
-      turn_index: options.turnIndex,
-      event_type: eventType,
-      role: options.role,
-      payload: jsonRecord({ source: this.source, ...payload }),
+      event_id: `evt_${seq + 1}`,
+      seq,
+      timestamp: timestampFor(seq, this.startedAt),
+      phase,
+      source: this.source,
+      parent_id: null,
+      tags: options.tags ?? [],
+      observation,
+      metadata: jsonRecord({ case_id: options.caseId, turn_index: options.turnIndex, ...(options.metadata ?? {}) }),
     };
     this.items.push(dropUndefined(event) as TraceEvent);
     return this.items[this.items.length - 1];
   }
 
   message(role: string, content: unknown, data: TraceJsonRecord = {}): TraceEvent {
-    return this.append("message", { content: jsonValue(content), metadata: jsonRecord(data) }, { role });
+    return this.append("message", { content: jsonValue(content), metadata: jsonRecord(data) }, { role, phase: role === "user" ? "input" : "output" });
   }
 
   toolCall(name: string, argumentsValue: unknown = {}, options: { callId?: string; output?: unknown; error?: unknown } = {}): TraceEvent {
@@ -77,15 +97,15 @@ export class TraceRecorder {
       arguments: jsonValue(argumentsValue),
       output: options.output === undefined ? undefined : jsonValue(options.output),
       error: options.error === undefined ? undefined : jsonValue(options.error),
-    });
+    }, { phase: "tool" });
   }
 
   metric(name: string, value: unknown): TraceEvent {
-    return this.append("metric", { name, value: jsonValue(value) });
+    return this.append("metric", { name, value: jsonValue(value), unit: "count" }, { phase: "metric" });
   }
 
   control(name: string, data: TraceJsonRecord = {}): TraceEvent {
-    return this.append("control", { name, data: jsonRecord(data) });
+    return this.append("control", { name, data: jsonRecord(data) }, { phase: "lifecycle" });
   }
 
   events(): TraceEvent[] {
@@ -93,29 +113,35 @@ export class TraceRecorder {
   }
 }
 
-export function buildVmStream(events: TraceEvent[], options: { provider?: string; sessionId?: string } = {}): VmStreamFrame[] {
-  return events.map((event, index) => ({
-    frame_id: `frame_${index + 1}`,
-    provider: options.provider ?? "ts-trace-recorder",
-    session_id: options.sessionId ?? event.run_id,
-    ts: index,
-    type: event.event_type,
-    data: jsonRecord(event.payload),
-    metadata: { event_id: event.event_id, schema: event.schema },
-  }));
+export function buildVmStream(events: TraceEvent[], _options: { provider?: string; sessionId?: string } = {}): VmStreamFrame[] {
+  return events
+    .map(validateTraceEvent)
+    .sort((left, right) => left.seq - right.seq)
+    .map((event) => buildVmFrame(event));
 }
 
-export function traceEventsFromVmStream(runId: string, vmStream: unknown, options: { source?: string } = {}): TraceEvent[] {
-  const frames = normalizeVmStream(vmStream);
-  return frames.map((frame, index) => ({
+export function traceEventsFromVmStream(runId: string, vmStream: unknown, options: { source?: string; startedAt?: string } = {}): TraceEvent[] {
+  const frames = normalizeVmStream(vmStream).sort((left, right) => left.seq - right.seq);
+  return frames.map((frame) => ({
     schema: TRACE_EVENT_SCHEMA_VERSION,
     type: "trace_event",
-    event_id: String(frame.metadata.event_id ?? `evt_from_frame_${index + 1}`),
-    timestamp: new Date().toISOString(),
+    event_type: `${frame.stream}.${frame.stream === "stdout" ? "message" : frame.stream}`,
     run_id: runId,
-    event_type: frame.type,
-    role: typeof frame.data.role === "string" ? frame.data.role : undefined,
-    payload: jsonRecord({ source: options.source ?? frame.provider, ...frame.data }),
+    event_id: frame.event_id,
+    seq: frame.seq,
+    timestamp: frame.timestamp,
+    phase: frame.stream,
+    source: options.source ?? "vm_replay",
+    parent_id: null,
+    tags: ["replay"],
+    observation: {
+      kind: frame.stream === "stdout" ? "message" : frame.stream,
+      channel: frame.stream,
+      status: frame.status,
+      text: frame.text,
+      data: jsonRecord(frame.data),
+    },
+    metadata: jsonRecord({ replay_started_at: options.startedAt ?? null }),
   }));
 }
 
@@ -129,20 +155,30 @@ export function buildTraceRunFixture(options: {
   labels?: string[];
   replay?: TraceJsonRecord;
 }): TraceJsonRecord {
+  const events = options.events.map(validateTraceEvent).sort((left, right) => left.seq - right.seq);
+  if (events.length === 0) {
+    throw new TraceValidationError("run fixture requires at least one event");
+  }
+  const startedAt = events[0].timestamp;
+  const finishedAt = events[events.length - 1].timestamp;
   const fixture = {
     schema: RUN_FIXTURE_SCHEMA_VERSION,
     name: options.name,
     labels: options.labels ?? ["a1", "typescript", "trace"],
     run: {
       run_id: options.runId,
+      agent: options.runnerId ?? "ts-trace-recorder",
+      task: options.datasetId ?? "trace-dataset",
+      status: "passed",
+      started_at: startedAt,
+      finished_at: finishedAt,
       dataset_id: options.datasetId ?? "trace-dataset",
       runner_id: options.runnerId ?? "ts-trace-recorder",
-      status: "passed",
       total_cases: 1,
-      trace_completeness: options.events.length > 0 ? 1 : 0,
+      trace_completeness: 1,
     },
-    events: options.events.map((event) => jsonRecord(event)),
-    vm_stream: buildVmStream(options.events),
+    events: events.map((event) => jsonRecord(event)),
+    vm_stream: buildVmStream(events),
     expected: jsonRecord(options.expected ?? {}),
     replay: { source: "packages/ts/ashr-clone", deterministic: false, ...jsonRecord(options.replay ?? {}) },
   };
@@ -157,13 +193,23 @@ export function validateTraceEvent(event: unknown): TraceEvent {
   if (event.schema !== TRACE_EVENT_SCHEMA_VERSION || event.type !== "trace_event") {
     throw new TraceValidationError("trace event schema/type mismatch");
   }
-  for (const key of ["event_id", "timestamp", "run_id", "event_type"]) {
+  for (const key of ["event_id", "timestamp", "run_id", "event_type", "phase", "source"]) {
     if (typeof event[key] !== "string" || !event[key]) {
       throw new TraceValidationError(`trace event ${key} must be a non-empty string`);
     }
   }
-  if (!isRecord(event.payload)) {
-    throw new TraceValidationError("trace event payload must be an object");
+  if (!Number.isInteger(event.seq) || Number(event.seq) < 0) {
+    throw new TraceValidationError("trace event seq must be a non-negative integer");
+  }
+  if (!Array.isArray(event.tags)) {
+    throw new TraceValidationError("trace event tags must be an array");
+  }
+  if (!isRecord(event.observation)) {
+    throw new TraceValidationError("trace event observation must be an object");
+  }
+  validateObservation(event.observation);
+  if (!isRecord(event.metadata)) {
+    throw new TraceValidationError("trace event metadata must be an object");
   }
   return event as TraceEvent;
 }
@@ -172,19 +218,27 @@ export function validateVmStreamFrame(frame: unknown): VmStreamFrame {
   if (!isRecord(frame)) {
     throw new TraceValidationError("VM stream frame must be an object");
   }
-  for (const key of ["frame_id", "provider", "session_id", "type"]) {
-    if (typeof frame[key] !== "string" || !frame[key]) {
-      throw new TraceValidationError(`VM stream frame ${key} must be a non-empty string`);
+  const keys = Object.keys(frame).sort();
+  const expected = ["data", "event_id", "schema", "seq", "status", "stream", "text", "timestamp"].sort();
+  if (keys.join("\0") !== expected.join("\0")) {
+    throw new TraceValidationError("VM stream frame keys do not match schema contract");
+  }
+  if (frame.schema !== VM_STREAM_SCHEMA_VERSION) {
+    throw new TraceValidationError("VM stream frame schema mismatch");
+  }
+  if (!Number.isInteger(frame.seq) || Number(frame.seq) < 0) {
+    throw new TraceValidationError("VM stream frame seq must be a non-negative integer");
+  }
+  for (const key of ["timestamp", "event_id", "stream", "status", "text"]) {
+    if (typeof frame[key] !== "string") {
+      throw new TraceValidationError(`VM stream frame ${key} must be a string`);
     }
   }
-  if (typeof frame.ts !== "number" || !Number.isFinite(frame.ts) || frame.ts < 0) {
-    throw new TraceValidationError("VM stream frame ts must be a non-negative number");
+  if (!VM_STREAMS.has(frame.stream as string)) {
+    throw new TraceValidationError(`unsupported VM stream: ${String(frame.stream)}`);
   }
   if (!isRecord(frame.data)) {
     throw new TraceValidationError("VM stream frame data must be an object");
-  }
-  if (!isRecord(frame.metadata)) {
-    throw new TraceValidationError("VM stream frame metadata must be an object");
   }
   return frame as VmStreamFrame;
 }
@@ -205,13 +259,13 @@ export function validateRunFixture(fixture: unknown): TraceJsonRecord {
   if (!isRecord(fixture.run)) {
     throw new TraceValidationError("run fixture run must be an object");
   }
-  for (const key of ["run_id", "dataset_id", "runner_id", "status"]) {
+  for (const key of ["run_id", "agent", "task", "status", "started_at", "finished_at"]) {
     if (typeof fixture.run[key] !== "string" || !fixture.run[key]) {
       throw new TraceValidationError(`run fixture run.${key} must be a non-empty string`);
     }
   }
-  if (!Array.isArray(fixture.events)) {
-    throw new TraceValidationError("run fixture events must be an array");
+  if (!Array.isArray(fixture.events) || fixture.events.length === 0) {
+    throw new TraceValidationError("run fixture events must be a non-empty array");
   }
   fixture.events.forEach(validateTraceEvent);
   normalizeVmStream(fixture.vm_stream);
@@ -235,11 +289,132 @@ export async function writeRunFixture(path: string, fixture: unknown): Promise<s
   return path;
 }
 
+function buildVmFrame(event: TraceEvent): VmStreamFrame {
+  const observation = validateObservation(event.observation);
+  const stream = vmStreamForObservation(observation);
+  return {
+    schema: VM_STREAM_SCHEMA_VERSION,
+    seq: event.seq,
+    timestamp: event.timestamp,
+    event_id: event.event_id,
+    stream,
+    status: observation.status,
+    text: observation.text,
+    data: jsonRecord(observation.data),
+  };
+}
+
+function vmStreamForObservation(observation: TraceObservation): string {
+  if (observation.kind === "tool_call") {
+    return "tool_call";
+  }
+  if (observation.kind === "tool_result") {
+    return "tool_result";
+  }
+  if (observation.kind === "metric") {
+    return "metric";
+  }
+  if (observation.kind === "control") {
+    return "lifecycle";
+  }
+  if (observation.kind === "error") {
+    return "stderr";
+  }
+  if (observation.channel === "user") {
+    return "stdin";
+  }
+  return "stdout";
+}
+
+function observationFromPayload(eventType: string, payload: TraceJsonRecord, role?: string): TraceObservation {
+  if (eventType === "tool_call") {
+    return {
+      kind: "tool_call",
+      channel: "tool",
+      status: payload.error === undefined ? "ok" : "error",
+      text: `call ${String(payload.name ?? "tool")}`,
+      data: jsonRecord({ name: payload.name, args: payload.arguments ?? {}, call_id: payload.call_id, output: payload.output, error: payload.error }),
+    };
+  }
+  if (eventType === "metric") {
+    return {
+      kind: "metric",
+      channel: "system",
+      status: "ok",
+      text: String(payload.name ?? "metric"),
+      data: jsonRecord({ name: payload.name, value: payload.value, unit: payload.unit ?? "count" }),
+    };
+  }
+  if (eventType === "control") {
+    return {
+      kind: "control",
+      channel: "system",
+      status: "ok",
+      text: String(payload.name ?? "control"),
+      data: jsonRecord(payload.data ?? {}),
+    };
+  }
+  return {
+    kind: "message",
+    channel: role ?? "agent",
+    status: "ok",
+    text: textValue(payload.content ?? payload.text ?? ""),
+    data: jsonRecord(payload.metadata ?? {}),
+  };
+}
+
+function eventTypePhase(eventType: string): string {
+  if (eventType.includes(".")) {
+    return eventType.split(".")[0] || "event";
+  }
+  if (eventType === "message") {
+    return "output";
+  }
+  if (eventType === "tool_call") {
+    return "tool";
+  }
+  if (eventType === "metric") {
+    return "metric";
+  }
+  if (eventType === "control") {
+    return "lifecycle";
+  }
+  return eventType || "event";
+}
+
+function validateObservation(value: unknown): TraceObservation {
+  if (!isRecord(value)) {
+    throw new TraceValidationError("trace observation must be an object");
+  }
+  for (const key of ["kind", "channel", "status", "text"]) {
+    if (typeof value[key] !== "string") {
+      throw new TraceValidationError(`trace observation ${key} must be a string`);
+    }
+  }
+  if (!isRecord(value.data)) {
+    throw new TraceValidationError("trace observation data must be an object");
+  }
+  return value as TraceObservation;
+}
+
 function normalizeVmStream(vmStream: unknown): VmStreamFrame[] {
   if (!Array.isArray(vmStream)) {
     throw new TraceValidationError("VM stream must be an array");
   }
   return vmStream.map(validateVmStreamFrame);
+}
+
+function timestampFor(seq: number, startedAt: string): string {
+  const parsed = Date.parse(startedAt);
+  const base = Number.isFinite(parsed) ? parsed : Date.parse("2026-01-01T00:00:00.000Z");
+  return new Date(base + seq * 50).toISOString();
+}
+
+function textValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  return JSON.stringify(jsonValue(value));
 }
 
 function dropUndefined(value: TraceJsonRecord): TraceJsonRecord {

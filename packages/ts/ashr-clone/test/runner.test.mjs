@@ -70,7 +70,7 @@ test("runAgentBatch normalizes maxWorkers, records trace, and builds replay fixt
   assert.equal(result.trace_completeness, 1);
   assert.equal(result.aggregate_metrics.total_tool_calls, 6);
   assert.equal(result.cases[0].observations.length, 2);
-  assert.equal(fixture.schema, "ashr.clone.run_fixture.v1");
+  assert.equal(fixture.schema, "ashr.clone.run.v1");
   assert.equal(fixture.events.length, 12);
   assert.ok(fixture.vm_stream.length >= 12);
   assert.equal(fixture.replay.metadata.ashr_api_used, false);

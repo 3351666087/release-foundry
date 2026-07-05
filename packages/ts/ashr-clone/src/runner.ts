@@ -124,8 +124,8 @@ export interface LocalRunResult extends RunResult {
 }
 
 export interface LocalRunFixture extends JsonRecord {
-  schema: "ashr.clone.run_fixture.v1";
-  schema_version: "ashr.clone.run_fixture.v1";
+  schema: "ashr.clone.run.v1";
+  schema_version: "ashr.clone.run.v1";
   name?: string;
   run: JsonRecord;
   events: JsonRecord[];
@@ -665,21 +665,26 @@ export function buildRunFixture(
 ): JsonRecord {
   const result = jsonRecord(runResult);
   const observations = extractRunObservations(result);
+  const events = observations.map((item, index) => traceEventFromObservation(item, index));
   return {
-    schema: "ashr.clone.run_fixture.v1",
+    schema: "ashr.clone.run.v1",
     name: options.name ?? `${String(result.run_id ?? "ts-run")} fixture`,
     labels: options.labels ?? ["a1", "typescript", "local-runner"],
     run: {
-      run_id: result.run_id,
+      run_id: String(result.run_id ?? "local-run"),
+      agent: String(result.runner_id ?? LOCAL_RUNNER_ID),
+      task: String(result.dataset_id ?? LOCAL_DATASET_ID),
+      status: String(result.status ?? "unknown"),
+      started_at: String(result.started_at ?? utcNow()),
+      finished_at: String(result.ended_at ?? result.finished_at ?? utcNow()),
       dataset_id: result.dataset_id,
       runner_id: result.runner_id,
-      status: result.status,
       total_cases: result.total_cases,
       trace_completeness: result.trace_completeness,
       field_map_version: result.field_map_version,
     },
-    events: observations.map((item, index) => traceEventFromObservation(item, index)),
-    vm_stream: observations.flatMap((item, index) => vmFramesFromObservation(item, index)),
+    events,
+    vm_stream: events.map((event) => vmFrameFromTraceEvent(event)),
     expected: { run_result: result },
     replay: {
       source: "packages/ts/ashr-clone",
@@ -1068,41 +1073,151 @@ function extractRunObservations(runResult: JsonRecord): JsonRecord[] {
 }
 
 function traceEventFromObservation(observationRecord: JsonRecord, index: number): JsonRecord {
+  const phase = tracePhaseForObservation(observationRecord);
+  const kind = traceKindForObservation(observationRecord);
+  const channel = traceChannelForObservation(observationRecord);
+  const timestamp = String(observationRecord.started_at ?? observationRecord.ended_at ?? utcNow());
+  const data = jsonRecord({
+    content: observationRecord.content,
+    tool_calls: observationRecord.tool_calls ?? [],
+    error: observationRecord.error,
+    metadata: observationRecord.metadata ?? {},
+  });
+  const metadata = jsonRecord({
+    observation_id: observationRecord.observation_id,
+    case_id: observationRecord.case_id,
+    turn_index: observationRecord.turn_index,
+  });
   return {
     schema: "ashr.clone.trace.v1",
     type: "trace_event",
+    event_type: `${phase}.${kind}`,
+    run_id: String(observationRecord.run_id ?? "local-run"),
     event_id: `evt_${index + 1}`,
-    timestamp: observationRecord.started_at ?? observationRecord.ended_at ?? utcNow(),
-    run_id: observationRecord.run_id,
-    case_id: observationRecord.case_id,
-    turn_index: observationRecord.turn_index,
-    event_type: observationRecord.event_type,
-    role: observationRecord.role,
-    payload: {
-      content: observationRecord.content,
-      tool_calls: observationRecord.tool_calls ?? [],
-      status: observationRecord.status ?? "ok",
-      error: observationRecord.error,
-      metadata: observationRecord.metadata ?? {},
+    seq: index,
+    timestamp,
+    phase,
+    source: "packages/ts/ashr-clone.local-runner",
+    parent_id: null,
+    tags: ["runner", String(observationRecord.role ?? channel)],
+    observation: {
+      kind,
+      channel,
+      status: String(observationRecord.status ?? "ok"),
+      text: textValue(observationRecord.content ?? observationRecord.error ?? ""),
+      data,
     },
+    metadata,
   };
 }
 
-function vmFramesFromObservation(observationRecord: JsonRecord, index: number): JsonRecord[] {
-  const stream = isRecord(observationRecord.vm_stream) ? observationRecord.vm_stream : undefined;
-  const logs = Array.isArray(stream?.logs) ? stream.logs : [];
-  return logs.map((log, offset) => ({
-    frame_id: `frame_${index + 1}_${offset + 1}`,
-    observation_id: observationRecord.observation_id,
-    provider: stream?.provider ?? "local-runner",
-    session_id: stream?.session_id ?? observationRecord.case_id,
-    ts: isRecord(log) ? log.ts ?? offset : offset,
-    type: isRecord(log) ? log.type ?? "log" : "log",
-    data: isRecord(log) ? log.data ?? {} : { value: log },
-    metadata: stream?.metadata ?? {},
-  }));
+function vmFrameFromTraceEvent(event: JsonRecord): JsonRecord {
+  const observation = isRecord(event.observation) ? event.observation : {};
+  const kind = String(observation.kind ?? "message");
+  const channel = String(observation.channel ?? "agent");
+  return {
+    schema: "ashr.clone.vm_stream.v1",
+    seq: Number(event.seq ?? 0),
+    timestamp: String(event.timestamp ?? utcNow()),
+    event_id: String(event.event_id ?? "evt_0"),
+    stream: vmStreamForTraceObservation(kind, channel),
+    status: String(observation.status ?? "ok"),
+    text: String(observation.text ?? ""),
+    data: isRecord(observation.data) ? jsonRecord(observation.data) : {},
+  };
 }
 
+function vmStreamForTraceObservation(kind: string, channel: string): string {
+  if (kind === "message") {
+    if (channel === "user") {
+      return "stdin";
+    }
+    if (channel === "assistant") {
+      return "stdout";
+    }
+    return "lifecycle";
+  }
+  if (kind === "tool_call") {
+    return "tool_call";
+  }
+  if (kind === "tool_result") {
+    return "tool_result";
+  }
+  if (kind === "metric") {
+    return "metric";
+  }
+  if (kind === "control") {
+    return "lifecycle";
+  }
+  if (kind === "error") {
+    return "stderr";
+  }
+  return "state";
+}
+function tracePhaseForObservation(observationRecord: JsonRecord): string {
+  const role = String(observationRecord.role ?? "");
+  if (role === "user") {
+    return "input";
+  }
+  if (Array.isArray(observationRecord.tool_calls) && observationRecord.tool_calls.length > 0) {
+    return "tool";
+  }
+  if (observationRecord.error !== undefined) {
+    return "error";
+  }
+  return "output";
+}
+
+function traceKindForObservation(observationRecord: JsonRecord): string {
+  if (Array.isArray(observationRecord.tool_calls) && observationRecord.tool_calls.length > 0) {
+    return "tool_call";
+  }
+  if (observationRecord.error !== undefined) {
+    return "error";
+  }
+  return "message";
+}
+
+function traceChannelForObservation(observationRecord: JsonRecord): string {
+  const role = String(observationRecord.role ?? "");
+  if (role) {
+    return role;
+  }
+  if (Array.isArray(observationRecord.tool_calls) && observationRecord.tool_calls.length > 0) {
+    return "tool";
+  }
+  if (observationRecord.error !== undefined) {
+    return "vm";
+  }
+  return "assistant";
+}
+
+function traceStreamForObservation(observationRecord: JsonRecord): string {
+  const role = String(observationRecord.role ?? "");
+  if (role === "user") {
+    return "stdin";
+  }
+  if (observationRecord.error !== undefined) {
+    return "stderr";
+  }
+  if (Array.isArray(observationRecord.tool_calls) && observationRecord.tool_calls.length > 0) {
+    return "tool_call";
+  }
+  return "stdout";
+}
+
+function normalizeVmStreamType(value: string): string {
+  if (["stdin", "stdout", "tool_call", "tool_result", "lifecycle", "metric", "stderr", "state"].includes(value)) {
+    return value;
+  }
+  if (value === "request") {
+    return "stdin";
+  }
+  if (value === "response" || value === "log") {
+    return "stdout";
+  }
+  return "state";
+}
 class AsyncMutex {
   private tail: Promise<void> = Promise.resolve();
 
