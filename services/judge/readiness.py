@@ -193,6 +193,12 @@ def build_commercial_readiness_report(
             has_regression_candidates=has_regression_candidates,
         ),
         "contract_invariants": _contract_invariants(),
+        "scope_boundary": _scope_boundary(
+            coverage_stable=coverage_stable,
+            sdk_parity_passed=sdk_parity_passed,
+            batch_plan_ready=batch_plan_ready,
+            evidence_readiness_ready=evidence_readiness_ready,
+        ),
         "gate_status": gates,
         "evidence_snapshot": {
             "assignment_minimums_green": bool(coverage_report.get("meets_assignment_minimums")),
@@ -265,6 +271,70 @@ def _contract_invariants() -> list[str]:
         "calibration sources remain local_judge, ashr_grading, and llm_judge.",
         "new commercial artifacts are additive and optional for A3 consumers.",
     ]
+
+
+def _scope_boundary(
+    *,
+    coverage_stable: bool,
+    sdk_parity_passed: bool,
+    batch_plan_ready: bool,
+    evidence_readiness_ready: bool,
+) -> dict[str, Any]:
+    guardrails = [
+        {
+            "id": "a2_grade_contract_stable",
+            "status": "met" if coverage_stable else "blocked",
+            "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json",
+        },
+        {
+            "id": "a1_runner_boundary",
+            "status": "met" if sdk_parity_passed else "partial",
+            "evidence_ref": "fixtures/a2/results/a2_sdk_parity_report.json",
+        },
+        {
+            "id": "a3_optional_feed_boundary",
+            "status": "met" if batch_plan_ready and evidence_readiness_ready else "partial",
+            "evidence_ref": "services/report/report_builder.mjs optional A2 fixture loaders",
+        },
+        {
+            "id": "external_evidence_boundary",
+            "status": "met" if evidence_readiness_ready else "partial",
+            "evidence_ref": "fixtures/a2/results/a2_evidence_readiness_report.json",
+        },
+    ]
+    return {
+        "status": "controlled" if all(item["status"] == "met" for item in guardrails) else "watch",
+        "why_a2_is_larger": (
+            "A2 owns scenario definitions, deterministic judges, calibration fixtures, and evidence gates; "
+            "those artifacts are intentionally test-heavy so A1/A3 can consume stable results."
+        ),
+        "a2_owned": [
+            "scenario, rubric, judge, golden case, and failure taxonomy contracts",
+            "deterministic local grading and executable calibration fixtures",
+            "calibration, evidence readiness, case-book, and commercial-readiness feeds",
+            "A1/A3 handoff contracts for runner output and report input shapes",
+        ],
+        "delegated_to_a1": [
+            "hosted Ashr run execution and queue/runtime behavior",
+            "raw SDK calls, account authentication, and private API payload collection",
+            "cloud worker or TypeScript runtime implementation details",
+        ],
+        "delegated_to_a3": [
+            "dashboard UI, report layout, filtering, and presentation UX",
+            "cross-run visual analysis and final stakeholder export packaging",
+        ],
+        "allowed_growth": [
+            "additive schema fields that improve auditability without changing grade-result joins",
+            "deterministic fixtures and tests that prove existing judge behavior",
+            "evidence gates that prevent unreviewed external data from being counted as complete",
+        ],
+        "blocked_growth": [
+            "live Ashr or LLM calls inside deterministic local tests",
+            "A1 runner orchestration or A3 dashboard ownership inside A2 modules",
+            "breaking changes to a2.grade_results.v1 without coordinated A1/A3 migration",
+        ],
+        "guardrails": guardrails,
+    }
 
 
 def _coverage_stable(report: dict[str, Any]) -> bool:

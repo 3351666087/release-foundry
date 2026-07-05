@@ -51,6 +51,57 @@
     "calibration sources remain local_judge, ashr_grading, and llm_judge.",
     "new commercial artifacts are additive and optional for A3 consumers."
   ],
+  "scope_boundary": {
+    "status": "controlled",
+    "why_a2_is_larger": "A2 owns scenario definitions, deterministic judges, calibration fixtures, and evidence gates; those artifacts are intentionally test-heavy so A1/A3 can consume stable results.",
+    "a2_owned": [
+      "scenario, rubric, judge, golden case, and failure taxonomy contracts",
+      "deterministic local grading and executable calibration fixtures",
+      "calibration, evidence readiness, case-book, and commercial-readiness feeds",
+      "A1/A3 handoff contracts for runner output and report input shapes"
+    ],
+    "delegated_to_a1": [
+      "hosted Ashr run execution and queue/runtime behavior",
+      "raw SDK calls, account authentication, and private API payload collection",
+      "cloud worker or TypeScript runtime implementation details"
+    ],
+    "delegated_to_a3": [
+      "dashboard UI, report layout, filtering, and presentation UX",
+      "cross-run visual analysis and final stakeholder export packaging"
+    ],
+    "allowed_growth": [
+      "additive schema fields that improve auditability without changing grade-result joins",
+      "deterministic fixtures and tests that prove existing judge behavior",
+      "evidence gates that prevent unreviewed external data from being counted as complete"
+    ],
+    "blocked_growth": [
+      "live Ashr or LLM calls inside deterministic local tests",
+      "A1 runner orchestration or A3 dashboard ownership inside A2 modules",
+      "breaking changes to a2.grade_results.v1 without coordinated A1/A3 migration"
+    ],
+    "guardrails": [
+      {
+        "id": "a2_grade_contract_stable",
+        "status": "met",
+        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json"
+      },
+      {
+        "id": "a1_runner_boundary",
+        "status": "met",
+        "evidence_ref": "fixtures/a2/results/a2_sdk_parity_report.json"
+      },
+      {
+        "id": "a3_optional_feed_boundary",
+        "status": "met",
+        "evidence_ref": "services/report/report_builder.mjs optional A2 fixture loaders"
+      },
+      {
+        "id": "external_evidence_boundary",
+        "status": "met",
+        "evidence_ref": "fixtures/a2/results/a2_evidence_readiness_report.json"
+      }
+    ]
+  },
   "gate_status": [
     {
       "gate": "C0",

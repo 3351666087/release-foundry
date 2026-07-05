@@ -172,6 +172,7 @@ Commercial-readiness invariants:
 - A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
 - Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
 - A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, `a2.regression_replay.v1`, `a2.sdk_parity.v1`, `a2.batch_plan.v1`, `a2.semantic_harness.v1`, or `a2.evidence_readiness.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
+- `a2_commercial_readiness_report.json.scope_boundary` is the reviewer-facing bloat guard: A2 owns evaluation contracts and evidence gates, A1 owns hosted execution and raw API collection, and A3 owns dashboard/report UX. A2 growth should stay additive and test-backed.
 
 ## Known Boundary
 

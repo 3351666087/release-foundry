@@ -1110,6 +1110,16 @@ class A2ContractTests(unittest.TestCase):
             "top-level primary_failure_class remains one of the canonical A2 failure classes or none.",
             report["contract_invariants"],
         )
+        self.assertEqual(report["scope_boundary"]["status"], "controlled")
+        self.assertIn("scenario, rubric, judge", report["scope_boundary"]["a2_owned"][0])
+        self.assertTrue(any("hosted Ashr run execution" in item for item in report["scope_boundary"]["delegated_to_a1"]))
+        self.assertTrue(any("dashboard UI" in item for item in report["scope_boundary"]["delegated_to_a3"]))
+        self.assertTrue(any("live Ashr or LLM calls" in item for item in report["scope_boundary"]["blocked_growth"]))
+        scope_guardrails = {item["id"]: item for item in report["scope_boundary"]["guardrails"]}
+        self.assertEqual(scope_guardrails["a2_grade_contract_stable"]["status"], "met")
+        self.assertEqual(scope_guardrails["a1_runner_boundary"]["status"], "met")
+        self.assertEqual(scope_guardrails["a3_optional_feed_boundary"]["status"], "met")
+        self.assertEqual(scope_guardrails["external_evidence_boundary"]["status"], "met")
         gates = {gate["gate"]: gate for gate in report["gate_status"]}
         self.assertEqual(gates["C0"]["status"], "met")
         self.assertEqual(gates["C1"]["status"], "met")

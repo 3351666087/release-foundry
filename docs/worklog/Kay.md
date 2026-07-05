@@ -684,3 +684,23 @@ Next top 3:
 1. Collect the real six-case Ashr grading batch under private evidence.
 2. Import it with `--review-status reviewed` only after human review.
 3. Regenerate fixtures and verify C3 flips from `not_merged` to `merged` only when reviewed evidence is present.
+
+## 2026-07-05 - A2 scope boundary guard
+
+Reason:
+- A2 has more code than A1/A3 because it owns scenario, judge, fixture, and evidence contracts.
+- That is useful only while A2 remains a bounded evaluation module, not a second runner platform or dashboard.
+
+Implemented:
+- Added `scope_boundary` to `a2_commercial_readiness_report.json`.
+- The boundary records what A2 owns, what stays delegated to A1, what stays delegated to A3, allowed growth, blocked growth, and guardrail evidence.
+- Kept the schema addition optional for external consumers while testing that the current A2 report includes it.
+
+Boundary:
+- This is a scope-control artifact, not a new feature surface.
+- It does not change `a2.grade_results.v1`, run live services, or move A1/A3 responsibilities into A2.
+
+Next top 3:
+1. Keep A2 changes tied to deterministic judges, fixtures, schemas, docs, and evidence gates.
+2. Reject runner/cloud/dashboard work unless it is only compatibility evidence.
+3. Continue C3/C4/C5 evidence collection once reviewed external data is available.
