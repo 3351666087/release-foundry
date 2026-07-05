@@ -57,6 +57,7 @@ def build_evidence_readiness_report(
     llm_counts = source_coverage.get("llm_judge", {})
     llm_offline_only = _llm_offline_only(calibration_matrix)
     ashr_import_commands = [
+        "python scripts/a2_scan_ashr_grading_evidence.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json",
         "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",

@@ -950,7 +950,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["ashr_grading_preflight"]["expected_observation_count"], 6)
         self.assertEqual(report["ashr_grading_preflight"]["expected_reviewed_observation_count"], 6)
         self.assertIn("metadata.review_status", report["ashr_grading_preflight"]["required_review_fields"])
-        self.assertIn("--review-status reviewed", report["ashr_grading_preflight"]["commands"][0])
+        self.assertIn("a2_scan_ashr_grading_evidence.py", report["ashr_grading_preflight"]["commands"][0])
+        self.assertIn("--review-status reviewed", " ".join(report["ashr_grading_preflight"]["commands"]))
         self.assertEqual(report["ashr_grading_preflight"]["case_map_missing_case_ids"], [])
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
@@ -1507,6 +1508,36 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], "a2.ashr_grading_import.v1")
         self.assertEqual(payload["observation_count"], 2)
         self.assertEqual(payload["observations"][0]["metadata"]["review_status"], "reviewed")
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotIn("@", result.stdout)
+
+    def test_ashr_grading_evidence_scan_cli_summarizes_without_raw_payload(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_scan_ashr_grading_evidence.py"),
+                "--input",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json"),
+                "--case-map",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["schema_version"], "a2.ashr_grading_evidence_scan.v1")
+        self.assertEqual(payload["expected_case_count"], 2)
+        self.assertEqual(payload["matched_case_count"], 2)
+        self.assertEqual(payload["missing_case_ids"], [])
+        self.assertTrue(payload["complete_expected_match"])
+        self.assertTrue(payload["import_ready_when_reviewed"])
+        self.assertFalse(payload["safe_to_mark_c3_met"])
+        self.assertTrue(payload["redaction_policy"]["omits_unmapped_test_ids"])
+        self.assertNotIn("ashr-pass-control", result.stdout)
+        self.assertNotIn("ashr-wrong-contract-path", result.stdout)
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
 

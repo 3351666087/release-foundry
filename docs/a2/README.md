@@ -210,7 +210,15 @@ The current matrix is generated from `fixtures/a2/calibration/a2_g3_calibration_
 
 It is intentionally honest about missing evidence: `ashr_grading` is marked missing until a server-side grading batch is collected. `llm_judge` observations are offline reference samples with cost metadata, so local tests stay deterministic while the contract is ready for real model calls later.
 
-When a redacted Ashr `get-run` or `list-runs` record is available under private evidence, convert it into A2 observations with:
+When a redacted Ashr `get-run` or `list-runs` record is available under private evidence, scan it first to confirm it really contains the six mapped C3 cases:
+
+```bash
+python scripts/a2_scan_ashr_grading_evidence.py \
+  --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
+  --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json
+```
+
+Only after the scanner reports `complete_expected_match: true` and the private evidence has been reviewed, convert it into A2 observations with:
 
 ```bash
 python scripts/a2_import_ashr_grading.py \
