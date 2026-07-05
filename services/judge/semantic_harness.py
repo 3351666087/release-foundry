@@ -27,6 +27,13 @@ OUTPUT_FIELDS = [
     "rationale",
     "evidence_refs",
 ]
+REVIEWED_LIVE_METADATA_FIELDS = [
+    "prompt_template_id",
+    "prompt_hash",
+    "response_hash",
+    "review_status",
+    "sdk_language",
+]
 
 
 def build_semantic_harness_report(
@@ -36,7 +43,8 @@ def build_semantic_harness_report(
     """Describe the audited LLM judge path without pretending live calls happened."""
     cases = [_harness_case(case) for case in calibration_matrix.get("cases", [])]
     sdk_languages = _sdk_languages(sdk_parity_report)
-    live_model_evidence_available = _live_model_evidence_available(calibration_matrix)
+    live_review = _live_review_summary(calibration_matrix)
+    live_model_evidence_available = bool(live_review["complete"])
     risk_assessment = _risk_assessment(cases, live_model_evidence_available)
     readiness_checks = {
         "has_prompt_contract": True,
@@ -63,6 +71,11 @@ def build_semantic_harness_report(
         "status": "offline_reference_only" if not live_model_evidence_available else "audited_live_model_evidence",
         "harness_ready": all(audit_ready_checks.values()),
         "live_model_evidence_available": live_model_evidence_available,
+        "reviewed_live_observation_count": live_review["reviewed_count"],
+        "missing_reviewed_live_observation_count": live_review["missing_count"],
+        "reviewed_live_sdk_languages": live_review["sdk_languages"],
+        "reviewed_live_required_metadata_fields": REVIEWED_LIVE_METADATA_FIELDS,
+        "reviewed_live_evidence_gaps": live_review["gaps"],
         "source_matrix": {
             "required_languages": REQUIRED_SDK_LANGUAGES,
             "covered_languages": sorted(sdk_languages),
@@ -362,9 +375,50 @@ def _summary_result(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _live_model_evidence_available(calibration_matrix: dict[str, Any]) -> bool:
-    llm_sources = [
-        case.get("sources", {}).get("llm_judge", {})
-        for case in calibration_matrix.get("cases", [])
-        if case.get("sources", {}).get("llm_judge", {}).get("available")
-    ]
-    return bool(llm_sources) and all(source.get("provider") != "offline_reference" for source in llm_sources)
+    return bool(_live_review_summary(calibration_matrix)["complete"])
+
+
+def _live_review_summary(calibration_matrix: dict[str, Any]) -> dict[str, Any]:
+    cases = list(calibration_matrix.get("cases", []))
+    reviewed_sources = []
+    sdk_languages = set()
+    for case in cases:
+        source = case.get("sources", {}).get("llm_judge", {})
+        if _is_reviewed_live_semantic_source(source):
+            reviewed_sources.append(source)
+            sdk_language = source.get("metadata", {}).get("sdk_language")
+            if sdk_language:
+                sdk_languages.add(str(sdk_language))
+
+    required_languages = set(REQUIRED_SDK_LANGUAGES)
+    missing_count = max(0, len(cases) - len(reviewed_sources))
+    missing_languages = sorted(required_languages - sdk_languages)
+    gaps = []
+    if missing_count:
+        gaps.append(f"Import {missing_count} more audited live semantic judge observation(s).")
+    if missing_languages:
+        gaps.append(f"Add audited semantic judge evidence for SDK language(s): {', '.join(missing_languages)}.")
+    return {
+        "complete": bool(cases) and missing_count == 0 and not missing_languages,
+        "reviewed_count": len(reviewed_sources),
+        "missing_count": missing_count,
+        "sdk_languages": sorted(sdk_languages),
+        "gaps": gaps,
+    }
+
+
+def _is_reviewed_live_semantic_source(source: dict[str, Any]) -> bool:
+    if source.get("available") is not True or source.get("status") != "available":
+        return False
+    provider = str(source.get("provider", "")).strip().lower()
+    if provider in {"", "offline_reference", "offline reference judge samples"}:
+        return False
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    if any(not str(metadata.get(field, "")).strip() for field in REVIEWED_LIVE_METADATA_FIELDS):
+        return False
+    cost = source.get("cost") if isinstance(source.get("cost"), dict) else {}
+    return (
+        int(cost.get("prompt_tokens", 0)) > 0
+        and int(cost.get("completion_tokens", 0)) > 0
+        and float(cost.get("estimated_usd", 0.0)) > 0
+    )

@@ -355,6 +355,9 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
+        self.assertIn("risk_assessment", semantic_harness_schema["required"])
+        self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
+        self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -386,6 +389,13 @@ class A2ContractTests(unittest.TestCase):
                     for ref in refs:
                         self.assertLessEqual(case_ref_required, set(ref))
 
+        exemplar_required = set(coverage_schema["$defs"]["capability_axis_exemplar"]["required"])
+        for axis, exemplars in coverage_report["capability_axis_exemplars"].items():
+            with self.subTest(capability_axis_exemplar_schema=axis):
+                self.assertEqual(len(exemplars), 2)
+                for exemplar in exemplars:
+                    self.assertLessEqual(exemplar_required, set(exemplar))
+
         calibration_case_required = set(calibration_schema["$defs"]["calibration_case"]["required"])
         source_result_required = set(calibration_schema["$defs"]["source_result"]["required"])
         for case in calibration_matrix["cases"]:
@@ -399,6 +409,11 @@ class A2ContractTests(unittest.TestCase):
         for gate in readiness_report["gate_status"]:
             with self.subTest(readiness_gate=gate["gate"]):
                 self.assertLessEqual(gate_required, set(gate))
+        readiness_snapshot_required = set(readiness_schema["$defs"]["evidence_snapshot"]["required"])
+        self.assertLessEqual(readiness_snapshot_required, set(readiness_report["evidence_snapshot"]))
+        self.assertIn("ashr_safe_to_mark_c3_met", readiness_snapshot_required)
+        self.assertIn("semantic_safe_to_mark_c4_met", readiness_snapshot_required)
+        self.assertIn("semantic_risk_assessment_status", readiness_snapshot_required)
 
         regression_case_required = set(case_book_schema["$defs"]["regression_case"]["required"])
         for regression_case in case_book["regression_cases"]:
@@ -421,6 +436,7 @@ class A2ContractTests(unittest.TestCase):
                 self.assertLessEqual(batch_required, set(batch))
 
         harness_case_required = set(semantic_harness_schema["$defs"]["harness_case"]["required"])
+        self.assertIn("risk_flags", harness_case_required)
         for harness_case in semantic_harness["cases"]:
             with self.subTest(semantic_harness_case=harness_case["case_id"]):
                 self.assertLessEqual(harness_case_required, set(harness_case))
@@ -465,6 +481,37 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["ordered_tool_pairs"]["file.read -> file.read"], 1)
         self.assertEqual(report["ordered_tool_pairs"]["media.fetch -> image.view"], 1)
         self.assertEqual(report["ordered_tool_pairs"]["image.view -> media.classify"], 1)
+        self.assertEqual(len(report["capability_axis_checks"]), 10)
+        self.assertTrue(all(report["capability_axis_checks"].values()))
+        self.assertEqual(report["missing_capability_axes"], [])
+        self.assertEqual(report["capability_axis_counts"]["tool_choice_and_policy"], 60)
+        self.assertEqual(report["capability_axis_counts"]["multi_step_workflow"], 15)
+        self.assertEqual(report["capability_axis_counts"]["trace_contract"], 32)
+        self.assertEqual(report["capability_axis_counts"]["media_and_multimodal"], 2)
+        self.assertIn("A2-S031", report["capability_axis_scenarios"]["media_and_multimodal"])
+        self.assertIn("required_tool_use", report["capability_axis_dimension_map"]["trace_contract"])
+        self.assertEqual(len(report["capability_axis_exemplars"]), 10)
+        for axis, exemplars in report["capability_axis_exemplars"].items():
+            with self.subTest(capability_axis=axis):
+                self.assertEqual(len(exemplars), 2)
+                self.assertIn(axis, report["capability_axis_scenarios"])
+                for exemplar in exemplars:
+                    self.assertIn(exemplar["scenario_id"], report["capability_axis_scenarios"][axis])
+                    self.assertTrue(exemplar["why_it_matters"].startswith("Shows "))
+                    self.assertIn("Evidence signals:", exemplar["why_it_matters"])
+                    self.assertIn("required", exemplar["tool_policy_shape"])
+                    self.assertIn(exemplar["primary_failure_class"], CANONICAL_FAILURE_CLASSES)
+        media_exemplar_ids = {
+            exemplar["scenario_id"]
+            for exemplar in report["capability_axis_exemplars"]["media_and_multimodal"]
+        }
+        self.assertIn("A2-S031", media_exemplar_ids)
+        self.assertTrue(
+            any(
+                exemplar["tool_policy_shape"]["ordered"]
+                for exemplar in report["capability_axis_exemplars"]["media_and_multimodal"]
+            )
+        )
         self.assertEqual(report["fixture_scenario_count"], 30)
         self.assertEqual(report["fixture_type_counts"]["web"], 9)
         self.assertEqual(report["fixture_type_counts"]["calculator"], 1)
@@ -585,14 +632,21 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["regression_case_count"], 1)
         self.assertEqual(report["candidate_pool"]["local_llm_mismatch_count"], 1)
         self.assertEqual(report["candidate_pool"]["ashr_grading_missing_count"], 6)
+        self.assertEqual(report["candidate_pool"]["reviewed_external_evidence_count"], 0)
         self.assertEqual(report["maturity_gate"]["status"], "seed")
         self.assertFalse(report["maturity_gate"]["ready"])
         self.assertEqual(report["maturity_gate"]["target_regression_case_count"], 3)
+        self.assertEqual(report["maturity_gate"]["reviewed_evidence_target_count"], 3)
+        self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertFalse(report["maturity_gate"]["review_evidence_ready"])
         self.assertIn("Promote 2 more", report["maturity_gate"]["gaps"][0])
+        self.assertIn("reviewed Ashr grading or audited semantic evidence", report["maturity_gate"]["gaps"][1])
         regression = report["regression_cases"][0]
         self.assertEqual(regression["case_id"], "sample-a2-s010-wrong-arguments")
+        self.assertFalse(regression["ashr_grading"]["available"])
         self.assertEqual(regression["local_judge"]["primary_failure_class"], "wrong_arguments")
         self.assertEqual(regression["semantic_or_llm_judge"]["primary_failure_class"], "ignored_tool_result")
+        self.assertEqual(regression["semantic_or_llm_judge"]["provider"], "offline_reference")
         self.assertEqual(regression["disagreement_pairs"][0]["status"], "mismatch")
         self.assertIn("sample-a2-s010-wrong-arguments", case_book_text)
         self.assertIn("wrong_arguments", case_book_text)
@@ -621,7 +675,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["maturity_gate"]["target_replay_case_count"], 3)
         self.assertEqual(report["maturity_gate"]["current_replay_case_count"], 1)
         self.assertEqual(report["maturity_gate"]["failed_replay_case_count"], 0)
+        self.assertFalse(report["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
         self.assertIn("Replay 2 more", report["maturity_gate"]["gaps"][0])
+        self.assertIn("case-book maturity gate open", report["maturity_gate"]["gaps"][1])
         self.assertEqual(report["replay_case_count"], 1)
         replay = report["cases"][0]
         self.assertEqual(replay["case_id"], "sample-a2-s010-wrong-arguments")
@@ -629,6 +686,113 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(replay["observed_local_failure_class"], "wrong_arguments")
         self.assertEqual(replay["expected_llm_failure_class"], "ignored_tool_result")
         self.assertTrue(all(replay["checks"].values()))
+
+    def test_c5_maturity_requires_reviewed_external_evidence(self):
+        def matrix_with_three_disagreements(*, reviewed: bool) -> dict:
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            )
+            matrix = json.loads(json.dumps(matrix))
+            target_case_ids = [
+                "sample-a2-s010-wrong-arguments",
+                "sample-a2-s041-poor-retry-recovery",
+                "sample-a2-s054-missing-clarification",
+            ]
+            for case in matrix["cases"]:
+                if case["case_id"] not in target_case_ids:
+                    continue
+                local = case["sources"]["local_judge"]
+                llm = case["sources"]["llm_judge"]
+                llm_failure = (
+                    "ignored_tool_result"
+                    if local["primary_failure_class"] != "ignored_tool_result"
+                    else "wrong_arguments"
+                )
+                llm.update(
+                    {
+                        "available": True,
+                        "status": "available",
+                        "source": "llm_judge",
+                        "provider": "reviewed_model_call_sample" if reviewed else "offline_reference",
+                        "model": "llm-judge-reviewed-v1" if reviewed else "llm-judge-reference-v0",
+                        "passed": local["passed"],
+                        "primary_failure_class": llm_failure,
+                        "score": max(0, int(local["score"]) - 20),
+                        "confidence": 0.91,
+                        "rationale": "Synthetic disagreement used only to test C5 maturity gating.",
+                        "evidence_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json"
+                        if reviewed
+                        else case["fixture_ref"],
+                    }
+                )
+                case["calibration_tags"] = list(
+                    dict.fromkeys([*case.get("calibration_tags", []), "judge_disagreement_regression"])
+                )
+                case["diffs"] = [
+                    diff
+                    for diff in case.get("diffs", [])
+                    if not (diff.get("left") == "local_judge" and diff.get("right") == "llm_judge")
+                ]
+                case["diffs"].append(
+                    {
+                        "left": "local_judge",
+                        "right": "llm_judge",
+                        "comparable": True,
+                        "passed_match": True,
+                        "failure_class_match": False,
+                        "score_delta": abs(int(local["score"]) - int(llm["score"])),
+                        "status": "mismatch",
+                    }
+                )
+            matrix["agreement_summary"]["local_vs_llm_judge"]["mismatch_count"] = len(target_case_ids)
+            matrix["agreement_summary"]["local_vs_llm_judge"]["mismatches"] = [
+                {"case_id": case_id, "left_failure_class": "local", "right_failure_class": "llm"}
+                for case_id in target_case_ids
+            ]
+            return matrix
+
+        offline_matrix = matrix_with_three_disagreements(reviewed=False)
+        offline_case_book = build_case_book_report(offline_matrix)
+        offline_replay = build_regression_replay_report(
+            offline_matrix,
+            offline_case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        self.assertEqual(offline_case_book["regression_case_count"], 3)
+        self.assertEqual(offline_case_book["maturity_gate"]["status"], "seed")
+        self.assertFalse(offline_case_book["maturity_gate"]["ready"])
+        self.assertEqual(offline_case_book["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertEqual(offline_replay["replay_case_count"], 3)
+        self.assertTrue(offline_replay["replay_ready"])
+        self.assertEqual(offline_replay["maturity_status"], "seed")
+        self.assertFalse(offline_replay["maturity_gate"]["case_book_maturity_ready"])
+
+        reviewed_matrix = matrix_with_three_disagreements(reviewed=True)
+        reviewed_case_book = build_case_book_report(reviewed_matrix)
+        reviewed_replay = build_regression_replay_report(
+            reviewed_matrix,
+            reviewed_case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            reviewed_matrix,
+            case_book_report=reviewed_case_book,
+            regression_replay_report=reviewed_replay,
+        )
+        self.assertEqual(reviewed_case_book["regression_case_count"], 3)
+        self.assertEqual(reviewed_case_book["maturity_gate"]["status"], "mature")
+        self.assertTrue(reviewed_case_book["maturity_gate"]["ready"])
+        self.assertEqual(reviewed_case_book["maturity_gate"]["reviewed_external_evidence_count"], 3)
+        self.assertEqual(reviewed_case_book["maturity_gate"]["gaps"], [])
+        self.assertEqual(reviewed_replay["maturity_status"], "mature")
+        self.assertTrue(reviewed_replay["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(reviewed_replay["maturity_gate"]["gaps"], [])
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C5"]["status"], "met")
 
     def test_sdk_parity_report_tracks_python_and_typescript_runner_contracts(self):
         report = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -712,6 +876,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["schema_version"], "a2.semantic_harness.v1")
         self.assertTrue(report["harness_ready"])
         self.assertFalse(report["live_model_evidence_available"])
+        self.assertEqual(report["reviewed_live_observation_count"], 0)
+        self.assertEqual(report["missing_reviewed_live_observation_count"], 6)
+        self.assertEqual(report["reviewed_live_sdk_languages"], [])
+        self.assertIn("prompt_hash", report["reviewed_live_required_metadata_fields"])
+        self.assertIn("Import 6 more", report["reviewed_live_evidence_gaps"][0])
         self.assertEqual(report["status"], "offline_reference_only")
         self.assertEqual(report["case_count"], 6)
         self.assertEqual(report["source_matrix"]["required_languages"], ["python", "typescript"])
@@ -779,15 +948,26 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["readiness_checks"]["semantic_false_positive_tracking_ready"])
         self.assertEqual(report["ashr_grading_preflight"]["current_missing"], 6)
         self.assertEqual(report["ashr_grading_preflight"]["expected_observation_count"], 6)
+        self.assertEqual(report["ashr_grading_preflight"]["expected_reviewed_observation_count"], 6)
+        self.assertIn("metadata.review_status", report["ashr_grading_preflight"]["required_review_fields"])
+        self.assertIn("--review-status reviewed", report["ashr_grading_preflight"]["commands"][0])
         self.assertEqual(report["ashr_grading_preflight"]["case_map_missing_case_ids"], [])
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
         self.assertFalse(report["ashr_public_merge_gate"]["safe_to_mark_c3_met"])
+        self.assertEqual(report["ashr_public_merge_gate"]["merged_public_observation_count"], 0)
+        self.assertEqual(report["ashr_public_merge_gate"]["reviewed_public_observation_count"], 0)
         self.assertEqual(report["ashr_public_merge_gate"]["missing_public_observation_count"], 6)
+        self.assertEqual(report["ashr_public_merge_gate"]["missing_reviewed_observation_count"], 6)
+        self.assertIn("evidence_ref", report["ashr_public_merge_gate"]["required_review_fields"])
         self.assertIn("a2_ashr_grading_import.review.json", report["ashr_public_merge_gate"]["reviewed_private_import_ref"])
         self.assertIn("before C3 is met", report["ashr_public_merge_gate"]["blocking_reason"])
         self.assertTrue(report["semantic_judge_preflight"]["offline_reference_only"])
         self.assertEqual(report["semantic_judge_preflight"]["expected_reviewed_observation_count"], 6)
+        self.assertEqual(report["semantic_judge_preflight"]["reviewed_live_observation_count"], 0)
+        self.assertEqual(report["semantic_judge_preflight"]["missing_reviewed_live_observation_count"], 6)
+        self.assertEqual(report["semantic_judge_preflight"]["reviewed_live_sdk_languages"], [])
+        self.assertIn("response_hash", report["semantic_judge_preflight"]["reviewed_live_required_metadata_fields"])
         self.assertEqual(report["semantic_judge_preflight"]["risk_assessment_status"], "offline_reference_risk_register")
         self.assertTrue(report["semantic_judge_preflight"]["false_positive_tracking_ready"])
         self.assertEqual(report["semantic_judge_preflight"]["false_positive_candidate_count"], 0)
@@ -800,6 +980,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(report["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
         self.assertEqual(report["semantic_live_merge_gate"]["current_public_observation_count"], 6)
         self.assertEqual(report["semantic_live_merge_gate"]["audited_public_observation_count"], 0)
+        self.assertEqual(report["semantic_live_merge_gate"]["reviewed_live_observation_count"], 0)
         self.assertEqual(report["semantic_live_merge_gate"]["missing_audited_observation_count"], 6)
         self.assertIn("before C4 is met", report["semantic_live_merge_gate"]["blocking_reason"])
         self.assertIn("prompt_hash", report["semantic_judge_preflight"]["required_fields"])
@@ -807,6 +988,94 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("ashr_grading_tiny_calibration", report["batch_plan_refs"])
         self.assertIn("semantic_llm_judge_audit", report["batch_plan_refs"])
         self.assertIn("raw prompts", report["redaction_policy"]["never_commit"])
+
+    def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
+        def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
+            payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+            observations = []
+            for index, case in enumerate(payload["cases"]):
+                case_id = case["case_id"]
+                fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+                result = grade_run(
+                    fixture["scenario_id"],
+                    fixture.get("run", fixture),
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                    case_id=case_id,
+                )
+                sdk_language = "typescript" if include_typescript and index % 2 else "python"
+                observation = {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "llm_judge",
+                    "status": "available",
+                    "provider": "reviewed_model_call_sample",
+                    "model": "semantic-judge-reviewed-v1",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.92,
+                    "rationale": "Synthetic reviewed semantic row used only to test the C4 live evidence gate.",
+                    "cost": {"prompt_tokens": 700 + index, "completion_tokens": 90 + index, "estimated_usd": 0.0015},
+                    "evidence_ref": f"docs/evidence/private_refs/a2_semantic_judge_review.redacted.json#{case_id}",
+                }
+                if complete_metadata:
+                    observation["metadata"] = {
+                        "raw_case_id": case_id,
+                        "prompt_template_id": "a2_semantic_judge_prompt_v1",
+                        "prompt_hash": f"sha256:prompt-{index}",
+                        "response_hash": f"sha256:response-{index}",
+                        "review_status": "reviewed",
+                        "sdk_language": sdk_language,
+                    }
+                observations.append(observation)
+            payload = merge_calibration_observations(payload, {"observations": observations}, source="llm_judge")
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = Path(tmp_dir) / "semantic_observations.json"
+                path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+                return build_calibration_matrix(
+                    pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                    run_dir=ROOT / "fixtures/a2/runs",
+                    observations_path=path,
+                )
+
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        incomplete_matrix = reviewed_semantic_matrix(complete_metadata=False, include_typescript=True)
+        incomplete_harness = build_semantic_harness_report(incomplete_matrix, sdk_parity)
+        incomplete_readiness = build_evidence_readiness_report(incomplete_matrix, {}, incomplete_harness)
+        self.assertEqual(incomplete_harness["reviewed_live_observation_count"], 0)
+        self.assertFalse(incomplete_harness["live_model_evidence_available"])
+        self.assertEqual(incomplete_readiness["semantic_live_merge_gate"]["status"], "not_audited")
+        self.assertFalse(incomplete_readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
+        self.assertEqual(incomplete_readiness["semantic_live_merge_gate"]["missing_audited_observation_count"], 6)
+
+        single_language_matrix = reviewed_semantic_matrix(complete_metadata=True, include_typescript=False)
+        single_language_harness = build_semantic_harness_report(single_language_matrix, sdk_parity)
+        self.assertEqual(single_language_harness["reviewed_live_observation_count"], 6)
+        self.assertEqual(single_language_harness["reviewed_live_sdk_languages"], ["python"])
+        self.assertFalse(single_language_harness["live_model_evidence_available"])
+        self.assertIn("typescript", single_language_harness["reviewed_live_evidence_gaps"][0])
+
+        complete_matrix = reviewed_semantic_matrix(complete_metadata=True, include_typescript=True)
+        complete_harness = build_semantic_harness_report(complete_matrix, sdk_parity)
+        complete_readiness = build_evidence_readiness_report(complete_matrix, {}, complete_harness)
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            complete_matrix,
+            semantic_harness_report=complete_harness,
+            evidence_readiness_report=complete_readiness,
+        )
+        self.assertTrue(complete_harness["live_model_evidence_available"])
+        self.assertEqual(complete_harness["reviewed_live_observation_count"], 6)
+        self.assertEqual(complete_harness["missing_reviewed_live_observation_count"], 0)
+        self.assertEqual(complete_harness["reviewed_live_sdk_languages"], ["python", "typescript"])
+        self.assertEqual(complete_harness["reviewed_live_evidence_gaps"], [])
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["status"], "audited_live_model_evidence")
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["audited_public_observation_count"], 6)
+        self.assertEqual(complete_readiness["semantic_live_merge_gate"]["missing_audited_observation_count"], 0)
+        self.assertTrue(complete_readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C4"]["status"], "met")
 
     def test_ashr_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
@@ -870,6 +1139,16 @@ class A2ContractTests(unittest.TestCase):
             "top-level primary_failure_class remains one of the canonical A2 failure classes or none.",
             report["contract_invariants"],
         )
+        self.assertEqual(report["scope_boundary"]["status"], "controlled")
+        self.assertIn("scenario, rubric, judge", report["scope_boundary"]["a2_owned"][0])
+        self.assertTrue(any("hosted Ashr run execution" in item for item in report["scope_boundary"]["delegated_to_a1"]))
+        self.assertTrue(any("dashboard UI" in item for item in report["scope_boundary"]["delegated_to_a3"]))
+        self.assertTrue(any("live Ashr or LLM calls" in item for item in report["scope_boundary"]["blocked_growth"]))
+        scope_guardrails = {item["id"]: item for item in report["scope_boundary"]["guardrails"]}
+        self.assertEqual(scope_guardrails["a2_grade_contract_stable"]["status"], "met")
+        self.assertEqual(scope_guardrails["a1_runner_boundary"]["status"], "met")
+        self.assertEqual(scope_guardrails["a3_optional_feed_boundary"]["status"], "met")
+        self.assertEqual(scope_guardrails["external_evidence_boundary"]["status"], "met")
         gates = {gate["gate"]: gate for gate in report["gate_status"]}
         self.assertEqual(gates["C0"]["status"], "met")
         self.assertEqual(gates["C1"]["status"], "met")
@@ -928,6 +1207,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(observations[1]["case_id"], "sample-a2-s010-wrong-arguments")
         self.assertEqual(observations[1]["primary_failure_class"], "wrong_arguments")
         self.assertEqual(observations[1]["metadata"]["raw_case_id"], "ashr-wrong-contract-path")
+        self.assertEqual(observations[1]["metadata"]["review_status"], "unreviewed")
         secret_sample = json.loads(json.dumps(sample))
         secret_sample["response"]["run"]["result"]["tests"][1]["action_results"][0]["divergence_notes"] = (
             "Bearer secret-token for kay@example.test"
@@ -955,6 +1235,220 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 4)
         self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["comparable"], 2)
         self.assertEqual(matrix["agreement_summary"]["local_vs_ashr_grading"]["mismatch_count"], 0)
+
+    def test_partial_ashr_grading_import_does_not_mark_c3_safe(self):
+        sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))
+        case_map = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json").read_text(encoding="utf-8"))
+        observations = import_ashr_grading_observations(
+            sample,
+            case_map=case_map,
+            evidence_ref="docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json",
+        )
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        payload = merge_calibration_observations(payload, {"observations": observations}, source="ashr_grading")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "partial_observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        case_book = build_case_book_report(matrix)
+        regression_replay = build_regression_replay_report(
+            matrix,
+            case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(matrix, sdk_parity)
+        batch_plan = build_batch_plan_report(
+            coverage_report,
+            matrix,
+            case_book,
+            sdk_parity,
+            semantic_harness,
+            regression_replay,
+        )
+        evidence_readiness = build_evidence_readiness_report(matrix, batch_plan, semantic_harness)
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            matrix,
+            case_book_report=case_book,
+            sdk_parity_report=sdk_parity,
+            batch_plan_report=batch_plan,
+            semantic_harness_report=semantic_harness,
+            regression_replay_report=regression_replay,
+            evidence_readiness_report=evidence_readiness,
+        )
+
+        ashr_gate = evidence_readiness["ashr_public_merge_gate"]
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["available"], 2)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 4)
+        self.assertEqual(ashr_gate["status"], "not_merged")
+        self.assertFalse(ashr_gate["public_matrix_merged"])
+        self.assertFalse(ashr_gate["safe_to_mark_c3_met"])
+        self.assertEqual(ashr_gate["current_public_observation_count"], 2)
+        self.assertEqual(ashr_gate["merged_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_public_observation_count"], 4)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 6)
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C3"]["status"], "partial")
+        self.assertIn("4 missing calibration cases", gates["C3"]["gaps"][0])
+        self.assertFalse(commercial["evidence_snapshot"]["ashr_safe_to_mark_c3_met"])
+        self.assertEqual(commercial["evidence_snapshot"]["ashr_public_missing_observations"], 4)
+
+    def test_complete_unreviewed_ashr_grading_import_does_not_mark_c3_safe(self):
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        observations = []
+        for case in payload["cases"]:
+            case_id = case["case_id"]
+            fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+            result = grade_run(
+                fixture["scenario_id"],
+                fixture.get("run", fixture),
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                case_id=case_id,
+            )
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "ashr_grading",
+                    "status": "available",
+                    "provider": "synthetic unreviewed Ashr grading summary",
+                    "model": "ashr-server-side",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.99,
+                    "rationale": "Synthetic unreviewed row used only to test the C3 review gate.",
+                    "cost": {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0},
+                    "evidence_ref": "docs/evidence/private_refs/a2_ashr_grading_import.unreviewed.synthetic.json",
+                    "metadata": {"review_status": "unreviewed"},
+                }
+            )
+        payload = merge_calibration_observations(payload, {"observations": observations}, source="ashr_grading")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "complete_unreviewed_observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(matrix, sdk_parity)
+        evidence_readiness = build_evidence_readiness_report(matrix, {}, semantic_harness)
+
+        ashr_gate = evidence_readiness["ashr_public_merge_gate"]
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["available"], 6)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 0)
+        self.assertEqual(ashr_gate["status"], "merged_unreviewed")
+        self.assertFalse(ashr_gate["public_matrix_merged"])
+        self.assertFalse(ashr_gate["safe_to_mark_c3_met"])
+        self.assertEqual(ashr_gate["current_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["merged_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 6)
+
+    def test_complete_reviewed_ashr_grading_import_marks_c3_safe(self):
+        payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
+        observations = []
+        for case in payload["cases"]:
+            case_id = case["case_id"]
+            fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+            result = grade_run(
+                fixture["scenario_id"],
+                fixture.get("run", fixture),
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                case_id=case_id,
+            )
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "ashr_grading",
+                    "status": "available",
+                    "provider": "synthetic reviewed Ashr grading summary",
+                    "model": "ashr-server-side",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.99,
+                    "rationale": "Synthetic reviewed row used only to test the 6/6 public merge gate.",
+                    "cost": {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0},
+                    "evidence_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.synthetic.json",
+                    "metadata": {
+                        "raw_case_id": f"ashr-{case_id}",
+                        "run_id": "synthetic-reviewed-run",
+                        "review_status": "reviewed",
+                    },
+                }
+            )
+        payload = merge_calibration_observations(payload, {"observations": observations}, source="ashr_grading")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "complete_observations.json"
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            matrix = build_calibration_matrix(
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                run_dir=ROOT / "fixtures/a2/runs",
+                observations_path=path,
+            )
+
+        coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        case_book = build_case_book_report(matrix)
+        regression_replay = build_regression_replay_report(
+            matrix,
+            case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(matrix, sdk_parity)
+        batch_plan = build_batch_plan_report(
+            coverage_report,
+            matrix,
+            case_book,
+            sdk_parity,
+            semantic_harness,
+            regression_replay,
+        )
+        evidence_readiness = build_evidence_readiness_report(matrix, batch_plan, semantic_harness)
+        commercial = build_commercial_readiness_report(
+            coverage_report,
+            matrix,
+            case_book_report=case_book,
+            sdk_parity_report=sdk_parity,
+            batch_plan_report=batch_plan,
+            semantic_harness_report=semantic_harness,
+            regression_replay_report=regression_replay,
+            evidence_readiness_report=evidence_readiness,
+        )
+
+        ashr_gate = evidence_readiness["ashr_public_merge_gate"]
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["available"], 6)
+        self.assertEqual(matrix["source_coverage"]["ashr_grading"]["missing"], 0)
+        self.assertEqual(ashr_gate["status"], "merged")
+        self.assertTrue(ashr_gate["public_matrix_merged"])
+        self.assertTrue(ashr_gate["safe_to_mark_c3_met"])
+        self.assertEqual(ashr_gate["current_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["merged_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["reviewed_public_observation_count"], 6)
+        self.assertEqual(ashr_gate["missing_public_observation_count"], 0)
+        self.assertEqual(ashr_gate["missing_reviewed_observation_count"], 0)
+        gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
+        self.assertEqual(gates["C3"]["status"], "met")
+        self.assertEqual(gates["C3"]["gaps"], [])
+        self.assertTrue(commercial["evidence_snapshot"]["ashr_safe_to_mark_c3_met"])
+        self.assertEqual(commercial["evidence_snapshot"]["ashr_public_missing_observations"], 0)
 
     def test_ashr_grading_merge_cli_outputs_reviewed_calibration_payload(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))
@@ -1000,6 +1494,8 @@ class A2ContractTests(unittest.TestCase):
                 str(ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json"),
                 "--evidence-ref",
                 "docs/evidence/private_refs/a2_ashr_grading_sample.redacted.json",
+                "--review-status",
+                "reviewed",
             ],
             cwd=ROOT,
             capture_output=True,
@@ -1010,8 +1506,71 @@ class A2ContractTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["schema_version"], "a2.ashr_grading_import.v1")
         self.assertEqual(payload["observation_count"], 2)
+        self.assertEqual(payload["observations"][0]["metadata"]["review_status"], "reviewed")
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
+
+    def test_local_lite_check_plan_stays_lightweight_and_offline(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_local_lite_check.py"),
+                "--plan",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan["schema_version"], "a2.local_lite_plan.v1")
+        self.assertEqual(plan["profile"], "local-lite")
+        self.assertFalse(plan["requires_network"])
+        self.assertFalse(plan["requires_node_modules"])
+        self.assertFalse(plan["requires_browser"])
+        self.assertFalse(plan["requires_ashr_api_key"])
+        self.assertFalse(plan["writes_files"])
+        commands = [" ".join(check["command"]) for check in plan["checks"]]
+        self.assertIn("scripts/a2_regenerate_fixtures.py --check", commands[0])
+        self.assertIn("-m unittest discover -s tests/a2", commands[1])
+        self.assertIn("live Ashr API calls", plan["excluded_by_design"])
+
+    def test_external_evidence_preflight_stays_public_and_actionable(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_external_evidence_preflight.py"),
+                "--json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotRegex(result.stdout, re.compile(r"sk-[A-Za-z0-9]"))
+
+        preflight = json.loads(result.stdout)
+        self.assertEqual(preflight["schema_version"], "a2.external_evidence_preflight.v1")
+        self.assertFalse(preflight["requires_network"])
+        self.assertFalse(preflight["requires_ashr_api_key"])
+        self.assertFalse(preflight["reads_private_payloads"])
+        self.assertFalse(preflight["writes_files"])
+        self.assertTrue(preflight["environment_probe"]["value_redacted"])
+        self.assertEqual(preflight["gate_summary"]["C3"]["missing_reviewed_observations"], 6)
+        self.assertFalse(preflight["gate_summary"]["C3"]["safe_to_mark_met"])
+        self.assertEqual(preflight["gate_summary"]["C4"]["merge_status"], "offline_reference_only")
+        self.assertFalse(preflight["gate_summary"]["C4"]["safe_to_mark_met"])
+        self.assertEqual(preflight["gate_summary"]["C5"]["current_regression_cases"], 1)
+        self.assertEqual(preflight["gate_summary"]["C5"]["target_regression_cases"], 3)
+        self.assertIn(
+            "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
+            preflight["private_input_refs"],
+        )
+        self.assertIn("--review-status reviewed", " ".join(preflight["recommended_commands"]["ashr_grading"]))
+        self.assertIn("API keys", preflight["redaction_policy"]["never_commit"])
 
     def test_semantic_judge_import_can_replace_offline_llm_rows(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/semantic_judge_import_sample.json").read_text(encoding="utf-8"))

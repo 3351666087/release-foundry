@@ -9,16 +9,20 @@
     "comparable_local_llm_count": 6,
     "local_llm_mismatch_count": 1,
     "ashr_grading_missing_count": 6,
-    "promoted_regression_case_count": 1
+    "promoted_regression_case_count": 1,
+    "reviewed_external_evidence_count": 0
   },
   "maturity_gate": {
     "status": "seed",
     "ready": false,
     "target_regression_case_count": 3,
     "current_regression_case_count": 1,
+    "reviewed_evidence_target_count": 3,
+    "reviewed_external_evidence_count": 0,
+    "review_evidence_ready": false,
     "gaps": [
       "Promote 2 more reviewed disagreement case(s) before marking the C5 case book mature.",
-      "Keep new seeds tied to reviewed Ashr or audited semantic evidence before using them to close C5."
+      "Attach reviewed Ashr grading or audited semantic evidence to 3 regression case(s) before closing C5."
     ]
   },
   "regression_cases": [
@@ -38,6 +42,8 @@
         "primary_failure_class": "wrong_arguments"
       },
       "local_judge": {
+        "available": true,
+        "status": "available",
         "source": "local_judge",
         "provider": "services.judge.runner.grade_run",
         "passed": false,
@@ -47,7 +53,21 @@
         "rationale": "Deterministic local A2 judge result.",
         "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json"
       },
+      "ashr_grading": {
+        "available": false,
+        "status": "missing",
+        "source": "ashr_grading",
+        "provider": "ashr server-side grading",
+        "passed": null,
+        "primary_failure_class": "",
+        "score": null,
+        "confidence": null,
+        "rationale": "",
+        "evidence_ref": ""
+      },
       "semantic_or_llm_judge": {
+        "available": true,
+        "status": "available",
         "source": "llm_judge",
         "provider": "offline_reference",
         "passed": false,

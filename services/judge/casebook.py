@@ -44,35 +44,44 @@ def _candidate_pool(calibration_matrix: dict[str, Any], regression_cases: list[d
         "local_llm_mismatch_count": int(agreement.get("mismatch_count", 0)),
         "ashr_grading_missing_count": int(ashr_coverage.get("missing", 0)),
         "promoted_regression_case_count": len(regression_cases),
+        "reviewed_external_evidence_count": _reviewed_evidence_count(regression_cases),
     }
 
 
 def _maturity_gate(regression_cases: list[dict[str, Any]]) -> dict[str, Any]:
     current_count = len(regression_cases)
-    ready = current_count >= MATURE_REGRESSION_CASE_TARGET
+    reviewed_count = _reviewed_evidence_count(regression_cases)
+    ready = current_count >= MATURE_REGRESSION_CASE_TARGET and reviewed_count >= MATURE_REGRESSION_CASE_TARGET
     return {
         "status": "mature" if ready else "seed",
         "ready": ready,
         "target_regression_case_count": MATURE_REGRESSION_CASE_TARGET,
         "current_regression_case_count": current_count,
-        "gaps": _maturity_gaps(current_count),
+        "reviewed_evidence_target_count": MATURE_REGRESSION_CASE_TARGET,
+        "reviewed_external_evidence_count": reviewed_count,
+        "review_evidence_ready": reviewed_count >= MATURE_REGRESSION_CASE_TARGET,
+        "gaps": _maturity_gaps(current_count, reviewed_count),
     }
 
 
-def _maturity_gaps(current_count: int) -> list[str]:
-    if current_count >= MATURE_REGRESSION_CASE_TARGET:
-        return []
+def _maturity_gaps(current_count: int, reviewed_count: int) -> list[str]:
+    gaps = []
     remaining = MATURE_REGRESSION_CASE_TARGET - current_count
-    return [
-        f"Promote {remaining} more reviewed disagreement case(s) before marking the C5 case book mature.",
-        "Keep new seeds tied to reviewed Ashr or audited semantic evidence before using them to close C5.",
-    ]
+    if remaining > 0:
+        gaps.append(f"Promote {remaining} more reviewed disagreement case(s) before marking the C5 case book mature.")
+    reviewed_remaining = MATURE_REGRESSION_CASE_TARGET - reviewed_count
+    if reviewed_remaining > 0:
+        gaps.append(
+            f"Attach reviewed Ashr grading or audited semantic evidence to {reviewed_remaining} regression case(s) before closing C5."
+        )
+    return gaps
 
 
 def _regression_case(case: dict[str, Any]) -> dict[str, Any]:
     disagreement_pairs = [diff for diff in case.get("diffs", []) if diff.get("status") == "mismatch"]
     sources = case.get("sources", {})
     local = sources.get("local_judge", {})
+    ashr = sources.get("ashr_grading", {})
     llm = sources.get("llm_judge", {})
     return {
         "regression_id": f"regression-{case.get('case_id', '')}",
@@ -84,6 +93,7 @@ def _regression_case(case: dict[str, Any]) -> dict[str, Any]:
         "calibration_focus": case.get("calibration_focus", []),
         "expected": case.get("expected", {}),
         "local_judge": _source_summary(local),
+        "ashr_grading": _source_summary(ashr),
         "semantic_or_llm_judge": _source_summary(llm),
         "disagreement_pairs": disagreement_pairs,
         "regression_assertion": _regression_assertion(local, llm),
@@ -94,6 +104,8 @@ def _regression_case(case: dict[str, Any]) -> dict[str, Any]:
 
 def _source_summary(source: dict[str, Any]) -> dict[str, Any]:
     return {
+        "available": bool(source.get("available")),
+        "status": source.get("status", ""),
         "source": source.get("source", ""),
         "provider": source.get("provider", ""),
         "passed": source.get("passed"),
@@ -124,3 +136,18 @@ def _reviewer_note(case: dict[str, Any], local: dict[str, Any], llm: dict[str, A
 def _evidence_refs(case: dict[str, Any], local: dict[str, Any], llm: dict[str, Any]) -> list[str]:
     refs = [str(case.get("fixture_ref", "")), str(local.get("evidence_ref", "")), str(llm.get("evidence_ref", ""))]
     return sorted({ref for ref in refs if ref})
+
+
+def _reviewed_evidence_count(regression_cases: list[dict[str, Any]]) -> int:
+    return sum(1 for regression in regression_cases if _has_reviewed_external_evidence(regression))
+
+
+def _has_reviewed_external_evidence(regression: dict[str, Any]) -> bool:
+    ashr = regression.get("ashr_grading", {})
+    if ashr.get("available") and ashr.get("status") == "available":
+        return True
+    semantic = regression.get("semantic_or_llm_judge", {})
+    provider = str(semantic.get("provider", "")).strip().lower()
+    if not semantic.get("available") or semantic.get("status") != "available":
+        return False
+    return provider not in {"", "offline_reference", "offline reference judge samples"}

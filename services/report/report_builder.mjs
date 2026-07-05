@@ -224,6 +224,12 @@ export function summarizeCoverage(coverageFixture = {}) {
     scenario_dimension_counts: mapping(coverageFixture.scenario_dimension_counts),
     scenario_dimension_scenarios: mapping(coverageFixture.scenario_dimension_scenarios),
     thin_scenario_dimensions: mapping(coverageFixture.thin_scenario_dimensions),
+    capability_axis_targets: mapping(coverageFixture.capability_axis_targets),
+    capability_axis_checks: mapping(coverageFixture.capability_axis_checks),
+    capability_axis_counts: mapping(coverageFixture.capability_axis_counts),
+    capability_axis_scenarios: mapping(coverageFixture.capability_axis_scenarios),
+    capability_axis_exemplars: mapping(coverageFixture.capability_axis_exemplars),
+    missing_capability_axes: missing(coverageFixture.missing_capability_axes),
     scenario_quality_targets: mapping(coverageFixture.scenario_quality_targets),
     scenario_quality_warnings: missing(coverageFixture.scenario_quality_warnings),
     scenario_quality_warning_count: missing(coverageFixture.scenario_quality_warnings).length,
@@ -288,10 +294,16 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_public_merge_status: ashrMergeGate.status || "unknown",
     ashr_public_matrix_merged: ashrMergeGate.public_matrix_merged === true,
     ashr_safe_to_mark_c3_met: ashrMergeGate.safe_to_mark_c3_met === true,
+    ashr_merged_public_observation_count: ashrMergeGate.merged_public_observation_count || 0,
+    ashr_reviewed_public_observation_count: ashrMergeGate.reviewed_public_observation_count || 0,
     ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
+    ashr_missing_reviewed_observation_count: ashrMergeGate.missing_reviewed_observation_count || 0,
     ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
+    semantic_reviewed_live_observation_count: semantic.reviewed_live_observation_count || 0,
+    semantic_missing_reviewed_live_observation_count: semantic.missing_reviewed_live_observation_count || 0,
+    semantic_reviewed_live_sdk_languages: missing(semantic.reviewed_live_sdk_languages),
     semantic_risk_assessment_status: semantic.risk_assessment_status || "unknown",
     semantic_false_positive_tracking_ready: semantic.false_positive_tracking_ready === true,
     semantic_false_positive_candidate_count: semantic.false_positive_candidate_count || 0,
@@ -302,6 +314,7 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     semantic_live_merge_status: semanticMergeGate.status || "unknown",
     semantic_audited_live_evidence_merged: semanticMergeGate.audited_live_evidence_merged === true,
     semantic_safe_to_mark_c4_met: semanticMergeGate.safe_to_mark_c4_met === true,
+    semantic_live_reviewed_observation_count: semanticMergeGate.reviewed_live_observation_count || 0,
     semantic_missing_audited_observation_count: semanticMergeGate.missing_audited_observation_count || 0,
     semantic_live_merge_blocking_reason: semanticMergeGate.blocking_reason || "",
     semantic_required_fields: missing(semantic.required_fields),
@@ -338,6 +351,10 @@ export function summarizeRegressionReadiness(caseBookFixture = {}, regressionRep
     target_replay_case_count: replayGate.target_replay_case_count || 0,
     current_replay_case_count: replayGate.current_replay_case_count || regressionReplayFixture.replay_case_count || 0,
     failed_replay_case_count: replayGate.failed_replay_case_count || regressionReplayFixture.failed_count || 0,
+    reviewed_evidence_target_count: caseBookGate.reviewed_evidence_target_count || replayGate.reviewed_evidence_target_count || 0,
+    reviewed_external_evidence_count: caseBookGate.reviewed_external_evidence_count || candidatePool.reviewed_external_evidence_count || 0,
+    review_evidence_ready: caseBookGate.review_evidence_ready === true,
+    case_book_maturity_ready: replayGate.case_book_maturity_ready === true,
     local_llm_mismatch_count: candidatePool.local_llm_mismatch_count || 0,
     ashr_grading_missing_count: candidatePool.ashr_grading_missing_count || 0,
     gaps: [...missing(caseBookGate.gaps), ...missing(replayGate.gaps)]
@@ -362,6 +379,16 @@ function coverageEvidenceLines(coverage = {}) {
       `- ${failureClass}: golden ${formatCoverageCaseRefs(coverage.golden_failure_class_cases[failureClass])}; `
       + `executable ${formatCoverageCaseRefs(coverage.executable_failure_class_cases[failureClass])}`
     ));
+}
+
+function coverageExemplarLines(exemplars = {}) {
+  return Object.entries(exemplars)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([axis, items]) => (
+      Array.isArray(items) ? items : []
+    ).map((item) => (
+      `- ${axis}: ${item.scenario_id || "unknown"} (${item.title || "untitled"}) - ${item.why_it_matters || "No reviewer note."}`
+    )));
 }
 
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
@@ -450,12 +477,14 @@ export function buildMarkdownReport(
 
   if (coverage.available) {
     const evidenceLines = coverageEvidenceLines(coverage);
+    const exemplarLines = coverageExemplarLines(coverage.capability_axis_exemplars);
     lines.push(
       "## Coverage",
       "",
       `- Assignment minimums met: ${coverage.meets_assignment_minimums ? "yes" : "no"}`,
       `- Scenarios: ${coverage.scenario_count}`,
       `- Scenario dimensions met: ${Object.values(coverage.scenario_dimension_checks).filter(Boolean).length}/${Object.keys(coverage.scenario_dimension_checks).length}`,
+      `- Capability axes met: ${Object.values(coverage.capability_axis_checks).filter(Boolean).length}/${Object.keys(coverage.capability_axis_checks).length}`,
       `- Scenario quality warnings: ${coverage.scenario_quality_warning_count}`,
       `- Rubric classes: ${coverage.rubric_class_count}`,
       `- Judge modes: ${coverage.judge_mode_count}`,
@@ -472,6 +501,14 @@ export function buildMarkdownReport(
         "### Scenario Quality Warnings",
         "",
         ...coverage.scenario_quality_warnings.map((warning) => `- ${warning}`),
+        ""
+      );
+    }
+    if (exemplarLines.length > 0) {
+      lines.push(
+        "### Capability Axis Exemplars",
+        "",
+        ...exemplarLines,
         ""
       );
     }
@@ -494,8 +531,11 @@ export function buildMarkdownReport(
       `- Calibration cases: ${evidenceReadiness.calibration_case_count}`,
       `- Ashr grading missing: ${evidenceReadiness.ashr_current_missing}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- Ashr public merge: ${evidenceReadiness.ashr_public_merge_status}`,
+      `- Ashr safely merged observations: ${evidenceReadiness.ashr_merged_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Ashr reviewed public observations: ${evidenceReadiness.ashr_reviewed_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
+      `- Semantic reviewed live observations: ${evidenceReadiness.semantic_reviewed_live_observation_count}/${evidenceReadiness.semantic_expected_reviewed_observation_count}`,
       `- Semantic risk register: ${evidenceReadiness.semantic_risk_assessment_status}`,
       `- Semantic false-positive candidates: ${evidenceReadiness.semantic_false_positive_candidate_count}`,
       `- Semantic failure-class drift candidates: ${evidenceReadiness.semantic_failure_class_drift_candidate_count}`,
@@ -515,6 +555,7 @@ export function buildMarkdownReport(
       `- Maturity status: ${regressionReadiness.maturity_status}`,
       `- Case book regressions: ${regressionReadiness.current_regression_case_count}/${regressionReadiness.target_regression_case_count || "unknown"}`,
       `- Replay cases: ${regressionReadiness.current_replay_case_count}/${regressionReadiness.target_replay_case_count || "unknown"}`,
+      `- Reviewed external evidence: ${regressionReadiness.reviewed_external_evidence_count}/${regressionReadiness.reviewed_evidence_target_count || "unknown"}`,
       `- Replay ready: ${regressionReadiness.replay_ready ? "yes" : "no"}`,
       `- Local-vs-LLM mismatches: ${regressionReadiness.local_llm_mismatch_count}`,
       `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,

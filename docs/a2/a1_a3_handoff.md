@@ -144,9 +144,9 @@ For scenario-quality review, A3 can read `scenario_dimension_counts`, `scenario_
 
 The calibration matrix uses `schema_version: a2.calibration_matrix.v1`. It is a G3 commercial-readiness artifact for comparing `local_judge`, future `ashr_grading`, and `llm_judge` observations on the same cases. It exposes source coverage, agreement summaries, per-case diffs, cost ledger rows, and calibration warnings. A3 can surface this as a calibration panel without treating missing Ashr grading as a broken local test.
 
-A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, and private evidence path.
+A1 can feed real Ashr run evidence into this matrix by first storing raw/redacted `get-run` or `list-runs` records under ignored private evidence, then using `scripts/a2_import_ashr_grading.py --review-status reviewed` to convert `run.result.tests[].action_results[]` into reviewed `ashr_grading` observations. The importer maps Ashr `test_id` values to A2 `case_id` values through a small JSON case map, preserving only summary fields such as score, canonical failure class, match statuses, run id, review status, and private evidence path.
 
-For the current six-case C3 batch, A1 should use `fixtures/a2/calibration/ashr_grading_batch_case_map.json` when assigning Ashr `test_id` values. After A2 reviews the importer output, `scripts/a2_merge_calibration_observations.py` can merge those observations into `fixtures/a2/calibration/a2_g3_calibration_observations.json` with `--source ashr_grading --min-count 6`.
+For the current six-case C3 batch, A1 should use `fixtures/a2/calibration/ashr_grading_batch_case_map.json` when assigning Ashr `test_id` values. After A2 reviews the importer output, `scripts/a2_merge_calibration_observations.py` can merge those observations into `fixtures/a2/calibration/a2_g3_calibration_observations.json` with `--source ashr_grading --min-count 6`. C3 is still unsafe if the six public rows are merely present but do not carry `metadata.review_status: reviewed` and an `evidence_ref`.
 
 The commercial readiness report uses `schema_version: a2.commercial_readiness.v1` and lives at `fixtures/a2/results/a2_commercial_readiness_report.json`. It is an optional planning/status feed for A3: it records the PDF-derived C0-C6 gate status, current evidence snapshot, commercial dimensions, and A2 next top 3. It is intentionally additive; A1/A3 should not depend on it for the existing grade or coverage join paths.
 
@@ -172,10 +172,13 @@ Commercial-readiness invariants:
 - A2 keeps `a2.grade_results.v1`, `a2.coverage_report.v1`, and `a2.calibration_matrix.v1` required fields stable unless a coordinated `v2` change request is made.
 - Top-level `primary_failure_class` remains one of the canonical A2 failure classes or `none`; semantic disagreements belong in nested evidence, tags, or calibration artifacts.
 - A3 may load `a2.commercial_readiness.v1`, `a2.case_book.v1`, `a2.regression_replay.v1`, `a2.sdk_parity.v1`, `a2.batch_plan.v1`, `a2.semantic_harness.v1`, or `a2.evidence_readiness.v1` as optional feeds, but missing optional readiness data must not break existing dashboard/report paths.
+- `a2_commercial_readiness_report.json.scope_boundary` is the reviewer-facing bloat guard: A2 owns evaluation contracts and evidence gates, A1 owns hosted execution and raw API collection, and A3 owns dashboard/report UX. A2 growth should stay additive and test-backed.
 
 ## Known Boundary
 
 This is primarily a local deterministic handoff. A2 now also keeps an optional real Ashr API smoke path in `scripts/a2_real_api_smoke.py`: when `ASHR_LABS_API_KEY` is set, it validates authentication and read/list endpoint reachability, then stores only a redacted summary in `docs/evidence/a2_real_api_smoke.json`. Hosted/server-side grading with `run.deploy` remains a later calibration step.
+
+For a small local checkout or low-memory laptop, start with `python scripts/a2_local_lite_check.py`. It intentionally skips TypeScript package install/build, browser runtime, live Ashr calls, and audited LLM judge calls while still proving A2 fixture reproducibility and deterministic A2 tests.
 
 ## Recommended Codex Workflow
 

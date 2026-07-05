@@ -8,6 +8,10 @@ from typing import Any
 
 
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
+REQUIRED_ASHR_REVIEW_FIELDS = [
+    "metadata.review_status",
+    "evidence_ref",
+]
 REQUIRED_SEMANTIC_FIELDS = [
     "case_id",
     "scenario_id",
@@ -53,7 +57,7 @@ def build_evidence_readiness_report(
     llm_counts = source_coverage.get("llm_judge", {})
     llm_offline_only = _llm_offline_only(calibration_matrix)
     ashr_import_commands = [
-        "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+        "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
@@ -101,10 +105,12 @@ def build_evidence_readiness_report(
             "case_map_count": len(ashr_case_map),
             "case_map_covers_all_calibration_cases": not ashr_missing and len(ashr_case_map) == len(cases),
             "case_map_missing_case_ids": ashr_missing,
+            "expected_reviewed_observation_count": len(cases),
+            "required_review_fields": REQUIRED_ASHR_REVIEW_FIELDS,
             "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
             "commands": ashr_import_commands,
         },
-        "ashr_public_merge_gate": _ashr_public_merge_gate(ashr_counts, len(cases), ashr_import_commands),
+        "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
             "current_available": int(llm_counts.get("available", 0)),
@@ -112,6 +118,14 @@ def build_evidence_readiness_report(
             "offline_reference_only": llm_offline_only,
             "expected_observation_count": len(cases),
             "expected_reviewed_observation_count": len(cases),
+            "reviewed_live_observation_count": int(semantic_harness_report.get("reviewed_live_observation_count", 0)),
+            "missing_reviewed_live_observation_count": int(
+                semantic_harness_report.get("missing_reviewed_live_observation_count", len(cases))
+            ),
+            "reviewed_live_sdk_languages": semantic_harness_report.get("reviewed_live_sdk_languages", []),
+            "reviewed_live_required_metadata_fields": semantic_harness_report.get(
+                "reviewed_live_required_metadata_fields", []
+            ),
             "risk_assessment_status": semantic_risk.get("status", "unknown"),
             "false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
             "false_positive_candidate_count": int(semantic_risk.get("false_positive_candidate_count", 0)),
@@ -165,6 +179,7 @@ def _semantic_live_merge_gate(
 ) -> dict[str, Any]:
     current_available = int(llm_counts.get("available", 0))
     live_model_evidence = bool(semantic_harness_report.get("live_model_evidence_available"))
+    reviewed_count = int(semantic_harness_report.get("reviewed_live_observation_count", 0))
     merged = expected_count > 0 and current_available >= expected_count and live_model_evidence and not llm_offline_only
     if merged:
         status = "audited_live_model_evidence"
@@ -178,8 +193,9 @@ def _semantic_live_merge_gate(
         "audited_live_evidence_merged": merged,
         "safe_to_mark_c4_met": merged,
         "current_public_observation_count": current_available,
-        "audited_public_observation_count": current_available if merged else 0,
-        "missing_audited_observation_count": 0 if merged else expected_count,
+        "audited_public_observation_count": reviewed_count if merged else 0,
+        "reviewed_live_observation_count": reviewed_count,
+        "missing_audited_observation_count": max(0, expected_count - reviewed_count),
         "expected_reviewed_observation_count": expected_count,
         "offline_reference_only": llm_offline_only,
         "live_model_evidence_available": live_model_evidence,
@@ -193,28 +209,54 @@ def _semantic_live_merge_gate(
 
 
 def _ashr_public_merge_gate(
+    cases: list[dict[str, Any]],
     ashr_counts: dict[str, Any],
     expected_count: int,
     commands: list[str],
 ) -> dict[str, Any]:
     current_available = int(ashr_counts.get("available", 0))
     current_missing = int(ashr_counts.get("missing", expected_count))
-    merged = expected_count > 0 and current_available >= expected_count and current_missing == 0
+    reviewed_count = _reviewed_ashr_count(cases)
+    count_complete = expected_count > 0 and current_available >= expected_count and current_missing == 0
+    merged = count_complete and reviewed_count >= expected_count
+    status = "merged" if merged else "merged_unreviewed" if count_complete else "not_merged"
     return {
         "source": "ashr_grading",
-        "status": "merged" if merged else "not_merged",
+        "status": status,
         "public_matrix_merged": merged,
         "safe_to_mark_c3_met": merged,
         "current_public_observation_count": current_available,
+        "merged_public_observation_count": reviewed_count if merged else 0,
+        "reviewed_public_observation_count": reviewed_count,
         "missing_public_observation_count": current_missing,
+        "missing_reviewed_observation_count": max(0, expected_count - reviewed_count),
         "required_public_observation_count": expected_count,
+        "expected_reviewed_observation_count": expected_count,
+        "required_review_fields": REQUIRED_ASHR_REVIEW_FIELDS,
         "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "reviewed_private_import_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.json",
         "blocking_reason": ""
         if merged
-        else "Reviewed Ashr grading observations must be imported, merged, and regenerated before C3 is met.",
+        else "Reviewed Ashr grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
         "required_commands": commands,
     }
+
+
+def _reviewed_ashr_count(cases: list[dict[str, Any]]) -> int:
+    return sum(
+        1
+        for case in cases
+        if _is_reviewed_ashr_source(case.get("sources", {}).get("ashr_grading", {}))
+    )
+
+
+def _is_reviewed_ashr_source(source: dict[str, Any]) -> bool:
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    return (
+        source.get("available") is True
+        and str(source.get("evidence_ref", "")).strip() != ""
+        and str(metadata.get("review_status", "")).lower() == "reviewed"
+    )
 
 
 def _load_case_map(path: str | Path) -> dict[str, str]:

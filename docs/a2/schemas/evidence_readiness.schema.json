@@ -12,7 +12,9 @@
     "calibration_case_count",
     "calibration_cases",
     "ashr_grading_preflight",
+    "ashr_public_merge_gate",
     "semantic_judge_preflight",
+    "semantic_live_merge_gate",
     "batch_plan_refs",
     "redaction_policy",
     "metadata"

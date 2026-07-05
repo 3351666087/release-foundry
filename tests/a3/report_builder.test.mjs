@@ -275,6 +275,20 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.scenario_dimension_counts.ordered_tool_sequence, 5);
   assert.equal(summary.scenario_dimension_counts.tool_output_grounding, 1);
   assert.deepEqual(summary.scenario_dimension_scenarios.tool_output_grounding, ["A2-S031"]);
+  assert.equal(summary.capability_axis_counts.tool_choice_and_policy, 60);
+  assert.equal(summary.capability_axis_counts.multi_step_workflow, 15);
+  assert.equal(summary.capability_axis_counts.trace_contract, 32);
+  assert.equal(summary.capability_axis_counts.media_and_multimodal, 2);
+  assert.equal(summary.capability_axis_checks.media_and_multimodal, true);
+  assert.equal(Object.keys(summary.capability_axis_exemplars).length, 10);
+  assert.ok(summary.capability_axis_exemplars.media_and_multimodal.some((item) => (
+    item.scenario_id === "A2-S031"
+  )));
+  assert.match(
+    summary.capability_axis_exemplars.media_and_multimodal[0].why_it_matters,
+    /Evidence signals:/
+  );
+  assert.deepEqual(summary.missing_capability_axes, []);
   assert.equal(summary.scenario_quality_warning_count, 0);
   assert.equal(summary.difficulty_counts.D4, 2);
   assert.equal(summary.multi_turn_scenario_count, 4);
@@ -318,6 +332,8 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(json.coverage.executable_media_case_count, 4);
   assert.equal(json.coverage.coverage_warning_count, 0);
   assert.equal(json.coverage.scenario_quality_warnings.length, 0);
+  assert.equal(json.coverage.missing_capability_axes.length, 0);
+  assert.equal(json.coverage.capability_axis_exemplars.media_and_multimodal.length, 2);
   assert.equal(json.coverage.golden_failure_class_cases.wrong_arguments.length, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage);
@@ -325,6 +341,9 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
   assert.match(markdown, /Scenario dimensions met: 16\/16/);
+  assert.match(markdown, /Capability axes met: 10\/10/);
+  assert.match(markdown, /### Capability Axis Exemplars/);
+  assert.match(markdown, /media_and_multimodal: A2-S031/);
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);
@@ -354,10 +373,16 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(summary.ashr_public_merge_status, "not_merged");
   assert.equal(summary.ashr_public_matrix_merged, false);
   assert.equal(summary.ashr_safe_to_mark_c3_met, false);
+  assert.equal(summary.ashr_merged_public_observation_count, 0);
+  assert.equal(summary.ashr_reviewed_public_observation_count, 0);
   assert.equal(summary.ashr_missing_public_observation_count, 6);
+  assert.equal(summary.ashr_missing_reviewed_observation_count, 6);
   assert.match(summary.ashr_public_merge_blocking_reason, /before C3 is met/);
   assert.equal(summary.semantic_offline_reference_only, true);
   assert.equal(summary.semantic_expected_reviewed_observation_count, 6);
+  assert.equal(summary.semantic_reviewed_live_observation_count, 0);
+  assert.equal(summary.semantic_missing_reviewed_live_observation_count, 6);
+  assert.deepEqual(summary.semantic_reviewed_live_sdk_languages, []);
   assert.equal(summary.semantic_risk_assessment_status, "offline_reference_risk_register");
   assert.equal(summary.semantic_false_positive_tracking_ready, true);
   assert.equal(summary.semantic_false_positive_candidate_count, 0);
@@ -368,6 +393,7 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
   assert.equal(summary.semantic_audited_live_evidence_merged, false);
   assert.equal(summary.semantic_safe_to_mark_c4_met, false);
+  assert.equal(summary.semantic_live_reviewed_observation_count, 0);
   assert.equal(summary.semantic_missing_audited_observation_count, 6);
   assert.match(summary.semantic_live_merge_blocking_reason, /before C4 is met/);
   assert.ok(summary.semantic_required_fields.includes("prompt_hash"));
@@ -380,6 +406,8 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
   assert.equal(json.evidence_readiness.ashr_public_merge_status, "not_merged");
   assert.equal(json.evidence_readiness.ashr_safe_to_mark_c3_met, false);
+  assert.equal(json.evidence_readiness.ashr_merged_public_observation_count, 0);
+  assert.equal(json.evidence_readiness.ashr_reviewed_public_observation_count, 0);
   assert.equal(json.evidence_readiness.semantic_risk_assessment_status, "offline_reference_risk_register");
   assert.equal(json.evidence_readiness.semantic_false_positive_candidate_count, 0);
   assert.equal(json.evidence_readiness.semantic_failure_class_drift_candidate_count, 1);
@@ -387,13 +415,17 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.equal(json.evidence_readiness.semantic_live_merge_status, "offline_reference_only");
   assert.equal(json.evidence_readiness.semantic_safe_to_mark_c4_met, false);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+  assert.equal(json.evidence_readiness.semantic_reviewed_live_observation_count, 0);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
   assert.match(markdown, /## Evidence Readiness/);
   assert.match(markdown, /Status: awaiting_private_evidence/);
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /Ashr public merge: not_merged/);
+  assert.match(markdown, /Ashr safely merged observations: 0\/6/);
+  assert.match(markdown, /Ashr reviewed public observations: 0\/6/);
   assert.match(markdown, /C3 safe to mark met: no/);
+  assert.match(markdown, /Semantic reviewed live observations: 0\/6/);
   assert.match(markdown, /Semantic risk register: offline_reference_risk_register/);
   assert.match(markdown, /Semantic false-positive candidates: 0/);
   assert.match(markdown, /Semantic failure-class drift candidates: 1/);
@@ -426,20 +458,27 @@ test("A3 report builder can summarize A2 C5 regression readiness fixtures", asyn
   assert.equal(summary.target_replay_case_count, 3);
   assert.equal(summary.current_replay_case_count, 1);
   assert.equal(summary.failed_replay_case_count, 0);
+  assert.equal(summary.reviewed_evidence_target_count, 3);
+  assert.equal(summary.reviewed_external_evidence_count, 0);
+  assert.equal(summary.review_evidence_ready, false);
+  assert.equal(summary.case_book_maturity_ready, false);
   assert.equal(summary.local_llm_mismatch_count, 1);
   assert.equal(summary.ashr_grading_missing_count, 6);
   assert.ok(summary.gaps.some((gap) => gap.includes("Promote 2 more")));
+  assert.ok(summary.gaps.some((gap) => gap.includes("reviewed Ashr grading or audited semantic evidence")));
   assert.ok(summary.gaps.some((gap) => gap.includes("Replay 2 more")));
 
   const json = buildJsonReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
   assert.equal(json.regression_readiness.available, true);
   assert.equal(json.regression_readiness.maturity_status, "seed");
   assert.equal(json.regression_readiness.target_replay_case_count, 3);
+  assert.equal(json.regression_readiness.reviewed_external_evidence_count, 0);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness, caseBook, regressionReplay);
   assert.match(markdown, /## Regression Readiness/);
   assert.match(markdown, /Maturity status: seed/);
   assert.match(markdown, /Case book regressions: 1\/3/);
   assert.match(markdown, /Replay cases: 1\/3/);
+  assert.match(markdown, /Reviewed external evidence: 0\/3/);
   assert.match(markdown, /Ashr grading missing: 6/);
 });

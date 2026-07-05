@@ -26,11 +26,12 @@
       "items": { "$ref": "#/$defs/commercial_dimension" }
     },
     "contract_invariants": { "$ref": "#/$defs/string_array" },
+    "scope_boundary": { "$ref": "#/$defs/scope_boundary" },
     "gate_status": {
       "type": "array",
       "items": { "$ref": "#/$defs/gate_status" }
     },
-    "evidence_snapshot": { "type": "object" },
+    "evidence_snapshot": { "$ref": "#/$defs/evidence_snapshot" },
     "next_top_3": {
       "type": "array",
       "items": { "$ref": "#/$defs/next_move" }
@@ -68,6 +69,61 @@
         "evidence_refs": { "$ref": "#/$defs/string_array" },
         "gaps": { "$ref": "#/$defs/string_array" }
       },
+      "additionalProperties": true
+    },
+    "scope_boundary": {
+      "type": "object",
+      "required": [
+        "status",
+        "why_a2_is_larger",
+        "a2_owned",
+        "delegated_to_a1",
+        "delegated_to_a3",
+        "allowed_growth",
+        "blocked_growth",
+        "guardrails"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "why_a2_is_larger": { "type": "string" },
+        "a2_owned": { "$ref": "#/$defs/string_array" },
+        "delegated_to_a1": { "$ref": "#/$defs/string_array" },
+        "delegated_to_a3": { "$ref": "#/$defs/string_array" },
+        "allowed_growth": { "$ref": "#/$defs/string_array" },
+        "blocked_growth": { "$ref": "#/$defs/string_array" },
+        "guardrails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scope_guardrail" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "scope_guardrail": {
+      "type": "object",
+      "required": ["id", "status", "evidence_ref"],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string" },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "evidence_snapshot": {
+      "type": "object",
+      "required": [
+        "assignment_minimums_green",
+        "scenario_count",
+        "golden_case_count",
+        "failure_class_count",
+        "ashr_public_merge_status",
+        "ashr_safe_to_mark_c3_met",
+        "semantic_live_merge_status",
+        "semantic_safe_to_mark_c4_met",
+        "semantic_risk_assessment_status",
+        "semantic_false_positive_tracking_ready",
+        "semantic_failure_class_drift_candidates",
+        "semantic_score_delta_reviews"
+      ],
       "additionalProperties": true
     },
     "next_move": {

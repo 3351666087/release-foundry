@@ -11,6 +11,9 @@
     "calibration_redundancy_targets",
     "scenario_dimension_minimums",
     "scenario_dimension_checks",
+    "capability_axis_targets",
+    "capability_axis_dimension_map",
+    "capability_axis_checks",
     "scenario_quality_targets",
     "scenario_quality_warnings",
     "scenario_count",
@@ -23,6 +26,9 @@
     "scenario_dimension_counts",
     "scenario_dimension_scenarios",
     "thin_scenario_dimensions",
+    "capability_axis_counts",
+    "capability_axis_scenarios",
+    "missing_capability_axes",
     "tool_policy_shape_counts",
     "required_tool_counts",
     "optional_tool_counts",
@@ -73,6 +79,9 @@
     "calibration_redundancy_targets": { "$ref": "#/$defs/count_map" },
     "scenario_dimension_minimums": { "$ref": "#/$defs/count_map" },
     "scenario_dimension_checks": { "$ref": "#/$defs/boolean_map" },
+    "capability_axis_targets": { "$ref": "#/$defs/count_map" },
+    "capability_axis_dimension_map": { "$ref": "#/$defs/string_array_map" },
+    "capability_axis_checks": { "$ref": "#/$defs/boolean_map" },
     "scenario_quality_targets": { "$ref": "#/$defs/count_map" },
     "scenario_quality_warnings": { "$ref": "#/$defs/string_array" },
     "scenario_count": { "type": "integer", "minimum": 0 },
@@ -85,6 +94,10 @@
     "scenario_dimension_counts": { "$ref": "#/$defs/count_map" },
     "scenario_dimension_scenarios": { "$ref": "#/$defs/string_array_map" },
     "thin_scenario_dimensions": { "$ref": "#/$defs/count_map" },
+    "capability_axis_counts": { "$ref": "#/$defs/count_map" },
+    "capability_axis_scenarios": { "$ref": "#/$defs/string_array_map" },
+    "capability_axis_exemplars": { "$ref": "#/$defs/capability_axis_exemplar_map" },
+    "missing_capability_axes": { "$ref": "#/$defs/string_array" },
     "tool_policy_shape_counts": { "$ref": "#/$defs/count_map" },
     "required_tool_counts": { "$ref": "#/$defs/count_map" },
     "optional_tool_counts": { "$ref": "#/$defs/count_map" },
@@ -160,6 +173,50 @@
       "additionalProperties": {
         "type": "array",
         "items": { "$ref": "#/$defs/case_ref" }
+      }
+    },
+    "tool_policy_shape": {
+      "type": "object",
+      "required": ["required", "optional", "forbidden", "ordered"],
+      "properties": {
+        "required": { "$ref": "#/$defs/string_array" },
+        "optional": { "$ref": "#/$defs/string_array" },
+        "forbidden": { "$ref": "#/$defs/string_array" },
+        "ordered": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "capability_axis_exemplar": {
+      "type": "object",
+      "required": [
+        "scenario_id",
+        "title",
+        "family",
+        "difficulty",
+        "primary_rubric",
+        "primary_failure_class",
+        "tool_policy_shape",
+        "fixture_refs",
+        "why_it_matters"
+      ],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "title": { "type": "string" },
+        "family": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "primary_rubric": { "type": "string" },
+        "primary_failure_class": { "type": "string" },
+        "tool_policy_shape": { "$ref": "#/$defs/tool_policy_shape" },
+        "fixture_refs": { "$ref": "#/$defs/string_array" },
+        "why_it_matters": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "capability_axis_exemplar_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/capability_axis_exemplar" }
       }
     }
   },

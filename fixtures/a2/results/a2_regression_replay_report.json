@@ -15,8 +15,12 @@
     "target_replay_case_count": 3,
     "current_replay_case_count": 1,
     "failed_replay_case_count": 0,
+    "case_book_maturity_ready": false,
+    "reviewed_evidence_target_count": 3,
+    "reviewed_external_evidence_count": 0,
     "gaps": [
-      "Replay 2 more reviewed case-book regression(s) before marking C5 mature."
+      "Replay 2 more reviewed case-book regression(s) before marking C5 mature.",
+      "Keep the case-book maturity gate open until reviewed external evidence supports the regression set."
     ]
   },
   "cases": [

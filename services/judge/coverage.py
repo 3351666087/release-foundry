@@ -48,6 +48,43 @@ SCENARIO_QUALITY_TARGETS = {
     "fixture_scenario_count": 30,
     "non_local_environment_count": 20,
 }
+CAPABILITY_AXIS_TARGETS = {
+    "tool_choice_and_policy": 20,
+    "multi_step_workflow": 10,
+    "clarification_handling": 5,
+    "failure_recovery": 4,
+    "safety_boundary": 10,
+    "grounding_and_reference": 20,
+    "trace_contract": 20,
+    "output_contract": 5,
+    "freshness_and_external_context": 5,
+    "media_and_multimodal": 1,
+}
+CAPABILITY_AXIS_DIMENSIONS = {
+    "tool_choice_and_policy": ["optional_tool_choice", "required_tool_use", "forbidden_tool_boundary"],
+    "multi_step_workflow": ["ordered_tool_sequence", "workflow_planning", "multi_turn_dialogue"],
+    "clarification_handling": ["clarification"],
+    "failure_recovery": ["failure_recovery"],
+    "safety_boundary": ["safety_boundary"],
+    "grounding_and_reference": ["grounding_reference", "fixture_grounding", "tool_output_grounding"],
+    "trace_contract": ["required_tool_use", "ordered_tool_sequence", "argument_fidelity"],
+    "output_contract": ["output_contract"],
+    "freshness_and_external_context": ["freshness_current_info"],
+    "media_and_multimodal": ["media_or_multimodal"],
+}
+CAPABILITY_AXIS_EXEMPLAR_LIMIT = 2
+CAPABILITY_AXIS_REVIEW_NOTES = {
+    "tool_choice_and_policy": "Shows whether the agent follows required, optional, and forbidden tool boundaries for the task.",
+    "multi_step_workflow": "Shows whether the agent can preserve ordering, state, and recovery across a multi-step workflow.",
+    "clarification_handling": "Shows whether the agent asks for missing information instead of guessing or over-executing.",
+    "failure_recovery": "Shows whether the agent can recover from tool errors without hiding uncertainty.",
+    "safety_boundary": "Shows whether the agent refuses unsafe or unauthorized actions while preserving safe help.",
+    "grounding_and_reference": "Shows whether the agent grounds the answer in supplied files, resources, web evidence, or tool output.",
+    "trace_contract": "Shows whether the recorded tool trace is sufficient for a reviewer to audit what happened.",
+    "output_contract": "Shows whether the final answer respects required structure, brevity, or schema constraints.",
+    "freshness_and_external_context": "Shows whether the agent knows when current external context is required.",
+    "media_and_multimodal": "Shows whether media or image evidence is actually inspected and used in the answer.",
+}
 
 
 def build_coverage_report(
@@ -66,6 +103,13 @@ def build_coverage_report(
     scenario_quality_warnings = _scenario_quality_warnings(scenario_quality)
     scenario_dimensions = _scenario_dimension_refs(scenarios)
     scenario_dimension_counts = {key: len(value) for key, value in scenario_dimensions.items()}
+    capability_axes = _capability_axis_refs(scenarios, scenario_dimensions)
+    capability_axis_counts = {key: len(value) for key, value in capability_axes.items()}
+    capability_axis_checks = {
+        key: capability_axis_counts.get(key, 0) >= target
+        for key, target in CAPABILITY_AXIS_TARGETS.items()
+    }
+    capability_axis_exemplars = _capability_axis_exemplars(capability_axes, scenario_by_id)
     scenario_dimension_checks = {
         key: scenario_dimension_counts.get(key, 0) >= minimum
         for key, minimum in SCENARIO_DIMENSION_MINIMUMS.items()
@@ -117,6 +161,9 @@ def build_coverage_report(
         "calibration_redundancy_targets": CALIBRATION_REDUNDANCY_TARGETS,
         "scenario_dimension_minimums": SCENARIO_DIMENSION_MINIMUMS,
         "scenario_dimension_checks": scenario_dimension_checks,
+        "capability_axis_targets": CAPABILITY_AXIS_TARGETS,
+        "capability_axis_dimension_map": CAPABILITY_AXIS_DIMENSIONS,
+        "capability_axis_checks": capability_axis_checks,
         "scenario_quality_targets": SCENARIO_QUALITY_TARGETS,
         "scenario_quality_warnings": scenario_quality_warnings,
         "scenario_count": len(scenarios),
@@ -129,6 +176,12 @@ def build_coverage_report(
         "scenario_dimension_counts": dict(sorted(scenario_dimension_counts.items())),
         "scenario_dimension_scenarios": scenario_dimensions,
         "thin_scenario_dimensions": thin_scenario_dimensions,
+        "capability_axis_counts": dict(sorted(capability_axis_counts.items())),
+        "capability_axis_scenarios": capability_axes,
+        "capability_axis_exemplars": capability_axis_exemplars,
+        "missing_capability_axes": sorted(
+            key for key, passed in capability_axis_checks.items() if not passed
+        ),
         "tool_policy_shape_counts": scenario_quality["tool_policy_shape_counts"],
         "required_tool_counts": scenario_quality["required_tool_counts"],
         "optional_tool_counts": scenario_quality["optional_tool_counts"],
@@ -279,6 +332,138 @@ def _scenario_dimension_refs(scenarios: list[dict[str, Any]]) -> dict[str, list[
             if predicate(scenario):
                 dimensions[dimension].append(str(scenario.get("id", "")))
     return {key: sorted(value) for key, value in dimensions.items()}
+
+
+def _capability_axis_refs(
+    scenarios: list[dict[str, Any]],
+    scenario_dimensions: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    by_axis = {}
+    for axis, dimensions in CAPABILITY_AXIS_DIMENSIONS.items():
+        scenario_ids = set()
+        for dimension in dimensions:
+            if dimension == "media_or_multimodal":
+                scenario_ids.update(
+                    str(scenario.get("id", ""))
+                    for scenario in scenarios
+                    if _is_media_or_multimodal(scenario)
+                )
+            else:
+                scenario_ids.update(scenario_dimensions.get(dimension, []))
+        by_axis[axis] = sorted(scenario_id for scenario_id in scenario_ids if scenario_id)
+    return by_axis
+
+
+def _capability_axis_exemplars(
+    capability_axes: dict[str, list[str]],
+    scenario_by_id: dict[str, dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    exemplars = {}
+    for axis, scenario_ids in sorted(capability_axes.items()):
+        scenarios = [
+            scenario_by_id[scenario_id]
+            for scenario_id in scenario_ids
+            if scenario_id in scenario_by_id
+        ]
+        ranked = sorted(
+            scenarios,
+            key=lambda scenario: (-_exemplar_score(axis, scenario), str(scenario.get("id", ""))),
+        )
+        exemplars[axis] = [
+            _scenario_exemplar(axis, scenario)
+            for scenario in ranked[:CAPABILITY_AXIS_EXEMPLAR_LIMIT]
+        ]
+    return exemplars
+
+
+def _exemplar_score(axis: str, scenario: dict[str, Any]) -> int:
+    policy = scenario.get("toolPolicy", {})
+    difficulty_score = {"D4": 3, "D3": 2, "D2": 1}.get(str(scenario.get("difficulty", "")), 0)
+    non_local_action = any(
+        str(action.get("environment", "local")) != "local"
+        for action in scenario.get("actions", [])
+    )
+    score = difficulty_score
+    if scenario.get("fixtureRefs"):
+        score += 2
+    if policy.get("order"):
+        score += 2
+    if policy.get("required"):
+        score += 1
+    if policy.get("optional"):
+        score += 1
+    if policy.get("forbidden"):
+        score += 1
+    if len(scenario.get("actions", [])) > 1:
+        score += 1
+    if non_local_action:
+        score += 1
+    if _is_tool_output_grounding(scenario):
+        score += 2
+    if _is_media_or_multimodal(scenario):
+        score += 2 if axis == "media_and_multimodal" else 1
+    return score
+
+
+def _scenario_exemplar(axis: str, scenario: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scenario_id": str(scenario.get("id", "")),
+        "title": str(scenario.get("title", "")),
+        "family": str(scenario.get("family", "")),
+        "difficulty": str(scenario.get("difficulty", "")),
+        "primary_rubric": str(scenario.get("primaryRubric", "")),
+        "primary_failure_class": str(scenario.get("primaryFailureClass", "")),
+        "tool_policy_shape": _tool_policy_shape(scenario),
+        "fixture_refs": [str(ref) for ref in scenario.get("fixtureRefs", [])],
+        "why_it_matters": _exemplar_note(axis, scenario),
+    }
+
+
+def _tool_policy_shape(scenario: dict[str, Any]) -> dict[str, Any]:
+    policy = scenario.get("toolPolicy", {})
+    return {
+        "required": _policy_tools(policy.get("required", [])),
+        "optional": _policy_tools(policy.get("optional", [])),
+        "forbidden": _policy_tools(policy.get("forbidden", [])),
+        "ordered": bool(policy.get("order")),
+    }
+
+
+def _policy_tools(items: list[Any]) -> list[str]:
+    return sorted(
+        str(item.get("tool", "unknown"))
+        for item in items
+        if isinstance(item, dict)
+    )
+
+
+def _exemplar_note(axis: str, scenario: dict[str, Any]) -> str:
+    signals = []
+    policy = scenario.get("toolPolicy", {})
+    environments = {
+        str(action.get("environment", "local"))
+        for action in scenario.get("actions", [])
+    }
+    if scenario.get("fixtureRefs"):
+        signals.append("fixture-backed")
+    if policy.get("required"):
+        signals.append("required tools")
+    if policy.get("optional"):
+        signals.append("optional tool choice")
+    if policy.get("forbidden"):
+        signals.append("forbidden-tool boundary")
+    if policy.get("order"):
+        signals.append("ordered tool trace")
+    if len(scenario.get("actions", [])) > 1:
+        signals.append("multi-turn state")
+    if any(environment != "local" for environment in environments):
+        signals.append("non-local tool surface")
+    if _is_tool_output_grounding(scenario):
+        signals.append("tool-output grounding")
+    if _is_media_or_multimodal(scenario):
+        signals.append("media evidence")
+    signal_text = ", ".join(signals) if signals else "metadata-only scenario"
+    return f"{CAPABILITY_AXIS_REVIEW_NOTES.get(axis, 'Shows a reviewer-facing capability axis.')} Evidence signals: {signal_text}."
 
 
 def _scenario_quality_metrics(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
@@ -478,6 +663,22 @@ def _is_output_contract(scenario: dict[str, Any]) -> bool:
 
 def _is_tool_output_grounding(scenario: dict[str, Any]) -> bool:
     return bool(scenario.get("expectedToolOutputFacts")) or "tool-output-grounding" in _tags(scenario)
+
+
+def _is_media_or_multimodal(scenario: dict[str, Any]) -> bool:
+    tags = _tags(scenario)
+    if tags & {"image", "media", "visual", "visual-reasoning"}:
+        return True
+    environments = {str(action.get("environment", "")) for action in scenario.get("actions", [])}
+    if environments & {"image", "media-api"}:
+        return True
+    tools = [
+        str(item.get("tool", ""))
+        for group in ("required", "optional", "forbidden")
+        for item in scenario.get("toolPolicy", {}).get(group, [])
+        if isinstance(item, dict)
+    ]
+    return any(tool.startswith(("image.", "media.")) for tool in tools)
 
 
 def _is_safety_boundary(scenario: dict[str, Any]) -> bool:

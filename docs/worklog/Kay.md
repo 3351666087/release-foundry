@@ -662,3 +662,108 @@ Next top 3:
 1. Collect reviewed Ashr grading observations for all six calibration cases.
 2. Merge them into `a2_g3_calibration_observations.json` through the reviewed import path.
 3. Regenerate fixtures and confirm both evidence readiness and commercial readiness agree that C3 is safe.
+
+## 2026-07-05 - C3 Ashr reviewed merge guard
+
+Reason:
+- A2 now has a public Ashr grading merge gate, but a complete-looking 6/6 batch should still be unsafe if the rows were not reviewed.
+- This keeps A2's larger code surface tied to auditability instead of letting fixture volume imply completion.
+
+Implemented:
+- Added `--review-status` to `scripts/a2_import_ashr_grading.py`; imports default to `unreviewed` and reviewed imports must opt in explicitly.
+- Added `reviewed_public_observation_count`, `missing_reviewed_observation_count`, and required review fields to `ashr_public_merge_gate`.
+- C3 now requires all six `ashr_grading` rows to include `metadata.review_status: reviewed` and a non-empty `evidence_ref`.
+- A3 evidence readiness summaries and Markdown exports now show the reviewed Ashr observation count.
+- Added a negative test proving that six unreviewed Ashr rows produce `merged_unreviewed` and do not mark C3 safe.
+
+Boundary:
+- This does not call Ashr, read keys, or add server-side grading rows.
+- It tightens the public merge rule so A2 cannot accidentally count unreviewed evidence as complete.
+
+Next top 3:
+1. Collect the real six-case Ashr grading batch under private evidence.
+2. Import it with `--review-status reviewed` only after human review.
+3. Regenerate fixtures and verify C3 flips from `not_merged` to `merged` only when reviewed evidence is present.
+
+## 2026-07-05 - A2 scope boundary guard
+
+Reason:
+- A2 has more code than A1/A3 because it owns scenario, judge, fixture, and evidence contracts.
+- That is useful only while A2 remains a bounded evaluation module, not a second runner platform or dashboard.
+
+Implemented:
+- Added `scope_boundary` to `a2_commercial_readiness_report.json`.
+- The boundary records what A2 owns, what stays delegated to A1, what stays delegated to A3, allowed growth, blocked growth, and guardrail evidence.
+- Kept the schema addition optional for external consumers while testing that the current A2 report includes it.
+
+Boundary:
+- This is a scope-control artifact, not a new feature surface.
+- It does not change `a2.grade_results.v1`, run live services, or move A1/A3 responsibilities into A2.
+
+Next top 3:
+1. Keep A2 changes tied to deterministic judges, fixtures, schemas, docs, and evidence gates.
+2. Reject runner/cloud/dashboard work unless it is only compatibility evidence.
+3. Continue C3/C4/C5 evidence collection once reviewed external data is available.
+
+## 2026-07-05 - A2 local-lite verification profile
+
+Reason:
+- The full repo can include TypeScript dependencies, browser/dashboard checks, and future private evidence paths.
+- A2 needs a tiny local run path for normal laptops before anyone attempts heavier integration or live API work.
+
+Implemented:
+- Added `scripts/a2_local_lite_check.py`.
+- The default profile runs A2 fixture reproducibility and A2 unittest discovery only.
+- `--plan` prints a machine-readable plan showing that the profile does not need network, Node modules, browser runtime, or an Ashr API key.
+- Documented the profile in the A2 README and A1/A3 handoff.
+
+Boundary:
+- This does not replace A3 integration tests or full validation.
+- It is a first-pass local confidence check for A2 only.
+
+Next top 3:
+1. Use local-lite as the first command after cloning on a small machine.
+2. Run A3 Node report tests only when integration/output display needs validation.
+3. Keep real Ashr/API paths opt-in through environment variables and reviewed evidence gates.
+
+## 2026-07-05 - Capability axis exemplar scorecard
+
+Reason:
+- The G3 coverage report already proved every reviewer-facing capability axis met its count target, but counts alone did not explain which scenarios best demonstrate each axis.
+- A2 needs reviewer-readable evidence so A3 and the group lead can audit why a scenario proves tool policy, workflow, grounding, media, safety, or output-contract capability.
+
+Implemented:
+- Added `capability_axis_exemplars` to the coverage report.
+- Each axis now exposes two deterministic exemplar scenarios with scenario id, title, family, difficulty, primary rubric, primary failure class, tool policy shape, fixture refs, and a `why_it_matters` note.
+- Exemplar selection prefers higher audit value: fixture-backed scenarios, harder scenarios, ordered traces, required/forbidden tools, non-local tool surfaces, tool-output grounding, and media evidence.
+- A3 report summaries and Markdown exports now pass through and display the exemplar scorecard.
+
+Boundary:
+- This does not add new scenarios or change any grading result contract.
+- It strengthens reviewability of existing coverage rather than expanding A2's scope.
+
+Next top 3:
+1. Use the exemplar scorecard when reviewing whether the 60 scenarios still cover real skill behavior.
+2. Keep C3/C4 evidence gates honest until reviewed Ashr grading and audited semantic judge evidence are imported.
+3. Promote future real cross-judge disagreements into the case book and replay suite.
+
+## 2026-07-05 - External evidence preflight CLI
+
+Reason:
+- C3/C4/C5 now have readiness reports and merge gates, but reviewers still needed one safe command to see the current external-evidence state before touching private Ashr or model payloads.
+- The command should not read API keys, raw prompts, raw responses, or private evidence files.
+
+Implemented:
+- Added `scripts/a2_external_evidence_preflight.py`.
+- The CLI reads only public A2 result fixtures and reports C3 reviewed Ashr grading status, C4 audited semantic judge status, C5 case-book/replay maturity, private input refs, reviewed import commands, and redaction policy.
+- `--json` emits `a2.external_evidence_preflight.v1`; default text output gives a short reviewer summary.
+- Added contract tests proving the preflight is offline, read-only, public-fixture-only, and still reports the current 6 missing Ashr rows, offline-only semantic evidence, and 1/3 C5 maturity state.
+
+Boundary:
+- This is a preflight/checklist tool, not an API collector.
+- It does not read `docs/evidence/private_refs/`, does not read local key files, and does not mark C3/C4/C5 met.
+
+Next top 3:
+1. Run the preflight immediately before collecting or merging reviewed Ashr grading evidence.
+2. Use the same preflight after semantic judge imports to confirm C4 is no longer offline-reference-only.
+3. Keep promoting only reviewed disagreements into the C5 case book.

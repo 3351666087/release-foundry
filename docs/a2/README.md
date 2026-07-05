@@ -164,6 +164,14 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 
 This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed Ashr grading observations and audited live semantic judge observations are imported. `ready_for_external_collection: true` means the workflow is ready; it does not mean C3 is met. C3 is safe to mark met only when `ashr_public_merge_gate.safe_to_mark_c3_met` is true.
 
+Before collecting or merging private evidence, run the offline preflight:
+
+```bash
+python scripts/a2_external_evidence_preflight.py --json
+```
+
+This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
+
 ## Regenerating Fixtures
 
 Generated A2 grade fixtures and the G3 coverage report are deterministic. Before handing results to A3, run:
@@ -179,6 +187,16 @@ python scripts/a2_regenerate_fixtures.py --write
 ```
 
 This script only uses local fixtures and does not require an Ashr API key.
+
+## Local-Lite Check
+
+For low-memory local verification, run:
+
+```bash
+python scripts/a2_local_lite_check.py
+```
+
+This profile runs only deterministic A2 fixture reproducibility and A2 unit/contract tests. It does not require `node_modules`, a browser, network access, or an Ashr API key. Use `python scripts/a2_local_lite_check.py --plan` to print the exact checks without running them.
 
 ## Commercial Calibration Matrix
 
@@ -199,6 +217,7 @@ python scripts/a2_import_ashr_grading.py \
   --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
   --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json \
   --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
+  --review-status reviewed \
   --output docs/evidence/private_refs/a2_ashr_grading_import.review.json
 ```
 
@@ -214,7 +233,7 @@ python scripts/a2_merge_calibration_observations.py \
 
 Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
 
-The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs.
+The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs. C3 remains unsafe unless all six public `ashr_grading` rows include `metadata.review_status: reviewed` and a non-empty `evidence_ref`.
 
 Reviewed semantic judge summaries use the same merge gate. Convert redacted model-call summaries into `llm_judge` observations with:
 
@@ -264,6 +283,8 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 - generated report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 
 The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet. The commercial snapshot also mirrors `ashr_public_merge_gate`, so C3 remains partial while `ashr_safe_to_mark_c3_met` is false.
+
+The same report now includes `scope_boundary`, which explains why A2 is larger than A1/A3 and how that growth is constrained. A2 owns evaluation contracts, deterministic judges, calibration fixtures, and evidence gates. Hosted run execution, raw SDK/API collection, and cloud worker behavior remain A1-owned; dashboard UI, filtering, and presentation exports remain A3-owned. Additive audit fields, deterministic fixtures, and evidence gates are allowed growth, but live calls in local tests, runner orchestration, dashboard ownership, or breaking `a2.grade_results.v1` changes are blocked growth.
 
 ## G1-G2 Boundary
 
