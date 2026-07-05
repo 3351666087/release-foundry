@@ -1,25 +1,25 @@
 {
   "agent": {
     "name": "A1 Mock Multimodal Support Agent",
-    "description": "A dry-run-only media interface fixture for image, audio, and file calibration.",
+    "description": "A dry-run-only media interface fixture for text, audio, file, image, and video calibration.",
     "accepted_inputs": {
       "text": true,
       "audio": true,
       "file": true,
       "image": true,
-      "video": false,
+      "video": true,
       "conversation": false
     },
     "tools": [
       {
         "name": "inspect_attachment",
-        "description": "Inspect a synthetic image or audio attachment.",
+        "description": "Inspect a synthetic text, audio, file, image, or video attachment.",
         "parameters": {
           "type": "object",
           "properties": {
             "attachment_type": {
               "type": "string",
-              "enum": ["image", "audio", "file"]
+              "enum": ["text", "audio", "file", "image", "video"]
             }
           },
           "required": ["attachment_type"]
@@ -32,14 +32,14 @@
   },
   "context": {
     "domain": "support operations",
-    "use_case": "Dry-run image, audio, and file interface calibration only.",
+    "use_case": "Dry-run text, audio, file, image, and video interface calibration only.",
     "scenario_context": "Use synthetic non-sensitive media descriptions only."
   },
   "generation_options": {
     "generate_audio": true,
     "generate_files": true,
     "generate_images": true,
-    "generate_videos": false,
+    "generate_videos": true,
     "generate_simulations": false
   },
   "test_config": {
@@ -53,6 +53,6 @@
   },
   "metadata": {
     "dataset_name": "A1 Media Interface Dry Run",
-    "description": "Dry-run-only fixture to keep Image/Audio/Files request interfaces visible without consuming quota."
+    "description": "Dry-run-only fixture to keep Text/Audio/File/Image/Video request interfaces visible without consuming quota."
   }
 }

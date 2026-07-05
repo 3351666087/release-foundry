@@ -97,7 +97,7 @@ test("api records extract dataset_source and load/write public-safe case files",
 test("replayFixtureFromSourceRun produces A3 replay-style trace and VM frames", () => {
   const fixture = replayFixtureFromSourceRun(sampleDatasetSource().runs.run_one, { name: "source replay" });
 
-  assert.equal(fixture.schema, "ashr.clone.run_fixture.v1");
+  assert.equal(fixture.schema, "ashr.clone.run.v1");
   assert.equal(fixture.name, "source replay");
   assert.equal(fixture.labels.includes("ashr-dataset-source"), true);
   assert.ok(fixture.events.length >= 2);
@@ -129,7 +129,7 @@ test("dataset adapter CLI writes cases and replay fixtures", async () => {
     assert.equal(casesChild.status, 0, casesChild.stderr);
     assert.equal(fixtureChild.status, 0, fixtureChild.stderr);
     assert.equal(JSON.parse(readFileSync(casesOutput, "utf8")).cases.length, 1);
-    assert.equal(JSON.parse(readFileSync(fixtureOutput, "utf8")).schema, "ashr.clone.run_fixture.v1");
+    assert.equal(JSON.parse(readFileSync(fixtureOutput, "utf8")).schema, "ashr.clone.run.v1");
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

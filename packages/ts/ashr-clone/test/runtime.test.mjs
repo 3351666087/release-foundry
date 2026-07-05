@@ -49,10 +49,12 @@ test("AgentInput helpers keep text and media parts typed", () => {
     parts: [
       { type: "text", text: "inspect" },
       { type: "image", path: "fixtures/image.png", mime_type: "image/png" },
+      { type: "video", path: "fixtures/clip.mp4", mime_type: "video/mp4" },
     ],
   });
   assert.equal(media.parts[1].type, "image");
   assert.equal(media.parts[1].path, "fixtures/image.png");
+  assert.equal(media.parts[2].type, "video");
 });
 
 test("CloudApiService submits a run, polls it, and writes a fixture without fetch", () => {

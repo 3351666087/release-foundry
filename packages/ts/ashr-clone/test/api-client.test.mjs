@@ -131,10 +131,10 @@ test("createRequest dry-run records media AgentInput schema and safe shape summa
   const request = {
     agent: {
       name: "media-agent",
-      accepted_inputs: { text: true, image: true, audio: true, file: true },
+      accepted_inputs: { text: true, image: true, audio: true, file: true, video: true },
       tools: [{ name: "tool", api_key: "tp_syntheticsecret" }],
     },
-    generation_options: { generate_images: true, generate_audio: true, generate_files: true },
+    generation_options: { generate_images: true, generate_audio: true, generate_files: true, generate_videos: true },
     test_config: { num_variations: 1 },
   };
 
@@ -143,7 +143,8 @@ test("createRequest dry-run records media AgentInput schema and safe shape summa
   assert.equal(record.status, "planned");
   assert.equal(record.request.mutates, true);
   assert.equal(record.request.params.request_input_schema.agent_input_schema_version, AGENT_INPUT_SCHEMA_VERSION);
-  assert.deepEqual(record.request.params.request_input_schema.agent_input_part_types, ["audio", "file", "image", "text"]);
+  assert.deepEqual(record.request.params.request_input_schema.agent_input_part_types, ["audio", "file", "image", "text", "video"]);
+  assert.equal(record.request.params.request.generation_options.generate_videos, true);
   assert.equal(record.request.params.request.tools_count, 1);
   assert.equal(record.request.preflight.media_generation_enabled, true);
   assert.equal(record.request.preflight.non_text_inputs_enabled, true);

@@ -15,7 +15,7 @@ from .types import JsonDict, ToolCall
 AGENT_TURN_SCHEMA_VERSION = "ashr.clone.agent_turn.v1"
 AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1"
 AGENT_INPUT_STYLES = {"text", "request", "keyword"}
-AGENT_INPUT_PART_TYPES = {"text", "image", "audio", "file"}
+AGENT_INPUT_PART_TYPES = {"text", "image", "audio", "file", "video"}
 
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")

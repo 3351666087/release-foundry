@@ -8,12 +8,14 @@
   "types": "dist/index.d.ts",
   "bin": {
     "ashr-clone-api-probe": "./dist/probe.js",
+    "ashr-clone-cloud": "./dist/cloud-cli.js",
     "ashr-clone-dataset-adapter": "./dist/dataset-adapter-cli.js",
     "ashr-clone-probe": "./dist/probe.js",
     "ashr-clone-runner": "./dist/runner-cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "cloud": "node dist/cloud-cli.js",
     "probe": "node dist/probe.js",
     "runner": "node dist/runner-cli.js",
     "test": "npm run build && node --test test/*.test.mjs"

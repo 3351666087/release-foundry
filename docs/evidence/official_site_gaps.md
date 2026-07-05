@@ -83,3 +83,10 @@ Unverified or intentionally out of scope:
 - Hosted TypeScript queue/runtime semantics, quota reset timing, media failure semantics, and real TS SDK authentication behavior remain unverified because no environment API key was present in this process.
 
 If any of these become required for A1/A2/A3, they need a Gate decision or explicit user-provided authenticated test state without entering secrets into logs or committed artifacts.
+
+2026-07-04 A1 TS cloud queue/media refresh:
+
+- Explorer-Chrome read-only verification confirmed TypeScript API reference fields `AshrLabsClient`, `fromEnv`, `createRun`, `getRun`, `listRuns`, `deleteRun`, `createRequest`, `getRequest`, `listRequests`, `waitForRequest`, `generateDataset`, `healthCheck`, `Trace`, `Span`, `Generation`, and `accepted_inputs` with `text`, `audio`, `file`, `image`, and `video`.
+- The same TypeScript docs pass showed `generate_audio`, `generate_files`, and `generate_simulations`, but did not expose `pollRun`, `listAgents`, `generate_images`, or `generate_videos`; Python docs continue to expose `poll_run`, `list_agents`, `generate_images`, and `generate_videos`.
+- `lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but settled into unauthenticated onboarding/pricing copy during this pass. Authenticated usage counters and exact quota values were not recorded.
+- A1 local TypeScript now treats `text`, `audio`, `file`, `image`, and `video` as same-level `AgentInput.parts` values and dry-run request-schema values. Hosted TS SDK auth behavior, quota reset/enforcement timing, media generation failure semantics, and dashboard counter semantics remain unverified until a separate authenticated calibration uses env-only keys.

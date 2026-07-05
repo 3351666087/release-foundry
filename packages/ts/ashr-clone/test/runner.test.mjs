@@ -70,7 +70,7 @@ test("runAgentBatch normalizes maxWorkers, records trace, and builds replay fixt
   assert.equal(result.trace_completeness, 1);
   assert.equal(result.aggregate_metrics.total_tool_calls, 6);
   assert.equal(result.cases[0].observations.length, 2);
-  assert.equal(fixture.schema, "ashr.clone.run_fixture.v1");
+  assert.equal(fixture.schema, "ashr.clone.run.v1");
   assert.equal(fixture.events.length, 12);
   assert.ok(fixture.vm_stream.length >= 12);
   assert.equal(fixture.replay.metadata.ashr_api_used, false);
@@ -99,7 +99,7 @@ test("runAgentBatch emits replayable timeout and redacted error cases", async ()
   assert.equal(errorResult.cases[0].agent_output.error.message.includes("should-not-leak"), false);
 });
 
-test("request input style preserves Image/Audio/File parts for agent adapters", async () => {
+test("request input style preserves Text/Audio/File/Image/Video parts for agent adapters", async () => {
   const seenInputs = [];
   const mediaAgent = {
     respond(input) {
@@ -120,9 +120,10 @@ test("request input style preserves Image/Audio/File parts for agent adapters", 
             { type: "image", path: "fixtures/image.png", mimeType: "image/png" },
             { type: "audio", path: "fixtures/audio.wav", mime_type: "audio/wav" },
             { type: "file", path: "fixtures/data.json", mime_type: "application/json" },
+            { type: "video", path: "fixtures/clip.mp4", mime_type: "video/mp4" },
           ],
         },
-        expected: { text: "parts:text,image,audio,file" },
+        expected: { text: "parts:text,image,audio,file,video" },
       },
     ],
     { inputStyle: "request", runId: "run_media" },
@@ -131,7 +132,7 @@ test("request input style preserves Image/Audio/File parts for agent adapters", 
   assert.equal(result.passed, 1);
   assert.equal(seenInputs[0].schema_version, AGENT_INPUT_SCHEMA_VERSION);
   assert.equal(seenInputs[0].parts[1].mime_type, "image/png");
-  assert.deepEqual(seenInputs[0].parts.map((part) => part.type), ["text", "image", "audio", "file"]);
+  assert.deepEqual(seenInputs[0].parts.map((part) => part.type), ["text", "image", "audio", "file", "video"]);
 });
 
 test("LocalEvalRunner convenience class returns A3-consumable run results", async () => {

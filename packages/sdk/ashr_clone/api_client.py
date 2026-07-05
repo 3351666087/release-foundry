@@ -23,8 +23,8 @@ ASHR_LABS_BASE_URL_ENV_VAR = "ASHR_LABS_BASE_URL"
 ASHR_API_FIELD_MAP_VERSION = "a1-api-calibration-2026-07-04"
 DEFAULT_REQUEST_INPUT_SCHEMA: JsonDict = {"type": "object", "additionalProperties": True}
 AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1"
-AGENT_INPUT_PART_TYPES = ("text", "image", "audio", "file")
-_NON_TEXT_AGENT_INPUT_PART_TYPES = ("image", "audio", "file")
+AGENT_INPUT_PART_TYPES = ("text", "image", "audio", "file", "video")
+_NON_TEXT_AGENT_INPUT_PART_TYPES = ("image", "audio", "file", "video")
 
 _REDACTED = "[redacted]"
 _SENSITIVE_KEY_PARTS = ("api_key", "apikey", "authorization", "bearer", "secret", "token", "password", "credential")

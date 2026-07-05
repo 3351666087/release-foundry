@@ -1,4 +1,4 @@
-﻿# A1 Worklog
+# A1 Worklog
 
 ## 2026-07-03 Round 1
 
@@ -1308,3 +1308,204 @@ Known gaps / next top 10:
 8. Add TS cloud runtime snapshot/replay persistence if queue parity requires it.
 9. Add fresh setup script that runs Python + TS smoke in one command.
 10. Recheck official docs/Usage after any hosted API calibration; do not record private counter values.
+
+## 2026-07-05 TypeScript Cloud Queue And Five-Modality Envelope
+
+Goal: continue the A1 long-term TS parity push by making TypeScript cover local cloud queue/state/replay flows and treating `text`, `audio`, `file`, `image`, and `video` as same-level AgentInput/request-schema modalities.
+
+Baseline:
+
+- Repo root `C:/Users/33516/Documents/Ashr`, branch `codex/a1-local-sdk-runner`, remote `3351666087/ashr-codex-factory`, default branch `main`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` advanced `origin/dev/g3-a2-calibration` and `origin/main` to `305939b`; PR #9 was already merged.
+- The branch was fast-forwarded to `origin/main` before final validation, then the A1 work-in-progress was reapplied without conflicts.
+- Peer impact: latest main/A2/G3 changes touched A2 docs/fixtures/judge/report/dashboard test paths, not A1 TS owned paths.
+- Env presence: `ASHR_API_KEY=false`, `ASHR_LABS_API_KEY=false`, `ASHR_LABS_BASE_URL=false`; no real hosted API calls were made and no local key files were read.
+
+Top 10 and decisions:
+
+1. TS cloud queue/replay parity: implemented.
+2. Five-modality `AgentInput` and request schema parity: implemented.
+3. TS cloud CLI fresh setup path: implemented.
+4. TS quota/state restore tests: implemented.
+5. TS media dry-run fixture with video: implemented.
+6. TS injected-transport hosted quota/error fixture pack: deferred.
+7. Real TS hosted read-only probes when env keys exist: blocked by absent env keys.
+8. Public-safe A2/A3 hosted evidence bridge rules: deferred.
+9. One-command Python + TS smoke script: deferred.
+10. Authenticated dashboard usage counter calibration: unverified.
+
+Subagents:
+
+- Bus-Auditor: PASS for staging/commit/push after rerunning TS/Python tests and `git diff --check`; noted this is local-only TS cloud/media parity, not hosted backend validation.
+- Explorer-Chrome/Product: confirmed TS docs expose accepted inputs `text`, `audio`, `file`, `image`, and `video`; TS docs still did not expose `pollRun`, `listAgents`, `generate_images`, or `generate_videos` in the observed pass. Python docs continue to expose the missing media/run/list fields.
+- Explorer-SDK/API initially failed in the prior pass due model capacity; a follow-up explorer was spawned for SDK/API review.
+- Worker-TS and Reviewer were spawned after interruption for focused follow-up review.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/cloud-queue.ts`: `CloudQueueWorker`, `QueueRunRequest`, terminal statuses, deterministic replay ordering, queued/running/completed/failed/cancelled lifecycle execution, polling, cancellation, and redacted failures.
+- `packages/ts/ashr-clone/src/cloud-cli.ts`: `ashr-clone-cloud` commands `queue-run`, `replay-queued`, and `export-fixture`, including repeated `--run-id`, `--run-count`, per-run fixture/result directories, restored-state export, and multi-run singleton-output guardrails.
+- `packages/ts/ashr-clone/src/index.ts`: `video` in `AgentInputPartType`, cloud state snapshot/restore, quota state serialization, queued run lifecycle methods, status history, fixture/state file writing, and deterministic clock option.
+- `packages/ts/ashr-clone/src/api-client.ts`, docs schemas, and media fixture now cover `text`, `audio`, `file`, `image`, and `video` consistently for dry-run request schema summaries.
+- `packages/ts/ashr-clone/test/cloud-queue.test.mjs` plus existing TS tests cover queue replay, state restoration, CLI queue/replay/export, five-modality envelopes, and media dry-run summaries.
+
+Verification recorded before final post-interruption rerun:
+
+- `npm run build --prefix packages/ts/ashr-clone`: passed.
+- `npm test --prefix packages/ts/ashr-clone`: 50 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js queue-run ...`: wrote two queued 30-case TS cloud runs under ignored private evidence.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js replay-queued ...`: replayed both queued runs; each completed 30 passed, 0 failed, 0 errored, 0 timed out, 60 observations, status history `queued -> running -> completed`; total quota used `dataset.create=1`, `run.submit=2`, `observation.write=120`.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js export-fixture ...`: exported a completed restored-state fixture.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: planned Text/Audio/File/Image/Video dry-run; no key or network call.
+
+Next top 10:
+
+1. Add TS injected-transport quota/error fixture pack with hostile-token redaction cases.
+2. Add schema snapshot validation between TS fixtures and Python/A1 JSON schemas.
+3. Add a one-command Python + TS fresh setup smoke script.
+4. Define public-safe A2/A3 hosted evidence bridge rules before importing private run evidence.
+5. Add TypeScript OpenAI-style adapter helpers for chat/completions-style agents.
+6. Add tenant/project quota ledger persistence examples beyond in-memory JSON state.
+7. Add TS cloud queue cancellation CLI coverage for persisted states.
+8. When env-only API keys are present, run minimal authenticated read-only hosted TS probes and record redacted private evidence.
+9. Recheck TS docs for `generate_images`, `generate_videos`, `pollRun`, and `listAgents` before mapping hosted names as official TS behavior.
+10. Add public README matrix comparing Python and TypeScript parity surfaces.
+
+### 2026-07-05 follow-up after SDK/API review
+
+- Explorer-SDK/API found that TS had five-modality `AgentInput` parity, but Python SDK/default request-schema constants still omitted `video`, and TS cloud CLI lacked Python's one-shot `run-agent-queued` command.
+- Fixed Python SDK drift in `packages/sdk/ashr_clone/adapter.py`, `packages/sdk/ashr_clone/api_client.py`, and `services/runner/api_probe.py`: `video` now participates in `AgentInput` validation, default request schema media part enums, and create-request preflight `agent_input_part_types`.
+- Updated Python tests in `tests/a1/test_api_client.py` and `tests/a1/test_cloud_api.py` to require `video` in media schemas and preflight summaries.
+- Added TS `ashr-clone-cloud run-agent-queued` one-shot CLI parity with `--fixture-output`, `--run-output`, `--summary-output`, `--state-output`, tenant/project/dataset names, `--no-timeout`, queue workers, max workers, wait timeout, and fail-on-case-failure behavior.
+- Added TS CLI regression coverage proving one-shot queued run output writes fixture/run/state/summary and preserves tenant/project/dataset display names.
+- Focused verification: `node --test packages/ts/ashr-clone/test/cloud-queue.test.mjs` passed 5 tests after `npm run build --prefix packages/ts/ashr-clone`; `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_cloud_api.py -q -p no:cacheprovider` passed 67 tests.
+
+### 2026-07-05 final verification before staging
+
+- `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 52 Node tests passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples/agents/mock_agent_ts.mjs:default --fixture-output docs/evidence/private_refs/a1_ts_cloud_one_shot_fixture_30_smoke.json --run-output docs/evidence/private_refs/a1_ts_cloud_one_shot_run_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_cloud_one_shot_summary_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_cloud_one_shot_state_30_smoke.json --tenant-id tenant_a1_ts_cloud_one_shot --project-id project_a1_ts_cloud_one_shot --tenant-name "A1 TS Cloud One Shot Tenant" --project-name "A1 TS Cloud One Shot Project" --dataset-id dataset_a1_ts_cloud_one_shot --dataset-name "A1 TS Cloud One Shot Dataset" --runner-id a1-ts-cloud-one-shot --run-id run_a1_ts_cloud_one_shot --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: completed one 30-case queued TS run, wrote ignored fixture/run/summary/state evidence, and used quota `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+## 2026-07-05 TypeScript Full Test Parity Sprint
+
+Goal: respond to the A1 owner request to stop incremental TS catch-up and make TypeScript match the Python A1 test body directly. This round focused on TS SDK/cloud/runtime/CLI parity without reading or storing local key files and without hosted Ashr calls.
+
+Baseline and peer state:
+
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; remote: `3351666087/ashr-codex-factory`; default branch: `main`.
+- Commands run first: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh repo view --json nameWithOwner,defaultBranchRef,url`; `gh pr list --state all --limit 20 --json number,title,state,headRefName,baseRefName,updatedAt,url`.
+- PR state: PRs #1-#9 are merged; latest merged A1 PR #9. No open remote PR was observed in the fetched list.
+- Worktree already contained the previous A1 TS cloud queue/video parity changes; this sprint continued on top of that dirty A1-owned tree.
+- Peer changes/impact: none newly observed in A1-owned files after fetch; current changes are local A1/TS/Python/docs work. `docs/evidence/private_refs/` stayed ignored and was not staged/read for payload content.
+
+Top 10 and decision:
+
+1. Raise TS test runner from 52-ish executed tests to Python-scale 133: implemented.
+2. Add direct TS cloud `run-agent` CLI parity with Python `services.api.cli run-agent`: implemented.
+3. Keep queued TS cloud one-shot and persisted queue replay: preserved and revalidated.
+4. Expand TS CloudApiService/quota/state/fixture failure-path tests: implemented.
+5. Expand first-class `text/audio/file/image/video` tests: implemented.
+6. Add more real API probes: deferred because no `ASHR_API_KEY` / `ASHR_LABS_API_KEY` env vars were present; no key files were read.
+7. Add TS schema snapshot validation against JSON schemas: deferred.
+8. Add TS hosted injected-transport quota/error fixture pack: deferred.
+9. Add fresh setup one-command demo script combining Python + TS: deferred.
+10. Update evidence and re-run Bus-Auditor: in progress at time of this log entry.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/cloud-cli.ts`: added direct `run-agent` command, `runAgentBatch` submission to `CloudApiService`, fixture/run/summary/state outputs, `--no-timeout`, `--fail-on-case-failure`, and Python-style `cloud api error:` exit path with code 2.
+- `packages/ts/ashr-clone/test/parity-expansion.test.mjs`: new broad parity file covering five modalities, schema helper behavior, CloudApiService tenant/project/dataset/request/run lifecycle, quota ledger, state roundtrip, defensive copy behavior, queued run failure/cancel paths, direct cloud CLI smoke, error paths, and queue-run duplicate guardrails.
+- Existing TS cloud queue/direct CLI tests now include direct `run-agent` parity and queued one-shot parity.
+
+Validation:
+
+- `npm test --prefix packages/ts/ashr-clone`: passed, `133` Node test items executed, `133` passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: passed, `133 passed in 9.80s`.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent --input docs/a1/evidence/local_agent_cases_30.json --agent examples/agents/mock_agent_ts.mjs:default --fixture-output docs/evidence/private_refs/a1_ts_cloud_direct_fixture_30_smoke.json --run-output docs/evidence/private_refs/a1_ts_cloud_direct_run_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_cloud_direct_summary_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_cloud_direct_state_30_smoke.json --tenant-id tenant_a1_ts_cloud_direct --project-id project_a1_ts_cloud_direct --tenant-name "A1 TS Cloud Direct Tenant" --project-name "A1 TS Cloud Direct Project" --dataset-id dataset_a1_ts_cloud_direct --dataset-name "A1 TS Cloud Direct Dataset" --runner-id a1-ts-cloud-direct --run-id run_a1_ts_cloud_direct --max-workers 4 --timeout 5 --fail-on-case-failure`: passed; 30/30 cases passed; trace completeness 1; quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent-queued --input docs/a1/evidence/local_agent_cases_30.json --agent examples/agents/mock_agent_ts.mjs:default --fixture-output docs/evidence/private_refs/a1_ts_cloud_queued_fixture_30_smoke.json --run-output docs/evidence/private_refs/a1_ts_cloud_queued_run_30_smoke.json --summary-output docs/evidence/private_refs/a1_ts_cloud_queued_summary_30_smoke.json --state-output docs/evidence/private_refs/a1_ts_cloud_queued_state_30_smoke.json --tenant-id tenant_a1_ts_cloud_queued --project-id project_a1_ts_cloud_queued --tenant-name "A1 TS Cloud Queued Tenant" --project-name "A1 TS Cloud Queued Project" --dataset-id dataset_a1_ts_cloud_queued --dataset-name "A1 TS Cloud Queued Dataset" --runner-id a1-ts-cloud-queued --run-id run_a1_ts_cloud_queued --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30 --fail-on-case-failure`: passed; run completed with quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- No hosted Ashr API calls were made. No raw key files were read or copied. Environment-only real API use remains pending.
+
+Known failure points and fixes:
+
+- `apply_patch` wrapper was inaccessible in this PowerShell environment (`Access is denied`) and Git Bash could not resolve the wrapper. Two small text edits were made by exact PowerShell replacements after repeated `apply_patch` failures; this tool issue should be watched in later turns.
+- Initial TS expansion tests exposed that sample run fixtures without `ended_at` remain `submitted`; helper was corrected to include `ended_at` for completed local run semantics.
+- Initial CLI error path returned code 1 with `ashr-clone-cloud error`; direct cloud CLI now returns code 2 with `cloud api error:` to match Python CLI style.
+
+Next top 10:
+
+1. Add TypeScript schema snapshot validation against `docs/a1/schemas/*.schema.json` and generated fixtures.
+2. Add TS hosted injected-transport quota/error fixture pack with response-key and redaction assertions.
+3. Add a combined fresh setup smoke script that runs Python 133, TS 133, TS direct 30-case, and TS queued 30-case.
+4. Add TS package examples mirroring Python README examples one-for-one.
+5. Add TS API client real-call dry-run/small-batch plan path gated only by environment variables.
+6. Add media/non-text replay fixtures with image/audio/file/video examples in both Python and TS runner outputs.
+7. Add project/tenant quota ledger persistence examples for cloud runtime docs.
+8. Add CI-friendly command matrix for A1 owned tests.
+9. Add private evidence manifest summarizing generated ignored fixture paths without payload content.
+10. Recheck official Ashr dashboard/API docs with Chrome before the next hosted API calibration.
+## 2026-07-05 TS Schema Contract and Cross-Runtime Loader
+
+Goal: close the TypeScript/Python schema drift after the full TS parity sprint, so TS-generated run fixtures validate against A1 JSON schemas and load through the Python A1 fixture loader.
+
+Baseline and peer state:
+
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; remote: `3351666087/ashr-codex-factory`; active draft PR: #10.
+- Commands run first: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr list --state all --limit 20`.
+- Peer changes/impact: no new peer changes observed after fetch. Current dirty files were A1/TS/schema/evidence only. `docs/evidence/private_refs/`, `.secrets/`, `dist/`, and `node_modules/` stayed ignored and were not staged/read for payload content.
+
+Top 10 and decision:
+
+1. Make TS run fixture schema match Python/A1 `ashr.clone.run.v1`: implemented.
+2. Make TS trace event shape match A1 schema fields (`seq`, `phase`, `source`, `tags`, `observation`, `metadata`): implemented.
+3. Make TS VM stream shape and stream mapping mirror Python `build_vm_frame`: implemented.
+4. Add TS schema contract tests against `docs/a1/schemas`: implemented.
+5. Add cross-runtime test proving Python `load_run_fixture()` accepts TS-generated fixtures: implemented.
+6. Re-run TS 30-case direct cloud smoke: implemented.
+7. Re-run TS 30-case queued cloud smoke: implemented.
+8. Add real API small-batch calibration: deferred to next slice; no environment key was consumed here.
+9. Add fresh setup one-command matrix: deferred.
+10. Add media/non-text replay fixture pack: deferred.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/trace.ts`: aligned run fixture, trace event, and VM stream validation/build helpers with the A1/Python schema contract.
+- `packages/ts/ashr-clone/src/runner.ts`: `buildRunFixture` now emits A1 run fields and builds VM stream frames from the exact same canonical event objects emitted in `events`.
+- `packages/ts/ashr-clone/test/schema-contract.test.mjs`: validates TS RunResult, runner fixture, trace fixture, and cloud fixture outputs against A1 schemas; also runs a Python subprocess to load a TS-generated run fixture.
+- Updated existing TS tests that still expected the old TS-only `ashr.clone.run_fixture.v1` schema.
+
+Validation:
+
+- `npm test --prefix packages/ts/ashr-clone`: passed, 138 tests, 138 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: passed, 133 passed in 9.31s.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent ... a1_ts_direct_schema_*`: 30/30 cases passed, trace completeness 1, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `node packages/ts/ashr-clone/dist/cloud-cli.js run-agent-queued ... a1_ts_queued_schema_*`: completed queued 30-case run, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
+- `git diff --check`: exit 0; CRLF warnings only.
+
+Failure points and fixes:
+
+- The Python loader initially rejected TS-generated fixtures with `ValueError: vm_stream frames must match trace events`. Fixed by generating TS events once and deriving VM frames from those exact event objects with Python-equivalent stream mapping and JSON-normalized observation data.
+- JSON Schema validation alone was insufficient because Python performs semantic replay equality for VM frames; the new test now covers that.
+
+Real API and private evidence:
+
+- Real Ashr API was not called in this schema-contract slice. No `D:/desktop/Ashr_key.txt`, `.secrets`, or raw private refs were read or stored.
+- Private smoke outputs stayed under ignored paths: `docs/evidence/private_refs/a1_ts_direct_schema_*_30_smoke.json` and `docs/evidence/private_refs/a1_ts_queued_schema_*_30_smoke.json`.
+
+Bus-Auditor follow-up:
+
+- Bus-Auditor flagged the pre-fix Python loader failure and required TS/Python/diff validation before staging. The final validation above satisfies that ready bar.
+
+Next top 10:
+
+1. Real Ashr API field-map dry-run/small-batch probe from `ASHR_API_KEY` / `ASHR_LABS_API_KEY` environment variables only.
+2. TS fresh-setup one-command demo for install/build/test/smoke.
+3. Expand TS/Python media fixture replay for text/audio/file/image/video parity.
+4. Add hosted injected-transport quota/error fixture pack.
+5. Add private evidence manifest summarizing ignored smoke output paths without payload content.
+6. Add CI-friendly A1 command matrix.
+7. Add TS examples mirroring Python docs one-for-one.
+8. Add cloud quota ledger persistence docs.
+9. Add `tests/integration` scaffold for A1 integration smokes.
+10. Recheck Ashr dashboard/API docs with Chrome before hosted calibration.

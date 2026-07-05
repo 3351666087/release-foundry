@@ -1,4 +1,4 @@
-﻿# A1 API Calibration
+# A1 API Calibration
 
 Round date: 2026-07-04
 
@@ -98,7 +98,7 @@ Official API reference says `request_input_schema` is optional and that a permis
 
 - default schema keys: `type`, `additionalProperties`
 - when the request agent declares tools, the default schema also includes `tools`
-- when accepted inputs include `image`, `audio`, or `file`, the default schema also advertises the local `AgentInput` envelope: `schema_version`, `text`, `parts`, `metadata`, and `$defs.agent_input_part`
+- when accepted inputs include `text`, `audio`, `file`, `image`, or `video`, the default schema also advertises the local `AgentInput` envelope: `schema_version`, `text`, `parts`, `metadata`, and `$defs.agent_input_part`
 - CLI dry-run preflight records `request_input_schema_source=client_default`
 
 The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.json` is text-only and bounded to one variation. The dry-run record now includes a local preflight summary:
@@ -110,13 +110,13 @@ The tiny generation config at `docs/a1/api_calibration/tiny_generation_request.j
 - media generation: audio/files/images/videos/simulations all disabled
 - `mutates=true`, `estimated_calls=2`, `attempts=0`
 
-Image/Audio/Files interface coverage now has a committed dry-run-first fixture at `docs/a1/api_calibration/media_interface_request.json`:
+Text/Audio/File/Image/Video interface coverage now has a committed dry-run-first fixture at `docs/a1/api_calibration/media_interface_request.json`:
 
-- accepted inputs include text, image, audio, and file
-- `generate_images=true`, `generate_audio=true`, `generate_files=true`
-- videos/simulations remain false
+- accepted inputs include text, audio, file, image, and video
+- `generate_audio=true`, `generate_files=true`, `generate_images=true`, `generate_videos=true`
+- simulations remain false
 - `num_variations=1`
-- default request input schema dry-run shape includes `agent_input_schema_version=ashr.clone.agent_input.v1`, property keys `metadata`, `parts`, `schema_version`, `text`, and part types `audio`, `file`, `image`, `text`
+- default request input schema dry-run shape includes `agent_input_schema_version=ashr.clone.agent_input.v1`, property keys `metadata`, `parts`, `schema_version`, `text`, and part types `audio`, `file`, `image`, `text`, `video`
 - dry-run only; real execution is blocked by default because both `media_generation_enabled` and `non_text_inputs_enabled` are true
 
 Real request calibration after the default schema patch:
@@ -180,7 +180,7 @@ Private real-shape smoke test:
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 125 passed.
 - `npm test --prefix packages/ts/ashr-clone`: TypeScript build plus 33 Node tests passed.
 - `node packages/ts/ashr-clone/dist/probe.js init --output docs/evidence/private_refs/a1_ts_api_init_dry_run.json`: TypeScript probe CLI dry-run wrote a planned record under ignored private evidence and printed only a one-line summary to stdout.
-- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: TypeScript probe CLI dry-run recorded Image/Audio/Files preflight shape without network or key use.
+- `node packages/ts/ashr-clone/dist/probe.js create-request --request-name "A1 TS Media Dry Run" --request-file docs/a1/api_calibration/media_interface_request.json --output docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json`: TypeScript probe CLI dry-run recorded Text/Audio/File/Image/Video preflight shape without network or key use.
 - `python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider`: 31 passed after adding queue batch replay/export coverage.
 - `python -B -m services.api.cli queue-run --input docs/a1/evidence/local_agent_cases_30.json --state-output docs/evidence/private_refs/a1_queue_batch_state_snapshot_smoke.json --summary-output docs/evidence/private_refs/a1_queue_batch_state_summary_smoke.json --tenant-id tenant_a1_batch_replay_smoke --project-id project_a1_batch_replay_smoke --dataset-id dataset_a1_batch_replay_smoke --runner-id a1-batch-replay-smoke --run-id run_a1_batch_replay_002 --run-id run_a1_batch_replay_001`: wrote an ignored local state snapshot with two queued 30-case runs in explicit batch order.
 - `python -B -m services.api.cli replay-queued --state-input docs/evidence/private_refs/a1_queue_batch_state_snapshot_smoke.json --agent examples.agents.mock_agent:RespondingMockAgent --tenant-id tenant_a1_batch_replay_smoke --project-id project_a1_batch_replay_smoke --dataset-id dataset_a1_batch_replay_smoke --fixture-output-dir docs/evidence/private_refs/a1_queue_batch_replay_fixtures --summary-output docs/evidence/private_refs/a1_queue_batch_replay_summary_smoke.json --run-output-dir docs/evidence/private_refs/a1_queue_batch_replay_runs --state-output docs/evidence/private_refs/a1_queue_batch_replayed_state_smoke.json --queue-workers 4 --max-workers 4 --timeout 5 --wait-timeout 30`: replayed two runs in deterministic batch order; each completed 30 passed, 0 failed, 0 errored, 0 timed out, with 60 observations, and wrote per-run fixture/result files under ignored private evidence.
@@ -190,8 +190,8 @@ Private real-shape smoke test:
 - Real read-only follow-up probes executed against the created run/request resources: `get-run`, fixed `poll-run`, `get-request`, `poll-request`, post-media `list-requests`, and post-request `list-datasets`.
 - Chrome dashboard check reached logged-in `Ashr Labs` at `https://lab.ashr.io/?tab=analysis`; visible shell hints included `Datasets` and `Runs`.
 - Error string redaction is covered at the text level: token-like values, bearer tokens, and email addresses are replaced before records or exception text are emitted.
-- Local multimodal adapter coverage now includes `AgentInput` with `text`, `image`, `audio`, and `file` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
-- Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Image/Audio/Files before real execution is allowed, and that part types match enabled accepted inputs.
+- Local multimodal adapter coverage now includes `AgentInput` with `text`, `audio`, `file`, `image`, and `video` parts, explicit `respond_input`/`arespond_input`, content-part output text extraction, and adapter error redaction for token-like strings, bearer tokens, emails, and signed URL query strings.
+- Local media request schema coverage now verifies that dry-run `create-request` records include `AgentInput` schema shape for Text/Audio/File/Image/Video before real execution is allowed, and that part types match enabled accepted inputs.
 - Local hosted request failure coverage verifies that failed `get-request` / `poll-request` records include safe nested `_failure` field-shape summaries without recording raw failure text in tracked docs.
 - Local read-only SDK parity coverage now includes `health-check` and `list-agents`, matching official SDK `health_check()` / `list_agents()` and A2's real API smoke surface.
 - Local cloud API skeleton coverage now includes in-memory tenant/project/dataset/request/run records, run polling, fixture export, and project-scoped quota blocking before writes. The local cloud demo CLI coverage runs an external agent target, submits the result into `CloudApiService`, polls the stored run, writes a summary, writes an A3-consumable fixture, preserves failure output semantics, and redacts operational error text. Adapter/API redaction now both cover `sk-...` style key strings. This path made no real Ashr API calls.

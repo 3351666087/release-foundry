@@ -155,7 +155,7 @@ def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
     agent_input_part_types = []
     if accepted_flags.get("text"):
         agent_input_part_types.append("text")
-    agent_input_part_types.extend(key for key in ("image", "audio", "file") if accepted_flags.get(key))
+    agent_input_part_types.extend(key for key in ("image", "audio", "file", "video") if accepted_flags.get(key))
     media_flags = {
         "audio": bool(generation_options.get("generate_audio")),
         "files": bool(generation_options.get("generate_files")),
