@@ -1509,3 +1509,67 @@ Next top 10:
 8. Add cloud quota ledger persistence docs.
 9. Add `tests/integration` scaffold for A1 integration smokes.
 10. Recheck Ashr dashboard/API docs with Chrome before hosted calibration.
+## 2026-07-05 Real API Batch Calibration Harness
+
+Goal: move A1 from one-off hosted probes to a reusable env-gated batch calibration loop that can safely use real Ashr API calls, summarize response keys and quota errors, and keep text/image/audio/file/video as first-class modalities.
+
+Baseline and peer state:
+
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; active PR #10 was open, draft, and mergeable after fetch.
+- Commands run first: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr list --state all --limit 20`.
+- Peer changes/impact: none observed in A1-owned files. Worktree was clean before this slice.
+- Key handling: `ASHR_API_KEY` was read from user-level environment into the current process only. No key file, `.secrets`, or private raw payload was read into logs or committed.
+
+Top 10 and decision:
+
+1. Add env-gated TS batch API calibrator with dry-run/read-only/mutating modes: implemented.
+2. Run real read-only small-batch API calibration: implemented.
+3. Run a bounded text-only mutating small-batch to observe quota behavior: implemented; blocked by hosted quota, no retry.
+4. Keep image/audio/file/video as first-class modality plans without spending media quota yet: implemented.
+5. Convert real quota error shape into tests: implemented.
+6. Convert historical bool `accepted_inputs` media failure into safer object-shaped request generation: implemented in calibrator.
+7. Add modality selector to avoid accidental paid media calls: implemented.
+8. Add Python/TS verification after hosted probe: implemented.
+9. Update public evidence without raw payloads: implemented.
+10. Full non-text paid media batch: deferred until quota is available and text quota path is green.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/calibrate.ts`: new `ashr-clone-calibrate` CLI. It writes a safe manifest plus per-step private records, enforces dry-run -> `--small-batch` -> optional mutating flow, records response keys/status/attempts/error keys/private paths, supports `--modality text,image,audio,file,video`, and emits object-shaped `accepted_inputs` (`{ enabled: ... }`) for hosted create-request compatibility.
+- `packages/ts/ashr-clone/package.json`: added `ashr-clone-calibrate` bin.
+- `packages/ts/ashr-clone/test/calibrate.test.mjs`: new dry-run, modality, guardrail, and injected small-batch tests.
+- `packages/ts/ashr-clone/test/api-client.test.mjs`: added quota error regression test based on the real hosted `Usage limit exceeded for requests` shape.
+
+Real API evidence:
+
+- Dry-run plans written under `docs/evidence/private_refs/a1_real_*_dry_run_plan.json` and `docs/evidence/private_refs/a1_ts_api_calibration_*_dry_run.json`.
+- Real read-only probes succeeded with `status_code=200`, `attempts=1`: `init`, `keep_alive`, `list_agents`, `list_datasets`, `list_requests`, `get_dataset(883)`, `list_runs(dataset=883)`, `get_request(580)`, `get_request(581)`.
+- `poll_request(580)` returned a controlled failure record for an already failed media request, giving `response_summary.request_failure` evidence.
+- Batch calibrator real read-only manifest: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json`, status `ok`, 5/5 read steps, estimated calls 7, response keys included `features/tenant/user`, `db/message/status`, `_user/agents/status`, `_user/datasets/next_cursor/status`, and `_user/requests/next_cursor/status`.
+- Text-only mutating small-batch manifest: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_text_mutating.json`, status `partial`; read steps succeeded and `create_request` was blocked by hosted quota with safe summary `Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining`, response keys `status/message/quota`, status_code `200`, attempts `1`.
+- Non-text image/audio/file/video paid mutating calls were not executed in this slice because request quota is exhausted and a prior media request already demonstrated a hosted `_failure` shape.
+
+Validation:
+
+- `npm test --prefix packages/ts/ashr-clone`: 145 tests, 145 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed in 9.97s.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Known gaps:
+
+- Hosted tenant plan currently reports `free`, and request quota is exhausted at `5/5`, so mutating create-request cannot proceed until quota resets/upgrades.
+- Real non-text media generation still needs a quota-available batch after text request creation succeeds.
+- `apply_patch` remains unavailable in this PowerShell session, so edits used controlled UTF-8 no-BOM file writes.
+
+Next top 10:
+
+1. When quota is available, run `ashr-clone-calibrate --execute --small-batch --include-mutating --modality text --max-retries 0`, then poll the created request.
+2. After text succeeds, run one non-text paid modality at a time (`image`, `audio`, `file`, `video`) with `--allow-paid-media` and capture quota/response keys.
+3. Parse hosted quota object into first-class SDK error helpers for Python and TS.
+4. Add private evidence manifest index for all real API records without payload content.
+5. Add TS fresh-setup command that builds, tests, and runs read-only calibrator dry-run.
+6. Add Python parity batch calibrator or wrapper around existing probe APIs.
+7. Add A3-facing hosted field-map markdown summarizing real response keys.
+8. Add integration tests for calibrator manifest schema.
+9. Use Chrome/dashboard to verify visible usage counters against API quota response.
+10. Keep widening hosted API coverage: runs, datasets, requests, polling, media failures, and quota ledger.

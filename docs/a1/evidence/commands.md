@@ -578,3 +578,33 @@ Results:
 - TS queued schema smoke: completed, quota used `dataset.create=1`, `run.submit=1`, `observation.write=60`.
 - `git diff --check`: exit 0 with CRLF warnings only.
 - Real Ashr API: not called; no key files or private payloads read or stored.
+## 2026-07-05 Real API Batch Calibration Commands
+
+```powershell
+$env:ASHR_API_KEY = [Environment]::GetEnvironmentVariable('ASHR_API_KEY', 'User')
+node packages/ts/ashr-clone/dist/probe.js init --execute --max-retries 0 --output docs/evidence/private_refs/a1_real_init_small_batch.json --print-record
+node packages/ts/ashr-clone/dist/probe.js health-check --execute --max-retries 0 --output docs/evidence/private_refs/a1_real_health_small_batch.json --print-record
+node packages/ts/ashr-clone/dist/probe.js list-agents --execute --max-retries 0 --output docs/evidence/private_refs/a1_real_list_agents_small_batch.json --print-record
+node packages/ts/ashr-clone/dist/probe.js list-datasets --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_real_list_datasets_small_batch.json --print-record
+node packages/ts/ashr-clone/dist/probe.js list-requests --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_real_list_requests_small_batch.json --print-record
+node packages/ts/ashr-clone/dist/probe.js get-dataset --execute --max-retries 0 --dataset-id 883 --output docs/evidence/private_refs/a1_real_get_dataset_883_small_batch.json
+node packages/ts/ashr-clone/dist/probe.js list-runs --execute --max-retries 0 --dataset-id 883 --limit 2 --output docs/evidence/private_refs/a1_real_list_runs_dataset_883_small_batch.json
+node packages/ts/ashr-clone/dist/probe.js get-request --execute --max-retries 0 --request-id 580 --output docs/evidence/private_refs/a1_real_get_request_580_failed_media_small_batch.json
+node packages/ts/ashr-clone/dist/probe.js get-request --execute --max-retries 0 --request-id 581 --output docs/evidence/private_refs/a1_real_get_request_581_completed_text_small_batch.json
+node packages/ts/ashr-clone/dist/probe.js poll-request --execute --max-retries 0 --request-id 580 --poll-timeout 1 --poll-interval 1 --output docs/evidence/private_refs/a1_real_poll_request_580_failed_media_small_batch.json
+node packages/ts/ashr-clone/dist/calibrate.js --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_dry_run.json --print-record
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json --print-record
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --include-mutating --modality text --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_text_mutating.json --print-record
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+git diff --check
+```
+
+Results:
+
+- Real read-only Ashr API calls succeeded for `init`, `keep_alive`, `list_agents`, `list_datasets`, `list_requests`, `get_dataset(883)`, `list_runs(dataset=883)`, `get_request(580)`, and `get_request(581)`, each with status_code `200` and attempts `1`.
+- `poll_request(580)` produced a controlled failure record for an already failed media request and preserved only safe failure shape summaries.
+- `ashr-clone-calibrate` dry-run manifest covered 10 steps including first-class `text`, `image`, `audio`, `file`, and `video` create-request plans.
+- `ashr-clone-calibrate` real read-only small-batch manifest succeeded with 5/5 read steps and no raw key/payload in public evidence.
+- Text-only mutating small-batch was attempted once and blocked by hosted quota: `Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining`; no retry was attempted.
+- Tests: TS `145/145`; Python A1 `133 passed`; `git diff --check` exit 0 with CRLF warnings only.
