@@ -301,6 +301,15 @@ G1-G2 is deterministic and local. It should not depend on real Ashr API access, 
 
 G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided.
 
+After private A1/A2 API probes are recorded under ignored `docs/evidence/private_refs/`, refresh the public-safe evidence index with:
+
+```bash
+python -B scripts/a2_refresh_real_api_evidence_index.py --label a2-g3-real-api-refresh
+python -B scripts/a2_regenerate_fixtures.py --write
+```
+
+The refresh script preserves already committed safe index rows when the local raw private evidence is unavailable, then merges any newly available private records by `path`. The committed index must contain only field keys, counts, statuses, quota summaries, and private evidence refs.
+
 ## Agent Workflow
 
 Recommended Codex workflow for this track:

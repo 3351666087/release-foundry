@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from packages.sdk.ashr_clone.api_client import summarize_quota_error
-from packages.sdk.ashr_clone.evidence import build_private_evidence_index, build_private_evidence_index_from_dir, write_private_evidence_index
+from packages.sdk.ashr_clone.evidence import build_private_evidence_index, build_private_evidence_index_from_dir, merge_evidence_indices, write_private_evidence_index
 
 
 def test_summarize_quota_error_handles_real_hosted_shape():
@@ -105,3 +105,57 @@ def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
     assert loaded["total_records"] == 1
     assert "owner@example.com" not in json.dumps(loaded)
     assert loaded["records"][0]["response_keys"] == ["status", "user"]
+
+
+def test_merge_evidence_indices_preserves_existing_public_records(tmp_path: Path):
+    missing_private_record = {
+        "path": "docs/evidence/private_refs/missing_raw_record.json",
+        "function": "get_request",
+        "dry_run": False,
+        "status": "ok",
+        "status_code": 200,
+        "attempts": 1,
+        "request_keys": ["function"],
+        "response_keys": ["request", "status"],
+        "response_status": "ok",
+        "response_summary_keys": [],
+        "error_keys": [],
+        "error_kind": None,
+        "top_counts": {},
+    }
+    existing = {
+        "schema_version": "ashr.clone.evidence_index.v1",
+        "label": "old",
+        "records": [missing_private_record],
+    }
+    fresh_record_path = tmp_path / "fresh.json"
+    fresh_record_path.write_text(
+        json.dumps(
+            {
+                "function": "create_request",
+                "dry_run": False,
+                "status": "error",
+                "status_code": 200,
+                "attempts": 1,
+                "request": {"params": {"request_name": "Synthetic calibration"}},
+                "error": {
+                    "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+                    "error_kind": "api",
+                    "response": {
+                        "status": "error",
+                        "quota": {"resource": "requests", "limit": 5, "used": 5, "requested": 1, "remaining": 0},
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged = merge_evidence_indices(existing, build_private_evidence_index([fresh_record_path], label="fresh"), label="merged")
+
+    assert merged["label"] == "merged"
+    assert merged["total_records"] == 2
+    assert merged["status_counts"] == {"error": 1, "ok": 1}
+    assert merged["function_counts"] == {"create_request": 1, "get_request": 1}
+    assert merged["quota_block_count"] == 1
+    assert any(record["path"] == missing_private_record["path"] for record in merged["records"])
