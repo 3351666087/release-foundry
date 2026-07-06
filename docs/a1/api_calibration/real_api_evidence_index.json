@@ -1680,7 +1680,7 @@
       "error_keys": [],
       "error_kind": null,
       "function": null,
-      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly_followup.json",
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -1695,7 +1695,7 @@
       "error_keys": [],
       "error_kind": null,
       "function": null,
-      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json",
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly_followup.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -2241,8 +2241,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -2251,9 +2251,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -2429,8 +2429,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -2439,9 +2439,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -3197,8 +3197,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -3207,9 +3207,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -3385,8 +3385,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -3395,9 +3395,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -3863,8 +3863,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -3873,9 +3873,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -4051,8 +4051,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -4061,9 +4061,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -4529,8 +4529,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -4539,9 +4539,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -4717,8 +4717,8 @@
       "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -4727,9 +4727,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",

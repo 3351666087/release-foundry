@@ -1893,3 +1893,91 @@ Next top 20:
 18. Add TS CLI parity for Python calibrator shape/schema assertions.
 19. Add schema contract tests for media/non-text safe envelope across Python, TS, and cloud runtime.
 20. Coordinate A2/A3 Gate-only contract change request for any shared review-status or evidence metadata.
+
+## A1 round - risk preflight, evidence linter, and response field-map (2026-07-06T22:20:00+08:00)
+
+Goal slice:
+- Continue under the updated Ashr++ commercial execution goal after commit `1eb80b6`.
+- Add non-blocked, high-ROI enterprise evidence capabilities while hosted `create_request` quota remains blocked: public/private evidence linter, response-key field-map artifact, cross-language quota redaction, and preflight cost-risk summaries.
+- Run another real Ashr API read-only small batch from env-only key to keep official evidence fresh without mutating quota.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; worktree clean at round start after pushing `1eb80b6`.
+- Required start commands run: `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 30`.
+- PR #11 remains open draft. No peer-owned files were modified.
+- Official docs check: Python public API reference loaded and still exposed Testing Platform and Observability APIs; TypeScript public API reference returned an internal error in this pass, so no TS fields were inferred from that page.
+
+Top 20 A1 growth points considered:
+1. Python/TS preflight cost-risk estimate. Implemented.
+2. TS public-safe quota redaction parity with Python evidence index. Implemented.
+3. Python public evidence linter for exact quota and secret-like text. Implemented.
+4. Python response-key field-map generator from evidence index. Implemented.
+5. Tracked `real_api_response_field_map.json` artifact for A2/A3 and audit review. Implemented.
+6. Round6 real read-only API refresh. Implemented.
+7. Public evidence index refresh with round6 record. Implemented.
+8. Python root SDK exports for evidence helpers. Implemented.
+9. TS evidence tests for public-safe quota presence fields. Implemented.
+10. Python tests for cost-risk, linter, and field-map. Implemented.
+11. Full Python and TS test refresh. Implemented.
+12. Official docs recheck. Implemented as partial; TS docs failed.
+13. Successful text-only mutation after quota reset. Deferred; quota remains blocked.
+14. Request polling after successful mutation. Deferred behind successful mutation.
+15. Paid media real probes. Deferred behind text mutation and quota reset.
+16. API probe batch planner command. Deferred; cost-risk/linter foundation landed first.
+17. Typed quota/validation/auth error taxonomy. Deferred.
+18. Enterprise audit manifest combining tests, evidence, and field-map. Deferred to next round.
+19. Production trace ingestion schema. Deferred.
+20. Old-vs-new deterministic replay diff. Deferred.
+
+Implemented:
+- `packages/sdk/ashr_clone/api_client.py`: `summarize_generation_request` now includes `cost_risk` with level, reasons, generated media modalities, non-text input modalities, and generated asset unit estimate.
+- `packages/ts/ashr-clone/src/api-client.ts`: mirrored `cost_risk` in TS `summarizeGenerationRequest`.
+- `packages/ts/ashr-clone/src/evidence.ts`: public evidence index now redacts exact quota counts into `*_present` booleans, matching Python.
+- `packages/sdk/ashr_clone/evidence.py`: added `validate_public_evidence_index` and `build_response_field_map`.
+- `packages/sdk/ashr_clone/__init__.py`: exported evidence index, linter, and field-map helpers.
+- `docs/a1/api_calibration/real_api_response_field_map.json`: new public-safe response field-map artifact generated from 76 evidence records.
+- `tests/a1/test_api_client.py`, `tests/a1/test_evidence_index.py`, `packages/ts/ashr-clone/test/api-client.test.mjs`, and `packages/ts/ashr-clone/test/evidence.test.mjs`: added coverage for cost-risk, linter, field-map, and TS quota redaction.
+
+Real API calibration:
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round6_real_readonly.json`.
+- Result: ok, 5/5 read steps, estimated calls 7, 0 errors. Raw key was not printed or written.
+- Public index regenerated with label `a1-real-api-2026-07-06-round6-cost-field-map`: 76 records, quota block count 2, lint issues 0.
+
+Validation:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 59 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 152 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 158 passed after Growth-Auditor P1 linter fix.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round6_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Known gaps:
+- Hosted `create_request` success remains unproven after Python shape/preflight fix because request quota is still blocked.
+- TS public docs were not available in this pass; keep relying on local TS tests plus previous official docs evidence until the page recovers.
+- The field-map is generated as JSON only; next round should add markdown/report formatting for human release review.
+
+Growth-Auditor feedback:
+- P0: none.
+- P1 before commit: `validate_public_evidence_index` originally scanned redacted JSON for secret-like text, so it could miss raw `tp_`, `sk-`, `Bearer`, or `ashr_live_` values. Fixed by scanning raw JSON for secret-like patterns and redacted JSON for quota detail patterns.
+- P2: the secret-key regex can false-positive some natural hyphenated text; current round label was changed to `round6-cost-field-map`, and regex hardening remains a follow-up.
+
+Next top 20:
+1. Add API probe batch planner command with dry-run/small-batch/batch phases.
+2. Add typed API error taxonomy for quota, validation, auth, transport, timeout, and hosted failed request.
+3. Add response field-map markdown report with saleable release-readiness framing.
+4. Add request quota reset detector using read-only list/usage evidence.
+5. Attempt one successful text mutation only after quota reset signal.
+6. Poll created request after successful text mutation and ingest hosted response into local replay.
+7. Add cost-risk docs and CLI explain command for preflight review.
+8. Add TS response field-map helper parity.
+9. Add public/private evidence linter CLI.
+10. Add enterprise audit manifest tying commit, tests, evidence index, response field-map, and known gaps.
+11. Add OpenAI-style create-request adapter examples.
+12. Add media envelope fixtures with no raw payloads.
+13. Add request schema version compatibility tests.
+14. Add dashboard Usage authenticated field-label capture when session loads.
+15. Add old-vs-new deterministic replay diff fixture and API.
+16. Add production trace ingestion schema and CLI.
+17. Add self-host worker audit report for queue leases and heartbeat.
+18. Add CI-friendly A1 readiness command docs in `docs/a1/README.md`.
+19. Add A3 handoff notes for `real_api_response_field_map.json`.
+20. Coordinate Gate-only shared evidence metadata changes with A2/A3.

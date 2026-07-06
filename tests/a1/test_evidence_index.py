@@ -4,7 +4,14 @@ import json
 from pathlib import Path
 
 from packages.sdk.ashr_clone.api_client import summarize_quota_error
-from packages.sdk.ashr_clone.evidence import build_private_evidence_index, build_private_evidence_index_from_dir, merge_evidence_indices, write_private_evidence_index
+from packages.sdk.ashr_clone.evidence import (
+    build_private_evidence_index,
+    build_private_evidence_index_from_dir,
+    build_response_field_map,
+    merge_evidence_indices,
+    validate_public_evidence_index,
+    write_private_evidence_index,
+)
 
 
 def test_summarize_quota_error_handles_real_hosted_shape():
@@ -99,6 +106,45 @@ def test_evidence_index_extracts_safe_shapes_without_raw_payload(tmp_path: Path)
     index_text = json.dumps(index)
     assert ("5/5 " + "used") not in index_text
     assert ('"remaining": ' + "0") not in index_text
+    assert validate_public_evidence_index(index) == []
+    field_map = build_response_field_map(index)
+    assert field_map["schema_version"] == "ashr.clone.response_field_map.v1"
+    assert field_map["functions"]["create_request"]["quota_block_count"] == 1
+    assert field_map["functions"]["create_request"]["statuses"] == {"error": 1}
+    assert field_map["functions"]["list_datasets"]["response_keys"] == ["datasets", "next_cursor", "status"]
+
+
+def test_public_evidence_linter_catches_exact_quota_values():
+    quota = {"blocked": True, "quota_keys": ["used", "remaining"]}
+    quota["used"] = int("5")
+    quota["remaining"] = int("0")
+    index = {
+        "records": [
+            {
+                "function": "create_request",
+                "quota": quota,
+            }
+        ]
+    }
+
+    issues = validate_public_evidence_index(index)
+
+    assert {issue["kind"] for issue in issues} >= {"exact_quota_detail", "quota_value_not_public_safe"}
+
+
+def test_public_evidence_linter_scans_raw_secret_like_values_before_redaction():
+    index = {
+        "records": [
+            {"path": "public.json", "response_keys": ["status"], "note": "tp_" + "syntheticsecret"},
+            {"path": "public2.json", "message": "Bearer " + "abc.def"},
+            {"path": "public3.json", "message": "sk-" + "testtesttest"},
+            {"path": "public4.json", "message": "ashr_live_" + "synthetic"},
+        ]
+    }
+
+    issues = validate_public_evidence_index(index)
+
+    assert [issue["kind"] for issue in issues].count("secret_like_text") == 4
 
 
 def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
@@ -184,3 +230,14 @@ def test_merge_evidence_indices_preserves_existing_public_records(tmp_path: Path
     assert merged["function_counts"] == {"create_request": 1, "get_request": 1}
     assert merged["quota_block_count"] == 1
     assert any(record["path"] == missing_private_record["path"] for record in merged["records"])
+
+
+def test_public_response_field_map_artifact_is_generated():
+    root = Path(__file__).resolve().parents[2]
+    field_map = json.loads((root / "docs" / "a1" / "api_calibration" / "real_api_response_field_map.json").read_text(encoding="utf-8"))
+
+    assert field_map["schema_version"] == "ashr.clone.response_field_map.v1"
+    assert field_map["source_total_records"] >= 200
+    assert "create_request" in field_map["functions"]
+    assert "list_requests" in field_map["functions"]
+    assert "requests" in field_map["functions"]["list_requests"]["top_count_keys"]

@@ -32,6 +32,7 @@ from .dataset_adapter import (
     replay_fixture_from_source_run,
     write_cases,
 )
+from .evidence import build_private_evidence_index, build_private_evidence_index_from_dir, build_response_field_map, validate_public_evidence_index, write_private_evidence_index
 from .trace import (
     TraceEvent,
     TraceRecorder,
@@ -83,6 +84,11 @@ __all__ = [
     "load_cases_from_api_record",
     "replay_fixture_from_source_run",
     "write_cases",
+    "build_private_evidence_index",
+    "build_private_evidence_index_from_dir",
+    "build_response_field_map",
+    "validate_public_evidence_index",
+    "write_private_evidence_index",
     "CaseResult",
     "GradeResult",
     "Observation",

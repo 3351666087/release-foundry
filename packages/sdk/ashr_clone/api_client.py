@@ -654,6 +654,7 @@ def summarize_generation_request(request: Mapping[str, Any]) -> JsonDict:
         "agent_input_schema_version": AGENT_INPUT_SCHEMA_VERSION if any(part_type != "text" for part_type in agent_input_part_types) else None,
         "non_text_inputs_enabled": any(accepted_flags[key] for key in ("audio", "file", "image", "video", "conversation")),
         "small_batch": num_variations is not None and num_variations <= 1,
+        "cost_risk": _generation_cost_risk(num_variations, accepted_inputs_known, accepted_flags, media_flags),
         "notes": [
             "dry-run-first mutating create_request calibration",
             "use max_retries=0 for real mutating execution",
@@ -688,6 +689,42 @@ def _coerce_positive_int(value: Any) -> int | None:
         parsed = int(value)
         return parsed if parsed > 0 else None
     return None
+
+
+def _generation_cost_risk(num_variations: int | None, accepted_inputs_known: bool, accepted_flags: Mapping[str, bool], media_flags: Mapping[str, bool]) -> JsonDict:
+    generated_modalities = [key for key, enabled in media_flags.items() if enabled]
+    non_text_inputs = [key for key in ("audio", "file", "image", "video", "conversation") if accepted_flags.get(key)]
+    reasons: list[str] = []
+    if num_variations is None:
+        reasons.append("num_variations_unknown")
+    if not accepted_inputs_known:
+        reasons.append("accepted_inputs_unknown")
+    if generated_modalities:
+        reasons.append("media_generation_enabled")
+    if non_text_inputs:
+        reasons.append("non_text_inputs_enabled")
+    if num_variations is not None and num_variations > 1:
+        reasons.append("multi_variation_batch")
+    if not reasons:
+        reasons.append("text_small_batch")
+    if num_variations is None or not accepted_inputs_known:
+        level = "unknown"
+    elif generated_modalities:
+        level = "paid_media_generation"
+    elif non_text_inputs:
+        level = "non_text_input_review"
+    elif num_variations > 1:
+        level = "batch_review"
+    else:
+        level = "text_small_batch"
+    return {
+        "level": level,
+        "reasons": reasons,
+        "num_variations": num_variations,
+        "generated_media_modalities": generated_modalities,
+        "non_text_input_modalities": non_text_inputs,
+        "estimated_generated_asset_units": None if num_variations is None else num_variations * len(generated_modalities),
+    }
 
 
 def _coerce_max_request_variations(value: Any) -> int:

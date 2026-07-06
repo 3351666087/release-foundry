@@ -1,0 +1,201 @@
+{
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "functions": {
+    "create_request": {
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 10,
+      "records": 21,
+      "response_keys": [
+        "plan"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 11,
+        "planned": 10
+      },
+      "top_count_keys": []
+    },
+    "get_dataset": {
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 0,
+      "records": 4,
+      "response_keys": [
+        "_user",
+        "dataset",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 3,
+        "ok": 1
+      },
+      "top_count_keys": []
+    },
+    "get_request": {
+      "error_keys": [
+        "error_kind",
+        "failure_summary",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 0,
+      "records": 6,
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_summary_keys": [
+        "request_failure"
+      ],
+      "statuses": {
+        "error": 4,
+        "ok": 2
+      },
+      "top_count_keys": []
+    },
+    "init": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 25,
+      "response_keys": [
+        "features",
+        "notes",
+        "plan",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 22,
+        "planned": 3
+      },
+      "top_count_keys": []
+    },
+    "keep_alive": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 25,
+      "response_keys": [
+        "db",
+        "message",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 22,
+        "planned": 3
+      },
+      "top_count_keys": []
+    },
+    "list_agents": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 25,
+      "response_keys": [
+        "_user",
+        "agents",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 22,
+        "planned": 3
+      },
+      "top_count_keys": [
+        "agents"
+      ]
+    },
+    "list_datasets": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 27,
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 24,
+        "planned": 3
+      },
+      "top_count_keys": [
+        "datasets"
+      ]
+    },
+    "list_requests": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 28,
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "plan",
+        "requests",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 26,
+        "planned": 2
+      },
+      "top_count_keys": [
+        "requests"
+      ]
+    },
+    "list_runs": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 1,
+      "response_keys": [
+        "_user",
+        "runs",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 1
+      },
+      "top_count_keys": [
+        "runs"
+      ]
+    },
+    "unknown": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 38,
+      "response_keys": [],
+      "response_summary_keys": [],
+      "statuses": {
+        "failed": 1,
+        "ok": 19,
+        "partial": 11,
+        "planned": 6
+      },
+      "top_count_keys": []
+    }
+  },
+  "schema_version": "ashr.clone.response_field_map.v1",
+  "source_label": "a1-real-api-merged-2026-07-06",
+  "source_total_records": 200
+}

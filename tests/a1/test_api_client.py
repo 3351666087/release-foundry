@@ -638,7 +638,87 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["preflight"]["media_generation_enabled"] is False
     assert record["request"]["preflight"]["small_batch"] is True
     assert record["request"]["preflight"]["request_input_schema_source"] == "client_default"
+    assert record["request"]["preflight"]["batch_plan"]["phase_order"] == ["dry-run", "small-batch", "batch"]
+    assert record["request"]["preflight"]["batch_plan"]["quota_decision"] == "go"
+    assert record["request"]["preflight"]["batch_plan"]["modality_order"] == ["text"]
+    assert record["response"]["plan"]["batch_plan"]["phases"][1]["phase"] == "small-batch"
     assert record["request"]["params"]["request_input_schema"]["type"] == "object"
+
+
+def test_api_probe_batch_plan_sequences_text_then_media_without_raw_request():
+    request = {
+        "agent": {"name": "Mock", "accepted_inputs": {"text": True, "image": True, "audio": True, "file": False, "video": False}},
+        "context": {"scenario_context": "tp_should_not_be_recorded"},
+        "generation_options": {"generate_images": True, "generate_audio": True},
+        "test_config": {"num_variations": 3},
+    }
+
+    plan = api_probe.build_api_probe_batch_plan(
+        target_operation="create-request",
+        request=request,
+        allow_media_generation=True,
+        allow_non_text_inputs=True,
+        max_request_variations=3,
+        small_batch_size=1,
+    )
+
+    assert plan["phase_order"] == ["dry-run", "small-batch", "batch"]
+    assert plan["small_batch_size"] == 1
+    assert plan["batch_size"] == 3
+    assert [item["modality"] for item in plan["modality_sequence"]] == ["text", "image", "audio"]
+    assert plan["phases"][0]["estimated_real_api_calls"] == 0
+    assert plan["phases"][1]["phase"] == "small-batch"
+    assert plan["phases"][1]["modalities"] == ["text"]
+    assert plan["phases"][2]["modalities"] == ["text", "image", "audio"]
+    assert plan["guardrails"]["media_after_text_small_batch"] is True
+    assert plan["guardrails"]["sensitive_values_not_recorded"] is True
+    assert "tp_should_not_be_recorded" not in json.dumps(plan)
+
+
+def test_api_probe_batch_plan_quota_record_stops_until_reset():
+    quota_record = {
+        "status": "error",
+        "response_headers": {"retry-after": "60", "x-ratelimit-reset": "2026-07-06T01:00:00Z"},
+        "error": {
+            "response": {
+                "message": "Usage limit exceeded for requests",
+                "quota": {"resource": "requests", "limit": 5, "used": 5, "requested": 1, "remaining": 0},
+            }
+        },
+    }
+
+    plan = api_probe.build_api_probe_batch_plan(target_operation="create-request", request={"agent": {"accepted_inputs": {"text": True}}, "test_config": {"num_variations": 1}}, quota_record=quota_record)
+
+    quota_gate = plan["quota_stop_go"]
+    assert quota_gate["decision"] == "stop"
+    assert quota_gate["can_enter_small_batch"] is False
+    assert quota_gate["can_enter_batch"] is False
+    assert quota_gate["quota"]["blocked"] is True
+    assert quota_gate["quota"]["resource"] == "requests"
+    assert quota_gate["reset"]["known"] is True
+    assert quota_gate["reset"]["retry_after_seconds"] == 60
+    assert quota_gate["reset"]["ratelimit_reset"] == "2026-07-06T01:00:00Z"
+
+
+def test_api_probe_plan_batch_cli_does_not_create_api_client(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    output = tmp_path / "plan.json"
+    request_file.write_text(json.dumps({"agent": {"accepted_inputs": {"text": True}}, "test_config": {"num_variations": 2}}), encoding="utf-8")
+
+    def fail_from_env(cls, **_kwargs):
+        raise AssertionError("plan-batch should not construct an API client")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(fail_from_env))
+
+    code = api_probe.main(["plan-batch", "--request-file", str(request_file), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "planned plan-batch" in captured.out
+    record = json.loads(output.read_text(encoding="utf-8"))
+    assert record["function"] == "plan_batch"
+    assert record["status"] == "planned"
+    assert record["response"]["plan"]["batch_size"] == 2
 
 
 def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
@@ -802,7 +882,24 @@ def test_api_probe_create_request_preflight_supports_enabled_dict_inputs():
     assert preflight["accepted_input_flags"]["text"] is True
     assert preflight["accepted_input_flags"]["image"] is False
     assert preflight["num_variations"] == 1
+    assert preflight["cost_risk"]["level"] == "text_small_batch"
     api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+
+
+def test_create_request_preflight_cost_risk_marks_paid_media_and_batches():
+    preflight = summarize_generation_request(
+        {
+            "agent": {"accepted_inputs": {"text": True, "audio": True, "file": True}},
+            "generation_options": {"generate_audio": True, "generate_files": True},
+            "test_config": {"num_variations": 3},
+        }
+    )
+
+    assert preflight["cost_risk"]["level"] == "paid_media_generation"
+    assert preflight["cost_risk"]["estimated_generated_asset_units"] == 6
+    assert preflight["cost_risk"]["generated_media_modalities"] == ["audio", "files"]
+    assert preflight["cost_risk"]["non_text_input_modalities"] == ["audio", "file"]
+    assert "multi_variation_batch" in preflight["cost_risk"]["reasons"]
 
 
 def test_api_probe_create_request_preflight_blocks_unsupported_accepted_inputs_shape():

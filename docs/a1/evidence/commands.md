@@ -746,3 +746,29 @@ Results:
 - Secret scan: matches were intentional synthetic test strings such as `tp_test_secret`; no real API key was printed or written to tracked docs/code/evidence index.
 - Growth-Auditor quota-detail follow-up: public evidence index quota summaries now use `*_present` booleans and generic quota-block text; tracked public docs/index scan found no exact hosted quota count phrase or numeric `used/requested/remaining` tuple.
 - One failed inspection command used bash-style `\n` in a PowerShell `python -c` string and produced a SyntaxError; it was rerun with a PowerShell-compatible one-liner.
+
+## A1 round6 risk field-map and evidence linter commands - 2026-07-06
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb --untracked-files=all
+gh pr list --state all --limit 30
+python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round6_real_readonly.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, build_response_field_map, validate_public_evidence_index, write_private_evidence_index; patterns=['docs/evidence/private_refs/a1_real_*.json','docs/evidence/private_refs/a1_ts_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_get_*_round2_real.json','docs/evidence/private_refs/a1_readiness_calibration_*.json']; paths=[]; [paths.extend(Path('.').glob(pattern)) for pattern in patterns]; index=build_private_evidence_index(sorted(set(paths)), label='a1-real-api-2026-07-06-round6-cost-field-map'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); field_map=build_response_field_map(index); Path('docs/a1/api_calibration/real_api_response_field_map.json').write_text(json.dumps(field_map, indent=2, sort_keys=True)+'\n', encoding='utf-8'); print({'records': index['total_records'], 'issues': len(validate_public_evidence_index(index)), 'functions': len(field_map['functions']), 'quota_block_count': index['quota_block_count']})"
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round6_safety.json
+git diff --check
+```
+
+Results:
+- Python focused tests: 59 passed.
+- TypeScript package tests: 152 passed.
+- Python real read-only round6 calibration: ok, 5 read steps, 0 errors, output `docs/evidence/private_refs/a1_python_api_calibration_manifest_round6_real_readonly.json`.
+- Public evidence index regenerated: 76 records, 10 functions in `docs/a1/api_calibration/real_api_response_field_map.json`, lint issues 0, quota block count 2.
+- Python A1 full tests: 158 passed after Growth-Auditor P1 linter fix.
+- Public evidence linter regression: `tests/a1/test_evidence_index.py` now covers raw `tp_`, `sk-`, `Bearer`, and `ashr_live_` detection before redaction; current public index lint issues remain 0.
+- Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round6_safety.json`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Official docs check: Python public API reference loaded and still exposes Testing Platform and Observability products plus create/list/run methods. TypeScript public API reference returned an internal error in this pass; no fields were inferred from that failed page.

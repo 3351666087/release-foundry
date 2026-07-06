@@ -54,7 +54,7 @@ async function summarizeRecordPath(path: string): Promise<JsonRecord | null> {
   const response = isRecord(parsed.response) ? parsed.response : {};
   const error = isRecord(parsed.error) ? parsed.error : {};
   const request = isRecord(parsed.request) ? parsed.request : {};
-  const quota = summarizeQuotaError(parsed);
+  const quota = publicSafeQuotaSummary(summarizeQuotaError(parsed));
   const entry: JsonRecord = {
     path: path.replaceAll("\\", "/"),
     function: parsed.function,
@@ -102,6 +102,27 @@ function summarizeQuotaError(value: JsonRecord): JsonRecord | null {
     }
   }
   return null;
+}
+
+function publicSafeQuotaSummary(quota: JsonRecord | null): JsonRecord | null {
+  if (quota === null) {
+    return null;
+  }
+  const quotaKeys = Array.isArray(quota.quota_keys) ? quota.quota_keys.map(String).sort() : [];
+  const summary: JsonRecord = {
+    blocked: quota.blocked === true,
+    message: quota.blocked === true ? "Usage limit exceeded; exact quota details are kept in private evidence" : null,
+    quota_keys: quotaKeys,
+  };
+  if (["string", "number", "boolean"].includes(typeof quota.resource)) {
+    summary.resource = quota.resource;
+  }
+  for (const key of ["limit", "used", "requested", "remaining"] as const) {
+    if (key in quota) {
+      summary[`${key}_present`] = true;
+    }
+  }
+  return summary;
 }
 
 function quotaCandidates(value: JsonRecord): JsonRecord[] {

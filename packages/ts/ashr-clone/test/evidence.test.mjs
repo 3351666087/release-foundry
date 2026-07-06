@@ -60,16 +60,17 @@ test("buildPrivateEvidenceIndex summarizes safe private API records", async () =
     assert.deepEqual(index.records[0].top_counts, { runs: 2 });
     assert.deepEqual(index.records[1].quota, {
       blocked: true,
-      message: "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+      message: "Usage limit exceeded; exact quota details are kept in private evidence",
       quota_keys: ["limit", "remaining", "requested", "resource", "secret_token", "used"],
       resource: "requests",
-      limit: 5,
-      used: 5,
-      requested: 1,
-      remaining: 0,
+      limit_present: true,
+      used_present: true,
+      requested_present: true,
+      remaining_present: true,
     });
     assert.equal(JSON.stringify(index).includes("tp_syntheticsecret"), false);
     assert.equal(JSON.stringify(index).includes("Bearer abc.secret"), false);
+    assert.equal(JSON.stringify(index).includes("5/5 " + "used"), false);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

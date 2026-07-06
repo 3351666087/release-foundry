@@ -3,12 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import re
 from typing import Any, Iterable, Mapping
 
 from .api_client import ASHR_API_FIELD_MAP_VERSION, redact_sensitive, summarize_quota_error
 
 JsonDict = dict[str, Any]
 EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1"
+_PUBLIC_SECRET_PATTERNS = (
+    re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
+    re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
+    re.compile(r"ashr_live_[A-Za-z0-9_\-]+"),
+)
 
 
 @dataclass(slots=True)
@@ -35,17 +42,18 @@ def merge_evidence_indices(existing_index: Mapping[str, Any] | None, fresh_index
 
 
 def _build_evidence_index(entries: list[JsonDict], *, label: str) -> JsonDict:
+    public_entries = [_public_safe_entry(entry) for entry in entries]
     return redact_sensitive(
         {
             "schema_version": EVIDENCE_INDEX_SCHEMA_VERSION,
             "label": label,
             "field_map_version": ASHR_API_FIELD_MAP_VERSION,
-            "total_records": len(entries),
-            "status_counts": _count_by(entries, "status"),
-            "function_counts": _count_by(entries, "function"),
-            "error_kind_counts": _count_by(entries, "error_kind"),
-            "quota_block_count": sum(1 for entry in entries if entry.get("quota") and entry["quota"].get("blocked") is True),
-            "records": entries,
+            "total_records": len(public_entries),
+            "status_counts": _count_by(public_entries, "status"),
+            "function_counts": _count_by(public_entries, "function"),
+            "error_kind_counts": _count_by(public_entries, "error_kind"),
+            "quota_block_count": sum(1 for entry in public_entries if entry.get("quota") and entry["quota"].get("blocked") is True),
+            "records": public_entries,
         }
     )
 
@@ -59,6 +67,18 @@ def _records_by_path(records: Any) -> dict[str, JsonDict]:
             continue
         indexed[record["path"]] = dict(record)
     return indexed
+
+
+def _public_safe_entry(entry: Mapping[str, Any]) -> JsonDict:
+    public_entry = dict(entry)
+    quota = public_entry.get("quota")
+    if isinstance(quota, Mapping):
+        public_quota = _public_safe_quota_summary(quota)
+        if public_quota:
+            public_entry["quota"] = public_quota
+        else:
+            public_entry.pop("quota", None)
+    return redact_sensitive(public_entry)
 
 
 def build_private_evidence_index_from_dir(root: str | Path, options: EvidenceIndexOptions | None = None) -> JsonDict:
@@ -78,6 +98,74 @@ def write_private_evidence_index(path: str | Path, index: Mapping[str, Any]) -> 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(redact_sensitive(dict(index)), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
+
+
+def validate_public_evidence_index(index: Mapping[str, Any]) -> list[JsonDict]:
+    issues: list[JsonDict] = []
+    raw_text = json.dumps(dict(index), sort_keys=True)
+    text = json.dumps(redact_sensitive(dict(index)), sort_keys=True)
+    for pattern in ("5/5 " + "used", '"remaining": ' + "0", '"requested": ' + "1", '"used": ' + "5"):
+        if pattern in text:
+            issues.append({"severity": "error", "kind": "exact_quota_detail", "pattern": pattern})
+    for pattern in _PUBLIC_SECRET_PATTERNS:
+        if pattern.search(raw_text):
+            issues.append({"severity": "error", "kind": "secret_like_text", "pattern": pattern.pattern})
+    records = index.get("records") if isinstance(index.get("records"), list) else []
+    for offset, record in enumerate(records):
+        if not isinstance(record, Mapping):
+            issues.append({"severity": "error", "kind": "malformed_record", "record_index": offset})
+            continue
+        quota = record.get("quota")
+        if not isinstance(quota, Mapping):
+            continue
+        for key in ("limit", "used", "requested", "remaining"):
+            if key in quota:
+                issues.append({"severity": "error", "kind": "quota_value_not_public_safe", "record_index": offset, "field": key})
+    return issues
+
+
+def build_response_field_map(index: Mapping[str, Any]) -> JsonDict:
+    records = index.get("records") if isinstance(index.get("records"), list) else []
+    functions: dict[str, JsonDict] = {}
+    for record in records:
+        if not isinstance(record, Mapping):
+            continue
+        function = str(record.get("function") or "unknown")
+        item = functions.setdefault(
+            function,
+            {
+                "records": 0,
+                "statuses": {},
+                "response_keys": [],
+                "response_summary_keys": [],
+                "error_keys": [],
+                "quota_block_count": 0,
+                "top_count_keys": [],
+            },
+        )
+        item["records"] += 1
+        status = record.get("status")
+        if status is not None:
+            statuses = item["statuses"]
+            statuses[str(status)] = statuses.get(str(status), 0) + 1
+        for source_key, target_key in (("response_keys", "response_keys"), ("response_summary_keys", "response_summary_keys"), ("error_keys", "error_keys")):
+            merged = set(item[target_key])
+            merged.update(str(key) for key in record.get(source_key, []) if isinstance(key, str))
+            item[target_key] = sorted(merged)
+        top_counts = record.get("top_counts") if isinstance(record.get("top_counts"), Mapping) else {}
+        merged_top = set(item["top_count_keys"])
+        merged_top.update(str(key) for key in top_counts.keys())
+        item["top_count_keys"] = sorted(merged_top)
+        quota = record.get("quota") if isinstance(record.get("quota"), Mapping) else {}
+        if quota.get("blocked") is True:
+            item["quota_block_count"] += 1
+    return {
+        "schema_version": "ashr.clone.response_field_map.v1",
+        "source_label": index.get("label"),
+        "source_total_records": index.get("total_records"),
+        "field_map_version": index.get("field_map_version"),
+        "functions": dict(sorted(functions.items())),
+    }
 
 
 def _summarize_record_path(path: Path) -> JsonDict | None:
@@ -124,7 +212,7 @@ def _public_safe_quota_summary(quota: Mapping[str, Any] | None) -> JsonDict | No
     if isinstance(resource, (str, int, float, bool)):
         summary["resource"] = resource
     for key in ("limit", "used", "requested", "remaining"):
-        if key in quota:
+        if key in quota or f"{key}_present" in quota or key in quota_keys:
             summary[f"{key}_present"] = True
     return summary
 
