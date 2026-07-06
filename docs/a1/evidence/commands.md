@@ -662,3 +662,46 @@ Results:
 - Missing-resource probes: controlled Dataset not found and Request not found API errors.
 - Public-safe evidence index: docs/a1/api_calibration/real_api_evidence_index.json, 67 records, quota block count 1.
 - Secret policy: key was read from process environment only; raw key and private payloads were not staged.
+
+## A1 TS/Python queue lease parity and readiness - 2026-07-06
+
+Commands:
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+pwd
+git rev-parse --show-toplevel
+git remote -v
+git status -sb
+gh repo view --json nameWithOwner,url,defaultBranchRef
+gh pr list --state all --limit 20 --json number,title,state,headRefName,baseRefName,updatedAt,url,isDraft
+git diff --stat origin/codex/a1-local-sdk-runner...origin/dev/g3-a2-calibration
+git diff --name-only origin/codex/a1-local-sdk-runner...origin/dev/g3-a2-calibration
+npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "CloudQueueWorker|CloudApiService leases"
+python -B -m pytest tests/a1/test_cloud_api.py::test_cloud_api_run_lease_heartbeat_and_owner_validation tests/a1/test_cloud_api.py::test_cloud_api_rejects_permanent_queue_lease tests/a1/test_cloud_api.py::test_cloud_queue_worker_renews_active_lease_and_blocks_double_replay tests/a1/test_cloud_api.py::test_cloud_queue_worker_replay_reclaims_expired_running_lease -q -p no:cacheprovider
+python -B -c "import os; print({'ASHR_API_KEY_present': bool(os.environ.get('ASHR_API_KEY')), 'ASHR_LABS_API_KEY_present': bool(os.environ.get('ASHR_LABS_API_KEY'))})"
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B tests/integration/a1_readiness.py --real-readonly --summary-output docs/evidence/private_refs/a1_readiness_round4_real_readonly.json
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_round4_real_readonly.json
+python -B -c "from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, write_private_evidence_index; patterns=['docs/evidence/private_refs/a1_real_*.json','docs/evidence/private_refs/a1_ts_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_get_*_round2_real.json','docs/evidence/private_refs/a1_readiness_calibration_*.json']; paths=[]; [paths.extend(Path('.').glob(pattern)) for pattern in patterns]; index=build_private_evidence_index(sorted(set(paths)), label='a1-real-api-2026-07-06-round4'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); print({'records': index['total_records'], 'status_counts': index['status_counts'], 'function_counts': index['function_counts'], 'error_kind_counts': index['error_kind_counts'], 'quota_block_count': index['quota_block_count']})"
+python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider
+git diff --check
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_final_safety.json
+```
+
+Results:
+- Peer impact: `origin/dev/g3-a2-calibration` advanced to `bf5028a A2: add external preflight schema`. Read-only diff showed A2/A3/Judge/Report changes plus A1-adjacent Python calibrator/evidence tests. These were not merged into this commit.
+- `tmp/` and `output/` were added to local `.git/info/exclude` only; they are not staged or committed.
+- Targeted TS queue command passed; because the npm script appends args after the test runner, it effectively ran the package suite and reported 152 Node test items passed.
+- Targeted Python lease tests: 4 passed.
+- Full Python A1 tests: 149 passed.
+- Full TypeScript tests: 152 passed.
+- Readiness matrix with real read-only Python calibrator: status ok, 6 steps, summary `docs/evidence/private_refs/a1_readiness_round4_real_readonly.json`.
+- TS real read-only calibrator: `status=ok`, 5 read steps, 0 errors, output `docs/evidence/private_refs/a1_ts_api_calibration_manifest_round4_real_readonly.json`.
+- Public-safe evidence index refreshed: 71 records, status counts `error=8`, `failed=1`, `ok=32`, `partial=1`, `planned=28`, quota block count 1.
+- Evidence-index focused tests: 4 passed.
+- Final readiness safety smoke: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Failed command: a bash heredoc inspection command failed under PowerShell; rerun with `python -B -c` succeeded.
+- Real Ashr API: read-only only. `ASHR_API_KEY` was present in environment; raw key was not printed, stored, or committed. No mutating call was run in this round.

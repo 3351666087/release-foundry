@@ -105,3 +105,20 @@ def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
     assert loaded["total_records"] == 1
     assert "owner@example.com" not in json.dumps(loaded)
     assert loaded["records"][0]["response_keys"] == ["status", "user"]
+
+
+def test_public_evidence_index_matches_schema():
+    root = Path(__file__).resolve().parents[2]
+    schema = json.loads((root / "docs" / "a1" / "schemas" / "evidence_index.schema.json").read_text(encoding="utf-8"))
+    index = json.loads((root / "docs" / "a1" / "api_calibration" / "real_api_evidence_index.json").read_text(encoding="utf-8"))
+
+    for field in schema["required"]:
+        assert field in index
+    assert index["total_records"] == len(index["records"])
+    assert not any(":" in record["path"] or "\\" in record["path"] for record in index["records"])
+    required_record_fields = set(schema["properties"]["records"]["items"]["required"])
+    for record in index["records"]:
+        assert required_record_fields.issubset(record)
+        assert isinstance(record["request_keys"], list)
+        assert isinstance(record["response_keys"], list)
+        assert isinstance(record["top_counts"], dict)

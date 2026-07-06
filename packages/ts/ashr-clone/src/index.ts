@@ -9,6 +9,7 @@ export const CLOUD_API_SCHEMA_VERSION = "ashr.clone.cloud_api.v1";
 export const AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1";
 export const AGENT_TURN_SCHEMA_VERSION = "ashr.clone.agent_turn.v1";
 export const RUN_RESULT_SCHEMA_VERSION = "ashr.clone.run_result.v1";
+export const DEFAULT_QUEUE_LEASE_SECONDS = 300;
 
 export type JsonRecord = Record<string, unknown>;
 export type AgentInputPartType = "text" | "image" | "audio" | "file" | "video";
@@ -146,6 +147,10 @@ export interface RunRecord extends JsonRecord {
   created_at: string;
   updated_at: string;
   status_history?: JsonRecord[];
+  lease_owner_id?: string | null;
+  lease_expires_at?: string | null;
+  lease_heartbeat_at?: string | null;
+  lease_reclaim_count?: number;
   error?: JsonRecord;
   metadata: JsonRecord;
 }
@@ -653,13 +658,22 @@ export class CloudApiService {
       created_at: now,
       updated_at: now,
       status_history: [{ status: "queued", at: now }],
+      lease_owner_id: null,
+      lease_expires_at: null,
+      lease_heartbeat_at: null,
+      lease_reclaim_count: 0,
       metadata: jsonRecord(options.metadata ?? {}),
     };
     this.store.runs[runId] = record;
     return cloneJson(record);
   }
 
-  markRunRunning(tenantId: string, projectId: string, runId: string): RunRecord {
+  markRunRunning(
+    tenantId: string,
+    projectId: string,
+    runId: string,
+    options: { leaseOwnerId?: string | null; leaseSeconds?: number | null; reclaimExpired?: boolean } = {},
+  ): RunRecord {
     const run = this.getRunRecord(tenantId, projectId, runId);
     if (run.status === "cancelled") {
       return cloneJson(run);
@@ -668,6 +682,12 @@ export class CloudApiService {
       throw new ValidationError(`run cannot transition to running from ${run.status}`);
     }
     const now = this.clock();
+    this.claimOrValidateRunLease(run, {
+      leaseOwnerId: options.leaseOwnerId ?? null,
+      leaseSeconds: options.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : options.leaseSeconds,
+      now,
+      reclaimExpired: Boolean(options.reclaimExpired),
+    });
     run.status = "running";
     run.result_status = "running";
     run.updated_at = now;
@@ -676,7 +696,66 @@ export class CloudApiService {
     return cloneJson(run);
   }
 
-  completeRun(tenantId: string, projectId: string, runId: string, runResult: RunResult | JsonRecord): RunRecord {
+  heartbeatRun(
+    tenantId: string,
+    projectId: string,
+    runId: string,
+    options: { leaseOwnerId: string; leaseSeconds?: number | null },
+  ): RunRecord {
+    const run = this.getRunRecord(tenantId, projectId, runId);
+    if (!["queued", "submitted", "running"].includes(run.status)) {
+      throw new ValidationError(`run cannot heartbeat from ${run.status}`);
+    }
+    this.requireRunLeaseOwner(run, options.leaseOwnerId);
+    const now = this.clock();
+    if (options.leaseSeconds === null) {
+      throw new ValidationError("leaseSeconds is required when renewing a run lease");
+    }
+    run.lease_heartbeat_at = now;
+    run.lease_expires_at = leaseExpiresAt(now, options.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : options.leaseSeconds);
+    run.updated_at = now;
+    return cloneJson(run);
+  }
+
+  reclaimExpiredRunLeases(
+    tenantId: string,
+    projectId: string,
+    options: { datasetId?: string; statuses?: string[]; now?: string } = {},
+  ): RunRecord[] {
+    this.getProject(tenantId, projectId);
+    const statuses = new Set((options.statuses ?? ["queued", "running", "submitted"]).map((status) => String(status)));
+    const now = options.now ?? this.clock();
+    const reclaimed: RunRecord[] = [];
+    for (const run of Object.values(this.store.runs)) {
+      if (run.tenant_id !== tenantId || run.project_id !== projectId) {
+        continue;
+      }
+      if (options.datasetId !== undefined && run.dataset_id !== options.datasetId) {
+        continue;
+      }
+      if (!statuses.has(run.status)) {
+        continue;
+      }
+      if (run.lease_owner_id === undefined || run.lease_owner_id === null || !leaseExpired(run.lease_expires_at, now)) {
+        continue;
+      }
+      run.lease_owner_id = null;
+      run.lease_expires_at = null;
+      run.lease_heartbeat_at = null;
+      run.lease_reclaim_count = Number(run.lease_reclaim_count ?? 0) + 1;
+      if (run.status === "running") {
+        run.status = "queued";
+        run.result_status = "queued";
+        run.result.status = "queued";
+        appendStatusHistory(run, "queued", now);
+      }
+      run.updated_at = now;
+      reclaimed.push(cloneJson(run));
+    }
+    return reclaimed;
+  }
+
+  completeRun(tenantId: string, projectId: string, runId: string, runResult: RunResult | JsonRecord, options: { leaseOwnerId?: string | null } = {}): RunRecord {
     const run = this.getRunRecord(tenantId, projectId, runId);
     if (run.status === "cancelled") {
       return cloneJson(run);
@@ -684,18 +763,29 @@ export class CloudApiService {
     if (!["queued", "running", "submitted"].includes(run.status)) {
       throw new ValidationError(`run cannot complete from ${run.status}`);
     }
+    if ((run.lease_owner_id ?? null) !== null && (options.leaseOwnerId === undefined || options.leaseOwnerId === null)) {
+      throw new ValidationError("run lease owner is required for leased run");
+    }
+    if (options.leaseOwnerId !== undefined && options.leaseOwnerId !== null) {
+      this.requireRunLeaseOwner(run, options.leaseOwnerId);
+    }
     const result = jsonRecord(runResult);
+    const nextStatus = cloudRunStatus(result);
+    if (!["completed", "failed", "cancelled"].includes(nextStatus)) {
+      throw new ValidationError(`run completion requires a terminal status, got ${nextStatus}`);
+    }
     const observations = extractObservations(result);
     this.quota.check(tenantId, projectId, "observation.write", Math.max(1, observations.length));
     this.quota.consume(tenantId, projectId, "observation.write", Math.max(1, observations.length));
     const now = this.clock();
-    run.status = cloudRunStatus(result);
+    run.status = nextStatus;
     run.result_status = String(result.status ?? "");
     run.runner_id = String(result.runner_id ?? run.runner_id ?? "a1-local-runner");
     run.total_cases = Number(result.total_cases ?? (Array.isArray(result.cases) ? result.cases.length : run.total_cases));
     run.observations = observations;
     run.result = result;
     run.updated_at = now;
+    clearRunLease(run);
     appendStatusHistory(run, run.status, now);
     return cloneJson(run);
   }
@@ -704,11 +794,17 @@ export class CloudApiService {
     tenantId: string,
     projectId: string,
     runId: string,
-    options: { error: unknown; resultStatus?: string } = { error: "failed" },
+    options: { error: unknown; resultStatus?: string; leaseOwnerId?: string | null } = { error: "failed" },
   ): RunRecord {
     const run = this.getRunRecord(tenantId, projectId, runId);
     if (run.status === "cancelled") {
       return cloneJson(run);
+    }
+    if ((run.lease_owner_id ?? null) !== null && (options.leaseOwnerId === undefined || options.leaseOwnerId === null)) {
+      throw new ValidationError("run lease owner is required for leased run");
+    }
+    if (options.leaseOwnerId !== undefined && options.leaseOwnerId !== null) {
+      this.requireRunLeaseOwner(run, options.leaseOwnerId);
     }
     const now = this.clock();
     const errorPayload = isRecord(options.error)
@@ -735,6 +831,7 @@ export class CloudApiService {
       error: errorPayload,
       metadata: { local_only: true, ashr_api_used: false, queued: true },
     };
+    clearRunLease(run);
     appendStatusHistory(run, "failed", now);
     return cloneJson(run);
   }
@@ -752,6 +849,7 @@ export class CloudApiService {
     run.error = error;
     run.result.status = "cancelled";
     run.result.error = error;
+    clearRunLease(run);
     appendStatusHistory(run, "cancelled", now);
     return cloneJson(run);
   }
@@ -845,6 +943,38 @@ export class CloudApiService {
     return CloudApiService.fromState(JSON.parse(await fs.readFile(inputPath, "utf8")) as unknown);
   }
 
+  private claimOrValidateRunLease(
+    run: RunRecord,
+    options: { leaseOwnerId: string | null; leaseSeconds: number | null; now: string; reclaimExpired: boolean },
+  ): void {
+    const currentOwner = run.lease_owner_id ?? null;
+    if (options.leaseOwnerId === null) {
+      if (currentOwner !== null) {
+        throw new ValidationError("run lease owner is required for leased run");
+      }
+      return;
+    }
+    const owner = requireText(options.leaseOwnerId, "leaseOwnerId");
+    if (options.leaseSeconds === null) {
+      throw new ValidationError("leaseSeconds is required when claiming a run lease");
+    }
+    if (currentOwner !== null && currentOwner !== owner) {
+      if (!(options.reclaimExpired && leaseExpired(run.lease_expires_at, options.now))) {
+        throw new ValidationError("run is leased by another worker");
+      }
+      run.lease_reclaim_count = Number(run.lease_reclaim_count ?? 0) + 1;
+    }
+    run.lease_owner_id = owner;
+    run.lease_heartbeat_at = options.now;
+    run.lease_expires_at = leaseExpiresAt(options.now, options.leaseSeconds);
+  }
+
+  private requireRunLeaseOwner(run: RunRecord, leaseOwnerId: string): void {
+    const owner = requireText(leaseOwnerId, "leaseOwnerId");
+    if ((run.lease_owner_id ?? null) !== owner) {
+      throw new ValidationError("run lease is not owned by this worker");
+    }
+  }
   private getRunRecord(tenantId: string, projectId: string, runId: string): RunRecord {
     const run = this.store.runs[runId];
     if (!run || run.tenant_id !== tenantId || run.project_id !== projectId) {
@@ -1373,4 +1503,35 @@ function toJson(value: unknown): unknown {
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function clearRunLease(run: RunRecord): void {
+  run.lease_owner_id = null;
+  run.lease_expires_at = null;
+  run.lease_heartbeat_at = null;
+}
+
+function leaseExpiresAt(now: string, leaseSeconds: number | null): string | null {
+  if (leaseSeconds === null) {
+    return null;
+  }
+  const seconds = Number(leaseSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new ValidationError("leaseSeconds must be positive");
+  }
+  const parsed = Date.parse(now);
+  const base = Number.isFinite(parsed) ? parsed : Date.now();
+  return new Date(base + seconds * 1000).toISOString();
+}
+
+function leaseExpired(expiresAt: unknown, now: string): boolean {
+  if (typeof expiresAt !== "string" || expiresAt.trim() === "") {
+    return false;
+  }
+  const expires = Date.parse(expiresAt);
+  const current = Date.parse(now);
+  if (!Number.isFinite(expires)) {
+    return false;
+  }
+  return expires <= (Number.isFinite(current) ? current : Date.now());
 }

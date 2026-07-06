@@ -395,6 +395,21 @@ def test_cloud_api_run_lease_heartbeat_and_owner_validation():
             lease_seconds=60,
         )
     with pytest.raises(ValidationError):
+        service.heartbeat_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_lease",
+            lease_owner_id="worker-a",
+            lease_seconds=None,
+        )
+    with pytest.raises(ValidationError):
+        service.complete_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_lease",
+            {"run_id": "run_lease", "dataset_id": dataset["dataset_id"], "status": "passed", "ended_at": "2026-01-01T00:00:00.000Z", "cases": []},
+        )
+    with pytest.raises(ValidationError):
         service.complete_run(
             tenant["tenant_id"],
             project["project_id"],

@@ -73,3 +73,11 @@ Mode: read-only Chrome checks. No Ashr API key, password, payment data, or other
 - Public pricing copy remained visible: Developer `$39 /mo`, Startup `$500 /mo`; Explorer-Chrome also verified annual Developer `$390 /yr` and Startup `$5,000 /yr`.
 - VM docs still state EvalRunner does not auto-capture VM logs, show `test.set_vm_stream(...)`, and describe VM log fields `ts`, `type`, and `data`.
 - Lab shell was variable across read-only checks in the same round. Main-agent Chrome saw title `Ashr Labs` with a `Datasets` loading shell at `https://lab.ashr.io/?tab=analysis`; Explorer-Chrome reproduced the unauthenticated sign-in/onboarding shell with `Continue with Google`, `Continue with Microsoft`, `Create your workspace`, `Pick a plan`, `FREE`, `$0/mo`, and quota copy. No private dashboard data, authenticated state, key creation/enforcement, billing, hosted grading, or observability rendering was verified.
+
+## 2026-07-06 A1 Queue Lease Round Recheck
+
+- Main-agent Chrome check was read-only and did not open API Keys, payment, checkout, or credential pages.
+- `https://ashr.io/` loaded with title `Ashr`; public nav still included Docs and Plans. The automatic text extractor found plan tier names `Developer`, `Startup`, and `Enterprise`; detailed price text was not re-extracted in this main-thread pass, while Explorer-Chrome separately observed Developer `$39/mo`, Startup `$500/mo`, and Enterprise custom/contact sales.
+- Python API reference remained public and exposed `AshrLabsClient`, `from_env`, `create_request`, `list_requests`, `trace`, `TestBuilder`, and `RunBuilder`.
+- TypeScript API reference remained public and exposed `AshrLabsClient`, `fromEnv`, `createRequest`, `listRequests`, `waitForRequest`, `Trace`, and `Generation`.
+- `https://lab.ashr.io/?tab=usage` loaded with title `Ashr Labs` and a visible `Usage` signal. The automated extractor did not reliably capture Images/Audio/Files counters in this pass, so no usage counter values are recorded here. API Keys was not opened to avoid key exposure.

@@ -422,6 +422,8 @@ class CloudApiService:
                 raise ValidationError(f"run cannot heartbeat from {run.get('status')}")
             self._require_run_lease_owner(run, lease_owner_id)
             now = _utc_now()
+            if lease_seconds is None:
+                raise ValidationError("lease_seconds is required when renewing a run lease")
             run["lease_heartbeat_at"] = now
             run["lease_expires_at"] = _lease_expires_at(now, lease_seconds)
             run["updated_at"] = now
@@ -478,14 +480,19 @@ class CloudApiService:
                 return _copy(run)
             if run.get("status") not in {"queued", "running", "submitted"}:
                 raise ValidationError(f"run cannot complete from {run.get('status')}")
+            if run.get("lease_owner_id") is not None and lease_owner_id is None:
+                raise ValidationError("run lease owner is required for leased run")
             if lease_owner_id is not None:
                 self._require_run_lease_owner(run, lease_owner_id)
             result_payload = _jsonable(dict(run_result))
+            next_status = _cloud_run_status(result_payload)
+            if next_status not in {"completed", "failed", "cancelled"}:
+                raise ValidationError(f"run completion requires a terminal status, got {next_status}")
             observations = _extract_observations(result_payload)
             self.quota.check(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
             self.quota.consume(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
             now = _utc_now()
-            run["status"] = _cloud_run_status(result_payload)
+            run["status"] = next_status
             run["result_status"] = str(result_payload.get("status") or "")
             run["runner_id"] = str(result_payload.get("runner_id") or run.get("runner_id") or "a1-local-runner")
             run["total_cases"] = int(result_payload.get("total_cases") or len(result_payload.get("cases") or []))
@@ -510,6 +517,8 @@ class CloudApiService:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
                 return _copy(run)
+            if run.get("lease_owner_id") is not None and lease_owner_id is None:
+                raise ValidationError("run lease owner is required for leased run")
             if lease_owner_id is not None:
                 self._require_run_lease_owner(run, lease_owner_id)
             now = _utc_now()
