@@ -22,6 +22,19 @@ def build_private_evidence_index(paths: Iterable[str | Path], *, label: str = "a
     entries = [_summarize_record_path(Path(path)) for path in paths]
     entries = [entry for entry in entries if entry is not None]
     entries.sort(key=lambda item: str(item["path"]))
+    return _build_evidence_index(entries, label=label)
+
+
+def merge_evidence_indices(existing_index: Mapping[str, Any] | None, fresh_index: Mapping[str, Any], *, label: str = "a1-real-api") -> JsonDict:
+    entries_by_path: dict[str, JsonDict] = {}
+    if isinstance(existing_index, Mapping):
+        entries_by_path.update(_records_by_path(existing_index.get("records", [])))
+    entries_by_path.update(_records_by_path(fresh_index.get("records", [])))
+    entries = sorted(entries_by_path.values(), key=lambda item: str(item["path"]))
+    return _build_evidence_index(entries, label=label)
+
+
+def _build_evidence_index(entries: list[JsonDict], *, label: str) -> JsonDict:
     return redact_sensitive(
         {
             "schema_version": EVIDENCE_INDEX_SCHEMA_VERSION,
@@ -35,6 +48,17 @@ def build_private_evidence_index(paths: Iterable[str | Path], *, label: str = "a
             "records": entries,
         }
     )
+
+
+def _records_by_path(records: Any) -> dict[str, JsonDict]:
+    if not isinstance(records, list):
+        return {}
+    indexed: dict[str, JsonDict] = {}
+    for record in records:
+        if not isinstance(record, Mapping) or not isinstance(record.get("path"), str):
+            continue
+        indexed[record["path"]] = dict(record)
+    return indexed
 
 
 def build_private_evidence_index_from_dir(root: str | Path, options: EvidenceIndexOptions | None = None) -> JsonDict:

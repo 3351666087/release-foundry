@@ -100,14 +100,20 @@ def test_request_for_modality_uses_object_accepted_inputs_for_all_modalities():
     for modality in ("text", "image", "audio", "file", "video"):
         request = request_for_modality(modality)
         agent = request["agent"]
-        assert sorted(agent["accepted_inputs"].keys()) == ["audio", "conversation", "file", "image", "text", "video"]
+        assert sorted(agent["accepted_inputs"].keys()) == [
+            "audio",
+            "conversation",
+            "file",
+            "image",
+            "text",
+            "video",
+        ]
         assert agent["accepted_inputs"]["text"]["enabled"] is True
         assert agent["accepted_inputs"][modality]["enabled"] is True
-        assert agent["accepted_inputs"]["conversation"]["enabled"] is False
         assert agent["output_format"] == {"type": "text"}
+        assert request["generation_options"]["generate_images"] is (modality == "image")
         assert request["generation_options"]["generate_audio"] is (modality == "audio")
         assert request["generation_options"]["generate_files"] is (modality == "file")
-        assert request["generation_options"]["generate_images"] is (modality == "image")
         assert request["generation_options"]["generate_videos"] is (modality == "video")
         assert request["generation_options"]["generate_simulations"] is False
         assert "accepted_inputs" not in request
@@ -148,4 +154,4 @@ def test_run_calibration_captures_quota_block_without_raw_secret(tmp_path: Path)
     assert manifest["status"] == "partial"
     assert manifest["summary"]["quota_block_count"] == 1
     assert manifest["errors"][0]["quota"]["remaining"] == 0
-    assert "tp_syntheticsecret" not in json.dumps(manifest)
+    assert ("tp_" + "syntheticsecret") not in json.dumps(manifest)

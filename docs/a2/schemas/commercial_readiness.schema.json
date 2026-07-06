@@ -122,8 +122,28 @@
         "semantic_risk_assessment_status",
         "semantic_false_positive_tracking_ready",
         "semantic_failure_class_drift_candidates",
-        "semantic_score_delta_reviews"
+        "semantic_score_delta_reviews",
+        "real_api_evidence_available",
+        "real_api_total_records",
+        "real_api_record_count",
+        "real_api_read_ok_count",
+        "real_api_quota_block_count",
+        "real_api_create_request_blocked",
+        "official_sdk_smoke_read_only_reachable",
+        "official_sdk_smoke_ok_call_count",
+        "official_sdk_smoke_error_call_count"
       ],
+      "properties": {
+        "real_api_evidence_available": { "type": "boolean" },
+        "real_api_total_records": { "type": "integer", "minimum": 0 },
+        "real_api_record_count": { "type": "integer", "minimum": 0 },
+        "real_api_read_ok_count": { "type": "integer", "minimum": 0 },
+        "real_api_quota_block_count": { "type": "integer", "minimum": 0 },
+        "real_api_create_request_blocked": { "type": "boolean" },
+        "official_sdk_smoke_read_only_reachable": { "type": "boolean" },
+        "official_sdk_smoke_ok_call_count": { "type": "integer", "minimum": 0 },
+        "official_sdk_smoke_error_call_count": { "type": "integer", "minimum": 0 }
+      },
       "additionalProperties": true
     },
     "next_move": {

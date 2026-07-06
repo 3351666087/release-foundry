@@ -276,6 +276,9 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const missing = (value) => Array.isArray(value) ? value : [];
   const mapping = (value) => isObject(value) ? value : {};
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const realApi = mapping(evidenceFixture.a1_real_api_evidence);
+  const realQuotaGate = mapping(realApi.real_quota_gate);
+  const officialSdkSmoke = mapping(evidenceFixture.official_sdk_smoke);
   const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
   const semanticMergeGate = mapping(evidenceFixture.semantic_live_merge_gate);
@@ -299,6 +302,19 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
     ashr_missing_reviewed_observation_count: ashrMergeGate.missing_reviewed_observation_count || 0,
     ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
+    real_api_evidence_available: realApi.available === true,
+    real_api_total_records: realApi.total_records || 0,
+    real_api_record_count: realApi.real_record_count || 0,
+    real_api_read_ok_count: mapping(realApi.real_read_status_counts).ok || 0,
+    real_api_quota_block_count: realApi.quota_block_count || 0,
+    real_api_create_request_blocked: realQuotaGate.create_request_blocked === true,
+    real_api_quota_blocked_functions: missing(realQuotaGate.blocked_functions),
+    real_api_quota_public_action: realQuotaGate.public_action || "",
+    official_sdk_smoke_available: officialSdkSmoke.available === true,
+    official_sdk_smoke_read_only_reachable: officialSdkSmoke.read_only_reachable === true,
+    official_sdk_smoke_ok_call_count: officialSdkSmoke.ok_call_count || 0,
+    official_sdk_smoke_error_call_count: officialSdkSmoke.error_call_count || 0,
+    official_sdk_smoke_call_names: missing(officialSdkSmoke.call_names),
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
     semantic_reviewed_live_observation_count: semantic.reviewed_live_observation_count || 0,
@@ -358,6 +374,47 @@ export function summarizeRegressionReadiness(caseBookFixture = {}, regressionRep
     local_llm_mismatch_count: candidatePool.local_llm_mismatch_count || 0,
     ashr_grading_missing_count: candidatePool.ashr_grading_missing_count || 0,
     gaps: [...missing(caseBookGate.gaps), ...missing(replayGate.gaps)]
+  };
+}
+
+export function summarizeCommercialReadiness(commercialFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const available = isObject(commercialFixture) && Object.keys(commercialFixture).length > 0;
+  const snapshot = mapping(commercialFixture.evidence_snapshot);
+  const gateStatus = missing(commercialFixture.gate_status);
+  const statusCounts = gateStatus.reduce((counts, gate) => {
+    const status = gate && typeof gate.status === "string" ? gate.status : "unknown";
+    return { ...counts, [status]: (counts[status] || 0) + 1 };
+  }, {});
+
+  return {
+    available,
+    schema_version: available ? commercialFixture.schema_version || "unknown" : "none",
+    report_id: available ? commercialFixture.report_id || "unknown" : "none",
+    current_gate: commercialFixture.current_gate || "none",
+    ready_for_commercial_gate: commercialFixture.ready_for_commercial_gate === true,
+    gate_count: gateStatus.length,
+    gate_status_counts: statusCounts,
+    partial_gate_ids: gateStatus.filter((gate) => gate.status === "partial").map((gate) => gate.gate).filter(Boolean),
+    blocked_gate_ids: gateStatus.filter((gate) => gate.status === "blocked").map((gate) => gate.gate).filter(Boolean),
+    next_top_3_ids: missing(commercialFixture.next_top_3).map((item) => item.id).filter(Boolean),
+    scope_boundary_status: mapping(commercialFixture.scope_boundary).status || "unknown",
+    assignment_minimums_green: snapshot.assignment_minimums_green === true,
+    scenario_count: snapshot.scenario_count || 0,
+    golden_case_count: snapshot.golden_case_count || 0,
+    failure_class_count: snapshot.failure_class_count || 0,
+    real_api_total_records: snapshot.real_api_total_records || 0,
+    real_api_record_count: snapshot.real_api_record_count || 0,
+    real_api_quota_block_count: snapshot.real_api_quota_block_count || 0,
+    real_api_create_request_blocked: snapshot.real_api_create_request_blocked === true,
+    official_sdk_smoke_read_only_reachable: snapshot.official_sdk_smoke_read_only_reachable === true,
+    official_sdk_smoke_ok_call_count: snapshot.official_sdk_smoke_ok_call_count || 0,
+    official_sdk_smoke_error_call_count: snapshot.official_sdk_smoke_error_call_count || 0,
+    ashr_public_merge_status: snapshot.ashr_public_merge_status || "unknown",
+    semantic_live_merge_status: snapshot.semantic_live_merge_status || "unknown",
+    regression_replay_maturity: snapshot.regression_replay_maturity || "unknown"
   };
 }
 
@@ -456,12 +513,14 @@ export function buildMarkdownReport(
   coverageFixture = {},
   evidenceReadinessFixture = {},
   caseBookFixture = {},
-  regressionReplayFixture = {}
+  regressionReplayFixture = {},
+  commercialReadinessFixture = {}
 ) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
   const regressionReadiness = summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture);
+  const commercialReadiness = summarizeCommercialReadiness(commercialReadinessFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -534,6 +593,11 @@ export function buildMarkdownReport(
       `- Ashr safely merged observations: ${evidenceReadiness.ashr_merged_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- Ashr reviewed public observations: ${evidenceReadiness.ashr_reviewed_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
+      `- Real API records: ${evidenceReadiness.real_api_record_count}/${evidenceReadiness.real_api_total_records}`,
+      `- Real API read OK records: ${evidenceReadiness.real_api_read_ok_count}`,
+      `- Real API quota blocks: ${evidenceReadiness.real_api_quota_block_count}`,
+      `- Create-request quota blocked: ${evidenceReadiness.real_api_create_request_blocked ? "yes" : "no"}`,
+      `- Official SDK smoke: ${evidenceReadiness.official_sdk_smoke_read_only_reachable ? "ok" : "not ok"} (${evidenceReadiness.official_sdk_smoke_ok_call_count} ok, ${evidenceReadiness.official_sdk_smoke_error_call_count} error)`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
       `- Semantic reviewed live observations: ${evidenceReadiness.semantic_reviewed_live_observation_count}/${evidenceReadiness.semantic_expected_reviewed_observation_count}`,
       `- Semantic risk register: ${evidenceReadiness.semantic_risk_assessment_status}`,
@@ -560,6 +624,26 @@ export function buildMarkdownReport(
       `- Local-vs-LLM mismatches: ${regressionReadiness.local_llm_mismatch_count}`,
       `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,
       `- Maturity gaps: ${regressionReadiness.gaps.join(" | ") || "none"}`,
+      ""
+    );
+  }
+
+  if (commercialReadiness.available) {
+    lines.push(
+      "## Commercial Readiness",
+      "",
+      `- Current gate: ${commercialReadiness.current_gate}`,
+      `- Ready for commercial gate: ${commercialReadiness.ready_for_commercial_gate ? "yes" : "no"}`,
+      `- Gate status counts: met ${commercialReadiness.gate_status_counts.met || 0}, partial ${commercialReadiness.gate_status_counts.partial || 0}, blocked ${commercialReadiness.gate_status_counts.blocked || 0}`,
+      `- Partial gates: ${commercialReadiness.partial_gate_ids.join(", ") || "none"}`,
+      `- Scope boundary: ${commercialReadiness.scope_boundary_status}`,
+      `- Assignment minimums green: ${commercialReadiness.assignment_minimums_green ? "yes" : "no"}`,
+      `- Commercial snapshot scenarios: ${commercialReadiness.scenario_count}`,
+      `- Commercial real API records: ${commercialReadiness.real_api_record_count}/${commercialReadiness.real_api_total_records}`,
+      `- Commercial real API quota blocks: ${commercialReadiness.real_api_quota_block_count}`,
+      `- Commercial create-request quota blocked: ${commercialReadiness.real_api_create_request_blocked ? "yes" : "no"}`,
+      `- Commercial official SDK smoke: ${commercialReadiness.official_sdk_smoke_read_only_reachable ? "ok" : "not ok"} (${commercialReadiness.official_sdk_smoke_ok_call_count} ok, ${commercialReadiness.official_sdk_smoke_error_call_count} error)`,
+      `- Next moves: ${commercialReadiness.next_top_3_ids.join(", ") || "none"}`,
       ""
     );
   }
@@ -625,7 +709,8 @@ export function buildJsonReport(
   coverageFixture = {},
   evidenceReadinessFixture = {},
   caseBookFixture = {},
-  regressionReplayFixture = {}
+  regressionReplayFixture = {},
+  commercialReadinessFixture = {}
 ) {
   return {
     schema_version: "a3.export_report.v1",
@@ -633,6 +718,7 @@ export function buildJsonReport(
     coverage: summarizeCoverage(coverageFixture),
     evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
     regression_readiness: summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture),
+    commercial_readiness: summarizeCommercialReadiness(commercialReadinessFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

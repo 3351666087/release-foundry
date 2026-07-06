@@ -187,7 +187,10 @@ def request_for_modality(modality: str) -> JsonDict:
         "generate_videos": modality == "video",
         "generate_simulations": False,
     }
-    accepted_inputs = {part: {"enabled": part == modality or part == "text"} for part in (*CALIBRATION_MODALITIES, "conversation")}
+    accepted_inputs = {
+        part: {"enabled": part == modality or part == "text"}
+        for part in (*CALIBRATION_MODALITIES, "conversation")
+    }
     return {
         "agent": {
             "name": f"A1 {modality} calibration agent",
@@ -198,7 +201,11 @@ def request_for_modality(modality: str) -> JsonDict:
                 {
                     "name": "inspect_input",
                     "description": f"Inspect synthetic {modality} input without external side effects.",
-                    "parameters": {"type": "object", "required": ["summary"], "properties": {"summary": {"type": "string"}}},
+                    "parameters": {
+                        "type": "object",
+                        "required": ["summary"],
+                        "properties": {"summary": {"type": "string"}},
+                    },
                 }
             ],
         },

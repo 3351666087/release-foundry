@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 from services.judge.batch_plan import build_batch_plan_report
+from services.judge.ashr_collection import build_ashr_grading_collection_packet
 from services.judge.calibration import (
     build_calibration_matrix,
     import_ashr_grading_observations,
@@ -312,9 +313,13 @@ class A2ContractTests(unittest.TestCase):
         case_book_schema = json.loads((schema_dir / "case_book.schema.json").read_text(encoding="utf-8"))
         sdk_parity_schema = json.loads((schema_dir / "sdk_parity.schema.json").read_text(encoding="utf-8"))
         batch_plan_schema = json.loads((schema_dir / "batch_plan.schema.json").read_text(encoding="utf-8"))
+        ashr_collection_schema = json.loads((schema_dir / "ashr_grading_collection_packet.schema.json").read_text(encoding="utf-8"))
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
+        external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
+        real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -322,9 +327,11 @@ class A2ContractTests(unittest.TestCase):
         case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
         sdk_parity = json.loads((ROOT / "fixtures/a2/results/a2_sdk_parity_report.json").read_text(encoding="utf-8"))
         batch_plan = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
+        ashr_collection = json.loads((ROOT / "fixtures/a2/calibration/a2_ashr_grading_collection_packet.json").read_text(encoding="utf-8"))
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -333,6 +340,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(case_book_schema["properties"]["schema_version"]["const"], case_book["schema_version"])
         self.assertEqual(sdk_parity_schema["properties"]["schema_version"]["const"], sdk_parity["schema_version"])
         self.assertEqual(batch_plan_schema["properties"]["schema_version"]["const"], batch_plan["schema_version"])
+        self.assertEqual(
+            ashr_collection_schema["properties"]["schema_version"]["const"],
+            ashr_collection["schema_version"],
+        )
         self.assertEqual(
             semantic_harness_schema["properties"]["schema_version"]["const"],
             semantic_harness["schema_version"],
@@ -349,15 +360,52 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
         self.assertLessEqual(set(readiness_schema["required"]), set(readiness_report))
+        self.assertIn("real_api_total_records", readiness_schema["$defs"]["evidence_snapshot"]["required"])
+        self.assertIn("official_sdk_smoke_read_only_reachable", readiness_schema["$defs"]["evidence_snapshot"]["required"])
         self.assertLessEqual(set(case_book_schema["required"]), set(case_book))
         self.assertLessEqual(set(sdk_parity_schema["required"]), set(sdk_parity))
         self.assertLessEqual(set(batch_plan_schema["required"]), set(batch_plan))
+        self.assertLessEqual(set(ashr_collection_schema["required"]), set(ashr_collection))
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
+        self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
+        self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
+        a1_real_api_required = set(evidence_readiness_schema["$defs"]["a1_real_api_evidence"]["required"])
+        self.assertLessEqual(a1_real_api_required, set(evidence_readiness["a1_real_api_evidence"]))
+        self.assertIn("real_quota_gate", a1_real_api_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_real_api_evidence"]["$ref"],
+            "#/$defs/a1_real_api_evidence",
+        )
+        quota_gate_required = set(evidence_readiness_schema["$defs"]["real_quota_gate"]["required"])
+        self.assertLessEqual(quota_gate_required, set(evidence_readiness["a1_real_api_evidence"]["real_quota_gate"]))
+        self.assertIn("create_request_blocked", quota_gate_required)
+        official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
+        self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
+        self.assertIn("read_only_reachable", official_smoke_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
+            "#/$defs/official_sdk_smoke",
+        )
+        self.assertEqual(
+            external_preflight_schema["properties"]["schema_version"]["const"],
+            "a2.external_evidence_preflight.v1",
+        )
+        self.assertIn("real_api_evidence_refresh", external_preflight_schema["properties"]["recommended_commands"]["required"])
+        self.assertEqual(
+            real_api_smoke_schema["properties"]["schema_version"]["const"],
+            "a2.real_api_smoke.v1",
+        )
+        self.assertIn("calls", real_api_smoke_schema["required"])
+        self.assertEqual(
+            evidence_index_schema["properties"]["schema_version"]["const"],
+            evidence_index["schema_version"],
+        )
+        self.assertLessEqual(set(evidence_index_schema["required"]), set(evidence_index))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -434,6 +482,11 @@ class A2ContractTests(unittest.TestCase):
         for batch in batch_plan["batches"]:
             with self.subTest(batch_plan_batch=batch["batch_id"]):
                 self.assertLessEqual(batch_required, set(batch))
+
+        ashr_collection_case_required = set(ashr_collection_schema["$defs"]["collection_case"]["required"])
+        for collection_case in ashr_collection["cases"]:
+            with self.subTest(ashr_collection_case=collection_case["case_id"]):
+                self.assertLessEqual(ashr_collection_case_required, set(collection_case))
 
         harness_case_required = set(semantic_harness_schema["$defs"]["harness_case"]["required"])
         self.assertIn("risk_flags", harness_case_required)
@@ -859,6 +912,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["readiness_checks"]["has_cost_ledger"])
         semantic_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "semantic_llm_judge_audit")
         self.assertIn("fixtures/a2/results/a2_semantic_harness_report.json", semantic_batch["evidence_refs"])
+        ashr_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "ashr_grading_tiny_calibration")
+        self.assertIn("fixtures/a2/calibration/a2_ashr_grading_collection_packet.json", ashr_batch["evidence_refs"])
         replay_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "case_book_regression_replay")
         self.assertIn("fixtures/a2/results/a2_regression_replay_report.json", replay_batch["evidence_refs"])
 
@@ -950,8 +1005,41 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["ashr_grading_preflight"]["expected_observation_count"], 6)
         self.assertEqual(report["ashr_grading_preflight"]["expected_reviewed_observation_count"], 6)
         self.assertIn("metadata.review_status", report["ashr_grading_preflight"]["required_review_fields"])
-        self.assertIn("--review-status reviewed", report["ashr_grading_preflight"]["commands"][0])
+        self.assertIn("a2_scan_ashr_grading_evidence.py", report["ashr_grading_preflight"]["commands"][0])
+        self.assertIn("--review-status reviewed", " ".join(report["ashr_grading_preflight"]["commands"]))
         self.assertEqual(report["ashr_grading_preflight"]["case_map_missing_case_ids"], [])
+        self.assertTrue(report["a1_real_api_evidence"]["available"])
+        self.assertIn("init", report["a1_real_api_evidence"]["real_ok_functions"])
+        self.assertIn("list_datasets", report["a1_real_api_evidence"]["real_ok_functions"])
+        self.assertGreaterEqual(report["a1_real_api_evidence"]["real_record_count"], 60)
+        self.assertGreaterEqual(report["a1_real_api_evidence"]["real_read_status_counts"]["ok"], 40)
+        self.assertGreaterEqual(
+            report["a1_real_api_evidence"]["real_create_request_status_counts"]["error"],
+            1,
+        )
+        self.assertIn("api", report["a1_real_api_evidence"]["real_create_request_error_kind_counts"])
+        quota_gate = report["a1_real_api_evidence"]["real_quota_gate"]
+        self.assertTrue(quota_gate["blocked"])
+        self.assertGreaterEqual(quota_gate["blocked_count"], 1)
+        self.assertTrue(quota_gate["create_request_blocked"])
+        self.assertIn("create_request", quota_gate["blocked_functions"])
+        self.assertIn("limit", quota_gate["quota_keys"])
+        self.assertIn("remaining", quota_gate["quota_keys"])
+        self.assertIn("request quota", quota_gate["public_action"])
+        self.assertFalse(report["a1_real_api_evidence"]["c3_grading_ready"])
+        self.assertIn(
+            "docs/a1/api_calibration/real_api_evidence_index.json",
+            report["a1_real_api_evidence"]["index_path"],
+        )
+        self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
+        self.assertTrue(report["official_sdk_smoke"]["available"])
+        self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
+        self.assertEqual(report["official_sdk_smoke"]["ok_call_count"], 6)
+        self.assertEqual(report["official_sdk_smoke"]["error_call_count"], 0)
+        self.assertIn("init", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_datasets", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_requests", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_agents", report["official_sdk_smoke"]["call_names"])
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
         self.assertFalse(report["ashr_public_merge_gate"]["safe_to_mark_c3_met"])
@@ -1090,6 +1178,34 @@ class A2ContractTests(unittest.TestCase):
             with self.subTest(raw_case_id=raw_case_id):
                 self.assertTrue(raw_case_id.startswith("ashr-a2-g3-"))
 
+    def test_ashr_grading_collection_packet_prepares_c3_cases_without_raw_outputs(self):
+        packet = build_ashr_grading_collection_packet(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            case_map_path=ROOT / "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+        )
+        expected_packet = json.loads((ROOT / "fixtures/a2/calibration/a2_ashr_grading_collection_packet.json").read_text(encoding="utf-8"))
+        packet_text = json.dumps(packet)
+
+        self.assertEqual(packet, expected_packet)
+        self.assertEqual(packet["schema_version"], "a2.ashr_grading_collection_packet.v1")
+        self.assertEqual(packet["status"], "ready_for_private_collection")
+        self.assertEqual(packet["case_count"], 6)
+        self.assertTrue(all(packet["readiness_checks"].values()))
+        self.assertEqual({case["case_id"] for case in packet["cases"]}, set(json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_batch_case_map.json").read_text(encoding="utf-8")).values()))
+        self.assertNotIn("API key is", packet_text)
+        self.assertNotIn("ashr_live_", packet_text)
+        secret_case = next(case for case in packet["cases"] if case["case_id"] == "sample-a2-s048-secret-leak")
+        self.assertTrue(secret_case["run_summary"]["contains_secret_like_text"])
+        self.assertFalse(secret_case["run_summary"]["public_packet_contains_raw_final_response"])
+        for case in packet["cases"]:
+            with self.subTest(case=case["case_id"]):
+                self.assertTrue(case["ashr_test_id"].startswith("ashr-a2-g3-"))
+                self.assertEqual(case["local_judge"]["judge_count"], 5)
+                self.assertIn("final_response_sha256_12", case["run_summary"])
+                self.assertNotIn("raw_final_response", case["run_summary"])
+
     def test_commercial_readiness_report_tracks_pdf_gates(self):
         coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         calibration_matrix = build_calibration_matrix(
@@ -1186,6 +1302,15 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["evidence_snapshot"]["regression_replay_ready"])
         self.assertEqual(report["evidence_snapshot"]["regression_replay_maturity"], "seed")
         self.assertTrue(report["evidence_snapshot"]["evidence_readiness_ready"])
+        self.assertTrue(report["evidence_snapshot"]["real_api_evidence_available"])
+        self.assertGreaterEqual(report["evidence_snapshot"]["real_api_total_records"], 140)
+        self.assertGreaterEqual(report["evidence_snapshot"]["real_api_record_count"], 110)
+        self.assertGreaterEqual(report["evidence_snapshot"]["real_api_read_ok_count"], 80)
+        self.assertGreaterEqual(report["evidence_snapshot"]["real_api_quota_block_count"], 5)
+        self.assertTrue(report["evidence_snapshot"]["real_api_create_request_blocked"])
+        self.assertTrue(report["evidence_snapshot"]["official_sdk_smoke_read_only_reachable"])
+        self.assertEqual(report["evidence_snapshot"]["official_sdk_smoke_ok_call_count"], 6)
+        self.assertEqual(report["evidence_snapshot"]["official_sdk_smoke_error_call_count"], 0)
         self.assertEqual(report["evidence_snapshot"]["sdk_language_count"], 2)
         self.assertTrue(report["evidence_snapshot"]["sdk_parity_passed"])
         self.assertEqual(report["evidence_snapshot"]["planned_batch_count"], 5)
@@ -1510,6 +1635,36 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
 
+    def test_ashr_grading_evidence_scan_cli_summarizes_without_raw_payload(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_scan_ashr_grading_evidence.py"),
+                "--input",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json"),
+                "--case-map",
+                str(ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["schema_version"], "a2.ashr_grading_evidence_scan.v1")
+        self.assertEqual(payload["expected_case_count"], 2)
+        self.assertEqual(payload["matched_case_count"], 2)
+        self.assertEqual(payload["missing_case_ids"], [])
+        self.assertTrue(payload["complete_expected_match"])
+        self.assertTrue(payload["import_ready_when_reviewed"])
+        self.assertFalse(payload["safe_to_mark_c3_met"])
+        self.assertTrue(payload["redaction_policy"]["omits_unmapped_test_ids"])
+        self.assertNotIn("ashr-pass-control", result.stdout)
+        self.assertNotIn("ashr-wrong-contract-path", result.stdout)
+        self.assertNotIn("Bearer ", result.stdout)
+        self.assertNotIn("@", result.stdout)
+
     def test_local_lite_check_plan_stays_lightweight_and_offline(self):
         result = subprocess.run(
             [
@@ -1553,7 +1708,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotRegex(result.stdout, re.compile(r"sk-[A-Za-z0-9]"))
 
         preflight = json.loads(result.stdout)
+        schema = json.loads((ROOT / "docs/a2/schemas/external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(preflight["schema_version"], "a2.external_evidence_preflight.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], preflight["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(preflight))
+        self.assertLessEqual(set(schema["properties"]["recommended_commands"]["required"]), set(preflight["recommended_commands"]))
         self.assertFalse(preflight["requires_network"])
         self.assertFalse(preflight["requires_ashr_api_key"])
         self.assertFalse(preflight["reads_private_payloads"])
@@ -1568,6 +1727,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn(
             "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
             preflight["private_input_refs"],
+        )
+        self.assertIn(
+            "a2_refresh_real_api_evidence_index.py",
+            " ".join(preflight["recommended_commands"]["real_api_evidence_refresh"]),
         )
         self.assertIn("--review-status reviewed", " ".join(preflight["recommended_commands"]["ashr_grading"]))
         self.assertIn("API keys", preflight["redaction_policy"]["never_commit"])
@@ -1634,19 +1797,73 @@ class A2ContractTests(unittest.TestCase):
 
     def test_real_api_smoke_evidence_is_redacted(self):
         evidence_path = ROOT / "docs/evidence/a2_real_api_smoke.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/real_api_smoke.schema.json").read_text(encoding="utf-8"))
         payload_text = evidence_path.read_text(encoding="utf-8")
         payload = json.loads(payload_text)
 
         self.assertEqual(payload["schema_version"], "a2.real_api_smoke.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertLessEqual(set(schema["properties"]["auth"]["required"]), set(payload["auth"]))
+        self.assertEqual(payload["api_call_count"], len(payload["calls"]))
         self.assertEqual(payload["api_call_count"], 6)
         self.assertTrue(payload["all_required_calls_reached"])
         self.assertEqual([call["status"] for call in payload["calls"]], ["ok"] * 6)
+        self.assertEqual(
+            [call["name"] for call in payload["calls"]],
+            ["init", "health_check", "list_datasets", "list_runs", "list_requests", "list_agents"],
+        )
         self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
         self.assertNotIn("Bearer ", payload_text)
         self.assertNotIn("@", payload_text)
         for call in payload["calls"]:
             self.assertNotIn("payload", call)
             self.assertNotIn("response", call)
+
+    def test_real_api_evidence_index_matches_public_safe_schema(self):
+        evidence_path = ROOT / "docs/a1/api_calibration/real_api_evidence_index.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/evidence_index.schema.json").read_text(encoding="utf-8"))
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+        records = payload["records"]
+
+        self.assertEqual(payload["schema_version"], "ashr.clone.evidence_index.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertEqual(payload["total_records"], len(records))
+        self.assertGreaterEqual(payload["total_records"], 100)
+        self.assertEqual(payload["status_counts"], self._record_counts(records, "status"))
+        self.assertEqual(payload["function_counts"], self._record_counts(records, "function"))
+        self.assertEqual(payload["error_kind_counts"], self._record_counts(records, "error_kind"))
+        self.assertEqual(
+            payload["quota_block_count"],
+            sum(1 for record in records if isinstance(record.get("quota"), dict) and record["quota"].get("blocked") is True),
+        )
+
+        record_required = set(schema["$defs"]["record"]["required"])
+        forbidden_raw_keys = {"request", "response", "error", "response_headers"}
+        for record in records:
+            with self.subTest(record=record["path"]):
+                self.assertLessEqual(record_required, set(record))
+                self.assertTrue(record["path"].startswith("docs/evidence/private_refs/"))
+                self.assertTrue(isinstance(record["request_keys"], list))
+                self.assertTrue(isinstance(record["response_keys"], list))
+                self.assertTrue(isinstance(record["error_keys"], list))
+                self.assertTrue(isinstance(record["top_counts"], dict))
+                self.assertFalse(forbidden_raw_keys & set(record))
+
+        paths = [record["path"] for record in records]
+        self.assertTrue(any("a1_python_api_calibration" in path or "/python_" in path for path in paths))
+        self.assertTrue(any("a1_ts_api_calibration" in path or "/ts_" in path for path in paths))
+        self.assertIn("create_request", payload["function_counts"])
+        self.assertTrue(any(isinstance(record.get("quota"), dict) and record["quota"].get("blocked") is True for record in records))
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotRegex(payload_text, re.compile(r"[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}"))
+
+    @staticmethod
+    def _record_counts(records, key):
+        return dict(sorted(Counter(str(record[key]) for record in records if record.get(key) is not None).items()))
 
 
 if __name__ == "__main__":

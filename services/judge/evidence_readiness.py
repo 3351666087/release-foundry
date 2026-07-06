@@ -8,6 +8,8 @@ from typing import Any
 
 
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
+DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
+DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
     "evidence_ref",
@@ -40,6 +42,8 @@ def build_evidence_readiness_report(
     semantic_harness_report: dict[str, Any],
     *,
     ashr_case_map_path: str | Path = DEFAULT_ASHR_CASE_MAP,
+    a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
+    official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
     cases = list(calibration_matrix.get("cases", []))
@@ -57,6 +61,7 @@ def build_evidence_readiness_report(
     llm_counts = source_coverage.get("llm_judge", {})
     llm_offline_only = _llm_offline_only(calibration_matrix)
     ashr_import_commands = [
+        "python scripts/a2_scan_ashr_grading_evidence.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json",
         "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
@@ -67,6 +72,8 @@ def build_evidence_readiness_report(
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
     semantic_risk = semantic_harness_report.get("risk_assessment", {})
+    a1_real_api_evidence = _a1_real_api_evidence_summary(a1_real_api_evidence_index_path)
+    official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -76,6 +83,7 @@ def build_evidence_readiness_report(
         "semantic_false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
         "semantic_required_fields_documented": bool(REQUIRED_SEMANTIC_FIELDS),
         "semantic_sdk_language_matrix_ready": set(semantic_languages) >= {"python", "typescript"},
+        "official_sdk_smoke_readonly_ok": bool(official_sdk_smoke.get("read_only_reachable")),
         "private_payload_boundary_documented": True,
     }
 
@@ -110,6 +118,8 @@ def build_evidence_readiness_report(
             "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
             "commands": ashr_import_commands,
         },
+        "a1_real_api_evidence": a1_real_api_evidence,
+        "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
@@ -267,6 +277,163 @@ def _load_case_map(path: str | Path) -> dict[str, str]:
     if not isinstance(payload, dict):
         return {}
     return {str(key): str(value) for key, value in payload.items()}
+
+
+def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "index_path": target.as_posix(),
+            "reason": "A1 public real API evidence index is not available yet.",
+            "c3_grading_ready": False,
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "index_path": target.as_posix(),
+            "reason": "A1 public real API evidence index is not a JSON object.",
+            "c3_grading_ready": False,
+        }
+
+    records = [record for record in payload.get("records", []) if isinstance(record, dict)]
+    real_ok_functions = sorted(
+        {
+            str(record.get("function"))
+            for record in records
+            if record.get("dry_run") is False and record.get("status") == "ok" and record.get("function")
+        }
+    )
+    mutating_functions = sorted(
+        {
+            str(record.get("function"))
+            for record in records
+            if str(record.get("function", "")).startswith("create_")
+        }
+    )
+    real_records = [record for record in records if record.get("dry_run") is False]
+    real_read_records = [
+        record
+        for record in real_records
+        if str(record.get("function", "")).startswith(("get_", "list_"))
+        or record.get("function") in {"init", "keep_alive"}
+    ]
+    real_create_request_records = [
+        record for record in real_records if record.get("function") == "create_request"
+    ]
+    real_quota_records = [
+        record for record in real_records if isinstance(record.get("quota"), dict) and record["quota"].get("blocked")
+    ]
+    c3_candidate_records = [
+        record
+        for record in records
+        if record.get("function") in {"get_run", "list_runs"} and record.get("dry_run") is False
+    ]
+    return {
+        "available": True,
+        "index_path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "label": str(payload.get("label", "")),
+        "field_map_version": str(payload.get("field_map_version", "")),
+        "total_records": int(payload.get("total_records", len(records))),
+        "status_counts": payload.get("status_counts", {}),
+        "function_counts": payload.get("function_counts", {}),
+        "quota_block_count": int(payload.get("quota_block_count", 0)),
+        "real_ok_functions": real_ok_functions,
+        "mutating_functions_present": mutating_functions,
+        "real_record_count": len(real_records),
+        "real_read_status_counts": _count_records(real_read_records, "status"),
+        "real_create_request_status_counts": _count_records(real_create_request_records, "status"),
+        "real_create_request_error_kind_counts": _count_records(real_create_request_records, "error_kind"),
+        "real_quota_gate": _quota_gate_summary(real_quota_records),
+        "c3_candidate_record_count": len(c3_candidate_records),
+        "c3_grading_ready": False,
+        "notes": [
+            "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+            "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
+            "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge.",
+        ],
+    }
+
+
+def _count_records(records: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        value = record.get(key)
+        if value is None:
+            continue
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _quota_gate_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    quota_keys = sorted(
+        {
+            str(key)
+            for record in records
+            if isinstance(record.get("quota"), dict)
+            for key in record["quota"].get("quota_keys", [])
+        }
+    )
+    functions = sorted({str(record.get("function")) for record in records if record.get("function")})
+    paths = sorted(str(record.get("path")) for record in records if record.get("path"))
+    return {
+        "blocked": bool(records),
+        "blocked_count": len(records),
+        "blocked_functions": functions,
+        "create_request_blocked": "create_request" in functions,
+        "quota_keys": quota_keys,
+        "private_record_refs": paths,
+        "public_action": (
+            "Increase or reset hosted request quota before additional mutating create_request calibration."
+            if "create_request" in functions
+            else "No mutating request quota gate is currently visible in public-safe evidence."
+        ),
+    }
+
+
+def _official_sdk_smoke_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "read_only_reachable": False,
+            "reason": "A2 official SDK smoke summary is not available yet.",
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "read_only_reachable": False,
+            "reason": "A2 official SDK smoke summary is not a JSON object.",
+        }
+
+    calls = [call for call in payload.get("calls", []) if isinstance(call, dict)]
+    ok_count = sum(1 for call in calls if call.get("status") == "ok")
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "generated_at": str(payload.get("generated_at", "")),
+        "sdk_source": str(payload.get("sdk_source", "")),
+        "base_url": str(payload.get("base_url", "")),
+        "api_call_count": int(payload.get("api_call_count", len(calls))),
+        "ok_call_count": ok_count,
+        "error_call_count": sum(1 for call in calls if call.get("status") != "ok"),
+        "call_status_counts": _count_records(calls, "status"),
+        "call_names": sorted(str(call.get("name")) for call in calls if call.get("name")),
+        "all_required_calls_reached": bool(payload.get("all_required_calls_reached")),
+        "read_only_reachable": bool(calls) and ok_count == len(calls) and bool(payload.get("all_required_calls_reached")),
+        "notes": [
+            "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
+            "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence.",
+        ],
+    }
 
 
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:

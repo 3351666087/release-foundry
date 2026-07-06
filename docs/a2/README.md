@@ -39,6 +39,7 @@ This module provides the local G1-G2 foundation for:
 - Case book regression replay report: `fixtures/a2/results/a2_regression_replay_report.json`
 - Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
 - Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
+- Public-safe Ashr grading collection packet: `fixtures/a2/calibration/a2_ashr_grading_collection_packet.json`
 - Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
 - External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
@@ -157,6 +158,8 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 
 - the six calibration cases that need comparable external observations,
 - whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
+- the public-safe A1 real API evidence index summary from `docs/a1/api_calibration/real_api_evidence_index.json`,
+- the public-safe evidence index contract pinned by `docs/a2/schemas/evidence_index.schema.json`,
 - the reviewed Ashr grading import/merge commands,
 - an `ashr_public_merge_gate` that says whether the reviewed Ashr grading column is actually present in the public calibration matrix,
 - the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
@@ -170,7 +173,9 @@ Before collecting or merging private evidence, run the offline preflight:
 python scripts/a2_external_evidence_preflight.py --json
 ```
 
-This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
+This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. Its JSON output uses `docs/a2/schemas/external_evidence_preflight.schema.json`. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
+
+If private API probes have already been collected, the same preflight JSON lists the public-safe index refresh command under `recommended_commands.real_api_evidence_refresh`. Run it before regenerating fixtures so A2/A3 readiness summaries reflect the latest redacted real API evidence without committing raw payloads.
 
 ## Regenerating Fixtures
 
@@ -210,7 +215,17 @@ The current matrix is generated from `fixtures/a2/calibration/a2_g3_calibration_
 
 It is intentionally honest about missing evidence: `ashr_grading` is marked missing until a server-side grading batch is collected. `llm_judge` observations are offline reference samples with cost metadata, so local tests stay deterministic while the contract is ready for real model calls later.
 
-When a redacted Ashr `get-run` or `list-runs` record is available under private evidence, convert it into A2 observations with:
+When a redacted Ashr `get-run` or `list-runs` record is available under private evidence, scan it first to confirm it really contains the six mapped C3 cases:
+
+The public-safe C3 collection packet is generated at `fixtures/a2/calibration/a2_ashr_grading_collection_packet.json`. It lists the exact six `ashr_test_id` values, A2 case ids, scenario metadata, local judge summaries, and raw-output hashes needed for private Ashr server-side grading collection without committing final responses or account payloads.
+
+```bash
+python scripts/a2_scan_ashr_grading_evidence.py \
+  --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json \
+  --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json
+```
+
+Only after the scanner reports `complete_expected_match: true` and the private evidence has been reviewed, convert it into A2 observations with:
 
 ```bash
 python scripts/a2_import_ashr_grading.py \
@@ -290,7 +305,17 @@ The same report now includes `scope_boundary`, which explains why A2 is larger t
 
 G1-G2 is deterministic and local. It should not depend on real Ashr API access, LLM judge calls, or live external tools.
 
-G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided.
+G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided. The committed smoke summary uses `docs/a2/schemas/real_api_smoke.schema.json`.
+
+After private A1/A2 API probes are recorded under ignored `docs/evidence/private_refs/`, refresh the public-safe evidence index with:
+
+```bash
+python -B scripts/a2_refresh_real_api_evidence_index.py --label a2-g3-real-api-refresh
+python -B scripts/a2_regenerate_fixtures.py --write
+```
+
+The refresh script preserves already committed safe index rows when the local raw private evidence is unavailable, then merges any newly available private records by `path`. The committed index must contain only field keys, counts, statuses, quota summaries, and private evidence refs.
+Its public shape is covered by `docs/a2/schemas/evidence_index.schema.json` and A2 contract tests, so A1/A3 can consume the same real API evidence summary without reading raw private payloads.
 
 ## Agent Workflow
 

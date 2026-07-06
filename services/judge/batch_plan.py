@@ -43,6 +43,7 @@ def build_batch_plan_report(
             "Collect reviewed server-side Ashr grading for the six C3 calibration cases.",
             [
                 "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+                "fixtures/a2/calibration/a2_ashr_grading_collection_packet.json",
                 "scripts/a2_import_ashr_grading.py",
                 "scripts/a2_merge_calibration_observations.py",
             ],

@@ -1,21 +1,21 @@
 {
   "error_kind_counts": {
-    "api": 8
+    "api": 17
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
   "function_counts": {
-    "create_request": 12,
+    "create_request": 21,
     "get_dataset": 4,
     "get_request": 6,
-    "init": 6,
-    "keep_alive": 6,
-    "list_agents": 6,
-    "list_datasets": 8,
-    "list_requests": 9,
+    "init": 25,
+    "keep_alive": 25,
+    "list_agents": 25,
+    "list_datasets": 27,
+    "list_requests": 28,
     "list_runs": 1
   },
-  "label": "a1-real-api-2026-07-06-round5-python-preflight",
-  "quota_block_count": 2,
+  "label": "a1-real-api-merged-2026-07-06",
+  "quota_block_count": 10,
   "records": [
     {
       "attempts": 0,
@@ -427,6 +427,21 @@
       "response_status": null,
       "response_summary_keys": [],
       "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_real_a2_followup.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
       "status_code": null,
       "top_counts": {}
     },
@@ -1665,7 +1680,7 @@
       "error_keys": [],
       "error_kind": null,
       "function": null,
-      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json",
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly_followup.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -1680,7 +1695,7 @@
       "error_keys": [],
       "error_kind": null,
       "function": null,
-      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly_followup.json",
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -1733,15 +1748,3156 @@
       "status": "ok",
       "status_code": null,
       "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_python_shape_fix_dry_run_manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161820/python_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_create-request-text_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161849/python_mutating_all/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T161939/ts_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165845/python_readonly_refresh/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165846/ts_readonly_refresh/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/python_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170745/ts_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181259/python_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181325/ts_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/python_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190631/ts_readonly/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
     }
   ],
   "schema_version": "ashr.clone.evidence_index.v1",
   "status_counts": {
-    "error": 9,
+    "error": 18,
     "failed": 1,
-    "ok": 33,
-    "partial": 2,
-    "planned": 29
+    "ok": 139,
+    "partial": 11,
+    "planned": 30
   },
-  "total_records": 75
+  "total_records": 200
 }
