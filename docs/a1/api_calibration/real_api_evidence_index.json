@@ -1,21 +1,21 @@
 {
   "error_kind_counts": {
-    "api": 9
+    "api": 10
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
   "function_counts": {
-    "create_request": 13,
+    "create_request": 14,
     "get_dataset": 4,
     "get_request": 6,
-    "init": 10,
-    "keep_alive": 10,
-    "list_agents": 10,
-    "list_datasets": 12,
-    "list_requests": 13,
+    "init": 11,
+    "keep_alive": 11,
+    "list_agents": 11,
+    "list_datasets": 13,
+    "list_requests": 14,
     "list_runs": 1
   },
-  "label": "a2-g3-real-api-2026-07-06-merged",
-  "quota_block_count": 2,
+  "label": "a2-g3-real-api-2026-07-06-shape-fix-merged",
+  "quota_block_count": 3,
   "records": [
     {
       "attempts": 0,
@@ -1602,6 +1602,21 @@
       "top_counts": {}
     },
     {
+      "attempts": null,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_python_shape_fix_dry_run_manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
       "attempts": 1,
       "dry_run": false,
       "error_keys": [],
@@ -2250,15 +2265,203 @@
       "status": "partial",
       "status_code": null,
       "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit": 5,
+        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining": 0,
+        "requested": 1,
+        "used": 5
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_health-check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_list-requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/manifest.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
+      "status_code": null,
+      "top_counts": {}
     }
   ],
   "schema_version": "ashr.clone.evidence_index.v1",
   "status_counts": {
-    "error": 10,
+    "error": 11,
     "failed": 1,
-    "ok": 52,
-    "partial": 3,
-    "planned": 27
+    "ok": 57,
+    "partial": 4,
+    "planned": 28
   },
-  "total_records": 94
+  "total_records": 102
 }
