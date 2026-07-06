@@ -59,6 +59,10 @@ def build_preflight(
         },
         "private_input_refs": _private_input_refs(ashr_preflight, semantic_preflight),
         "recommended_commands": {
+            "real_api_evidence_refresh": [
+                "python -B scripts/a2_refresh_real_api_evidence_index.py --label a2-g3-real-api-refresh",
+                "python -B scripts/a2_regenerate_fixtures.py --write",
+            ],
             "ashr_grading": list(ashr_preflight.get("commands", [])),
             "semantic_judge": list(semantic_preflight.get("commands", [])),
             "post_merge_verification": [

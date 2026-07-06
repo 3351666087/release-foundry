@@ -1662,6 +1662,10 @@ class A2ContractTests(unittest.TestCase):
             "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
             preflight["private_input_refs"],
         )
+        self.assertIn(
+            "a2_refresh_real_api_evidence_index.py",
+            " ".join(preflight["recommended_commands"]["real_api_evidence_refresh"]),
+        )
         self.assertIn("--review-status reviewed", " ".join(preflight["recommended_commands"]["ashr_grading"]))
         self.assertIn("API keys", preflight["redaction_policy"]["never_commit"])
 
