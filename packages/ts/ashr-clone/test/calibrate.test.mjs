@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -22,6 +22,30 @@ function captureStreams() {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function writePlanBatchGate(path, decision = "go") {
+  writeFileSync(
+    path,
+    JSON.stringify({
+      schema_version: "ashr.clone.api_probe_batch_plan.v1",
+      function: "plan_batch",
+      response: {
+        plan: {
+          schema_version: "ashr.clone.api_probe_batch_plan.v1",
+          quota_stop_go: {
+            decision,
+            source: "unit-test",
+            quota_or_reset_evidence_present: true,
+            reset: { known: false, wait_hint_present: false, header_keys: ["x-ratelimit-remaining"] },
+            can_enter_small_batch: decision === "go",
+            can_enter_batch: decision === "go",
+          },
+        },
+      },
+    }),
+    "utf8",
+  );
 }
 
 test("calibrate CLI dry-run writes a five-modality manifest without fetch", async () => {
@@ -84,6 +108,73 @@ test("calibrate CLI real execution requires small-batch and zero retries before 
   assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
 });
 
+test("calibrate CLI rejects read-only quota gate records before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "read-only-record.json");
+  try {
+    writeFileSync(
+      gateFile,
+      JSON.stringify({
+        schema_version: "ashr.clone.api_probe_batch_plan.v1",
+        function: "list_requests",
+        response: { plan: { quota_stop_go: { decision: "go" } } },
+      }),
+      "utf8",
+    );
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /plan-batch record/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI rejects go quota gate records without quota evidence", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "go-without-evidence.json");
+  try {
+    writeFileSync(
+      gateFile,
+      JSON.stringify({
+        schema_version: "ashr.clone.api_probe_batch_plan.v1",
+        function: "plan_batch",
+        response: { plan: { schema_version: "ashr.clone.api_probe_batch_plan.v1", quota_stop_go: { decision: "go", source: "not-provided" } } },
+      }),
+      "utf8",
+    );
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /requires reviewed quota\/reset evidence/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI blocks stop quota gate before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "quota-stop.json");
+  try {
+    writePlanBatchGate(gateFile, "stop");
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /quota gate decision=stop/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("calibrate CLI read-only small-batch records response keys without leaking key", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
@@ -126,6 +217,71 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
     assert.equal(seen.every((item) => item.authorization === "Bearer tp_syntheticsecret"), true);
     assert.ok(manifest.steps.some((step) => step.step_id === "list-datasets" && step.response_keys.includes("datasets")));
     assert.ok(manifest.steps.some((step) => step.step_id === "list-requests" && step.response_keys.includes("requests")));
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI persists audited quota override reason in emitted evidence", async () => {
+  const originalFetch = globalThis.fetch;
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const output = join(temp, "manifest.json");
+  const reason = "manual paid calibration approved after quota review";
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init.body));
+    if (body.function === "init") {
+      return response({ status: "ok", user: { id: 1, tenant_id: 2, email: "owner@example.com" }, tenant: { id: 2 }, features: {}, notes: [] });
+    }
+    if (body.function === "keep_alive") {
+      return response({ status: "ok", message: "keep alive", db: "ok" });
+    }
+    if (body.function === "list_agents") {
+      return response({ status: "ok", agents: [] });
+    }
+    if (body.function === "list_datasets") {
+      return response({ status: "ok", datasets: [{ id: 7, name: "dataset" }], next_cursor: null });
+    }
+    if (body.function === "list_requests") {
+      return response({ status: "ok", requests: [{ id: 8, request_status: "completed" }], next_cursor: null });
+    }
+    if (body.function === "create_request") {
+      return response({ status: "ok", request: { id: 9, request_status: "queued" } });
+    }
+    throw new Error(`unexpected function ${body.function}`);
+  };
+  try {
+    const capture = captureStreams();
+    const code = await main(
+      [
+        "--execute",
+        "--small-batch",
+        "--max-retries",
+        "0",
+        "--include-mutating",
+        "--modality",
+        "text",
+        "--allow-quota-override",
+        "--quota-override-reason",
+        reason,
+        "--output",
+        output,
+      ],
+      { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" },
+      capture.streams,
+    );
+    const manifest = readJson(output);
+    const mutateStep = manifest.steps.find((step) => step.step_id === "create-request-text");
+    const stepRecord = readJson(mutateStep.private_record_path);
+
+    assert.equal(code, 0);
+    assert.equal(capture.stderr, "");
+    assert.equal(manifest.summary.mutating_steps, 1);
+    assert.equal(manifest.guardrails.quota_gate.decision, "override");
+    assert.equal(manifest.guardrails.quota_gate.override.reason, reason);
+    assert.equal(stepRecord.request.preflight.quota_gate.override.used, true);
+    assert.equal(stepRecord.request.preflight.quota_gate.override.reason, reason);
+    assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
   } finally {
     globalThis.fetch = originalFetch;
     rmSync(temp, { recursive: true, force: true });

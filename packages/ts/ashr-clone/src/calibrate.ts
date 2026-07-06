@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,6 +21,9 @@ type CalibrateStreams = { stdout: WritableStreamLike; stderr: WritableStreamLike
 type CalibrationMode = "dry-run" | "small-batch";
 type CalibrationStepKind = "read" | "mutate";
 type CalibrationModality = "text" | "image" | "audio" | "file" | "video";
+type QuotaGateSummary = JsonRecord & { decision: string };
+
+const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1";
 
 type CalibrationStep = {
   id: string;
@@ -41,6 +44,10 @@ export interface CalibrationArgs {
   timeoutSeconds: number;
   maxRetries: number;
   retryBackoffMs: number;
+  quotaGateRecord?: string;
+  allowQuotaOverride: boolean;
+  quotaOverrideReason?: string;
+  quotaGateSummary?: QuotaGateSummary;
   limit: number;
   modalities: CalibrationModality[];
   printRecord: boolean;
@@ -82,7 +89,7 @@ export async function main(
       streams.stdout.write(usage());
       return 0;
     }
-    validateCalibrationGuards(args);
+    await validateCalibrationGuards(args);
     const outputPath = args.output ?? defaultOutputPath(args.execute);
     const manifest = await runCalibration(args, env, outputPath);
     await writeJson(outputPath, manifest);
@@ -123,7 +130,7 @@ export async function runCalibration(args: CalibrationArgs, env: Record<string, 
       await writeJson(stepOutput, record);
       stepResults.push(summarizeStep(step, record, stepOutput));
     } catch (error) {
-      const record = errorStepRecord(step, error, dryRun, stepOutput);
+      const record = errorStepRecord(step, error, dryRun, stepOutput, args.quotaGateSummary);
       await writeJson(stepOutput, record);
       const summary = summarizeStep(step, record, stepOutput);
       stepResults.push(summary);
@@ -155,6 +162,8 @@ export async function runCalibration(args: CalibrationArgs, env: Record<string, 
     guardrails: {
       execute_requires_small_batch: true,
       mutating_requires_include_mutating: true,
+      mutating_execute_requires_quota_gate: true,
+      quota_gate: args.quotaGateSummary ?? null,
       paid_media_requires_allow_paid_media: true,
       max_retries_for_execute: args.execute ? args.maxRetries : null,
       raw_records_private: true,
@@ -182,6 +191,7 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
     timeoutSeconds: 30,
     maxRetries: 2,
     retryBackoffMs: 500,
+    allowQuotaOverride: false,
     limit: 2,
     modalities: [],
     printRecord: false,
@@ -211,6 +221,9 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
       case "--allow-paid-media":
         args.allowPaidMedia = true;
         break;
+      case "--allow-quota-override":
+        args.allowQuotaOverride = true;
+        break;
       case "--output":
         args.output = requireOptionValue(readValue(), name);
         break;
@@ -225,6 +238,12 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
         break;
       case "--retry-backoff-ms":
         args.retryBackoffMs = nonNegativeInteger(readValue(), name);
+        break;
+      case "--quota-gate-record":
+        args.quotaGateRecord = requireOptionValue(readValue(), name);
+        break;
+      case "--quota-override-reason":
+        args.quotaOverrideReason = requireOptionValue(readValue(), name);
         break;
       case "--limit":
         args.limit = positiveInteger(readValue(), name);
@@ -242,7 +261,7 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
   return args;
 }
 
-function validateCalibrationGuards(args: CalibrationArgs): void {
+async function validateCalibrationGuards(args: CalibrationArgs): Promise<void> {
   if (args.execute && !args.smallBatch) {
     throw new CalibrationUsageError("real API calibration requires --small-batch before --execute");
   }
@@ -254,8 +273,81 @@ function validateCalibrationGuards(args: CalibrationArgs): void {
   if (args.includeMutating && paidModalities.length > 0 && !args.allowPaidMedia) {
     throw new CalibrationUsageError("non-text media calibration requires --allow-paid-media after reviewing cost risk");
   }
+  if (args.execute && args.includeMutating) {
+    args.quotaGateSummary = await enforceMutatingQuotaGate(args);
+  }
 }
 
+async function enforceMutatingQuotaGate(args: CalibrationArgs): Promise<QuotaGateSummary> {
+  const override = args.allowQuotaOverride;
+  const reason = (args.quotaOverrideReason ?? "").trim();
+  if (args.quotaGateRecord === undefined) {
+    if (override) {
+      requireQuotaOverrideReason(reason);
+      return overrideQuotaGate(reason);
+    }
+    throw new CalibrationUsageError("mutating calibration execution requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason");
+  }
+
+  const quotaGateRecord = await readJsonObject(args.quotaGateRecord, "--quota-gate-record");
+  const quotaGate = extractPlanBatchQuotaGate(quotaGateRecord);
+  if (quotaGate.decision === "go") {
+    validateQuotaGoGate(quotaGate);
+    return withQuotaOverride(quotaGate, false, null);
+  }
+  if (quotaGate.decision === "stop" || quotaGate.decision === "wait") {
+    if (override) {
+      requireQuotaOverrideReason(reason);
+      return withQuotaOverride(quotaGate, true, reason);
+    }
+    throw new CalibrationUsageError(`mutating calibration execution blocked by quota gate decision=${quotaGate.decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason`);
+  }
+  throw new CalibrationUsageError(`--quota-gate-record has unsupported quota_stop_go.decision=${quotaGate.decision}`);
+}
+
+function extractPlanBatchQuotaGate(record: JsonRecord): QuotaGateSummary {
+  const response = isRecord(record.response) ? record.response : undefined;
+  const plan = response && isRecord(response.plan) ? response.plan : undefined;
+  const hasPlanSchema = plan?.schema_version === API_PROBE_BATCH_PLAN_SCHEMA_VERSION;
+  if ((record.schema_version !== API_PROBE_BATCH_PLAN_SCHEMA_VERSION && !hasPlanSchema) || record.function !== "plan_batch") {
+    throw new CalibrationUsageError(`--quota-gate-record must be a plan-batch record with schema_version=${API_PROBE_BATCH_PLAN_SCHEMA_VERSION} and function=plan_batch`);
+  }
+  const gate = plan && isRecord(plan.quota_stop_go) ? plan.quota_stop_go : undefined;
+  if (!gate || typeof gate.decision !== "string" || !["go", "stop", "wait"].includes(gate.decision)) {
+    throw new CalibrationUsageError("--quota-gate-record must contain response.plan.quota_stop_go.decision of go, stop, or wait");
+  }
+  return redactApiSensitive({ ...gate }) as QuotaGateSummary;
+}
+
+function validateQuotaGoGate(quotaGate: QuotaGateSummary): void {
+  const reset = isRecord(quotaGate.reset) ? quotaGate.reset : {};
+  const headerKeys = Array.isArray(reset.header_keys) ? reset.header_keys : [];
+  const hasEvidence = quotaGate.quota_or_reset_evidence_present === true || isRecord(quotaGate.quota) || headerKeys.length > 0;
+  if (quotaGate.source === "not-provided" || !hasEvidence) {
+    throw new CalibrationUsageError("--quota-gate-record decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override");
+  }
+}
+
+function requireQuotaOverrideReason(reason: string): void {
+  if (reason.length < 12) {
+    throw new CalibrationUsageError("--allow-quota-override requires --quota-override-reason with at least 12 characters");
+  }
+}
+
+function overrideQuotaGate(reason: string): QuotaGateSummary {
+  return redactApiSensitive({
+    decision: "override",
+    source: "not-provided",
+    override: { used: true, reason },
+  }) as QuotaGateSummary;
+}
+
+function withQuotaOverride(quotaGate: QuotaGateSummary, used: boolean, reason: string | null): QuotaGateSummary {
+  return redactApiSensitive({
+    ...quotaGate,
+    override: { used, reason },
+  }) as QuotaGateSummary;
+}
 
 function selectedCalibrationModalities(args: CalibrationArgs): CalibrationModality[] {
   const defaults: CalibrationModality[] = ["text", "image", "audio", "file", "video"];
@@ -325,16 +417,19 @@ function createRequestStep(modality: CalibrationModality): CalibrationStep {
     modality,
     estimated_calls: 2,
     purpose: `Create a tiny ${modality} calibration request with first-class AgentInput envelope`,
-    run: (client, options) => client.createRequest({
-      dryRun: options.dryRun,
-      outputPath: options.outputPath,
-      requestName: `A1 ${modality} API calibration ${options.dryRun ? "dry run" : "small batch"}`,
-      request: requestForModality(modality),
-      allowMediaGeneration: options.args.allowPaidMedia,
-      allowNonTextInputs: true,
-      maxRequestVariations: 1,
-      purpose: `Create a tiny ${modality} calibration request with first-class AgentInput envelope`,
-    }),
+    run: async (client, options) => {
+      const record = await client.createRequest({
+        dryRun: options.dryRun,
+        outputPath: options.outputPath,
+        requestName: `A1 ${modality} API calibration ${options.dryRun ? "dry run" : "small batch"}`,
+        request: requestForModality(modality),
+        allowMediaGeneration: options.args.allowPaidMedia,
+        allowNonTextInputs: true,
+        maxRequestVariations: 1,
+        purpose: `Create a tiny ${modality} calibration request with first-class AgentInput envelope`,
+      });
+      return attachQuotaGate(record, options.args.quotaGateSummary);
+    },
   };
 }
 
@@ -417,18 +512,18 @@ function summarizeStep(step: CalibrationStep, record: AshrApiCallRecord, outputP
   };
 }
 
-function errorStepRecord(step: CalibrationStep, error: unknown, dryRun: boolean, outputPath: string): AshrApiCallRecord {
+function errorStepRecord(step: CalibrationStep, error: unknown, dryRun: boolean, outputPath: string, quotaGate: QuotaGateSummary | undefined): AshrApiCallRecord {
   if (error instanceof AshrApiError && isRecord(error.response) && isCallRecord(error.response)) {
     const record = redactApiSensitive(error.response) as unknown as AshrApiCallRecord;
     record.output_path = outputPath;
-    return record;
+    return step.kind === "mutate" ? attachQuotaGate(record, quotaGate) : record;
   }
   const now = utcNow();
   const statusCode = error instanceof AshrApiError ? error.statusCode : null;
   const errorPayload = error instanceof AshrApiError
     ? error.toJSON()
     : { message: formatErrorMessage(error), status_code: statusCode, error_kind: error instanceof MissingAshrApiKeyError ? "auth" : "client" };
-  return redactApiSensitive({
+  const record = redactApiSensitive({
     function: step.id,
     dry_run: dryRun,
     purpose: step.purpose,
@@ -444,6 +539,22 @@ function errorStepRecord(step: CalibrationStep, error: unknown, dryRun: boolean,
     output_path: outputPath,
     field_map_version: ASHR_API_FIELD_MAP_VERSION,
   }) as AshrApiCallRecord;
+  return step.kind === "mutate" ? attachQuotaGate(record, quotaGate) : record;
+}
+
+function attachQuotaGate(record: AshrApiCallRecord, quotaGate: QuotaGateSummary | undefined): AshrApiCallRecord {
+  if (quotaGate === undefined) {
+    return record;
+  }
+  const safeGate = redactApiSensitive(quotaGate) as JsonRecord;
+  if (isRecord(record.request)) {
+    if (isRecord(record.request.preflight)) {
+      record.request.preflight.quota_gate = safeGate;
+    } else {
+      record.request.quota_gate = safeGate;
+    }
+  }
+  return record;
 }
 
 function isCallRecord(value: JsonRecord): boolean {
@@ -463,6 +574,15 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   const absolutePath = resolve(path);
   await mkdir(dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readJsonObject(path: string, optionName: string): Promise<JsonRecord> {
+  const text = await readFile(path, "utf8");
+  const parsed = JSON.parse(text) as unknown;
+  if (!isRecord(parsed)) {
+    throw new CalibrationUsageError(`${optionName} must contain a JSON object`);
+  }
+  return parsed;
 }
 
 function sortedKeys(value: unknown): string[] {
@@ -542,6 +662,9 @@ Options:
   --timeout <seconds>       Request timeout. Default 30.
   --max-retries <count>     Retry count. Real execution requires 0.
   --retry-backoff-ms <ms>   Retry backoff. Default 500.
+  --quota-gate-record <path> Plan-batch record required for mutating real execution.
+  --allow-quota-override    Allow mutating real execution without a go gate.
+  --quota-override-reason <text>
   --limit <count>           List limit for read probes. Default 2, capped at 5.
   --modality <type[,type]>  Limit mutating probes to text,image,audio,file,video. Repeatable.
   --print-record            Print full manifest to stdout.

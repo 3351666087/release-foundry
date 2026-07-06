@@ -7,6 +7,7 @@ import pytest
 
 from packages.sdk.ashr_clone.calibrate import (
     CALIBRATION_MANIFEST_SCHEMA_VERSION,
+    PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
     CalibrationArgs,
     CalibrationUsageError,
     parse_args,
@@ -73,6 +74,30 @@ class FakeCalibrationClient:
         return record
 
 
+def write_plan_batch_gate(tmp_path: Path, *, decision: str = "go") -> Path:
+    gate = {
+        "decision": decision,
+        "source": "quota-record",
+        "quota_or_reset_evidence_present": True,
+        "reset": {"known": False, "wait_hint_present": False, "header_keys": ["x-ratelimit-remaining"]},
+        "can_enter_small_batch": decision == "go",
+        "can_enter_batch": decision == "go",
+    }
+    if decision != "go":
+        gate["quota"] = {"blocked": True, "resource": "requests", "limit": 5, "used": 5, "requested": 1, "remaining": 0}
+    record = {
+        "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+        "function": "plan_batch",
+        "dry_run": True,
+        "status": "blocked" if decision == "stop" else "planned",
+        "response": {"plan": {"schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION, "quota_stop_go": gate}},
+        "field_map_version": "a1-api-calibration-2026-07-04",
+    }
+    path = tmp_path / f"quota_gate_{decision}.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    return path
+
+
 def test_parse_args_defaults_to_safe_dry_run():
     args = parse_args([])
 
@@ -134,9 +159,92 @@ def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_pa
         assert Path(step["private_record_path"]).exists()
 
 
+def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path: Path):
+    output = tmp_path / "read_only_real.json"
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, max_retries=0, output=str(output))
+    manifest = run_calibration(args, env={}, client=client)
+
+    assert manifest["status"] == "ok"
+    assert manifest["summary"]["read_steps"] == 5
+    assert manifest["summary"]["mutating_steps"] == 0
+    assert all(call[0] != "create_request" for call in client.calls)
+    assert manifest["guardrails"]["quota_gate"] is None
+
+
+def test_run_calibration_mutating_execute_requires_quota_gate_before_calls(tmp_path: Path):
+    output = tmp_path / "missing_gate.json"
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output))
+
+    with pytest.raises(CalibrationUsageError, match="quota-gate-record"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_rejects_read_only_success_record_as_quota_gate(tmp_path: Path):
+    output = tmp_path / "wrong_gate.json"
+    read_only_record = tmp_path / "list_requests_record.json"
+    read_only_record.write_text(
+        json.dumps(
+            {
+                "function": "list_requests",
+                "dry_run": False,
+                "status": "ok",
+                "response": {"status": "ok", "requests": []},
+                "field_map_version": "a1-api-calibration-2026-07-04",
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(read_only_record))
+
+    with pytest.raises(CalibrationUsageError, match="plan-batch quota gate record"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_rejects_stop_quota_gate_before_calls(tmp_path: Path):
+    output = tmp_path / "stop_gate.json"
+    gate = write_plan_batch_gate(tmp_path, decision="stop")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="quota gate decision=stop"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_rejects_go_quota_gate_without_evidence(tmp_path: Path):
+    output = tmp_path / "go_without_evidence.json"
+    gate = write_plan_batch_gate(tmp_path)
+    payload = json.loads(gate.read_text(encoding="utf-8"))
+    quota_gate = payload["response"]["plan"]["quota_stop_go"]
+    quota_gate["source"] = "not-provided"
+    quota_gate.pop("quota_or_reset_evidence_present", None)
+    quota_gate.pop("reset", None)
+    gate.write_text(json.dumps(payload), encoding="utf-8")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="requires reviewed quota/reset evidence"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
 def test_run_calibration_small_batch_with_text_mutation(tmp_path: Path):
     output = tmp_path / "real.json"
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output))
+    gate = write_plan_batch_gate(tmp_path)
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient())
 
     assert manifest["status"] == "ok"
@@ -146,9 +254,42 @@ def test_run_calibration_small_batch_with_text_mutation(tmp_path: Path):
     assert "tp_syntheticsecret" not in json.dumps(manifest)
 
 
+def test_run_calibration_persists_audited_quota_override_with_redaction(tmp_path: Path):
+    output = tmp_path / "override.json"
+    gate = write_plan_batch_gate(tmp_path, decision="stop")
+    reason = "manual paid calibration approved with tp_syntheticsecret after external quota review"
+    args = CalibrationArgs(
+        execute=True,
+        small_batch=True,
+        include_mutating=True,
+        max_retries=0,
+        modalities=("text",),
+        output=str(output),
+        quota_gate_record=str(gate),
+        allow_quota_override=True,
+        quota_override_reason=reason,
+    )
+    manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient())
+
+    quota_gate = manifest["guardrails"]["quota_gate"]
+    assert manifest["status"] == "ok"
+    assert quota_gate["decision"] == "override"
+    assert quota_gate["gate_decision"] == "stop"
+    assert quota_gate["override"]["used"] is True
+    assert "[redacted]" in quota_gate["override"]["reason"]
+    assert "tp_syntheticsecret" not in json.dumps(manifest)
+
+    mutate_step = next(step for step in manifest["steps"] if step["kind"] == "mutate")
+    private_record = json.loads(Path(mutate_step["private_record_path"]).read_text(encoding="utf-8"))
+    assert private_record["quota_gate"]["decision"] == "override"
+    assert private_record["request"]["preflight"]["quota_gate"]["override_used"] is True
+    assert "tp_syntheticsecret" not in json.dumps(private_record)
+
+
 def test_run_calibration_captures_quota_block_without_raw_secret(tmp_path: Path):
     output = tmp_path / "quota.json"
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output))
+    gate = write_plan_batch_gate(tmp_path)
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient(quota_block=True))
 
     assert manifest["status"] == "partial"

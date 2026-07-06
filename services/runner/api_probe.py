@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--small-batch-size", type=int, default=1, help="Real-call size for the first bounded phase in plan-batch output.")
     parser.add_argument("--batch-size", type=int, help="Target larger batch size for plan-batch output. Defaults to the request variation count when known.")
     parser.add_argument("--quota-record", help="Optional previous private API probe record JSON with quota or reset headers.")
-    parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Accepts a plan-batch record or previous private API probe record.")
+    parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Must be a plan-batch record with response.plan.quota_stop_go.")
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     parser.add_argument("--poll-timeout", type=int, default=300)
@@ -181,6 +181,7 @@ def run_operation(client: AshrApiClient | None, args: argparse.Namespace, *, out
             allow_non_text_inputs=args.allow_non_text_inputs,
             max_request_variations=args.max_request_variations,
         )
+        record = attach_quota_gate(record, getattr(args, "quota_gate_summary", None), output)
         if dry_run:
             batch_plan = build_api_probe_batch_plan(
                 target_operation="create-request",
@@ -200,7 +201,8 @@ def run_operation(client: AshrApiClient | None, args: argparse.Namespace, *, out
         require(args.dataset_id, "--dataset-id is required for create-run")
         require(args.result_file, "--result-file is required for create-run")
         result = json.loads(Path(args.result_file).read_text(encoding="utf-8"))
-        return client.create_run(dataset_id=args.dataset_id, result=result, output_path=output, dry_run=dry_run)
+        record = client.create_run(dataset_id=args.dataset_id, result=result, output_path=output, dry_run=dry_run)
+        return attach_quota_gate(record, getattr(args, "quota_gate_summary", None), output)
     raise ValueError(f"unsupported operation: {args.operation}")
 
 
@@ -234,7 +236,7 @@ def run_batch_plan(args: argparse.Namespace, *, output: Path) -> dict[str, Any]:
             "ended_at": now,
             "duration_ms": 0,
             "attempts": 0,
-            "status": "blocked" if plan["quota_stop_go"]["decision"] == "stop" else "planned",
+            "status": "planned" if plan["quota_stop_go"]["decision"] == "go" else "blocked",
             "status_code": None,
             "request": {
                 "function": "plan_batch",
@@ -402,23 +404,33 @@ def build_quota_stop_go(quota_record: dict[str, Any] | None) -> dict[str, Any]:
     quota = summarize_quota_error(quota_record) if quota_record else None
     headers = _quota_headers(quota_record)
     reset = _reset_metadata(headers)
-    decision = "go"
-    if quota and quota.get("blocked") is True:
+    evidence_present = bool(quota_record)
+    quota_or_reset_evidence_present = bool(quota or headers)
+    decision = "wait"
+    if not evidence_present:
+        decision = "wait"
+    elif quota and quota.get("blocked") is True:
         decision = "stop"
     elif reset["wait_hint_present"]:
         decision = "wait"
+    elif quota_or_reset_evidence_present:
+        decision = "go"
     return redact_sensitive(
         {
             "decision": decision,
             "source": "quota-record" if quota_record else "not-provided",
+            "evidence_present": evidence_present,
+            "quota_or_reset_evidence_present": quota_or_reset_evidence_present,
             "quota": quota,
             "reset": reset,
             "go_conditions": [
-                "no quota.blocked flag in the latest private record",
+                "latest private record includes quota or rate-limit header evidence",
+                "no quota.blocked flag in that private record",
                 "no retry-after wait is active",
                 "operator has reviewed the dry-run and small-batch records before the next phase",
             ],
             "stop_conditions": [
+                "quota evidence is absent",
                 "quota.blocked is true",
                 "remaining quota is zero or unavailable after an error",
                 "reset metadata indicates retry-after/x-ratelimit-reset wait is required",
@@ -448,6 +460,22 @@ def attach_batch_plan(record: dict[str, Any], batch_plan: dict[str, Any], output
     write_json(output, record)
 
 
+def attach_quota_gate(record: dict[str, Any], quota_gate: dict[str, Any] | None, output: Path) -> dict[str, Any]:
+    if not quota_gate:
+        return record
+    safe_gate = redact_sensitive(dict(quota_gate))
+    record["quota_gate"] = safe_gate
+    request = record.get("request")
+    if isinstance(request, dict):
+        preflight = request.get("preflight")
+        if isinstance(preflight, dict):
+            preflight["quota_gate"] = safe_gate
+        else:
+            request["quota_gate"] = safe_gate
+    write_json(output, record)
+    return record
+
+
 def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
     quota_gate_record = load_optional_json(getattr(args, "quota_gate_record", None))
     override = bool(getattr(args, "allow_quota_override", False))
@@ -461,6 +489,7 @@ def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
     quota_gate = extract_quota_gate(quota_gate_record)
     decision = quota_gate["decision"]
     if decision == "go":
+        validate_quota_go_gate(quota_gate)
         return {**quota_gate, "override": {"used": False, "reason": None}}
     if override:
         if len(reason) < 12:
@@ -470,16 +499,34 @@ def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def extract_quota_gate(record: dict[str, Any] | None) -> dict[str, Any]:
-    if record:
-        response = record.get("response")
-        if isinstance(response, dict):
-            plan = response.get("plan")
-            if isinstance(plan, dict) and isinstance(plan.get("quota_stop_go"), dict):
-                gate = redact_sensitive(dict(plan["quota_stop_go"]))
-                if isinstance(gate, dict) and isinstance(gate.get("decision"), str):
-                    return gate
-    gate = build_quota_stop_go(record)
-    return gate if isinstance(gate, dict) else {"decision": "stop", "source": "invalid-gate"}
+    if not isinstance(record, dict):
+        raise ValueError("--quota-gate-record must contain a JSON object")
+    response = record.get("response")
+    plan = response.get("plan") if isinstance(response, dict) else None
+    if (
+        record.get("function") != "plan_batch"
+        or not isinstance(plan, dict)
+        or (
+            record.get("schema_version") != API_PROBE_BATCH_PLAN_SCHEMA_VERSION
+            and plan.get("schema_version") != API_PROBE_BATCH_PLAN_SCHEMA_VERSION
+        )
+    ):
+        raise ValueError(f"--quota-gate-record must be a plan-batch record with schema_version={API_PROBE_BATCH_PLAN_SCHEMA_VERSION} and function=plan_batch")
+    gate = plan.get("quota_stop_go")
+    if not isinstance(gate, dict):
+        raise ValueError("--quota-gate-record must include response.plan.quota_stop_go.decision")
+    decision = gate.get("decision")
+    if decision not in {"go", "stop", "wait"}:
+        raise ValueError(f"--quota-gate-record has unsupported quota_stop_go.decision={redact_sensitive(str(decision))}")
+    return redact_sensitive(dict(gate))
+
+
+def validate_quota_go_gate(gate: dict[str, Any]) -> None:
+    reset = gate.get("reset") if isinstance(gate.get("reset"), dict) else {}
+    header_keys = reset.get("header_keys") if isinstance(reset.get("header_keys"), list) else []
+    evidence_present = gate.get("quota_or_reset_evidence_present") is True or bool(gate.get("quota")) or bool(header_keys)
+    if gate.get("source") == "not-provided" or not evidence_present:
+        raise ValueError("--quota-gate-record decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override")
 
 
 def default_output_path(operation: str, *, dry_run: bool) -> Path:

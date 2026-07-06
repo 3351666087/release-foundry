@@ -188,7 +188,7 @@
     "list_requests": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 33,
+      "records": 34,
       "response_keys": [
         "_user",
         "next_cursor",
@@ -198,7 +198,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 30,
+        "ok": 31,
         "planned": 3
       },
       "top_count_keys": [
@@ -282,6 +282,6 @@
     }
   },
   "schema_version": "ashr.clone.response_field_map.v1",
-  "source_label": "a1-real-api-merged-2026-07-06-round8",
-  "source_total_records": 325
+  "source_label": "a1-real-api-2026-07-07-round9-quota-gate-parity",
+  "source_total_records": 326
 }

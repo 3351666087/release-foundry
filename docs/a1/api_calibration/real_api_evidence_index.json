@@ -13,13 +13,13 @@
     "keep_alive": 27,
     "list_agents": 27,
     "list_datasets": 33,
-    "list_requests": 33,
+    "list_requests": 34,
     "list_runs": 4,
     "plan_batch": 2,
     "poll_request": 1,
     "poll_run": 2
   },
-  "label": "a1-real-api-merged-2026-07-06-round8",
+  "label": "a1-real-api-2026-07-07-round9-quota-gate-parity",
   "quota_block_count": 41,
   "records": [
     {
@@ -666,6 +666,33 @@
       "error_kind": null,
       "function": "list_requests",
       "path": "docs/evidence/private_refs/a1_api_list_requests_round8_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 1
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_round9_real_readonly.json",
       "request_keys": [
         "estimated_calls",
         "function",
@@ -7566,11 +7593,11 @@
     "completed": 13,
     "error": 24,
     "failed": 1,
-    "ok": 177,
+    "ok": 178,
     "partial": 11,
     "passed": 11,
     "planned": 53,
     "timeout": 1
   },
-  "total_records": 325
+  "total_records": 326
 }

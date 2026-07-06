@@ -43,6 +43,30 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function writePlanBatchGate(path, decision = "go") {
+  writeFileSync(
+    path,
+    JSON.stringify({
+      schema_version: "ashr.clone.api_probe_batch_plan.v1",
+      function: "plan_batch",
+      response: {
+        plan: {
+          schema_version: "ashr.clone.api_probe_batch_plan.v1",
+          quota_stop_go: {
+            decision,
+            source: "unit-test",
+            quota_or_reset_evidence_present: true,
+            reset: { known: false, wait_hint_present: false, header_keys: ["x-ratelimit-remaining"] },
+            can_enter_small_batch: decision === "go",
+            can_enter_batch: decision === "go",
+          },
+        },
+      },
+    }),
+    "utf8",
+  );
+}
+
 test("probe CLI dry-run init writes JSON and does not call fetch", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
@@ -214,8 +238,10 @@ test("probe CLI non-dry-run requires a key before read-only transport", async ()
 test("probe CLI mutating execute guardrails run before key lookup", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
   const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "quota-go.json");
   try {
     writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writePlanBatchGate(gateFile, "go");
 
     const missingAllow = captureStreams();
     assert.equal(await main(["create-run", "--execute", "--dataset-id", "1", "--result-file", resultFile, "--output", join(temp, "missing-allow.json")], {}, missingAllow.streams), 2);
@@ -230,22 +256,23 @@ test("probe CLI mutating execute guardrails run before key lookup", async () => 
     assert.match(retryGuard.stderr, /--max-retries 0/);
     assert.doesNotMatch(retryGuard.stderr, new RegExp(ASHR_API_ENV_VAR));
 
-    const missingKey = captureStreams();
+    const missingGate = captureStreams();
     assert.equal(
       await main(
         ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--output", join(temp, "missing-key-default.json")],
         {},
-        missingKey.streams,
+        missingGate.streams,
       ),
       2,
     );
-    assert.match(missingKey.stderr, new RegExp(ASHR_API_ENV_VAR));
+    assert.match(missingGate.stderr, /--quota-gate-record/);
+    assert.doesNotMatch(missingGate.stderr, new RegExp(ASHR_API_ENV_VAR));
 
     const missingKeyWithOutput = captureStreams();
     const missingKeyOutput = join(temp, "missing-key.json");
     assert.equal(
       await main(
-        ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--output", missingKeyOutput],
+        ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", missingKeyOutput],
         {},
         missingKeyWithOutput.streams,
       ),
@@ -257,10 +284,137 @@ test("probe CLI mutating execute guardrails run before key lookup", async () => 
   }
 });
 
+test("probe CLI rejects read-only quota gate records before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "read-only-record.json");
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writeFileSync(
+      gateFile,
+      JSON.stringify({
+        schema_version: "ashr.clone.api_probe_batch_plan.v1",
+        function: "list_requests",
+        response: { plan: { quota_stop_go: { decision: "go" } } },
+      }),
+      "utf8",
+    );
+
+    const capture = captureStreams();
+    const code = await main(
+      ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", join(temp, "blocked.json")],
+      {},
+      capture.streams,
+    );
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /plan-batch record/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI rejects go quota gate records without quota evidence", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "go-without-evidence.json");
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writeFileSync(
+      gateFile,
+      JSON.stringify({
+        schema_version: "ashr.clone.api_probe_batch_plan.v1",
+        function: "plan_batch",
+        response: { plan: { schema_version: "ashr.clone.api_probe_batch_plan.v1", quota_stop_go: { decision: "go", source: "not-provided" } } },
+      }),
+      "utf8",
+    );
+
+    const capture = captureStreams();
+    const code = await main(
+      ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", join(temp, "blocked.json")],
+      {},
+      capture.streams,
+    );
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /requires reviewed quota\/reset evidence/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI blocks stop quota gate before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "quota-stop.json");
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writePlanBatchGate(gateFile, "stop");
+
+    const capture = captureStreams();
+    const code = await main(
+      ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", join(temp, "blocked.json")],
+      {},
+      capture.streams,
+    );
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /quota gate decision=stop/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI persists audited quota override reason when evidence is emitted", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const output = join(temp, "override-missing-key.json");
+  const reason = "manual paid calibration approved after quota review";
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+
+    const capture = captureStreams();
+    const code = await main(
+      [
+        "create-run",
+        "--execute",
+        "--allow-mutate",
+        "--max-retries",
+        "0",
+        "--dataset-id",
+        "1",
+        "--result-file",
+        resultFile,
+        "--allow-quota-override",
+        "--quota-override-reason",
+        reason,
+        "--output",
+        output,
+      ],
+      {},
+      capture.streams,
+    );
+    const record = readJson(output);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+    assert.equal(record.request.quota_gate.decision, "override");
+    assert.equal(record.request.quota_gate.override.used, true);
+    assert.equal(record.request.quota_gate.override.reason, reason);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("probe CLI create-request execute preflight blocks unsafe media before transport", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
   const requestFile = join(temp, "request.json");
+  const gateFile = join(temp, "quota-go.json");
   let fetchCalled = false;
   globalThis.fetch = () => {
     fetchCalled = true;
@@ -276,6 +430,7 @@ test("probe CLI create-request execute preflight blocks unsafe media before tran
       }),
       "utf8",
     );
+    writePlanBatchGate(gateFile, "go");
     const capture = captureStreams();
     const output = join(temp, "media-blocked.json");
     const code = await main(
@@ -289,6 +444,8 @@ test("probe CLI create-request execute preflight blocks unsafe media before tran
         "Media blocked",
         "--request-file",
         requestFile,
+        "--quota-gate-record",
+        gateFile,
         "--output",
         output,
       ],

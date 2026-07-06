@@ -25,6 +25,9 @@ from .api_client import (
 )
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
+PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
+PLAN_BATCH_QUOTA_GATE_DECISIONS = {"go", "stop", "wait"}
+MIN_QUOTA_OVERRIDE_REASON_CHARS = 12
 CALIBRATION_MODALITIES = AGENT_INPUT_PART_TYPES
 
 
@@ -46,6 +49,9 @@ class CalibrationArgs:
     limit: int = 2
     modalities: tuple[str, ...] = ()
     print_record: bool = False
+    quota_gate_record: str | None = None
+    allow_quota_override: bool = False
+    quota_override_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -59,8 +65,9 @@ class CalibrationStep:
 
 
 def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = None, client: AshrApiClient | None = None) -> JsonDict:
-    env_map = env or os.environ
     validate_calibration_guards(args)
+    quota_gate_summary = enforce_mutating_quota_gate(args)
+    env_map = env or os.environ
     dry_run = not args.execute
     manifest_path = args.output or default_output_path(args.execute)
     client = client or AshrApiClient(
@@ -81,10 +88,16 @@ def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = No
 
     for step in steps:
         output_path = step_output_path(manifest_path, step.step_id, dry_run)
+        record_needs_write = False
         try:
             record = step.run(client, dry_run, output_path, args)
         except Exception as exc:  # noqa: BLE001 - calibration must preserve controlled failure evidence.
             record = error_step_record(step, exc, dry_run, output_path)
+            record_needs_write = True
+        if step.kind == "mutate" and quota_gate_summary is not None:
+            record = attach_quota_gate_evidence(record, quota_gate_summary)
+            record_needs_write = True
+        if record_needs_write:
             write_json(output_path, record)
         summary = summarize_step(step, record, output_path)
         step_results.append(summary)
@@ -122,8 +135,10 @@ def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = No
                 "execute_requires_small_batch": True,
                 "mutating_requires_include_mutating": True,
                 "paid_media_requires_allow_paid_media": True,
+                "mutating_execute_requires_quota_gate": True,
                 "max_retries_for_execute": args.max_retries if args.execute else None,
                 "raw_records_private": True,
+                "quota_gate": quota_gate_summary,
             },
             "summary": {
                 "total_steps": len(step_results),
@@ -247,6 +262,23 @@ def summarize_step(step: CalibrationStep, record: Mapping[str, Any], output_path
     return redact_sensitive(summary)
 
 
+def attach_quota_gate_evidence(record: Mapping[str, Any], quota_gate_summary: Mapping[str, Any]) -> JsonDict:
+    updated = redact_sensitive(dict(record))
+    gate = redact_sensitive(dict(quota_gate_summary))
+    updated["quota_gate"] = gate
+    request = updated.get("request")
+    if isinstance(request, dict):
+        preflight = request.setdefault("preflight", {})
+        if isinstance(preflight, dict):
+            preflight["quota_gate"] = {
+                "decision": gate.get("decision"),
+                "gate_decision": gate.get("gate_decision"),
+                "source": gate.get("source"),
+                "override_used": gate.get("override", {}).get("used") if isinstance(gate.get("override"), Mapping) else None,
+            }
+    return redact_sensitive(updated)
+
+
 def error_step_record(step: CalibrationStep, error: Exception, dry_run: bool, output_path: str) -> JsonDict:
     if isinstance(error, AshrApiError) and isinstance(error.response, Mapping) and is_call_record(error.response):
         record = redact_sensitive(dict(error.response))
@@ -296,6 +328,107 @@ def validate_calibration_guards(args: CalibrationArgs) -> None:
     paid_modalities = [modality for modality in selected_calibration_modalities(args) if modality != "text"]
     if args.include_mutating and paid_modalities and not args.allow_paid_media:
         raise CalibrationUsageError("non-text media calibration requires --allow-paid-media after reviewing cost risk")
+    if mutating_quota_gate_required(args) and not args.quota_gate_record and not args.allow_quota_override:
+        raise CalibrationUsageError("mutating real API calibration requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason")
+    if mutating_quota_gate_required(args) and args.allow_quota_override and not valid_quota_override_reason(args.quota_override_reason):
+        raise CalibrationUsageError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
+
+
+def mutating_quota_gate_required(args: CalibrationArgs) -> bool:
+    return args.execute and args.include_mutating
+
+
+def valid_quota_override_reason(reason: str | None) -> bool:
+    return len(str(reason or "").strip()) >= MIN_QUOTA_OVERRIDE_REASON_CHARS
+
+
+def enforce_mutating_quota_gate(args: CalibrationArgs) -> JsonDict | None:
+    if not mutating_quota_gate_required(args):
+        return None
+    override_reason = str(args.quota_override_reason or "").strip()
+    if not args.quota_gate_record:
+        return redact_sensitive(
+            {
+                "decision": "override",
+                "gate_decision": None,
+                "source": "audited-override",
+                "record": None,
+                "override": {"used": True, "reason": override_reason},
+            }
+        )
+    record = load_json_object(args.quota_gate_record, "--quota-gate-record")
+    gate = extract_plan_batch_quota_gate(record, args.quota_gate_record)
+    decision = gate["decision"]
+    summary = quota_gate_summary(record, gate, args.quota_gate_record)
+    if decision == "go":
+        validate_quota_go_gate(gate)
+        summary["decision"] = "go"
+        summary["override"] = {"used": False, "reason": None}
+        return redact_sensitive(summary)
+    if args.allow_quota_override:
+        summary["decision"] = "override"
+        summary["override"] = {"used": True, "reason": override_reason}
+        return redact_sensitive(summary)
+    raise CalibrationUsageError(f"mutating real API calibration blocked by quota gate decision={decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason")
+
+
+def extract_plan_batch_quota_gate(record: Mapping[str, Any], path: str) -> JsonDict:
+    response = record.get("response") if isinstance(record.get("response"), Mapping) else {}
+    plan = response.get("plan") if isinstance(response.get("plan"), Mapping) else {}
+    record_schema = record.get("schema_version")
+    plan_schema = plan.get("schema_version")
+    if record.get("function") != "plan_batch" or PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION not in {record_schema, plan_schema}:
+        raise CalibrationUsageError(f"{redact_sensitive(path)} must be a plan-batch quota gate record with schema_version {PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION} and function plan_batch")
+    gate = plan.get("quota_stop_go") if isinstance(plan.get("quota_stop_go"), Mapping) else None
+    if not isinstance(gate, Mapping):
+        raise CalibrationUsageError(f"{redact_sensitive(path)} must include response.plan.quota_stop_go.decision")
+    decision = gate.get("decision")
+    if decision not in PLAN_BATCH_QUOTA_GATE_DECISIONS:
+        raise CalibrationUsageError(f"{redact_sensitive(path)} has unsupported quota gate decision={redact_sensitive(str(decision))}")
+    return redact_sensitive(dict(gate))
+
+
+def quota_gate_summary(record: Mapping[str, Any], gate: Mapping[str, Any], path: str) -> JsonDict:
+    quota = gate.get("quota") if isinstance(gate.get("quota"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "decision": gate.get("decision"),
+            "gate_decision": gate.get("decision"),
+            "source": gate.get("source"),
+            "can_enter_small_batch": gate.get("can_enter_small_batch") if isinstance(gate.get("can_enter_small_batch"), bool) else None,
+            "can_enter_batch": gate.get("can_enter_batch") if isinstance(gate.get("can_enter_batch"), bool) else None,
+            "record": {
+                "path": path,
+                "schema_version": record.get("schema_version"),
+                "function": record.get("function"),
+            },
+            "quota": {
+                "blocked": quota.get("blocked") is True,
+                "quota_keys": sorted(str(key) for key in quota.keys()),
+                "resource": quota.get("resource") if isinstance(quota.get("resource"), str) else None,
+            }
+            if quota
+            else None,
+        }
+    )
+
+
+def validate_quota_go_gate(gate: Mapping[str, Any]) -> None:
+    reset = gate.get("reset") if isinstance(gate.get("reset"), Mapping) else {}
+    header_keys = reset.get("header_keys") if isinstance(reset.get("header_keys"), list) else []
+    evidence_present = gate.get("quota_or_reset_evidence_present") is True or isinstance(gate.get("quota"), Mapping) or bool(header_keys)
+    if gate.get("source") == "not-provided" or not evidence_present:
+        raise CalibrationUsageError("quota gate decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override")
+
+
+def load_json_object(path: str, label: str) -> JsonDict:
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CalibrationUsageError(f"{label} {redact_sensitive(path)} could not be read as a JSON object: {exc}") from exc
+    if not isinstance(value, dict):
+        raise CalibrationUsageError(f"{label} {redact_sensitive(path)} must contain a JSON object")
+    return value
 
 
 def step_output_path(manifest_path: str, step_id: str, dry_run: bool) -> str:
@@ -327,6 +460,9 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser.add_argument("--limit", type=positive_int, default=2)
     parser.add_argument("--modality", action="append", default=[], help="Comma-separated modality list: text,image,audio,file,video")
     parser.add_argument("--print-record", action="store_true")
+    parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Must be a plan-batch record.")
+    parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
+    parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     ns = parser.parse_args(argv)
     modalities = parse_modalities(ns.modality)
     args = CalibrationArgs(
@@ -342,6 +478,9 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         limit=ns.limit,
         modalities=modalities,
         print_record=ns.print_record,
+        quota_gate_record=ns.quota_gate_record,
+        allow_quota_override=ns.allow_quota_override,
+        quota_override_reason=ns.quota_override_reason,
     )
     try:
         validate_calibration_guards(args)

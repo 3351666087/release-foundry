@@ -17,6 +17,9 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 type WritableStreamLike = { write(chunk: string): unknown };
+type QuotaGateSummary = JsonRecord & { decision: string };
+
+const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1";
 
 const OPERATIONS = [
   "init",
@@ -48,6 +51,10 @@ export interface ProbeCliArgs {
   maxRetries: number;
   retryBackoffMs: number;
   printRecord: boolean;
+  quotaGateRecord?: string;
+  allowQuotaOverride: boolean;
+  quotaOverrideReason?: string;
+  quotaGateSummary?: QuotaGateSummary;
   limit: number;
   cursor?: number;
   status?: string;
@@ -96,7 +103,7 @@ export async function main(
     }
     dryRun = !args.execute;
     outputPath = args.output === "-" ? undefined : args.output ?? defaultOutputPath(requireOperation(args.operation), dryRun);
-    validateExecuteGuards(args);
+    await validateExecuteGuards(args);
     const client = AshrApiClient.fromEnv(env, {
       required: args.execute,
       baseUrl: args.baseUrl,
@@ -167,19 +174,20 @@ export async function runOperation(
       });
     case "create-run": {
       const result = await readJsonObject(requireText(args.resultFile, "--result-file is required for create-run"), "--result-file");
-      return client.createRun({
+      const record = await client.createRun({
         ...callOptions,
         datasetId: requireNumber(args.datasetId, "--dataset-id is required for create-run"),
         result,
         runnerId: args.runnerId,
       });
+      return attachQuotaGate(record, args.quotaGateSummary);
     }
     case "create-request": {
       const request = await readJsonObject(requireText(args.requestFile, "--request-file is required for create-request"), "--request-file");
       const requestInputSchema = args.requestSchemaFile
         ? await readJsonObject(args.requestSchemaFile, "--request-schema-file")
         : undefined;
-      return client.createRequest({
+      const record = await client.createRequest({
         ...callOptions,
         requestName: requireText(args.requestName, "--request-name is required for create-request"),
         request,
@@ -189,6 +197,7 @@ export async function runOperation(
         allowNonTextInputs: args.allowNonTextInputs,
         maxRequestVariations: args.maxRequestVariations,
       });
+      return attachQuotaGate(record, args.quotaGateSummary);
     }
   }
 }
@@ -201,6 +210,7 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
     maxRetries: 2,
     retryBackoffMs: 500,
     printRecord: false,
+    allowQuotaOverride: false,
     limit: 5,
     allowMediaGeneration: false,
     allowNonTextInputs: false,
@@ -249,6 +259,10 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
         rejectInlineValue(name, inlineValue);
         args.printRecord = true;
         break;
+      case "--allow-quota-override":
+        rejectInlineValue(name, inlineValue);
+        args.allowQuotaOverride = true;
+        break;
       case "--output": {
         const [value, nextIndex] = readOptionValue(argv, index, name, inlineValue);
         args.output = value;
@@ -276,6 +290,18 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
       case "--retry-backoff-ms": {
         const [value, nextIndex] = readOptionValue(argv, index, name, inlineValue);
         args.retryBackoffMs = parseInteger(value, name, { min: 0 });
+        index = nextIndex;
+        break;
+      }
+      case "--quota-gate-record": {
+        const [value, nextIndex] = readOptionValue(argv, index, name, inlineValue);
+        args.quotaGateRecord = value;
+        index = nextIndex;
+        break;
+      }
+      case "--quota-override-reason": {
+        const [value, nextIndex] = readOptionValue(argv, index, name, inlineValue);
+        args.quotaOverrideReason = value;
         index = nextIndex;
         break;
       }
@@ -380,7 +406,7 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
   return args;
 }
 
-function validateExecuteGuards(args: ProbeCliArgs): void {
+async function validateExecuteGuards(args: ProbeCliArgs): Promise<void> {
   const operation = requireOperation(args.operation);
   if (!args.execute || !MUTATING_OPERATIONS.has(operation)) {
     return;
@@ -391,6 +417,78 @@ function validateExecuteGuards(args: ProbeCliArgs): void {
   if (args.maxRetries !== 0) {
     throw new CliUsageError(`${operation} execution requires --max-retries 0 to avoid duplicate mutation on retry`);
   }
+  args.quotaGateSummary = await enforceMutatingQuotaGate(args, operation);
+}
+
+async function enforceMutatingQuotaGate(args: ProbeCliArgs, operation: ProbeOperation): Promise<QuotaGateSummary> {
+  const override = args.allowQuotaOverride;
+  const reason = (args.quotaOverrideReason ?? "").trim();
+  if (args.quotaGateRecord === undefined) {
+    if (override) {
+      requireQuotaOverrideReason(reason);
+      return overrideQuotaGate(reason);
+    }
+    throw new CliUsageError(`${operation} execution requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason`);
+  }
+
+  const quotaGateRecord = await readJsonObject(args.quotaGateRecord, "--quota-gate-record");
+  const quotaGate = extractPlanBatchQuotaGate(quotaGateRecord);
+  if (quotaGate.decision === "go") {
+    validateQuotaGoGate(quotaGate);
+    return withQuotaOverride(quotaGate, false, null);
+  }
+  if (quotaGate.decision === "stop" || quotaGate.decision === "wait") {
+    if (override) {
+      requireQuotaOverrideReason(reason);
+      return withQuotaOverride(quotaGate, true, reason);
+    }
+    throw new CliUsageError(`${operation} execution blocked by quota gate decision=${quotaGate.decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason`);
+  }
+  throw new CliUsageError(`--quota-gate-record has unsupported quota_stop_go.decision=${quotaGate.decision}`);
+}
+
+function extractPlanBatchQuotaGate(record: JsonRecord): QuotaGateSummary {
+  const response = isRecord(record.response) ? record.response : undefined;
+  const plan = response && isRecord(response.plan) ? response.plan : undefined;
+  const hasPlanSchema = plan?.schema_version === API_PROBE_BATCH_PLAN_SCHEMA_VERSION;
+  if ((record.schema_version !== API_PROBE_BATCH_PLAN_SCHEMA_VERSION && !hasPlanSchema) || record.function !== "plan_batch") {
+    throw new CliUsageError(`--quota-gate-record must be a plan-batch record with schema_version=${API_PROBE_BATCH_PLAN_SCHEMA_VERSION} and function=plan_batch`);
+  }
+  const gate = plan && isRecord(plan.quota_stop_go) ? plan.quota_stop_go : undefined;
+  if (!gate || typeof gate.decision !== "string" || !["go", "stop", "wait"].includes(gate.decision)) {
+    throw new CliUsageError("--quota-gate-record must contain response.plan.quota_stop_go.decision of go, stop, or wait");
+  }
+  return redactApiSensitive({ ...gate }) as QuotaGateSummary;
+}
+
+function validateQuotaGoGate(quotaGate: QuotaGateSummary): void {
+  const reset = isRecord(quotaGate.reset) ? quotaGate.reset : {};
+  const headerKeys = Array.isArray(reset.header_keys) ? reset.header_keys : [];
+  const hasEvidence = quotaGate.quota_or_reset_evidence_present === true || isRecord(quotaGate.quota) || headerKeys.length > 0;
+  if (quotaGate.source === "not-provided" || !hasEvidence) {
+    throw new CliUsageError("--quota-gate-record decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override");
+  }
+}
+
+function requireQuotaOverrideReason(reason: string): void {
+  if (reason.length < 12) {
+    throw new CliUsageError("--allow-quota-override requires --quota-override-reason with at least 12 characters");
+  }
+}
+
+function overrideQuotaGate(reason: string): QuotaGateSummary {
+  return redactApiSensitive({
+    decision: "override",
+    source: "not-provided",
+    override: { used: true, reason },
+  }) as QuotaGateSummary;
+}
+
+function withQuotaOverride(quotaGate: QuotaGateSummary, used: boolean, reason: string | null): QuotaGateSummary {
+  return redactApiSensitive({
+    ...quotaGate,
+    override: { used, reason },
+  }) as QuotaGateSummary;
 }
 
 function defaultOutputPath(operation: ProbeOperation, dryRun: boolean): string {
@@ -440,7 +538,7 @@ function errorRecord(error: unknown, args: ProbeCliArgs, dryRun: boolean, output
   if (error instanceof AshrApiError && isCallRecord(error.response)) {
     const record = redactApiSensitive(error.response) as unknown as AshrApiCallRecord;
     record.output_path = outputPath;
-    return record;
+    return attachQuotaGate(record, args.quotaGateSummary);
   }
   const operation = requireOperation(args.operation);
   const now = new Date().toISOString();
@@ -448,7 +546,7 @@ function errorRecord(error: unknown, args: ProbeCliArgs, dryRun: boolean, output
   const errorPayload = error instanceof AshrApiError
     ? error.toJSON()
     : { message: formatErrorMessage(error), status_code: statusCode, error_kind: error instanceof MissingAshrApiKeyError ? "auth" : "client" };
-  return redactApiSensitive({
+  const record = redactApiSensitive({
     function: operation,
     dry_run: dryRun,
     purpose: "",
@@ -469,6 +567,22 @@ function errorRecord(error: unknown, args: ProbeCliArgs, dryRun: boolean, output
     output_path: outputPath,
     field_map_version: ASHR_API_FIELD_MAP_VERSION,
   }) as AshrApiCallRecord;
+  return attachQuotaGate(record, args.quotaGateSummary);
+}
+
+function attachQuotaGate(record: AshrApiCallRecord, quotaGate: QuotaGateSummary | undefined): AshrApiCallRecord {
+  if (quotaGate === undefined) {
+    return record;
+  }
+  const safeGate = redactApiSensitive(quotaGate) as JsonRecord;
+  if (isRecord(record.request)) {
+    if (isRecord(record.request.preflight)) {
+      record.request.preflight.quota_gate = safeGate;
+    } else {
+      record.request.quota_gate = safeGate;
+    }
+  }
+  return record;
 }
 
 function isCallRecord(value: JsonRecord): boolean {
@@ -514,6 +628,9 @@ Options:
   --max-retries <count>
   --retry-backoff-ms <ms>
   --print-record
+  --quota-gate-record <path>       Required for mutating --execute; must be plan-batch evidence.
+  --allow-quota-override
+  --quota-override-reason <text>
   --limit <count>
   --cursor <cursor>
   --status <status>

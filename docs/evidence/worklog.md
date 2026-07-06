@@ -2150,3 +2150,92 @@ Next top 20:
 18. Add production trace ingestion schema.
 19. Add media envelope fixtures without raw payloads.
 20. Coordinate shared evidence metadata through Gate.
+
+## A1 round - repo-wide mutating quota-gate parity evidence draft superseded by final section below (2026-07-07T01:30:26+08:00)
+
+Goal slice:
+- Track this round's target: repo-wide mutating API quota gate, valid `plan-batch` gate record enforcement, override reason persistence, and Python+TS parity.
+- Evidence/docs worker scope only. No code was edited here; observed code/test changes are peer-owned in-progress edits.
+
+Baseline / peer state:
+- Branch: `codex/a1-local-sdk-runner`.
+- Initial status was clean, then peer-owned dirty files appeared during validation: `packages/sdk/ashr_clone/calibrate.py`, `packages/ts/ashr-clone/src/calibrate.ts`, `packages/ts/ashr-clone/src/probe.ts`, `packages/ts/ashr-clone/test/probe.test.mjs`, and `tests/a1/test_python_calibrator.py`.
+- No ignored private refs were opened, and no API key or raw private evidence was read or printed by this docs pass.
+
+Observed implementation state:
+- Existing Python probe gate from round8 still validates: mutating `services.runner.api_probe --execute` requires `--quota-gate-record` or `--allow-quota-override --quota-override-reason`.
+- Peer Python calibrator edits add mutating real-calibration quota-gate enforcement, require a `plan_batch` record with schema `ashr.clone.api_probe_batch_plan.v1`, reject non-`go` decisions unless explicitly overridden, persist redacted override reason metadata, and attach quota-gate summaries to manifest/step records.
+- Peer TS probe edits add quota gate flags, validate plan-batch gate records, persist override metadata on mutating records, and attach gate metadata to error records.
+- Historical draft observation: TS calibrator parity was still in progress during this docs-only pass; the final round9 section below supersedes this with passing TS validation.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 59 passed.
+- `python -B -m py_compile packages/sdk/ashr_clone/calibrate.py`: passed.
+- `python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 13 passed after peer test updates.
+- Historical draft validation note: TypeScript validation was incomplete during the draft; see final section below for the passing package run.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Superseded placeholders:
+- The final section below records the completed Python/TS validation, readiness smoke, public evidence refresh, linter, and secret scan.
+- No live API probe was run; official/API evidence remains unchanged from round8.
+
+Known gaps:
+- TS calibrator parity is incomplete until it shares the plan-batch gate extraction, override-reason validation, and quota-gate persistence behavior.
+- Repo-wide mutating coverage still needs a final cross-surface audit after peer edits settle: Python probe, Python calibrator, TS probe, and TS calibrator should all block missing/invalid gates before client/key resolution where applicable.
+- Override reason aggregation into a public audit manifest remains a follow-up; current observed persistence is local manifest/record metadata only.
+
+## A1 round - repo-wide money-grade quota gate final (2026-07-07T02:10:00+08:00)
+
+Goal slice:
+- Close Growth-Auditor P1s for mutating paid API execution across Python runner, Python calibrator, TS probe, and TS calibrator.
+- Make `plan-batch` conservative: no quota/reset evidence now yields `decision=wait`, not `go`.
+- Persist audited override metadata into emitted evidence records while keeping keys/private payloads out of tracked artifacts.
+
+Implemented:
+- `services/runner/api_probe.py`: `plan-batch` without quota evidence now blocks/waits; mutating execution only accepts plan-batch gate records; `go` gates require reviewed quota/reset evidence; quota gate metadata is written back into mutating output records.
+- `packages/sdk/ashr_clone/calibrate.py`: Python calibrator enforces the same mutating gate, rejects read-only or evidence-free `go` records, and persists redacted override metadata in manifests and private step records.
+- `packages/ts/ashr-clone/src/probe.ts` and `packages/ts/ashr-clone/src/calibrate.ts`: TypeScript parity for missing/invalid/stop/wait/no-evidence gates plus audited override persistence.
+- Tests added for read-only record rejection, no-evidence `go` rejection, stop gate blocking, read-only execute unaffected, and override evidence persistence.
+- Public evidence artifacts refreshed merge-safely to 326 records; existing A2/main evidence base was preserved.
+
+Official/API evidence:
+- Chrome read-only check confirmed logged-in Usage tab still exposes `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counts remain private only.
+- Official docs read-only check confirmed Python SDK overview still frames Testing Platform plus Observability and exposes dataset/run/agent/eval concepts.
+- Real API read-only command succeeded: `python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round9_real_readonly.json`.
+- No mutating paid API call was executed this round; the new gate requires quota/reset evidence or an explicit audited override.
+
+Validation:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 76 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 161 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 175 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round9_safety.json`: status ok, 2 steps.
+- Public evidence linter: 326 records, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan matched historical docs and synthetic test tokens only; no operational key material was found.
+
+Growth-Auditor follow-up:
+- P0: none.
+- P1 fixed: no-evidence `go` can no longer unlock mutation; stale pending TS validation notes are superseded by this final section.
+- Remaining commercial gaps: add gate JSON schema/TTL, target-operation binding, public override audit manifest, and quota reset detector from Usage/read-only evidence.
+
+Next top 20:
+1. Add quota-gate JSON schema and CLI validator.
+2. Add freshness TTL and stale-gate failure tests.
+3. Bind gate records to target operation and request modality.
+4. Bind gate records to batch size and estimated calls.
+5. Add private evidence reviewed-ref metadata to gate summaries.
+6. Add quota reset detector from read-only records and Usage labels.
+7. Add dashboard Usage redacted counter import.
+8. Add override-event public audit manifest.
+9. Add typed API error taxonomy.
+10. Add shared Python/TS gate fixtures.
+11. Add direct SDK mutation gate option.
+12. Add public-safe gate report.
+13. Add PR checklist for quota safety.
+14. Add no-private-payload CI scan.
+15. Add stale evidence index detector.
+16. Split response field-map unknown buckets.
+17. Add live read-only calibration schedule.
+18. Add enterprise quota ledger export.
+19. Add A2/A3 gate metadata contract request.
+20. Add hosted run lifecycle calibration matrix behind the same gate.
