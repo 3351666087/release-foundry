@@ -276,6 +276,9 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const missing = (value) => Array.isArray(value) ? value : [];
   const mapping = (value) => isObject(value) ? value : {};
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const realApi = mapping(evidenceFixture.a1_real_api_evidence);
+  const realQuotaGate = mapping(realApi.real_quota_gate);
+  const officialSdkSmoke = mapping(evidenceFixture.official_sdk_smoke);
   const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
   const semanticMergeGate = mapping(evidenceFixture.semantic_live_merge_gate);
@@ -299,6 +302,19 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
     ashr_missing_reviewed_observation_count: ashrMergeGate.missing_reviewed_observation_count || 0,
     ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
+    real_api_evidence_available: realApi.available === true,
+    real_api_total_records: realApi.total_records || 0,
+    real_api_record_count: realApi.real_record_count || 0,
+    real_api_read_ok_count: mapping(realApi.real_read_status_counts).ok || 0,
+    real_api_quota_block_count: realApi.quota_block_count || 0,
+    real_api_create_request_blocked: realQuotaGate.create_request_blocked === true,
+    real_api_quota_blocked_functions: missing(realQuotaGate.blocked_functions),
+    real_api_quota_public_action: realQuotaGate.public_action || "",
+    official_sdk_smoke_available: officialSdkSmoke.available === true,
+    official_sdk_smoke_read_only_reachable: officialSdkSmoke.read_only_reachable === true,
+    official_sdk_smoke_ok_call_count: officialSdkSmoke.ok_call_count || 0,
+    official_sdk_smoke_error_call_count: officialSdkSmoke.error_call_count || 0,
+    official_sdk_smoke_call_names: missing(officialSdkSmoke.call_names),
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
     semantic_reviewed_live_observation_count: semantic.reviewed_live_observation_count || 0,
@@ -534,6 +550,11 @@ export function buildMarkdownReport(
       `- Ashr safely merged observations: ${evidenceReadiness.ashr_merged_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- Ashr reviewed public observations: ${evidenceReadiness.ashr_reviewed_public_observation_count}/${evidenceReadiness.ashr_expected_observation_count}`,
       `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
+      `- Real API records: ${evidenceReadiness.real_api_record_count}/${evidenceReadiness.real_api_total_records}`,
+      `- Real API read OK records: ${evidenceReadiness.real_api_read_ok_count}`,
+      `- Real API quota blocks: ${evidenceReadiness.real_api_quota_block_count}`,
+      `- Create-request quota blocked: ${evidenceReadiness.real_api_create_request_blocked ? "yes" : "no"}`,
+      `- Official SDK smoke: ${evidenceReadiness.official_sdk_smoke_read_only_reachable ? "ok" : "not ok"} (${evidenceReadiness.official_sdk_smoke_ok_call_count} ok, ${evidenceReadiness.official_sdk_smoke_error_call_count} error)`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
       `- Semantic reviewed live observations: ${evidenceReadiness.semantic_reviewed_live_observation_count}/${evidenceReadiness.semantic_expected_reviewed_observation_count}`,
       `- Semantic risk register: ${evidenceReadiness.semantic_risk_assessment_status}`,
