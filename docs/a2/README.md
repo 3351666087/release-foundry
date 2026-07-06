@@ -39,6 +39,7 @@ This module provides the local G1-G2 foundation for:
 - Case book regression replay report: `fixtures/a2/results/a2_regression_replay_report.json`
 - Python/TypeScript SDK parity report: `fixtures/a2/results/a2_sdk_parity_report.json`
 - Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
+- Public-safe Ashr grading collection packet: `fixtures/a2/calibration/a2_ashr_grading_collection_packet.json`
 - Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
 - External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
@@ -215,6 +216,8 @@ The current matrix is generated from `fixtures/a2/calibration/a2_g3_calibration_
 It is intentionally honest about missing evidence: `ashr_grading` is marked missing until a server-side grading batch is collected. `llm_judge` observations are offline reference samples with cost metadata, so local tests stay deterministic while the contract is ready for real model calls later.
 
 When a redacted Ashr `get-run` or `list-runs` record is available under private evidence, scan it first to confirm it really contains the six mapped C3 cases:
+
+The public-safe C3 collection packet is generated at `fixtures/a2/calibration/a2_ashr_grading_collection_packet.json`. It lists the exact six `ashr_test_id` values, A2 case ids, scenario metadata, local judge summaries, and raw-output hashes needed for private Ashr server-side grading collection without committing final responses or account payloads.
 
 ```bash
 python scripts/a2_scan_ashr_grading_evidence.py \

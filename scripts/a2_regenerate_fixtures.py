@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from services.judge.batch_plan import build_batch_plan_report  # noqa: E402
+from services.judge.ashr_collection import build_ashr_grading_collection_packet  # noqa: E402
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
@@ -30,6 +31,7 @@ DEFAULT_RESULT_DIR = Path("fixtures/a2/results")
 DEFAULT_GRADE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_grade_results.json"
 DEFAULT_COVERAGE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_coverage_report.json"
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
+DEFAULT_ASHR_GRADING_COLLECTION_PACKET = Path("fixtures/a2/calibration/a2_ashr_grading_collection_packet.json")
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
 DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
@@ -53,6 +55,7 @@ def main() -> int:
     parser.add_argument("--grade-report", default=DEFAULT_GRADE_REPORT.as_posix())
     parser.add_argument("--coverage-report", default=DEFAULT_COVERAGE_REPORT.as_posix())
     parser.add_argument("--calibration-observations", default=DEFAULT_CALIBRATION_OBSERVATIONS.as_posix())
+    parser.add_argument("--ashr-grading-collection-packet", default=DEFAULT_ASHR_GRADING_COLLECTION_PACKET.as_posix())
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
@@ -75,6 +78,7 @@ def main() -> int:
         grade_report_path=Path(args.grade_report),
         coverage_report_path=Path(args.coverage_report),
         calibration_observations_path=Path(args.calibration_observations),
+        ashr_grading_collection_packet_path=Path(args.ashr_grading_collection_packet),
         calibration_matrix_path=Path(args.calibration_matrix),
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
@@ -102,6 +106,7 @@ def generate_outputs(
     grade_report_path: Path,
     coverage_report_path: Path,
     calibration_observations_path: Path,
+    ashr_grading_collection_packet_path: Path,
     calibration_matrix_path: Path,
     commercial_readiness_path: Path,
     case_book_path: Path,
@@ -135,6 +140,11 @@ def generate_outputs(
         run_dir=run_dir,
     )
     outputs[coverage_report_path] = coverage_report
+    outputs[ashr_grading_collection_packet_path] = build_ashr_grading_collection_packet(
+        pack_path=pack_path,
+        run_dir=run_dir,
+        observations_path=calibration_observations_path,
+    )
     calibration_matrix = build_calibration_matrix(
         pack_path=pack_path,
         run_dir=run_dir,

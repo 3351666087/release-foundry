@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2AshrGradingCollectionPacket",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "packet_id",
+    "dataset_id",
+    "case_map_ref",
+    "status",
+    "case_count",
+    "readiness_checks",
+    "ashr_result_contract",
+    "private_evidence_policy",
+    "recommended_commands",
+    "cases",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.ashr_grading_collection_packet.v1" },
+    "packet_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "scenario_pack": { "type": "string" },
+    "case_map_ref": { "type": "string" },
+    "calibration_observations_ref": { "type": "string" },
+    "status": { "enum": ["ready_for_private_collection", "incomplete"] },
+    "case_count": { "type": "integer", "minimum": 0 },
+    "readiness_checks": { "$ref": "#/$defs/boolean_map" },
+    "ashr_result_contract": { "type": "object" },
+    "private_evidence_policy": { "type": "object" },
+    "recommended_commands": { "$ref": "#/$defs/string_array" },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/collection_case" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "boolean_map": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "collection_case": {
+      "type": "object",
+      "required": [
+        "ashr_test_id",
+        "case_id",
+        "scenario_id",
+        "scenario_title",
+        "scenario_family",
+        "fixture_ref",
+        "calibration_focus",
+        "user_task",
+        "expected_behaviors",
+        "tool_policy_summary",
+        "expected",
+        "local_judge",
+        "run_summary",
+        "private_submission_hint"
+      ],
+      "properties": {
+        "ashr_test_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "scenario_title": { "type": "string" },
+        "scenario_family": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "calibration_focus": { "$ref": "#/$defs/string_array" },
+        "user_task": { "type": "string" },
+        "expected_behaviors": { "$ref": "#/$defs/string_array" },
+        "tool_policy_summary": { "type": "object" },
+        "expected": { "type": "object" },
+        "local_judge": { "$ref": "#/$defs/local_judge" },
+        "run_summary": { "$ref": "#/$defs/run_summary" },
+        "private_submission_hint": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "local_judge": {
+      "type": "object",
+      "required": ["passed", "primary_failure_class", "score", "judge_count", "evidence_ref"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "primary_failure_class": { "type": "string" },
+        "score": { "type": ["integer", "number"] },
+        "judge_count": { "type": "integer", "minimum": 0 },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "run_summary": {
+      "type": "object",
+      "required": [
+        "tool_call_count",
+        "tool_names",
+        "tool_argument_keys",
+        "final_response_sha256_12",
+        "final_response_char_count",
+        "contains_secret_like_text",
+        "public_packet_contains_raw_final_response"
+      ],
+      "properties": {
+        "tool_call_count": { "type": "integer", "minimum": 0 },
+        "tool_names": { "$ref": "#/$defs/string_array" },
+        "tool_argument_keys": { "$ref": "#/$defs/string_array" },
+        "final_response_sha256_12": { "type": "string" },
+        "final_response_char_count": { "type": "integer", "minimum": 0 },
+        "contains_secret_like_text": { "type": "boolean" },
+        "public_packet_contains_raw_final_response": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

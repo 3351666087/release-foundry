@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 from services.judge.batch_plan import build_batch_plan_report
+from services.judge.ashr_collection import build_ashr_grading_collection_packet
 from services.judge.calibration import (
     build_calibration_matrix,
     import_ashr_grading_observations,
@@ -312,6 +313,7 @@ class A2ContractTests(unittest.TestCase):
         case_book_schema = json.loads((schema_dir / "case_book.schema.json").read_text(encoding="utf-8"))
         sdk_parity_schema = json.loads((schema_dir / "sdk_parity.schema.json").read_text(encoding="utf-8"))
         batch_plan_schema = json.loads((schema_dir / "batch_plan.schema.json").read_text(encoding="utf-8"))
+        ashr_collection_schema = json.loads((schema_dir / "ashr_grading_collection_packet.schema.json").read_text(encoding="utf-8"))
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
@@ -325,6 +327,7 @@ class A2ContractTests(unittest.TestCase):
         case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
         sdk_parity = json.loads((ROOT / "fixtures/a2/results/a2_sdk_parity_report.json").read_text(encoding="utf-8"))
         batch_plan = json.loads((ROOT / "fixtures/a2/results/a2_batch_plan_report.json").read_text(encoding="utf-8"))
+        ashr_collection = json.loads((ROOT / "fixtures/a2/calibration/a2_ashr_grading_collection_packet.json").read_text(encoding="utf-8"))
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
@@ -337,6 +340,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(case_book_schema["properties"]["schema_version"]["const"], case_book["schema_version"])
         self.assertEqual(sdk_parity_schema["properties"]["schema_version"]["const"], sdk_parity["schema_version"])
         self.assertEqual(batch_plan_schema["properties"]["schema_version"]["const"], batch_plan["schema_version"])
+        self.assertEqual(
+            ashr_collection_schema["properties"]["schema_version"]["const"],
+            ashr_collection["schema_version"],
+        )
         self.assertEqual(
             semantic_harness_schema["properties"]["schema_version"]["const"],
             semantic_harness["schema_version"],
@@ -358,6 +365,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(case_book_schema["required"]), set(case_book))
         self.assertLessEqual(set(sdk_parity_schema["required"]), set(sdk_parity))
         self.assertLessEqual(set(batch_plan_schema["required"]), set(batch_plan))
+        self.assertLessEqual(set(ashr_collection_schema["required"]), set(ashr_collection))
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
@@ -474,6 +482,11 @@ class A2ContractTests(unittest.TestCase):
         for batch in batch_plan["batches"]:
             with self.subTest(batch_plan_batch=batch["batch_id"]):
                 self.assertLessEqual(batch_required, set(batch))
+
+        ashr_collection_case_required = set(ashr_collection_schema["$defs"]["collection_case"]["required"])
+        for collection_case in ashr_collection["cases"]:
+            with self.subTest(ashr_collection_case=collection_case["case_id"]):
+                self.assertLessEqual(ashr_collection_case_required, set(collection_case))
 
         harness_case_required = set(semantic_harness_schema["$defs"]["harness_case"]["required"])
         self.assertIn("risk_flags", harness_case_required)
@@ -899,6 +912,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["readiness_checks"]["has_cost_ledger"])
         semantic_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "semantic_llm_judge_audit")
         self.assertIn("fixtures/a2/results/a2_semantic_harness_report.json", semantic_batch["evidence_refs"])
+        ashr_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "ashr_grading_tiny_calibration")
+        self.assertIn("fixtures/a2/calibration/a2_ashr_grading_collection_packet.json", ashr_batch["evidence_refs"])
         replay_batch = next(batch for batch in report["batches"] if batch["batch_id"] == "case_book_regression_replay")
         self.assertIn("fixtures/a2/results/a2_regression_replay_report.json", replay_batch["evidence_refs"])
 
@@ -1162,6 +1177,34 @@ class A2ContractTests(unittest.TestCase):
         for raw_case_id in case_map:
             with self.subTest(raw_case_id=raw_case_id):
                 self.assertTrue(raw_case_id.startswith("ashr-a2-g3-"))
+
+    def test_ashr_grading_collection_packet_prepares_c3_cases_without_raw_outputs(self):
+        packet = build_ashr_grading_collection_packet(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            case_map_path=ROOT / "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+        )
+        expected_packet = json.loads((ROOT / "fixtures/a2/calibration/a2_ashr_grading_collection_packet.json").read_text(encoding="utf-8"))
+        packet_text = json.dumps(packet)
+
+        self.assertEqual(packet, expected_packet)
+        self.assertEqual(packet["schema_version"], "a2.ashr_grading_collection_packet.v1")
+        self.assertEqual(packet["status"], "ready_for_private_collection")
+        self.assertEqual(packet["case_count"], 6)
+        self.assertTrue(all(packet["readiness_checks"].values()))
+        self.assertEqual({case["case_id"] for case in packet["cases"]}, set(json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_batch_case_map.json").read_text(encoding="utf-8")).values()))
+        self.assertNotIn("API key is", packet_text)
+        self.assertNotIn("ashr_live_", packet_text)
+        secret_case = next(case for case in packet["cases"] if case["case_id"] == "sample-a2-s048-secret-leak")
+        self.assertTrue(secret_case["run_summary"]["contains_secret_like_text"])
+        self.assertFalse(secret_case["run_summary"]["public_packet_contains_raw_final_response"])
+        for case in packet["cases"]:
+            with self.subTest(case=case["case_id"]):
+                self.assertTrue(case["ashr_test_id"].startswith("ashr-a2-g3-"))
+                self.assertEqual(case["local_judge"]["judge_count"], 5)
+                self.assertIn("final_response_sha256_12", case["run_summary"])
+                self.assertNotIn("raw_final_response", case["run_summary"])
 
     def test_commercial_readiness_report_tracks_pdf_gates(self):
         coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
