@@ -98,18 +98,18 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a2-g3-real-api-2026-07-06-live-heavy-refresh",
+    "label": "a1-real-api-merged-2026-07-06",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 192,
+    "total_records": 200,
     "status_counts": {
-      "error": 17,
+      "error": 18,
       "failed": 1,
-      "ok": 135,
-      "partial": 10,
-      "planned": 28
+      "ok": 139,
+      "partial": 11,
+      "planned": 30
     },
     "function_counts": {
-      "create_request": 20,
+      "create_request": 21,
       "get_dataset": 4,
       "get_request": 6,
       "init": 25,
@@ -119,7 +119,7 @@
       "list_requests": 28,
       "list_runs": 1
     },
-    "quota_block_count": 9,
+    "quota_block_count": 10,
     "real_ok_functions": [
       "get_dataset",
       "get_request",
@@ -133,20 +133,20 @@
     "mutating_functions_present": [
       "create_request"
     ],
-    "real_record_count": 162,
+    "real_record_count": 168,
     "real_read_status_counts": {
       "error": 7,
       "ok": 120
     },
     "real_create_request_status_counts": {
-      "error": 10
+      "error": 11
     },
     "real_create_request_error_kind_counts": {
-      "api": 10
+      "api": 11
     },
     "real_quota_gate": {
       "blocked": true,
-      "blocked_count": 9,
+      "blocked_count": 10,
       "blocked_functions": [
         "create_request"
       ],
@@ -160,6 +160,7 @@
         "used"
       ],
       "private_record_refs": [
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
