@@ -179,6 +179,43 @@ test("createRequest real guardrails block unsafe mutations before transport", as
   );
 });
 
+
+test("createRequest quota errors preserve safe quota shape", async () => {
+  const client = new AshrApiClient({
+    apiKey: "tp_syntheticsecret",
+    maxRetries: 0,
+    transport: transportFrom([
+      { statusCode: 200, body: { status: "ok", user: { id: 1, tenant_id: 2 }, tenant: { id: 2 } } },
+      {
+        statusCode: 200,
+        body: {
+          status: "error",
+          message: "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+          quota: { resource: "requests", limit: 5, used: 5, requested: 1, remaining: 0 },
+        },
+      },
+    ]),
+  });
+
+  await assert.rejects(
+    () =>
+      client.createRequest({
+        dryRun: false,
+        requestName: "quota blocked",
+        request: { agent: { accepted_inputs: { text: { enabled: true } } }, test_config: { num_variations: 1 } },
+      }),
+    (error) => {
+      assert.equal(error instanceof AshrApiError, true);
+      assert.match(error.message, /Usage limit exceeded/);
+      const payload = JSON.stringify(error.response);
+      assert.equal(payload.includes("tp_syntheticsecret"), false);
+      assert.match(payload, /Usage limit exceeded/);
+      assert.match(payload, /"quota"/);
+      assert.match(payload, /"remaining":0/);
+      return true;
+    },
+  );
+});
 test("mutating real calls require maxRetries zero", async () => {
   const client = new AshrApiClient({ apiKey: "tp_syntheticsecret" });
 

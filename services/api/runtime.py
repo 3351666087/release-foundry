@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import threading
@@ -19,6 +19,8 @@ DEFAULT_QUOTA_LIMITS: dict[str, int] = {
     "request.create": 1_000,
     "run.submit": 10_000,
 }
+
+DEFAULT_QUEUE_LEASE_SECONDS = 300.0
 
 
 class CloudApiError(RuntimeError):
@@ -363,13 +365,26 @@ class CloudApiService:
                 "result": _jsonable(result),
                 "created_at": now,
                 "updated_at": now,
+                "lease_owner_id": None,
+                "lease_expires_at": None,
+                "lease_heartbeat_at": None,
+                "lease_reclaim_count": 0,
                 "status_history": [{"status": "queued", "at": now}],
                 "metadata": _jsonable(dict(metadata or {})),
             }
             self.store.runs[run_id] = record
             return _copy(record)
 
-    def mark_run_running(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
+    def mark_run_running(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        *,
+        lease_owner_id: str | None = None,
+        lease_seconds: float | None = DEFAULT_QUEUE_LEASE_SECONDS,
+        reclaim_expired: bool = False,
+    ) -> JsonDict:
         with self._lock:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
@@ -377,6 +392,13 @@ class CloudApiService:
             if run.get("status") not in {"queued", "submitted", "running"}:
                 raise ValidationError(f"run cannot transition to running from {run.get('status')}")
             now = _utc_now()
+            self._claim_or_validate_run_lease(
+                run,
+                lease_owner_id=lease_owner_id,
+                lease_seconds=lease_seconds,
+                now=now,
+                reclaim_expired=reclaim_expired,
+            )
             run["status"] = "running"
             run["result_status"] = "running"
             run["updated_at"] = now
@@ -385,25 +407,99 @@ class CloudApiService:
             _append_status_history(run, "running", now)
             return _copy(run)
 
-    def complete_run(self, tenant_id: str, project_id: str, run_id: str, run_result: Mapping[str, Any]) -> JsonDict:
+    def heartbeat_run(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        *,
+        lease_owner_id: str,
+        lease_seconds: float | None = DEFAULT_QUEUE_LEASE_SECONDS,
+    ) -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") not in {"queued", "submitted", "running"}:
+                raise ValidationError(f"run cannot heartbeat from {run.get('status')}")
+            self._require_run_lease_owner(run, lease_owner_id)
+            now = _utc_now()
+            if lease_seconds is None:
+                raise ValidationError("lease_seconds is required when renewing a run lease")
+            run["lease_heartbeat_at"] = now
+            run["lease_expires_at"] = _lease_expires_at(now, lease_seconds)
+            run["updated_at"] = now
+            return _copy(run)
+
+    def reclaim_expired_run_leases(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        dataset_id: str | None = None,
+        statuses: Iterable[str] = ("queued", "running", "submitted"),
+        now: str | None = None,
+    ) -> list[JsonDict]:
+        self.get_project(tenant_id, project_id)
+        reclaim_statuses = {str(status) for status in statuses}
+        reclaimed: list[JsonDict] = []
+        with self._lock:
+            for run in self.store.runs.values():
+                if run.get("tenant_id") != str(tenant_id) or run.get("project_id") != str(project_id):
+                    continue
+                if dataset_id is not None and run.get("dataset_id") != str(dataset_id):
+                    continue
+                if run.get("status") not in reclaim_statuses:
+                    continue
+                if run.get("lease_owner_id") is None or not _lease_expired(run.get("lease_expires_at"), now=now):
+                    continue
+                run["lease_owner_id"] = None
+                run["lease_expires_at"] = None
+                run["lease_heartbeat_at"] = None
+                run["lease_reclaim_count"] = int(run.get("lease_reclaim_count") or 0) + 1
+                if run.get("status") == "running":
+                    run["status"] = "queued"
+                    run["result_status"] = "queued"
+                    if isinstance(run.get("result"), dict):
+                        run["result"]["status"] = "queued"
+                    _append_status_history(run, "queued", now or _utc_now())
+                run["updated_at"] = now or _utc_now()
+                reclaimed.append(_copy(run))
+        return reclaimed
+
+    def complete_run(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        run_result: Mapping[str, Any],
+        *,
+        lease_owner_id: str | None = None,
+    ) -> JsonDict:
         with self._lock:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
                 return _copy(run)
             if run.get("status") not in {"queued", "running", "submitted"}:
                 raise ValidationError(f"run cannot complete from {run.get('status')}")
+            if run.get("lease_owner_id") is not None and lease_owner_id is None:
+                raise ValidationError("run lease owner is required for leased run")
+            if lease_owner_id is not None:
+                self._require_run_lease_owner(run, lease_owner_id)
             result_payload = _jsonable(dict(run_result))
+            next_status = _cloud_run_status(result_payload)
+            if next_status not in {"completed", "failed", "cancelled"}:
+                raise ValidationError(f"run completion requires a terminal status, got {next_status}")
             observations = _extract_observations(result_payload)
             self.quota.check(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
             self.quota.consume(str(tenant_id), str(project_id), "observation.write", units=max(1, len(observations)))
             now = _utc_now()
-            run["status"] = _cloud_run_status(result_payload)
+            run["status"] = next_status
             run["result_status"] = str(result_payload.get("status") or "")
             run["runner_id"] = str(result_payload.get("runner_id") or run.get("runner_id") or "a1-local-runner")
             run["total_cases"] = int(result_payload.get("total_cases") or len(result_payload.get("cases") or []))
             run["observations"] = observations
             run["result"] = result_payload
             run["updated_at"] = now
+            self._clear_run_lease(run)
             _append_status_history(run, run["status"], now)
             return _copy(run)
 
@@ -415,11 +511,16 @@ class CloudApiService:
         *,
         error: Mapping[str, Any],
         result_status: str = "error",
+        lease_owner_id: str | None = None,
     ) -> JsonDict:
         with self._lock:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
                 return _copy(run)
+            if run.get("lease_owner_id") is not None and lease_owner_id is None:
+                raise ValidationError("run lease owner is required for leased run")
+            if lease_owner_id is not None:
+                self._require_run_lease_owner(run, lease_owner_id)
             now = _utc_now()
             error_payload = _jsonable(dict(error))
             run["status"] = "failed"
@@ -442,6 +543,7 @@ class CloudApiService:
                 "metadata": {"local_only": True, "ashr_api_used": False, "queued": True},
             }
             run["error"] = error_payload
+            self._clear_run_lease(run)
             _append_status_history(run, "failed", now)
             return _copy(run)
 
@@ -455,6 +557,7 @@ class CloudApiService:
             run["result_status"] = "cancelled"
             run["updated_at"] = now
             run["error"] = {"type": "Cancelled", "message": str(reason)}
+            self._clear_run_lease(run)
             if isinstance(run.get("result"), dict):
                 run["result"]["status"] = "cancelled"
                 run["result"]["error"] = run["error"]
@@ -550,6 +653,42 @@ class CloudApiService:
         if not run or run.get("tenant_id") != str(tenant_id) or run.get("project_id") != str(project_id):
             raise NotFoundError("run not found for tenant/project")
         return run
+
+    def _claim_or_validate_run_lease(
+        self,
+        run: JsonDict,
+        *,
+        lease_owner_id: str | None,
+        lease_seconds: float | None,
+        now: str,
+        reclaim_expired: bool,
+    ) -> None:
+        current_owner = run.get("lease_owner_id")
+        if lease_owner_id is None:
+            if current_owner is not None:
+                raise ValidationError("run lease owner is required for leased run")
+            return
+        owner = _require_text(str(lease_owner_id), "lease_owner_id")
+        if lease_seconds is None:
+            raise ValidationError("lease_seconds is required when claiming a run lease")
+        if current_owner not in {None, owner}:
+            if not (reclaim_expired and _lease_expired(run.get("lease_expires_at"), now=now)):
+                raise ValidationError("run is leased by another worker")
+            run["lease_reclaim_count"] = int(run.get("lease_reclaim_count") or 0) + 1
+        run["lease_owner_id"] = owner
+        run["lease_heartbeat_at"] = now
+        run["lease_expires_at"] = _lease_expires_at(now, lease_seconds)
+
+    def _require_run_lease_owner(self, run: JsonDict, lease_owner_id: str) -> None:
+        owner = _require_text(str(lease_owner_id), "lease_owner_id")
+        if run.get("lease_owner_id") != owner:
+            raise ValidationError("run lease is not owned by this worker")
+
+    @staticmethod
+    def _clear_run_lease(run: JsonDict) -> None:
+        run["lease_owner_id"] = None
+        run["lease_expires_at"] = None
+        run["lease_heartbeat_at"] = None
 
 
 def _extract_observations(run_result: Mapping[str, Any]) -> list[JsonDict]:
@@ -674,6 +813,38 @@ def _new_id(prefix: str) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _lease_expires_at(now: str, lease_seconds: float | None) -> str | None:
+    if lease_seconds is None:
+        return None
+    seconds = float(lease_seconds)
+    if seconds <= 0:
+        raise ValidationError("lease_seconds must be positive")
+    parsed_now = _parse_utc(now) or datetime.now(timezone.utc)
+    return (parsed_now + timedelta(seconds=seconds)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _lease_expired(expires_at: Any, *, now: str | None = None) -> bool:
+    parsed_expires_at = _parse_utc(expires_at)
+    if parsed_expires_at is None:
+        return False
+    parsed_now = _parse_utc(now) if now is not None else datetime.now(timezone.utc)
+    if parsed_now is None:
+        parsed_now = datetime.now(timezone.utc)
+    return parsed_expires_at <= parsed_now
 
 
 def _copy(value: Any) -> Any:

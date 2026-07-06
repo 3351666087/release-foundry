@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/evidence_index.schema.json",
+  "title": "A1 Public-Safe API Evidence Index",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "label",
+    "field_map_version",
+    "total_records",
+    "status_counts",
+    "function_counts",
+    "error_kind_counts",
+    "quota_block_count",
+    "records"
+  ],
+  "properties": {
+    "schema_version": { "const": "ashr.clone.evidence_index.v1" },
+    "label": { "type": "string" },
+    "field_map_version": { "type": "string" },
+    "total_records": { "type": "integer", "minimum": 0 },
+    "status_counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "function_counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "error_kind_counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "quota_block_count": { "type": "integer", "minimum": 0 },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "function",
+          "dry_run",
+          "status",
+          "status_code",
+          "attempts",
+          "request_keys",
+          "response_keys",
+          "response_status",
+          "response_summary_keys",
+          "error_keys",
+          "error_kind",
+          "top_counts"
+        ],
+        "properties": {
+          "path": { "type": "string" },
+          "function": { "type": ["string", "null"] },
+          "dry_run": { "type": ["boolean", "null"] },
+          "status": { "type": ["string", "null"] },
+          "status_code": { "type": ["integer", "null"] },
+          "attempts": { "type": ["integer", "null"], "minimum": 0 },
+          "request_keys": { "type": "array", "items": { "type": "string" } },
+          "response_keys": { "type": "array", "items": { "type": "string" } },
+          "response_status": { "type": ["string", "null"] },
+          "response_summary_keys": { "type": "array", "items": { "type": "string" } },
+          "error_keys": { "type": "array", "items": { "type": "string" } },
+          "error_kind": { "type": ["string", "null"] },
+          "top_counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+          "quota": {
+            "type": "object",
+            "required": ["blocked", "quota_keys"],
+            "properties": {
+              "blocked": { "type": "boolean" },
+              "message": { "type": ["string", "null"] },
+              "quota_keys": { "type": "array", "items": { "type": "string" } },
+              "resource": { "type": ["string", "number", "boolean"] },
+              "limit_present": { "type": "boolean" },
+              "used_present": { "type": "boolean" },
+              "requested_present": { "type": "boolean" },
+              "remaining_present": { "type": "boolean" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

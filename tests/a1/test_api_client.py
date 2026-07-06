@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "sdk"))
 
-from ashr_clone.api_client import AshrApiClient, AshrApiError, build_default_request_input_schema, redact_sensitive, redact_text  # noqa: E402
+from ashr_clone.api_client import AshrApiClient, AshrApiError, build_default_request_input_schema, redact_sensitive, redact_text, summarize_generation_request  # noqa: E402
 from services.runner import api_probe  # noqa: E402
 
 
@@ -313,11 +313,11 @@ def test_create_request_records_preflight_summary(tmp_path):
         request={"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}},
         output_path=output,
         dry_run=True,
-        preflight={"num_variations": 1, "media_generation_enabled": False},
     )
 
     assert record["request"]["preflight"]["num_variations"] == 1
     assert record["response"]["plan"]["preflight"]["media_generation_enabled"] is False
+    assert record["response"]["plan"]["preflight"]["request_input_schema_source"] == "client_default"
 
 
 def test_create_request_uses_default_request_input_schema_for_sdk_parity(tmp_path):
@@ -373,6 +373,7 @@ def test_create_request_preserves_explicit_request_input_schema(tmp_path):
     assert record["status"] == "ok"
     assert calls[1]["request_input_schema"] == explicit_schema
     assert json.loads(output.read_text(encoding="utf-8"))["request"]["params"]["request_input_schema"]["keys"] == ["properties", "required", "type"]
+    assert json.loads(output.read_text(encoding="utf-8"))["request"]["preflight"]["request_input_schema_source"] == "file"
 
 
 def test_create_request_record_summarizes_request_without_raw_prompt(tmp_path):
@@ -399,7 +400,6 @@ def test_create_request_record_summarizes_request_without_raw_prompt(tmp_path):
         },
         output_path=output,
         dry_run=False,
-        preflight={"num_variations": 1, "request_input_schema_source": "client_default"},
     )
 
     assert calls[1]["request"]["context"]["scenario_context"] == marker
@@ -422,6 +422,106 @@ def test_direct_sdk_create_request_requires_zero_retries_for_real_execution():
         assert "max_retries=0" in str(exc)
     else:
         raise AssertionError("expected direct create_request retry guardrail")
+
+
+def test_direct_sdk_create_request_blocks_unknown_variations_before_transport():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.create_request(request_name="Blocked", request={"agent": {"name": "Mock"}}, dry_run=False)
+    except ValueError as exc:
+        assert "num_variations is unknown" in str(exc)
+    else:
+        raise AssertionError("expected unknown num_variations guardrail")
+
+
+def test_direct_sdk_create_request_blocks_media_generation_before_transport():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.create_request(
+            request_name="Blocked",
+            request={"generation_options": {"generate_images": True}, "test_config": {"num_variations": 1}},
+            dry_run=False,
+        )
+    except ValueError as exc:
+        assert "--allow-media-generation" in str(exc)
+    else:
+        raise AssertionError("expected media generation guardrail")
+
+
+def test_direct_sdk_create_request_blocks_non_text_inputs_before_transport():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.create_request(
+            request_name="Blocked",
+            request={"agent": {"accepted_inputs": {"text": True, "audio": True}}, "test_config": {"num_variations": 1}},
+            dry_run=False,
+        )
+    except ValueError as exc:
+        assert "--allow-non-text-inputs" in str(exc)
+    else:
+        raise AssertionError("expected non-text input guardrail")
+
+
+def test_direct_sdk_create_request_blocks_large_variation_count_before_transport():
+    def transport(_url, _headers, _body, _timeout):
+        raise AssertionError("transport should not be called")
+
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    try:
+        client.create_request(
+            request_name="Blocked",
+            request={"test_config": {"num_variations": 2}},
+            dry_run=False,
+            max_request_variations=1,
+        )
+    except ValueError as exc:
+        assert "num_variations=2" in str(exc)
+    else:
+        raise AssertionError("expected variation count guardrail")
+
+
+def test_direct_sdk_create_request_allows_media_when_explicit_flags_are_set(tmp_path):
+    calls = []
+
+    def transport(_url, _headers, body, _timeout):
+        payload = json.loads(body.decode("utf-8"))
+        calls.append(payload)
+        if payload["function"] == "init":
+            return 200, b'{"status":"ok","user":{"id":1},"tenant":{"id":2}}'
+        return 200, b'{"status":"ok","request":{"id":7,"request_status":"pending"}}'
+
+    output = tmp_path / "media_allowed.json"
+    client = AshrApiClient(api_key="tp_test_secret", transport=transport, max_retries=0)
+
+    record = client.create_request(
+        request_name="Allowed",
+        request={
+            "agent": {"accepted_inputs": {"text": True, "image": True}},
+            "generation_options": {"generate_images": True},
+            "test_config": {"num_variations": 1},
+        },
+        output_path=output,
+        dry_run=False,
+        allow_media_generation=True,
+        allow_non_text_inputs=True,
+    )
+
+    assert record["status"] == "ok"
+    assert [call["function"] for call in calls] == ["init", "create_request"]
+    assert calls[1]["request_input_schema"]["properties"]["schema_version"]["const"] == "ashr.clone.agent_input.v1"
 
 
 def test_direct_sdk_create_run_requires_zero_retries_for_real_execution():
@@ -474,7 +574,7 @@ def test_build_default_request_input_schema_advertises_agent_input_parts_for_med
 def test_build_default_request_input_schema_matches_non_text_only_inputs():
     request = {"agent": {"accepted_inputs": {"text": False, "image": True}}}
     schema = build_default_request_input_schema(request)
-    preflight = api_probe.summarize_generation_request(request)
+    preflight = summarize_generation_request(request)
 
     assert schema["$defs"]["agent_input_part"]["properties"]["type"]["enum"] == ["image"]
     assert preflight["agent_input_part_types"] == ["image"]
@@ -491,7 +591,6 @@ def test_create_request_record_summarizes_non_text_only_schema_parts(tmp_path):
         request=request,
         output_path=output,
         dry_run=True,
-        preflight=api_probe.summarize_generation_request(request),
     )
 
     schema_summary = record["request"]["params"]["request_input_schema"]
@@ -586,7 +685,9 @@ def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_
         def create_request(self, **kwargs):
             return {
                 "request_schema": kwargs["request_input_schema"],
-                "preflight": kwargs["preflight"],
+                "allow_media_generation": kwargs["allow_media_generation"],
+                "allow_non_text_inputs": kwargs["allow_non_text_inputs"],
+                "max_request_variations": kwargs["max_request_variations"],
             }
 
     record = api_probe.run_operation(
@@ -605,7 +706,9 @@ def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_
     )
 
     assert record["request_schema"] == schema
-    assert record["preflight"]["request_input_schema_source"] == "file"
+    assert record["allow_media_generation"] is False
+    assert record["allow_non_text_inputs"] is False
+    assert record["max_request_variations"] == 1
 
 
 def test_api_probe_create_request_preflight_blocks_media_generation():

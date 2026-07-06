@@ -32,6 +32,22 @@ function cases() {
   ];
 }
 
+
+function createRealtimeQueuedService() {
+  const service = new CloudApiService();
+  const tenant = service.createTenant("Tenant", { tenantId: "tenant_realtime_queue" });
+  const project = service.createProject(tenant.tenant_id, "Project", { projectId: "project_realtime_queue" });
+  const dataset = service.createDataset(tenant.tenant_id, project.project_id, {
+    datasetId: "dataset_realtime_queue",
+    name: "Dataset",
+    cases: [{ id: "slow", prompt: "hello", expected: { text: "Echo: hello" } }],
+  });
+  return { service, tenant, project, dataset };
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 function createQueuedService() {
   const service = new CloudApiService({ clock: () => "2026-07-04T00:00:00.000Z" });
   const tenant = service.createTenant("Tenant", { tenantId: "tenant_queue" });
@@ -153,6 +169,178 @@ test("CloudQueueWorker limits active replay work to normalized queueWorkers", as
   assert.deepEqual(completed[4].run.status_history.map((item) => item.status), ["queued", "running", "completed"]);
 });
 
+
+test("CloudApiService leases, heartbeats, reclaims, and rejects permanent leases", () => {
+  const { service, tenant, project, dataset } = createQueuedService();
+  service.createQueuedRun(tenant.tenant_id, project.project_id, { datasetId: dataset.dataset_id, runId: "run_lease" });
+  const running = service.markRunRunning(tenant.tenant_id, project.project_id, "run_lease", {
+    leaseOwnerId: "worker-a",
+    leaseSeconds: 60,
+  });
+  const heartbeat = service.heartbeatRun(tenant.tenant_id, project.project_id, "run_lease", {
+    leaseOwnerId: "worker-a",
+    leaseSeconds: 120,
+  });
+
+  assert.equal(running.lease_owner_id, "worker-a");
+  assert.equal(typeof running.lease_expires_at, "string");
+  assert.equal(typeof heartbeat.lease_heartbeat_at, "string");
+  assert.throws(() => service.heartbeatRun(tenant.tenant_id, project.project_id, "run_lease", { leaseOwnerId: "worker-b" }), ValidationError);
+  assert.throws(() => service.heartbeatRun(tenant.tenant_id, project.project_id, "run_lease", { leaseOwnerId: "worker-a", leaseSeconds: null }), ValidationError);
+  assert.throws(() => service.completeRun(tenant.tenant_id, project.project_id, "run_lease", { run_id: "run_lease", status: "passed", ended_at: "2026-07-04T00:00:00.000Z", cases: [] }), ValidationError);
+  assert.throws(() => service.completeRun(tenant.tenant_id, project.project_id, "run_lease", { run_id: "run_lease", status: "passed", ended_at: "2026-07-04T00:00:00.000Z", cases: [] }, { leaseOwnerId: "worker-b" }), ValidationError);
+  assert.throws(() => service.completeRun(tenant.tenant_id, project.project_id, "run_lease", { run_id: "run_lease", status: "running", cases: [] }, { leaseOwnerId: "worker-a" }), ValidationError);
+
+  const completed = service.completeRun(tenant.tenant_id, project.project_id, "run_lease", { run_id: "run_lease", status: "passed", ended_at: "2026-07-04T00:00:00.000Z", cases: [] }, { leaseOwnerId: "worker-a" });
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.lease_owner_id, null);
+  assert.equal(completed.lease_expires_at, null);
+
+  service.createQueuedRun(tenant.tenant_id, project.project_id, { datasetId: dataset.dataset_id, runId: "run_permanent_guard" });
+  assert.throws(() => service.markRunRunning(tenant.tenant_id, project.project_id, "run_permanent_guard", { leaseOwnerId: "worker-a", leaseSeconds: null }), ValidationError);
+});
+
+test("CloudQueueWorker reclaims expired running leases", async () => {
+  const { service, tenant, project, dataset } = createQueuedService();
+  service.createQueuedRun(tenant.tenant_id, project.project_id, { datasetId: dataset.dataset_id, runId: "run_expired" });
+  service.markRunRunning(tenant.tenant_id, project.project_id, "run_expired", { leaseOwnerId: "dead-worker", leaseSeconds: 1 });
+  service.reclaimExpiredRunLeases(tenant.tenant_id, project.project_id, { now: "2999-01-01T00:00:00.000Z" });
+
+  const worker = new CloudQueueWorker(service, { queueWorkers: 1 });
+  const replayed = worker.replayIncompleteRuns(tenant.tenant_id, project.project_id, {
+    agent: { respond: (message) => ({ text: `Echo: ${message}`, tool_calls: [] }) },
+    maxRuns: 1,
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+  });
+  assert.deepEqual(replayed.map((run) => run.run_id), ["run_expired"]);
+
+  const completed = await worker.waitForRun(tenant.tenant_id, project.project_id, "run_expired", { requireTerminal: true, timeoutSeconds: 5 });
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.run.lease_reclaim_count, 1);
+  assert.equal(completed.run.lease_owner_id, null);
+  assert.deepEqual(completed.run.status_history.map((item) => item.status), ["queued", "running", "queued", "running", "completed"]);
+});
+
+test("CloudQueueWorker renews active leases and blocks double replay", async () => {
+  const { service, tenant, project, dataset } = createRealtimeQueuedService();
+  let calls = 0;
+  const slowAgent = {
+    async respond(message) {
+      calls += 1;
+      await delay(300);
+      return { text: `Echo: ${message}`, tool_calls: [] };
+    },
+  };
+
+  const firstWorker = new CloudQueueWorker(service, { queueWorkers: 1 });
+  firstWorker.enqueueAgentRun({
+    tenantId: tenant.tenant_id,
+    projectId: project.project_id,
+    datasetId: dataset.dataset_id,
+    agent: slowAgent,
+    runId: "run_active_lease",
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+    leaseSeconds: 0.15,
+  });
+  await delay(220);
+
+  const secondWorker = new CloudQueueWorker(service, { queueWorkers: 1 });
+  const replayed = secondWorker.replayIncompleteRuns(tenant.tenant_id, project.project_id, {
+    agent: slowAgent,
+    maxRuns: 1,
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+    leaseSeconds: 0.15,
+  });
+  const completed = await firstWorker.waitForRun(tenant.tenant_id, project.project_id, "run_active_lease", { requireTerminal: true, timeoutSeconds: 5 });
+
+  assert.deepEqual(replayed, []);
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.run.lease_reclaim_count, 0);
+  assert.equal(completed.run.lease_owner_id, null);
+  assert.equal(calls, 1);
+});
+
+test("CloudQueueWorker rejects stale owner completion after reclaim by another worker", async () => {
+  const { service, tenant, project, dataset } = createRealtimeQueuedService();
+  service.createQueuedRun(tenant.tenant_id, project.project_id, {
+    datasetId: dataset.dataset_id,
+    runId: "run_stale_owner",
+  });
+  const staleOwner = "worker-4-run_stale_owner";
+  service.markRunRunning(tenant.tenant_id, project.project_id, "run_stale_owner", {
+    leaseOwnerId: staleOwner,
+    leaseSeconds: 0.01,
+  });
+  service.reclaimExpiredRunLeases(tenant.tenant_id, project.project_id, {
+    now: "2999-01-01T00:00:00.000Z",
+  });
+
+  let releaseAgent;
+  const agentReleased = new Promise((resolve) => {
+    releaseAgent = resolve;
+  });
+  const worker = new CloudQueueWorker(service, { queueWorkers: 4 });
+  const replayed = worker.replayIncompleteRuns(tenant.tenant_id, project.project_id, {
+    agent: {
+      async respond(message) {
+        await agentReleased;
+        return { text: `Echo: ${message}`, tool_calls: [] };
+      },
+    },
+    maxRuns: 1,
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+    leaseSeconds: 2,
+  });
+
+  assert.deepEqual(replayed.map((run) => run.run_id), ["run_stale_owner"]);
+  await delay(50);
+  const running = service.getRun(tenant.tenant_id, project.project_id, "run_stale_owner");
+  assert.equal(running.status, "running");
+  assert.notEqual(running.lease_owner_id, staleOwner);
+  assert.throws(() => service.completeRun(tenant.tenant_id, project.project_id, "run_stale_owner", { run_id: "run_stale_owner", status: "passed", ended_at: "2026-07-04T00:00:00.000Z", cases: [] }, { leaseOwnerId: staleOwner }), ValidationError);
+
+  releaseAgent();
+  const completed = await worker.waitForRun(tenant.tenant_id, project.project_id, "run_stale_owner", { requireTerminal: true, timeoutSeconds: 5 });
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.run.lease_owner_id, null);
+});
+
+test("CloudQueueWorker does not let settled futures block later replays", async () => {
+  const { service, tenant, project, dataset } = createQueuedService();
+  service.createQueuedRun(tenant.tenant_id, project.project_id, {
+    datasetId: dataset.dataset_id,
+    runId: "run_requeued_after_settled",
+  });
+  const worker = new CloudQueueWorker(service, { queueWorkers: 1 });
+  worker.replayIncompleteRuns(tenant.tenant_id, project.project_id, {
+    agent: { respond: (message) => ({ text: `Echo: ${message}`, tool_calls: [] }) },
+    maxRuns: 1,
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+  });
+  const first = await worker.waitForRun(tenant.tenant_id, project.project_id, "run_requeued_after_settled", { requireTerminal: true, timeoutSeconds: 5 });
+  assert.equal(first.status, "completed");
+
+  const rawRun = service.store.runs.run_requeued_after_settled;
+  rawRun.status = "queued";
+  rawRun.result_status = "queued";
+  rawRun.result.status = "queued";
+  rawRun.observations = [];
+
+  const replayed = worker.replayIncompleteRuns(tenant.tenant_id, project.project_id, {
+    agent: { respond: (message) => ({ text: `Echo: ${message}`, tool_calls: [] }) },
+    maxRuns: 1,
+    maxWorkers: 1,
+    timeoutSeconds: 5,
+  });
+  assert.deepEqual(replayed.map((run) => run.run_id), ["run_requeued_after_settled"]);
+  const second = await worker.waitForRun(tenant.tenant_id, project.project_id, "run_requeued_after_settled", { requireTerminal: true, timeoutSeconds: 5 });
+  assert.equal(second.status, "completed");
+});
 test("ashr-clone-cloud CLI queues, replays, and exports TS fixtures", () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-cloud-cli-"));
   try {

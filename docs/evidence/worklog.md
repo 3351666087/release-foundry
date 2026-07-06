@@ -1509,3 +1509,387 @@ Next top 10:
 8. Add cloud quota ledger persistence docs.
 9. Add `tests/integration` scaffold for A1 integration smokes.
 10. Recheck Ashr dashboard/API docs with Chrome before hosted calibration.
+## 2026-07-05 Real API Batch Calibration Harness
+
+Goal: move A1 from one-off hosted probes to a reusable env-gated batch calibration loop that can safely use real Ashr API calls, summarize response keys and quota errors, and keep text/image/audio/file/video as first-class modalities.
+
+Baseline and peer state:
+
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; active PR #10 was open, draft, and mergeable after fetch.
+- Commands run first: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr list --state all --limit 20`.
+- Peer changes/impact: none observed in A1-owned files. Worktree was clean before this slice.
+- Key handling: `ASHR_API_KEY` was read from user-level environment into the current process only. No key file, `.secrets`, or private raw payload was read into logs or committed.
+
+Top 10 and decision:
+
+1. Add env-gated TS batch API calibrator with dry-run/read-only/mutating modes: implemented.
+2. Run real read-only small-batch API calibration: implemented.
+3. Run a bounded text-only mutating small-batch to observe quota behavior: implemented; blocked by hosted quota, no retry.
+4. Keep image/audio/file/video as first-class modality plans without spending media quota yet: implemented.
+5. Convert real quota error shape into tests: implemented.
+6. Convert historical bool `accepted_inputs` media failure into safer object-shaped request generation: implemented in calibrator.
+7. Add modality selector to avoid accidental paid media calls: implemented.
+8. Add Python/TS verification after hosted probe: implemented.
+9. Update public evidence without raw payloads: implemented.
+10. Full non-text paid media batch: deferred until quota is available and text quota path is green.
+
+Implemented:
+
+- `packages/ts/ashr-clone/src/calibrate.ts`: new `ashr-clone-calibrate` CLI. It writes a safe manifest plus per-step private records, enforces dry-run -> `--small-batch` -> optional mutating flow, records response keys/status/attempts/error keys/private paths, supports `--modality text,image,audio,file,video`, and emits object-shaped `accepted_inputs` (`{ enabled: ... }`) for hosted create-request compatibility.
+- `packages/ts/ashr-clone/package.json`: added `ashr-clone-calibrate` bin.
+- `packages/ts/ashr-clone/test/calibrate.test.mjs`: new dry-run, modality, guardrail, and injected small-batch tests.
+- `packages/ts/ashr-clone/test/api-client.test.mjs`: added quota error regression test based on the real hosted `Usage limit exceeded for requests` shape.
+
+Real API evidence:
+
+- Dry-run plans written under `docs/evidence/private_refs/a1_real_*_dry_run_plan.json` and `docs/evidence/private_refs/a1_ts_api_calibration_*_dry_run.json`.
+- Real read-only probes succeeded with `status_code=200`, `attempts=1`: `init`, `keep_alive`, `list_agents`, `list_datasets`, `list_requests`, `get_dataset(883)`, `list_runs(dataset=883)`, `get_request(580)`, `get_request(581)`.
+- `poll_request(580)` returned a controlled failure record for an already failed media request, giving `response_summary.request_failure` evidence.
+- Batch calibrator real read-only manifest: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_readonly.json`, status `ok`, 5/5 read steps, estimated calls 7, response keys included `features/tenant/user`, `db/message/status`, `_user/agents/status`, `_user/datasets/next_cursor/status`, and `_user/requests/next_cursor/status`.
+- Text-only mutating small-batch manifest: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_real_text_mutating.json`, status `partial`; read steps succeeded and `create_request` was blocked by hosted quota, with exact quota counts kept only in ignored private evidence; response keys `status/message/quota`, status_code `200`, attempts `1`.
+- Non-text image/audio/file/video paid mutating calls were not executed in this slice because request quota is exhausted and a prior media request already demonstrated a hosted `_failure` shape.
+
+Validation:
+
+- `npm test --prefix packages/ts/ashr-clone`: 145 tests, 145 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 133 passed in 9.97s.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Known gaps:
+
+- Hosted tenant plan currently reports `free`, and request quota is exhausted at `5/5`, so mutating create-request cannot proceed until quota resets/upgrades.
+- Real non-text media generation still needs a quota-available batch after text request creation succeeds.
+- `apply_patch` remains unavailable in this PowerShell session, so edits used controlled UTF-8 no-BOM file writes.
+
+Next top 10:
+
+1. When quota is available, run `ashr-clone-calibrate --execute --small-batch --include-mutating --modality text --max-retries 0`, then poll the created request.
+2. After text succeeds, run one non-text paid modality at a time (`image`, `audio`, `file`, `video`) with `--allow-paid-media` and capture quota/response keys.
+3. Parse hosted quota object into first-class SDK error helpers for Python and TS.
+4. Add private evidence manifest index for all real API records without payload content.
+5. Add TS fresh-setup command that builds, tests, and runs read-only calibrator dry-run.
+6. Add Python parity batch calibrator or wrapper around existing probe APIs.
+7. Add A3-facing hosted field-map markdown summarizing real response keys.
+8. Add integration tests for calibrator manifest schema.
+9. Use Chrome/dashboard to verify visible usage counters against API quota response.
+10. Keep widening hosted API coverage: runs, datasets, requests, polling, media failures, and quota ledger.
+
+## A1 round - Python calibrator and public-safe API evidence index (2026-07-05T06:33:05Z)
+
+Goal slice:
+- Close the uncommitted public-safe hosted API evidence-index work and expand Python SDK parity with a first-class calibration CLI matching the TS dry-run/small-batch guardrail model.
+- Keep A1 scope only: SDK/evidence/tests/docs. No A2 judge semantics or A3 dashboard business changed.
+
+Baseline / peer state:
+- pwd: C:/Users/33516/Documents/Ashr.
+- Branch: codex/a1-local-sdk-runner; remote origin is https://github.com/3351666087/ashr-codex-factory.
+- git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags completed.
+- gh pr list --state all --limit 20: A1 PR #10 is merged; A2/A3/G3 peer PRs are merged on origin/main. No peer-owned files touched this round.
+
+Top 10 commercial enhancements considered:
+1. Python SDK calibrator CLI mirroring TS dry-run/small-batch/mutating/media guardrails. Score: demo 5, risk 5, contract 2, effort 3, API evidence 5. Implemented.
+2. Public-safe real API evidence index from ignored private refs. Score: demo 4, risk 5, contract 1, effort 2, API evidence 5. Implemented.
+3. Quota error summarizer as SDK helper. Score: demo 3, risk 5, contract 1, effort 2, API evidence 5. Implemented.
+4. Runtime queue lease/heartbeat skeleton. Score: demo 4, risk 4, contract 2, effort 4, API evidence 1. Deferred to next runtime slice.
+5. TS evidence-index CLI. Score: demo 3, risk 4, contract 1, effort 3, API evidence 4. Deferred; Python index currently aggregates TS private records.
+6. Chrome usage counter verification. Score: demo 3, risk 3, contract 1, effort 3, API evidence 3. Deferred.
+7. Mutating text real probe. Score: demo 5, risk 4, contract 1, effort 1, API evidence 5. Deferred this round because prior hosted quota block remains documented; no purposeless retry.
+8. Non-text paid media probes. Score: demo 5, risk 4, contract 2, effort 3, API evidence 5. Deferred until request quota is available.
+9. JSON schema for evidence index artifact. Score: demo 3, risk 4, contract 1, effort 2, API evidence 3. Deferred.
+10. One-command A1 readiness matrix. Score: demo 4, risk 4, contract 1, effort 3, API evidence 2. Deferred.
+
+Implemented:
+- Added packages/sdk/ashr_clone/calibrate.py: Python module CLI with dry-run default, execute/small-batch/max-retries-zero guardrail, mutating opt-in, explicit paid media opt-in, text/image/audio/file/video request plans, private step records, and safe manifest summary.
+- Added packages/sdk/ashr_clone/evidence.py: public-safe index builder for ignored private API evidence records.
+- Added summarize_quota_error() in packages/sdk/ashr_clone/api_client.py and root export in packages/sdk/ashr_clone/__init__.py.
+- Added tests tests/a1/test_python_calibrator.py and tests/a1/test_evidence_index.py.
+- Regenerated docs/a1/api_calibration/real_api_evidence_index.json from a1_real_*, a1_ts_api_calibration_*, and a1_python_api_calibration_* private records.
+
+Official API calibration:
+- Key source: environment variable presence only. No raw key printed or written.
+- Dry-run plan: python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json --print-record.
+  - Result: planned, 10 steps, 5 read + 5 mutating plans, modalities audio/file/image/text/video, estimated calls 17.
+- Real read-only small batch: python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_readonly.json --print-record.
+  - Result: ok, 5/5 read steps, status_code 200, attempts 1 each.
+  - Response key coverage: init -> features/notes/status/tenant/user; keep_alive -> db/message/status; list_agents -> _user/agents/status; list_datasets -> _user/datasets/next_cursor/status; list_requests -> _user/next_cursor/requests/status.
+- Public evidence index: docs/a1/api_calibration/real_api_evidence_index.json now reports 61 records, status counts error=4, failed=1, ok=28, partial=1, planned=26, quota block count 1.
+- Mutating hosted calls were not repeated because the prior controlled text create-request probe already captured a hosted request quota block; exact counts remain only in ignored private evidence, and avoiding no-purpose quota retries matches the API rule.
+
+Validation:
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 144 passed.
+- npm test --prefix packages/ts/ashr-clone: 145 passed.
+- git diff --check: exit 0 with CRLF warnings only for packages/sdk/ashr_clone/api_client.py.
+
+Bus-Auditor / reviewer feedback:
+- Commit current evidence-index slice after full tests: followed.
+- Fix error_kind_counts top-level counting bug: fixed and regenerated public index.
+- Next likely high-ROI slice: A1 runtime queue lease/heartbeat skeleton or TS public evidence-index CLI.
+
+Known gaps:
+- Request quota remains exhausted on hosted plan, so mutating text/media real probes need quota reset/upgrade before useful paid calibration.
+- Python calibrator is module-invoked rather than installed console-script because current Python SDK has no packaging entrypoint.
+- TS still lacks its own standalone evidence-index command, though the Python public index aggregates TS calibration records.
+
+Next top 10:
+1. Add runtime queue lease/heartbeat fields and reclaim tests for services/api/services/runner.
+2. Add TS evidence-index CLI/schema tests mirroring Python indexer.
+3. Add A1 readiness command/script covering Python tests, TS tests, evidence scan, diff check.
+4. Add JSON schema for ashr.clone.evidence_index.v1.
+5. Re-run text mutating real calibration when quota is available.
+6. Then run image/audio/file/video paid media probes one modality at a time.
+7. Chrome/dashboard usage counter verification against API quota response.
+8. Add hosted response-key field map markdown generated from evidence index.
+9. Add Python console script packaging if/when SDK packaging lands.
+10. Add public-safe private evidence freshness checker for stale/failed calibration files.
+
+## A1 round - queue lease runtime and TS evidence parity (2026-07-05T17:20:07Z)
+
+Goal slice:
+- Move A1 cloud runtime closer to commercial queue behavior by adding persisted run leases, heartbeat renewal, expired-lease reclaim, and owner-validated completion/failure.
+- Add TypeScript public-safe evidence-index parity with the Python SDK helper.
+- Continue real Ashr API calibration with bounded read-only and missing-resource probes using ASHR_API_KEY from environment only.
+
+Baseline / peer state:
+- Repo root: C:/Users/33516/Documents/Ashr; branch: codex/a1-local-sdk-runner; PR #11 is open draft and clean.
+- git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags completed.
+- Peer changes: origin/main and origin/dev/g3-a2-calibration have newer A2/G3 evidence/readiness work; no peer-owned files changed in this slice.
+- Untracked output/ and tmp/ remain present and intentionally unstaged.
+
+Top 10 commercial enhancements considered:
+1. Queue lease/heartbeat/reclaim runtime. Scores: demo 5, risk 5, contract 2, effort 4, API evidence 1. Implemented.
+2. TS evidence-index parity. Scores: demo 3, risk 4, contract 1, effort 2, API evidence 4. Implemented.
+3. Real API read-only and missing-resource calibration matrix. Scores: demo 4, risk 4, contract 1, effort 2, API evidence 5. Implemented.
+4. One-command A1 readiness matrix. Scores: demo 4, risk 4, contract 1, effort 3, API evidence 2. Deferred.
+5. Evidence-index JSON schema. Scores: demo 3, risk 4, contract 1, effort 2, API evidence 3. Deferred.
+6. Chrome dashboard usage counter verification. Scores: demo 3, risk 3, contract 1, effort 3, API evidence 3. Deferred.
+7. Mutating text create_request retry. Scores: demo 5, risk 4, contract 1, effort 1, API evidence 5. Deferred because prior quota block is already captured and no-purpose retry would burn failure calls.
+8. Non-text paid media probes. Scores: demo 5, risk 4, contract 2, effort 3, API evidence 5. Deferred until request quota is available.
+9. Python package console script. Scores: demo 3, risk 2, contract 1, effort 3, API evidence 1. Deferred.
+10. Ignore generated output/tmp. Scores: demo 2, risk 4, contract 1, effort 1, API evidence 0. Deferred to avoid mixing housekeeping with runtime slice.
+
+Implemented:
+- services/api/runtime.py: queued run lease fields, mark_run_running lease acquisition, heartbeat_run, reclaim_expired_run_leases, owner validation, terminal lease clearing, and permanent-lease guard.
+- services/api/queue_worker.py: worker leases queued/replayed runs, periodically renews active leases during long run_agent_batch execution, skips actively leased runs, reclaims expired leases before replay, and returns current run state on stale-owner failure paths.
+- tests/a1/test_cloud_api.py: lease owner validation, permanent lease rejection, active lease no-double-replay with slow agent, expired running lease reclaim/replay, and status-history assertions.
+- packages/ts/ashr-clone/src/evidence.ts plus index export and tests: TS public-safe evidence-index helper matching Python summary shape.
+- docs/a1/api_calibration/real_api_evidence_index.json regenerated from private real/TS/Python calibration records and round2 missing-resource probes.
+
+Real API calibration:
+- Env: ASHR_API_KEY present in process; raw key not printed or committed.
+- Dry-run: python -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_dry_run.json.
+  - Result: planned, 10 steps, five modalities, estimated calls 17.
+- Real read-only: python -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round2_real_readonly.json.
+  - Result: ok, 5 read steps, no errors.
+- Missing-resource probes: get_dataset(999999) and get_request(999999) with max_retries=0.
+  - Results: controlled API errors Dataset not found and Request not found; private evidence under docs/evidence/private_refs/a1_python_api_get_dataset_999999_round2_real.json and docs/evidence/private_refs/a1_python_api_get_request_999999_round2_real.json.
+- Public index now reports 67 records, status counts error=8/failed=1/ok=29/partial=1/planned=27, error_kind_counts api=7, quota_block_count=1.
+
+Validation:
+- python -B -m pytest tests/a1/test_cloud_api.py tests/a1/test_cloud_api_cli.py -q -p no:cacheprovider: 35 passed.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 148 passed.
+- npm test --prefix packages/ts/ashr-clone: 147 passed.
+- git diff --check: exit 0 with CRLF warnings only.
+
+Bus/Review feedback:
+- Bus-Auditor approved the runtime lease slice but warned not to stage output/ or tmp/: followed.
+- Reviewer found P1 active-run double execution risk with non-periodic heartbeat: fixed with active lease renewer and slow-agent test.
+- Reviewer found stale-owner exception masking risk: fixed by polling current run state if fail_run is rejected by lease owner validation.
+- Reviewer found lease_seconds=None could create unreclaimable leased runs: fixed by rejecting owner claims without a finite positive lease.
+
+Known gaps:
+- Runtime lease behavior is implemented in Python cloud runtime; TS runtime lease parity is still a follow-up.
+- Hosted request quota still blocks useful mutating create_request calibration; media paid probes remain deferred until quota is available.
+- output/ and tmp/ should be ignored or cleaned in a separate housekeeping slice.
+
+Next top 10:
+1. Add TS cloud queue lease/heartbeat parity and tests.
+2. Add one-command A1 readiness matrix script.
+3. Add JSON schema for ashr.clone.evidence_index.v1 and validate Python/TS outputs.
+4. Add public-safe hosted field-map markdown generated from evidence index.
+5. Chrome/dashboard usage counter verification against API quota evidence.
+6. Re-run one text mutating probe when quota resets or plan upgrades.
+7. Then run image/audio/file/video paid probes one modality at a time.
+8. Add evidence freshness checker for stale private refs and failed calibration manifests.
+9. Add CLI flags for Python calibrator missing-resource boundary probes.
+10. Housekeep generated output/ and tmp/ ignore rules in a dedicated non-runtime slice.
+
+## A1 round - TS/Python queue lease parity hardening and readiness matrix (2026-07-06T11:45:00Z)
+
+Goal slice:
+- Harden TS cloud queue lease parity until it matches Python queue worker failure semantics closely enough for commercial batch replay.
+- Add a one-command A1 readiness matrix, public-safe evidence-index schema validation without undeclared dependencies, and explicit cloud API lease schema fields.
+- Continue real Ashr API calibration with env-only read-only probes; no mutating calls while the prior hosted request quota block remains documented.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; PR #11 remains open draft.
+- Required start commands were run: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `gh repo view`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr list --state all --limit 20`.
+- Peer changes: `origin/dev/g3-a2-calibration` advanced to `bf5028a A2: add external preflight schema`. It changes A2 docs/fixtures/judge/report paths and A1-adjacent Python calibrator/evidence tests. These were read-only reviewed and not merged into this A1 commit.
+- Local generated `tmp/` and `output/` are non-A1 artifacts; they were added to local `.git/info/exclude` only and are not part of the commit.
+
+Top 10 commercial enhancements considered:
+1. TS queue lease correctness parity: unique worker owners, active-future cleanup, stale-owner protection, heartbeat guardrails. Scores: demo 5, risk 5, contract 2, effort 3, API evidence 1. Implemented.
+2. Python queue lease hardening to match the stricter TS contract. Scores: demo 4, risk 5, contract 2, effort 2, API evidence 1. Implemented.
+3. A1 readiness matrix script with optional real read-only calibration. Scores: demo 5, risk 4, contract 1, effort 3, API evidence 4. Implemented.
+4. Evidence-index JSON schema and dependency-free public validation. Scores: demo 3, risk 4, contract 1, effort 2, API evidence 4. Implemented.
+5. Explicit cloud API schema fields for run leases. Scores: demo 3, risk 4, contract 2, effort 1, API evidence 1. Implemented.
+6. Real Python and TS read-only calibration refresh from env key. Scores: demo 4, risk 4, contract 1, effort 2, API evidence 5. Implemented.
+7. Chrome docs/dashboard usage recheck. Scores: demo 3, risk 3, contract 1, effort 2, API evidence 3. Implemented as safe summary; Usage counters were not reliably extracted.
+8. Python calibrator request shape merge with A2 peer branch. Scores: demo 4, risk 4, contract 1, effort 3, API evidence 4. Deferred to avoid mixing peer branch changes into TS lease commit.
+9. Mutating text probe retry. Scores: demo 5, risk 3, contract 1, effort 1, API evidence 5. Deferred because quota block is already captured and no reset was proven.
+10. Paid image/audio/file/video probes. Scores: demo 5, risk 4, contract 2, effort 3, API evidence 5. Deferred until a useful text create_request path is quota-available.
+
+Implemented:
+- `packages/ts/ashr-clone/src/cloud-queue.ts`: worker owners are now instance-unique, settled futures are removed so requeued/reclaimed runs can replay, execution metadata records the generated owner, wait timeout polls current run state before failing, and stale worker errors fall back to polling current state.
+- `packages/ts/ashr-clone/src/index.ts`: `heartbeatRun` rejects `leaseSeconds: null`; leased runs require matching `leaseOwnerId` for `completeRun` / `failRun`; `completeRun` rejects non-terminal completion payloads instead of clearing a lease on `queued`/`running`.
+- `services/api/runtime.py`: mirrors the heartbeat-null, leased terminal-write, and terminal completion guardrails in Python cloud runtime.
+- `packages/ts/ashr-clone/test/cloud-queue.test.mjs` and `tests/a1/test_cloud_api.py`: added stale owner, active lease, settled future, heartbeat-null, no-owner terminal write, and terminal-status tests.
+- `docs/a1/schemas/cloud_api.schema.json`: explicitly documents `lease_owner_id`, `lease_expires_at`, `lease_heartbeat_at`, and `lease_reclaim_count`.
+- `docs/a1/schemas/evidence_index.schema.json` plus `tests/a1/test_evidence_index.py`: public evidence index shape is validated without adding an undeclared `jsonschema` dependency.
+- `tests/integration/a1_readiness.py`: fresh setup matrix for Python A1 tests, TS tests, calibrator dry-run, optional real read-only calibrator, public evidence safety, and `git diff --check`.
+- `docs/a1/explorer_chrome.md`: appended the 2026-07-06 read-only Chrome docs/usage check.
+- `docs/a1/api_calibration/real_api_evidence_index.json`: refreshed to label `a1-real-api-2026-07-06-round4`, 71 records, quota block count 1.
+
+Subagent and audit feedback:
+- Bus-Auditor required handling `tmp/`/`output/`, removing undeclared `jsonschema` dependency, adding cloud API lease schema fields, and staging only A1-owned files. Followed.
+- Worker-TS and Worker-Runtime both found P1 stale-owner and settled-future risks in TS queue leases. Fixed and covered with tests.
+- Explorer-SDK/API found Python calibrator request-shape drift relative to A2 peer branch. Deferred as next-round SDK/API work because it overlaps peer changes.
+- Explorer-Chrome confirmed public docs and plans were reachable and dashboard Usage page was logged in. Main-thread Chrome recheck found public Python/TS API reference fields; Usage page only yielded a reliable `Usage` signal in automated extraction, so no counter values were recorded.
+- Reviewer subagent errored with an external `403 Forbidden` image-generation capability issue and produced no review findings; main thread used Bus/TS/Runtime feedback instead.
+
+Real API calibration:
+- Env presence: `ASHR_API_KEY_present=True`, `ASHR_LABS_API_KEY_present=False`; raw key was not printed, copied, or stored.
+- `python -B tests/integration/a1_readiness.py --real-readonly --summary-output docs/evidence/private_refs/a1_readiness_round4_real_readonly.json`: passed. It ran Python tests, TS tests, calibrator dry-run, real read-only Python calibrator, public evidence safety, and diff check.
+- `node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_round4_real_readonly.json`: passed with `status=ok`, 5 read steps, 0 errors, estimated calls 7.
+- Private evidence paths: `docs/evidence/private_refs/a1_readiness_round4_real_readonly.json`, `docs/evidence/private_refs/a1_readiness_calibration_real_readonly.json`, `docs/evidence/private_refs/a1_readiness_calibration_dry_run.json`, `docs/evidence/private_refs/a1_ts_api_calibration_manifest_round4_real_readonly.json`, and `docs/evidence/private_refs/a1_readiness_final_safety.json`.
+- No mutating call was executed this round; prior request quota block remains documented in ignored private evidence.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 149 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 152 passed.
+- `python -B tests/integration/a1_readiness.py --real-readonly --summary-output docs/evidence/private_refs/a1_readiness_round4_real_readonly.json`: status ok, 6 steps.
+- `node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_round4_real_readonly.json`: status ok.
+- `python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 4 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_final_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Failed command noted: one bash heredoc-style Python inspection command failed in PowerShell; rerun with a PowerShell-compatible `python -B -c` command succeeded.
+
+Known gaps:
+- Python calibrator request shape should be reconciled with A2 peer's `agent.accepted_inputs` change before the next Gate.
+- TS queue parity is strong for async/IO agent behavior; CPU-blocking synchronous JS agents can still block heartbeat because Node runs them on the event loop.
+- Dashboard Usage counter values were not reliably extracted in the main-thread Chrome pass; keep exact counter values private if captured later.
+- Mutating text/media probes remain blocked until quota reset/plan state is proven useful.
+
+Next top 10:
+1. Merge or reimplement the A2 peer-compatible Python calibrator request shape (`agent.accepted_inputs`, `output_format`, generation flags) in A1 branch.
+2. Add Python SDK direct `create_request` preflight helpers matching TS guardrails.
+3. Extend Python/TS calibrators with optional ID-driven `get_dataset`, `list_runs`, `get_request`, `poll_request`, and `create_run` matrix.
+4. Generate a public hosted field-map markdown from the 71-record evidence index.
+5. Add TS evidence-index CLI parity so TS can generate public-safe indexes without Python.
+6. Add queue lease docs for async JS heartbeat boundary and CPU-blocking agent caveat.
+7. Run a single text mutating probe after quota reset/upgrade is visible, then poll the created request.
+8. Run image/audio/file/video paid probes one modality at a time only after text mutating succeeds.
+9. Chrome/dashboard usage counter verification with private screenshot and no API key page access.
+10. Add CI-friendly A1 readiness command to docs/a1 README and PR description.
+
+## A1 round - Python SDK preflight enforcement, official shape parity, and round5 API calibration (2026-07-06T21:35:00+08:00)
+
+Goal slice:
+- Close the P1 gap where direct Python SDK `create_request` could bypass media/non-text/variation preflight rules that only existed in `services.runner.api_probe`.
+- Re-align Python calibrator request shape with TS and observed public docs: `agent.accepted_inputs`, `agent.tools`, `agent.output_format`, and `generation_options.generate_*`.
+- Use official docs/dashboard boundary evidence and real Ashr API small-batch calibration from environment-only auth, without storing or printing raw keys.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; PR #11 remains open draft.
+- Required start commands run: `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all`.
+- Peer changes reviewed: `origin/dev/g3-a2-calibration` had the correct nested Python calibrator request shape; only the needed A1-owned shape logic was reimplemented, no A2/A3 judge/dashboard files were touched.
+- Chrome/official check: Explorer-Chrome appended a read-only public docs and dashboard boundary note to `docs/a1/explorer_chrome.md`. API Keys, checkout, payment, and credential pages were not opened.
+
+Top 20 A1 growth points considered this round:
+1. SDK-level direct `create_request` preflight enforcement for real paid mutations. Implemented.
+2. Python `summarize_generation_request` helper parity with TS `summarizeGenerationRequest`. Implemented.
+3. Python `enforce_create_request_preflight` helper parity with TS `enforceCreateRequestPreflight`. Implemented.
+4. Runner `api_probe` reuse of SDK helpers to prevent drift. Implemented.
+5. Python calibrator nested `agent.accepted_inputs` request shape. Implemented.
+6. Python calibrator generation flags for image/audio/file/video/simulation. Implemented.
+7. Default `request_input_schema_source` tracking for client-default vs explicit schema. Implemented.
+8. Direct SDK tests proving unsafe real calls block before transport/session. Implemented.
+9. Dry-run calibrator evidence for all five modalities. Implemented.
+10. Real read-only Python calibration refresh. Implemented.
+11. Controlled text-only mutating calibration to refresh current quota/error shape. Implemented; quota blocked.
+12. Public-safe evidence index refresh from private refs. Implemented.
+13. Official docs parity note for Python/TS `create_request` and `accepted_inputs`. Implemented by Explorer-Chrome.
+14. Dashboard Usage boundary note for Images/Audio/Files counters. Implemented as a gap; authenticated counter table did not load.
+15. A1 readiness safety smoke after evidence refresh. Implemented.
+16. A1 secret scan over touched public files. Implemented; only synthetic test tokens matched.
+17. Redact exact hosted quota counts in public evidence while keeping private evidence detailed. Implemented after Growth-Auditor review.
+18. Real media mutating calibration for image/audio/file/video. Deferred because text create-request is still request-quota blocked.
+19. Broader create-run/list-runs/poll-run hosted lifecycle calibration. Deferred to next A1 growth round.
+20. Production trace ingestion / old-vs-new diff / self-host worker growth. Deferred to next round after current SDK/API safety commit.
+
+Implemented:
+- `packages/sdk/ashr_clone/api_client.py`: added SDK-owned `summarize_generation_request`, `enforce_create_request_preflight`, max-variation coercion, accepted input shape parsing, and direct `create_request` guardrails before session/network on real execution.
+- `packages/sdk/ashr_clone/__init__.py`: exported the new Python SDK preflight helpers.
+- `services/runner/api_probe.py`: removed local duplicate preflight implementation and now reuses SDK helpers; CLI forwards allow flags into `AshrApiClient.create_request`.
+- `packages/sdk/ashr_clone/calibrate.py`: emits TS/public-doc-compatible request bodies with nested `agent.accepted_inputs`, `agent.output_format`, `agent.tools`, `test_config.num_variations`, and `generation_options.generate_audio/files/images/videos/simulations`; no top-level `agent_input_parts`.
+- `packages/sdk/ashr_clone/evidence.py`: public-safe evidence index now redacts exact quota counts into `*_present` booleans while private refs retain full detail.
+- `docs/a1/schemas/evidence_index.schema.json`: quota schema now documents public-safe presence booleans.
+- `tests/a1/test_api_client.py`: added direct SDK guardrail tests for unknown variations, media generation, non-text inputs, variation count limits, and explicit allow flags.
+- `tests/a1/test_python_calibrator.py`: updated calibrator request-shape assertions for nested agent fields and media generation flags.
+- `tests/a1/test_evidence_index.py`: verifies public evidence index quota summaries do not expose exact hosted quota counts.
+- `docs/a1/api_calibration/real_api_evidence_index.json`: refreshed public-safe index to round5.
+- `docs/a1/explorer_chrome.md`: appended official docs/plans/dashboard boundary evidence from Chrome.
+- `docs/a1/evidence/commands.md`: appended command/evidence ledger for this round and redacted exact quota counts from tracked text.
+
+Real API calibration:
+- Key source: process environment only. Raw `ASHR_API_KEY` / `ASHR_LABS_API_KEY` value was not printed, copied, stored, or committed.
+- Dry-run plan: `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_dry_run.json`.
+  - Result: planned, 10 steps, 5 read + 5 mutating plans, modalities audio/file/image/text/video, estimated calls 17.
+- Real read-only: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_readonly.json`.
+  - Result: ok, 5/5 read steps, estimated calls 7, no errors.
+- Controlled real text mutation: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_text_mutation.json`.
+  - Result: partial, read steps ok, `create-request-text` returned a hosted quota block. Exact quota counts remain only in ignored private evidence. No retry and no media mutation was run.
+- Public evidence index: 75 records, status counts `error=9`, `failed=1`, `ok=33`, `partial=2`, `planned=29`, quota block count 2.
+
+Validation:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 60 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 154 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 152 passed.
+- `python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 4 passed after quota-redaction change.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round5_final_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret scan over touched public files matched only intentional synthetic test strings such as `tp_test_secret`; no real key material observed.
+- Failed command noted: one PowerShell `python -c` inspection command used literal `\n` and failed with SyntaxError; rerun with a PowerShell-compatible one-liner succeeded.
+
+Growth-Auditor feedback:
+- Verdict: real commercial-grade hardening step, not toy work.
+- P0: none found.
+- P1 accepted/fixed before commit: public evidence/logs contained exact quota counts. Fixed by redacting public evidence quota counts into presence booleans and tracked-log wording while preserving full private evidence.
+- Remaining P1 risk: quota exhaustion means round5 does not prove successful real Python `create_request` after the shape/preflight fix. This is recorded as a hosted quota blocker, not a local code blocker.
+
+Known gaps:
+- Hosted request quota remains exhausted for `create_request`, so media/non-text paid real probes cannot produce useful creation evidence yet.
+- Dashboard Usage authenticated counter values for Images/Audio/Files did not load; only safe public/onboarding labels were recorded.
+- A2 peer review-status/redaction compatibility remains outside A1-owned changes, but should be coordinated before a Gate that consumes A2 calibration evidence.
+- Real run lifecycle expansion (`create_run`, `list_runs`, `poll_run`) still needs a dedicated A1 round with safe dataset/run IDs.
+
+Next top 20:
+1. Add hosted lifecycle calibration matrix for `list_runs`, `get_run`, `create_run` dry-run/safe real boundaries.
+2. Add request quota reset detector and stop/go gate before any media mutating calibration.
+3. Add media mutating calibration queue that runs text first, then image/audio/file/video one-by-one only when quota is available.
+4. Add public field-map markdown generated from the 75-record evidence index.
+5. Add Python/TS parity test that compares preflight helper outputs on shared fixtures.
+6. Add A1 CLI command for `create_request` preflight explain output for customer review workflows.
+7. Add production trace ingestion schema for external OpenAI-style traces.
+8. Add deterministic old-vs-new replay diff fixture and tests.
+9. Add self-host worker heartbeat/lease docs plus CPU-blocking JS caveat.
+10. Add enterprise audit manifest tying commands, code diff, tests, and private evidence refs.
+11. Add per-tenant/project quota ledger export/import for offline enterprise audits.
+12. Add official docs drift checker for Python/TS API reference fields.
+13. Add dashboard Usage screenshot evidence flow that redacts counters by default but records field labels.
+14. Add request/run replay package for A3 with three fresh round5 fixtures.
+15. Add API client typed exceptions for quota vs validation vs hosted failure.
+16. Add public-safe private evidence freshness checker for stale calibration records.
+17. Add batch-run fixture generator at 80 cases with max_workers >= 8 stress coverage.
+18. Add TS CLI parity for Python calibrator shape/schema assertions.
+19. Add schema contract tests for media/non-text safe envelope across Python, TS, and cloud runtime.
+20. Coordinate A2/A3 Gate-only contract change request for any shared review-status or evidence metadata.

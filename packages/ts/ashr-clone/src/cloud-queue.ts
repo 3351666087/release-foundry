@@ -1,9 +1,10 @@
-import { CloudApiService, NotFoundError, ValidationError, redactText } from "./index.js";
+import { CloudApiService, DEFAULT_QUEUE_LEASE_SECONDS, NotFoundError, ValidationError, redactText } from "./index.js";
 import { DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalizeMaxWorkers, normalizeTimeoutSeconds, runAgentBatch } from "./runner.js";
 import type { AgentLike } from "./runner.js";
 import type { JsonRecord, RunRecord } from "./index.js";
 
 export const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05;
 
 export interface QueueRunRequest {
   tenantId: string;
@@ -14,6 +15,8 @@ export interface QueueRunRequest {
   runId?: string;
   maxWorkers?: number | null;
   timeoutSeconds?: number | null;
+  leaseOwnerId?: string | null;
+  leaseSeconds?: number | null;
   metadata?: JsonRecord;
 }
 
@@ -24,12 +27,15 @@ export interface ReplayIncompleteRunsOptions {
   maxRuns?: number;
   maxWorkers?: number | null;
   timeoutSeconds?: number | null;
+  leaseOwnerId?: string | null;
+  leaseSeconds?: number | null;
   metadata?: JsonRecord;
 }
 
 export class CloudQueueWorker {
   readonly service: CloudApiService;
   readonly queueWorkers: number;
+  private readonly workerId: string;
   private readonly futures = new Map<string, Promise<RunRecord>>();
   private activeRuns = 0;
   private readonly pendingRuns: Array<{
@@ -41,6 +47,7 @@ export class CloudQueueWorker {
   constructor(service: CloudApiService = new CloudApiService(), options: { queueWorkers?: number | null } = {}) {
     this.service = service;
     this.queueWorkers = normalizeMaxWorkers(options.queueWorkers ?? DEFAULT_MAX_WORKERS);
+    this.workerId = `worker-${randomId()}`;
   }
 
   enqueueAgentRun(request: QueueRunRequest): RunRecord {
@@ -57,8 +64,10 @@ export class CloudQueueWorker {
       runnerId: queued.runner_id,
       maxWorkers: runnerWorkers,
       timeoutSeconds: normalizeTimeoutSeconds(request.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS),
+      leaseOwnerId: request.leaseOwnerId ?? this.leaseOwnerId(queued.run_id),
+      leaseSeconds: request.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : request.leaseSeconds,
     };
-    this.futures.set(queued.run_id, this.schedule(normalized));
+    this.trackFuture(queued.run_id, this.schedule(normalized));
     return queued;
   }
 
@@ -79,6 +88,8 @@ export class CloudQueueWorker {
     const maxRuns = normalizeReplayLimit(options.maxRuns ?? 100);
     const runnerWorkers = normalizeMaxWorkers(options.maxWorkers ?? DEFAULT_MAX_WORKERS);
     const timeoutSeconds = normalizeTimeoutSeconds(options.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS);
+    const leaseSeconds = options.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : options.leaseSeconds;
+    this.service.reclaimExpiredRunLeases(tenantId, projectId, { datasetId: options.datasetId, statuses: Array.from(statuses) });
     const candidates = this.service
       .listRuns(tenantId, projectId, { datasetId: options.datasetId })
       .sort(replayOrderCompare);
@@ -90,8 +101,11 @@ export class CloudQueueWorker {
       if (!statuses.has(run.status)) {
         continue;
       }
+      if (run.lease_owner_id !== undefined && run.lease_owner_id !== null) {
+        continue;
+      }
       const current = this.futures.get(run.run_id);
-      if (current) {
+      if (current !== undefined) {
         continue;
       }
       const request: QueueRunRequest = {
@@ -103,9 +117,11 @@ export class CloudQueueWorker {
         runId: run.run_id,
         maxWorkers: runnerWorkers,
         timeoutSeconds,
+        leaseOwnerId: this.leaseOwnerId(run.run_id),
+        leaseSeconds,
         metadata: { source: "packages/ts/ashr-clone/cloud-queue-replay", ...(options.metadata ?? {}) },
       };
-      this.futures.set(run.run_id, this.schedule(request));
+      this.trackFuture(run.run_id, this.schedule(request));
       replayed.push(run);
     }
     return replayed;
@@ -144,28 +160,67 @@ export class CloudQueueWorker {
 
   private async execute(request: QueueRunRequest): Promise<RunRecord> {
     const runId = String(request.runId);
+    const leaseOwnerId = request.leaseOwnerId ?? this.leaseOwnerId(runId);
+    const leaseSeconds = request.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : request.leaseSeconds;
     try {
-      const running = this.service.markRunRunning(request.tenantId, request.projectId, runId);
+      const running = this.service.markRunRunning(request.tenantId, request.projectId, runId, {
+        leaseOwnerId,
+        leaseSeconds,
+        reclaimExpired: true,
+      });
       if (running.status === "cancelled") {
         return running;
       }
       const dataset = this.service.getDataset(request.tenantId, request.projectId, request.datasetId);
-      const result = await runAgentBatch(request.agent, dataset.cases, {
+      this.service.heartbeatRun(request.tenantId, request.projectId, runId, { leaseOwnerId, leaseSeconds });
+      this.mergeExecutionMetadata(request, leaseOwnerId);
+      const result = await this.withLeaseRenewal(request, leaseOwnerId, () => runAgentBatch(request.agent, dataset.cases, {
         datasetId: dataset.dataset_id,
         runnerId: request.runnerId ?? "a1-ts-cloud-queue-worker",
         runId,
         maxWorkers: request.maxWorkers ?? DEFAULT_MAX_WORKERS,
         timeoutSeconds: request.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
         metadata: { local_only: true, ashr_api_used: false, queued: true },
-      });
-      return this.service.completeRun(request.tenantId, request.projectId, runId, result);
+      }));
+      return this.service.completeRun(request.tenantId, request.projectId, runId, result, { leaseOwnerId });
     } catch (error) {
-      return this.service.failRun(request.tenantId, request.projectId, runId, {
+      return this.failOrPollAfterWorkerError(request, leaseOwnerId, error);
+    }
+  }
+
+  private async withLeaseRenewal<T>(request: QueueRunRequest, leaseOwnerId: string, operation: () => Promise<T>): Promise<T> {
+    if (request.leaseSeconds === null) {
+      return operation();
+    }
+    const leaseSeconds = request.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : request.leaseSeconds;
+    const interval = setInterval(() => {
+      try {
+        this.service.heartbeatRun(request.tenantId, request.projectId, String(request.runId), { leaseOwnerId, leaseSeconds });
+      } catch {
+        clearInterval(interval);
+      }
+    }, heartbeatIntervalMs(leaseSeconds));
+    try {
+      return await operation();
+    } finally {
+      clearInterval(interval);
+    }
+  }
+
+  private failOrPollAfterWorkerError(request: QueueRunRequest, leaseOwnerId: string, error: unknown): RunRecord {
+    try {
+      return this.service.failRun(request.tenantId, request.projectId, String(request.runId), {
+        leaseOwnerId,
         error: {
           type: error instanceof Error ? error.name : "QueueRunError",
           message: redactText(error instanceof Error ? error.message : String(error)),
         },
       });
+    } catch (failError) {
+      if (failError instanceof ValidationError) {
+        return this.service.pollRun(request.tenantId, request.projectId, String(request.runId)).run;
+      }
+      throw failError;
     }
   }
 
@@ -173,6 +228,15 @@ export class CloudQueueWorker {
     return new Promise<RunRecord>((resolve, reject) => {
       this.pendingRuns.push({ request, resolve, reject });
       this.drainQueue();
+    });
+  }
+
+  private trackFuture(runId: string, future: Promise<RunRecord>): void {
+    this.futures.set(runId, future);
+    void future.finally(() => {
+      if (this.futures.get(runId) === future) {
+        this.futures.delete(runId);
+      }
     });
   }
 
@@ -192,12 +256,29 @@ export class CloudQueueWorker {
     }
   }
 
+  private leaseOwnerId(runId: string): string {
+    return `${this.workerId}:${runId}`;
+  }
+
   private executionMetadata(request: QueueRunRequest, runnerWorkers: number): JsonRecord {
     return {
       source: "packages/ts/ashr-clone/cloud-queue",
       queue_workers: this.queueWorkers,
       runner_max_workers: runnerWorkers,
+      lease_owner_id: request.leaseOwnerId ?? null,
+      lease_seconds: request.leaseSeconds === undefined ? DEFAULT_QUEUE_LEASE_SECONDS : request.leaseSeconds,
       ...(request.metadata ?? {}),
+    };
+  }
+
+  private mergeExecutionMetadata(request: QueueRunRequest, leaseOwnerId: string): void {
+    const run = this.service.store.runs[String(request.runId)];
+    if (!run) {
+      return;
+    }
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      ...this.executionMetadata({ ...request, leaseOwnerId }, normalizeMaxWorkers(request.maxWorkers ?? DEFAULT_MAX_WORKERS)),
     };
   }
 }
@@ -232,18 +313,14 @@ function normalizeReplayLimit(maxRuns: number): number {
   return value;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutSeconds: number, runId: string, requireTerminal: boolean): Promise<T | undefined> {
+async function withTimeout<T>(promise: Promise<T>, timeoutSeconds: number, _runId: string, _requireTerminal: boolean): Promise<T | undefined> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
-      new Promise<undefined>((resolve, reject) => {
+      new Promise<undefined>((resolve) => {
         timeout = setTimeout(() => {
-          if (requireTerminal) {
-            reject(new Error(`queued run ${runId} did not reach a terminal status before timeout`));
-          } else {
-            resolve(undefined);
-          }
+          resolve(undefined);
         }, Math.max(0, timeoutSeconds * 1000));
       }),
     ]);
@@ -252,4 +329,16 @@ async function withTimeout<T>(promise: Promise<T>, timeoutSeconds: number, runId
       clearTimeout(timeout);
     }
   }
+}
+
+function heartbeatIntervalMs(leaseSeconds: number): number {
+  const seconds = Number(leaseSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new ValidationError("leaseSeconds must be positive");
+  }
+  return Math.max(MIN_HEARTBEAT_INTERVAL_SECONDS * 1000, Math.min((seconds * 1000) / 3, 5000));
+}
+
+function randomId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

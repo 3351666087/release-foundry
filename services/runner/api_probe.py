@@ -10,7 +10,15 @@ SDK_PATH = Path(__file__).resolve().parents[2] / "packages" / "sdk"
 if str(SDK_PATH) not in sys.path:
     sys.path.insert(0, str(SDK_PATH))
 
-from ashr_clone.api_client import ASHR_API_ENV_VAR, ASHR_LABS_API_ENV_VAR, AshrApiClient, AshrApiError, MissingAshrApiKeyError  # noqa: E402
+from ashr_clone.api_client import (  # noqa: E402
+    ASHR_API_ENV_VAR,
+    ASHR_LABS_API_ENV_VAR,
+    AshrApiClient,
+    AshrApiError,
+    MissingAshrApiKeyError,
+    enforce_create_request_preflight,
+    summarize_generation_request,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -97,9 +105,9 @@ def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Pa
         require(args.request_file, "--request-file is required for create-request")
         request = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
         request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if args.request_schema_file else None
-        preflight = summarize_generation_request(request)
-        preflight["request_input_schema_source"] = "file" if request_schema is not None else "client_default"
         if not dry_run:
+            preflight = summarize_generation_request(request)
+            preflight["request_input_schema_source"] = "file" if request_schema is not None else "client_default"
             enforce_create_request_preflight(
                 preflight,
                 allow_media_generation=args.allow_media_generation,
@@ -112,7 +120,9 @@ def run_operation(client: AshrApiClient, args: argparse.Namespace, *, output: Pa
             request_input_schema=request_schema,
             output_path=output,
             dry_run=dry_run,
-            preflight=preflight,
+            allow_media_generation=args.allow_media_generation,
+            allow_non_text_inputs=args.allow_non_text_inputs,
+            max_request_variations=args.max_request_variations,
         )
     if args.operation == "create-run":
         require(args.dataset_id, "--dataset-id is required for create-run")
@@ -131,94 +141,6 @@ def default_output_path(operation: str, *, dry_run: bool) -> Path:
 def require(value: Any, message: str) -> None:
     if value is None:
         raise ValueError(message)
-
-
-def summarize_generation_request(request: dict[str, Any]) -> dict[str, Any]:
-    generation_options = request.get("generation_options") if isinstance(request.get("generation_options"), dict) else {}
-    test_config = request.get("test_config") if isinstance(request.get("test_config"), dict) else {}
-    agent = request.get("agent") if isinstance(request.get("agent"), dict) else {}
-    accepted_inputs_raw = agent.get("accepted_inputs") if isinstance(agent, dict) else None
-    accepted_inputs_provided = accepted_inputs_raw is not None
-    accepted_inputs_shape_supported = accepted_inputs_raw is None or isinstance(accepted_inputs_raw, dict)
-    accepted_inputs = accepted_inputs_raw if isinstance(accepted_inputs_raw, dict) else {}
-    accepted_flags: dict[str, bool] = {}
-    accepted_flag_shapes: dict[str, bool] = {}
-    for key in ("text", "audio", "file", "image", "video", "conversation"):
-        if not accepted_inputs_provided:
-            accepted_flags[key] = key == "text"
-            accepted_flag_shapes[key] = True
-            continue
-        enabled, shape_supported = _accepted_input_enabled(accepted_inputs.get(key))
-        accepted_flags[key] = enabled
-        accepted_flag_shapes[key] = shape_supported
-    accepted_inputs_known = accepted_inputs_shape_supported and all(accepted_flag_shapes.values())
-    agent_input_part_types = []
-    if accepted_flags.get("text"):
-        agent_input_part_types.append("text")
-    agent_input_part_types.extend(key for key in ("image", "audio", "file", "video") if accepted_flags.get(key))
-    media_flags = {
-        "audio": bool(generation_options.get("generate_audio")),
-        "files": bool(generation_options.get("generate_files")),
-        "images": bool(generation_options.get("generate_images")),
-        "videos": bool(generation_options.get("generate_videos")),
-        "simulations": bool(generation_options.get("generate_simulations")),
-    }
-    raw_variations = test_config.get("num_variations", request.get("num_variations"))
-    num_variations = _coerce_positive_int(raw_variations)
-    return {
-        "num_variations": num_variations,
-        "num_variations_known": num_variations is not None,
-        "media_generation": media_flags,
-        "media_generation_enabled": any(media_flags.values()),
-        "accepted_inputs_known": accepted_inputs_known,
-        "accepted_input_flags": accepted_flags,
-        "agent_input_part_types": agent_input_part_types,
-        "agent_input_schema_version": "ashr.clone.agent_input.v1" if any(part_type != "text" for part_type in agent_input_part_types) else None,
-        "non_text_inputs_enabled": any(accepted_flags[key] for key in ("audio", "file", "image", "video", "conversation")),
-        "small_batch": num_variations is not None and num_variations <= 1,
-        "notes": [
-            "dry-run-first mutating create_request calibration",
-            "use --max-retries 0 for real mutating execution",
-            "request params are recorded as shape summaries; raw API responses stay private",
-        ],
-    }
-
-
-def enforce_create_request_preflight(preflight: dict[str, Any], *, allow_media_generation: bool, allow_non_text_inputs: bool, max_request_variations: int) -> None:
-    if not preflight.get("accepted_inputs_known", True):
-        raise ValueError("create-request accepted_inputs shape is unsupported; use booleans or {enabled: bool} before real execution")
-    if not preflight.get("num_variations_known"):
-        raise ValueError("create-request num_variations is unknown; set test_config.num_variations before real execution")
-    if preflight.get("media_generation_enabled") and not allow_media_generation:
-        raise ValueError("create-request enables media generation; rerun with --allow-media-generation only after reviewing usage/cost risk")
-    if preflight.get("non_text_inputs_enabled") and not allow_non_text_inputs:
-        raise ValueError("create-request accepts non-text inputs; rerun with --allow-non-text-inputs only after reviewing usage/cost risk")
-    num_variations = preflight.get("num_variations")
-    if isinstance(num_variations, int) and num_variations > max_request_variations:
-        raise ValueError(f"create-request num_variations={num_variations} exceeds --max-request-variations={max_request_variations}")
-
-
-def _coerce_positive_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if value > 0 else None
-    if isinstance(value, str) and value.isdecimal():
-        parsed = int(value)
-        return parsed if parsed > 0 else None
-    return None
-
-
-def _accepted_input_enabled(value: Any) -> tuple[bool, bool]:
-    if value is None:
-        return False, True
-    if isinstance(value, bool):
-        return value, True
-    if isinstance(value, dict) and isinstance(value.get("enabled"), bool):
-        return value["enabled"], True
-    return False, False
 
 
 MUTATING_OPERATIONS = {"create-run", "create-request"}

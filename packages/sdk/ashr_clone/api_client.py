@@ -307,14 +307,38 @@ class AshrApiClient:
         )
 
     def create_request(self, *, request_name: str, request: Mapping[str, Any], request_input_schema: Mapping[str, Any] | None = None, requestor_id: int | None = None, **kwargs: Any) -> JsonDict:
-        self._require_zero_retries_for_mutation("create_request", dry_run=bool(kwargs.get("dry_run", True)))
+        dry_run = bool(kwargs.get("dry_run", True))
+        self._require_zero_retries_for_mutation("create_request", dry_run=dry_run)
+        allow_media_generation = bool(kwargs.pop("allow_media_generation", False))
+        allow_non_text_inputs = bool(kwargs.pop("allow_non_text_inputs", False))
+        max_request_variations = kwargs.pop("max_request_variations", 1)
+        kwargs.pop("preflight", None)
         params: JsonDict = {"request_name": request_name, "request": dict(request)}
         params["request_input_schema"] = build_default_request_input_schema(request) if request_input_schema is None else dict(request_input_schema)
         if requestor_id is not None:
             params["requestor_id"] = requestor_id
-        preflight = kwargs.get("preflight") if isinstance(kwargs.get("preflight"), Mapping) else None
+        preflight = summarize_generation_request(request)
+        preflight["request_input_schema_source"] = "client_default" if request_input_schema is None else "file"
+        if not dry_run:
+            enforce_create_request_preflight(
+                preflight,
+                allow_media_generation=allow_media_generation,
+                allow_non_text_inputs=allow_non_text_inputs,
+                max_request_variations=max_request_variations,
+            )
         record_params = _create_request_record_params(params, preflight=preflight)
-        return self._call_with_session("create_request", params=params, record_params=record_params, tenant=True, user=requestor_id is None, purpose="Create dataset generation request", estimated_calls=2, mutates=True, **kwargs)
+        return self._call_with_session(
+            "create_request",
+            params=params,
+            record_params=record_params,
+            tenant=True,
+            user=requestor_id is None,
+            purpose="Create dataset generation request",
+            estimated_calls=2,
+            mutates=True,
+            preflight=preflight,
+            **kwargs,
+        )
 
     def list_requests(self, *, limit: int = 5, status: str | None = None, cursor: int | None = None, **kwargs: Any) -> JsonDict:
         params: JsonDict = {"limit": limit}
@@ -538,6 +562,44 @@ def summarize_request_failure(response: Mapping[str, Any]) -> JsonDict:
     return summary
 
 
+
+def summarize_quota_error(value: Mapping[str, Any]) -> JsonDict | None:
+    """Return a public-safe hosted quota summary from an API record or response."""
+    candidates = _quota_candidates(value)
+    quota_candidates = [candidate for candidate in candidates if isinstance(candidate, Mapping) and isinstance(candidate.get("quota"), Mapping)]
+    message_candidates = [candidate for candidate in candidates if isinstance(candidate, Mapping) and not isinstance(candidate.get("quota"), Mapping)]
+    for candidate in quota_candidates + message_candidates:
+        quota = candidate.get("quota")
+        message = candidate.get("message")
+        if isinstance(quota, Mapping):
+            summary: JsonDict = {
+                "blocked": True,
+                "message": redact_text(str(message)) if isinstance(message, str) else None,
+                "quota_keys": sorted(str(key) for key in quota.keys()),
+            }
+            for key in ("resource", "limit", "used", "requested", "remaining"):
+                if key in quota and isinstance(quota[key], (str, int, float, bool)):
+                    summary[key] = quota[key]
+            return redact_sensitive(summary)
+        if isinstance(message, str) and "Usage limit exceeded" in message:
+            return {"blocked": True, "message": redact_text(message), "quota_keys": []}
+    return None
+
+
+def _quota_candidates(value: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    candidates: list[Mapping[str, Any]] = [value]
+    for key in ("error", "response"):
+        nested = value.get(key)
+        if isinstance(nested, Mapping):
+            candidates.append(nested)
+            nested_response = nested.get("response")
+            if isinstance(nested_response, Mapping):
+                candidates.append(nested_response)
+            nested_error = nested.get("error")
+            if isinstance(nested_error, Mapping):
+                candidates.append(nested_error)
+    return candidates
+
 def build_default_request_input_schema(request: Mapping[str, Any] | None = None) -> JsonDict:
     schema: JsonDict = dict(DEFAULT_REQUEST_INPUT_SCHEMA)
     agent = request.get("agent") if isinstance(request, Mapping) else None
@@ -547,6 +609,104 @@ def build_default_request_input_schema(request: Mapping[str, Any] | None = None)
     if any(part_type in enabled_part_types for part_type in _NON_TEXT_AGENT_INPUT_PART_TYPES):
         schema.update(_agent_input_schema(enabled_part_types))
     return schema
+
+
+def summarize_generation_request(request: Mapping[str, Any]) -> JsonDict:
+    generation_options = request.get("generation_options") if isinstance(request.get("generation_options"), Mapping) else {}
+    test_config = request.get("test_config") if isinstance(request.get("test_config"), Mapping) else {}
+    agent = request.get("agent") if isinstance(request.get("agent"), Mapping) else {}
+    accepted_inputs_raw = agent.get("accepted_inputs") if isinstance(agent, Mapping) else None
+    accepted_inputs_provided = accepted_inputs_raw is not None
+    accepted_inputs_shape_supported = accepted_inputs_raw is None or isinstance(accepted_inputs_raw, Mapping)
+    accepted_inputs = accepted_inputs_raw if isinstance(accepted_inputs_raw, Mapping) else {}
+    accepted_flags: dict[str, bool] = {}
+    accepted_flag_shapes: dict[str, bool] = {}
+    for key in ("text", "audio", "file", "image", "video", "conversation"):
+        if not accepted_inputs_provided:
+            accepted_flags[key] = key == "text"
+            accepted_flag_shapes[key] = True
+            continue
+        enabled, shape_supported = _accepted_input_enabled(accepted_inputs.get(key))
+        accepted_flags[key] = enabled
+        accepted_flag_shapes[key] = shape_supported
+    accepted_inputs_known = accepted_inputs_shape_supported and all(accepted_flag_shapes.values())
+    agent_input_part_types = []
+    if accepted_flags.get("text"):
+        agent_input_part_types.append("text")
+    agent_input_part_types.extend(key for key in ("image", "audio", "file", "video") if accepted_flags.get(key))
+    media_flags = {
+        "audio": bool(generation_options.get("generate_audio")),
+        "files": bool(generation_options.get("generate_files")),
+        "images": bool(generation_options.get("generate_images")),
+        "videos": bool(generation_options.get("generate_videos")),
+        "simulations": bool(generation_options.get("generate_simulations")),
+    }
+    raw_variations = test_config.get("num_variations", request.get("num_variations"))
+    num_variations = _coerce_positive_int(raw_variations)
+    return {
+        "num_variations": num_variations,
+        "num_variations_known": num_variations is not None,
+        "media_generation": media_flags,
+        "media_generation_enabled": any(media_flags.values()),
+        "accepted_inputs_known": accepted_inputs_known,
+        "accepted_input_flags": accepted_flags,
+        "agent_input_part_types": agent_input_part_types,
+        "agent_input_schema_version": AGENT_INPUT_SCHEMA_VERSION if any(part_type != "text" for part_type in agent_input_part_types) else None,
+        "non_text_inputs_enabled": any(accepted_flags[key] for key in ("audio", "file", "image", "video", "conversation")),
+        "small_batch": num_variations is not None and num_variations <= 1,
+        "notes": [
+            "dry-run-first mutating create_request calibration",
+            "use max_retries=0 for real mutating execution",
+            "request params are recorded as shape summaries; raw API responses stay private",
+        ],
+    }
+
+
+def enforce_create_request_preflight(preflight: Mapping[str, Any], *, allow_media_generation: bool = False, allow_non_text_inputs: bool = False, max_request_variations: Any = 1) -> None:
+    if not preflight.get("accepted_inputs_known", True):
+        raise ValueError("create-request accepted_inputs shape is unsupported; use booleans or {enabled: bool} before real execution")
+    if not preflight.get("num_variations_known"):
+        raise ValueError("create-request num_variations is unknown; set test_config.num_variations before real execution")
+    if preflight.get("media_generation_enabled") and not allow_media_generation:
+        raise ValueError("create-request enables media generation; rerun with --allow-media-generation only after reviewing usage/cost risk")
+    if preflight.get("non_text_inputs_enabled") and not allow_non_text_inputs:
+        raise ValueError("create-request accepts non-text inputs; rerun with --allow-non-text-inputs only after reviewing usage/cost risk")
+    num_variations = preflight.get("num_variations")
+    max_variations = _coerce_max_request_variations(max_request_variations)
+    if isinstance(num_variations, int) and num_variations > max_variations:
+        raise ValueError(f"create-request num_variations={num_variations} exceeds --max-request-variations={max_variations}")
+
+
+def _coerce_positive_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.isdecimal():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _coerce_max_request_variations(value: Any) -> int:
+    if isinstance(value, bool):
+        return 1
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _accepted_input_enabled(value: Any) -> tuple[bool, bool]:
+    if value is None:
+        return False, True
+    if isinstance(value, bool):
+        return value, True
+    if isinstance(value, Mapping) and isinstance(value.get("enabled"), bool):
+        return value["enabled"], True
+    return False, False
 
 
 def _create_request_record_params(params: Mapping[str, Any], *, preflight: Mapping[str, Any] | None = None) -> JsonDict:
