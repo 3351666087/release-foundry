@@ -171,7 +171,7 @@ Before collecting or merging private evidence, run the offline preflight:
 python scripts/a2_external_evidence_preflight.py --json
 ```
 
-This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
+This command reads only public fixtures, does not require network or an Ashr API key, does not read `docs/evidence/private_refs/`, and writes nothing. Its JSON output uses `docs/a2/schemas/external_evidence_preflight.schema.json`. It summarizes C3/C4/C5 status, missing reviewed observations, private input refs, reviewed import commands, and the redaction policy so reviewers can confirm the next evidence step is safe before any private payload is touched.
 
 If private API probes have already been collected, the same preflight JSON lists the public-safe index refresh command under `recommended_commands.real_api_evidence_refresh`. Run it before regenerating fixtures so A2/A3 readiness summaries reflect the latest redacted real API evidence without committing raw payloads.
 

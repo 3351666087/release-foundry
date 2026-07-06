@@ -315,6 +315,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
+        external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -379,6 +380,11 @@ class A2ContractTests(unittest.TestCase):
             evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
             "#/$defs/official_sdk_smoke",
         )
+        self.assertEqual(
+            external_preflight_schema["properties"]["schema_version"]["const"],
+            "a2.external_evidence_preflight.v1",
+        )
+        self.assertIn("real_api_evidence_refresh", external_preflight_schema["properties"]["recommended_commands"]["required"])
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -1646,7 +1652,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotRegex(result.stdout, re.compile(r"sk-[A-Za-z0-9]"))
 
         preflight = json.loads(result.stdout)
+        schema = json.loads((ROOT / "docs/a2/schemas/external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(preflight["schema_version"], "a2.external_evidence_preflight.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], preflight["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(preflight))
+        self.assertLessEqual(set(schema["properties"]["recommended_commands"]["required"]), set(preflight["recommended_commands"]))
         self.assertFalse(preflight["requires_network"])
         self.assertFalse(preflight["requires_ashr_api_key"])
         self.assertFalse(preflight["reads_private_payloads"])
