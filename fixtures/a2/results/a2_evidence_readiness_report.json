@@ -97,13 +97,13 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a2-g3-real-api-2026-07-06-shape-fix-merged",
+    "label": "a2-g3-real-api-2026-07-06-read-refresh-merged",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 102,
+    "total_records": 114,
     "status_counts": {
       "error": 11,
       "failed": 1,
-      "ok": 57,
+      "ok": 69,
       "partial": 4,
       "planned": 28
     },
@@ -111,11 +111,11 @@
       "create_request": 14,
       "get_dataset": 4,
       "get_request": 6,
-      "init": 11,
-      "keep_alive": 11,
-      "list_agents": 11,
-      "list_datasets": 13,
-      "list_requests": 14,
+      "init": 13,
+      "keep_alive": 13,
+      "list_agents": 13,
+      "list_datasets": 15,
+      "list_requests": 16,
       "list_runs": 1
     },
     "quota_block_count": 3,
@@ -132,16 +132,38 @@
     "mutating_functions_present": [
       "create_request"
     ],
-    "real_record_count": 72,
+    "real_record_count": 84,
     "real_read_status_counts": {
       "error": 7,
-      "ok": 50
+      "ok": 60
     },
     "real_create_request_status_counts": {
       "error": 4
     },
     "real_create_request_error_kind_counts": {
       "api": 4
+    },
+    "real_quota_gate": {
+      "blocked": true,
+      "blocked_count": 3,
+      "blocked_functions": [
+        "create_request"
+      ],
+      "create_request_blocked": true,
+      "quota_keys": [
+        "asset_type",
+        "error",
+        "limit",
+        "remaining",
+        "requested",
+        "used"
+      ],
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json"
+      ],
+      "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
     },
     "c3_candidate_record_count": 1,
     "c3_grading_ready": false,

@@ -963,6 +963,14 @@ class A2ContractTests(unittest.TestCase):
             1,
         )
         self.assertIn("api", report["a1_real_api_evidence"]["real_create_request_error_kind_counts"])
+        quota_gate = report["a1_real_api_evidence"]["real_quota_gate"]
+        self.assertTrue(quota_gate["blocked"])
+        self.assertGreaterEqual(quota_gate["blocked_count"], 1)
+        self.assertTrue(quota_gate["create_request_blocked"])
+        self.assertIn("create_request", quota_gate["blocked_functions"])
+        self.assertIn("limit", quota_gate["quota_keys"])
+        self.assertIn("remaining", quota_gate["quota_keys"])
+        self.assertIn("request quota", quota_gate["public_action"])
         self.assertFalse(report["a1_real_api_evidence"]["c3_grading_ready"])
         self.assertIn(
             "docs/a1/api_calibration/real_api_evidence_index.json",

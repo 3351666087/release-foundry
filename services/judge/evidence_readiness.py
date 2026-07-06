@@ -318,6 +318,9 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
     real_create_request_records = [
         record for record in real_records if record.get("function") == "create_request"
     ]
+    real_quota_records = [
+        record for record in real_records if isinstance(record.get("quota"), dict) and record["quota"].get("blocked")
+    ]
     c3_candidate_records = [
         record
         for record in records
@@ -339,6 +342,7 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
         "real_read_status_counts": _count_records(real_read_records, "status"),
         "real_create_request_status_counts": _count_records(real_create_request_records, "status"),
         "real_create_request_error_kind_counts": _count_records(real_create_request_records, "error_kind"),
+        "real_quota_gate": _quota_gate_summary(real_quota_records),
         "c3_candidate_record_count": len(c3_candidate_records),
         "c3_grading_ready": False,
         "notes": [
@@ -357,6 +361,32 @@ def _count_records(records: list[dict[str, Any]], key: str) -> dict[str, int]:
             continue
         counts[str(value)] = counts.get(str(value), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _quota_gate_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    quota_keys = sorted(
+        {
+            str(key)
+            for record in records
+            if isinstance(record.get("quota"), dict)
+            for key in record["quota"].get("quota_keys", [])
+        }
+    )
+    functions = sorted({str(record.get("function")) for record in records if record.get("function")})
+    paths = sorted(str(record.get("path")) for record in records if record.get("path"))
+    return {
+        "blocked": bool(records),
+        "blocked_count": len(records),
+        "blocked_functions": functions,
+        "create_request_blocked": "create_request" in functions,
+        "quota_keys": quota_keys,
+        "private_record_refs": paths,
+        "public_action": (
+            "Increase or reset hosted request quota before additional mutating create_request calibration."
+            if "create_request" in functions
+            else "No mutating request quota gate is currently visible in public-safe evidence."
+        ),
+    }
 
 
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:
