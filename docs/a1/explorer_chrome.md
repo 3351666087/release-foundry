@@ -94,3 +94,11 @@ Mode: read-only Chrome checks. No Ashr API key, password, payment data, or other
 - Dashboard Usage boundary: an existing `https://lab.ashr.io/?tab=analysis` tab initially showed an authenticated-looking shell with `Datasets` and `Runs`, no sign-in text, and no `API Keys` text in the current view. Opening `https://lab.ashr.io/?tab=usage` in a new tab, and then clicking the single visible `Usage` button from the analysis shell, both landed on an `Ashr Labs` session-expired/sign-in plus onboarding `Pick a plan` shell.
 - Dashboard Images/Audio/Files current visible state: the authenticated Usage counter table did not load. The session-expired/onboarding shell showed plan-resource labels only: `images / mo`, `audio files / mo`, `sample files / mo`, `Videos`, `Simulations`, plus custom-plan copy for unlimited images and unlimited audio/sample files. Exact numeric dashboard or onboarding values were intentionally not recorded in this pass.
 - Current gaps: authenticated Usage `Images`, `Audio`, and `Files` used-of-limit counters; exact dashboard usage/remaining fields; dashboard billing or overage enforcement; API key list/revoke UI state; checkout/payment state; and hosted pricing enforcement remain unverified.
+
+## 2026-07-06 A1 Round7 Usage/API Boundary Recheck
+
+- Mode: Chrome read-only. API Keys, payment, checkout, credential, and billing mutation pages were not opened.
+- `https://ashr.io/` loaded with title `Ashr` and public signals for Docs, Plans, Developer, Startup, Enterprise, `$39`, and `$500`.
+- Primary docs host `https://docs.ashr.io/` returned `net::ERR_CONNECTION_CLOSED`; fallback `https://ashr.io/docs` returned `404 Not Found`. No docs fields were inferred from those failed pages.
+- `https://lab.ashr.io/?tab=usage` loaded with title `Ashr Labs` and visible labels/counters for `Usage`, `Images`, `Audio`, and `Files`. Exact private counter values were saved only to ignored private evidence at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json` and are not recorded in tracked docs.
+- Current boundary: Image/Audio/File usage labels are confirmed as same-level dashboard resources. Video/Simulation usage labels were not visible on the logged-in Usage page in this pass, though prior onboarding/public plan shells exposed media/resource copy for those modalities.

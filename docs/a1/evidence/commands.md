@@ -772,3 +772,37 @@ Results:
 - Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round6_safety.json`.
 - `git diff --check`: exit 0 with CRLF warnings only.
 - Official docs check: Python public API reference loaded and still exposes Testing Platform and Observability products plus create/list/run methods. TypeScript public API reference returned an internal error in this pass; no fields were inferred from that failed page.
+
+## A1 round7 main rebase, batch planner, TS evidence parity, and API refresh - 2026-07-06
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb --untracked-files=all
+gh repo view --json nameWithOwner,url,defaultBranchRef
+gh pr list --state all --limit 20 --json number,title,state,isDraft,headRefName,updatedAt,url
+git rebase origin/main
+python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider
+python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B -m services.runner.api_probe plan-batch --request-file docs/a1/api_calibration/media_interface_request.json --allow-media-generation --allow-non-text-inputs --max-request-variations 1 --small-batch-size 1 --batch-size 3 --output docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json
+python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_dry_run.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_real_readonly.json
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_ts_api_calibration_manifest_round7_real_readonly.json
+python -B -m services.runner.api_probe plan-batch --request-file docs/a1/api_calibration/tiny_generation_request.json --quota-record docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json --output docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json
+```
+
+Results:
+- Rebased A1 branch onto `origin/main`; conflict resolution kept the richer 200-record evidence index as base and regenerated A1 field-map artifacts.
+- API probe batch planner added planning-only `plan-batch`, dry-run/small-batch/batch phase metadata, text-first media sequencing, quota/reset stop-go gates, and create-request dry-run plan attachment.
+- Python evidence helpers now include merge-safe public quota normalization plus JSON/Markdown response field-map reports. TypeScript evidence parity now includes public linter and response field-map builder.
+- Chrome read-only check reached logged-in Usage view and confirmed `Usage`, `Images`, `Audio`, and `Files` counters were visible. Exact counter values remain only in ignored private evidence at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json`.
+- Python dry-run calibration: planned, 10 steps, five modalities, estimated calls 17.
+- Python real read-only calibration: ok, 5 read steps.
+- TypeScript real read-only calibration: ok, 5 read steps.
+- Quota-stop planner: blocked, based on prior private `create_request` quota record. No real paid mutating call was run this round because reset evidence was absent.
+- Public evidence index regenerated at 323 records, 15 response-field functions, quota block count 41, lint issues 0.
+- Focused Python API/evidence tests: 65 passed. TypeScript package tests: 153 passed.
+- Full Python A1 tests: 163 passed.
+- Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round7_safety.json`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan over touched public files matched only historical synthetic/documentation references; no operational key material was found.

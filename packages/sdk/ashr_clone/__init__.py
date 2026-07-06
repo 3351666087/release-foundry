@@ -32,7 +32,16 @@ from .dataset_adapter import (
     replay_fixture_from_source_run,
     write_cases,
 )
-from .evidence import build_private_evidence_index, build_private_evidence_index_from_dir, build_response_field_map, validate_public_evidence_index, write_private_evidence_index
+from .evidence import (
+    build_private_evidence_index,
+    build_private_evidence_index_from_dir,
+    build_response_field_map,
+    merge_evidence_indices,
+    render_response_field_map_markdown,
+    validate_public_evidence_index,
+    write_private_evidence_index,
+    write_response_field_map_markdown,
+)
 from .trace import (
     TraceEvent,
     TraceRecorder,
@@ -87,8 +96,11 @@ __all__ = [
     "build_private_evidence_index",
     "build_private_evidence_index_from_dir",
     "build_response_field_map",
+    "merge_evidence_indices",
+    "render_response_field_map_markdown",
     "validate_public_evidence_index",
     "write_private_evidence_index",
+    "write_response_field_map_markdown",
     "CaseResult",
     "GradeResult",
     "Observation",

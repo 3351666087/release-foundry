@@ -1,22 +1,1350 @@
 {
   "error_kind_counts": {
-    "api": 17
+    "api": 21
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
   "function_counts": {
-    "create_request": 21,
-    "get_dataset": 4,
-    "get_request": 6,
-    "init": 25,
-    "keep_alive": 25,
-    "list_agents": 25,
-    "list_datasets": 27,
-    "list_requests": 28,
-    "list_runs": 1
+    "create_request": 33,
+    "create_run": 2,
+    "get_dataset": 8,
+    "get_request": 11,
+    "get_run": 4,
+    "init": 29,
+    "keep_alive": 27,
+    "list_agents": 27,
+    "list_datasets": 33,
+    "list_requests": 32,
+    "list_runs": 4,
+    "plan_batch": 2,
+    "poll_request": 1,
+    "poll_run": 2
   },
-  "label": "a1-real-api-merged-2026-07-06",
-  "quota_block_count": 10,
+  "label": "a1-real-api-merged-2026-07-06-round7",
+  "quota_block_count": 41,
   "records": [
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_create_request_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_run",
+      "path": "docs/evidence/private_refs/a1_api_create_run_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_run",
+      "path": "docs/evidence/private_refs/a1_api_create_run_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "run",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_run",
+      "path": "docs/evidence/private_refs/a1_api_get_created_run_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_run",
+      "path": "docs/evidence/private_refs/a1_api_get_created_run_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "run",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "get_dataset",
+      "path": "docs/evidence/private_refs/a1_api_get_dataset_0_error_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_dataset",
+      "path": "docs/evidence/private_refs/a1_api_get_dataset_first_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "dataset",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "message",
+        "response",
+        "status_code"
+      ],
+      "error_kind": null,
+      "function": "get_dataset",
+      "path": "docs/evidence/private_refs/a1_api_get_dataset_invalid_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "get_dataset",
+      "path": "docs/evidence/private_refs/a1_api_get_dataset_missing_error_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a1_api_health_check_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "path": "docs/evidence/private_refs/a1_api_health_check_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a1_api_init_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a1_api_init_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a1_api_init_real_v2.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a1_api_list_agents_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "path": "docs/evidence/private_refs/a1_api_list_agents_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_after_request_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_limit1_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_limit1_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 1
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 2
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "path": "docs/evidence/private_refs/a1_api_list_datasets_real_v2.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 1
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_after_media_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_limit1_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 1
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 2
+      }
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_runs",
+      "path": "docs/evidence/private_refs/a1_api_list_runs_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_runs",
+      "path": "docs/evidence/private_refs/a1_api_list_runs_limit1_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "runs",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "runs": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_runs",
+      "path": "docs/evidence/private_refs/a1_api_list_runs_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "runs",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "runs": 1
+      }
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_create_request_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_create_request_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_get_request_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_get_request_recheck_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "message",
+        "status_code"
+      ],
+      "error_kind": null,
+      "function": "get_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_poll_request_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_media_interface_schema_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "poll_run",
+      "path": "docs/evidence/private_refs/a1_api_poll_created_run_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 4,
+      "dry_run": false,
+      "error_keys": [
+        "message",
+        "status_code"
+      ],
+      "error_kind": null,
+      "function": "get_run",
+      "path": "docs/evidence/private_refs/a1_api_poll_created_run_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "run",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "timeout",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_run",
+      "path": "docs/evidence/private_refs/a1_api_poll_created_run_real_v2.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "run",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "poll_run",
+      "path": "docs/evidence/private_refs/a1_api_poll_run_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "plan_batch",
+      "path": "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "plan_batch",
+      "path": "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "blocked",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_text_batch_create_request_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_text_batch_create_request_real.json",
+      "quota": {
+        "blocked": true,
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_create_request_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_create_request_round2_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_create_request_round2_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_create_request_round2_schema_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_create_request_round2_schema_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_get_request_round2_schema_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "poll_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_poll_request_round2_schema_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "get_request",
+      "path": "docs/evidence/private_refs/a1_api_tiny_poll_request_round2_schema_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_chrome_official_usage_round7.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_cloud_demo_fixture_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_cloud_demo_run_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_cloud_demo_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
     {
       "attempts": 0,
       "dry_run": true,
@@ -536,6 +1864,51 @@
       "top_counts": {}
     },
     {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round6_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_dry_run.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
       "attempts": 1,
       "dry_run": false,
       "error_keys": [
@@ -641,6 +2014,323 @@
     },
     {
       "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_batch_replay_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_batch_replayed_state_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_batch_state_snapshot_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_batch_state_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_demo_fixture_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_demo_run_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_demo_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_export_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_exported_fixture_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_replay_fixture_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_replay_run_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_replay_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_replayed_state_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_state_snapshot_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_queue_state_summary_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
       "dry_run": true,
       "error_keys": [],
       "error_kind": null,
@@ -661,6 +2351,156 @@
       "error_kind": null,
       "function": null,
       "path": "docs/evidence/private_refs/a1_readiness_calibration_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_final_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_final_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_full.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round4_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round5_after_redaction_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round5_final_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round6_after_linter_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round6_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_smoke.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -1746,6 +3586,793 @@
       "response_status": null,
       "response_summary_keys": [],
       "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_manifest_round7_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "init",
+      "path": "docs/evidence/private_refs/a1_ts_api_init_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_ts_api_media_create_request_dry_run.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_direct_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_direct_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_direct_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_direct_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_export_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_exported_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_one_shot_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_one_shot_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_one_shot_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_one_shot_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queue_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queue_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queued_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queued_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queued_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_queued_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_replay_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_cloud_replayed_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_direct_schema_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_direct_schema_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_direct_schema_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_direct_schema_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_queued_schema_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_queued_schema_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_queued_schema_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_queued_schema_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_quickstart_fixture_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_runner_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_runner_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_direct_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_direct_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_direct_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_direct_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_queued_fixture_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "completed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_queued_run_30_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "passed",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_queued_state_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "default_limits",
+          "projects"
+        ]
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_schema_queued_summary_30_smoke.json",
+      "quota": {
+        "blocked": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "remaining",
+          "used"
+        ],
+        "remaining_present": true,
+        "used_present": true
+      },
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": null,
       "status_code": null,
       "top_counts": {}
     },
@@ -4893,11 +7520,15 @@
   ],
   "schema_version": "ashr.clone.evidence_index.v1",
   "status_counts": {
-    "error": 18,
+    "blocked": 1,
+    "completed": 13,
+    "error": 24,
     "failed": 1,
-    "ok": 139,
+    "ok": 175,
     "partial": 11,
-    "planned": 30
+    "passed": 11,
+    "planned": 53,
+    "timeout": 1
   },
-  "total_records": 200
+  "total_records": 323
 }

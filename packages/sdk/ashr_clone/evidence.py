@@ -168,6 +168,57 @@ def build_response_field_map(index: Mapping[str, Any]) -> JsonDict:
     }
 
 
+def render_response_field_map_markdown(field_map: Mapping[str, Any]) -> str:
+    functions = field_map.get("functions") if isinstance(field_map.get("functions"), Mapping) else {}
+    lines = [
+        "# Ashr Real API Response Field Map",
+        "",
+        "| Field | Value |",
+        "| --- | --- |",
+        f"| Schema | `{field_map.get('schema_version', '')}` |",
+        f"| Source label | `{field_map.get('source_label', '')}` |",
+        f"| Source records | `{field_map.get('source_total_records', '')}` |",
+        f"| Field map version | `{field_map.get('field_map_version', '')}` |",
+        "",
+        "## Function Coverage",
+        "",
+        "| Function | Records | Statuses | Response keys | Error keys | Top count keys | Quota blocks |",
+        "| --- | ---: | --- | --- | --- | --- | ---: |",
+    ]
+    for function_name, details in sorted(functions.items()):
+        if not isinstance(details, Mapping):
+            continue
+        lines.append(
+            "| {function} | {records} | {statuses} | {response_keys} | {error_keys} | {top_count_keys} | {quota_blocks} |".format(
+                function=_md_code(function_name),
+                records=details.get("records", 0),
+                statuses=_format_counts(details.get("statuses")),
+                response_keys=_format_inline_list(details.get("response_keys")),
+                error_keys=_format_inline_list(details.get("error_keys")),
+                top_count_keys=_format_inline_list(details.get("top_count_keys")),
+                quota_blocks=details.get("quota_block_count", 0),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Commercial Readiness Notes",
+            "",
+            "- Public report intentionally lists field names, statuses, and quota-block presence only; exact hosted quota counts and raw payloads remain in ignored private evidence.",
+            "- Functions with quota blocks need quota-reset or plan-upgrade confirmation before paid mutating probes are scaled.",
+            "- Functions with both ok and error statuses are candidates for typed error taxonomy and replay fixture hardening.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def write_response_field_map_markdown(path: str | Path, field_map: Mapping[str, Any]) -> Path:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_response_field_map_markdown(field_map), encoding="utf-8")
+    return output
+
+
 def _summarize_record_path(path: Path) -> JsonDict | None:
     try:
         record = json.loads(path.read_text(encoding="utf-8"))
@@ -238,6 +289,22 @@ def _count_by(entries: Iterable[Mapping[str, Any]], key: str) -> JsonDict:
             continue
         counts[str(value)] = counts.get(str(value), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _format_counts(value: Any) -> str:
+    if not isinstance(value, Mapping) or not value:
+        return "-"
+    return ", ".join(f"{_md_code(str(key))}: {count}" for key, count in sorted(value.items()))
+
+
+def _format_inline_list(value: Any) -> str:
+    if not isinstance(value, list) or not value:
+        return "-"
+    return ", ".join(_md_code(str(item)) for item in value)
+
+
+def _md_code(value: str) -> str:
+    return "`" + value.replace("`", "\\`").replace("|", "\\|") + "`"
 
 
 def _count_nested(entries: Iterable[Mapping[str, Any]], outer_key: str, inner_key: str) -> JsonDict:

@@ -9,8 +9,10 @@ from packages.sdk.ashr_clone.evidence import (
     build_private_evidence_index_from_dir,
     build_response_field_map,
     merge_evidence_indices,
+    render_response_field_map_markdown,
     validate_public_evidence_index,
     write_private_evidence_index,
+    write_response_field_map_markdown,
 )
 
 
@@ -241,3 +243,34 @@ def test_public_response_field_map_artifact_is_generated():
     assert "create_request" in field_map["functions"]
     assert "list_requests" in field_map["functions"]
     assert "requests" in field_map["functions"]["list_requests"]["top_count_keys"]
+
+
+def test_response_field_map_markdown_report_is_public_safe(tmp_path: Path):
+    field_map = {
+        "schema_version": "ashr.clone.response_field_map.v1",
+        "source_label": "test-public-report",
+        "source_total_records": 200,
+        "field_map_version": "a1-api-calibration-2026-07-04",
+        "functions": {
+            "create_request": {
+                "records": 21,
+                "statuses": {"error": 10, "planned": 11},
+                "response_keys": ["plan", "status"],
+                "error_keys": ["error_kind", "message"],
+                "top_count_keys": [],
+                "quota_block_count": 10,
+            }
+        },
+    }
+
+    markdown = render_response_field_map_markdown(field_map)
+    output = write_response_field_map_markdown(tmp_path / "field-map.md", field_map)
+
+    assert output.exists()
+    assert "# Ashr Real API Response Field Map" in markdown
+    assert "`create_request`" in markdown
+    assert "`error`: 10" in markdown
+    assert "200" in markdown
+    assert "5/5 used" not in markdown
+    assert '"remaining": 0' not in markdown
+    assert output.read_text(encoding="utf-8") == markdown

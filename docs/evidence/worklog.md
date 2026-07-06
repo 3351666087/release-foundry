@@ -1981,3 +1981,93 @@ Next top 20:
 18. Add CI-friendly A1 readiness command docs in `docs/a1/README.md`.
 19. Add A3 handoff notes for `real_api_response_field_map.json`.
 20. Coordinate Gate-only shared evidence metadata changes with A2/A3.
+
+## A1 round - main evidence rebase, batch planner, TS parity, and round7 API refresh (2026-07-06T23:50:00+08:00)
+
+Goal slice:
+- Continue the active Ashr++ A1 goal after `origin/main` advanced with A2 real API evidence.
+- Preserve peer evidence, avoid stale 76-record API maps, and land a commercial-grade API probe batch planner plus human-readable field-map report.
+- Use official API and Chrome read-only calibration without storing or printing keys.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`.
+- Required start commands run: `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 20`.
+- `origin/main` had advanced to `80f76af Refresh readiness fixtures after evidence index merge`; A1 rebased onto main and resolved conflicts in `docs/a1/api_calibration/real_api_evidence_index.json` and `tests/a1/test_evidence_index.py`.
+- Peer impact: main/A2 raised the public evidence base from 76 records to 200 records. A1 kept that richer index, then refreshed to 323 records after round7 private refs.
+- Growth-Auditor P1s addressed: stale evidence base resolved; dirty TS parity intentionally restored and tested; exact quota details remain blocked from public artifacts.
+
+Top 20 A1 growth points considered:
+1. Rebase A1 onto `origin/main` and preserve A2 evidence. Implemented.
+2. Merge evidence-index conflict without losing public-safe linter. Implemented.
+3. Normalize legacy public quota records into `*_present` booleans. Implemented.
+4. Regenerate response field-map from 200+ records instead of 76. Implemented.
+5. Add Markdown response field-map report for release review. Implemented.
+6. Restore TypeScript public evidence linter parity. Implemented.
+7. Restore TypeScript response field-map builder parity. Implemented.
+8. Add API probe `plan-batch` CLI. Implemented.
+9. Attach batch plan summaries to create-request dry-runs. Implemented.
+10. Add dry-run -> small-batch -> batch phase metadata. Implemented.
+11. Add text-first media modality sequencing. Implemented.
+12. Add quota/reset stop-go metadata from prior private records. Implemented.
+13. Run Python read-only real API small batch. Implemented.
+14. Run TypeScript read-only real API small batch. Implemented.
+15. Chrome-check logged-in Usage field labels for Images/Audio/Files. Implemented.
+16. Generate quota-stop plan instead of blind paid mutation. Implemented.
+17. Refresh public evidence index and field-map/report after real API. Implemented.
+18. Full TS package validation after parity restore. Implemented.
+19. Full Python A1 validation and readiness smoke. In progress for final validation.
+20. Next enterprise audit manifest / typed API error taxonomy. Deferred.
+
+Implemented:
+- `services/runner/api_probe.py`: added `plan-batch`, batch phase planning, modality sequencing, quota/reset stop-go, and create-request dry-run batch-plan attachment.
+- `packages/sdk/ashr_clone/evidence.py`: added merge-safe public quota normalization, public evidence linter, response field-map builder, and Markdown response field-map writer.
+- `packages/sdk/ashr_clone/__init__.py`: exports merge/linter/field-map/report helpers.
+- `packages/ts/ashr-clone/src/evidence.ts`: TS public evidence linter and response field-map builder parity.
+- `tests/a1/test_api_client.py`, `tests/a1/test_evidence_index.py`, and `packages/ts/ashr-clone/test/evidence.test.mjs`: planner, linter, field-map, report, and quota-stop coverage.
+- `docs/a1/api_calibration/real_api_evidence_index.json`: regenerated public-safe index at 323 records.
+- `docs/a1/api_calibration/real_api_response_field_map.json` and `.md`: regenerated JSON and human-readable reports from the merged evidence base.
+
+Official/API evidence:
+- Chrome read-only: `https://ashr.io/` loaded; `https://docs.ashr.io/` returned connection closed and `https://ashr.io/docs` returned 404; `https://lab.ashr.io/?tab=usage` showed logged-in `Usage`, `Images`, `Audio`, and `Files` counters. Exact counter values are private only at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json`.
+- Python dry-run: `docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_dry_run.json`, planned 10 steps / 5 modalities / estimated calls 17.
+- Python real read-only: `docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_real_readonly.json`, status ok, 5 read steps.
+- TS real read-only: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_round7_real_readonly.json`, status ok, 5 read steps.
+- Planner evidence: `docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json` and `docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json`.
+- Key source: process environment only. Raw key was not printed, copied, stored, or committed.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 65 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 153 passed.
+- Public evidence index linter: 0 issues after refresh.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 163 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round7_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan over touched public files matched only historical synthetic/documentation references; no operational key material was found.
+
+Known gaps:
+- `create_request` success remains unproven after quota block; no reset signal was available, so mutating paid calls were not retried.
+- `docs.ashr.io` was unavailable in this pass and `ashr.io/docs` returned 404. Public docs fields were not inferred from those failed pages.
+- Logged-in Usage exact values are private only; tracked docs record labels/counter availability, not counts.
+- API probe planner is planning/enforcement scaffolding; next round should connect it to a typed error taxonomy and automated quota reset detector.
+
+Next top 20:
+1. Add typed API error taxonomy for quota, validation, auth, transport, timeout, and hosted failed request.
+2. Add evidence linter CLI for public/private refs.
+3. Add API probe planner JSON schema.
+4. Add quota reset detector using read-only records and Usage labels.
+5. Attempt one text mutation only after reset signal.
+6. Poll successful request and ingest hosted response into replay.
+7. Add hosted run lifecycle calibration matrix for `list_runs`, `get_run`, `poll_run`, and safe `create_run`.
+8. Add enterprise audit manifest tying commit, tests, evidence, field-map, and known gaps.
+9. Add old-vs-new deterministic replay diff fixture.
+10. Add production trace ingestion schema and CLI.
+11. Add media/non-text safe envelope fixtures with no raw payloads.
+12. Add TS Markdown report generator parity.
+13. Add A3 handoff notes for response field-map artifacts.
+14. Add CI-friendly A1 readiness docs after rebase.
+15. Add official docs drift checker with gap output.
+16. Add OpenAI-style adapter examples for create-request envelopes.
+17. Add self-host worker audit report.
+18. Add quota ledger import/export audit manifest.
+19. Add batch-run 80-case stress fixture with max_workers >= 8.
+20. Coordinate Gate-only evidence metadata with A2/A3.
