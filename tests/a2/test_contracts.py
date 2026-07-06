@@ -356,9 +356,20 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
+        self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
+        a1_real_api_required = set(evidence_readiness_schema["$defs"]["a1_real_api_evidence"]["required"])
+        self.assertLessEqual(a1_real_api_required, set(evidence_readiness["a1_real_api_evidence"]))
+        self.assertIn("real_quota_gate", a1_real_api_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_real_api_evidence"]["$ref"],
+            "#/$defs/a1_real_api_evidence",
+        )
+        quota_gate_required = set(evidence_readiness_schema["$defs"]["real_quota_gate"]["required"])
+        self.assertLessEqual(quota_gate_required, set(evidence_readiness["a1_real_api_evidence"]["real_quota_gate"]))
+        self.assertIn("create_request_blocked", quota_gate_required)
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)

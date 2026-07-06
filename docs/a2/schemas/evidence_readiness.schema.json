@@ -12,6 +12,7 @@
     "calibration_case_count",
     "calibration_cases",
     "ashr_grading_preflight",
+    "a1_real_api_evidence",
     "ashr_public_merge_gate",
     "official_sdk_smoke",
     "semantic_judge_preflight",
@@ -33,7 +34,7 @@
       "items": { "$ref": "#/$defs/calibration_case" }
     },
     "ashr_grading_preflight": { "$ref": "#/$defs/preflight" },
-    "a1_real_api_evidence": { "type": "object" },
+    "a1_real_api_evidence": { "$ref": "#/$defs/a1_real_api_evidence" },
     "ashr_public_merge_gate": { "type": "object" },
     "official_sdk_smoke": { "$ref": "#/$defs/official_sdk_smoke" },
     "semantic_judge_preflight": { "$ref": "#/$defs/preflight" },
@@ -72,6 +73,64 @@
       },
       "additionalProperties": true
     },
+    "a1_real_api_evidence": {
+      "type": "object",
+      "required": [
+        "available",
+        "index_path",
+        "total_records",
+        "quota_block_count",
+        "real_ok_functions",
+        "real_record_count",
+        "real_read_status_counts",
+        "real_quota_gate",
+        "c3_grading_ready"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "index_path": { "type": "string" },
+        "schema_version": { "type": "string" },
+        "label": { "type": "string" },
+        "field_map_version": { "type": "string" },
+        "total_records": { "type": "integer", "minimum": 0 },
+        "status_counts": { "$ref": "#/$defs/count_map" },
+        "function_counts": { "$ref": "#/$defs/count_map" },
+        "quota_block_count": { "type": "integer", "minimum": 0 },
+        "real_ok_functions": { "$ref": "#/$defs/string_array" },
+        "mutating_functions_present": { "$ref": "#/$defs/string_array" },
+        "real_record_count": { "type": "integer", "minimum": 0 },
+        "real_read_status_counts": { "$ref": "#/$defs/count_map" },
+        "real_create_request_status_counts": { "$ref": "#/$defs/count_map" },
+        "real_create_request_error_kind_counts": { "$ref": "#/$defs/count_map" },
+        "real_quota_gate": { "$ref": "#/$defs/real_quota_gate" },
+        "c3_candidate_record_count": { "type": "integer", "minimum": 0 },
+        "c3_grading_ready": { "type": "boolean" },
+        "notes": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "real_quota_gate": {
+      "type": "object",
+      "required": [
+        "blocked",
+        "blocked_count",
+        "blocked_functions",
+        "create_request_blocked",
+        "quota_keys",
+        "private_record_refs",
+        "public_action"
+      ],
+      "properties": {
+        "blocked": { "type": "boolean" },
+        "blocked_count": { "type": "integer", "minimum": 0 },
+        "blocked_functions": { "$ref": "#/$defs/string_array" },
+        "create_request_blocked": { "type": "boolean" },
+        "quota_keys": { "$ref": "#/$defs/string_array" },
+        "private_record_refs": { "$ref": "#/$defs/string_array" },
+        "public_action": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "official_sdk_smoke": {
       "type": "object",
       "required": [
@@ -98,6 +157,10 @@
         "read_only_reachable": { "type": "boolean" }
       },
       "additionalProperties": true
+    },
+    "count_map": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
     }
   },
   "additionalProperties": true
