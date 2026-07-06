@@ -301,7 +301,7 @@ The same report now includes `scope_boundary`, which explains why A2 is larger t
 
 G1-G2 is deterministic and local. It should not depend on real Ashr API access, LLM judge calls, or live external tools.
 
-G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided.
+G3 can add Ashr server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `ASHR_LABS_API_KEY` is provided. The committed smoke summary uses `docs/a2/schemas/real_api_smoke.schema.json`.
 
 After private A1/A2 API probes are recorded under ignored `docs/evidence/private_refs/`, refresh the public-safe evidence index with:
 

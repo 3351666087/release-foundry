@@ -316,6 +316,7 @@ class A2ContractTests(unittest.TestCase):
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
+        real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -385,6 +386,11 @@ class A2ContractTests(unittest.TestCase):
             "a2.external_evidence_preflight.v1",
         )
         self.assertIn("real_api_evidence_refresh", external_preflight_schema["properties"]["recommended_commands"]["required"])
+        self.assertEqual(
+            real_api_smoke_schema["properties"]["schema_version"]["const"],
+            "a2.real_api_smoke.v1",
+        )
+        self.assertIn("calls", real_api_smoke_schema["required"])
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -1741,13 +1747,22 @@ class A2ContractTests(unittest.TestCase):
 
     def test_real_api_smoke_evidence_is_redacted(self):
         evidence_path = ROOT / "docs/evidence/a2_real_api_smoke.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/real_api_smoke.schema.json").read_text(encoding="utf-8"))
         payload_text = evidence_path.read_text(encoding="utf-8")
         payload = json.loads(payload_text)
 
         self.assertEqual(payload["schema_version"], "a2.real_api_smoke.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertLessEqual(set(schema["properties"]["auth"]["required"]), set(payload["auth"]))
+        self.assertEqual(payload["api_call_count"], len(payload["calls"]))
         self.assertEqual(payload["api_call_count"], 6)
         self.assertTrue(payload["all_required_calls_reached"])
         self.assertEqual([call["status"] for call in payload["calls"]], ["ok"] * 6)
+        self.assertEqual(
+            [call["name"] for call in payload["calls"]],
+            ["init", "health_check", "list_datasets", "list_runs", "list_requests", "list_agents"],
+        )
         self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
         self.assertNotIn("Bearer ", payload_text)
         self.assertNotIn("@", payload_text)

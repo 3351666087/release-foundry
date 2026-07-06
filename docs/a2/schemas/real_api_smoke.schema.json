@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2RealApiSmoke",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "sdk_source",
+    "base_url",
+    "auth",
+    "api_call_count",
+    "calls",
+    "all_required_calls_reached",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.real_api_smoke.v1" },
+    "generated_at": { "type": "string" },
+    "sdk_source": { "type": "string" },
+    "base_url": { "type": "string" },
+    "auth": {
+      "type": "object",
+      "required": [
+        "session_reached",
+        "status",
+        "user_id_present",
+        "user_email_sha256_12",
+        "tenant_id_present",
+        "tenant_name_present",
+        "note_count"
+      ],
+      "properties": {
+        "session_reached": { "type": "boolean" },
+        "status": { "type": "string" },
+        "user_id_present": { "type": "boolean" },
+        "user_email_sha256_12": { "type": "string" },
+        "tenant_id_present": { "type": "boolean" },
+        "tenant_name_present": { "type": "boolean" },
+        "note_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "api_call_count": { "type": "integer", "minimum": 0 },
+    "calls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/call" }
+    },
+    "all_required_calls_reached": { "type": "boolean" },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "call": {
+      "type": "object",
+      "required": ["name", "status"],
+      "properties": {
+        "name": {
+          "enum": [
+            "init",
+            "health_check",
+            "list_datasets",
+            "list_runs",
+            "list_requests",
+            "list_agents"
+          ]
+        },
+        "status": { "enum": ["ok", "error"] },
+        "summary": { "$ref": "#/$defs/summary" },
+        "error_type": { "type": "string" },
+        "error_message": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" },
+        "keys": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status_value": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "item_keys": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
