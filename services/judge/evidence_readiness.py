@@ -308,6 +308,16 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
             if str(record.get("function", "")).startswith("create_")
         }
     )
+    real_records = [record for record in records if record.get("dry_run") is False]
+    real_read_records = [
+        record
+        for record in real_records
+        if str(record.get("function", "")).startswith(("get_", "list_"))
+        or record.get("function") in {"init", "keep_alive"}
+    ]
+    real_create_request_records = [
+        record for record in real_records if record.get("function") == "create_request"
+    ]
     c3_candidate_records = [
         record
         for record in records
@@ -325,13 +335,28 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
         "quota_block_count": int(payload.get("quota_block_count", 0)),
         "real_ok_functions": real_ok_functions,
         "mutating_functions_present": mutating_functions,
+        "real_record_count": len(real_records),
+        "real_read_status_counts": _count_records(real_read_records, "status"),
+        "real_create_request_status_counts": _count_records(real_create_request_records, "status"),
+        "real_create_request_error_kind_counts": _count_records(real_create_request_records, "error_kind"),
         "c3_candidate_record_count": len(c3_candidate_records),
         "c3_grading_ready": False,
         "notes": [
             "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+            "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
             "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge.",
         ],
     }
+
+
+def _count_records(records: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        value = record.get(key)
+        if value is None:
+            continue
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:

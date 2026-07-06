@@ -97,28 +97,28 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-real-api-2026-07-05",
+    "label": "a2-g3-real-api-2026-07-06-merged",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 61,
+    "total_records": 94,
     "status_counts": {
-      "error": 4,
+      "error": 10,
       "failed": 1,
-      "ok": 28,
-      "partial": 1,
-      "planned": 26
+      "ok": 52,
+      "partial": 3,
+      "planned": 27
     },
     "function_counts": {
-      "create_request": 11,
-      "get_dataset": 2,
-      "get_request": 4,
-      "init": 6,
-      "keep_alive": 6,
-      "list_agents": 6,
-      "list_datasets": 8,
-      "list_requests": 9,
+      "create_request": 13,
+      "get_dataset": 4,
+      "get_request": 6,
+      "init": 10,
+      "keep_alive": 10,
+      "list_agents": 10,
+      "list_datasets": 12,
+      "list_requests": 13,
       "list_runs": 1
     },
-    "quota_block_count": 1,
+    "quota_block_count": 2,
     "real_ok_functions": [
       "get_dataset",
       "get_request",
@@ -132,10 +132,22 @@
     "mutating_functions_present": [
       "create_request"
     ],
+    "real_record_count": 65,
+    "real_read_status_counts": {
+      "error": 7,
+      "ok": 45
+    },
+    "real_create_request_status_counts": {
+      "error": 3
+    },
+    "real_create_request_error_kind_counts": {
+      "api": 3
+    },
     "c3_candidate_record_count": 1,
     "c3_grading_ready": false,
     "notes": [
       "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+      "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
       "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
     ]
   },

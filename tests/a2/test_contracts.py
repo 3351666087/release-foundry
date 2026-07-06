@@ -956,6 +956,13 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(report["a1_real_api_evidence"]["available"])
         self.assertIn("init", report["a1_real_api_evidence"]["real_ok_functions"])
         self.assertIn("list_datasets", report["a1_real_api_evidence"]["real_ok_functions"])
+        self.assertGreaterEqual(report["a1_real_api_evidence"]["real_record_count"], 60)
+        self.assertGreaterEqual(report["a1_real_api_evidence"]["real_read_status_counts"]["ok"], 40)
+        self.assertGreaterEqual(
+            report["a1_real_api_evidence"]["real_create_request_status_counts"]["error"],
+            1,
+        )
+        self.assertIn("api", report["a1_real_api_evidence"]["real_create_request_error_kind_counts"])
         self.assertFalse(report["a1_real_api_evidence"]["c3_grading_ready"])
         self.assertIn(
             "docs/a1/api_calibration/real_api_evidence_index.json",
