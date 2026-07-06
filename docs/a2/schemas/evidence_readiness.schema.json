@@ -13,6 +13,7 @@
     "calibration_cases",
     "ashr_grading_preflight",
     "ashr_public_merge_gate",
+    "official_sdk_smoke",
     "semantic_judge_preflight",
     "semantic_live_merge_gate",
     "batch_plan_refs",
@@ -34,6 +35,7 @@
     "ashr_grading_preflight": { "$ref": "#/$defs/preflight" },
     "a1_real_api_evidence": { "type": "object" },
     "ashr_public_merge_gate": { "type": "object" },
+    "official_sdk_smoke": { "$ref": "#/$defs/official_sdk_smoke" },
     "semantic_judge_preflight": { "$ref": "#/$defs/preflight" },
     "semantic_live_merge_gate": { "type": "object" },
     "batch_plan_refs": { "$ref": "#/$defs/string_array" },
@@ -67,6 +69,33 @@
         "source": { "type": "string" },
         "expected_observation_count": { "type": "integer", "minimum": 0 },
         "commands": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "official_sdk_smoke": {
+      "type": "object",
+      "required": [
+        "available",
+        "path",
+        "api_call_count",
+        "ok_call_count",
+        "error_call_count",
+        "call_names",
+        "all_required_calls_reached",
+        "read_only_reachable"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "path": { "type": "string" },
+        "schema_version": { "type": "string" },
+        "sdk_source": { "type": "string" },
+        "base_url": { "type": "string" },
+        "api_call_count": { "type": "integer", "minimum": 0 },
+        "ok_call_count": { "type": "integer", "minimum": 0 },
+        "error_call_count": { "type": "integer", "minimum": 0 },
+        "call_names": { "$ref": "#/$defs/string_array" },
+        "all_required_calls_reached": { "type": "boolean" },
+        "read_only_reachable": { "type": "boolean" }
       },
       "additionalProperties": true
     }

@@ -357,7 +357,15 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
+        self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
+        official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
+        self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
+        self.assertIn("read_only_reachable", official_smoke_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
+            "#/$defs/official_sdk_smoke",
+        )
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
