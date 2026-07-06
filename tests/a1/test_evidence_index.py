@@ -90,7 +90,15 @@ def test_evidence_index_extracts_safe_shapes_without_raw_payload(tmp_path: Path)
     assert "Sensitive raw dataset name" not in json.dumps(index)
     assert "raw prompt must not appear" not in json.dumps(index)
     assert index["records"][0]["path"].endswith("ok.json")
-    assert index["records"][1]["quota"]["remaining"] == 0
+    quota = index["records"][1]["quota"]
+    assert quota["resource"] == "requests"
+    assert quota["limit_present"] is True
+    assert quota["used_present"] is True
+    assert quota["requested_present"] is True
+    assert quota["remaining_present"] is True
+    index_text = json.dumps(index)
+    assert ("5/5 " + "used") not in index_text
+    assert ('"remaining": ' + "0") not in index_text
 
 
 def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):

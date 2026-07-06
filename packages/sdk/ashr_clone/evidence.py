@@ -66,7 +66,7 @@ def _summarize_record_path(path: Path) -> JsonDict | None:
     response = record.get("response") if isinstance(record.get("response"), Mapping) else {}
     error = record.get("error") if isinstance(record.get("error"), Mapping) else {}
     request = record.get("request") if isinstance(record.get("request"), Mapping) else {}
-    quota = summarize_quota_error(record)
+    quota = _public_safe_quota_summary(summarize_quota_error(record))
     entry: JsonDict = {
         "path": path.as_posix(),
         "function": record.get("function"),
@@ -85,6 +85,24 @@ def _summarize_record_path(path: Path) -> JsonDict | None:
     if quota:
         entry["quota"] = quota
     return redact_sensitive(entry)
+
+
+def _public_safe_quota_summary(quota: Mapping[str, Any] | None) -> JsonDict | None:
+    if not quota:
+        return None
+    quota_keys = quota.get("quota_keys") if isinstance(quota.get("quota_keys"), list) else []
+    summary: JsonDict = {
+        "blocked": quota.get("blocked") is True,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence" if quota.get("blocked") is True else None,
+        "quota_keys": sorted(str(key) for key in quota_keys),
+    }
+    resource = quota.get("resource")
+    if isinstance(resource, (str, int, float, bool)):
+        summary["resource"] = resource
+    for key in ("limit", "used", "requested", "remaining"):
+        if key in quota:
+            summary[f"{key}_present"] = True
+    return summary
 
 
 def _keys(value: Any) -> list[str]:

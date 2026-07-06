@@ -99,10 +99,19 @@ def test_parse_args_requires_paid_media_ack_for_mutating_media():
 def test_request_for_modality_uses_object_accepted_inputs_for_all_modalities():
     for modality in ("text", "image", "audio", "file", "video"):
         request = request_for_modality(modality)
-        assert sorted(request["accepted_inputs"].keys()) == ["audio", "file", "image", "text", "video"]
-        assert request["accepted_inputs"]["text"]["enabled"] is True
-        assert request["accepted_inputs"][modality]["enabled"] is True
-        assert request["agent_input_schema_version"] == "ashr.clone.agent_input.v1"
+        agent = request["agent"]
+        assert sorted(agent["accepted_inputs"].keys()) == ["audio", "conversation", "file", "image", "text", "video"]
+        assert agent["accepted_inputs"]["text"]["enabled"] is True
+        assert agent["accepted_inputs"][modality]["enabled"] is True
+        assert agent["accepted_inputs"]["conversation"]["enabled"] is False
+        assert agent["output_format"] == {"type": "text"}
+        assert request["generation_options"]["generate_audio"] is (modality == "audio")
+        assert request["generation_options"]["generate_files"] is (modality == "file")
+        assert request["generation_options"]["generate_images"] is (modality == "image")
+        assert request["generation_options"]["generate_videos"] is (modality == "video")
+        assert request["generation_options"]["generate_simulations"] is False
+        assert "accepted_inputs" not in request
+        assert "agent_input_parts" not in request
 
 
 def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_path: Path):

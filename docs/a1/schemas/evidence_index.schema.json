@@ -64,10 +64,10 @@
               "message": { "type": ["string", "null"] },
               "quota_keys": { "type": "array", "items": { "type": "string" } },
               "resource": { "type": ["string", "number", "boolean"] },
-              "limit": { "type": ["string", "number", "boolean"] },
-              "used": { "type": ["string", "number", "boolean"] },
-              "requested": { "type": ["string", "number", "boolean"] },
-              "remaining": { "type": ["string", "number", "boolean"] }
+              "limit_present": { "type": "boolean" },
+              "used_present": { "type": "boolean" },
+              "requested_present": { "type": "boolean" },
+              "remaining_present": { "type": "boolean" }
             },
             "additionalProperties": true
           }

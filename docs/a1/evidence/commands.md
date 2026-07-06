@@ -606,7 +606,7 @@ Results:
 - `poll_request(580)` produced a controlled failure record for an already failed media request and preserved only safe failure shape summaries.
 - `ashr-clone-calibrate` dry-run manifest covered 10 steps including first-class `text`, `image`, `audio`, `file`, and `video` create-request plans.
 - `ashr-clone-calibrate` real read-only small-batch manifest succeeded with 5/5 read steps and no raw key/payload in public evidence.
-- Text-only mutating small-batch was attempted once and blocked by hosted quota: `Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining`; no retry was attempted.
+- Text-only mutating small-batch was attempted once and blocked by hosted quota; exact quota counts remain only in ignored private evidence, and no retry was attempted.
 - Tests: TS `145/145`; Python A1 `133 passed`; `git diff --check` exit 0 with CRLF warnings only.
 
 ## A1 Python calibrator and evidence index - 2026-07-05T06:33:05Z
@@ -705,3 +705,44 @@ Results:
 - `git diff --check`: exit 0 with CRLF warnings only.
 - Failed command: a bash heredoc inspection command failed under PowerShell; rerun with `python -B -c` succeeded.
 - Real Ashr API: read-only only. `ASHR_API_KEY` was present in environment; raw key was not printed, stored, or committed. No mutating call was run in this round.
+
+## A1 Python create_request preflight and round5 API calibration - 2026-07-06
+
+Commands:
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+pwd
+git rev-parse --show-toplevel
+git remote -v
+git status -sb --untracked-files=all
+gh repo view
+gh pr list --state all
+python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_dry_run.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_readonly.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_text_mutation.json
+python -B -c "import json; from pathlib import Path; paths=['docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_readonly.json','docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_text_mutation.json']; [print(p, json.loads(Path(p).read_text()).get('status'), json.loads(Path(p).read_text()).get('summary'), json.loads(Path(p).read_text()).get('errors')) for p in paths]"
+python -B -c "from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, write_private_evidence_index; patterns=['docs/evidence/private_refs/a1_real_*.json','docs/evidence/private_refs/a1_ts_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_calibration_*.json','docs/evidence/private_refs/a1_python_api_get_*_round2_real.json','docs/evidence/private_refs/a1_readiness_calibration_*.json']; paths=[]; [paths.extend(Path('.').glob(pattern)) for pattern in patterns]; index=build_private_evidence_index(sorted(set(paths)), label='a1-real-api-2026-07-06-round5-python-preflight'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); print({'records': index['total_records'], 'status_counts': index['status_counts'], 'function_counts': index['function_counts'], 'error_kind_counts': index['error_kind_counts'], 'quota_block_count': index['quota_block_count']})"
+python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round5_final_safety.json
+git diff --check
+Select-String -Path packages/sdk/ashr_clone/api_client.py,packages/sdk/ashr_clone/calibrate.py,services/runner/api_probe.py,tests/a1/test_api_client.py,tests/a1/test_python_calibrator.py,docs/a1/explorer_chrome.md,docs/a1/api_calibration/real_api_evidence_index.json -Pattern 'tp_[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]+|ashr_live_[A-Za-z0-9_-]+' -AllMatches | Select-Object Path,LineNumber,Line
+```
+
+Results:
+- Focused Python API client/calibrator tests: 60 passed.
+- Full Python A1 tests: 154 passed.
+- Full TypeScript SDK tests: 152 passed.
+- Python dry-run calibration: planned, 10 steps, five first-class modalities, no quota block.
+- Python real read-only calibration: ok, 5 read steps, 0 errors.
+- Python text-only mutating calibration: partial, 5 read steps ok, one `create_request` quota block; exact quota counts remain only in ignored private evidence, and no retry or media mutating calls were run.
+- Public-safe evidence index refreshed at `docs/a1/api_calibration/real_api_evidence_index.json`: 75 records, status counts `error=9`, `failed=1`, `ok=33`, `partial=2`, `planned=29`, quota block count 2.
+- Evidence index schema tests: 4 passed.
+- Final readiness safety smoke: ok, 2 steps, output `docs/evidence/private_refs/a1_readiness_round5_final_safety.json`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret scan: matches were intentional synthetic test strings such as `tp_test_secret`; no real API key was printed or written to tracked docs/code/evidence index.
+- Growth-Auditor quota-detail follow-up: public evidence index quota summaries now use `*_present` booleans and generic quota-block text; tracked public docs/index scan found no exact hosted quota count phrase or numeric `used/requested/remaining` tuple.
+- One failed inspection command used bash-style `\n` in a PowerShell `python -c` string and produced a SyntaxError; it was rerun with a PowerShell-compatible one-liner.

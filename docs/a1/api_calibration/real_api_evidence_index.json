@@ -1,10 +1,10 @@
 {
   "error_kind_counts": {
-    "api": 7
+    "api": 8
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
   "function_counts": {
-    "create_request": 11,
+    "create_request": 12,
     "get_dataset": 4,
     "get_request": 6,
     "init": 6,
@@ -14,8 +14,8 @@
     "list_requests": 9,
     "list_runs": 1
   },
-  "label": "a1-real-api-2026-07-06-round4",
-  "quota_block_count": 1,
+  "label": "a1-real-api-2026-07-06-round5-python-preflight",
+  "quota_block_count": 2,
   "records": [
     {
       "attempts": 0,
@@ -107,6 +107,49 @@
       "response_summary_keys": [],
       "status": "planned",
       "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json",
+      "quota": {
+        "blocked": true,
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
       "top_counts": {}
     },
     {
@@ -429,6 +472,51 @@
       "response_status": null,
       "response_summary_keys": [],
       "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_dry_run.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "planned",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round5_real_text_mutation.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "partial",
       "status_code": null,
       "top_counts": {}
     },
@@ -1265,8 +1353,8 @@
       "path": "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
       "quota": {
         "blocked": true,
-        "limit": 5,
-        "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
         "quota_keys": [
           "asset_type",
           "error",
@@ -1275,9 +1363,9 @@
           "requested",
           "used"
         ],
-        "remaining": 0,
-        "requested": 1,
-        "used": 5
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
       },
       "request_keys": [
         "estimated_calls",
@@ -1649,11 +1737,11 @@
   ],
   "schema_version": "ashr.clone.evidence_index.v1",
   "status_counts": {
-    "error": 8,
+    "error": 9,
     "failed": 1,
-    "ok": 32,
-    "partial": 1,
-    "planned": 28
+    "ok": 33,
+    "partial": 2,
+    "planned": 29
   },
-  "total_records": 71
+  "total_records": 75
 }
