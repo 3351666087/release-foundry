@@ -976,6 +976,15 @@ class A2ContractTests(unittest.TestCase):
             "docs/a1/api_calibration/real_api_evidence_index.json",
             report["a1_real_api_evidence"]["index_path"],
         )
+        self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
+        self.assertTrue(report["official_sdk_smoke"]["available"])
+        self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
+        self.assertEqual(report["official_sdk_smoke"]["ok_call_count"], 6)
+        self.assertEqual(report["official_sdk_smoke"]["error_call_count"], 0)
+        self.assertIn("init", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_datasets", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_requests", report["official_sdk_smoke"]["call_names"])
+        self.assertIn("list_agents", report["official_sdk_smoke"]["call_names"])
         self.assertEqual(report["ashr_public_merge_gate"]["status"], "not_merged")
         self.assertFalse(report["ashr_public_merge_gate"]["public_matrix_merged"])
         self.assertFalse(report["ashr_public_merge_gate"]["safe_to_mark_c3_met"])

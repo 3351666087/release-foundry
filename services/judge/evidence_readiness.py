@@ -9,6 +9,7 @@ from typing import Any
 
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
 DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
+DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
     "evidence_ref",
@@ -42,6 +43,7 @@ def build_evidence_readiness_report(
     *,
     ashr_case_map_path: str | Path = DEFAULT_ASHR_CASE_MAP,
     a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
+    official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
     cases = list(calibration_matrix.get("cases", []))
@@ -71,6 +73,7 @@ def build_evidence_readiness_report(
     ]
     semantic_risk = semantic_harness_report.get("risk_assessment", {})
     a1_real_api_evidence = _a1_real_api_evidence_summary(a1_real_api_evidence_index_path)
+    official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -80,6 +83,7 @@ def build_evidence_readiness_report(
         "semantic_false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
         "semantic_required_fields_documented": bool(REQUIRED_SEMANTIC_FIELDS),
         "semantic_sdk_language_matrix_ready": set(semantic_languages) >= {"python", "typescript"},
+        "official_sdk_smoke_readonly_ok": bool(official_sdk_smoke.get("read_only_reachable")),
         "private_payload_boundary_documented": True,
     }
 
@@ -115,6 +119,7 @@ def build_evidence_readiness_report(
             "commands": ashr_import_commands,
         },
         "a1_real_api_evidence": a1_real_api_evidence,
+        "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
@@ -386,6 +391,48 @@ def _quota_gate_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
             if "create_request" in functions
             else "No mutating request quota gate is currently visible in public-safe evidence."
         ),
+    }
+
+
+def _official_sdk_smoke_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "read_only_reachable": False,
+            "reason": "A2 official SDK smoke summary is not available yet.",
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "read_only_reachable": False,
+            "reason": "A2 official SDK smoke summary is not a JSON object.",
+        }
+
+    calls = [call for call in payload.get("calls", []) if isinstance(call, dict)]
+    ok_count = sum(1 for call in calls if call.get("status") == "ok")
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "generated_at": str(payload.get("generated_at", "")),
+        "sdk_source": str(payload.get("sdk_source", "")),
+        "base_url": str(payload.get("base_url", "")),
+        "api_call_count": int(payload.get("api_call_count", len(calls))),
+        "ok_call_count": ok_count,
+        "error_call_count": sum(1 for call in calls if call.get("status") != "ok"),
+        "call_status_counts": _count_records(calls, "status"),
+        "call_names": sorted(str(call.get("name")) for call in calls if call.get("name")),
+        "all_required_calls_reached": bool(payload.get("all_required_calls_reached")),
+        "read_only_reachable": bool(calls) and ok_count == len(calls) and bool(payload.get("all_required_calls_reached")),
+        "notes": [
+            "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
+            "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence.",
+        ],
     }
 
 

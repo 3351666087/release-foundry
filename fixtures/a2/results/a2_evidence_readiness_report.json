@@ -12,6 +12,7 @@
     "semantic_false_positive_tracking_ready": true,
     "semantic_required_fields_documented": true,
     "semantic_sdk_language_matrix_ready": true,
+    "official_sdk_smoke_readonly_ok": true,
     "private_payload_boundary_documented": true
   },
   "calibration_case_count": 6,
@@ -97,28 +98,28 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a2-g3-real-api-2026-07-06-read-refresh-merged",
+    "label": "a2-g3-real-api-2026-07-06-heavy-refresh-merged",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 114,
+    "total_records": 140,
     "status_counts": {
-      "error": 11,
+      "error": 13,
       "failed": 1,
-      "ok": 69,
-      "partial": 4,
+      "ok": 91,
+      "partial": 6,
       "planned": 28
     },
     "function_counts": {
-      "create_request": 14,
+      "create_request": 16,
       "get_dataset": 4,
       "get_request": 6,
-      "init": 13,
-      "keep_alive": 13,
-      "list_agents": 13,
-      "list_datasets": 15,
-      "list_requests": 16,
+      "init": 17,
+      "keep_alive": 17,
+      "list_agents": 17,
+      "list_datasets": 19,
+      "list_requests": 20,
       "list_runs": 1
     },
-    "quota_block_count": 3,
+    "quota_block_count": 5,
     "real_ok_functions": [
       "get_dataset",
       "get_request",
@@ -132,20 +133,20 @@
     "mutating_functions_present": [
       "create_request"
     ],
-    "real_record_count": 84,
+    "real_record_count": 110,
     "real_read_status_counts": {
       "error": 7,
-      "ok": 60
+      "ok": 80
     },
     "real_create_request_status_counts": {
-      "error": 4
+      "error": 6
     },
     "real_create_request_error_kind_counts": {
-      "api": 4
+      "api": 6
     },
     "real_quota_gate": {
       "blocked": true,
-      "blocked_count": 3,
+      "blocked_count": 5,
       "blocked_functions": [
         "create_request"
       ],
@@ -161,7 +162,9 @@
       "private_record_refs": [
         "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
-        "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json"
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json"
       ],
       "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
     },
@@ -171,6 +174,34 @@
       "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
       "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
       "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
+    ]
+  },
+  "official_sdk_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_real_api_smoke.json",
+    "schema_version": "a2.real_api_smoke.v1",
+    "generated_at": "2026-07-06T09:08:30Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.ashr.io/testing-platform-api",
+    "api_call_count": 6,
+    "ok_call_count": 6,
+    "error_call_count": 0,
+    "call_status_counts": {
+      "ok": 6
+    },
+    "call_names": [
+      "health_check",
+      "init",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "all_required_calls_reached": true,
+    "read_only_reachable": true,
+    "notes": [
+      "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
+      "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence."
     ]
   },
   "ashr_public_merge_gate": {
