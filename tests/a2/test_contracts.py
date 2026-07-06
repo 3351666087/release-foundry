@@ -317,6 +317,7 @@ class A2ContractTests(unittest.TestCase):
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -327,6 +328,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -391,6 +393,11 @@ class A2ContractTests(unittest.TestCase):
             "a2.real_api_smoke.v1",
         )
         self.assertIn("calls", real_api_smoke_schema["required"])
+        self.assertEqual(
+            evidence_index_schema["properties"]["schema_version"]["const"],
+            evidence_index["schema_version"],
+        )
+        self.assertLessEqual(set(evidence_index_schema["required"]), set(evidence_index))
 
         local_run_required = set(grade_schema["$defs"]["local_judge_run"]["required"])
         judge_required = set(grade_schema["$defs"]["grade_result"]["required"])
@@ -1769,6 +1776,51 @@ class A2ContractTests(unittest.TestCase):
         for call in payload["calls"]:
             self.assertNotIn("payload", call)
             self.assertNotIn("response", call)
+
+    def test_real_api_evidence_index_matches_public_safe_schema(self):
+        evidence_path = ROOT / "docs/a1/api_calibration/real_api_evidence_index.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/evidence_index.schema.json").read_text(encoding="utf-8"))
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+        records = payload["records"]
+
+        self.assertEqual(payload["schema_version"], "ashr.clone.evidence_index.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertEqual(payload["total_records"], len(records))
+        self.assertGreaterEqual(payload["total_records"], 100)
+        self.assertEqual(payload["status_counts"], self._record_counts(records, "status"))
+        self.assertEqual(payload["function_counts"], self._record_counts(records, "function"))
+        self.assertEqual(payload["error_kind_counts"], self._record_counts(records, "error_kind"))
+        self.assertEqual(
+            payload["quota_block_count"],
+            sum(1 for record in records if isinstance(record.get("quota"), dict) and record["quota"].get("blocked") is True),
+        )
+
+        record_required = set(schema["$defs"]["record"]["required"])
+        forbidden_raw_keys = {"request", "response", "error", "response_headers"}
+        for record in records:
+            with self.subTest(record=record["path"]):
+                self.assertLessEqual(record_required, set(record))
+                self.assertTrue(record["path"].startswith("docs/evidence/private_refs/"))
+                self.assertTrue(isinstance(record["request_keys"], list))
+                self.assertTrue(isinstance(record["response_keys"], list))
+                self.assertTrue(isinstance(record["error_keys"], list))
+                self.assertTrue(isinstance(record["top_counts"], dict))
+                self.assertFalse(forbidden_raw_keys & set(record))
+
+        paths = [record["path"] for record in records]
+        self.assertTrue(any("a1_python_api_calibration" in path or "/python_" in path for path in paths))
+        self.assertTrue(any("a1_ts_api_calibration" in path or "/ts_" in path for path in paths))
+        self.assertIn("create_request", payload["function_counts"])
+        self.assertTrue(any(isinstance(record.get("quota"), dict) and record["quota"].get("blocked") is True for record in records))
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotRegex(payload_text, re.compile(r"[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}"))
+
+    @staticmethod
+    def _record_counts(records, key):
+        return dict(sorted(Counter(str(record[key]) for record in records if record.get(key) is not None).items()))
 
 
 if __name__ == "__main__":

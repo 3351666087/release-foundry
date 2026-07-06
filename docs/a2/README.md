@@ -158,6 +158,7 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 - the six calibration cases that need comparable external observations,
 - whether `fixtures/a2/calibration/ashr_grading_batch_case_map.json` covers every calibration case,
 - the public-safe A1 real API evidence index summary from `docs/a1/api_calibration/real_api_evidence_index.json`,
+- the public-safe evidence index contract pinned by `docs/a2/schemas/evidence_index.schema.json`,
 - the reviewed Ashr grading import/merge commands,
 - an `ashr_public_merge_gate` that says whether the reviewed Ashr grading column is actually present in the public calibration matrix,
 - the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
@@ -311,6 +312,7 @@ python -B scripts/a2_regenerate_fixtures.py --write
 ```
 
 The refresh script preserves already committed safe index rows when the local raw private evidence is unavailable, then merges any newly available private records by `path`. The committed index must contain only field keys, counts, statuses, quota summaries, and private evidence refs.
+Its public shape is covered by `docs/a2/schemas/evidence_index.schema.json` and A2 contract tests, so A1/A3 can consume the same real API evidence summary without reading raw private payloads.
 
 ## Agent Workflow
 
