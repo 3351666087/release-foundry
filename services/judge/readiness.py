@@ -46,6 +46,12 @@ def build_commercial_readiness_report(
     regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
     regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
     evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
+    a1_real_api_evidence_raw = (evidence_readiness_report or {}).get("a1_real_api_evidence", {})
+    a1_real_api_evidence = a1_real_api_evidence_raw if isinstance(a1_real_api_evidence_raw, dict) else {}
+    real_quota_gate_raw = a1_real_api_evidence.get("real_quota_gate", {})
+    real_quota_gate = real_quota_gate_raw if isinstance(real_quota_gate_raw, dict) else {}
+    official_sdk_smoke_raw = (evidence_readiness_report or {}).get("official_sdk_smoke", {})
+    official_sdk_smoke = official_sdk_smoke_raw if isinstance(official_sdk_smoke_raw, dict) else {}
     ashr_public_merge_gate = (evidence_readiness_report or {}).get("ashr_public_merge_gate", {})
     ashr_public_merge_status = str(ashr_public_merge_gate.get("status", "unknown"))
     ashr_public_matrix_merged = bool(ashr_public_merge_gate.get("public_matrix_merged"))
@@ -221,6 +227,15 @@ def build_commercial_readiness_report(
             "regression_replay_ready": regression_replay_ready,
             "regression_replay_maturity": regression_replay_maturity,
             "evidence_readiness_ready": evidence_readiness_ready,
+            "real_api_evidence_available": bool(a1_real_api_evidence.get("available")),
+            "real_api_total_records": int(a1_real_api_evidence.get("total_records", 0)),
+            "real_api_record_count": int(a1_real_api_evidence.get("real_record_count", 0)),
+            "real_api_read_ok_count": int(a1_real_api_evidence.get("real_read_status_counts", {}).get("ok", 0)),
+            "real_api_quota_block_count": int(a1_real_api_evidence.get("quota_block_count", 0)),
+            "real_api_create_request_blocked": bool(real_quota_gate.get("create_request_blocked")),
+            "official_sdk_smoke_read_only_reachable": bool(official_sdk_smoke.get("read_only_reachable")),
+            "official_sdk_smoke_ok_call_count": int(official_sdk_smoke.get("ok_call_count", 0)),
+            "official_sdk_smoke_error_call_count": int(official_sdk_smoke.get("error_call_count", 0)),
             "sdk_language_count": sdk_language_count,
             "sdk_parity_passed": sdk_parity_passed,
             "planned_batch_count": planned_batch_count,
