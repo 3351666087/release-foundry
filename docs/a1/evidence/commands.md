@@ -806,3 +806,27 @@ Results:
 - Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round7_safety.json`.
 - `git diff --check`: exit 0 with CRLF warnings only.
 - Secret-pattern scan over touched public files matched only historical synthetic/documentation references; no operational key material was found.
+
+## A1 round8 mutating quota-gate hardening - 2026-07-06
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb --untracked-files=all
+gh pr list --state all --limit 20 --json number,title,state,isDraft,headRefName,updatedAt,url
+python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider
+python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py
+python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round8_real.json
+```
+
+Results:
+- `services.runner.api_probe` now requires mutating `--execute` to provide `--quota-gate-record` from `plan-batch` or an explicit `--allow-quota-override --quota-override-reason`.
+- Missing gate and stop gate both block before API key lookup or client construction; audited override is covered by tests.
+- Focused API-client tests: 59 passed.
+- Python compile check passed.
+- Official API read-only `list-requests` probe succeeded with status ok, attempts 1. Raw key was not printed or written.
+- Public evidence index refreshed to 325 records, 15 response-field functions, quota block count 41, lint issues 0.
+- Full Python A1 tests: 166 passed.
+- TypeScript package tests: 153 passed.
+- Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round8_safety.json`.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan matched historical docs and synthetic test tokens only; no operational key material was found.

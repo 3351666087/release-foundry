@@ -188,7 +188,7 @@
     "list_requests": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 32,
+      "records": 33,
       "response_keys": [
         "_user",
         "next_cursor",
@@ -198,7 +198,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 29,
+        "ok": 30,
         "planned": 3
       },
       "top_count_keys": [
@@ -267,13 +267,13 @@
     "unknown": {
       "error_keys": [],
       "quota_block_count": 30,
-      "records": 108,
+      "records": 109,
       "response_keys": [],
       "response_summary_keys": [],
       "statuses": {
         "completed": 13,
         "failed": 1,
-        "ok": 32,
+        "ok": 33,
         "partial": 11,
         "passed": 11,
         "planned": 7
@@ -282,6 +282,6 @@
     }
   },
   "schema_version": "ashr.clone.response_field_map.v1",
-  "source_label": "a1-real-api-merged-2026-07-06-round7",
-  "source_total_records": 323
+  "source_label": "a1-real-api-merged-2026-07-06-round8",
+  "source_total_records": 325
 }

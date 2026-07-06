@@ -1100,6 +1100,123 @@ def test_api_probe_cli_create_request_execute_requires_zero_retries_before_env(t
     assert "ASHR_API_KEY" not in completed.stderr
 
 
+def test_api_probe_cli_mutating_execute_requires_quota_gate_before_env(tmp_path):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("ASHR_API_KEY", None)
+    env.pop("ASHR_LABS_API_KEY", None)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.runner.api_probe",
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+        ],
+        cwd=str(Path(__file__).resolve().parents[2]),
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert completed.returncode == 2
+    assert "--quota-gate-record" in completed.stderr
+    assert "ASHR_API_KEY" not in completed.stderr
+
+
+def test_api_probe_cli_mutating_execute_blocks_stop_quota_gate(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "quota_stop.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(
+        json.dumps(
+            {
+                "response": {
+                    "plan": {
+                        "quota_stop_go": {
+                            "decision": "stop",
+                            "source": "quota-record",
+                            "can_enter_small_batch": False,
+                            "can_enter_batch": False,
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "quota gate decision=stop" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_allows_audited_quota_override(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "quota_stop.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(json.dumps({"response": {"plan": {"quota_stop_go": {"decision": "stop", "source": "quota-record"}}}}), encoding="utf-8")
+
+    class FakeClient:
+        def create_request(self, **kwargs):
+            assert kwargs["dry_run"] is False
+            return {"status": "ok", "attempts": 1}
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: FakeClient()))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Override",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+            "--allow-quota-override",
+            "--quota-override-reason",
+            "manual paid calibration approved after external quota review",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "executed create-request: status=ok" in captured.out
+
+
 def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, tmp_path, capsys):
     request_file = tmp_path / "request.json"
     request_file.write_text(
@@ -1130,6 +1247,9 @@ def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, 
             "Blocked",
             "--request-file",
             str(request_file),
+            "--allow-quota-override",
+            "--quota-override-reason",
+            "unit test reaches media preflight guardrail",
             "--output",
             str(tmp_path / "blocked.json"),
         ]

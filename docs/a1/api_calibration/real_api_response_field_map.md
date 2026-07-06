@@ -3,8 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Schema | `ashr.clone.response_field_map.v1` |
-| Source label | `a1-real-api-merged-2026-07-06-round7` |
-| Source records | `323` |
+| Source label | `a1-real-api-merged-2026-07-06-round8` |
+| Source records | `325` |
 | Field map version | `a1-api-calibration-2026-07-04` |
 
 ## Function Coverage
@@ -20,12 +20,12 @@
 | `keep_alive` | 27 | `ok`: 23, `planned`: 4 | `db`, `message`, `plan`, `status` | - | - | 0 |
 | `list_agents` | 27 | `ok`: 23, `planned`: 4 | `_user`, `agents`, `plan`, `status` | - | `agents` | 0 |
 | `list_datasets` | 33 | `ok`: 28, `planned`: 5 | `_user`, `datasets`, `next_cursor`, `plan`, `status` | - | `datasets` | 0 |
-| `list_requests` | 32 | `ok`: 29, `planned`: 3 | `_user`, `next_cursor`, `plan`, `requests`, `status` | - | `requests` | 0 |
+| `list_requests` | 33 | `ok`: 30, `planned`: 3 | `_user`, `next_cursor`, `plan`, `requests`, `status` | - | `requests` | 0 |
 | `list_runs` | 4 | `ok`: 3, `planned`: 1 | `_user`, `plan`, `runs`, `status` | - | `runs` | 0 |
 | `plan_batch` | 2 | `blocked`: 1, `planned`: 1 | `plan` | - | - | 0 |
 | `poll_request` | 1 | `planned`: 1 | `plan` | - | - | 0 |
 | `poll_run` | 2 | `planned`: 2 | `plan` | - | - | 0 |
-| `unknown` | 108 | `completed`: 13, `failed`: 1, `ok`: 32, `partial`: 11, `passed`: 11, `planned`: 7 | - | - | - | 30 |
+| `unknown` | 109 | `completed`: 13, `failed`: 1, `ok`: 33, `partial`: 11, `passed`: 11, `planned`: 7 | - | - | - | 30 |
 
 ## Commercial Readiness Notes
 

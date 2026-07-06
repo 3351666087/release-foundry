@@ -83,6 +83,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--small-batch-size", type=int, default=1, help="Real-call size for the first bounded phase in plan-batch output.")
     parser.add_argument("--batch-size", type=int, help="Target larger batch size for plan-batch output. Defaults to the request variation count when known.")
     parser.add_argument("--quota-record", help="Optional previous private API probe record JSON with quota or reset headers.")
+    parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Accepts a plan-batch record or previous private API probe record.")
+    parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
+    parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     parser.add_argument("--poll-timeout", type=int, default=300)
     parser.add_argument("--poll-interval", type=int, default=20)
     return parser
@@ -104,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(f"{args.operation} is mutating; rerun with --allow-mutate after reviewing the dry-run plan")
         if args.execute and args.operation in MUTATING_OPERATIONS and args.max_retries != 0:
             raise ValueError(f"{args.operation} execution requires --max-retries 0 to avoid duplicate mutation on retry")
+        args.quota_gate_summary = enforce_mutating_quota_gate(args) if args.execute and args.operation in MUTATING_OPERATIONS else None
         client_kwargs: dict[str, Any] = {"timeout": args.timeout, "max_retries": args.max_retries}
         if args.base_url:
             client_kwargs["base_url"] = args.base_url
@@ -158,6 +162,8 @@ def run_operation(client: AshrApiClient | None, args: argparse.Namespace, *, out
         request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if args.request_schema_file else None
         preflight = summarize_generation_request(request)
         preflight["request_input_schema_source"] = "file" if request_schema is not None else "client_default"
+        if getattr(args, "quota_gate_summary", None):
+            preflight["quota_gate"] = args.quota_gate_summary
         if not dry_run:
             enforce_create_request_preflight(
                 preflight,
@@ -440,6 +446,40 @@ def attach_batch_plan(record: dict[str, Any], batch_plan: dict[str, Any], output
                 "modality_order": [item["modality"] for item in batch_plan["modality_sequence"]],
             }
     write_json(output, record)
+
+
+def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
+    quota_gate_record = load_optional_json(getattr(args, "quota_gate_record", None))
+    override = bool(getattr(args, "allow_quota_override", False))
+    reason = str(getattr(args, "quota_override_reason", "") or "").strip()
+    if quota_gate_record is None:
+        if override:
+            if len(reason) < 12:
+                raise ValueError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
+            return {**build_quota_stop_go(None), "decision": "override", "override": {"used": True, "reason": reason}}
+        raise ValueError(f"{args.operation} execution requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason")
+    quota_gate = extract_quota_gate(quota_gate_record)
+    decision = quota_gate["decision"]
+    if decision == "go":
+        return {**quota_gate, "override": {"used": False, "reason": None}}
+    if override:
+        if len(reason) < 12:
+            raise ValueError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
+        return {**quota_gate, "override": {"used": True, "reason": reason}}
+    raise ValueError(f"{args.operation} execution blocked by quota gate decision={decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason")
+
+
+def extract_quota_gate(record: dict[str, Any] | None) -> dict[str, Any]:
+    if record:
+        response = record.get("response")
+        if isinstance(response, dict):
+            plan = response.get("plan")
+            if isinstance(plan, dict) and isinstance(plan.get("quota_stop_go"), dict):
+                gate = redact_sensitive(dict(plan["quota_stop_go"]))
+                if isinstance(gate, dict) and isinstance(gate.get("decision"), str):
+                    return gate
+    gate = build_quota_stop_go(record)
+    return gate if isinstance(gate, dict) else {"decision": "stop", "source": "invalid-gate"}
 
 
 def default_output_path(operation: str, *, dry_run: bool) -> Path:

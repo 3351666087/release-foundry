@@ -13,13 +13,13 @@
     "keep_alive": 27,
     "list_agents": 27,
     "list_datasets": 33,
-    "list_requests": 32,
+    "list_requests": 33,
     "list_runs": 4,
     "plan_batch": 2,
     "poll_request": 1,
     "poll_run": 2
   },
-  "label": "a1-real-api-merged-2026-07-06-round7",
+  "label": "a1-real-api-merged-2026-07-06-round8",
   "quota_block_count": 41,
   "records": [
     {
@@ -657,6 +657,33 @@
       "status_code": 200,
       "top_counts": {
         "requests": 2
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_round8_real.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 1
       }
     },
     {
@@ -2486,6 +2513,21 @@
       "error_kind": null,
       "function": null,
       "path": "docs/evidence/private_refs/a1_readiness_round6_safety.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": null,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readiness_round7_safety.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -7524,11 +7566,11 @@
     "completed": 13,
     "error": 24,
     "failed": 1,
-    "ok": 175,
+    "ok": 177,
     "partial": 11,
     "passed": 11,
     "planned": 53,
     "timeout": 1
   },
-  "total_records": 323
+  "total_records": 325
 }

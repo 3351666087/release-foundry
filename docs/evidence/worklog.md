@@ -2071,3 +2071,82 @@ Next top 20:
 18. Add quota ledger import/export audit manifest.
 19. Add batch-run 80-case stress fixture with max_workers >= 8.
 20. Coordinate Gate-only evidence metadata with A2/A3.
+
+## A1 round - hard quota gate for mutating API execution (2026-07-07T00:15:00+08:00)
+
+Goal slice:
+- Follow Growth-Auditor P2 from round7: `plan-batch` existed, but direct mutating execution was not forced to consume a quota gate.
+- Make real paid/mutating API calls auditable by default without blocking explicit user-authorized overrides.
+
+Baseline / peer state:
+- Required start commands rerun: fetch, repo/branch/status, and PR list.
+- Branch stayed `codex/a1-local-sdk-runner`, clean and aligned with origin at round start.
+- No A2/A3 owned files were changed.
+
+Top 20 A1 growth points considered:
+1. Hard-enforce quota gate on mutating execution. Implemented.
+2. Add explicit quota-gate override with audit reason. Implemented.
+3. Block missing quota gate before key lookup. Implemented.
+4. Block stop quota gate before client construction. Implemented.
+5. Preserve media preflight guardrail by allowing audited test override. Implemented.
+6. Run official read-only API probe for current field evidence. Implemented.
+7. Refresh public evidence index after probe. Implemented.
+8. Extend planner schema docs. Deferred.
+9. Add TS planner parity. Deferred.
+10. Split field-map `unknown` bucket. Deferred.
+11. Add TS Markdown report parity. Deferred.
+12. Add typed API error taxonomy. Deferred.
+13. Add quota reset detector from read-only records. Deferred.
+14. Attempt text mutation only after reset signal. Deferred.
+15. Poll successful request after reset. Deferred.
+16. Ingest hosted request into replay fixture. Deferred.
+17. Expand run lifecycle matrix. Deferred.
+18. Add public audit manifest. Deferred.
+19. Add official docs drift checker. Deferred.
+20. Add A3 handoff note for round7/8 field map. Deferred.
+
+Implemented:
+- `services/runner/api_probe.py`: added `--quota-gate-record`, `--allow-quota-override`, `--quota-override-reason`, `enforce_mutating_quota_gate`, and `extract_quota_gate`.
+- `tests/a1/test_api_client.py`: added missing-gate, stop-gate, and audited-override tests; adjusted media preflight test to use explicit quota override.
+- `docs/a1/api_calibration/real_api_evidence_index.json`, `real_api_response_field_map.json`, and `.md`: refreshed after read-only probe.
+
+Official/API evidence:
+- `python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round8_real.json`: status ok, attempts 1.
+- Public evidence index now has 325 records, 15 response-field functions, quota block count 41, and linter issues 0.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 59 passed.
+- `python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py`: passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 166 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 153 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round8_safety.json`: status ok, 2 steps.
+- Public evidence index linter: 0 issues after refresh.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan matched historical docs and synthetic test tokens only; no operational key material was found.
+
+Known gaps:
+- Quota gate is Python runner/probe enforcement only; TS probe parity and schema docs remain follow-up.
+- Override reason is captured in runtime preflight summary for create-request, but a future audit manifest should aggregate override events.
+- Successful real `create_request` remains gated behind quota reset evidence.
+
+Next top 20:
+1. Add typed API error taxonomy.
+2. Add quota-gate JSON schema and docs.
+3. Add TS API probe planner/quota-gate parity.
+4. Split `unknown` evidence field-map records.
+5. Add TS Markdown field-map report parity.
+6. Add public audit manifest.
+7. Add quota reset detector.
+8. Attempt text mutation after reset signal only.
+9. Poll successful text request.
+10. Ingest hosted request into replay.
+11. Expand hosted run lifecycle matrix.
+12. Add evidence linter CLI.
+13. Add field-map freshness checker.
+14. Add official docs drift checker.
+15. Add dashboard usage label capture artifact without values.
+16. Add A3 handoff note.
+17. Add local replay diff from hosted shapes.
+18. Add production trace ingestion schema.
+19. Add media envelope fixtures without raw payloads.
+20. Coordinate shared evidence metadata through Gate.
