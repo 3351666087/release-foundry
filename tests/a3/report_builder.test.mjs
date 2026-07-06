@@ -13,6 +13,7 @@ import {
   filterCases,
   getFilterOptions,
   normalizeCases,
+  summarizeCommercialReadiness,
   summarizeCoverage,
   summarizeEvidenceReadiness,
   summarizeRegressionReadiness
@@ -501,4 +502,59 @@ test("A3 report builder can summarize A2 C5 regression readiness fixtures", asyn
   assert.match(markdown, /Replay cases: 1\/3/);
   assert.match(markdown, /Reviewed external evidence: 0\/3/);
   assert.match(markdown, /Ashr grading missing: 6/);
+});
+
+test("A3 report builder can summarize A2 commercial readiness fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const caseBook = await loadJson("../../fixtures/a2/results/a2_case_book.json");
+  const regressionReplay = await loadJson("../../fixtures/a2/results/a2_regression_replay_report.json");
+  const commercial = await loadJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
+
+  const summary = summarizeCommercialReadiness(commercial);
+  assert.equal(summary.available, true);
+  assert.equal(summary.schema_version, "a2.commercial_readiness.v1");
+  assert.equal(summary.current_gate, "C2");
+  assert.equal(summary.ready_for_commercial_gate, false);
+  assert.equal(summary.gate_count, 7);
+  assert.equal(summary.gate_status_counts.met, 3);
+  assert.equal(summary.gate_status_counts.partial, 4);
+  assert.deepEqual(summary.partial_gate_ids, ["C3", "C4", "C5", "C6"]);
+  assert.deepEqual(summary.blocked_gate_ids, []);
+  assert.equal(summary.scope_boundary_status, "controlled");
+  assert.equal(summary.assignment_minimums_green, true);
+  assert.equal(summary.scenario_count, 60);
+  assert.equal(summary.golden_case_count, 32);
+  assert.equal(summary.failure_class_count, 12);
+  assert.equal(summary.real_api_total_records, 140);
+  assert.equal(summary.real_api_record_count, 110);
+  assert.equal(summary.real_api_quota_block_count, 5);
+  assert.equal(summary.real_api_create_request_blocked, true);
+  assert.equal(summary.official_sdk_smoke_read_only_reachable, true);
+  assert.equal(summary.official_sdk_smoke_ok_call_count, 6);
+  assert.equal(summary.ashr_public_merge_status, "not_merged");
+  assert.equal(summary.semantic_live_merge_status, "offline_reference_only");
+  assert.equal(summary.regression_replay_maturity, "seed");
+  assert.deepEqual(summary.next_top_3_ids, [
+    "fill_ashr_grading_column",
+    "audited_llm_judge_harness",
+    "promote_disagreement_regressions"
+  ]);
+
+  const json = buildJsonReport(runs, grades, coverage, readiness, caseBook, regressionReplay, commercial);
+  assert.equal(json.commercial_readiness.available, true);
+  assert.equal(json.commercial_readiness.current_gate, "C2");
+  assert.equal(json.commercial_readiness.real_api_create_request_blocked, true);
+  assert.equal(json.commercial_readiness.official_sdk_smoke_read_only_reachable, true);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, caseBook, regressionReplay, commercial);
+  assert.match(markdown, /## Commercial Readiness/);
+  assert.match(markdown, /Current gate: C2/);
+  assert.match(markdown, /Gate status counts: met 3, partial 4, blocked 0/);
+  assert.match(markdown, /Partial gates: C3, C4, C5, C6/);
+  assert.match(markdown, /Commercial real API records: 110\/140/);
+  assert.match(markdown, /Commercial create-request quota blocked: yes/);
+  assert.match(markdown, /Commercial official SDK smoke: ok \(6 ok, 0 error\)/);
 });
