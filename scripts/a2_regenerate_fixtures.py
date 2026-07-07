@@ -28,6 +28,7 @@ from services.judge.scenario_selection import build_scenario_selection_report  #
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
+from services.judge.versioning import build_judge_version_registry  # noqa: E402
 
 
 DEFAULT_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
@@ -55,6 +56,7 @@ DEFAULT_SCENARIO_SELECTION = DEFAULT_RESULT_DIR / "a2_scenario_selection_report.
 DEFAULT_RESULT_PERSISTENCE_MANIFEST = DEFAULT_RESULT_DIR / "a2_result_persistence_manifest.json"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_SAAS_CONTROL_PLANE = DEFAULT_RESULT_DIR / "a2_saas_control_plane_report.json"
+DEFAULT_JUDGE_VERSIONS = DEFAULT_RESULT_DIR / "a2_judge_versions.json"
 
 
 def main() -> int:
@@ -88,6 +90,7 @@ def main() -> int:
     parser.add_argument("--result-persistence-manifest", default=DEFAULT_RESULT_PERSISTENCE_MANIFEST.as_posix())
     parser.add_argument("--release-policy-config", default=DEFAULT_RELEASE_POLICY_CONFIG.as_posix())
     parser.add_argument("--saas-control-plane", default=DEFAULT_SAAS_CONTROL_PLANE.as_posix())
+    parser.add_argument("--judge-versions", default=DEFAULT_JUDGE_VERSIONS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -120,6 +123,7 @@ def main() -> int:
         result_persistence_manifest_path=Path(args.result_persistence_manifest),
         release_policy_config_path=Path(args.release_policy_config),
         saas_control_plane_path=Path(args.saas_control_plane),
+        judge_versions_path=Path(args.judge_versions),
     )
 
     if args.check:
@@ -157,6 +161,7 @@ def generate_outputs(
     result_persistence_manifest_path: Path,
     release_policy_config_path: Path,
     saas_control_plane_path: Path,
+    judge_versions_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -268,6 +273,11 @@ def generate_outputs(
         },
     )
     outputs[result_persistence_manifest_path] = result_persistence_manifest
+    judge_version_registry = build_judge_version_registry(
+        scenario_pack=scenario_pack,
+        grade_report=outputs[grade_report_path],
+    )
+    outputs[judge_versions_path] = judge_version_registry
     release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
     outputs[saas_control_plane_path] = build_saas_control_plane_report(
         grade_report=outputs[grade_report_path],
@@ -276,6 +286,7 @@ def generate_outputs(
         release_gate_report=release_gate,
         scenario_selection_report=scenario_selection,
         result_persistence_manifest=result_persistence_manifest,
+        judge_version_registry=judge_version_registry,
         release_policy_config=release_policy_config,
         source_refs={
             "grade_report": grade_report_path.as_posix(),
@@ -284,6 +295,7 @@ def generate_outputs(
             "release_gate": release_gate_path.as_posix(),
             "scenario_selection": scenario_selection_path.as_posix(),
             "result_persistence": result_persistence_manifest_path.as_posix(),
+            "judge_versions": judge_versions_path.as_posix(),
             "release_policy_config": release_policy_config_path.as_posix(),
         },
     )

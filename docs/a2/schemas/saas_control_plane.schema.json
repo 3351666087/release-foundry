@@ -9,6 +9,7 @@
     "tenant",
     "service",
     "judge_versioning",
+    "judge_version_registry",
     "policy_config",
     "scenario_selection",
     "calibration",
@@ -75,6 +76,36 @@
         "all_records_have_input_hash": { "type": "boolean" },
         "all_records_have_output_hash": { "type": "boolean" },
         "version_fields": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "judge_version_registry": {
+      "type": "object",
+      "required": [
+        "registry_id",
+        "registry_hash",
+        "active_release",
+        "declared_judge_count",
+        "observed_judge_count",
+        "all_declared_judges_observed",
+        "pinning_supported",
+        "history_replay_supported",
+        "can_compare_judge_versions",
+        "can_replay_history",
+        "judge_pins"
+      ],
+      "properties": {
+        "registry_id": { "type": "string" },
+        "registry_hash": { "$ref": "#/$defs/hash" },
+        "active_release": { "type": "object" },
+        "declared_judge_count": { "type": "integer", "minimum": 0 },
+        "observed_judge_count": { "type": "integer", "minimum": 0 },
+        "all_declared_judges_observed": { "type": "boolean" },
+        "pinning_supported": { "type": "boolean" },
+        "history_replay_supported": { "type": "boolean" },
+        "can_compare_judge_versions": { "type": "boolean" },
+        "can_replay_history": { "type": "boolean" },
+        "judge_pins": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true
     },

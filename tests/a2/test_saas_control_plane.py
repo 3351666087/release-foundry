@@ -17,6 +17,7 @@ RELEASE_GATE = ROOT / "fixtures/a2/results/a2_release_gate_report.json"
 SCENARIO_SELECTION = ROOT / "fixtures/a2/results/a2_scenario_selection_report.json"
 RESULT_PERSISTENCE = ROOT / "fixtures/a2/results/a2_result_persistence_manifest.json"
 RELEASE_POLICIES = ROOT / "fixtures/a2/config/release_policies.json"
+JUDGE_VERSIONS = ROOT / "fixtures/a2/results/a2_judge_versions.json"
 
 SECRET_PATTERNS = [
     re.compile("tp_" + r"[A-Za-z0-9_\\-]+"),
@@ -41,6 +42,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
             scenario_selection_report=load_json(SCENARIO_SELECTION),
             result_persistence_manifest=load_json(RESULT_PERSISTENCE),
             release_policy_config=load_json(RELEASE_POLICIES),
+            judge_version_registry=load_json(JUDGE_VERSIONS),
             source_refs={
                 "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
                 "coverage_report": "fixtures/a2/results/a2_g3_coverage_report.json",
@@ -48,6 +50,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
                 "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
                 "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
                 "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+                "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
                 "release_policy_config": "fixtures/a2/config/release_policies.json",
             },
         )
@@ -98,6 +101,12 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertTrue(report["judge_versioning"]["all_records_have_policy_hash"])
         self.assertTrue(report["judge_versioning"]["all_records_have_input_hash"])
         self.assertTrue(report["judge_versioning"]["all_records_have_output_hash"])
+        self.assertEqual(report["judge_version_registry"]["declared_judge_count"], 5)
+        self.assertEqual(report["judge_version_registry"]["observed_judge_count"], 5)
+        self.assertTrue(report["judge_version_registry"]["all_declared_judges_observed"])
+        self.assertTrue(report["judge_version_registry"]["pinning_supported"])
+        self.assertTrue(report["judge_version_registry"]["history_replay_supported"])
+        self.assertIn("g1_trace_contract_judge@0.1.0", report["judge_version_registry"]["judge_pins"])
 
     def test_a3_dashboard_contract_points_to_public_safe_a2_artifacts(self):
         report = load_json(REPORT_FIXTURE)
@@ -109,7 +118,9 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertFalse(contract["mutations_enabled"])
         self.assertEqual(payload_keys["a2ControlPlane"], "fixtures/a2/results/a2_saas_control_plane_report.json")
         self.assertEqual(payload_keys["resultPersistence"], "fixtures/a2/results/a2_result_persistence_manifest.json")
+        self.assertEqual(payload_keys["judgeVersions"], "fixtures/a2/results/a2_judge_versions.json")
         self.assertIn("judge version and policy hash audit", contract["dashboard_can_show"])
+        self.assertIn("judge registry pins and migration readiness", contract["dashboard_can_show"])
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")

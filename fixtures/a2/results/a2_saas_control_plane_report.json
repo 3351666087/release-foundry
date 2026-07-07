@@ -164,6 +164,31 @@
       "result_schema_version"
     ]
   },
+  "judge_version_registry": {
+    "registry_id": "a2_judge_version_registry",
+    "registry_hash": "sha256:9c95179f6a73fdfeba40d220985d0fbaf8581ed227f4d50f0b9bdbe81dbc9e89",
+    "active_release": {
+      "release_id": "a2-local-deterministic-judge-0.1",
+      "status": "active",
+      "default_version": "0.1.0",
+      "pinning_required_for_prod": true,
+      "history_replay_supported": true
+    },
+    "declared_judge_count": 5,
+    "observed_judge_count": 5,
+    "all_declared_judges_observed": true,
+    "pinning_supported": true,
+    "history_replay_supported": true,
+    "can_compare_judge_versions": true,
+    "can_replay_history": true,
+    "judge_pins": [
+      "g1_trace_contract_judge@0.1.0",
+      "g2_output_contract_judge@0.1.0",
+      "g3_replay_sandbox_judge@0.1.0",
+      "g3_semantic_reference_judge@0.1.0",
+      "g3_safety_boundary_judge@0.1.0"
+    ]
+  },
   "policy_config": {
     "config_id": "a2_release_policies_default",
     "default_policy_id": "release_policy_dev_observe",
@@ -332,12 +357,14 @@
       "releaseGate": "fixtures/a2/results/a2_release_gate_report.json",
       "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
       "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+      "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
       "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json"
     },
     "dashboard_can_show": [
       "tenant-scoped project/environment selection",
       "selected scenario pack coverage",
       "judge version and policy hash audit",
+      "judge registry pins and migration readiness",
       "release policy decision and blocker counts",
       "public-safe persistence record counts",
       "calibration source coverage and live evidence gaps"
@@ -367,6 +394,7 @@
     "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
     "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
     "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+    "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
     "release_policy_config": "fixtures/a2/config/release_policies.json"
   },
   "metadata": {

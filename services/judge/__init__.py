@@ -40,6 +40,7 @@ from .safety_boundary import SafetyBoundaryJudge
 from .schemas import FailureAnalysis, GradeResult
 from .trace_integrity import TraceIntegrityJudge
 from .tool_policy import ToolPolicyJudge
+from .versioning import build_judge_version_registry
 
 __all__ = [
     "FailureAnalysis",
@@ -58,6 +59,7 @@ __all__ = [
     "build_commercial_readiness_report",
     "build_coverage_report",
     "build_incident_regression_candidate_report",
+    "build_judge_version_registry",
     "build_project_scenario_selection",
     "build_regression_replay_report",
     "build_result_record",

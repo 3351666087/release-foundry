@@ -31,6 +31,7 @@ def build_saas_control_plane_report(
     scenario_selection_report: dict[str, Any],
     result_persistence_manifest: dict[str, Any],
     release_policy_config: dict[str, Any],
+    judge_version_registry: dict[str, Any] | None = None,
     source_refs: dict[str, str] | None = None,
     created_at: str = DEFAULT_CREATED_AT,
     report_id: str = DEFAULT_REPORT_ID,
@@ -55,6 +56,7 @@ def build_saas_control_plane_report(
         "tenant": _tenant_summary(result_persistence_manifest, project_id=project_id, environment=environment),
         "service": _service_summary(),
         "judge_versioning": _judge_versioning_summary(result_persistence_manifest),
+        "judge_version_registry": _judge_version_registry_summary(judge_version_registry or {}),
         "policy_config": _policy_config_summary(
             release_policy_config,
             selected_policy=selected_policy,
@@ -80,6 +82,7 @@ def build_saas_control_plane_report(
             "release_gate": source_refs.get("release_gate", ""),
             "scenario_selection": source_refs.get("scenario_selection", ""),
             "result_persistence": source_refs.get("result_persistence", ""),
+            "judge_versions": source_refs.get("judge_versions", ""),
             "release_policy_config": source_refs.get("release_policy_config", ""),
         },
         "metadata": {
@@ -185,6 +188,30 @@ def _judge_versioning_summary(manifest: dict[str, Any]) -> dict[str, Any]:
             "input_hash",
             "output_hash",
             "result_schema_version",
+        ],
+    }
+
+
+def _judge_version_registry_summary(registry: dict[str, Any]) -> dict[str, Any]:
+    judges = [judge for judge in registry.get("judges", []) if isinstance(judge, dict)]
+    migration = registry.get("migration_policy", {})
+    if not isinstance(migration, dict):
+        migration = {}
+    return {
+        "registry_id": str(registry.get("registry_id", "")),
+        "registry_hash": str(registry.get("registry_hash", "")),
+        "active_release": registry.get("active_release", {}),
+        "declared_judge_count": int(registry.get("declared_judge_count", len(judges))),
+        "observed_judge_count": int(registry.get("observed_judge_count", 0)),
+        "all_declared_judges_observed": bool(registry.get("all_declared_judges_observed")),
+        "pinning_supported": bool(registry.get("service_contract", {}).get("pinning_supported")),
+        "history_replay_supported": bool(registry.get("service_contract", {}).get("history_replay_supported")),
+        "can_compare_judge_versions": bool(migration.get("can_compare_judge_versions")),
+        "can_replay_history": bool(migration.get("can_replay_history")),
+        "judge_pins": [
+            str(judge.get("pinning", {}).get("recommended_pin", ""))
+            for judge in judges
+            if judge.get("pinning", {}).get("recommended_pin")
         ],
     }
 
@@ -332,12 +359,14 @@ def _a3_dashboard_contract(
             "releaseGate": "fixtures/a2/results/a2_release_gate_report.json",
             "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
             "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+            "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
             "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json",
         },
         "dashboard_can_show": [
             "tenant-scoped project/environment selection",
             "selected scenario pack coverage",
             "judge version and policy hash audit",
+            "judge registry pins and migration readiness",
             "release policy decision and blocker counts",
             "public-safe persistence record counts",
             "calibration source coverage and live evidence gaps",
