@@ -9,6 +9,7 @@ import {
   summarizeReleaseGate,
   summarizeReleaseWorkflow
 } from "./report_builder.mjs";
+import { redactExport } from "./export_redaction_firewall.mjs";
 
 export async function buildGateCliPayload(options = {}) {
   const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
@@ -77,12 +78,15 @@ export async function buildGateCliPayload(options = {}) {
     exit_code_hint: gate.pr_gate.blocks_merge ? 1 : 0,
     process_exit_code: options.noFail ? 0 : gate.pr_gate.blocks_merge ? 1 : 0
   };
-  const { value, replacements } = redactValue(rawPayload);
+  const { value, replacement_count: replacementCount, findings, status } = redactExport(rawPayload, { surface: "gate_cli_payload" });
   return {
     ...value,
     redaction_log: {
       applied: true,
-      replacement_count: replacements,
+      status,
+      replacement_count: replacementCount,
+      finding_count: findings.length,
+      rules_triggered: [...new Set(findings.map((finding) => finding.pattern_id))],
       policy: "Scrub emails, bearer tokens, API key assignments, generic secret tokens, cookies, and signed media URLs from CLI output."
     }
   };
@@ -273,7 +277,7 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
         || "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in audit bundles."
     }
   };
-  const { value: redactedIndex } = redactValue(indexWithoutRootHash);
+  const { value: redactedIndex } = redactExport(indexWithoutRootHash, { surface: "audit_bundle_index" });
   const bundleRootHash = sha256Text(canonicalJson(redactedIndex));
   return {
     ...redactedIndex,
@@ -354,7 +358,7 @@ export async function verifyAuditBundleIndex(indexPath, options = {}) {
     findings,
     process_exit_code: options.noFail ? 0 : status === "passed" ? 0 : 1
   };
-  const { value } = redactValue(result);
+  const { value } = redactExport(result, { surface: "audit_bundle_verification" });
   return value;
 }
 
@@ -1250,59 +1254,6 @@ async function writeTextFile(path, contents) {
   const resolvedPath = resolve(path);
   await mkdir(dirname(resolvedPath), { recursive: true });
   await writeFile(resolvedPath, contents, "utf8");
-}
-
-function redactValue(value) {
-  if (typeof value === "string") {
-    return redactText(value);
-  }
-  if (Array.isArray(value)) {
-    let replacements = 0;
-    const mapped = value.map((item) => {
-      const redacted = redactValue(item);
-      replacements += redacted.replacements;
-      return redacted.value;
-    });
-    return { value: mapped, replacements };
-  }
-  if (value && typeof value === "object") {
-    let replacements = 0;
-    const mapped = {};
-    for (const [key, item] of Object.entries(value)) {
-      const redacted = redactValue(item);
-      replacements += redacted.replacements;
-      mapped[key] = redacted.value;
-    }
-    return { value: mapped, replacements };
-  }
-  return { value, replacements: 0 };
-}
-
-function redactText(value = "") {
-  const signedUrlPattern = [
-    "https?:\\/\\/[^\\s\"'<>]*(?:X-Amz-|",
-    "Sign", "ature=|",
-    "signed", "_url|",
-    "tok", "en=|expires=)",
-    "[^\\s\"'<>]*"
-  ].join("");
-  const patterns = [
-    { regex: /ASHR_API_KEY\s*=\s*[^\s"']+/gi, replacement: "ASHR_API_KEY" + "=[REDACTED]" },
-    { regex: /Bearer\s+[A-Za-z0-9._~+/=-]+/g, replacement: "Bearer [REDACTED]" },
-    { regex: new RegExp("Cookie" + ":\\s*[^\\n\\r]+", "gi"), replacement: ["Cookie", ": [REDACTED]"].join("") },
-    { regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, replacement: "[REDACTED_EMAIL]" },
-    { regex: /\b(sk|ghp|github_pat)_[A-Za-z0-9_=-]{12,}\b/g, replacement: "[REDACTED_TOKEN]" },
-    { regex: new RegExp(signedUrlPattern, "gi"), replacement: "[REDACTED_SIGNED_URL]" }
-  ];
-  let text = String(value);
-  let replacements = 0;
-  for (const pattern of patterns) {
-    text = text.replace(pattern.regex, () => {
-      replacements += 1;
-      return pattern.replacement;
-    });
-  }
-  return { value: text, replacements };
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

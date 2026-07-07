@@ -334,6 +334,32 @@
 - [x] Added report-builder and dashboard-wiring tests for Observability Replay.
 - [x] Browser-smoke verified Observability Replay after official-demo dashboard load.
 - [x] Saved Observability Replay screenshot under `docs/screenshots/a3-dashboard-observability-replay-matrix.png`.
+- [x] Added Regression Factory summary schema `a3.regression_factory.v1`.
+- [x] Added `regression_factory` JSON export field.
+- [x] Added Regression Factory Markdown and print/PDF report sections.
+- [x] Added Regression Factory dashboard panel.
+- [x] Added regression candidates that derive from Incident Replay and Observability Replay evidence.
+- [x] Calibrated regression candidates against A1 trace/tool-call evidence, A2 judge/coverage evidence, and official Results review parity.
+- [x] Added generated suite plan, required contracts, proposed assertions, and next action per candidate.
+- [x] Added report-builder and dashboard-wiring tests for Regression Factory.
+- [x] Browser-smoke verified Regression Factory after official-demo dashboard load.
+- [x] Saved Regression Factory screenshot under `docs/screenshots/a3-dashboard-regression-factory.png`.
+- [x] Added shared Export Redaction Firewall module for report and gate outputs.
+- [x] Added `export_redaction_firewall` JSON export field.
+- [x] Added Export Redaction Firewall Markdown and print/PDF report sections.
+- [x] Added Export Safety dashboard panel.
+- [x] Added CSV secret scrubbing and spreadsheet formula hardening.
+- [x] Reused the shared export firewall from the A3 Gate CLI.
+- [x] Split dashboard into `index.html`, `src/app.mjs`, and `src/styles.css`.
+- [x] Reduced dashboard HTML from more than 3,000 lines to about 400 lines.
+- [x] Strengthened direct A1 RunResult compatibility.
+- [x] Strengthened direct A2 single-run plus single-grade compatibility.
+- [x] Added focused tests for raw A1 and raw A2 compatibility.
+- [x] Added dashboard Data option for raw A1 RunResult.
+- [x] Added dashboard Data option for raw A2 single-case fixture.
+- [x] Added dashboard wiring tests for raw A1/A2 sources.
+- [x] Browser-smoke verified raw A1 and raw A2 dashboard sources.
+- [x] Saved raw A2 dashboard screenshot under `docs/screenshots/a3-dashboard-raw-a2-source.png`.
 
 ## Next Acceptance Targets
 
@@ -342,3 +368,43 @@
 - [x] Add severity and score-band filters.
 - [x] Add judge-mode filter after A2 exposes more varied judge-mode cases.
 - [x] Expand from current 4 screenshots to 10 demo screenshots.
+- [x] Add a dashboard data-source option that loads raw A1/A2 fixtures directly.
+- [x] Add an API-backed dashboard source that can serve the current A3 normalized payload through `/api/a3/dashboard`.
+- [x] Add a DB-ready store abstraction with memory, JSON-file, and fixture-backed implementations.
+- [x] Add a shareable hosted report payload with redaction, hashes, report metadata, and share URL path.
+- [x] Add dashboard component boundary for SaaS Runtime instead of keeping every new UI block inside the main app module.
+- [x] Add tests for A3 store, A3 API server, shareable report payloads, and dashboard API wiring.
+- [x] Add SaaS Admin Console shell for login, cloud/project management, usage, API key metadata, team, and trust.
+- [x] Add `GET /api/a3/admin/console` and `POST /api/a3/admin/actions/plan`.
+- [x] Keep SaaS admin actions safe: real login, API-key creation, team invites, billing mutations, and Trust publishing are disabled or plan-only.
+- [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
+- [x] Add Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map to SaaS Admin dashboard rendering.
+- [x] Add SaaS database migration-contract tables for `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
+- [x] Keep SaaS admin and cloud-management parity clean-room: no official private source, no real account data, and no cloud mutations committed.
+- [x] Add Product Console workflow model for onboarding, project console, audit log, and commercial readiness.
+- [x] Add `GET /api/a3/product/console`.
+- [x] Wire Product Console into API-backed dashboard payload and dashboard UI.
+- [x] Add A1/A2 compatibility evidence for Product Console workflow.
+- [x] Add Growth-Auditor artifact with at least 20 next growth points for onboarding/audit/project console.
+- [x] Add Product Console workflow state to JSON, Markdown, and print/PDF report exports.
+- [x] Add SaaS Admin login/team/usage/API-key/trust/cloud guardrails to JSON, Markdown, and print/PDF report exports.
+- [x] Confirm Product Console and SaaS Admin exports still derive readiness from A1 run evidence and A2 judge evidence.
+- [x] Add Growth-Auditor artifact with 40 next growth points for Product Console artifact/export entry.
+- [x] Add CI export-firewall scans for generated docs and fixtures.
+- [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
+- [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
+- [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
+- [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
+- [x] Add self-host console contract artifact and document-contract tests.
+- [x] Add idempotency keys and validation error shapes to A1/A2 import routes.
+- [x] Add view audit event and expiry/revocation policy for hosted reports.
+- [x] Add SQL adapter contract artifact for idempotency ledger, audit events, share/revoke/view tables, and usage ledger.
+- [x] Add API calibration evidence artifact for import validation/error shapes.
+- [x] Add SQL migration contract generator for Postgres, MySQL, and SQLite targets.
+- [x] Add read-only usage ledger meters for runs, cases, trace events, tool-call cases, judge results, hosted reports, report views, revocations, and API imports.
+- [x] Add report center manifest contract for hosted report artifacts, usage ledger evidence, and DB migration evidence.
+- [x] Add Report Center index/control-plane API for hosted report lifecycle, manifest readiness, usage, migration, and redaction status.
+- [x] Wire Report Center index into API-backed dashboard after hosted report creation.
+- [x] Add external `/r/:shareToken` hosted report route with token-hash lookup.
+- [x] Keep raw share tokens out of stored report payloads and durable Report Center summaries.
+- [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.

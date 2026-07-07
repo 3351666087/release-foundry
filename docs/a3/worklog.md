@@ -1,5 +1,220 @@
 # A3 Worklog
 
+## 2026-07-07 - Product Console And SaaS Admin Export Evidence
+
+### Goal
+
+Finish the current A3 commercial-SaaS round by making Product Console and SaaS Admin state part of the actual report/export evidence, not only dashboard UI. This directly supports the team lead's direction: static -> API-backed, HTML blob -> app components, mock fixture -> DB-ready data, report export -> shareable hosted report, and SaaS-style login/team/usage/API-key/trust/cloud-management surfaces.
+
+### Work completed
+
+- Extended `services/report/report_builder.mjs`.
+  - Added `summarizeProductConsoleExport()`.
+  - Added `summarizeSaasAdminExport()`.
+  - Added `product_console` to JSON report exports.
+  - Added `saas_admin_console` to JSON report exports.
+  - Added Product Console / Onboarding / Audit to Markdown reports.
+  - Added SaaS Admin / Login / Team / Trust to Markdown reports.
+- Extended `apps/dashboard/src/app.mjs`.
+  - Report Center summary now mentions Product Console workflow and SaaS Admin guardrails.
+  - JSON/Markdown export buttons now pass `state.productConsole` and `state.saasAdmin`.
+  - Print/PDF report preview now includes Product Console and SaaS Admin sections.
+- Extended tests.
+  - Added report-builder coverage for Product Console exports.
+  - Added report-builder coverage for SaaS Admin login/team/API-key/usage/trust/cloud export guardrails.
+  - Added dashboard wiring assertions that export/report code carries both states.
+- Added Growth-Auditor artifact.
+  - `docs/a3/p3_growth_auditor_product_console_export_2026_07_07.md`
+  - Documents artifact-entry, export/report growth, enterprise audit value, toy gaps, and 40 next Product Console growth points.
+
+### A1/A2 compatibility
+
+- Product Console export still derives project/case/readiness state from A1 run/case/trace/tool-call evidence and A2 grade/judge/pass-fail/failure evidence.
+- SaaS Admin export includes explicit A1/A2 compatibility fields so the console cannot pretend it is ready when run or grade evidence is missing.
+- No A1 runner logic or A2 judge semantics were changed.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+62 tests
+62 pass
+0 fail
+```
+
+Full A3 suite:
+
+```text
+$tests = rg --files tests/a3 -g "*.test.mjs"; node --test $tests
+```
+
+Full result:
+
+```text
+132 tests
+132 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not commit real API keys, cookies, tokens, account emails, signed URLs, or official private frontend source.
+- Did not perform real login, API-key creation, team invite, billing mutation, Trust publishing, or cloud mutation.
+- Kept all admin/cloud actions as local, read-only, metadata-only, disabled, or plan-only.
+
+## 2026-07-07 - Product Console Onboarding Audit Project Workflow
+
+### Goal
+
+Continue the large-SaaS plan from `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` by adding a real user-workflow layer for onboarding, project console state, audit log evidence, and commercial readiness. This targets A3-2 information architecture, A3-3 onboarding, A3-4 project/run UI, and A3-10 settings/audit/admin direction.
+
+### Work completed
+
+- Added `services/report/a3_product_console.mjs`.
+  - Builds `a3.product_console.v1`.
+  - Converts A1/A2/report/usage/audit evidence into onboarding state, project console state, audit log state, and commercial readiness.
+  - Keeps empty projects honest with `setup_required`, `empty`, and `needs_more_real_evidence`.
+- Added `GET /api/a3/product/console`.
+  - Read-only API route.
+  - Uses tenant/project scoped options where available.
+  - Does not perform real login, invite, billing, or cloud mutations.
+- Added dashboard Product Console panel.
+  - Renders Onboarding Flow, Project Console, Audit Log, and Commercial Readiness.
+  - Refreshes after API-backed hosted report creation.
+- Added tests.
+  - `tests/a3/a3_product_console.test.mjs`
+  - Updated API server and dashboard wiring tests.
+- Added evidence artifacts.
+  - `docs/a3/p3_growth_auditor_onboarding_audit_project_console_2026_07_07.md`
+  - `docs/a3/p3_onboarding_audit_a1_a2_compatibility_2026_07_07.md`
+
+### 20+ growth points produced
+
+The Growth-Auditor artifact lists 24 next growth points, including SQL persistence for audit events, project console route, onboarding route, project list UI, audit export, report-center event timeline, waiver/approval audit ingestion, usage/billing plan card, official onboarding parity, product console export, tenant-scope tests, Playwright screenshot evidence, reviewer SLA, and retention policy preview.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_product_console.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+32 tests
+32 pass
+0 fail
+```
+
+Full A3 suite result:
+
+```text
+130 tests
+130 pass
+0 fail
+```
+
+Safety checks:
+
+```text
+git diff --check
+=> no whitespace errors; only Windows CRLF warnings
+
+secret/path scan
+=> only intentional redaction-test strings and policy docs matched; no real key, token, cookie, signed URL, account email, or local user path was added
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr or mutate real cloud resources.
+- Did not commit API keys, cookies, tokens, account emails, signed URLs, or official private source.
+- Did not modify A1 runner logic or A2 judge semantics.
+
+## 2026-07-07 - SaaS Admin Cloud Parity Growth
+
+### Goal
+
+Strengthen the A3 Product Console so it covers the SaaS-style areas the team asked for: login, team management, usage, API keys, trust, and cloud/project management. Keep the implementation clean-room and safe, and keep A1/A2 compatibility intact.
+
+### Work completed
+
+- Extended `services/report/a3_saas_admin.mjs`.
+  - Added richer login/session posture without reading or saving cookies/tokens.
+  - Added RBAC matrix for owner, admin, developer, reviewer, auditor, and billing admin.
+  - Added invite workflow states while keeping real email invites disabled.
+  - Added API key lifecycle states for create/store/rotate/revoke while keeping real secrets forbidden.
+  - Added usage plan snapshot and preview-only budget controls.
+  - Added Trust Center preview artifacts and redacted audit-log policy.
+  - Added cloud resources, project switcher, audit controls, and product-console map.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs`.
+  - Dashboard now renders Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map.
+- Extended `services/report/a3_sql_migrations.mjs`.
+  - Added SaaS database tables to the migration contract: `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
+- Extended `apps/dashboard/src/app.mjs`.
+  - Static runtime contract now lists SaaS admin API surfaces and SaaS tables.
+- Added `docs/a3/p3_saas_admin_cloud_parity_growth_2026_07_07.md`.
+  - Documents what was copied as product logic, what remains plan-only, and why no official private source or secrets were committed.
+
+### A1/A2 compatibility
+
+- A3 still reads A1 evidence through normalized runs, cases, trace events, observations, and tool calls.
+- A3 still reads A2 evidence through normalized grades, judge results, score, pass/fail, and failure class.
+- No A1 runner logic or A2 judge semantics were changed.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+35 tests
+35 pass
+0 fail
+```
+
+Full A3 suite result after this round:
+
+```text
+127 tests
+127 pass
+0 fail
+```
+
+Safety checks:
+
+```text
+git status --ignored -sb -- .env.local
+=> !! .env.local
+
+git diff --check
+=> no whitespace errors; only Windows CRLF warnings
+
+secret/path scan
+=> only intentional redaction-test strings and policy docs matched; no real secret or account data was added
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not write real API keys, cookies, tokens, emails, signed URLs, account identities, or official private frontend source.
+- Did not call live Ashr, hosted auth, billing, database, email, or cloud mutation APIs.
+
 ## 2026-07-04 - First A3 pass
 
 ### Goal
@@ -2174,6 +2389,22 @@ Focused result:
 0 fail
 ```
 
+Final A3 suite result:
+
+```text
+127 tests
+127 pass
+0 fail
+```
+
+Export firewall result:
+
+```text
+1 generated-artifact secret/path scan
+1 pass
+0 fail
+```
+
 Full command:
 
 ```text
@@ -2342,3 +2573,682 @@ Browser smoke:
 ### Current interpretation
 
 Observability Replay Matrix is the production replay layer A3 was missing. It connects incident replay to trace evidence, tool/error evidence, A2 judge findings, media metadata, and official Observability parity. This moves A3 closer to a sellable release-intelligence platform that can block risky agent releases and support incident review.
+
+## 2026-07-07 - Regression Factory
+
+### Goal
+
+Turn failed incident replay cases into regression-test candidates for the next release gate.
+
+### Work completed
+
+- Added `summarizeRegressionFactory()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `regression_factory`
+- Added Markdown report section:
+  - `Regression Factory`
+- Added dashboard panel:
+  - `Regression Factory`
+- Added print/PDF report section:
+  - `Regression Factory`
+- Added per-candidate fields:
+  - regression id
+  - generator state
+  - owner lane
+  - coverage status
+  - required contracts
+  - proposed assertions
+  - generated artifact plan
+  - next action
+- Added implementation note:
+  - `docs/a3/p3_regression_factory_growth_2026_07_07.md`
+- Added contract delta note from integration explorer:
+  - `docs/a3/p3_a1_a2_a3_contract_delta_2026_07_07.md`
+- Added official frontend parity backlog:
+  - `docs/a3/p3_official_frontend_parity_backlog_2026_07_07.md`
+- Added Growth-Auditor round note:
+  - `docs/a3/p3_growth_auditor_round_2026_07_07_enterprise_push.md`
+
+### A1/A2/Official calibration
+
+- A1 supplies trace, observation, expected vs actual, tool-call, media metadata, and replay evidence.
+- A2 supplies pass/fail, score, primary failure class, judge evidence, severity, remediation, and coverage.
+- Official code crawl supplies Results review parity signals without copying official source.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+50 tests
+50 pass
+0 fail
+```
+
+Full A3 command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+86 tests
+86 pass
+0 fail
+```
+
+Browser smoke:
+
+- Opened the local dashboard with the official demo source.
+- Confirmed `Regression Factory`, candidate count, coverage information, A1 Trace Capture, and A2 Judge Contract render.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-regression-factory.png`
+
+### Current interpretation
+
+Regression Factory is the next commercial layer after Incident Replay and Observability Replay. Incident Replay says what failed, Observability Replay says whether the evidence is replayable, and Regression Factory says whether the failure can become a repeatable regression candidate before the next release. This moves A3 closer to a paid release-intelligence workflow instead of a one-time demo dashboard.
+
+## 2026-07-07 - Export Redaction Firewall And Dashboard Webapp Split
+
+### Goal
+
+Improve A3 enterprise export safety, strengthen A1/A2 data compatibility, and migrate the dashboard away from a single oversized HTML file.
+
+### Work completed
+
+- Added shared export firewall module:
+  - `services/report/export_redaction_firewall.mjs`
+- Added `summarizeExportRedactionFirewall()` to `services/report/report_builder.mjs`.
+- Added `export_redaction_firewall` to JSON report exports.
+- Added `Export Redaction Firewall` to Markdown and print/PDF report output.
+- Added CSV cell scrubbing and formula-injection hardening.
+- Reused the shared firewall from the A3 Gate CLI.
+- Added dashboard `Export Safety` panel.
+- Split dashboard webapp files:
+  - `apps/dashboard/index.html`
+  - `apps/dashboard/src/app.mjs`
+  - `apps/dashboard/src/styles.css`
+- Reduced `index.html` from more than 3,000 lines to about 400 lines.
+- Strengthened A1/A2 input normalization in `report_builder.mjs`.
+- Added direct compatibility for:
+  - A1 RunResult root fixtures
+  - A1 loose case lists
+  - A1 `ashr.clone.run.v1` run fixture shape
+  - A2 single run fixtures
+  - A2 single local judge result fixtures
+  - Existing A3 aggregate run fixtures
+  - Existing A2 aggregate grade reports
+- Added implementation note:
+  - `docs/a3/p3_dashboard_webapp_migration_2026_07_07.md`
+- Added Export Redaction Firewall docs:
+  - `docs/a3/p3_growth_auditor_redaction_firewall_2026_07_07.md`
+  - `docs/a3/p3_redaction_firewall_evidence_map_2026_07_07.md`
+
+### A1/A2 calibration
+
+- A1 compatibility now maps agent output, expected output, tool calls, observations, trace events, and optional media evidence into A3 case fields.
+- A2 compatibility now maps single judge results and aggregate grade reports into pass/fail, score, failure class, severity, judge modes, and remediation evidence.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+55 tests
+55 pass
+0 fail
+```
+
+Full A3 command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+91 tests
+91 pass
+0 fail
+```
+
+Browser smoke:
+
+- Served local dashboard at `http://127.0.0.1:4173/apps/dashboard/index.html`.
+- Confirmed split webapp loads `src/app.mjs` and `src/styles.css`.
+- Confirmed dashboard renders 32 cases, 6.3% pass rate, and Export Safety status `passed`.
+- Browser console error log was empty.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-webapp-export-safety.png`
+
+### Current interpretation
+
+A3 is now less brittle. It no longer depends only on hand-shaped mock fixtures, and the dashboard is easier for the team to maintain because HTML, JS, and CSS have separate ownership boundaries.
+
+## 2026-07-07 - Raw A1/A2 Dashboard Sources
+
+### Goal
+
+Close the remaining UI gap from the A1/A2 compatibility work: the report builder could consume raw A1/A2 data, but the dashboard Data selector did not expose those raw sources.
+
+### Work completed
+
+- Added `Raw A1 RunResult` to the dashboard Data selector.
+- Added `Raw A2 Single Case` to the dashboard Data selector.
+- Wired `raw-a1` to `docs/a1/evidence/local_run_30.json`.
+- Wired `raw-a2` to:
+  - `fixtures/a2/runs/a2_s004_missing_tool.json`
+  - `fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- Added source labels for raw A1 and raw A2.
+- Added `resetCalibrationState()` so switching from P3 samples to raw A1/A2 does not leave stale request/quota/auth data in state.
+- Added dashboard wiring tests for raw A1/A2 sources.
+- Added implementation note:
+  - `docs/a3/p3_raw_a1_a2_dashboard_sources_2026_07_07.md`
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+56 tests
+56 pass
+0 fail
+```
+
+Browser smoke:
+
+- `?source=raw-a1`: 1 run, 30 cases, 100% pass rate, Export Safety `passed`.
+- `?source=raw-a2`: 1 run, 1 case, 0% pass rate, Export Safety `passed`.
+- Browser error log was empty.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-raw-a2-source.png`
+
+### Current interpretation
+
+The A1/A2 compatibility work is now visible from the dashboard, not only proven in unit tests. This makes the A3 handoff easier to demo and easier for A1/A2 teammates to validate.
+
+## 2026-07-07 - SaaS API Store And Hosted Report Slice
+
+### Goal
+
+Move A3 from a static fixture dashboard toward a SaaS-shaped product path without breaking the current mock/raw A1/raw A2/P3 demo sources.
+
+### Work completed
+
+- Added a DB-ready A3 store abstraction:
+  - `services/report/a3_store.mjs`
+  - Supports memory store, JSON-file-backed store, fixture-backed source loading, run list, run detail, case detail, and shareable report persistence.
+- Added a minimal A3 API server:
+  - `services/report/a3_api_server.mjs`
+  - Supports `GET /api/a3/health`, `GET /api/a3/db-contract`, `GET /api/a3/dashboard`, `GET /api/a3/runs`, `GET /api/a3/runs/:runId`, `GET /api/a3/cases/:caseId`, `POST /api/a3/reports/share`, and `GET /api/a3/reports/:reportId`.
+- Added shareable hosted report payload builder:
+  - `services/report/a3_shareable_report.mjs`
+  - Wraps existing JSON/Markdown report outputs into `a3.shareable_report.v1`.
+  - Reuses the export redaction firewall before a report is considered shareable.
+- Added dashboard API client and component boundary:
+  - `apps/dashboard/src/api-client.mjs`
+  - `apps/dashboard/src/components/saas-runtime-panel.mjs`
+- Added dashboard UI wiring:
+  - New `API-backed Mock` Data source.
+  - New `SaaS Runtime` panel showing API and DB-ready contract.
+  - New `Share Hosted Report` action in Report Center.
+- Added SaaS migration plan:
+  - `docs/a3/p3_saas_api_db_migration_2026_07_07.md`
+  - Covers 30 growth points across API, DB, app components, hosted reports, A1/A2 compatibility, secret safety, and verification evidence.
+
+### Current interpretation
+
+This is not yet a full SaaS app, but it changes the architecture direction in the right way:
+
+- Static -> API-backed: dashboard can load the same A3 data shape through `/api/a3/dashboard`.
+- Mock fixture -> DB data: store interface now hides whether data came from memory, JSON file, fixtures, or a future SQL adapter.
+- HTML blob -> app components: the SaaS Runtime panel is now a real component module.
+- Report export -> shareable hosted report: report output can be sealed, redacted, hashed, and stored behind a share URL path.
+
+### Next highest-value targets
+
+- Add a real SQL adapter behind `a3_store.mjs` after A1 chooses Postgres/MySQL/SQLite migration tooling.
+- Add hosted report route rendering, not only hosted report payload creation.
+- Add import endpoints for A1 RunResult and A2 GradeResult so API data can be created without hand-loaded fixtures.
+
+## 2026-07-07 - SaaS Admin Console Shell
+
+### Goal
+
+Add the missing SaaS product-console areas the team lead called out: login, cloud/team management, usage, API keys, team, and trust. Keep it clean-room and safe: no real API-key creation, no real team invite, no real billing mutation, no real Trust publish, and no copied private frontend source.
+
+### Work completed
+
+- Added `services/report/a3_saas_admin.mjs`.
+  - Produces `a3.saas_admin_console.v1`.
+  - Covers Login, Organization/Project, Team, API Keys, Usage, Trust, Cloud Management, A1/A2 compatibility, and action plans.
+  - Every sensitive cloud action is explicitly marked `read_only`, `plan_only`, `mock_only`, or `disabled`.
+- Extended `services/report/a3_store.mjs`.
+  - Adds `getSaasAdminConsole(...)`.
+  - Adds `planSaasAdminAction(...)`.
+  - Adds `saas_admin_console` to `/api/a3/dashboard` payload.
+  - Extends DB contract with `users`, `team_members`, `roles`, `api_keys`, and `trust_reports`.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/admin/console`.
+  - Adds `POST /api/a3/admin/actions/plan`.
+- Extended dashboard.
+  - New `SaaS Admin Console` panel.
+  - Shows Login, Team roster, Usage, API key metadata, Trust status, Cloud Action Plan, and A1/A2 compatibility counts.
+  - Uses API action planning in API-backed mode and local plan state in static mode.
+- Added `apps/dashboard/src/components/saas-admin-console.mjs`.
+- Added tests:
+  - `tests/a3/a3_saas_admin.test.mjs`
+  - Store/API/dashboard wiring coverage for admin console and action planning.
+
+### Safety boundary
+
+- No real Ashr API key was read, created, printed, saved, or revoked.
+- No real team invite, billing change, Trust publish, or OAuth login flow was executed.
+- API key rows are metadata-only with redacted prefixes.
+- The implementation uses clean-room product behavior already captured in redacted A3/P3 notes and fixtures.
+
+### Current interpretation
+
+A3 now looks more like a SaaS console instead of only a run/report dashboard. It still does not provide real auth/RBAC/API-key mutation, but it shows the exact product surfaces and guardrails needed before those become real hosted features.
+
+## 2026-07-07 - API Ingest, Hosted Report Page, And Enterprise Readiness
+
+### Goal
+
+Continue the large SaaS plan by moving A3 from fixture-only reporting toward API-ingested evidence, hosted report viewing, self-host readiness, and enterprise audit posture. Keep A1 runner semantics and A2 judge semantics unchanged.
+
+### Work completed
+
+- Extended `services/report/a3_store.mjs`.
+  - Added `importA1RunResult(...)`.
+  - Added `importA2GradeResult(...)`.
+  - Added `getEnterpriseReadiness(...)`.
+  - Added API contract entries for A1/A2 import routes, hosted report HTML, and enterprise readiness.
+- Extended `services/report/a3_api_server.mjs`.
+  - Added `POST /api/a3/import/a1-run-result`.
+  - Added `POST /api/a3/import/a2-grade-result`.
+  - Added `GET /api/a3/enterprise/readiness`.
+  - Added `GET /reports/:reportId` as a real HTML hosted-report route.
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Added `renderShareableReportHtml(...)`.
+  - Hosted reports render only redacted/shareable report payload fields and sealed evidence metadata.
+- Added Enterprise Readiness.
+  - `services/report/a3_enterprise_readiness.mjs` produces `a3.enterprise_readiness.v1`.
+  - Dashboard now includes an Enterprise Readiness panel for self-host/audit review.
+  - The readiness report summarizes A1 run/trace/tool-call evidence, A2 grade/judge evidence, DB contract readiness, admin-console guardrails, blockers, capabilities, and next actions.
+- Added self-host contract artifact:
+  - `docs/a3/p3_self_host_console_growth_2026_07_07.md`
+  - `tests/a3/self_host_console_contract.test.mjs`
+- Added Growth-Auditor round artifact:
+  - `docs/a3/p3_growth_auditor_round_saas_2026_07_07.md`
+  - Contains 30 commercial growth points mapped to the A3 plan and current repo evidence.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/a3_enterprise_readiness.test.mjs tests/a3/self_host_console_contract.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+39 tests
+39 pass
+0 fail
+```
+
+### Current interpretation
+
+This round directly advances the team lead's SaaS migration points:
+
+- `static -> API-backed`: A3 can now accept A1 RunResult and A2 GradeResult through API routes.
+- `mock fixture -> real DB data`: the store contract now has ingest receipts and source isolation for `api-ingest`.
+- `HTML blob -> app components`: Enterprise Readiness is rendered through a component boundary.
+- `report export -> shareable hosted report`: shared reports now have an actual `/reports/:reportId` HTML route, not only JSON payloads.
+
+### Safety boundary
+
+- No real Ashr API key, token, cookie, account data, or signed media URL was printed or committed.
+- No real cloud mutation, API-key rotation, team invite, billing mutation, or Trust publish was executed.
+- Hosted report HTML uses redacted shareable payload data and sealed evidence metadata only.
+
+## 2026-07-07 - Growth auditor import and hosted report commercialization artifact
+
+### Goal
+
+Create a docs-only Growth-Auditor artifact for the current A3 commercial SaaS round focused on A1/A2 API ingest idempotency and validation, hosted report expiry/revocation/view audit, enterprise readiness, SQL/self-host next steps, and PR Gate / Report Center commercialization.
+
+### Work completed
+
+- Added `docs/a3/p3_growth_auditor_round_import_hosted_report_2026_07_07.md`.
+- Captured 32 concrete growth points, each tagged across code/test/API/UI/docs/evidence and mapped to money value.
+- Kept the round documentation-only; no code, tests, fixtures, schemas, secrets, or runtime files were changed.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
+- Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
+
+## 2026-07-07 - SQL Usage Ledger Report Center Implementation
+
+### Goal
+
+Turn the SaaS growth plan into concrete A3-owned contracts so the dashboard can move from static fixture review toward API-backed, DB-ready, shareable-report workflows while staying compatible with A1 and A2.
+
+### Work completed
+
+- Added SQL migration planning in `services/report/a3_sql_migrations.mjs`.
+  - Covers organizations, projects, runs, cases, trace events, tool calls, grade results, idempotency keys, API import receipts, shareable reports, report view events, revocations, audit events, and usage ledger.
+  - Supports Postgres as the recommended production target.
+  - Adds MySQL and SQLite dialect targets for student/self-host deployment planning.
+- Added read-only usage metering in `services/report/a3_usage_ledger.mjs`.
+  - Counts A1/A2-derived runs, cases, failed cases, trace events, tool-call cases, judge results, media evidence cases, hosted reports, report views, report revocations, and API imports.
+  - Keeps billing mutations disabled.
+- Added report center manifest generation in `services/report/a3_report_center_manifest.mjs`.
+  - Links hosted report artifacts, usage ledger evidence, and DB migration evidence.
+  - Gives PR gate / audit bundle a single report packet shape.
+- Extended `services/report/a3_store.mjs` and `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/db-migrations`.
+  - Adds `GET /api/a3/usage/ledger`.
+  - Adds `GET /api/a3/reports/:reportId/manifest`.
+  - Includes DB migrations and usage ledger in dashboard payloads.
+- Extended `apps/dashboard/src/components/saas-runtime-panel.mjs` and `apps/dashboard/src/app.mjs`.
+  - Shows migration batches and usage meters in the SaaS Runtime panel.
+  - Keeps mock/raw A1/raw A2/P3 source compatibility.
+- Added CI-style export firewall scan.
+  - `tests/a3/export_firewall_generated_artifacts.test.mjs` scans generated A3 docs and fixtures for key/token/cookie/account-path leaks.
+  - `docs/a3/p3_export_firewall_ci_scan_2026_07_07.md` documents the scan policy.
+- Updated `docs/a3/acceptance_checklist.md`.
+  - Marks export-firewall scan, SQL migration contract, usage ledger, and report center manifest work complete.
+  - Keeps the real SQL adapter unchecked because no live database server has been selected or wired yet.
+
+### Verification
+
+Focused commands run:
+
+```text
+node --test tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_center_manifest_contract.test.mjs
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+```
+
+Focused result before final full-suite rerun:
+
+```text
+43 focused tests passed
+1 export-firewall scan passed
+```
+
+Final A3 suite result:
+
+```text
+124 tests
+124 pass
+0 fail
+```
+
+Secret/path scan result:
+
+```text
+Only intentional redaction-test strings and existing redaction policy examples were matched.
+No real key, cookie, token, account email, signed media URL, or local user artifact was added.
+```
+
+### Current interpretation
+
+A3 now has the shape of a SaaS product, not just a local HTML demo:
+
+- static -> API-backed: the same dashboard shape can be served by A3 API routes.
+- mock fixture -> real DB data: not fully implemented yet, but SQL migration contracts define the future tables.
+- HTML blob -> app components: dashboard logic is split across modules/components.
+- report export -> shareable hosted report: report links have lifecycle, revoke/view audit, and manifest contracts.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not copy official private frontend source; the UI remains a clean-room local implementation.
+- No real login, API-key creation, team invite, billing mutation, Trust publish, cloud delete, key reveal, token, cookie, account email, or signed URL was added.
+
+## 2026-07-07 - Report Center Control Plane Index
+
+### Goal
+
+Move A3 Report Center beyond local export buttons by adding an API-backed report inventory that can summarize hosted report lifecycle, manifest readiness, usage evidence, migration evidence, and redaction status.
+
+### Work completed
+
+- Added `services/report/a3_report_center.mjs`.
+  - New schema: `a3.report_center_index.v1`.
+  - Summarizes hosted report count, shareable/expired/revoked/blocked status, total views, manifest readiness, firewall pass count, usage meter count, SQL migration count, and next actions.
+  - Keeps cloud mutations and billing mutations disabled.
+- Extended `services/report/a3_store.mjs`.
+  - Adds `getReportCenter(...)`.
+  - Adds `report_center` to `/api/a3/dashboard` payloads.
+  - Keeps A1/A2 evidence joins intact through the existing normalized snapshot.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/reports/center`.
+- Extended dashboard API client and UI.
+  - Adds `fetchA3ReportCenter(...)`.
+  - API-backed dashboard state now includes `state.reportCenter`.
+  - Sharing a hosted report refreshes Report Center.
+  - Report Center now shows hosted reports with status, share path, view count, manifest completeness, artifact count, and redaction state.
+- Added `docs/a3/p3_report_center_control_plane_growth_2026_07_07.md`.
+  - Documents commercial meaning, incomplete parts, and next 20 growth points.
+- Updated `docs/a3/acceptance_checklist.md`.
+  - Marks Report Center index/API/dashboard wiring complete.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_center_index.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+37 tests
+37 pass
+0 fail
+```
+
+Final A3 suite result:
+
+```text
+126 tests
+126 pass
+0 fail
+```
+
+Secret/path scan result:
+
+```text
+Only intentional redaction-test strings and existing redaction policy examples were matched.
+No real key, cookie, token, account email, signed media URL, or local user artifact was added.
+```
+
+### Current interpretation
+
+This is a useful SaaS step because Report Center is now becoming a control plane:
+
+- It can list hosted reports instead of only creating one link.
+- It can tell whether each report is shareable, revoked, expired, or blocked.
+- It links reports to manifest completeness, redaction status, usage ledger, and SQL migration evidence.
+- It gives PR Gate, audit bundle, and self-host readiness a common future anchor.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not add real cloud mutation, real login, real API-key management, team invite, billing mutation, Trust publish, or destructive retention behavior.
+- No real key, token, cookie, account email, signed URL, or official private source was committed.
+
+## 2026-07-07 - Share Token Lifecycle For Hosted Reports
+
+### Goal
+
+Move hosted report sharing from internal report-id URLs toward external share-token URLs so customer-facing evidence links can be expired, revoked, audited, and summarized without exposing internal report ids as the primary sharing mechanism.
+
+### Work completed
+
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Adds external `share_url_path` in the `/r/:shareToken` shape.
+  - Keeps internal admin path as `internal_url_path` in the `/reports/:reportId` shape.
+  - Adds `share_link` metadata with token hash, token hash prefix, scope, expiry, and revocation fields.
+  - Renders controlled denied pages for revoked, expired, blocked, or missing share access without rendering report body/case evidence.
+- Extended `services/report/a3_store.mjs`.
+  - Registers share links by token hash.
+  - Stores redacted `/r/[REDACTED_TOKEN]` paths instead of raw share tokens.
+  - Adds `getReportForShareToken(...)`.
+  - Records allowed and denied share-link access events as redacted audit events.
+  - Revoking a report also revokes its share link.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /r/:shareToken`.
+  - Returns hosted report HTML for active share tokens.
+  - Returns controlled denied HTML and no report body for revoked/expired/missing tokens.
+- Extended SQL/usage/report-center contracts.
+  - Adds `report_share_links` migration contract.
+  - Adds `access_result` and `token_hash_prefix` fields to report view event planning.
+  - Counts share-link access events in the usage ledger report-view meter.
+  - Shows token hash prefix in Report Center dashboard rows.
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_share_token_lifecycle_growth_2026_07_07.md`
+  - Covers sellable capability, remaining toy-like gaps, enterprise/self-host/audit value, and 30 next growth points.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/shareable_report.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_center_index.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+44 tests
+44 pass
+0 fail
+```
+
+### Current interpretation
+
+This is a commercial hardening step:
+
+- `/reports/:reportId` can stay as an internal/admin report path.
+- `/r/:shareToken` becomes the safer external sharing boundary.
+- Raw share tokens are returned once to the creator but not stored in durable report payloads.
+- Report Center can show token hash prefixes, lifecycle state, view counts, manifest readiness, and redaction status.
+- Expired/revoked/missing token access now produces audit evidence instead of silently failing.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not add real auth/RBAC, real billing, real email sharing, real API-key management, or destructive retention behavior.
+- No real key, token, cookie, account email, signed URL, or official private source was committed.
+
+## 2026-07-07 - Import Idempotency And Hosted Report Lifecycle
+
+### Goal
+
+Turn the new A1/A2 import routes and hosted report route into SaaS-grade contracts instead of one-off demo endpoints.
+
+### Work completed
+
+- Extended `services/report/a3_store.mjs`.
+  - Added `A3StoreValidationError`.
+  - Added validation for A1 RunResult imports and A2 GradeResult imports.
+  - Added idempotency receipt tracking keyed by request type, source, idempotency key hash, and payload hash.
+  - Added duplicate replay behavior for matching idempotency keys.
+  - Added 409 conflict behavior when the same idempotency key is reused with a different payload.
+  - Added hosted report view audit, expiry status, revoke receipt, and report lifecycle status.
+- Extended `services/report/a3_api_server.mjs`.
+  - Reads `Idempotency-Key` / `X-Idempotency-Key` for import routes.
+  - Returns `a3.api_validation_error.v1` with redacted summary and quota/cost note for bad imports.
+  - Adds `POST /api/a3/reports/:reportId/view`.
+  - Adds `POST /api/a3/reports/:reportId/revoke`.
+  - Hosted report HTML returns `410` for expired or revoked reports.
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Adds default 30-day `expires_at`.
+  - Adds lifecycle metadata and initial view audit metadata.
+- Added SQL adapter contract artifact:
+  - `docs/a3/p3_sql_adapter_contract_2026_07_07.md`
+  - `tests/a3/sql_adapter_contract.test.mjs`
+- Added API calibration/error-shape evidence artifact:
+  - `docs/a3/p3_api_calibration_import_error_shapes_2026_07_07.md`
+  - `tests/a3/api_calibration_contract.test.mjs`
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/sql_adapter_contract.test.mjs tests/a3/api_calibration_contract.test.mjs
+```
+
+Focused result:
+
+```text
+14 tests
+14 pass
+0 fail
+```
+
+### Current interpretation
+
+This is an important SaaS hardening step:
+
+- Import routes now behave like production APIs: repeat-safe, conflict-aware, and validation-shaped.
+- Hosted reports now behave like customer-facing share links: expirable, revocable, and view-audited.
+- SQL/self-host planning now has explicit table/index/ledger anchors for the next DB-backed implementation round.
+
+### Safety boundary
+
+- No real Ashr API key, token, cookie, account data, or signed URL was printed or committed.
+- Validation errors do not echo request payloads.
+- Idempotency ledger stores a hashed key prefix and payload hash, not raw API keys or secrets.
+
+## 2026-07-07 - Growth auditor SQL usage and report center artifact
+
+### Goal
+
+Create a docs-only Growth-Auditor artifact for the next A3 commercial SaaS round focused on SQL migrations, usage ledger, billing/read-only quotas, report center manifest, CI export firewall, PR gate integration, hosted report lifecycle, and self-host deployment.
+
+### Work completed
+
+- Added `docs/a3/p3_growth_auditor_round_sql_usage_report_center_2026_07_07.md`.
+- Captured 32 concrete growth points tagged across code/test/API/UI/docs/evidence.
+- Mapped each growth point to money value, enterprise value, and risk reduction.
+- Kept the round documentation-only; no code, tests, fixtures, schemas, secrets, or runtime files were changed.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
+- Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.

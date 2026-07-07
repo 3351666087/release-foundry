@@ -25,6 +25,10 @@ import {
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
+  summarizeProductConsoleExport,
+  summarizeSaasAdminExport,
+  summarizeRegressionFactory,
+  summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseGate,
@@ -33,6 +37,8 @@ import {
   summarizeRequestProvenance,
   summarizeUsageQuota
 } from "../../services/report/report_builder.mjs";
+import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
+import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
 async function loadJson(path) {
@@ -315,6 +321,98 @@ test("A3 observability replay matrix packages trace, error, judge, media, and of
   assert.match(markdown, /Trace Timeline/);
 });
 
+test("A3 regression factory turns replay failures into A1/A2 calibrated regression candidates", async () => {
+  const riskyRuns = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+  const frontendCodeCrawl = await loadJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
+
+  const factory = summarizeRegressionFactory(riskyRuns, riskyGrades, coverage, mediaSignedUrlCoverage, frontendCodeCrawl);
+
+  assert.equal(factory.schema_version, "a3.regression_factory.v1");
+  assert.equal(factory.available, true);
+  assert.ok(factory.candidate_count > 0);
+  assert.ok(factory.blocked_count > 0);
+  assert.ok(factory.tool_candidate_count > 0);
+  assert.equal(factory.official_results_review_confirmed, true);
+  assert.ok(factory.lanes.some((lane) => lane.lane === "A1 Trace Capture" && lane.ready_count > 0));
+  assert.ok(factory.lanes.some((lane) => lane.lane === "A2 Judge Contract" && lane.ready_count > 0));
+  assert.ok(factory.lanes.some((lane) => lane.lane === "Official Results Parity" && lane.status === "ready"));
+  assert.ok(factory.candidates.some((item) => item.required_contracts.includes("a1_trace_events")));
+  assert.ok(factory.candidates.some((item) => item.required_contracts.includes("a2_judge_evidence")));
+  assert.ok(factory.candidates.some((item) => item.proposed_assertions.some((assertion) => assertion.startsWith("assert_failure_class:"))));
+  assert.ok(factory.promotion_steps.some((step) => /A1 trace/.test(step)));
+  assert.ok(factory.promotion_steps.some((step) => /A2 judge/.test(step)));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.equal(json.regression_factory.schema_version, "a3.regression_factory.v1");
+  assert.equal(json.regression_factory.official_results_review_confirmed, true);
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.match(markdown, /## Regression Factory/);
+  assert.match(markdown, /Generated Suite Plan/);
+  assert.match(markdown, /Official Results review confirmed: yes/);
+});
+
+test("A3 export redaction firewall scrubs report exports and hardens CSV cells", async () => {
+  const riskyRuns = JSON.parse(JSON.stringify(await loadJson("../../fixtures/a3/mock_run_results.json")));
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const email = ["release.owner", "example.com"].join("@");
+  const apiKeyAssignment = ["ASHR_API_KEY", "secret-value"].join("=");
+  const bearerValue = ["Bearer", "abc.def"].join(" ");
+  const cookieValue = ["Cookie", ": session=secret"].join("");
+  const signedUrl = ["https://media.example.invalid/file?", "Sign", "ature=secret"].join("");
+  const formulaTitle = "=SUM(1,1)";
+  const firstCase = riskyRuns.runs[0].cases[0];
+
+  firstCase.title = formulaTitle;
+  firstCase.failure_summary = `${email} ${apiKeyAssignment}`;
+  firstCase.expected = {
+    ...firstCase.expected,
+    final_response: bearerValue
+  };
+  firstCase.actual = {
+    ...firstCase.actual,
+    final_response: signedUrl,
+    tool_calls: [{
+      id: "tc-redaction-smoke",
+      name: "refund_order",
+      arguments: {
+        header: cookieValue
+      }
+    }]
+  };
+
+  const firewall = summarizeExportRedactionFirewall(riskyRuns, riskyGrades, coverage);
+  assert.equal(firewall.schema_version, "a3.export_redaction_firewall.v1");
+  assert.equal(firewall.secret_free_exports, true);
+  assert.ok(firewall.replacement_count >= 5);
+  assert.ok(firewall.checked_surfaces.some((surface) => surface.surface === "json_report"));
+  assert.ok(firewall.checked_surfaces.some((surface) => surface.surface === "csv_report" && surface.rules_triggered.includes("csv_formula_injection")));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage);
+  const jsonText = JSON.stringify(json);
+  assert.equal(jsonText.includes(email), false);
+  assert.equal(jsonText.includes("secret-value"), false);
+  assert.equal(jsonText.includes(bearerValue), false);
+  assert.equal(jsonText.includes(cookieValue), false);
+  assert.equal(jsonText.includes(signedUrl), false);
+  assert.equal(json.export_redaction_firewall.schema_version, "a3.export_redaction_firewall.v1");
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage);
+  assert.equal(markdown.includes(email), false);
+  assert.equal(markdown.includes("secret-value"), false);
+  assert.match(markdown, /## Export Redaction Firewall/);
+
+  const csv = buildCsvReport(riskyRuns, riskyGrades);
+  assert.equal(csv.includes(email), false);
+  assert.equal(csv.includes("secret-value"), false);
+  assert.equal(csv.includes(`"${formulaTitle}`), false);
+  assert.ok(csv.includes(`"'${formulaTitle}`));
+});
+
 test("A3 report builder clusters failures by primary failure class", async () => {
   const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
   const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
@@ -413,6 +511,43 @@ test("A3 report builder normalizes nested A1 grade scores without A2 grade joins
   assert.equal(item.failure_summary, "Failure requires triage.");
 });
 
+test("A3 report builder can consume raw A1 RunResult evidence directly", async () => {
+  const a1Run = await loadJson("../../docs/a1/evidence/local_run_30.json");
+
+  const summary = buildDashboardSummary(a1Run, {});
+  const cases = normalizeCases(a1Run, {});
+  const diffs = buildToolCallDiffs(cases[0]);
+
+  assert.equal(summary.totalRuns, 1);
+  assert.equal(summary.totalCases, 30);
+  assert.equal(cases[0].run_id, a1Run.run_id);
+  assert.equal(cases[0].actual.tool_calls.length, 1);
+  assert.equal(cases[0].expected.tool_calls.length, 1);
+  assert.ok(cases[0].trace_events.length > 0);
+  assert.deepEqual(cases[0].media_evidence.media_types, []);
+  assert.ok(diffs.length > 0);
+});
+
+test("A3 report builder can consume raw A2 run and single local judge result directly", async () => {
+  const a2Run = await loadJson("../../fixtures/a2/runs/a2_s004_missing_tool.json");
+  const a2Grade = await loadJson("../../fixtures/a2/results/a2_s004_missing_tool_grade.json");
+
+  const summary = buildDashboardSummary(a2Run, a2Grade);
+  const cases = normalizeCases(a2Run, a2Grade);
+  const json = buildJsonReport(a2Run, a2Grade);
+
+  assert.equal(summary.totalRuns, 1);
+  assert.equal(summary.totalCases, 1);
+  assert.equal(cases[0].case_id, a2Run.case_id);
+  assert.equal(cases[0].scenario_id, a2Run.scenario_id);
+  assert.equal(cases[0].passed, false);
+  assert.equal(cases[0].score, 71);
+  assert.equal(cases[0].primary_failure_class, "missing_required_tool");
+  assert.match(cases[0].failure_summary, /Required tool missing/);
+  assert.equal(cases[0].actual.final_response, a2Run.run.final_response);
+  assert.equal(json.cases[0].primary_failure_class, "missing_required_tool");
+});
+
 test("A3 report builder uses the matching failed judge analysis for triage summaries", async () => {
   const run = await loadJson("../../fixtures/a2/runs/a2_s003_hallucinated_weather.json");
   const grade = await loadJson("../../fixtures/a2/results/a2_s003_hallucinated_weather_grade.json");
@@ -501,6 +636,71 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   assert.equal(json.failure_clusters.length, 12);
   assert.ok(Array.isArray(json.cases[0].tool_call_diffs));
   assert.equal(json.cases[0].score_source, "unknown");
+});
+
+test("A3 report exports include Product Console onboarding, project, and audit state", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const productConsole = buildA3ProductConsole({ source: "mock", runFixture: runs, gradeFixture: grades }, {
+    reportCenter: {
+      summary: { report_count: 1, manifest_ready_count: 1, total_view_count: 2 },
+      reports: [{ report_id: "a3r_export", status: "shareable" }]
+    },
+    auditEvents: [{ event_type: "report_share_link_viewed", report_id: "a3r_export", access_result: "allowed" }]
+  });
+
+  const summary = summarizeProductConsoleExport(productConsole);
+  assert.equal(summary.available, true);
+  assert.equal(summary.onboarding.total_steps, 10);
+  assert.ok(summary.project_console.case_count > 0);
+  assert.ok(summary.audit_log.event_count > 0);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, productConsole);
+  assert.equal(json.product_console.schema_version, "a3.product_console_export.v1");
+  assert.equal(json.product_console.available, true);
+  assert.equal(json.product_console.project_console.report_count, 1);
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, productConsole);
+  assert.match(markdown, /## Product Console \/ Onboarding \/ Audit/);
+  assert.match(markdown, /Commercial readiness:/);
+
+  const missing = summarizeProductConsoleExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Attach Product Console/);
+});
+
+test("A3 report exports include SaaS admin login, team, API-key, usage, trust, and cloud guardrails", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const saasAdmin = buildSaasAdminConsole({
+    runFixture: runs,
+    gradeFixture: grades,
+    source: "mock"
+  });
+
+  const summary = summarizeSaasAdminExport(saasAdmin);
+  assert.equal(summary.available, true);
+  assert.equal(summary.login.user_identity_redacted, true);
+  assert.equal(summary.team.member_count, 4);
+  assert.equal(summary.api_keys.status, "metadata_only");
+  assert.equal(summary.trust.public_publish_enabled, false);
+  assert.equal(summary.cloud_management.real_mutations_enabled, false);
+  assert.equal(summary.a1_a2_compatibility.a1_run_result_ready, true);
+  assert.equal(summary.a1_a2_compatibility.a2_grade_result_ready, true);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, saasAdmin);
+  assert.equal(json.saas_admin_console.schema_version, "a3.saas_admin_export.v1");
+  assert.equal(json.saas_admin_console.safety.secret_values_allowed, false);
+  assert.ok(json.saas_admin_console.action_plans.every((item) => item.writes_real_ashr_cloud === false));
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, saasAdmin);
+  assert.match(markdown, /## SaaS Admin \/ Login \/ Team \/ Trust/);
+  assert.match(markdown, /API keys:/);
+  assert.match(markdown, /real cloud write no/);
+
+  const missing = summarizeSaasAdminExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Attach SaaS Admin Console/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {

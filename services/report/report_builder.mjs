@@ -1,3 +1,9 @@
+import {
+  redactExport,
+  sanitizeCsvCellValue,
+  summarizeRedactionResults
+} from "./export_redaction_firewall.mjs";
+
 export function normalizeScore(score) {
   if (typeof score !== "number" || Number.isNaN(score)) {
     return 0;
@@ -57,8 +63,29 @@ export function canonicalPrimaryFailureClass(value, passed = false) {
 }
 
 export function getGradeByCase(gradeFixture = {}) {
-  const grades = Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results : [];
+  const grades = normalizeGradeResults(gradeFixture);
   return new Map(grades.map((grade) => [grade.case_id, grade]));
+}
+
+function normalizeGradeResults(gradeFixture = {}) {
+  if (Array.isArray(gradeFixture)) {
+    return gradeFixture.flatMap((item) => normalizeGradeResults(item));
+  }
+  if (Array.isArray(gradeFixture.grade_results)) {
+    return gradeFixture.grade_results;
+  }
+  if (isObject(gradeFixture.grade_result)) {
+    return [gradeFixture.grade_result];
+  }
+  if (gradeFixture.case_id && (
+    Array.isArray(gradeFixture.judge_results)
+    || "passed" in gradeFixture
+    || "score" in gradeFixture
+    || "primary_failure_class" in gradeFixture
+  )) {
+    return [gradeFixture];
+  }
+  return [];
 }
 
 function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed = false) {
@@ -94,11 +121,7 @@ function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed 
 
 export function normalizeCases(runFixture = {}, gradeFixture = {}) {
   const gradeByCase = getGradeByCase(gradeFixture);
-  const runs = Array.isArray(runFixture.runs)
-    ? runFixture.runs
-    : runFixture.run_id
-      ? [runFixture]
-      : [];
+  const runs = normalizeRunInputs(runFixture);
 
   return runs.flatMap((run) => {
     const cases = Array.isArray(run.cases) ? run.cases : [];
@@ -115,13 +138,24 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       const failureSummary = caseResult.failure_summary
         || failureAnalysis?.summary
         || (passed ? "Passed." : "Failure requires triage.");
+      const expected = normalizeExpected(caseResult, grade);
+      const actual = normalizeActual(caseResult, grade);
+      const traceEvents = normalizeTraceEvents(caseResult);
+      const observations = Array.isArray(caseResult.observations) ? caseResult.observations : [];
+      const mediaEvidence = normalizeMediaEvidence(caseResult, actual);
 
       return {
         ...caseResult,
-        run_id: run.run_id,
-        dataset_id: run.dataset_id,
-        runner_id: run.runner_id,
+        run_id: run.run_id || caseResult.run_id || grade.run_id || "run-local",
+        dataset_id: run.dataset_id || caseResult.dataset_id || grade.dataset_id || "local-dataset",
+        runner_id: run.runner_id || caseResult.runner_id || "a1-local-runner",
         run_status: run.status,
+        expected,
+        actual,
+        trace_events: traceEvents,
+        observations,
+        trace_ready: traceEvents.length > 0 || observations.length > 0,
+        media_evidence: mediaEvidence,
         passed,
         score: normalizeScore(grade.score ?? caseResult.score),
         primary_failure_class: primaryFailureClass,
@@ -137,6 +171,176 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       };
     });
   });
+}
+
+function normalizeRunInputs(runFixture = {}) {
+  if (Array.isArray(runFixture)) {
+    return runFixture.flatMap((item) => normalizeRunInputs(item));
+  }
+  if (Array.isArray(runFixture.runs)) {
+    return runFixture.runs;
+  }
+  if (runFixture.run_id && Array.isArray(runFixture.cases)) {
+    return [runFixture];
+  }
+  if (Array.isArray(runFixture.cases)) {
+    return [{
+      run_id: runFixture.run_id || runFixture.id || "run-local-cases",
+      dataset_id: runFixture.dataset_id || "local-cases",
+      runner_id: runFixture.runner_id || "a1-local-runner",
+      status: runFixture.status || "completed",
+      cases: runFixture.cases.map((item, index) => normalizeLooseCase(item, index))
+    }];
+  }
+  if (runFixture.schema === "ashr.clone.run.v1" && isObject(runFixture.run)) {
+    return [{
+      run_id: runFixture.run.run_id || runFixture.run.id || `run-${runFixture.name || "a1-fixture"}`,
+      dataset_id: runFixture.dataset_id || runFixture.name || "a1-run-fixture",
+      runner_id: runFixture.run.agent || "a1-local-runner",
+      status: runFixture.run.status || "completed",
+      started_at: runFixture.run.started_at,
+      ended_at: runFixture.run.finished_at,
+      cases: [normalizeA1RunFixtureCase(runFixture)]
+    }];
+  }
+  if (runFixture.case_id && (isObject(runFixture.run) || isObject(runFixture.expected))) {
+    return [{
+      run_id: runFixture.run_id || `run-${runFixture.case_id}`,
+      dataset_id: runFixture.dataset_id || "a2-single-case",
+      runner_id: runFixture.runner_id || "a2-local-runner",
+      status: "completed",
+      cases: [normalizeA2RunFixtureCase(runFixture)]
+    }];
+  }
+  return [];
+}
+
+function normalizeLooseCase(caseResult = {}, index = 0) {
+  return {
+    ...caseResult,
+    case_id: caseResult.case_id || caseResult.id || `case-${index + 1}`,
+    title: caseResult.title || caseResult.name || caseResult.prompt || `Case ${index + 1}`,
+    expected: caseResult.expected || {},
+    actual: caseResult.actual || caseResult.agent_output || {}
+  };
+}
+
+function normalizeA1RunFixtureCase(fixture = {}) {
+  const run = fixture.run || {};
+  return {
+    case_id: fixture.case_id || fixture.name || run.run_id || "a1-run-fixture-case",
+    scenario_id: fixture.scenario_id || fixture.name || "a1-run-fixture",
+    title: fixture.name || run.task || "A1 run fixture",
+    status: run.status || "completed",
+    started_at: run.started_at,
+    ended_at: run.finished_at,
+    expected: fixture.expected || {},
+    actual: fixture.replay?.actual || fixture.replay || {},
+    observations: Array.isArray(fixture.events) ? fixture.events : [],
+    trace_events: Array.isArray(fixture.events) ? fixture.events : [],
+    media_evidence: {
+      media_types: Array.isArray(fixture.vm_stream) && fixture.vm_stream.length > 0 ? ["vm_stream"] : [],
+      evidence_items: [],
+      vm_streams: Array.isArray(fixture.vm_stream) ? fixture.vm_stream : []
+    },
+    metadata: {
+      labels: fixture.labels || [],
+      source_schema: fixture.schema
+    }
+  };
+}
+
+function normalizeA2RunFixtureCase(fixture = {}) {
+  const run = fixture.run || {};
+  return {
+    case_id: fixture.case_id,
+    scenario_id: fixture.scenario_id,
+    title: fixture.title || fixture.userTask || fixture.case_id,
+    status: fixture.expected?.passed === false ? "failed" : "passed",
+    expected: {
+      ...objectOr(fixture.expected),
+      tool_calls: fixture.expected?.tool_calls || fixture.expected?.expectedToolCalls || []
+    },
+    actual: {
+      final_response: run.final_response || run.text || run.response || "",
+      text: run.final_response || run.text || run.response || "",
+      tool_calls: Array.isArray(run.tool_calls) ? run.tool_calls : []
+    },
+    trace_events: Array.isArray(run.trace_events) ? run.trace_events : [],
+    observations: Array.isArray(run.observations) ? run.observations : [],
+    metadata: {
+      source_schema: "a2.single_run_fixture"
+    }
+  };
+}
+
+function normalizeExpected(caseResult = {}, grade = {}) {
+  const expected = caseResult.expected || grade.expected || {};
+  return {
+    ...objectOr(expected),
+    text: firstText(expected.text, expected.expected_response, expected.expectedResponse, ""),
+    final_response: firstText(expected.final_response, expected.text, expected.expected_response, expected.expectedResponse, ""),
+    tool_calls: normalizeToolCallObjects(expected.tool_calls || expected.expectedToolCalls || expected.tools)
+  };
+}
+
+function normalizeActual(caseResult = {}, grade = {}) {
+  const actual = caseResult.actual || grade.actual || {};
+  const agentOutput = caseResult.agent_output || {};
+  const run = caseResult.run || {};
+  const text = firstText(actual.final_response, actual.text, actual.response, agentOutput.text, run.final_response, run.text, "");
+  const toolCalls = actual.tool_calls
+    || agentOutput.tool_calls
+    || run.tool_calls
+    || [];
+  return {
+    ...objectOr(actual),
+    text,
+    final_response: text,
+    tool_calls: normalizeToolCallObjects(toolCalls)
+  };
+}
+
+function normalizeTraceEvents(caseResult = {}) {
+  const direct = caseResult.trace_events || caseResult.events || [];
+  const observations = caseResult.observations || [];
+  const agentVmLogs = caseResult.agent_output?.vm_stream?.logs || [];
+  return [
+    ...(Array.isArray(direct) ? direct : []),
+    ...(Array.isArray(observations) && direct !== observations ? observations : []),
+    ...(Array.isArray(agentVmLogs) ? agentVmLogs : [])
+  ];
+}
+
+function normalizeMediaEvidence(caseResult = {}, actual = {}) {
+  const existing = caseResult.media_evidence || {};
+  const vmStreams = [
+    ...(Array.isArray(existing.vm_streams) ? existing.vm_streams : []),
+    ...(caseResult.agent_output?.vm_stream ? [caseResult.agent_output.vm_stream] : []),
+    ...(Array.isArray(caseResult.vm_stream) ? caseResult.vm_stream : [])
+  ];
+  const mediaTypes = [
+    ...(Array.isArray(existing.media_types) ? existing.media_types : []),
+    ...(vmStreams.length > 0 ? ["vm_stream"] : [])
+  ];
+  return {
+    ...existing,
+    media_types: uniqueValues(mediaTypes),
+    evidence_items: Array.isArray(existing.evidence_items) ? existing.evidence_items : [],
+    vm_streams: vmStreams
+  };
+}
+
+function normalizeToolCallObjects(toolCalls) {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+  return toolCalls.map((call) => ({
+    ...objectOr(call),
+    id: call.id || call.tool_call_id || null,
+    name: call.name || call.tool_name || call.tool || "unknown_tool",
+    arguments: call.arguments || call.args || call.parameters || {}
+  }));
 }
 
 export function getFilterOptions(cases = []) {
@@ -176,11 +380,7 @@ export function filterCases(cases = [], filters = {}) {
 }
 
 export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
-  const runs = Array.isArray(runFixture.runs)
-    ? runFixture.runs
-    : runFixture.run_id
-      ? [runFixture]
-      : [];
+  const runs = normalizeRunInputs(runFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const totalCases = cases.length;
   const passed = cases.filter((item) => item.passed).length;
@@ -436,6 +636,23 @@ function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageA
     commercialReadinessFixture: explicit.commercialReadiness || explicit.commercial_readiness || (legacyA2Args ? usageApiProbe : {}),
     releaseGateFixture: explicit.releaseGate || explicit.release_gate || (legacyA2Args ? releaseGateCandidate : {})
   };
+}
+
+function isA2ReadinessBundle(value = {}) {
+  const schema = isObject(value) ? String(value.schema_version || "") : "";
+  if (schema.startsWith("a3.")) {
+    return false;
+  }
+  return isObject(value) && (
+    isObject(value.caseBook)
+    || isObject(value.case_book)
+    || isObject(value.regressionReplay)
+    || isObject(value.regression_replay)
+    || isObject(value.commercialReadiness)
+    || isObject(value.commercial_readiness)
+    || isObject(value.releaseGate)
+    || isObject(value.release_gate)
+  );
 }
 
 export function summarizeRequestProvenance(requestFixture = {}) {
@@ -1760,6 +1977,322 @@ function countErrorSignals(item = {}) {
   })) ? 1 : 0;
 }
 
+export function summarizeRegressionFactory(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, frontendCodeCrawlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const coverage = summarizeCoverage(coverageFixture);
+  const incidentReplay = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 10 });
+  const observability = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture, { limit: options.limit || 10 });
+  const codeCrawl = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
+  const caseById = new Map(cases.map((item) => [item.case_id, item]));
+  const observabilityByCase = new Map(observability.items.map((item) => [item.case_id, item]));
+  const candidates = incidentReplay.queue.map((item, index) => buildRegressionCandidate(
+    item,
+    caseById.get(item.case_id) || {},
+    observabilityByCase.get(item.case_id) || {},
+    coverage,
+    index
+  ));
+  const readyCount = candidates.filter((item) => item.generator_state === "ready_to_promote").length;
+  const blockedCount = candidates.filter((item) => item.generator_state === "blocked").length;
+  const needsEvidenceCount = candidates.filter((item) => item.generator_state === "needs_evidence").length;
+  const coverageGapCount = candidates.filter((item) => item.coverage_status === "coverage_gap").length;
+  const toolCandidateCount = candidates.filter((item) => item.tool_diff_count > 0).length;
+  const mediaCandidateCount = candidates.filter((item) => item.media_evidence_count > 0).length;
+  const officialResultsMapped = officialResultsReviewConfirmed(codeCrawl);
+
+  return {
+    schema_version: "a3.regression_factory.v1",
+    available: candidates.length > 0,
+    factory_state: blockedCount > 0 ? "blocked" : needsEvidenceCount > 0 ? "needs_evidence" : readyCount > 0 ? "ready" : "empty",
+    candidate_count: candidates.length,
+    ready_count: readyCount,
+    needs_evidence_count: needsEvidenceCount,
+    blocked_count: blockedCount,
+    coverage_gap_count: coverageGapCount,
+    tool_candidate_count: toolCandidateCount,
+    media_candidate_count: mediaCandidateCount,
+    official_results_review_confirmed: officialResultsMapped,
+    generated_suite_plan: {
+      suite_id: `a3-regression-${incidentReplay.run_ids.join("-") || "local"}`,
+      source_mode: incidentReplay.replay_mode,
+      target_paths: [
+        "packages/scenarios/a2_g3_full_pack.json",
+        "fixtures/a2/runs/*.json",
+        "fixtures/a2/results/*_grade.json",
+        "fixtures/a3/p3/*.redacted.json"
+      ],
+      redaction_required: true,
+      live_cloud_mutation_required: false
+    },
+    lanes: buildRegressionFactoryLanes(candidates, coverage, officialResultsMapped),
+    candidates,
+    a1_a2_calibration: {
+      normalized_case_count: cases.length,
+      a1_trace_ready_count: candidates.filter((item) => item.trace_ready).length,
+      a1_tool_diff_ready_count: toolCandidateCount,
+      a2_judge_evidence_ready_count: candidates.filter((item) => item.judge_evidence_count > 0).length,
+      coverage_available: coverage.available,
+      official_results_review_confirmed: officialResultsMapped
+    },
+    promotion_steps: [
+      "Start from failed incident replay cases, not hand-written demo scenarios.",
+      "Require A1 trace, expected vs actual, and tool-call diff evidence before promotion.",
+      "Require A2 judge score, failure class, and remediation before marking the regression ready.",
+      "Map the case to A2 coverage and failure taxonomy so the suite improves release coverage.",
+      "Keep media evidence metadata-only and do not embed live signed URLs in generated regressions.",
+      "Attach the generated regression suite to PR gate and audit bundle outputs before merge."
+    ],
+    commercial_value: "Converts production failures into repeatable regression candidates so teams can prove a risky agent fix will not regress before the next release."
+  };
+}
+
+export function summarizeExportRedactionFirewall(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, frontendCodeCrawlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const scanCases = cases.map((item) => ({
+    run_id: item.run_id,
+    case_id: item.case_id,
+    scenario_id: item.scenario_id,
+    title: item.title,
+    failure_summary: item.failure_summary,
+    expected: item.expected,
+    actual: item.actual,
+    tool_call_diffs: buildToolCallDiffs(item),
+    media_evidence: item.media_evidence || null,
+    judge_modes: item.judge_modes,
+    score: item.score,
+    passed: item.passed,
+    primary_failure_class: item.primary_failure_class
+  }));
+  const jsonResult = options.jsonResult || redactExport({
+    cases: scanCases,
+    coverage: coverageFixture,
+    media_signed_url_coverage: mediaSignedUrlFixture,
+    official_code_crawl: frontendCodeCrawlFixture
+  }, { surface: "json_report" });
+  const markdownResult = redactExport(scanCases.map((item) => [
+    item.case_id,
+    item.title,
+    item.failure_summary,
+    stableJson(item.expected),
+    stableJson(item.actual),
+    stableJson(item.media_evidence)
+  ].join(" | ")).join("\n"), { surface: "markdown_report" });
+  const printResult = redactExport({
+    summary: buildDashboardSummary(runFixture, gradeFixture),
+    cases: scanCases.map((item) => ({
+      case_id: item.case_id,
+      title: item.title,
+      failure_summary: item.failure_summary,
+      primary_failure_class: item.primary_failure_class,
+      score: item.score
+    }))
+  }, { surface: "print_report" });
+  const csvResult = scanCsvExportSurface(cases);
+  const summary = summarizeRedactionResults([
+    jsonResult,
+    markdownResult,
+    csvResult,
+    printResult
+  ]);
+
+  return {
+    schema_version: "a3.export_redaction_firewall.v1",
+    available: true,
+    policy_version: summary.policy.policy_version,
+    status: summary.status,
+    secret_free_exports: summary.secret_free_exports,
+    fail_closed_ready: summary.fail_closed_ready,
+    replacement_count: summary.replacement_count,
+    residual_finding_count: summary.residual_finding_count,
+    blocking_finding_count: summary.blocking_finding_count,
+    surface_count: summary.surfaces.length,
+    checked_surfaces: summary.surfaces,
+    categories: summary.categories,
+    patterns: summary.patterns,
+    export_surfaces: [
+      "json_report",
+      "csv_report",
+      "markdown_report",
+      "print_report",
+      "gate_cli_payload",
+      "github_check_payload",
+      "audit_bundle_index"
+    ],
+    a1_a2_calibration: {
+      a1_case_count: cases.length,
+      a1_trace_ready_count: cases.filter((item) => item.trace_ready || (item.trace_events || []).length > 0).length,
+      a1_tool_diff_case_count: cases.filter((item) => buildToolCallDiffs(item).length > 0).length,
+      a2_grade_count: Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results.length : 0,
+      a2_failure_class_count: new Set(cases.map((item) => item.primary_failure_class).filter(Boolean)).size
+    },
+    guardrails: [
+      "Scrub API keys, bearer tokens, cookies, emails, prefixed tokens, signed media URLs, and local user-home paths before export.",
+      "Run CSV formula hardening on every cell before spreadsheet download.",
+      "Keep live signed media URLs out of JSON, Markdown, CSV, print, GitHub, and audit bundle outputs.",
+      "Treat residual blocking findings after redaction as export-blocking.",
+      "Use A1 trace/tool evidence and A2 judge/failure evidence only after the same export firewall pass."
+    ],
+    commercial_value: "Makes A3 reports safer to share in PRs, audits, and enterprise review packets by proving exports are scrubbed before they leave the dashboard or CLI."
+  };
+}
+
+function buildRegressionCandidate(replayItem = {}, caseItem = {}, observabilityItem = {}, coverage = {}, index = 0) {
+  const traceReady = replayItem.trace_ready || observabilityItem.trace_ready === true;
+  const judgeReady = replayItem.judge_evidence_count > 0 || observabilityItem.judge_evidence_count > 0;
+  const toolDiffCount = numberOrDefault(replayItem.tool_diff_count, 0);
+  const mediaEvidenceCount = Number(replayItem.media_evidence_count || 0) + Number(replayItem.vm_stream_count || 0);
+  const coverageStatus = regressionCoverageStatus(replayItem.primary_failure_class, coverage);
+  const blocked = replayItem.release_blocker || replayItem.severity === "critical";
+  const generatorState = !traceReady || !judgeReady
+    ? "needs_evidence"
+    : blocked
+      ? "blocked"
+      : "ready_to_promote";
+  const requiredContracts = regressionRequiredContracts({ traceReady, judgeReady, toolDiffCount, mediaEvidenceCount, coverageStatus });
+  const expectedToolCount = normalizeToolCalls(caseItem.expected?.tool_calls).length;
+  const actualToolCount = normalizeToolCalls(caseItem.actual?.tool_calls).length;
+
+  return {
+    rank: index + 1,
+    regression_id: `regression-${replayItem.case_id || index + 1}`,
+    case_id: replayItem.case_id,
+    run_id: replayItem.run_id,
+    scenario_id: replayItem.scenario_id,
+    owner_lane: regressionOwnerLane(replayItem),
+    generator_state: generatorState,
+    release_blocker: Boolean(replayItem.release_blocker),
+    coverage_status: coverageStatus,
+    primary_failure_class: replayItem.primary_failure_class,
+    severity: replayItem.severity,
+    score: replayItem.score,
+    trace_ready: traceReady,
+    trace_event_count: replayItem.trace_event_count,
+    observation_count: replayItem.observation_count,
+    tool_diff_count: toolDiffCount,
+    expected_tool_count: expectedToolCount,
+    actual_tool_count: actualToolCount,
+    judge_evidence_count: Math.max(numberOrDefault(replayItem.judge_evidence_count, 0), numberOrDefault(observabilityItem.judge_evidence_count, 0)),
+    media_evidence_count: mediaEvidenceCount,
+    required_contracts: requiredContracts,
+    proposed_assertions: regressionAssertions(replayItem.primary_failure_class, caseItem),
+    generated_artifacts: [
+      `scenario:${replayItem.scenario_id || "unknown"}`,
+      `run_fixture:${replayItem.case_id || "unknown"}`,
+      `grade_fixture:${replayItem.case_id || "unknown"}`,
+      "pr_gate_regression_note"
+    ],
+    next_action: regressionNextAction({ generatorState, coverageStatus, toolDiffCount, mediaEvidenceCount, releaseBlocker: replayItem.release_blocker })
+  };
+}
+
+function buildRegressionFactoryLanes(candidates = [], coverage = {}, officialResultsMapped = false) {
+  const total = candidates.length;
+  return [
+    regressionFactoryLane("A1 Trace Capture", candidates.filter((item) => item.trace_ready).length, total, "Trace, observations, expected vs actual, and tool-call diffs must be replayable."),
+    regressionFactoryLane("A2 Judge Contract", candidates.filter((item) => item.judge_evidence_count > 0).length, total, "Judge score, failure class, severity, and remediation must be attached."),
+    regressionFactoryLane("Coverage Promotion", candidates.filter((item) => item.coverage_status === "covered").length, total, coverage.available ? "Promote gaps into A2 coverage instead of adding isolated one-off tests." : "Load A2 coverage report before suite promotion."),
+    regressionFactoryLane("Tool Regression", candidates.filter((item) => item.tool_diff_count > 0).length, total, "Tool failures need expected/actual call and argument assertions."),
+    regressionFactoryLane("Media Regression", candidates.filter((item) => item.media_evidence_count > 0).length, total, "Media cases stay metadata-only until signed URL safety is proven."),
+    regressionFactoryLane("Official Results Parity", officialResultsMapped ? 1 : 0, 1, "Match official Results review concepts without copying official frontend source.")
+  ];
+}
+
+function regressionFactoryLane(lane, readyCount, totalCount, nextAction) {
+  const status = totalCount === 0
+    ? "empty"
+    : readyCount === totalCount
+      ? "ready"
+      : readyCount > 0
+        ? "partial"
+        : "needs_evidence";
+  return {
+    lane,
+    ready_count: readyCount,
+    total_count: totalCount,
+    status,
+    next_action: nextAction
+  };
+}
+
+function regressionCoverageStatus(failureClass = "none", coverage = {}) {
+  if (!coverage.available) {
+    return "unknown";
+  }
+  const executable = objectOr(coverage.executable_failure_class_cases);
+  const golden = objectOr(coverage.golden_failure_class_cases);
+  const hasExecutable = Array.isArray(executable[failureClass]) && executable[failureClass].length > 0;
+  const hasGolden = Array.isArray(golden[failureClass]) && golden[failureClass].length > 0;
+  return hasExecutable && hasGolden ? "covered" : "coverage_gap";
+}
+
+function regressionRequiredContracts({ traceReady = false, judgeReady = false, toolDiffCount = 0, mediaEvidenceCount = 0, coverageStatus = "unknown" } = {}) {
+  return uniqueSorted([
+    "case_id",
+    "scenario_id",
+    "expected_vs_actual",
+    traceReady ? "a1_trace_events" : "missing_a1_trace_events",
+    judgeReady ? "a2_judge_evidence" : "missing_a2_judge_evidence",
+    toolDiffCount > 0 ? "tool_call_diff" : "response_assertion",
+    mediaEvidenceCount > 0 ? "media_metadata" : "",
+    coverageStatus === "coverage_gap" ? "coverage_update" : "coverage_link"
+  ]);
+}
+
+function regressionOwnerLane(item = {}) {
+  if (item.primary_failure_class === "unsafe_or_policy_violation") {
+    return "Safety regression owner";
+  }
+  if (/tool|argument|order/.test(item.primary_failure_class || "")) {
+    return "Runner/tool regression owner";
+  }
+  if (item.media_evidence_count > 0 || item.vm_stream_count > 0) {
+    return "Media regression owner";
+  }
+  return "Judge regression owner";
+}
+
+function regressionAssertions(failureClass = "", caseItem = {}) {
+  const base = ["preserve_case_prompt", "compare_expected_vs_actual_response", `assert_failure_class:${failureClass || "unknown"}`];
+  const expectedTools = normalizeToolCalls(caseItem.expected?.tool_calls);
+  if (expectedTools.length > 0 || /tool|argument|order/.test(failureClass)) {
+    base.push("assert_expected_tool_sequence");
+    base.push("assert_tool_arguments");
+  }
+  if (failureClass === "unsafe_or_policy_violation") {
+    base.push("assert_no_secret_or_policy_leak");
+  }
+  if (failureClass === "missing_clarification") {
+    base.push("assert_clarification_question");
+  }
+  if ((caseItem.media_evidence?.media_types || []).length > 0) {
+    base.push("assert_media_metadata_only");
+  }
+  return uniqueSorted(base);
+}
+
+function regressionNextAction({ generatorState = "needs_evidence", coverageStatus = "unknown", toolDiffCount = 0, mediaEvidenceCount = 0, releaseBlocker = false } = {}) {
+  if (generatorState === "needs_evidence") {
+    return "Collect A1 trace and A2 judge evidence before generating a regression.";
+  }
+  if (releaseBlocker) {
+    return "Keep release blocked; promote this case only after owner fix and reviewer disposition.";
+  }
+  if (coverageStatus === "coverage_gap") {
+    return "Add this failure class to A2 coverage and then generate run/grade fixtures.";
+  }
+  if (toolDiffCount > 0) {
+    return "Generate tool-call regression assertions from expected vs actual diff rows.";
+  }
+  if (mediaEvidenceCount > 0) {
+    return "Generate metadata-only media regression and keep live media URLs out of fixtures.";
+  }
+  return "Promote to regression suite and bind it to PR gate before next release.";
+}
+
+function officialResultsReviewConfirmed(codeCrawl = {}) {
+  return Array.isArray(codeCrawl.parity_targets) && codeCrawl.parity_targets.some((target) => target.target === "Results review");
+}
+
 function gateCheck(id, passed, observed, detail) {
   return { id, passed, observed, detail };
 }
@@ -2773,8 +3306,183 @@ export function buildArgumentDiffs(expectedArgs = {}, actualArgs = {}) {
   });
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, a2ReadinessBundle = {}) {
-  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle, mediaSignedUrlFixture);
+export function summarizeProductConsoleExport(productConsoleFixture = {}) {
+  const available = productConsoleFixture?.schema_version === "a3.product_console.v1"
+    || Boolean(productConsoleFixture?.onboarding || productConsoleFixture?.project_console || productConsoleFixture?.audit_log);
+  if (!available) {
+    return {
+      schema_version: "a3.product_console_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach Product Console workflow state before claiming onboarding, project, or audit readiness."
+    };
+  }
+
+  const onboarding = productConsoleFixture.onboarding || {};
+  const project = productConsoleFixture.project_console || {};
+  const audit = productConsoleFixture.audit_log || {};
+  const readiness = productConsoleFixture.commercial_readiness || {};
+  return {
+    schema_version: "a3.product_console_export.v1",
+    available: true,
+    source: productConsoleFixture.source || "unknown",
+    tenant_scope: productConsoleFixture.tenant_scope || {},
+    onboarding: {
+      status: onboarding.status || "unknown",
+      completed_steps: onboarding.completed_steps || 0,
+      total_steps: onboarding.total_steps || 0,
+      completion_rate: onboarding.completion_rate || 0,
+      next_actions: (onboarding.next_actions || []).slice(0, 6)
+    },
+    project_console: {
+      project_id: project.project_id || "project-local",
+      status: project.status || "unknown",
+      run_count: project.summary?.run_count || 0,
+      case_count: project.summary?.case_count || 0,
+      failed_case_count: project.summary?.failed_case_count || 0,
+      report_count: project.report_snapshot?.report_count || 0,
+      primary_actions: (project.primary_actions || []).map((item) => ({
+        action: item.action,
+        enabled: item.enabled === true,
+        mode: item.mode || "unknown"
+      }))
+    },
+    audit_log: {
+      status: audit.status || "empty",
+      event_count: audit.event_count || 0,
+      redacted_payload_only: audit.redacted_payload_only === true,
+      missing_required_events: audit.missing_required_events || []
+    },
+    commercial_readiness: {
+      status: readiness.status || "unknown",
+      readiness_score: readiness.readiness_score || 0,
+      strongest_money_path: readiness.strongest_money_path || "unknown",
+      checks: (readiness.checks || []).map((item) => ({
+        id: item.id,
+        status: item.status,
+        passed: item.passed === true
+      })),
+      next_commercial_moves: readiness.next_commercial_moves || []
+    },
+    recommendation: "Use Product Console export as the onboarding/project/audit section of customer-facing release evidence."
+  };
+}
+
+export function summarizeSaasAdminExport(saasAdminFixture = {}) {
+  const available = saasAdminFixture?.schema_version === "a3.saas_admin_console.v1"
+    || Boolean(saasAdminFixture?.login || saasAdminFixture?.team || saasAdminFixture?.api_keys || saasAdminFixture?.trust || saasAdminFixture?.cloud_management);
+  if (!available) {
+    return {
+      schema_version: "a3.saas_admin_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach SaaS Admin Console state before claiming login, team, API-key, usage, trust, or cloud-management readiness."
+    };
+  }
+
+  const login = saasAdminFixture.login || {};
+  const team = saasAdminFixture.team || {};
+  const apiKeys = saasAdminFixture.api_keys || {};
+  const usage = saasAdminFixture.usage || {};
+  const trust = saasAdminFixture.trust || {};
+  const cloud = saasAdminFixture.cloud_management || {};
+  const compatibility = saasAdminFixture.a1_a2_compatibility || {};
+  const safety = saasAdminFixture.safety || {};
+  const actions = Array.isArray(saasAdminFixture.actions) ? saasAdminFixture.actions : [];
+
+  return {
+    schema_version: "a3.saas_admin_export.v1",
+    available: true,
+    source: saasAdminFixture.source || "unknown",
+    organization: {
+      plan: saasAdminFixture.organization?.plan || "unknown",
+      tenancy_mode: saasAdminFixture.organization?.tenancy_mode || "unknown",
+      data_region: saasAdminFixture.organization?.data_region || "unknown",
+      auth_boundary: saasAdminFixture.organization?.auth_boundary || "unknown"
+    },
+    login: {
+      status: login.status || "unknown",
+      provider: login.provider || "unknown",
+      session_storage: login.session_storage || "not_persisted",
+      user_identity_redacted: login.user_identity === "[REDACTED]" || login.session?.account_email === "[REDACTED]",
+      rbac_enforced_now: login.rbac_boundary?.enforced_now === true
+    },
+    team: {
+      status: team.status || "unknown",
+      invite_mode: team.invite_mode || "unknown",
+      member_count: Array.isArray(team.members) ? team.members.length : 0,
+      roles: Array.isArray(team.roles) ? team.roles : [],
+      self_approval_allowed: team.approval_policy?.self_approval_allowed === true
+    },
+    api_keys: {
+      status: apiKeys.status || "unknown",
+      create_mode: apiKeys.create_mode || "unknown",
+      reveal_policy: apiKeys.reveal_policy || "unknown",
+      key_count: Array.isArray(apiKeys.keys) ? apiKeys.keys.length : 0,
+      lifecycle_steps: (apiKeys.lifecycle || []).map((item) => ({
+        step: item.step,
+        status: item.status
+      }))
+    },
+    usage: {
+      status: usage.status || "unknown",
+      plan_name: usage.plan_snapshot?.plan_name || "unknown",
+      quota_mutations_enabled: usage.plan_snapshot?.quota_mutations_enabled === true,
+      channels: Array.isArray(usage.channels) ? usage.channels : [],
+      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : []
+    },
+    trust: {
+      status: trust.status || "unknown",
+      public_certificate_mode: trust.public_certificate_mode || "unknown",
+      publish_enabled: trust.publish_enabled === true,
+      public_publish_enabled: trust.trust_center?.public_publish_enabled === true,
+      release_gate_label: trust.release_gate_label || trust.release_gate_decision || "unknown"
+    },
+    cloud_management: {
+      status: cloud.status || "unknown",
+      resource_count: Array.isArray(cloud.resources) ? cloud.resources.length : 0,
+      real_mutations_enabled: cloud.real_mutations_enabled === true,
+      supported_readonly_surfaces: Array.isArray(cloud.supported_readonly_surfaces) ? cloud.supported_readonly_surfaces : [],
+      disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : []
+    },
+    a1_a2_compatibility: {
+      a1_run_result_ready: compatibility.a1_run_result_ready === true,
+      a2_grade_result_ready: compatibility.a2_grade_result_ready === true,
+      case_count: compatibility.case_count || 0,
+      trace_ready_count: compatibility.trace_ready_count || 0,
+      judge_ready_count: compatibility.judge_ready_count || 0
+    },
+    safety: {
+      real_login_enabled: safety.real_login_enabled === true,
+      real_team_invites_enabled: safety.real_team_invites_enabled === true,
+      real_api_key_secrets_enabled: safety.real_api_key_secrets_enabled === true,
+      real_billing_mutations_enabled: safety.real_billing_mutations_enabled === true,
+      real_trust_publish_enabled: safety.real_trust_publish_enabled === true,
+      secret_values_allowed: safety.secret_values_allowed === true,
+      mode: safety.mode || "unknown"
+    },
+    action_plans: actions.slice(0, 8).map((item) => ({
+      action: item.action,
+      area: item.area,
+      mode: item.mode,
+      enabled: item.enabled === true,
+      writes_real_ashr_cloud: item.writes_real_ashr_cloud === true
+    })),
+    recommendation: "Keep SaaS admin, key, team, billing, trust, and cloud workflows read-only or plan-only until hosted auth, RBAC, SQL persistence, and audit events are real."
+  };
+}
+
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}) {
+  const productConsoleAsA2Bundle = isA2ReadinessBundle(productConsoleFixture);
+  const effectiveA2ReadinessBundle = isA2ReadinessBundle(a2ReadinessBundle)
+    ? a2ReadinessBundle
+    : productConsoleAsA2Bundle
+      ? productConsoleFixture
+      : {};
+  if (productConsoleAsA2Bundle) {
+    productConsoleFixture = {};
+  }
+  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, effectiveA2ReadinessBundle, mediaSignedUrlFixture);
   if (a2Readiness.legacyA2Args) {
     requestFixture = {};
     usageFixture = {};
@@ -2802,6 +3510,10 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, reportMediaSignedUrlFixture);
   const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
   const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const regressionFactory = summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const exportRedactionFirewall = summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const productConsole = summarizeProductConsoleExport(productConsoleFixture);
+  const saasAdmin = summarizeSaasAdminExport(saasAdminFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2866,6 +3578,55 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       ""
     );
     lines.push("### PR Comment Template", "", releaseWorkflow.pr_comment_markdown.trim(), "");
+  }
+
+  if (productConsole.available) {
+    lines.push(
+      "## Product Console / Onboarding / Audit",
+      "",
+      `- Source: ${productConsole.source}`,
+      `- Onboarding: ${productConsole.onboarding.status} (${productConsole.onboarding.completed_steps}/${productConsole.onboarding.total_steps}, ${productConsole.onboarding.completion_rate}%)`,
+      `- Project status: ${productConsole.project_console.status}`,
+      `- Project evidence: ${productConsole.project_console.run_count} run(s), ${productConsole.project_console.case_count} case(s), ${productConsole.project_console.failed_case_count} failed case(s), ${productConsole.project_console.report_count} report(s)`,
+      `- Audit log: ${productConsole.audit_log.status}, ${productConsole.audit_log.event_count} event(s), redacted-only ${productConsole.audit_log.redacted_payload_only ? "yes" : "no"}`,
+      `- Commercial readiness: ${productConsole.commercial_readiness.status} / ${productConsole.commercial_readiness.readiness_score}`,
+      `- Strongest money path: ${productConsole.commercial_readiness.strongest_money_path}`,
+      ""
+    );
+    if (productConsole.onboarding.next_actions.length) {
+      lines.push("### Product Console Next Actions", "", ...productConsole.onboarding.next_actions.map((item) => `- ${item}`), "");
+    }
+    if (productConsole.commercial_readiness.checks.length) {
+      lines.push("### Product Console Readiness Checks", "");
+      for (const check of productConsole.commercial_readiness.checks) {
+        lines.push(`- ${check.id}: ${check.status}`);
+      }
+      lines.push("");
+    }
+  }
+
+  if (saasAdmin.available) {
+    lines.push(
+      "## SaaS Admin / Login / Team / Trust",
+      "",
+      `- Source: ${saasAdmin.source}`,
+      `- Login: ${saasAdmin.login.status}, ${saasAdmin.login.provider}, identity redacted ${saasAdmin.login.user_identity_redacted ? "yes" : "no"}`,
+      `- Team: ${saasAdmin.team.status}, ${saasAdmin.team.member_count} member(s), invite mode ${saasAdmin.team.invite_mode}`,
+      `- Usage: ${saasAdmin.usage.status}, plan ${saasAdmin.usage.plan_name}, quota mutation ${saasAdmin.usage.quota_mutations_enabled ? "enabled" : "disabled"}`,
+      `- API keys: ${saasAdmin.api_keys.status}, ${saasAdmin.api_keys.key_count} metadata row(s), reveal policy ${saasAdmin.api_keys.reveal_policy}`,
+      `- Trust: ${saasAdmin.trust.status}, publish ${saasAdmin.trust.publish_enabled ? "enabled" : "disabled"}, public publish ${saasAdmin.trust.public_publish_enabled ? "enabled" : "disabled"}`,
+      `- Cloud management: ${saasAdmin.cloud_management.status}, ${saasAdmin.cloud_management.resource_count} resource(s), real mutations ${saasAdmin.cloud_management.real_mutations_enabled ? "enabled" : "disabled"}`,
+      `- A1/A2 compatibility: A1 ${saasAdmin.a1_a2_compatibility.a1_run_result_ready ? "ready" : "missing"}, A2 ${saasAdmin.a1_a2_compatibility.a2_grade_result_ready ? "ready" : "missing"}`,
+      `- Safety mode: ${saasAdmin.safety.mode}, secret values allowed ${saasAdmin.safety.secret_values_allowed ? "yes" : "no"}`,
+      ""
+    );
+    if (saasAdmin.action_plans.length) {
+      lines.push("### SaaS Admin Action Guardrails", "");
+      for (const action of saasAdmin.action_plans) {
+        lines.push(`- ${action.action}: ${action.mode}, real cloud write ${action.writes_real_ashr_cloud ? "yes" : "no"}`);
+      }
+      lines.push("");
+    }
   }
 
   if (releaseWarRoom.available) {
@@ -2966,6 +3727,59 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("");
   }
 
+  if (regressionFactory.available) {
+    lines.push(
+      "## Regression Factory",
+      "",
+      `- Factory state: ${regressionFactory.factory_state}`,
+      `- Candidate count: ${regressionFactory.candidate_count}`,
+      `- Ready candidates: ${regressionFactory.ready_count}`,
+      `- Needs evidence: ${regressionFactory.needs_evidence_count}`,
+      `- Blocked candidates: ${regressionFactory.blocked_count}`,
+      `- Coverage gaps: ${regressionFactory.coverage_gap_count}`,
+      `- Tool candidates: ${regressionFactory.tool_candidate_count}`,
+      `- Media candidates: ${regressionFactory.media_candidate_count}`,
+      `- Official Results review confirmed: ${regressionFactory.official_results_review_confirmed ? "yes" : "no"}`,
+      `- Commercial value: ${regressionFactory.commercial_value}`,
+      ""
+    );
+    lines.push("### Generated Suite Plan", "");
+    lines.push(
+      `- Suite id: ${regressionFactory.generated_suite_plan.suite_id}`,
+      `- Source mode: ${regressionFactory.generated_suite_plan.source_mode}`,
+      `- Redaction required: ${regressionFactory.generated_suite_plan.redaction_required ? "yes" : "no"}`,
+      `- Live cloud mutation required: ${regressionFactory.generated_suite_plan.live_cloud_mutation_required ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Factory Lanes", "");
+    for (const lane of regressionFactory.lanes) {
+      lines.push(`- ${lane.lane}: ${lane.status} / ${lane.ready_count}/${lane.total_count} - ${lane.next_action}`);
+    }
+    lines.push("", "### Regression Candidates", "");
+    for (const item of regressionFactory.candidates) {
+      lines.push(`- ${item.regression_id}: ${item.generator_state} / ${item.primary_failure_class} / ${item.coverage_status} / contracts ${item.required_contracts.join(", ")} - ${item.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (exportRedactionFirewall.available) {
+    lines.push(
+      "## Export Redaction Firewall",
+      "",
+      `- Status: ${exportRedactionFirewall.status}`,
+      `- Secret-free exports: ${exportRedactionFirewall.secret_free_exports ? "yes" : "no"}`,
+      `- Replacement count: ${exportRedactionFirewall.replacement_count}`,
+      `- Residual findings: ${exportRedactionFirewall.residual_finding_count}`,
+      `- Checked surfaces: ${exportRedactionFirewall.checked_surfaces.map((surface) => surface.surface).join(", ")}`,
+      `- Commercial value: ${exportRedactionFirewall.commercial_value}`,
+      ""
+    );
+    for (const surface of exportRedactionFirewall.checked_surfaces) {
+      lines.push(`- ${surface.surface}: ${surface.status}, ${surface.replacement_count} replacement(s), ${surface.residual_finding_count} residual finding(s)`);
+    }
+    lines.push("");
+  }
+
   if (coverage.available) {
     const evidenceLines = coverageEvidenceLines(coverage);
     const exemplarLines = coverageExemplarLines(coverage.capability_axis_exemplars);
@@ -3048,6 +3862,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Ashr grading missing: ${regressionReadiness.ashr_grading_missing_count}`,
       ""
     );
+    if (regressionReadiness.gaps.length > 0) {
+      lines.push(...regressionReadiness.gaps.map((gap) => `- Gap: ${gap}`), "");
+    }
   }
 
   if (commercialReadiness.available) {
@@ -3058,9 +3875,15 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Ready for commercial gate: ${commercialReadiness.ready_for_commercial_gate ? "yes" : "no"}`,
       `- Gate status counts: met ${commercialReadiness.gate_status_counts.met || 0}, partial ${commercialReadiness.gate_status_counts.partial || 0}, blocked ${commercialReadiness.gate_status_counts.blocked || 0}`,
       `- Partial gates: ${commercialReadiness.partial_gate_ids.join(", ") || "none"}`,
+      `- Scenario count: ${commercialReadiness.scenario_count}`,
+      `- Golden cases: ${commercialReadiness.golden_case_count}`,
+      `- Failure classes: ${commercialReadiness.failure_class_count}`,
       `- Commercial real API records: ${commercialReadiness.real_api_record_count}/${commercialReadiness.real_api_total_records}`,
       `- Commercial create-request quota blocked: ${commercialReadiness.real_api_create_request_blocked ? "yes" : "no"}`,
-      `- Commercial official SDK smoke: ${commercialReadiness.official_sdk_smoke_read_only_reachable ? "ok" : "blocked"} (${commercialReadiness.official_sdk_smoke_ok_call_count} ok, ${commercialReadiness.official_sdk_smoke_error_call_count} error)`,
+      `- Commercial official SDK smoke: ${commercialReadiness.official_sdk_smoke_read_only_reachable ? "ok" : "not confirmed"} (${commercialReadiness.official_sdk_smoke_ok_call_count || 0} ok, ${commercialReadiness.official_sdk_smoke_error_call_count || 0} error)`,
+      `- Ashr merge status: ${commercialReadiness.ashr_public_merge_status}`,
+      `- Semantic live merge status: ${commercialReadiness.semantic_live_merge_status}`,
+      `- Regression replay maturity: ${commercialReadiness.regression_replay_maturity}`,
       ""
     );
   }
@@ -3256,7 +4079,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push(`- ${item.case_id} / ${item.scenario_id}: ${item.passed ? "PASS" : "FAIL"} (${item.score}) - ${item.failure_summary}`);
   }
 
-  return `${lines.join("\n")}\n`;
+  return redactExport(`${lines.join("\n")}\n`, { surface: "markdown_report" }).value;
 }
 
 export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
@@ -3289,12 +4112,81 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     item.media_evidence?.vm_streams?.length || 0
   ]);
   return [header, ...rows]
-    .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
+    .map((row, rowIndex) => row.map((value, columnIndex) => csvCell(value, `rows[${rowIndex}][${columnIndex}]`)).join(","))
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, a2ReadinessBundle = {}) {
-  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle, mediaSignedUrlFixture);
+function csvCell(value, path) {
+  const redacted = sanitizeCsvCellValue(value, { path, surface: "csv_report" });
+  return `"${String(redacted.value ?? "").replaceAll('"', '""')}"`;
+}
+
+function scanCsvExportSurface(cases = []) {
+  const fields = [
+    "run_id",
+    "case_id",
+    "scenario_id",
+    "title",
+    "status",
+    "score",
+    "severity",
+    "primary_failure_class",
+    "failure_summary",
+    "media_types",
+    "media_evidence_count",
+    "vm_stream_count"
+  ];
+  const findings = [];
+  cases.forEach((item, rowIndex) => {
+    const row = [
+      item.run_id,
+      item.case_id,
+      item.scenario_id,
+      item.title,
+      item.passed ? "passed" : "failed",
+      item.score,
+      item.severity,
+      item.primary_failure_class,
+      item.failure_summary,
+      (item.media_evidence?.media_types || []).join("|"),
+      item.media_evidence?.evidence_items?.length || 0,
+      item.media_evidence?.vm_streams?.length || 0
+    ];
+    row.forEach((value, columnIndex) => {
+      const redacted = sanitizeCsvCellValue(value, {
+        surface: "csv_report",
+        path: `rows[${rowIndex}].${fields[columnIndex]}`
+      });
+      findings.push(...redacted.findings.map((finding) => ({
+        ...finding,
+        surface: "csv_report"
+      })));
+    });
+  });
+  const residualFindings = [];
+  return {
+    surface: "csv_report",
+    value: "[csv cells]",
+    findings,
+    residual_findings: residualFindings,
+    replacement_count: findings.length,
+    replacements: findings.length,
+    blocked: false,
+    status: findings.length > 0 ? "cleaned" : "passed"
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}) {
+  const productConsoleAsA2Bundle = isA2ReadinessBundle(productConsoleFixture);
+  const effectiveA2ReadinessBundle = isA2ReadinessBundle(a2ReadinessBundle)
+    ? a2ReadinessBundle
+    : productConsoleAsA2Bundle
+      ? productConsoleFixture
+      : {};
+  if (productConsoleAsA2Bundle) {
+    productConsoleFixture = {};
+  }
+  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, effectiveA2ReadinessBundle, mediaSignedUrlFixture);
   if (a2Readiness.legacyA2Args) {
     requestFixture = {};
     usageFixture = {};
@@ -3304,8 +4196,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
   const releaseGate = isA2ReleaseGateFixture(a2Readiness.releaseGateFixture)
     ? summarizeReleaseGate(a2Readiness.releaseGateFixture)
     : summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
-
-  return {
+  const rawReport = {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
     coverage: summarizeCoverage(coverageFixture),
@@ -3320,12 +4211,15 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     official_frontend_mirror: summarizeOfficialFrontendMirror(frontendMirrorFixture),
     official_code_crawl_parity: summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture),
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture),
+    product_console: summarizeProductConsoleExport(productConsoleFixture),
+    saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
     incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, reportMediaSignedUrlFixture),
     reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     observability_replay_matrix: summarizeObservabilityReplayMatrix(runFixture, gradeFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture),
+    regression_factory: summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,
@@ -3345,6 +4239,13 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
       tool_call_diffs: buildToolCallDiffs(item),
       media_evidence: item.media_evidence || null
     }))
+  };
+  const redacted = redactExport(rawReport, { surface: "json_report" });
+  return {
+    ...redacted.value,
+    export_redaction_firewall: summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture, {
+      jsonResult: redacted
+    })
   };
 }
 

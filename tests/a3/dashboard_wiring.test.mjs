@@ -3,8 +3,24 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  return readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
+  const [html, app, styles] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
+  ]);
+  return [html, app, styles].join("\n");
 }
+
+test("A3 dashboard is split into a webapp shell, module, and stylesheet", async () => {
+  const html = await loadDashboardHtml();
+  const indexHtml = await readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
+
+  assert.match(indexHtml, /<link rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<script type="module" src="\.\/src\/app\.mjs"><\/script>/);
+  assert.doesNotMatch(indexHtml, /<style>/);
+  assert.doesNotMatch(indexHtml, /<script type="module">\s*import/);
+  assert.match(html, /from "\.\.\/\.\.\/\.\.\/services\/report\/report_builder\.mjs"/);
+});
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {
   const html = await loadDashboardHtml();
@@ -74,8 +90,23 @@ test("A3 dashboard wires official generated demo dataset 884 and run 11926 sourc
   assert.match(html, /ashr_after_generate_dataset_884\.redacted\.json/);
   assert.match(html, /ashr_after_generate_frontend_summary\.redacted\.json/);
   assert.match(html, /p3_official_demo_884_11926_dashboard_sample/);
-  assert.match(html, /allowedSources = new Set\(\["mock", "p3-media", "p3-official-demo"\]\)/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
   assert.match(html, /P3 official Ashr demo dataset 884 \/ run 11926/);
+});
+
+test("A3 dashboard wires raw A1 and raw A2 source options into the webapp", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /value="raw-a1"/);
+  assert.match(html, /Raw A1 RunResult/);
+  assert.match(html, /value="raw-a2"/);
+  assert.match(html, /Raw A2 Single Case/);
+  assert.match(html, /docs\/a1\/evidence\/local_run_30\.json/);
+  assert.match(html, /fixtures\/a2\/runs\/a2_s004_missing_tool\.json/);
+  assert.match(html, /fixtures\/a2\/results\/a2_s004_missing_tool_grade\.json/);
+  assert.match(html, /Raw A1 RunResult fixture/);
+  assert.match(html, /Raw A2 single-case fixture/);
+  assert.match(html, /function resetCalibrationState\(\)/);
 });
 
 test("A3 dashboard wires field-level argument diff rendering", async () => {
@@ -321,6 +352,47 @@ test("A3 dashboard wires observability replay matrix into console and reports", 
   assert.match(html, /Official Observability/);
 });
 
+test("A3 dashboard wires regression factory into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeRegressionFactory/);
+  assert.match(html, /href="#regression-factory"/);
+  assert.match(html, /id="regression-factory"/);
+  assert.match(html, /Regression Factory/);
+  assert.match(html, /id="regression-factory-status"/);
+  assert.match(html, /id="regression-factory-summary"/);
+  assert.match(html, /id="regression-factory-metrics"/);
+  assert.match(html, /id="regression-factory-lanes"/);
+  assert.match(html, /id="regression-factory-candidates"/);
+  assert.match(html, /function renderRegressionFactory\(\)/);
+  assert.match(html, /function regressionFactoryLaneRow\(lane\)/);
+  assert.match(html, /function regressionCandidateRow\(item\)/);
+  assert.match(html, /renderRegressionFactory\(\)/);
+  assert.match(html, /regressionFactory\.candidate_count/);
+  assert.match(html, /Regression Factory<\/h4>/);
+  assert.match(html, /Generated Suite Plan|Coverage gaps/);
+});
+
+test("A3 dashboard wires export redaction firewall into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeExportRedactionFirewall/);
+  assert.match(html, /href="#export-redaction"/);
+  assert.match(html, /id="export-redaction"/);
+  assert.match(html, /Export Safety/);
+  assert.match(html, /id="export-redaction-status"/);
+  assert.match(html, /id="export-redaction-summary"/);
+  assert.match(html, /id="export-redaction-metrics"/);
+  assert.match(html, /id="export-redaction-surfaces"/);
+  assert.match(html, /id="export-redaction-guardrails"/);
+  assert.match(html, /function renderExportRedactionFirewall\(\)/);
+  assert.match(html, /function exportSurfaceRow\(surface\)/);
+  assert.match(html, /function exportFirewallStatusClass\(status\)/);
+  assert.match(html, /renderExportRedactionFirewall\(\)/);
+  assert.match(html, /exportRedactionFirewall\.status/);
+  assert.match(html, /Export Redaction Firewall<\/h4>/);
+});
+
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
   const html = await loadDashboardHtml();
 
@@ -367,4 +439,116 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
   assert.match(html, /ashr_auth_check\.redacted\.json/);
   assert.match(html, /ashr_frontend_relogin_top_level_summary\.redacted\.json/);
   assert.match(html, /No cloud mutations/);
+});
+
+test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", async () => {
+  const html = await loadDashboardHtml();
+  const runtimeComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /api-client\.mjs/);
+  assert.match(html, /components\/saas-runtime-panel\.mjs/);
+  assert.match(html, /value="api-mock"/);
+  assert.match(html, /API-backed Mock/);
+  assert.match(html, /id="saas-runtime"/);
+  assert.match(html, /id="saas-runtime-body"/);
+  assert.match(html, /function applyApiDashboardPayload\(payload\)/);
+  assert.match(html, /function getA3ApiBaseUrl\(\)/);
+  assert.match(html, /params\.get\("apiBase"\)/);
+  assert.match(html, /fetchA3DashboardSnapshot/);
+  assert.match(html, /isA3ApiSource\(source\)/);
+  assert.match(html, /renderSaasRuntime\(\)/);
+  assert.match(html, /db_migrations/);
+  assert.match(html, /usage_ledger/);
+  assert.match(runtimeComponent, /Migration batches/);
+  assert.match(runtimeComponent, /Usage meters/);
+  assert.match(html, /data-share-report/);
+  assert.match(html, /createShareableA3Report/);
+  assert.match(html, /fetchA3ReportCenter/);
+  assert.match(html, /id="share-report-status"/);
+  assert.match(html, /id="share-report-detail"/);
+  assert.match(html, /state\.reportCenter/);
+  assert.match(html, /GET \/api\/a3\/reports\/center/);
+  assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
+  assert.match(html, /manifest-ready report/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+});
+
+test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and trust", async () => {
+  const html = await loadDashboardHtml();
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const adminModel = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /a3_saas_admin\.mjs/);
+  assert.match(html, /components\/saas-admin-console\.mjs/);
+  assert.match(html, /id="saas-admin"/);
+  assert.match(html, /id="saas-admin-body"/);
+  assert.match(html, /SaaS Admin Console/);
+  assert.match(html, /buildSaasAdminConsole/);
+  assert.match(html, /function refreshLocalSaasAdmin\(\)/);
+  assert.match(html, /function renderSaasAdmin\(\)/);
+  assert.match(html, /state\.saasAdmin/);
+  assert.match(html, /planA3AdminAction/);
+  assert.match(html, /data-admin-action-select/);
+  assert.match(html, /login, team, usage, API key, and trust state/);
+  assert.match(adminComponent, /RBAC Matrix/);
+  assert.match(adminComponent, /Invite Workflow/);
+  assert.match(adminComponent, /API Key Lifecycle/);
+  assert.match(adminComponent, /Trust Center/);
+  assert.match(adminComponent, /Cloud Management/);
+  assert.match(adminComponent, /Product Console Map/);
+  assert.match(adminModel, /quota_mutations_enabled/);
+  assert.match(html, /state\.saasRuntime\.usage_ledger/);
+  assert.match(html, /saas_admin_console/);
+  assert.match(html, /selectedAdminAction/);
+  assert.match(html, /selectedAdminPlan/);
+  assert.match(html, /clean-room shell/);
+});
+
+test("A3 dashboard wires product console onboarding, project, and audit workflow", async () => {
+  const html = await loadDashboardHtml();
+  const productComponent = await readFile(new URL("../../apps/dashboard/src/components/product-console-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /a3_product_console\.mjs/);
+  assert.match(html, /summarizeProductConsoleExport/);
+  assert.match(html, /summarizeSaasAdminExport/);
+  assert.match(html, /components\/product-console-panel\.mjs/);
+  assert.match(html, /fetchA3ProductConsole/);
+  assert.match(html, /href="#product-console"/);
+  assert.match(html, /id="product-console"/);
+  assert.match(html, /id="product-console-body"/);
+  assert.match(html, /function refreshLocalProductConsole\(\)/);
+  assert.match(html, /function renderProductConsole\(\)/);
+  assert.match(html, /Product Console \/ Onboarding \/ Audit/);
+  assert.match(html, /SaaS Admin \/ Login \/ Team \/ Trust/);
+  assert.match(html, /state\.productConsole/);
+  assert.match(html, /state\.saasAdmin/);
+  assert.match(html, /product console workflow/);
+  assert.match(html, /SaaS admin guardrails/);
+  assert.match(html, /product_console/);
+  assert.match(html, /GET \/api\/a3\/product\/console/);
+  assert.match(productComponent, /Onboarding Flow/);
+  assert.match(productComponent, /Project Console/);
+  assert.match(productComponent, /Audit Log/);
+  assert.match(productComponent, /Commercial Readiness/);
+});
+
+test("A3 dashboard wires enterprise readiness for self-host and audit review", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /a3_enterprise_readiness\.mjs/);
+  assert.match(html, /components\/enterprise-readiness-panel\.mjs/);
+  assert.match(html, /href="#enterprise-readiness"/);
+  assert.match(html, /id="enterprise-readiness"/);
+  assert.match(html, /id="enterprise-readiness-body"/);
+  assert.match(html, /Enterprise Readiness/);
+  assert.match(html, /buildEnterpriseReadinessReport/);
+  assert.match(html, /renderEnterpriseReadinessPanel/);
+  assert.match(html, /state\.enterpriseReadiness/);
+  assert.match(html, /enterprise_readiness/);
+  assert.match(html, /function refreshEnterpriseReadiness\(\)/);
+  assert.match(html, /function renderEnterpriseReadiness\(\)/);
+  assert.match(html, /renderEnterpriseReadiness\(\)/);
+  assert.match(html, /GET \/api\/a3\/enterprise\/readiness/);
+  assert.match(html, /self-host \/ audit/);
 });
