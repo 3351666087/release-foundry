@@ -91,3 +91,15 @@ server.serve_forever()
 Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, SDK submit, run upload, trace ingestion, and lifecycle snapshots. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
 
 The Python SDK can target the hosted adapter with `SaaSIngestionClient.from_base_url("http://127.0.0.1:8080")`, and the CLI accepts `--base-url` for HTTP JSON transport. `--base-url` is intentionally mutually exclusive with local state file read/write flags.
+
+## SaaS platform primitives
+
+Round18 adds local commercial SaaS primitives below the hosted control-plane HTTP surface:
+
+- `platform_schema_manifest()` and `platform_sql_migration_text()` describe DB-shaped tables and tenant-scoped indexes for organizations, workspaces, projects, environments, datasets, runs, case results, trace events, observations, artifacts, evidence bundles, API keys, webhook endpoints, usage ledger, quota policies, billing accounts, integrations, and audit log.
+- `LocalObjectStore` records artifact metadata with `sha256`, `content_type`, `size_bytes`, tenant/project/run references, and `raw_payload_included=false`; it can issue local signed-upload placeholders.
+- `WebhookRegistry` registers public-safe endpoints, stores only local secret handles/hashes, signs simulated deliveries with HMAC, and records delivery logs without raw payloads.
+- `usage_billing_rollup()` turns usage ledger events into a billing-period operation summary.
+- `release_gate_bridge_payload()` produces an A2-facing release-gate bridge payload from an A1 lifecycle snapshot.
+
+These primitives are still local/self-host contract surfaces, not production Postgres/S3/webhook infrastructure. They make the migration path explicit and testable without calling mutating Ashr APIs or storing secrets.

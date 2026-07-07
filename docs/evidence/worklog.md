@@ -2752,3 +2752,62 @@ Known gaps still not production-grade:
 8. No Docker compose/dev service wrapper yet.
 9. Mutating official API calibration remains gated and not executed this round.
 10. No hosted auth middleware deriving tenant from key.
+
+
+## A1 Round18 - SaaS platform DB/object/webhook/release-gate bridge (2026-07-08)
+
+Round goal: continue from hosted HTTP parity toward commercial SaaS platform backend foundations: DB-shaped schema, artifact/object storage metadata, webhook delivery logs, billing rollups, and A2 release-gate bridge payloads.
+
+Baseline / peer changes:
+- Started on `codex/a1-local-sdk-runner`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed A2 `dev/g3-a2-calibration` advanced and PR #15 open.
+- Worktree was clean except long-lived untracked `recon/**` and `tools/**`, which remain excluded.
+- Active `origin/main`/PR state inspected before changes; A1 owns files touched this round.
+
+20 Round18 growth points advanced or queued:
+1. DB-shaped SaaS platform manifest.
+2. SQL-ish migration text export.
+3. Tenant-scoped index manifest.
+4. Organizations table contract.
+5. Workspaces/projects/environments contracts.
+6. Datasets/runs/case_results contracts.
+7. Trace events/observations contracts.
+8. Artifacts/evidence bundles contracts.
+9. API keys/webhook endpoint contracts.
+10. Usage ledger/quota/billing account contracts.
+11. Integration/audit log contracts.
+12. Local object store with hashes and sizes.
+13. Signed upload placeholder contract.
+14. Public artifact manifest.
+15. Webhook endpoint registration.
+16. HMAC signed simulated webhook deliveries.
+17. Delivery log without raw payload.
+18. Billing-period usage rollup.
+19. A2 release-gate bridge payload from A1 lifecycle.
+20. Public schema/docs/tests for platform primitives.
+
+Implemented files:
+- `services/api/platform.py`: platform schema manifest, SQL-ish migration export, local object store, signed upload placeholder, webhook registry, usage billing rollup, release-gate bridge payload.
+- `services/api/__init__.py`: exports platform primitives.
+- `tests/a1/test_saas_platform.py`: DB schema/index, object store, webhook, usage rollup, release-gate bridge tests.
+- `docs/a1/schemas/saas_platform.schema.json`: public contract schema.
+- `docs/a1/saas_ingestion_quickstart.md`: platform primitive docs.
+
+Real API calibration (private, ignored; env key only; no raw key logged):
+- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` — plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` — status `ok`.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_saas_platform.py -q -p no:cacheprovider`: 4 passed.
+- `python -B -m pytest tests/a1/test_worker_data_model.py tests/a1/test_saas_platform.py -q -p no:cacheprovider`: 8 passed.
+
+Known gaps still not production-grade:
+1. SQL text is migration-shaped but not wired to live Postgres.
+2. Object store is metadata/local placeholder, not S3/R2/GCS.
+3. Webhook delivery is simulated, not network delivery with retry/backoff.
+4. Release-gate bridge produces payloads but does not call A2 service.
+5. No dashboard read API endpoints for these new primitives yet.
+6. No TS parity for all platform primitives until worker integration finishes.

@@ -69,11 +69,12 @@ test("TS SaaS router exposes healthz and OpenAPI helper", async () => {
   assert.equal(health.status_code, 200);
   assert.equal(health.body.status, "ok");
   assert.equal(health.body.ashr_api_used, false);
-  assert.equal(health.body.openapi_path, "/healthz/openapi");
+  assert.equal(health.body.openapi_path, "/openapi.json");
+  assert.equal(health.body.legacy_openapi_path, "/healthz/openapi");
 
   const openapi = router.handle("GET", "/healthz/openapi");
   assert.equal(openapi.status_code, 200);
-  assert.equal(openapi.body.openapi, "3.1.0");
+  assert.equal(openapi.body.openapi, "3.0.3");
   assert.ok(openapi.body.paths["/v1/projects/{project_id}/sdk-submit"]);
   assert.ok(openapi.body.paths["/healthz/openapi"]);
 
@@ -112,7 +113,7 @@ test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
     assert.equal(health.status, "ok");
 
     const spec = await client.openApi();
-    assert.equal(spec.openapi, "3.1.0");
+    assert.equal(spec.openapi, "3.0.3");
 
     const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest"], keyId: "key_ts_http" });
     assert.equal(key.result.key_id, "key_ts_http");

@@ -17,6 +17,14 @@ from .demo import (
     run_agent_cloud_queue_demo,
 )
 from .queue_worker import CloudQueueWorker, QueueRunRequest
+from .data_model import (
+    DATA_MODEL_SCHEMA_VERSION,
+    TABLES as DATA_MODEL_TABLES,
+    export_all as export_data_model,
+    export_json_schema as export_data_model_json_schema,
+    export_sqlish_migration as export_data_model_sqlish_migration,
+    export_tenant_index_manifest as export_data_model_tenant_index_manifest,
+)
 from .control_plane import (
     CONTROL_PLANE_SCHEMA_VERSION,
     SaaSControlPlaneRouter,
@@ -30,6 +38,16 @@ from .control_plane import (
     snapshot_control_plane,
     write_control_plane_state,
 )
+from .platform import (
+    PLATFORM_SCHEMA_VERSION,
+    LocalObjectStore,
+    WebhookRegistry,
+    platform_schema_manifest,
+    platform_sql_migration_text,
+    release_gate_bridge_payload,
+    usage_billing_rollup,
+)
+
 
 __all__ = [
     "CLOUD_API_SCHEMA_VERSION",
@@ -38,11 +56,20 @@ __all__ = [
     "CloudApiError",
     "CloudApiService",
     "CONTROL_PLANE_SCHEMA_VERSION",
+    "DATA_MODEL_SCHEMA_VERSION",
+    "DATA_MODEL_TABLES",
     "InMemoryCloudStore",
     "NotFoundError",
     "QuotaExceededError",
     "QuotaLedger",
     "QueueRunRequest",
+    "usage_billing_rollup",
+    "release_gate_bridge_payload",
+    "platform_sql_migration_text",
+    "platform_schema_manifest",
+    "WebhookRegistry",
+    "LocalObjectStore",
+    "PLATFORM_SCHEMA_VERSION",
     "SaaSControlPlaneRouter",
     "control_plane_from_state",
     "control_plane_from_state_file",
@@ -53,6 +80,10 @@ __all__ = [
     "write_control_plane_state",
     "SaaSControlPlaneService",
     "SaaSControlPlaneStore",
+    "export_data_model",
+    "export_data_model_json_schema",
+    "export_data_model_sqlish_migration",
+    "export_data_model_tenant_index_manifest",
     "ValidationError",
     "create_agent_cloud_queue_state",
     "export_run_fixture_from_state",

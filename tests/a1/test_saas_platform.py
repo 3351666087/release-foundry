@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from services.api.control_plane import SaaSControlPlaneService
+from services.api.platform import (
+    PLATFORM_SCHEMA_VERSION,
+    LocalObjectStore,
+    WebhookRegistry,
+    platform_schema_manifest,
+    platform_sql_migration_text,
+    release_gate_bridge_payload,
+    usage_billing_rollup,
+)
+from services.api.runtime import ValidationError
+
+
+def test_platform_schema_manifest_covers_large_saas_tables_and_indexes():
+    manifest = platform_schema_manifest()
+    expected = {
+        "organizations",
+        "workspaces",
+        "projects",
+        "environments",
+        "datasets",
+        "runs",
+        "case_results",
+        "trace_events",
+        "observations",
+        "artifacts",
+        "evidence_bundles",
+        "api_keys",
+        "webhook_endpoints",
+        "webhook_deliveries",
+        "usage_ledger",
+        "quota_policies",
+        "billing_accounts",
+        "integrations",
+        "audit_log",
+    }
+    assert manifest["schema_version"] == PLATFORM_SCHEMA_VERSION
+    assert expected <= set(manifest["tables"])
+    for name, table in manifest["tables"].items():
+        if table["tenant_scoped"]:
+            assert "organization_id" in table["columns"], name
+    assert any(index["name"] == "idx_runs_tenant_scope" for index in manifest["indexes"])
+
+    sql = platform_sql_migration_text()
+    assert "CREATE TABLE IF NOT EXISTS runs" in sql
+    assert "CREATE INDEX IF NOT EXISTS idx_runs_tenant_scope" in sql
+
+
+def test_local_object_store_records_artifacts_without_raw_payload():
+    store = LocalObjectStore()
+    artifact = store.put_artifact(
+        tenant_id="tenant_obj",
+        project_id="project_obj",
+        run_id="run_obj",
+        content=b"secret customer trace payload",
+        content_type="application/json",
+        artifact_id="artifact_obj",
+        redaction_status="hash_only",
+    )
+    text = json.dumps(artifact, sort_keys=True)
+    assert artifact["artifact_id"] == "artifact_obj"
+    assert artifact["raw_payload_included"] is False
+    assert artifact["size_bytes"] == len(b"secret customer trace payload")
+    assert "secret customer trace payload" not in text
+
+    signed = store.create_signed_upload_url(tenant_id="tenant_obj", project_id="project_obj", artifact_id="artifact_next")
+    assert signed["method"] == "PUT"
+    assert signed["url"].startswith("local://object-store/artifact_next?signature=")
+    manifest = store.public_manifest("tenant_obj", "project_obj")
+    assert manifest["artifacts"][0]["sha256"] == artifact["sha256"]
+
+    with pytest.raises(ValidationError):
+        store.put_artifact(tenant_id="t", project_id="p", run_id=None, content="x", content_type="text/plain", redaction_status="raw")
+
+
+def test_webhook_registry_signs_delivery_without_exposing_secret_or_payload():
+    registry = WebhookRegistry()
+    endpoint = registry.register_endpoint(
+        tenant_id="tenant_hook",
+        project_id="project_hook",
+        url="https://example.invalid/webhook",
+        events=["run.completed"],
+        webhook_id="webhook_hook",
+    )
+    assert endpoint["secret_value_present"] is False
+    assert endpoint["secret_hash_present"] is True
+    assert "secret_hash_sha256" not in endpoint
+
+    delivered = registry.deliver(
+        tenant_id="tenant_hook",
+        project_id="project_hook",
+        event_type="run.completed",
+        payload={"run_id": "run_hook", "api_key": "tp_should_not_leak"},
+    )
+    assert len(delivered["deliveries"]) == 1
+    delivery = delivered["deliveries"][0]
+    assert delivery["raw_payload_included"] is False
+    assert delivery["headers"]["x-ashr-signature-sha256"]
+    assert "tp_should_not_leak" not in json.dumps(delivered, sort_keys=True)
+
+    with pytest.raises(ValidationError):
+        registry.register_endpoint(tenant_id="t", project_id="p", url="http://evil.invalid", events=["*"])
+
+
+def test_usage_rollup_and_release_gate_bridge_payload():
+    control = SaaSControlPlaneService()
+    control.bootstrap_project(tenant_name="Tenant", project_name="Project", tenant_id="tenant_gate", project_id="project_gate")
+    control.cloud.create_dataset("tenant_gate", "project_gate", name="Dataset", dataset_id="dataset_gate", cases=[{"id": "case-1"}])
+    key = control.create_api_key("tenant_gate", "project_gate", name="CI", scopes=["sdk:submit", "run:upload", "trace:ingest"], key_id="key_gate")
+    assert key["key_id"] == "key_gate"
+    submitted = control.sdk_submit_run("tenant_gate", "project_gate", dataset_id="dataset_gate", agent_ref="mock", run_id="run_gate", api_key_id="key_gate")
+    control.upload_run_result("tenant_gate", "project_gate", submitted["run"]["run_id"], {"status": "completed"}, api_key_id="key_gate")
+    control.ingest_trace("tenant_gate", "project_gate", submitted["run"]["run_id"], [{"observation_id": "obs_gate"}], api_key_id="key_gate")
+
+    rollup = usage_billing_rollup(list(control.store.usage_ledger.values()), tenant_id="tenant_gate", project_id="project_gate", billing_period="2026-07")
+    assert rollup["operation_totals"]["sdk.submit"] == 1
+    assert rollup["operation_totals"]["run.upload"] == 1
+    assert rollup["operation_totals"]["trace.ingest"] == 1
+    assert rollup["billable_units"] >= 3
+
+    lifecycle = control.lifecycle_snapshot("tenant_gate", "project_gate", "run_gate")
+    bridge = release_gate_bridge_payload(tenant_id="tenant_gate", project_id="project_gate", run_id="run_gate", lifecycle=lifecycle)
+    assert bridge["target_contract"] == "A2.release_gate.evaluate"
+    assert bridge["decision_hint"] == "pass"
+    assert bridge["inputs"]["upload_count"] == 1
+    assert bridge["inputs"]["trace_batch_count"] == 1
