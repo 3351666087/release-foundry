@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -270,6 +270,52 @@ test("calibrate CLI blocks stop quota gate before key lookup", async () => {
   }
 });
 
+test("calibrate CLI protected output blocks before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const output = join(temp, "manifest.json");
+  try {
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.equal(capture.stdout, "");
+    assert.match(capture.stderr, /docs\/evidence\/private_refs/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI quota-gate protected output blocks before gate read", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const output = join(temp, "manifest.json");
+  const missingGate = join(temp, "missing-gate.json");
+  try {
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--include-mutating", "--modality", "text", "--max-retries", "0", "--quota-gate-record", missingGate, "--output", output], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.equal(capture.stdout, "");
+    assert.match(capture.stderr, /docs\/evidence\/private_refs/);
+    assert.doesNotMatch(capture.stderr, /quota-gate-record/);
+    assert.equal(existsSync(output), false);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI protected print-record is blocked before key lookup", async () => {
+  const output = join(process.cwd(), "..", "..", "..", "docs", "evidence", "private_refs", "ts_calibrate_print_record_block.json");
+  const capture = captureStreams();
+  const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--print-record"], {}, capture.streams);
+
+  assert.equal(code, 2);
+  assert.equal(capture.stdout, "");
+  assert.match(capture.stderr, /--print-record/);
+  assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  assert.equal(existsSync(output), false);
+});
+
 test("calibrate CLI read-only small-batch records response keys without leaking key", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
@@ -297,7 +343,7 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
   };
   try {
     const capture = captureStreams();
-    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output], { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" }, capture.streams);
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--allow-nonprivate-output"], { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" }, capture.streams);
     const manifest = readJson(output);
 
     assert.equal(code, 0);
@@ -361,6 +407,7 @@ test("calibrate CLI persists audited quota override reason in emitted evidence",
         reason,
         "--output",
         output,
+        "--allow-nonprivate-output",
       ],
       { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" },
       capture.streams,

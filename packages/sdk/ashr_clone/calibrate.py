@@ -34,6 +34,8 @@ CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request"
 DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
 MIN_QUOTA_OVERRIDE_REASON_CHARS = 12
 CALIBRATION_MODALITIES = AGENT_INPUT_PART_TYPES
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
 
 
 class CalibrationUsageError(ValueError):
@@ -58,6 +60,7 @@ class CalibrationArgs:
     quota_gate_ttl_seconds: int = DEFAULT_QUOTA_GATE_TTL_SECONDS
     allow_quota_override: bool = False
     quota_override_reason: str | None = None
+    allow_nonprivate_output: bool = False
 
 
 @dataclass(slots=True)
@@ -71,11 +74,13 @@ class CalibrationStep:
 
 
 def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = None, client: AshrApiClient | None = None) -> JsonDict:
-    validate_calibration_guards(args)
-    quota_gate_summary = enforce_mutating_quota_gate(args)
     env_map = env or os.environ
     dry_run = not args.execute
     manifest_path = args.output or default_output_path(args.execute)
+    enforce_private_output_path(args, manifest_path)
+    enforce_private_stdout_policy(args)
+    validate_calibration_guards(args)
+    quota_gate_summary = enforce_mutating_quota_gate(args)
     client = client or AshrApiClient(
         api_key=env_map.get(ASHR_API_ENV_VAR) or env_map.get(ASHR_LABS_API_ENV_VAR),
         base_url=args.base_url or env_map.get(ASHR_LABS_BASE_URL_ENV_VAR, ASHR_DEFAULT_BASE_URL),
@@ -635,7 +640,43 @@ def step_output_path(manifest_path: str, step_id: str, dry_run: bool) -> str:
 
 
 def default_output_path(execute: bool) -> str:
-    return f"docs/evidence/private_refs/a1_python_api_calibration_manifest_{'real' if execute else 'dry_run'}.json"
+    return str(PRIVATE_EVIDENCE_DIR / f"a1_python_api_calibration_manifest_{'real' if execute else 'dry_run'}.json")
+
+
+def enforce_private_stdout_policy(args: CalibrationArgs) -> None:
+    if args.print_record and _requires_private_output(args) and not args.allow_nonprivate_output:
+        raise CalibrationUsageError("--print-record is disabled for real API and gate evidence; use the JSON file under docs/evidence/private_refs or pass --allow-nonprivate-output only for synthetic tests")
+
+
+def enforce_private_output_path(args: CalibrationArgs, output: str | Path) -> None:
+    if args.allow_nonprivate_output or not _requires_private_output(args):
+        return
+    if _is_private_output_path(output):
+        return
+    raise CalibrationUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests")
+
+
+def _requires_private_output(args: CalibrationArgs) -> bool:
+    return bool(args.execute or args.quota_gate_record or args.allow_quota_override)
+
+
+def _is_private_output_path(path: str | Path) -> bool:
+    root = PRIVATE_EVIDENCE_DIR.resolve()
+    target = _resolve_output_path(path)
+    if target == root or target.is_dir():
+        return False
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_output_path(path: str | Path) -> Path:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (REPO_ROOT / candidate).resolve()
 
 
 def write_json(path: str | Path, value: Mapping[str, Any]) -> None:
@@ -662,6 +703,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser.add_argument("--quota-gate-ttl-seconds", type=non_negative_int, default=DEFAULT_QUOTA_GATE_TTL_SECONDS, help=f"Maximum age for a plan-batch quota gate. Default {DEFAULT_QUOTA_GATE_TTL_SECONDS}; 0 disables.")
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
+    parser.add_argument("--allow-nonprivate-output", action="store_true", help="Allow protected real API or gate evidence outside docs/evidence/private_refs for synthetic tests only.")
     ns = parser.parse_args(argv)
     modalities = parse_modalities(ns.modality)
     args = CalibrationArgs(
@@ -681,6 +723,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         quota_gate_ttl_seconds=ns.quota_gate_ttl_seconds,
         allow_quota_override=ns.allow_quota_override,
         quota_override_reason=ns.quota_override_reason,
+        allow_nonprivate_output=ns.allow_nonprivate_output,
     )
     try:
         validate_calibration_guards(args)

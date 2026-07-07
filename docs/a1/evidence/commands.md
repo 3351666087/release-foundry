@@ -993,3 +993,37 @@ Results:
 - Secret scan matches were historical docs/pattern descriptions plus the intentional synthetic TS test token `tp_syntheticsecret`; no operational API key was printed or written.
 - Failed point preserved: validation of the media no-quota gate without matching media flags and `--batch-size 3` failed with `target_binding_mismatch`; rerun with matching arguments passed.
 - No mutating paid Ashr API call was executed; the request-bound gate from real read-only evidence remained blocked because no quota/reset go evidence was present.
+
+
+## A1 round12 private API evidence guard - 2026-07-07
+
+```powershell
+pwd
+git rev-parse --show-toplevel
+git remote -v
+git status -sb --untracked-files=all
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git branch -vv
+gh repo view --json nameWithOwner,defaultBranchRef,url
+gh pr list --state all --limit 20 --json number,title,state,headRefName,baseRefName,updatedAt,url
+python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round12_real_readonly.json
+node packages/ts/ashr-clone/dist/probe.js list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_ts_api_list_requests_round12_real_readonly.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_python_api_calibration_round12_readonly_real.json
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_ts_api_calibration_round12_readonly_real.json
+python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round12_safety.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import validate_public_evidence_index; index=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); print({'records': index['total_records'], 'quota_block_count': index['quota_block_count'], 'lint_issues': len(validate_public_evidence_index(index))})"
+git diff --check
+```
+
+Results:
+- Focused Python private-output guard tests: `96 passed`.
+- Full Python A1 suite: `195 passed`.
+- TypeScript package tests: `179 passed`.
+- Readiness safety smoke: status ok, private output `docs/evidence/private_refs/a1_readiness_round12_safety.json`.
+- Real read-only API calibration: Python probe ok, TS probe ok, Python calibrator ok, TS calibrator ok; all outputs under `docs/evidence/private_refs`.
+- Public evidence index after merge: 337 records, 16 response-field functions, quota block count 41, lint issues 0.
+- Chrome retry after user opened Chrome failed at plugin runtime setup with `failed to write kernel assets: ??????????? (os error 3)`; no Ashr key was entered into Chrome or logs.
+- `git diff --check`: exit 0 with CRLF warnings only after whitespace cleanup.

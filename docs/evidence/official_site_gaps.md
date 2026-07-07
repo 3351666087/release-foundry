@@ -98,3 +98,18 @@ If any of these become required for A1/A2/A3, they need a Gate decision or expli
 - `https://ashr.io/` remained accessible and showed public homepage/plans signals including Developer, Startup, Enterprise, `$39`, and `$500`.
 - Python and TypeScript real read-only calibrations succeeded from env-only API key; no key value was printed or written.
 - Prior hosted `create_request` quota block still has no reset signal. A1 generated a quota-stop batch plan and did not run paid mutating media/text calls this round.
+
+
+## 2026-07-07 Round12 Chrome verification gap
+
+After the user opened Chrome, A1 retried the required Chrome read-only official/dashboard verification through the bundled Chrome plugin. The plugin failed before selecting Chrome with:
+
+```text
+failed to write kernel assets: Windows path not found (os error 3)
+```
+
+Impact:
+- No dashboard/API-key page interaction occurred in this retry.
+- No Ashr API key was read, typed, logged, or written.
+- Round12 used official web/read-only public pages plus prior authenticated Chrome evidence for field calibration, and recorded the Chrome runtime failure as a tooling gap.
+- Next round should retry Chrome after node_repl/kernel asset path repair and capture private screenshots only under `docs/evidence/private_refs`.

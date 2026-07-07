@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -27,6 +27,8 @@ const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 const API_PROBE_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1";
 const API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v1";
 const DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60;
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const PRIVATE_EVIDENCE_DIR = resolve(REPO_ROOT, "docs/evidence/private_refs");
 
 const API_OPERATIONS = [
   "init",
@@ -74,6 +76,7 @@ export interface ProbeCliArgs {
   allowMutate: boolean;
   output?: string;
   baseUrl?: string;
+  allowNonprivateOutput: boolean;
   timeoutSeconds: number;
   maxRetries: number;
   retryBackoffMs: number;
@@ -133,7 +136,10 @@ export async function main(
       return 0;
     }
     dryRun = !args.execute;
-    outputPath = args.output === "-" ? undefined : args.output ?? defaultOutputPath(requireOperation(args.operation), dryRun);
+    const candidateOutputPath = args.output === "-" ? undefined : args.output ?? defaultOutputPath(requireOperation(args.operation), dryRun);
+    enforcePrivateOutputPath(args, candidateOutputPath);
+    enforcePrivateStdoutPolicy(args);
+    outputPath = candidateOutputPath;
     if (isLocalOperation(requireOperation(args.operation))) {
       dryRun = true;
       const record = await runLocalOperation(args, { outputPath });
@@ -253,6 +259,7 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
     targetOperation: "create-request",
     execute: false,
     allowMutate: false,
+    allowNonprivateOutput: false,
     timeoutSeconds: 30,
     maxRetries: 2,
     retryBackoffMs: 500,
@@ -311,6 +318,10 @@ export function parseArgs(argv: readonly string[]): ProbeCliArgs {
       case "--allow-quota-override":
         rejectInlineValue(name, inlineValue);
         args.allowQuotaOverride = true;
+        break;
+      case "--allow-nonprivate-output":
+        rejectInlineValue(name, inlineValue);
+        args.allowNonprivateOutput = true;
         break;
       case "--output": {
         const [value, nextIndex] = readOptionValue(argv, index, name, inlineValue);
@@ -1386,7 +1397,38 @@ function canonicalValue(value: unknown): unknown {
 }
 
 function defaultOutputPath(operation: ProbeOperation, dryRun: boolean): string {
-  return `docs/evidence/private_refs/a1_ts_api_${operation.replaceAll("-", "_")}_${dryRun ? "dry_run" : "real"}.json`;
+  return resolve(PRIVATE_EVIDENCE_DIR, `a1_ts_api_${operation.replaceAll("-", "_")}_${dryRun ? "dry_run" : "real"}.json`);
+}
+
+function enforcePrivateStdoutPolicy(args: ProbeCliArgs): void {
+  if (args.printRecord && requiresPrivateOutput(args) && !args.allowNonprivateOutput) {
+    throw new CliUsageError("--print-record is disabled for real API and gate evidence; use the JSON file under docs/evidence/private_refs or pass --allow-nonprivate-output only for synthetic tests");
+  }
+}
+
+function enforcePrivateOutputPath(args: ProbeCliArgs, outputPath: string | undefined): void {
+  if (args.allowNonprivateOutput || !requiresPrivateOutput(args)) {
+    return;
+  }
+  if (outputPath !== undefined && isPrivateOutputPath(outputPath)) {
+    return;
+  }
+  throw new CliUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests");
+}
+
+function requiresPrivateOutput(args: ProbeCliArgs): boolean {
+  return Boolean(args.execute || args.operation === "validate-gate" || args.quotaRecord || args.quotaGateRecord);
+}
+
+function isPrivateOutputPath(outputPath: string): boolean {
+  const root = resolve(PRIVATE_EVIDENCE_DIR);
+  const target = resolveOutputPath(outputPath);
+  const pathFromRoot = relative(root, target);
+  return pathFromRoot !== "" && !pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot);
+}
+
+function resolveOutputPath(outputPath: string): string {
+  return isAbsolute(outputPath) ? resolve(outputPath) : resolve(REPO_ROOT, outputPath);
 }
 
 async function readJsonObject(path: string, optionName: string): Promise<JsonRecord> {
@@ -1517,6 +1559,7 @@ Options:
   --execute
   --allow-mutate
   --output <path>
+  --allow-nonprivate-output       Allow protected real API/gate evidence outside docs/evidence/private_refs for synthetic tests only.
   --base-url <url>
   --timeout <seconds>
   --max-retries <count>

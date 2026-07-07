@@ -2380,3 +2380,67 @@ Next top 20:
 18. Add enterprise audit export for gate decision, target binding, TTL age, override metadata, and issue codes.
 19. Add release checklist requiring real read-only calibration, request-bound gate validation, public linter pass, and secret scan.
 20. Reconcile this branch against merged `origin/main` README changes only when ready to publish, without mixing unrelated peer work into A1 commits.
+
+## 2026-07-07 Round12 A1 private API evidence guard closeout
+
+Round goal: harden SDK/Runner/API calibration so any protected real Ashr API evidence, gate-validation artifact, quota record, or quota override output is forced under ignored `docs/evidence/private_refs`, while preserving synthetic temp output for tests via an explicit `--allow-nonprivate-output` escape.
+
+Baseline/peer scan:
+- `pwd`: `C:/Users/33516/Documents/Ashr`.
+- Branch: `codex/a1-local-sdk-runner`; remote `origin` = `https://github.com/3351666087/ashr-codex-factory`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed peer update `dev/g3-a2-calibration` `f4b1851..c80fb9b`.
+- PR scan: latest A1 PRs #1/#4/#6/#7/#9/#10/#11 are merged; README rewrite PR #12 merged to main. Current Round12 changes remain on the A1 branch and do not merge README/main.
+- Untracked `recon/` and `tools/ashr_*` artifacts are outside this Round12 commit scope and remain unstaged.
+
+20 A1 growth points considered this round:
+1. private evidence output guard for Python probe; 2. private evidence output guard for Python calibrator; 3. TypeScript probe parity guard; 4. TypeScript calibrator parity guard; 5. guard-before-key-lookup tests; 6. synthetic test escape flag; 7. real read-only Python probe evidence; 8. real read-only TS probe evidence; 9. Python small-batch read-only calibrator evidence; 10. TS small-batch read-only calibrator evidence; 11. public evidence index refresh; 12. response-field map refresh; 13. evidence lint check; 14. full A1 pytest regression; 15. full TS regression; 16. readiness smoke; 17. public secret scan; 18. Chrome official-page retry/gap documentation; 19. Growth-Auditor money-grade audit; 20. next-round API quota/replay growth plan.
+
+Implemented/highest ROI batch:
+- `services/runner/api_probe.py`: added `PRIVATE_EVIDENCE_DIR`, `--allow-nonprivate-output`, and guard for `--execute`, `validate-gate`, `--quota-record`, and `--quota-gate-record`.
+- `packages/sdk/ashr_clone/calibrate.py`: added matching private-output enforcement for `execute`, `quota_gate_record`, and quota override paths.
+- `packages/ts/ashr-clone/src/probe.ts` and `src/calibrate.ts`: added TS parity private-output guards and CLI flags.
+- Python/TS tests now prove protected output fails before API-key/client lookup, while synthetic nonprivate fixtures must opt in with `--allow-nonprivate-output`.
+
+Real API calibration (env-key only, private outputs only, no raw key written):
+- Python probe: `docs/evidence/private_refs/a1_api_list_requests_round12_real_readonly.json` status ok.
+- TS probe: `docs/evidence/private_refs/a1_ts_api_list_requests_round12_real_readonly.json` status ok.
+- Python calibrator: `docs/evidence/private_refs/a1_python_api_calibration_round12_readonly_real.json` status ok, 5 read steps, 0 mutating.
+- TS calibrator: `docs/evidence/private_refs/a1_ts_api_calibration_round12_readonly_real.json` status ok, 5 read steps, 0 mutating.
+- Public-safe evidence index refreshed to 337 records, 16 functions, 41 quota-block records, 0 lint issues.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 191 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 174 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round12_safety.json`: status ok after whitespace cleanup.
+- `git diff --check`: exit 0 with CRLF warnings only after cleanup.
+
+Official docs/product calibration:
+- Web source recheck on 2026-07-07: `https://ashr.io/docs/python-sdk/overview/` still describes Testing Platform + Observability sharing one SDK/API key; `EvalRunner`, `RunBuilder`, `Agent`, `client.trace()`, `Span`, `Generation`, VM Integration, and `pip install ashr-labs` remain public docs fields.
+- Web source recheck on 2026-07-07: `https://lab.ashr.io/` public/sign-in/plans surface includes usage dimensions for images/audio/sample files plus videos/simulations, matching the A1 requirement that text/audio/file/image/video be first-class envelope concerns.
+- Chrome extension reconnect was retried after user opened Chrome, but the local Chrome plugin Node runtime failed before browser selection with `failed to write kernel assets: Windows path not found (os error 3)`. This is recorded as a tooling gap and did not block API/readiness work.
+
+Evidence docs:
+- `docs/a1/evidence/round12_private_output_parity_checklist.md`
+- `docs/a1/evidence/round12_private_output_test_matrix.md`
+- `docs/a1/evidence/round12_growth_auditor.md`
+- `docs/evidence/official_site_gaps.md`
+
+Failures/gaps:
+- Chrome plugin could not connect because node_repl kernel asset write failed with Windows path error; fallback was web/read-only official source check and existing prior Chrome evidence.
+- No mutating paid API call was executed in Round12; the implemented value is evidence safety and read-only calibration. Next round should add purposeful quota-aware small mutating probe only when quota gate can bind to a concrete scenario and private output path.
+- `recon/` remains untracked and large; not staged in this A1 safety commit.
+
+Growth-Auditor follow-up:
+- P0: none confirmed.
+- P1: broaden artifact-class private policy to dry-run full records, require auditable override reason, emit output-policy metadata, harden TS realpath/symlink behavior, add public-safe summary mode, and enforce public-index freshness in CI.
+- P2: reject directory-as-output early, centralize policy naming/messages, document override governance, add buyer-facing evidence-boundary diagram, and expand Windows path tests.
+
+Reviewer P1 fixes landed after audit:
+- Python/TS calibrator private-output guard now runs before quota gate record reads.
+- Python/TS private roots are anchored to repo root instead of current working directory.
+- Protected `--print-record` is blocked for real API/gate evidence unless the synthetic-test escape is used.
+- Added Python/TS negative tests for validate-gate, quota-record/quota-gate-record, and protected stdout.
+- Final validation: Python focused 96 passed, Python A1 full 195 passed, TS package 179 passed, readiness ok, public evidence lint 0, `git diff --check` ok.
+
+Next-round top 20 candidates:
+1. artifact-class private guard for all full records; 2. `--nonprivate-output-reason`; 3. output-policy metadata in probe records; 4. guardrails output-policy metadata in calibration manifests; 5. TS realpath/symlink path hardening; 6. directory-as-output rejection; 7. public-safe stdout summary mode; 8. deny protected `--print-record`; 9. evidence index freshness CI; 10. stale private evidence detector; 11. quota-aware create-request dry-run to small paid batch; 12. official API error-shape taxonomy; 13. tenant/project isolation fixture; 14. run lifecycle poll parity; 15. production trace ingestion endpoint; 16. deterministic replay from real request; 17. queue lease expiry/retry; 18. TS SDK quickstart parity harness; 19. media envelope fixtures for text/audio/file/image/video; 20. self-host worker Docker compose.

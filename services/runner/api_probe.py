@@ -47,6 +47,8 @@ API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v
 DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
 MODALITY_SEQUENCE_ORDER = ("text", "image", "audio", "file", "video", "conversation", "simulation")
 MEDIA_GENERATION_TO_MODALITY = {"audio": "audio", "files": "file", "images": "image", "videos": "video", "simulations": "simulation"}
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
 OPERATION_ESTIMATED_CALLS = {
     "init": 1,
     "health-check": 1,
@@ -71,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--execute", action="store_true", help="Perform the real API call. Omit for dry-run planning.")
     parser.add_argument("--allow-mutate", action="store_true", help="Required with --execute for create-run and create-request.")
     parser.add_argument("--output", help="JSON output path. Defaults to docs/evidence/private_refs.")
+    parser.add_argument("--allow-nonprivate-output", action="store_true", help="Allow protected real API or gate evidence outside docs/evidence/private_refs for synthetic tests only.")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--max-retries", type=int, default=2)
@@ -103,6 +106,8 @@ def main(argv: list[str] | None = None) -> int:
     output = Path(args.output) if args.output else default_output_path(args.operation, dry_run=dry_run)
 
     try:
+        enforce_private_output_path(args, output)
+        enforce_private_stdout_policy(args)
         if args.operation == "plan-batch":
             if args.execute:
                 raise ValueError("plan-batch is planning-only; omit --execute")
@@ -797,7 +802,48 @@ def expected_quota_gate_binding(args: argparse.Namespace, *, operation: str | No
 def default_output_path(operation: str, *, dry_run: bool) -> Path:
     suffix = "dry_run" if dry_run else "real"
     safe_operation = operation.replace("-", "_")
-    return Path("docs") / "evidence" / "private_refs" / f"a1_api_{safe_operation}_{suffix}.json"
+    return PRIVATE_EVIDENCE_DIR / f"a1_api_{safe_operation}_{suffix}.json"
+
+
+def enforce_private_stdout_policy(args: argparse.Namespace) -> None:
+    if getattr(args, "print_record", False) and _requires_private_output(args) and not getattr(args, "allow_nonprivate_output", False):
+        raise ValueError("--print-record is disabled for real API and gate evidence; use the JSON file under docs/evidence/private_refs or pass --allow-nonprivate-output only for synthetic tests")
+
+
+def enforce_private_output_path(args: argparse.Namespace, output: Path) -> None:
+    if getattr(args, "allow_nonprivate_output", False) or not _requires_private_output(args):
+        return
+    if _is_private_output_path(output):
+        return
+    raise ValueError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests")
+
+
+def _requires_private_output(args: argparse.Namespace) -> bool:
+    return bool(
+        getattr(args, "execute", False)
+        or getattr(args, "operation", None) == "validate-gate"
+        or getattr(args, "quota_record", None)
+        or getattr(args, "quota_gate_record", None)
+    )
+
+
+def _is_private_output_path(path: Path) -> bool:
+    root = PRIVATE_EVIDENCE_DIR.resolve()
+    target = _resolve_output_path(path)
+    if target == root or target.is_dir():
+        return False
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_output_path(path: Path) -> Path:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (REPO_ROOT / candidate).resolve()
 
 
 def require(value: Any, message: str) -> None:

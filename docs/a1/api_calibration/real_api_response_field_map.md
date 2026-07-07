@@ -3,8 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Schema | `ashr.clone.response_field_map.v1` |
-| Source label | `a1-real-api-2026-07-07-round11-ts-probe-parity` |
-| Source records | `333` |
+| Source label | `a1-real-api-2026-07-07-round12-private-output-guard` |
+| Source records | `337` |
 | Field map version | `a1-api-calibration-2026-07-04` |
 
 ## Function Coverage
@@ -20,12 +20,12 @@
 | `keep_alive` | 27 | `ok`: 23, `planned`: 4 | `db`, `message`, `plan`, `status` | - | - | 0 |
 | `list_agents` | 28 | `ok`: 24, `planned`: 4 | `_user`, `agents`, `plan`, `status` | - | `agents` | 0 |
 | `list_datasets` | 34 | `ok`: 29, `planned`: 5 | `_user`, `datasets`, `next_cursor`, `plan`, `status` | - | `datasets` | 0 |
-| `list_requests` | 35 | `ok`: 32, `planned`: 3 | `_user`, `next_cursor`, `plan`, `requests`, `status` | - | `requests` | 0 |
+| `list_requests` | 37 | `ok`: 34, `planned`: 3 | `_user`, `next_cursor`, `plan`, `requests`, `status` | - | `requests` | 0 |
 | `list_runs` | 4 | `ok`: 3, `planned`: 1 | `_user`, `plan`, `runs`, `status` | - | `runs` | 0 |
 | `plan_batch` | 3 | `blocked`: 2, `planned`: 1 | `plan` | - | - | 0 |
 | `poll_request` | 1 | `planned`: 1 | `plan` | - | - | 0 |
 | `poll_run` | 2 | `planned`: 2 | `plan` | - | - | 0 |
-| `unknown` | 109 | `completed`: 13, `failed`: 1, `ok`: 33, `partial`: 11, `passed`: 11, `planned`: 7 | - | - | - | 30 |
+| `unknown` | 111 | `completed`: 13, `failed`: 1, `ok`: 35, `partial`: 11, `passed`: 11, `planned`: 7 | - | - | - | 30 |
 | `validate_gate` | 3 | `error`: 1, `ok`: 2 | `validation` | - | - | 0 |
 
 ## Commercial Readiness Notes
