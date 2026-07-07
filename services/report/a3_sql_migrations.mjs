@@ -14,6 +14,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
+      "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -241,7 +242,41 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
   period_start ${types.timestamp} NOT NULL,
   period_end ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_usage_meter ON usage_ledger(organization_id, project_id, meter, period_start);`)
+CREATE INDEX IF NOT EXISTS idx_usage_meter ON usage_ledger(organization_id, project_id, meter, period_start);`),
+    statement("007_artifact_registry", ["artifact_registry_entries", "artifact_lifecycle_events"], `
+CREATE TABLE IF NOT EXISTS artifact_registry_entries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  report_id TEXT,
+  artifact_type TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  manifest_join_key TEXT NOT NULL,
+  lifecycle_state TEXT NOT NULL,
+  hash_status TEXT NOT NULL,
+  redaction_status TEXT NOT NULL,
+  retention_class TEXT NOT NULL,
+  share_scope TEXT NOT NULL,
+  billable_meter TEXT,
+  customer_value TEXT NOT NULL,
+  missing_controls ${types.json} NOT NULL,
+  raw_secret_values_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_share_token_stored BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_registry_project_state ON artifact_registry_entries(project_id, lifecycle_state, artifact_type);
+CREATE INDEX IF NOT EXISTS idx_artifact_registry_report ON artifact_registry_entries(project_id, report_id);
+CREATE TABLE IF NOT EXISTS artifact_lifecycle_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  artifact_id TEXT NOT NULL REFERENCES artifact_registry_entries(id),
+  event_type TEXT NOT NULL,
+  actor_hash TEXT,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact ON artifact_lifecycle_events(project_id, artifact_id, created_at);`)
   ];
 }
 

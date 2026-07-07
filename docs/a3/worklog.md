@@ -1,5 +1,81 @@
 # A3 Worklog
 
+## 2026-07-07 - Artifact Registry Evidence Catalog
+
+### Goal
+
+Close today's final A3 commercial gap by turning Report Center outputs and control-plane state into a managed artifact registry. This moves A3 from "download some reports" toward "enterprise evidence catalog": every report/export/control artifact can be counted, linked to a manifest key, checked for redaction/hash readiness, attached to usage meters, and later persisted for audit/self-host workflows.
+
+### Work completed
+
+- Added `services/report/a3_artifact_registry.mjs`.
+  - Produces `a3.artifact_registry.v1`.
+  - Converts hosted reports into JSON, Markdown, hosted HTML, and report-manifest artifact entries.
+  - Adds control-plane artifact entries for usage ledger, DB migration plan, Product Console state, and SaaS Admin guardrails.
+  - Adds packet presets for PR review, executive sign-off, security audit, and customer-safe report sharing.
+  - Keeps raw secrets and raw share tokens explicitly forbidden.
+- Extended `services/report/a3_report_center.mjs`.
+  - Report Center now embeds `artifact_registry`.
+  - Summary includes artifact count, ready count, and billable meter count.
+- Extended `services/report/a3_store.mjs` and `services/report/a3_api_server.mjs`.
+  - Dashboard payload now includes `artifact_registry`.
+  - Added `GET /api/a3/artifacts/registry`.
+  - DB contract now names `artifact_registry_entries` and `artifact_lifecycle_events`.
+- Extended `services/report/a3_sql_migrations.mjs`.
+  - Added migration batch `007_artifact_registry`.
+  - Added tables for artifact registry entries and lifecycle events.
+  - Added indexes for project/state/type and artifact lifecycle lookup.
+- Extended dashboard wiring.
+  - Report Center now shows Artifact Registry summary and first artifact entries.
+  - Hosted report sharing refreshes Report Center, Product Console, and Artifact Registry.
+  - JSON, Markdown, and print/PDF exports now include Artifact Registry evidence.
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_artifact_registry_2026_07_07.md`
+  - Contains 45 next growth points for artifact registry commercialization.
+
+### A1/A2 compatibility
+
+- Registry entries are still derived from A1 run/case/trace/tool-call evidence and A2 grade/judge/pass-fail/failure evidence through the existing A3 report pipeline.
+- No A1 runner logic or A2 judge semantics were changed.
+- API-backed and fixture-backed sources still share the same normalized A3 boundary.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_center_index.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+78 tests
+78 pass
+0 fail
+```
+
+Full A3 suite:
+
+```text
+$tests = rg --files tests/a3 -g "*.test.mjs"; node --test $tests
+```
+
+Full result:
+
+```text
+135 tests
+135 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, hosted auth, billing, database, email, or cloud mutation APIs.
+- Did not commit real API keys, cookies, tokens, account emails, signed URLs, or official private frontend source.
+- Artifact Registry stores metadata, schema references, lifecycle state, redaction state, and hash-readiness state only.
+
 ## 2026-07-07 - Product Console And SaaS Admin Export Evidence
 
 ### Goal

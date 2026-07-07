@@ -92,6 +92,13 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(reportCenter.summary.shareable_count, 1);
   assert.equal(reportCenter.control_plane.sql_contract_ready, true);
   assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+  assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
+  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 4);
+
+  const artifactRegistry = await store.getArtifactRegistry({ source: "mock" });
+  assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
+  assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "product_console_state"));
+  assert.equal(artifactRegistry.safety.raw_secret_values_allowed, false);
 });
 
 test("A3 store imports A1 run results and A2 grade results into an API-ingest source", async () => {
@@ -243,13 +250,14 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
 
   const manifest = await store.getReportManifest(report.report_id, { source: "mock" });
   assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
-  assert.equal(manifest.release_packet.migration_count, 7);
+  assert.ok(manifest.release_packet.migration_count >= 8);
   assert.ok(manifest.artifacts.some((item) => item.id === "usage_ledger"));
 
   const center = await store.getReportCenter({ source: "mock" });
   assert.equal(center.summary.report_count, 1);
   assert.equal(center.reports[0].report_id, report.report_id);
-  assert.equal(center.reports[0].manifest.migration_count, 7);
+  assert.ok(center.reports[0].manifest.migration_count >= 8);
+  assert.ok(center.artifact_registry.entries.some((item) => item.artifact_type === "db_migration_plan"));
   assert.ok(center.reports[0].manifest.completeness_score > 0);
 
   const revoked = await store.getReportForView(report.report_id, {

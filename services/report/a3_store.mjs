@@ -19,6 +19,7 @@ import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
+import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -103,6 +104,8 @@ export const A3_DB_CONTRACT = {
     "report_view_events",
     "report_revocations",
     "trust_reports",
+    "artifact_registry_entries",
+    "artifact_lifecycle_events",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -128,7 +131,8 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
     "GET /api/a3/reports/center",
-    "GET /api/a3/reports/:reportId/manifest"
+    "GET /api/a3/reports/:reportId/manifest",
+    "GET /api/a3/artifacts/registry"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -464,18 +468,85 @@ export function createMemoryA3Store(seed = {}) {
 
     async getReportCenter(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const usageLedger = buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      const migrationPlan = buildA3SqlMigrationPlan();
+      const baseReportCenter = buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        migrationPlan
+      });
+      const productConsole = buildA3ProductConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        reportCenter: baseReportCenter,
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
       return buildReportCenterIndex([...reports.values()], {
         source: snapshot.source,
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId,
-        usageLedger: buildA3UsageLedger(snapshot, {
-          reports: [...reports.values()],
-          auditEvents,
-          importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        usageLedger,
+        migrationPlan,
+        productConsole,
+        saasAdmin: buildSaasAdminConsole(snapshot, {
+          source: snapshot.source,
           organizationId: options.organizationId || snapshot.organizationId,
           projectId: options.projectId || snapshot.projectId
-        }),
-        migrationPlan: buildA3SqlMigrationPlan()
+        })
+      });
+    },
+
+    async getArtifactRegistry(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const usageLedger = buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      const migrationPlan = buildA3SqlMigrationPlan();
+      const reportCenter = buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        migrationPlan
+      });
+      const productConsole = buildA3ProductConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        reportCenter,
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
+      const saasAdmin = buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      return buildA3ArtifactRegistry({
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        reportCenter,
+        usageLedger,
+        migrationPlan,
+        productConsole,
+        saasAdmin
       });
     },
 
@@ -846,6 +917,20 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     }),
     usage_ledger: usageLedger,
     report_center: reportCenter,
+    artifact_registry: buildA3ArtifactRegistry({
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId,
+      reportCenter,
+      usageLedger,
+      migrationPlan,
+      productConsole,
+      saasAdmin: buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: snapshot.organizationId,
+        projectId: snapshot.projectId
+      })
+    }),
     product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({

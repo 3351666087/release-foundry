@@ -152,6 +152,14 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/artifacts/registry") {
+        return sendJson(response, 200, await store.getArtifactRegistry({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/product/console") {
         return sendJson(response, 200, await store.getProductConsole({
           source: sourceFrom(url),

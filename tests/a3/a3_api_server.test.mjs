@@ -218,6 +218,14 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(reportCenter.reports[0].report_id, report.report_id);
     assert.equal(reportCenter.control_plane.sql_contract_ready, true);
     assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+    assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
+    assert.ok(reportCenter.artifact_registry.entries.some((item) => item.report_id === report.report_id));
+
+    const artifactRegistry = await getJson(`${url}/api/a3/artifacts/registry?source=mock`);
+    assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
+    assert.equal(artifactRegistry.summary.report_artifact_count, 4);
+    assert.ok(artifactRegistry.packet_presets.some((item) => item.preset_id === "pr_review_packet"));
+    assert.equal(artifactRegistry.safety.raw_share_tokens_stored, false);
 
     const viewResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/view`, {
       method: "POST",

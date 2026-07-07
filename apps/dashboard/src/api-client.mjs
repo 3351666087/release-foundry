@@ -56,6 +56,16 @@ export async function fetchA3ProductConsole(options = {}) {
   return response.json();
 }
 
+export async function fetchA3ArtifactRegistry(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/artifacts/registry?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API artifact registry load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

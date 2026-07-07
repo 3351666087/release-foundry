@@ -390,6 +390,12 @@
 - [x] Add SaaS Admin login/team/usage/API-key/trust/cloud guardrails to JSON, Markdown, and print/PDF report exports.
 - [x] Confirm Product Console and SaaS Admin exports still derive readiness from A1 run evidence and A2 judge evidence.
 - [x] Add Growth-Auditor artifact with 40 next growth points for Product Console artifact/export entry.
+- [x] Add Artifact Registry model for report exports and control-plane evidence.
+- [x] Add `GET /api/a3/artifacts/registry`.
+- [x] Add `artifact_registry_entries` and `artifact_lifecycle_events` to the SQL migration contract.
+- [x] Show Artifact Registry summary and entries in Report Center.
+- [x] Include Artifact Registry evidence in JSON, Markdown, and print/PDF report exports.
+- [x] Add Growth-Auditor artifact with 45 next growth points for Artifact Registry commercialization.
 - [x] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.

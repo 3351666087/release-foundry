@@ -53,6 +53,8 @@ test("A3 Report Center index summarizes hosted report lifecycle and manifest rea
   assert.equal(center.summary.shareable_count, 1);
   assert.equal(center.summary.revoked_count, 1);
   assert.equal(center.summary.total_view_count, 3);
+  assert.ok(center.summary.artifact_registry_count >= 8);
+  assert.ok(center.summary.artifact_billable_meter_count >= 4);
   assert.equal(center.control_plane.usage_meter_count, 1);
   assert.equal(center.control_plane.migration_count, 6);
   assert.equal(center.control_plane.live_cloud_mutations_enabled, false);
@@ -61,6 +63,8 @@ test("A3 Report Center index summarizes hosted report lifecycle and manifest rea
   assert.equal(center.reports[0].share_link.raw_token_stored, false);
   assert.equal(center.reports[0].share_link.token_hash_prefix, "hash-shareabl");
   assert.equal(center.reports[1].status, "revoked");
+  assert.equal(center.artifact_registry.schema_version, "a3.artifact_registry.v1");
+  assert.ok(center.artifact_registry.entries.some((item) => item.artifact_type === "hosted_report"));
 });
 
 test("A3 Report Center index keeps empty state actionable without pretending reports exist", () => {
@@ -71,6 +75,7 @@ test("A3 Report Center index keeps empty state actionable without pretending rep
 
   assert.equal(center.summary.report_count, 0);
   assert.equal(center.summary.manifest_ready_count, 0);
+  assert.equal(center.artifact_registry.summary.report_artifact_count, 0);
   assert.ok(center.next_actions.some((item) => item.includes("Create the first hosted report")));
   assert.equal(center.control_plane.billing_mutations_enabled, false);
 });
