@@ -67,6 +67,7 @@ def build_evidence_readiness_report(
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
     semantic_import_commands = [
+        "python scripts/a2_build_semantic_judge_collection_packet.py --check",
         "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
         "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
@@ -147,6 +148,7 @@ def build_evidence_readiness_report(
             "required_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("required_languages", []),
             "covered_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("covered_languages", []),
             "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+            "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
             "commands": semantic_import_commands,
         },
         "semantic_live_merge_gate": _semantic_live_merge_gate(

@@ -21,6 +21,7 @@ from services.judge.readiness import build_commercial_readiness_report  # noqa: 
 from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
+from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
 
 
@@ -32,6 +33,7 @@ DEFAULT_GRADE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_grade_results.json"
 DEFAULT_COVERAGE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_coverage_report.json"
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
 DEFAULT_ASHR_GRADING_COLLECTION_PACKET = Path("fixtures/a2/calibration/a2_ashr_grading_collection_packet.json")
+DEFAULT_SEMANTIC_JUDGE_COLLECTION_PACKET = Path("fixtures/a2/calibration/a2_semantic_judge_collection_packet.json")
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
 DEFAULT_COMMERCIAL_READINESS = DEFAULT_RESULT_DIR / "a2_commercial_readiness_report.json"
 DEFAULT_CASE_BOOK = DEFAULT_RESULT_DIR / "a2_case_book.json"
@@ -56,6 +58,7 @@ def main() -> int:
     parser.add_argument("--coverage-report", default=DEFAULT_COVERAGE_REPORT.as_posix())
     parser.add_argument("--calibration-observations", default=DEFAULT_CALIBRATION_OBSERVATIONS.as_posix())
     parser.add_argument("--ashr-grading-collection-packet", default=DEFAULT_ASHR_GRADING_COLLECTION_PACKET.as_posix())
+    parser.add_argument("--semantic-judge-collection-packet", default=DEFAULT_SEMANTIC_JUDGE_COLLECTION_PACKET.as_posix())
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
@@ -79,6 +82,7 @@ def main() -> int:
         coverage_report_path=Path(args.coverage_report),
         calibration_observations_path=Path(args.calibration_observations),
         ashr_grading_collection_packet_path=Path(args.ashr_grading_collection_packet),
+        semantic_judge_collection_packet_path=Path(args.semantic_judge_collection_packet),
         calibration_matrix_path=Path(args.calibration_matrix),
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
@@ -107,6 +111,7 @@ def generate_outputs(
     coverage_report_path: Path,
     calibration_observations_path: Path,
     ashr_grading_collection_packet_path: Path,
+    semantic_judge_collection_packet_path: Path,
     calibration_matrix_path: Path,
     commercial_readiness_path: Path,
     case_book_path: Path,
@@ -141,6 +146,11 @@ def generate_outputs(
     )
     outputs[coverage_report_path] = coverage_report
     outputs[ashr_grading_collection_packet_path] = build_ashr_grading_collection_packet(
+        pack_path=pack_path,
+        run_dir=run_dir,
+        observations_path=calibration_observations_path,
+    )
+    outputs[semantic_judge_collection_packet_path] = build_semantic_judge_collection_packet(
         pack_path=pack_path,
         run_dir=run_dir,
         observations_path=calibration_observations_path,

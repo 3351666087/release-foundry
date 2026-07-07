@@ -41,6 +41,7 @@ This module provides the local G1-G2 foundation for:
 - Quota-aware batch plan report: `fixtures/a2/results/a2_batch_plan_report.json`
 - Public-safe Ashr grading collection packet: `fixtures/a2/calibration/a2_ashr_grading_collection_packet.json`
 - Semantic judge harness report: `fixtures/a2/results/a2_semantic_harness_report.json`
+- Public-safe semantic judge collection packet: `fixtures/a2/calibration/a2_semantic_judge_collection_packet.json`
 - External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
@@ -124,6 +125,18 @@ A2 now generates `fixtures/a2/results/a2_semantic_harness_report.json` from `ser
 
 The current harness is ready for audited model calls but still reports `live_model_evidence_available: false`. That is intentional: offline `llm_judge` samples are useful deterministic references, but C4 is not met until private live model evidence is reviewed and summarized.
 
+The public-safe C4 collection packet is generated at `fixtures/a2/calibration/a2_semantic_judge_collection_packet.json` from `services/judge/semantic_collection.py`. It turns the harness into an execution packet for private model-call collection:
+
+- six exact calibration cases,
+- Python/TypeScript SDK language allocation,
+- TypeScript coverage for the media/tool-output grounding case,
+- prompt template id and prompt material hashes,
+- local/offline judge summaries,
+- required output, metadata, review, and cost fields,
+- import and merge commands for reviewed private summaries.
+
+The packet intentionally does not contain raw prompts, raw model responses, API keys, or reviewer-private notes. It is readiness evidence for C4 collection, not proof that C4 is met.
+
 `scripts/a2_import_semantic_judge.py` is the bridge from reviewed private model-call summaries into the calibration matrix. It preserves provider/model, prompt and response hashes, prompt template id, cost, confidence, review status, and SDK language while redacting token-like or email-like text. The checked-in sample fixture is only an importer test shape; it is not counted as C4 live evidence.
 
 ## Batch Plan
@@ -139,6 +152,8 @@ A2 now generates `fixtures/a2/results/a2_batch_plan_report.json` from `services/
 - case-book regression replay.
 
 The report also records queue-style quota phases aligned with A1's local cloud worker direction: `run.submit` is planned at enqueue/direct-submit time, `observation.write` at completion, and status history must preserve queued/running/completed plus failed/cancelled terminal states. This is C2 planning evidence; it does not replace the missing C3 real Ashr grading observations.
+
+The semantic batch references both `fixtures/a2/results/a2_semantic_harness_report.json` and `fixtures/a2/calibration/a2_semantic_judge_collection_packet.json`, so reviewers can distinguish the prompt/evidence contract from the private collection execution plan.
 
 The result contains:
 
