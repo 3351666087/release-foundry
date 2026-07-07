@@ -1,0 +1,13 @@
+{
+  "schema_version": "a3.release_gate_thresholds.v1",
+  "profile": "commercial_default",
+  "pass_rate_min": 95,
+  "trace_completeness_min": 90,
+  "hard_block_pass_rate_min": 80,
+  "hard_block_trace_completeness_min": 70,
+  "notes": [
+    "These thresholds are local A3 release-policy configuration.",
+    "They do not contain secrets and can be committed.",
+    "Blocked releases require exceptional waiver evidence."
+  ]
+}

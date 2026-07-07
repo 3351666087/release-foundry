@@ -8,6 +8,15 @@ export function extractAshrRuns(input = {}) {
   if (Array.isArray(input)) {
     return input;
   }
+  if (input.response && input.response !== input) {
+    const responseRuns = extractAshrRuns(input.response);
+    if (responseRuns.length) {
+      return responseRuns;
+    }
+  }
+  if (input.run?.id && input.run?.result) {
+    return [input.run];
+  }
   if (Array.isArray(input.runs)) {
     return input.runs;
   }
@@ -26,9 +35,113 @@ export function extractAshrRuns(input = {}) {
   return [];
 }
 
+export function buildDatasetScenarioIndex(input = {}) {
+  const datasets = extractAshrDatasets(input);
+  const index = new Map();
+
+  for (const dataset of datasets) {
+    const source = dataset.dataset_source || {};
+    const rawRuns = source.runs || [];
+    const entries = Array.isArray(rawRuns)
+      ? rawRuns.map((scenario, scenarioIndex) => [scenario.run_id || scenario.id || `index:${scenarioIndex}`, scenario])
+      : Object.entries(rawRuns);
+
+    entries.forEach(([scenarioKey, scenario], scenarioIndex) => {
+      if (!scenario || typeof scenario !== "object") {
+        return;
+      }
+      const actions = Array.isArray(scenario.actions) ? scenario.actions : [];
+      const actionTypes = unique(actions.map((action) => action.action_type).filter(Boolean));
+      const mediaTypes = unique(actionTypes.filter((type) => MEDIA_ACTION_TYPES.has(type)));
+      const normalized = {
+        scenario_key: textOr(scenarioKey, `index:${scenarioIndex}`),
+        scenario_id: textOr(scenario.scenario_id, scenario.case_id, scenario.id, scenarioKey),
+        run_id: textOr(scenario.run_id, scenario.id, scenarioKey),
+        title: textOr(scenario.title, scenario.name, scenario.description),
+        description: scenario.description || null,
+        dataset_id: textOr(dataset.id, dataset.dataset_id),
+        dataset_type: textOr(source.dataset_type, dataset.dataset_type, "real_ashr_dataset"),
+        intent_tags: normalizeTagList(scenario.intent_tags),
+        audio_tags: normalizeTagList(scenario.audio_tags),
+        action_count: actions.length,
+        action_types: actionTypes,
+        media_types: mediaTypes,
+        action_tags: actions.map((action) => action.action_tags).filter(hasMeaningful),
+        action_output_paths: actions.map((action) => action.output_path).filter(Boolean),
+        has_signed_urls: actions.some((action) => Boolean(action.signed_url))
+      };
+
+      for (const key of scenarioJoinKeys(normalized, scenarioIndex)) {
+        if (key && !index.has(key)) {
+          index.set(key, normalized);
+        }
+      }
+    });
+  }
+
+  return index;
+}
+
+function extractAshrDatasets(input = {}) {
+  if (Array.isArray(input)) {
+    return input.filter((item) => item?.dataset_source);
+  }
+  if (input.response && input.response !== input) {
+    const responseDatasets = extractAshrDatasets(input.response);
+    if (responseDatasets.length) {
+      return responseDatasets;
+    }
+  }
+  if (input.dataset?.dataset_source) {
+    return [input.dataset];
+  }
+  if (Array.isArray(input.datasets)) {
+    return input.datasets;
+  }
+  if (Array.isArray(input.list_datasets?.datasets)) {
+    return input.list_datasets.datasets;
+  }
+  if (Array.isArray(input.calls?.list_datasets?.sample?.datasets)) {
+    return input.calls.list_datasets.sample.datasets;
+  }
+  if (input.sample?.dataset_source) {
+    return [input.sample];
+  }
+  if (input.dataset_source) {
+    return [input];
+  }
+  return [];
+}
+
+function scenarioJoinKeys(scenario, index) {
+  return unique([
+    scenario.scenario_key,
+    scenario.scenario_id,
+    scenario.run_id,
+    scenario.title,
+    `index:${index}`
+  ].filter(Boolean));
+}
+
+function findDatasetScenario(index, { caseId, scenarioId, runId, index: caseIndex } = {}) {
+  if (!(index instanceof Map) || index.size === 0) {
+    return null;
+  }
+  for (const key of [scenarioId, caseId, runId, `index:${caseIndex}`].filter(Boolean)) {
+    if (index.has(String(key))) {
+      return index.get(String(key));
+    }
+  }
+  return null;
+}
+
 export function mapAshrSampleToA3Fixtures(input = {}, options = {}) {
   const runs = extractAshrRuns(input);
-  const mappedRuns = runs.map((run, index) => mapAshrRunToA3Run(run, index, options));
+  const scenarioIndex = buildDatasetScenarioIndex(options.datasetSample || input);
+  const mappedRuns = runs.map((run, index) => mapAshrRunToA3Run(run, index, {
+    ...options,
+    scenarioIndex
+  }));
   const gradeResults = mappedRuns.flatMap((run) => run.cases.map((item) => item.grade_result));
 
   return {
@@ -61,6 +174,7 @@ export function mapAshrRunToA3Run(run = {}, index = 0, options = {}) {
   const tests = Array.isArray(result.tests) ? result.tests : [];
   const cases = Array.isArray(result.cases) ? result.cases : [];
   const sourceItems = tests.length ? tests : cases;
+  const scenarioIndex = options.scenarioIndex || buildDatasetScenarioIndex(run.dataset_details || run.dataset || {});
   const metrics = result.aggregate_metrics || {};
   const runId = textOr(run.id, result.run_id, `ashr_run_${index + 1}`);
   const totalCases = numberOr(metrics.total_tests, result.total_cases, metrics.total, sourceItems.length);
@@ -71,6 +185,9 @@ export function mapAshrRunToA3Run(run = {}, index = 0, options = {}) {
     sourceItems.filter((item) => tests.length ? isPassingTest(item) : isPassingCaseResult(item)).length
   );
   const failed = numberOr(metrics.tests_failed, metrics.failed, result.failed, Math.max(0, totalCases - passed));
+  const mappedCases = tests.length
+    ? tests.map((test, caseIndex) => mapAshrTestToA3Case(test, run, caseIndex, { scenarioIndex }))
+    : cases.map((caseResult, caseIndex) => mapAshrCaseResultToA3Case(caseResult, run, caseIndex, { scenarioIndex }));
 
   return {
     run_id: runId,
@@ -91,30 +208,65 @@ export function mapAshrRunToA3Run(run = {}, index = 0, options = {}) {
       source: "real_ashr_calibrated",
       source_schema: tests.length ? "ashr_labs.run.result.tests" : "ashr.clone.run_result.cases",
       p3_mapper_version: "0.1.0",
-      ashr_created_at: run.created_at || null
+      ashr_created_at: run.created_at || null,
+      dataset_scenario_joined: scenarioIndex.size > 0
     },
-    cases: tests.length
-      ? tests.map((test, caseIndex) => mapAshrTestToA3Case(test, run, caseIndex))
-      : cases.map((caseResult, caseIndex) => mapAshrCaseResultToA3Case(caseResult, run, caseIndex))
+    cases: ensureUniqueCaseIds(mappedCases, runId)
   };
 }
 
-export function mapAshrTestToA3Case(test = {}, run = {}, index = 0) {
+function ensureUniqueCaseIds(cases = [], runId = "ashr_run_unknown") {
+  const seen = new Map();
+  return cases.map((caseResult, index) => {
+    const originalCaseId = caseResult.case_id || `${runId}_case_${index + 1}`;
+    const count = seen.get(originalCaseId) || 0;
+    seen.set(originalCaseId, count + 1);
+    if (count === 0) {
+      return caseResult;
+    }
+
+    const caseId = `${originalCaseId}__${count + 1}`;
+    return {
+      ...caseResult,
+      case_id: caseId,
+      scenario_id: caseResult.scenario_id === originalCaseId ? caseId : caseResult.scenario_id,
+      metadata: {
+        ...(caseResult.metadata || {}),
+        original_case_id: originalCaseId,
+        p3_deduped_case_id: true
+      },
+      grade_result: {
+        ...caseResult.grade_result,
+        case_id: caseId,
+        scenario_id: caseResult.grade_result?.scenario_id === originalCaseId ? caseId : caseResult.grade_result?.scenario_id
+      }
+    };
+  });
+}
+
+export function mapAshrTestToA3Case(test = {}, run = {}, index = 0, options = {}) {
   const runId = textOr(run.id, `ashr_run_unknown`);
   const caseId = textOr(test.test_id, `${runId}_case_${index + 1}`);
+  const scenario = findDatasetScenario(options.scenarioIndex, {
+    caseId,
+    scenarioId: test.scenario_id,
+    runId: test.run_id,
+    index
+  });
   const actionResults = Array.isArray(test.action_results) ? test.action_results : [];
   const failure = classifyFailure(actionResults, test);
   const passed = failure.primary_failure_class === "none";
-  const score = caseScore(actionResults, passed);
+  const scoreEvidence = scoreFromActions(actionResults, passed);
+  const score = scoreEvidence.score;
   const expected = expectedFromActions(actionResults);
   const actual = actualFromActions(actionResults);
-  const mediaEvidence = mediaEvidenceFromActions(actionResults, test);
+  const mediaEvidence = mediaEvidenceFromActions(actionResults, test, scenario);
 
   const caseResult = {
     case_id: caseId,
-    scenario_id: caseId,
-    title: textOr(test.title, caseId),
-    family: "real_ashr_run",
+    scenario_id: textOr(test.scenario_id, scenario?.scenario_id, scenario?.run_id, caseId),
+    title: textOr(test.title, scenario?.title, caseId),
+    family: textOr(scenario?.dataset_type, "real_ashr_run"),
     status: passed ? "passed" : "failed",
     score,
     latency_ms: durationMs(test.started_at, test.completed_at),
@@ -129,7 +281,13 @@ export function mapAshrTestToA3Case(test = {}, run = {}, index = 0) {
     metadata: {
       source: "real_ashr_test",
       raw_status: test.status || null,
-      coherence: test.coherence || null
+      coherence: test.coherence || null,
+      score_source: scoreEvidence.source,
+      score_source_detail: scoreEvidence.detail,
+      dataset_scenario_joined: Boolean(scenario),
+      dataset_scenario_key: scenario?.scenario_key || null,
+      dataset_scenario_title: scenario?.title || null,
+      dataset_intent_tags: scenario?.intent_tags || []
     }
   };
 
@@ -141,6 +299,10 @@ export function mapAshrTestToA3Case(test = {}, run = {}, index = 0) {
       case_id: caseResult.case_id,
       passed,
       score,
+      metadata: {
+        score_source: scoreEvidence.source,
+        score_source_detail: scoreEvidence.detail
+      },
       primary_failure_class: failure.primary_failure_class,
       judge_results: [
         {
@@ -171,17 +333,24 @@ export function mapAshrTestToA3Case(test = {}, run = {}, index = 0) {
   };
 }
 
-export function mapAshrCaseResultToA3Case(caseItem = {}, run = {}, index = 0) {
+export function mapAshrCaseResultToA3Case(caseItem = {}, run = {}, index = 0, options = {}) {
   const result = run.result || {};
   const runId = textOr(run.id, result.run_id, `ashr_run_unknown`);
   const caseId = textOr(caseItem.case_id, `${runId}_case_${index + 1}`);
+  const scenario = findDatasetScenario(options.scenarioIndex, {
+    caseId,
+    scenarioId: caseItem.scenario_id || caseItem.grade?.scenario_id,
+    runId: caseItem.metadata?.source_run_hash || caseItem.metadata?.run_id || caseItem.run_id,
+    index
+  });
   const grade = caseItem.grade || {};
   const expected = normalizeExpected(caseItem.expected || grade.expected || {});
   const actual = normalizeActual(grade.actual || caseItem.actual || caseItem.agent_output || {});
   const passed = typeof grade.passed === "boolean" ? grade.passed : caseItem.status === "passed";
-  const score = normalizeScore(numberOr(grade.score, caseItem.score, passed ? 100 : 0));
+  const scoreEvidence = scoreFromCaseResult(caseItem, grade, passed);
+  const score = scoreEvidence.score;
   const failure = classifyCaseResultFailure(caseItem, grade, expected, actual, passed);
-  const mediaEvidence = mediaEvidenceFromCaseResult(caseItem);
+  const mediaEvidence = mediaEvidenceFromCaseResult(caseItem, scenario);
   const observations = Array.isArray(caseItem.observations) ? caseItem.observations : [];
   const traceEvents = Array.isArray(caseItem.trace_events) && caseItem.trace_events.length
     ? caseItem.trace_events
@@ -189,9 +358,9 @@ export function mapAshrCaseResultToA3Case(caseItem = {}, run = {}, index = 0) {
 
   const caseResult = {
     case_id: caseId,
-    scenario_id: textOr(caseItem.scenario_id, grade.scenario_id, caseId),
-    title: textOr(caseItem.title, caseId),
-    family: textOr(caseItem.family, caseItem.metadata?.dataset_type, "real_ashr_media_run"),
+    scenario_id: textOr(caseItem.scenario_id, grade.scenario_id, scenario?.scenario_id, scenario?.run_id, caseId),
+    title: textOr(caseItem.title, scenario?.title, caseId),
+    family: textOr(caseItem.family, caseItem.metadata?.dataset_type, scenario?.dataset_type, "real_ashr_media_run"),
     status: passed ? "passed" : "failed",
     score,
     latency_ms: numberOr(caseItem.latency_ms, grade.metrics?.latency_ms, 0),
@@ -206,7 +375,13 @@ export function mapAshrCaseResultToA3Case(caseItem = {}, run = {}, index = 0) {
     metadata: {
       ...(caseItem.metadata || {}),
       source: "real_ashr_case_result",
-      raw_status: caseItem.status || null
+      raw_status: caseItem.status || null,
+      score_source: scoreEvidence.source,
+      score_source_detail: scoreEvidence.detail,
+      dataset_scenario_joined: Boolean(scenario),
+      dataset_scenario_key: scenario?.scenario_key || null,
+      dataset_scenario_title: scenario?.title || null,
+      dataset_intent_tags: scenario?.intent_tags || []
     }
   };
 
@@ -218,6 +393,10 @@ export function mapAshrCaseResultToA3Case(caseItem = {}, run = {}, index = 0) {
       case_id: caseResult.case_id,
       passed,
       score,
+      metadata: {
+        score_source: scoreEvidence.source,
+        score_source_detail: scoreEvidence.detail
+      },
       primary_failure_class: failure.primary_failure_class,
       judge_results: [
         {
@@ -463,7 +642,7 @@ function classifyCaseResultFailure(caseItem, grade, expected, actual, passed) {
   };
 }
 
-function mediaEvidenceFromActions(actionResults, test = {}) {
+function mediaEvidenceFromActions(actionResults, test = {}, scenario = null) {
   const mediaActions = actionResults.filter((action) => (
     MEDIA_ACTION_TYPES.has(action.action_type)
     || action.output_path
@@ -471,7 +650,11 @@ function mediaEvidenceFromActions(actionResults, test = {}) {
     || action.vm_stream
   ));
   const vmStreams = actionResults.map((action) => action.vm_stream).filter(Boolean).map(summarizeVmStream);
-  const mediaTypes = unique(mediaActions.map((action) => action.action_type).filter((type) => MEDIA_ACTION_TYPES.has(type)));
+  const scenarioMediaTypes = normalizeTagList(scenario?.media_types);
+  const mediaTypes = unique([
+    ...mediaActions.map((action) => action.action_type).filter((type) => MEDIA_ACTION_TYPES.has(type)),
+    ...scenarioMediaTypes
+  ]);
   const evidenceItems = mediaActions.map((action) => ({
     type: action.action_type || "unknown",
     actor: action.actor || null,
@@ -479,7 +662,7 @@ function mediaEvidenceFromActions(actionResults, test = {}) {
     output_path: action.output_path || null,
     action_tags: action.action_tags || null,
     match_status: action.match_status || null
-  }));
+  })).concat(scenarioEvidenceItems(scenario));
 
   if (!mediaTypes.length && !evidenceItems.length && !vmStreams.length) {
     return null;
@@ -491,18 +674,22 @@ function mediaEvidenceFromActions(actionResults, test = {}) {
     primary_media_type: mediaTypes[0] || "unknown",
     media_types: mediaTypes,
     evidence_items: evidenceItems,
-    action_tags: mediaActions.map((action) => action.action_tags).filter(hasMeaningful),
-    output_paths: mediaActions.map((action) => action.output_path).filter(Boolean),
-    audio_tags: normalizeTagList(test.audio_tags || test.metadata?.audio_tags),
-    intent_tags: normalizeTagList(test.intent_tags || test.metadata?.intent_tags),
+    action_tags: [
+      ...mediaActions.map((action) => action.action_tags).filter(hasMeaningful),
+      ...normalizeTagList(scenario?.action_tags)
+    ],
+    output_paths: unique([
+      ...mediaActions.map((action) => action.output_path).filter(Boolean),
+      ...normalizeTagList(scenario?.action_output_paths)
+    ]),
+    audio_tags: normalizeTagList(test.audio_tags || test.metadata?.audio_tags || scenario?.audio_tags),
+    intent_tags: normalizeTagList(test.intent_tags || test.metadata?.intent_tags || scenario?.intent_tags),
     vm_streams: vmStreams,
-    known_gaps: mediaTypes.length && !mediaActions.some((action) => action.output_path)
-      ? ["No output_path or signed media URL was present in this sanitized run sample."]
-      : []
+    known_gaps: mediaKnownGaps(mediaTypes, mediaActions, scenario)
   };
 }
 
-function mediaEvidenceFromCaseResult(caseItem = {}) {
+function mediaEvidenceFromCaseResult(caseItem = {}, scenario = null) {
   const metadata = caseItem.metadata || {};
   const observations = Array.isArray(caseItem.observations) ? caseItem.observations : [];
   const actionType = metadata.action_type;
@@ -520,6 +707,7 @@ function mediaEvidenceFromCaseResult(caseItem = {}) {
       action_tags: metadata.action_tags || null
     });
   }
+  evidenceItems.push(...scenarioEvidenceItems(scenario));
   for (const stream of vmStreams) {
     evidenceItems.push({
       type: "vm_stream",
@@ -529,8 +717,10 @@ function mediaEvidenceFromCaseResult(caseItem = {}) {
     });
   }
 
+  const scenarioMediaTypes = normalizeTagList(scenario?.media_types);
   const mediaTypes = unique([
     hasMediaType ? actionType : null,
+    ...scenarioMediaTypes,
     ...evidenceItems.map((item) => item.type).filter((type) => MEDIA_ACTION_TYPES.has(type))
   ].filter(Boolean));
 
@@ -538,8 +728,12 @@ function mediaEvidenceFromCaseResult(caseItem = {}) {
     return null;
   }
 
+  const outputPaths = unique([
+    metadata.output_path,
+    ...normalizeTagList(scenario?.action_output_paths)
+  ].filter(Boolean));
   const knownGaps = [];
-  if (mediaTypes.length && !metadata.output_path) {
+  if (mediaTypes.length && !outputPaths.length && !scenario?.has_signed_urls) {
     knownGaps.push("Sanitized sample did not include a downloadable media URL for this case.");
   }
   if (!vmStreams.length) {
@@ -552,13 +746,43 @@ function mediaEvidenceFromCaseResult(caseItem = {}) {
     primary_media_type: mediaTypes[0] || "vm_stream",
     media_types: mediaTypes,
     evidence_items: evidenceItems,
-    action_tags: normalizeTagList(metadata.action_tags),
-    output_paths: [metadata.output_path].filter(Boolean),
-    audio_tags: normalizeTagList(metadata.audio_tags),
-    intent_tags: normalizeTagList(metadata.intent_tags),
+    action_tags: [
+      ...normalizeTagList(metadata.action_tags),
+      ...normalizeTagList(scenario?.action_tags)
+    ],
+    output_paths: outputPaths,
+    audio_tags: normalizeTagList(metadata.audio_tags || scenario?.audio_tags),
+    intent_tags: normalizeTagList(metadata.intent_tags || scenario?.intent_tags),
     vm_streams: vmStreams,
     known_gaps: knownGaps
   };
+}
+
+function scenarioEvidenceItems(scenario = null) {
+  if (!scenario || !Array.isArray(scenario.media_types) || scenario.media_types.length === 0) {
+    return [];
+  }
+  return scenario.media_types.map((type) => ({
+    type,
+    provider: "dataset_source",
+    name: scenario.title || scenario.scenario_id || "dataset scenario media",
+    output_path: null,
+    action_count: scenario.action_count || 0,
+    action_types: scenario.action_types || [],
+    has_signed_url: Boolean(scenario.has_signed_urls)
+  }));
+}
+
+function mediaKnownGaps(mediaTypes = [], mediaActions = [], scenario = null) {
+  if (!mediaTypes.length) {
+    return [];
+  }
+  const hasOutputPath = mediaActions.some((action) => action.output_path)
+    || normalizeTagList(scenario?.action_output_paths).length > 0;
+  if (hasOutputPath || scenario?.has_signed_urls) {
+    return [];
+  }
+  return ["No output_path or signed media URL was present in this sanitized run sample."];
 }
 
 function summarizeVmStream(stream = {}) {
@@ -655,14 +879,44 @@ function isPassingCaseResult(caseItem = {}) {
   return caseItem.status === "passed";
 }
 
-function caseScore(actionResults, passed) {
+function scoreFromActions(actionResults, passed) {
   const similarities = actionResults
     .map((action) => action.semantic_similarity)
     .filter((value) => typeof value === "number" && !Number.isNaN(value));
   if (similarities.length) {
-    return normalizeScore(similarities.reduce((sum, value) => sum + value, 0) / similarities.length);
+    return {
+      score: normalizeScore(similarities.reduce((sum, value) => sum + value, 0) / similarities.length),
+      source: "semantic_similarity_average",
+      detail: "action_results[].semantic_similarity averaged and normalized to 0-100"
+    };
   }
-  return passed ? 100 : 0;
+  return {
+    score: passed ? 100 : 0,
+    source: "pass_fail_default",
+    detail: "No grade score or semantic similarity was present; derived from pass/fail"
+  };
+}
+
+function scoreFromCaseResult(caseItem = {}, grade = {}, passed = false) {
+  if (typeof grade.score === "number" && !Number.isNaN(grade.score)) {
+    return {
+      score: normalizeScore(grade.score),
+      source: "ashr_case_grade_score",
+      detail: "case.grade.score"
+    };
+  }
+  if (typeof caseItem.score === "number" && !Number.isNaN(caseItem.score)) {
+    return {
+      score: normalizeScore(caseItem.score),
+      source: "ashr_case_score",
+      detail: "case.score"
+    };
+  }
+  return {
+    score: passed ? 100 : 0,
+    source: "pass_fail_default",
+    detail: "No grade score or case score was present; derived from pass/fail"
+  };
 }
 
 function traceCompleteness(tests) {

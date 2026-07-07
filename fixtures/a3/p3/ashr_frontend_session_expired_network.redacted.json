@@ -1,0 +1,53 @@
+{
+  "schema_version": "a3.p3.frontend_network_probe.v1",
+  "captured_at": "2026-07-06",
+  "source": "read-only Chrome/CDP observation",
+  "safety": {
+    "headers_saved": false,
+    "cookies_saved": false,
+    "tokens_saved": false,
+    "response_bodies_saved": false,
+    "screenshots_saved": false
+  },
+  "frontend_auth_state": "expired_session",
+  "visible_signals": [
+    "Sign in to your account",
+    "Your session has expired. Please sign in again.",
+    "Continue with Google",
+    "Continue with Microsoft"
+  ],
+  "observed_pages": [
+    {
+      "tab": "analysis",
+      "url": "https://lab.ashr.io/?tab=analysis",
+      "visible_state": "sign_in_expired_session",
+      "ashr_api_fetch_statuses": [401, 401, 401]
+    },
+    {
+      "tab": "analytics",
+      "url": "https://lab.ashr.io/?tab=analytics",
+      "visible_state": "sign_in"
+    },
+    {
+      "tab": "trust",
+      "url": "https://lab.ashr.io/?tab=trust",
+      "visible_state": "sign_in"
+    },
+    {
+      "tab": "usage",
+      "url": "https://lab.ashr.io/?tab=usage",
+      "visible_state": "sign_in"
+    }
+  ],
+  "network_summary": {
+    "data_endpoint": "https://api.ashr.io/testing-platform-api",
+    "frontend_request_method": "POST",
+    "frontend_status_code_observed": 401,
+    "interpretation": "The current browser session cannot fetch Lab data until the user signs in again. This is separate from the local ASHR_API_KEY used by read-only API probes."
+  },
+  "a3_decision": {
+    "use_sanitized_api_fixtures_for_populated_evidence": true,
+    "frontend_detail_pages_require_relogin": true,
+    "do_not_guess_hidden_routes": true
+  }
+}

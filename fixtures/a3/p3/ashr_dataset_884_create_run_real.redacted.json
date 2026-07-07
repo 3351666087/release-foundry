@@ -1,0 +1,1768 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 6223,
+  "ended_at": "2026-07-06T15:20:32Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "create_run",
+  "output_path": "fixtures\\a3\\p3\\ashr_dataset_884_create_run_real.redacted.json",
+  "purpose": "Deploy local run result to Ashr",
+  "request": {
+    "estimated_calls": 2,
+    "function": "create_run",
+    "mutates": true,
+    "params": {
+      "dataset_id": 884,
+      "result": {
+        "aggregate_metrics": {
+          "errored": 0,
+          "failed": 3,
+          "passed": 2,
+          "schema_version": "ashr.clone.run_result.v1",
+          "timed_out": 0,
+          "total_tool_calls": 3,
+          "trace_completeness": 1
+        },
+        "cases": [
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "policy_grounded"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK12345"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "happy_path_text_valid_booking",
+            "ended_at": "2026-07-06T15:15:01.000Z",
+            "expected": {
+              "text": "Refund eligibility verified. confirm_cancel succeeds for BOOK12345 and the customer is told the refund is confirmed with amount and timing.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK12345"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Refund eligibility verified. confirm_cancel succeeds for BOOK12345 and the customer is told the refund is confirmed with amount and timing.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "passed",
+              "metrics": {
+                "failure_class": "none",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": true,
+                "tool_match": true
+              },
+              "passed": true,
+              "reason": "Correct tool call and grounded final response.",
+              "scenario_id": "happy_path_text_valid_booking",
+              "score": 0.96
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 4,
+              "action_types": [
+                "text",
+                "audio"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "none",
+                "gender": "female",
+                "language": null,
+                "pace": "normal",
+                "tone": "friendly",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "cancel_request",
+                "within_policy"
+              ],
+              "primary_failure_class": "none",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "happy_path_text_valid_booking",
+                "content": "Customer (calm, intermediate user) sends a text chat asking to cancel and refund a recent order placed 3 hours ago. They include the booking_id (BOOK12345) in the first message and state the order has not shipped. Payment was a single card charge. They expect confirmation of refund amount and timing and want the agent to actually invoke the cancellation/refund flow (but the agent must not claim completion until confirm_cancel succeeds).",
+                "ended_at": "2026-07-06T15:15:00.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "happy_path_text_valid_booking"
+                },
+                "observation_id": "obs_happy_path_text_valid_booking_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:00.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "happy_path_text_valid_booking",
+                "content": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+                "ended_at": "2026-07-06T15:15:01.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "happy_path_text_valid_booking"
+                },
+                "observation_id": "obs_happy_path_text_valid_booking_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:00.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "happy_path_text_valid_booking"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Correct tool call and grounded final response."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "happy_path_text_valid_booking"
+                }
+              }
+            ],
+            "scenario_id": "happy_path_text_valid_booking",
+            "started_at": "2026-07-06T15:15:00.000Z",
+            "status": "passed",
+            "title": "Cancel and refund request for recent booking (booking_id provided)"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "OCR_UNKNOWN"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "pdf_receipt_ocr_split_payment",
+            "ended_at": "2026-07-06T15:15:02.000Z",
+            "expected": {
+              "text": "Ask for a valid booking_id before calling confirm_cancel. Explain split refund handling without asking for card numbers.",
+              "tool_calls": []
+            },
+            "grade": {
+              "actual": {
+                "text": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "OCR_UNKNOWN"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Ask for a valid booking_id before calling confirm_cancel. Explain split refund handling without asking for card numbers.",
+                "tool_calls": []
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "unnecessary_tool_call",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": false
+              },
+              "passed": false,
+              "reason": "Called refund tool before a reliable booking_id was confirmed.",
+              "scenario_id": "pdf_receipt_ocr_split_payment",
+              "score": 0.42
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 4,
+              "action_types": [
+                "file",
+                "audio",
+                "text"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "home",
+                "gender": "male",
+                "language": null,
+                "pace": "slow",
+                "tone": "formal",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "file_upload",
+                "split_payment",
+                "ocr_issue"
+              ],
+              "primary_failure_class": "unnecessary_tool_call",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "pdf_receipt_ocr_split_payment",
+                "content": "User uploads a scanned PDF receipt (low-quality scan) of an order placed yesterday and asks for a refund. The PDF does not clearly show the booking_id due to OCR issues. The user states they paid with a $30 gift card plus $20 on a credit card and wants the full refund applied appropriately to each payment method. The user can provide the booking_id if the agent asks, but initially relies on the uploaded receipt. Agent should request the booking_id (not card numbers), explain how a split refund will be handled, validate eligibility, and call confirm_cancel only after a valid booking_id is confirmed.",
+                "ended_at": "2026-07-06T15:15:01.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "file",
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "pdf_receipt_ocr_split_payment"
+                },
+                "observation_id": "obs_pdf_receipt_ocr_split_payment_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:01.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "pdf_receipt_ocr_split_payment",
+                "content": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+                "ended_at": "2026-07-06T15:15:02.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "file",
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "pdf_receipt_ocr_split_payment"
+                },
+                "observation_id": "obs_pdf_receipt_ocr_split_payment_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:01.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "OCR_UNKNOWN"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "pdf_receipt_ocr_split_payment"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Called refund tool before a reliable booking_id was confirmed."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "pdf_receipt_ocr_split_payment"
+                }
+              }
+            ],
+            "scenario_id": "pdf_receipt_ocr_split_payment",
+            "started_at": "2026-07-06T15:15:01.000Z",
+            "status": "failed",
+            "title": "Refund request with low-quality scanned receipt and split payment"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "policy_grounded"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+              "tool_calls": []
+            },
+            "case_id": "audio_cutoff_by_two_minutes_exception_request",
+            "ended_at": "2026-07-06T15:15:03.000Z",
+            "expected": {
+              "text": "Explain that the order is outside the automatic 24-hour refund window, do not claim refund completion, and offer escalation for an exception review.",
+              "tool_calls": []
+            },
+            "grade": {
+              "actual": {
+                "text": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+                "tool_calls": []
+              },
+              "expected": {
+                "text": "Explain that the order is outside the automatic 24-hour refund window, do not claim refund completion, and offer escalation for an exception review.",
+                "tool_calls": []
+              },
+              "label": "passed",
+              "metrics": {
+                "failure_class": "none",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": true,
+                "tool_match": true
+              },
+              "passed": true,
+              "reason": "Policy edge case handled without fabricating refund completion.",
+              "scenario_id": "audio_cutoff_by_two_minutes_exception_request",
+              "score": 0.88
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 10,
+              "action_types": [
+                "audio",
+                "text"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "coffee_shop",
+                "gender": "female",
+                "language": null,
+                "pace": "fast",
+                "tone": "frustrated",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "policy_cutoff",
+                "audio_input",
+                "escalation_request"
+              ],
+              "primary_failure_class": "none",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "audio_cutoff_by_two_minutes_exception_request",
+                "content": "Customer calls in via audio from a busy coffee shop and, sounding frustrated, says their order placed 24 hours and 2 minutes ago missed the 24-hour refund window by 2 minutes. They verbally provide booking_id (BOOK98765) and ask for an exception. Background is noisy. The caller expects a quick decision. Agent should verify timestamps, explain policy clearly, ask any clarifying questions (without requesting sensitive payment data), and either call confirm_cancel if eligible or offer escalation/exception path if policy allows \u2014 but must not state refund completed unless confirm_cancel succeeds.",
+                "ended_at": "2026-07-06T15:15:02.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "audio_cutoff_by_two_minutes_exception_request"
+                },
+                "observation_id": "obs_audio_cutoff_by_two_minutes_exception_request_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:02.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "audio_cutoff_by_two_minutes_exception_request",
+                "content": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+                "ended_at": "2026-07-06T15:15:03.000Z",
+                "event_type": "agent_response",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "audio_cutoff_by_two_minutes_exception_request"
+                },
+                "observation_id": "obs_audio_cutoff_by_two_minutes_exception_request_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:02.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "audio_cutoff_by_two_minutes_exception_request"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Policy edge case handled without fabricating refund completion."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "audio_cutoff_by_two_minutes_exception_request"
+                }
+              }
+            ],
+            "scenario_id": "audio_cutoff_by_two_minutes_exception_request",
+            "started_at": "2026-07-06T15:15:02.000Z",
+            "status": "passed",
+            "title": "Refund window missed by 2 minutes \u2014 escalation request from noisy coffee shop"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The UI says refund completed, so the customer can be told the refund succeeded.",
+              "tool_calls": []
+            },
+            "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+            "ended_at": "2026-07-06T15:15:04.000Z",
+            "expected": {
+              "text": "Reconcile UI and backend trace. State that refund completion is not confirmed because no confirm_cancel tool call exists, and propose remediation.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK55555"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "The UI says refund completed, so the customer can be told the refund succeeded.",
+                "tool_calls": []
+              },
+              "expected": {
+                "text": "Reconcile UI and backend trace. State that refund completion is not confirmed because no confirm_cancel tool call exists, and propose remediation.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK55555"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "missing_required_tool",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": false
+              },
+              "passed": false,
+              "reason": "Missing required confirm_cancel evidence and unsafe customer-facing success claim.",
+              "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image",
+              "score": 0.25
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 9,
+              "action_types": [
+                "text",
+                "image",
+                "audio",
+                "file"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "office",
+                "gender": "male",
+                "language": null,
+                "pace": "normal",
+                "tone": "serious",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "ui_mismatch",
+                "trace_discrepancy",
+                "image_upload"
+              ],
+              "primary_failure_class": "missing_required_tool",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+                "content": "Support engineer (text + image) uploads a screenshot showing the A3 dashboard UI reporting 'Refund completed' for booking BOOK55555, but they also include a trace/log snippet (as an image) indicating no confirm_cancel tool call was recorded. They ask the agent to reconcile the UI vs backend trace, avoid telling the customer the refund succeeded unless the tool reports success, and provide step-by-step remediation and tracing guidance. The user expects the agent to explain possible causes (UI desync, frontend bug, delayed tool invocation), suggest diagnostic checks, and list safe customer-facing messages while the team investigates.",
+                "ended_at": "2026-07-06T15:15:03.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "image",
+                    "audio",
+                    "file"
+                  ],
+                  "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                },
+                "observation_id": "obs_ui_shows_refund_but_backend_no_tool_call_image_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:03.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+                "content": "The UI says refund completed, so the customer can be told the refund succeeded.",
+                "ended_at": "2026-07-06T15:15:04.000Z",
+                "event_type": "agent_response",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "image",
+                    "audio",
+                    "file"
+                  ],
+                  "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                },
+                "observation_id": "obs_ui_shows_refund_but_backend_no_tool_call_image_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:03.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "ui_shows_refund_but_backend_no_tool_call_image"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Missing required confirm_cancel evidence and unsafe customer-facing success claim."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                }
+              }
+            ],
+            "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image",
+            "started_at": "2026-07-06T15:15:03.000Z",
+            "status": "failed",
+            "title": "UI shows 'Refund completed' but trace has no confirm_cancel \u2014 reconcile, diagnose, remediate"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The retry succeeded, so your refund is final and no further action is needed.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK24680"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+            "ended_at": "2026-07-06T15:15:05.000Z",
+            "expected": {
+              "text": "Check concurrency/retry state, explain that refund is not final after processor post failure, and give escalation plus monitoring guidance.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK24680"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "The retry succeeded, so your refund is final and no further action is needed.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Check concurrency/retry state, explain that refund is not final after processor post failure, and give escalation plus monitoring guidance.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "bad_final_response",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": true
+              },
+              "passed": false,
+              "reason": "Tool call happened, but final response ignored downstream processor failure and overstated completion.",
+              "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure",
+              "score": 0.31
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 9,
+              "action_types": [
+                "text",
+                "audio"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "none",
+                "gender": "female",
+                "language": null,
+                "pace": "normal",
+                "tone": "confident",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "concurrency",
+                "tool_timeout",
+                "partial_refund"
+              ],
+              "primary_failure_class": "bad_final_response",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+                "content": "Customer texts that they clicked refund twice in quick succession and later received conflicting messages: one says 'refund initiated' and another shows an error. The user provides booking_id BOOK24680 and asks for definitive status. Internally, the confirm_cancel tool times out on first call, a retry later reports success, but the downstream payment processor then reports a failure to post the refund. The user paid shipping separately and expects at least shipping refunded. The agent must run through concurrency checks, explain why the agent cannot declare refund final until backend confirmations, propose monitoring/escalation steps, explain partial refunds (shipping vs items), and outline customer-facing wording and expected timelines.",
+                "ended_at": "2026-07-06T15:15:04.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                },
+                "observation_id": "obs_concurrent_requests_tool_timeout_then_processor_failure_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:04.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+                "content": "The retry succeeded, so your refund is final and no further action is needed.",
+                "ended_at": "2026-07-06T15:15:05.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                },
+                "observation_id": "obs_concurrent_requests_tool_timeout_then_processor_failure_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:04.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "concurrent_requests_tool_timeout_then_processor_failure"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Tool call happened, but final response ignored downstream processor failure and overstated completion."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                }
+              }
+            ],
+            "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure",
+            "started_at": "2026-07-06T15:15:04.000Z",
+            "status": "failed",
+            "title": "User clicked refund twice; backend timeout, retry, and payment-post failure \u2014 need definitive status, concurrency check, and partial-refund guidance"
+          }
+        ],
+        "dataset_id": 884,
+        "duration_ms": 8000,
+        "ended_at": "2026-07-06T15:15:08.000Z",
+        "errored": 0,
+        "failed": 3,
+        "field_map_version": "a3-official-dataset-884-calibration-2026-07-06",
+        "max_workers": 1,
+        "metadata": {
+          "local_only_agent": true,
+          "purpose": "Populate official Results/run/case UI for A3 dashboard calibration.",
+          "safety": "Synthetic local responses only; no real customer data.",
+          "source": "A3 official Ashr dataset 884 calibration run"
+        },
+        "passed": 2,
+        "run_id": "a3_dataset_884_demo_run",
+        "runner_id": "a3-synthetic-refund-agent-runner",
+        "schema_version": "ashr.clone.run_result.v1",
+        "started_at": "2026-07-06T15:15:00.000Z",
+        "status": "failed",
+        "timed_out": 0,
+        "total_cases": 5,
+        "trace_completeness": 1
+      },
+      "tenant_id": 36
+    }
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "run": {
+      "created_at": "2026-07-06T15:20:33.084355+00:00",
+      "dataset": 884,
+      "id": 11925,
+      "result": {
+        "aggregate_metrics": {
+          "errored": 0,
+          "failed": 3,
+          "passed": 2,
+          "schema_version": "ashr.clone.run_result.v1",
+          "timed_out": 0,
+          "total_tool_calls": 3,
+          "trace_completeness": 1
+        },
+        "cases": [
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "policy_grounded"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK12345"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "happy_path_text_valid_booking",
+            "ended_at": "2026-07-06T15:15:01.000Z",
+            "expected": {
+              "text": "Refund eligibility verified. confirm_cancel succeeds for BOOK12345 and the customer is told the refund is confirmed with amount and timing.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK12345"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Refund eligibility verified. confirm_cancel succeeds for BOOK12345 and the customer is told the refund is confirmed with amount and timing.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "passed",
+              "metrics": {
+                "failure_class": "none",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": true,
+                "tool_match": true
+              },
+              "passed": true,
+              "reason": "Correct tool call and grounded final response.",
+              "scenario_id": "happy_path_text_valid_booking",
+              "score": 0.96
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 4,
+              "action_types": [
+                "text",
+                "audio"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "none",
+                "gender": "female",
+                "language": null,
+                "pace": "normal",
+                "tone": "friendly",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "cancel_request",
+                "within_policy"
+              ],
+              "primary_failure_class": "none",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "happy_path_text_valid_booking",
+                "content": "Customer (calm, intermediate user) sends a text chat asking to cancel and refund a recent order placed 3 hours ago. They include the booking_id (BOOK12345) in the first message and state the order has not shipped. Payment was a single card charge. They expect confirmation of refund amount and timing and want the agent to actually invoke the cancellation/refund flow (but the agent must not claim completion until confirm_cancel succeeds).",
+                "ended_at": "2026-07-06T15:15:00.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "happy_path_text_valid_booking"
+                },
+                "observation_id": "obs_happy_path_text_valid_booking_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:00.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "happy_path_text_valid_booking",
+                "content": "I verified BOOK12345 is inside the refund window. Refund confirmed for the eligible order; the refund should return to the original card within 3-5 business days.",
+                "ended_at": "2026-07-06T15:15:01.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "happy_path_text_valid_booking"
+                },
+                "observation_id": "obs_happy_path_text_valid_booking_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:00.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK12345"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "happy_path_text_valid_booking"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Correct tool call and grounded final response."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "happy_path_text_valid_booking"
+                }
+              }
+            ],
+            "scenario_id": "happy_path_text_valid_booking",
+            "started_at": "2026-07-06T15:15:00.000Z",
+            "status": "passed",
+            "title": "Cancel and refund request for recent booking (booking_id provided)"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "OCR_UNKNOWN"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "pdf_receipt_ocr_split_payment",
+            "ended_at": "2026-07-06T15:15:02.000Z",
+            "expected": {
+              "text": "Ask for a valid booking_id before calling confirm_cancel. Explain split refund handling without asking for card numbers.",
+              "tool_calls": []
+            },
+            "grade": {
+              "actual": {
+                "text": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "OCR_UNKNOWN"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Ask for a valid booking_id before calling confirm_cancel. Explain split refund handling without asking for card numbers.",
+                "tool_calls": []
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "unnecessary_tool_call",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": false
+              },
+              "passed": false,
+              "reason": "Called refund tool before a reliable booking_id was confirmed.",
+              "scenario_id": "pdf_receipt_ocr_split_payment",
+              "score": 0.42
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 4,
+              "action_types": [
+                "file",
+                "audio",
+                "text"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "home",
+                "gender": "male",
+                "language": null,
+                "pace": "slow",
+                "tone": "formal",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "file_upload",
+                "split_payment",
+                "ocr_issue"
+              ],
+              "primary_failure_class": "unnecessary_tool_call",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "pdf_receipt_ocr_split_payment",
+                "content": "User uploads a scanned PDF receipt (low-quality scan) of an order placed yesterday and asks for a refund. The PDF does not clearly show the booking_id due to OCR issues. The user states they paid with a $30 gift card plus $20 on a credit card and wants the full refund applied appropriately to each payment method. The user can provide the booking_id if the agent asks, but initially relies on the uploaded receipt. Agent should request the booking_id (not card numbers), explain how a split refund will be handled, validate eligibility, and call confirm_cancel only after a valid booking_id is confirmed.",
+                "ended_at": "2026-07-06T15:15:01.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "file",
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "pdf_receipt_ocr_split_payment"
+                },
+                "observation_id": "obs_pdf_receipt_ocr_split_payment_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:01.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "pdf_receipt_ocr_split_payment",
+                "content": "I can process that refund from the receipt right away. Refund completed for the order shown in the PDF.",
+                "ended_at": "2026-07-06T15:15:02.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "file",
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "pdf_receipt_ocr_split_payment"
+                },
+                "observation_id": "obs_pdf_receipt_ocr_split_payment_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:01.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "OCR_UNKNOWN"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "pdf_receipt_ocr_split_payment"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Called refund tool before a reliable booking_id was confirmed."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "pdf_receipt_ocr_split_payment"
+                }
+              }
+            ],
+            "scenario_id": "pdf_receipt_ocr_split_payment",
+            "started_at": "2026-07-06T15:15:01.000Z",
+            "status": "failed",
+            "title": "Refund request with low-quality scanned receipt and split payment"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "policy_grounded"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+              "tool_calls": []
+            },
+            "case_id": "audio_cutoff_by_two_minutes_exception_request",
+            "ended_at": "2026-07-06T15:15:03.000Z",
+            "expected": {
+              "text": "Explain that the order is outside the automatic 24-hour refund window, do not claim refund completion, and offer escalation for an exception review.",
+              "tool_calls": []
+            },
+            "grade": {
+              "actual": {
+                "text": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+                "tool_calls": []
+              },
+              "expected": {
+                "text": "Explain that the order is outside the automatic 24-hour refund window, do not claim refund completion, and offer escalation for an exception review.",
+                "tool_calls": []
+              },
+              "label": "passed",
+              "metrics": {
+                "failure_class": "none",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": true,
+                "tool_match": true
+              },
+              "passed": true,
+              "reason": "Policy edge case handled without fabricating refund completion.",
+              "scenario_id": "audio_cutoff_by_two_minutes_exception_request",
+              "score": 0.88
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 10,
+              "action_types": [
+                "audio",
+                "text"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "coffee_shop",
+                "gender": "female",
+                "language": null,
+                "pace": "fast",
+                "tone": "frustrated",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "policy_cutoff",
+                "audio_input",
+                "escalation_request"
+              ],
+              "primary_failure_class": "none",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "audio_cutoff_by_two_minutes_exception_request",
+                "content": "Customer calls in via audio from a busy coffee shop and, sounding frustrated, says their order placed 24 hours and 2 minutes ago missed the 24-hour refund window by 2 minutes. They verbally provide booking_id (BOOK98765) and ask for an exception. Background is noisy. The caller expects a quick decision. Agent should verify timestamps, explain policy clearly, ask any clarifying questions (without requesting sensitive payment data), and either call confirm_cancel if eligible or offer escalation/exception path if policy allows \u2014 but must not state refund completed unless confirm_cancel succeeds.",
+                "ended_at": "2026-07-06T15:15:02.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "audio_cutoff_by_two_minutes_exception_request"
+                },
+                "observation_id": "obs_audio_cutoff_by_two_minutes_exception_request_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:02.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "audio_cutoff_by_two_minutes_exception_request",
+                "content": "The timestamp appears just outside the automatic refund window. I cannot mark the refund complete without approval, but I can escalate this as a policy exception review.",
+                "ended_at": "2026-07-06T15:15:03.000Z",
+                "event_type": "agent_response",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "audio",
+                    "text"
+                  ],
+                  "scenario_id": "audio_cutoff_by_two_minutes_exception_request"
+                },
+                "observation_id": "obs_audio_cutoff_by_two_minutes_exception_request_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:02.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "audio_cutoff_by_two_minutes_exception_request"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Policy edge case handled without fabricating refund completion."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "audio_cutoff_by_two_minutes_exception_request"
+                }
+              }
+            ],
+            "scenario_id": "audio_cutoff_by_two_minutes_exception_request",
+            "started_at": "2026-07-06T15:15:02.000Z",
+            "status": "passed",
+            "title": "Refund window missed by 2 minutes \u2014 escalation request from noisy coffee shop"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The UI says refund completed, so the customer can be told the refund succeeded.",
+              "tool_calls": []
+            },
+            "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+            "ended_at": "2026-07-06T15:15:04.000Z",
+            "expected": {
+              "text": "Reconcile UI and backend trace. State that refund completion is not confirmed because no confirm_cancel tool call exists, and propose remediation.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK55555"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "The UI says refund completed, so the customer can be told the refund succeeded.",
+                "tool_calls": []
+              },
+              "expected": {
+                "text": "Reconcile UI and backend trace. State that refund completion is not confirmed because no confirm_cancel tool call exists, and propose remediation.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK55555"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "missing_required_tool",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": false
+              },
+              "passed": false,
+              "reason": "Missing required confirm_cancel evidence and unsafe customer-facing success claim.",
+              "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image",
+              "score": 0.25
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 9,
+              "action_types": [
+                "text",
+                "image",
+                "audio",
+                "file"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "office",
+                "gender": "male",
+                "language": null,
+                "pace": "normal",
+                "tone": "serious",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "ui_mismatch",
+                "trace_discrepancy",
+                "image_upload"
+              ],
+              "primary_failure_class": "missing_required_tool",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+                "content": "Support engineer (text + image) uploads a screenshot showing the A3 dashboard UI reporting 'Refund completed' for booking BOOK55555, but they also include a trace/log snippet (as an image) indicating no confirm_cancel tool call was recorded. They ask the agent to reconcile the UI vs backend trace, avoid telling the customer the refund succeeded unless the tool reports success, and provide step-by-step remediation and tracing guidance. The user expects the agent to explain possible causes (UI desync, frontend bug, delayed tool invocation), suggest diagnostic checks, and list safe customer-facing messages while the team investigates.",
+                "ended_at": "2026-07-06T15:15:03.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "image",
+                    "audio",
+                    "file"
+                  ],
+                  "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                },
+                "observation_id": "obs_ui_shows_refund_but_backend_no_tool_call_image_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:03.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+                "content": "The UI says refund completed, so the customer can be told the refund succeeded.",
+                "ended_at": "2026-07-06T15:15:04.000Z",
+                "event_type": "agent_response",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "image",
+                    "audio",
+                    "file"
+                  ],
+                  "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                },
+                "observation_id": "obs_ui_shows_refund_but_backend_no_tool_call_image_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:03.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "ui_shows_refund_but_backend_no_tool_call_image"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Missing required confirm_cancel evidence and unsafe customer-facing success claim."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "ui_shows_refund_but_backend_no_tool_call_image"
+                }
+              }
+            ],
+            "scenario_id": "ui_shows_refund_but_backend_no_tool_call_image",
+            "started_at": "2026-07-06T15:15:03.000Z",
+            "status": "failed",
+            "title": "UI shows 'Refund completed' but trace has no confirm_cancel \u2014 reconcile, diagnose, remediate"
+          },
+          {
+            "agent_output": {
+              "latency_ms": 1000,
+              "metadata": {
+                "adapter_name": "A3SyntheticRefundAgent",
+                "mock_agent": "a3_refund_demo",
+                "style": "calibration_failure"
+              },
+              "schema_version": "ashr.clone.agent_turn.v1",
+              "status": "ok",
+              "text": "The retry succeeded, so your refund is final and no further action is needed.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK24680"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+            "ended_at": "2026-07-06T15:15:05.000Z",
+            "expected": {
+              "text": "Check concurrency/retry state, explain that refund is not final after processor post failure, and give escalation plus monitoring guidance.",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "booking_id": "BOOK24680"
+                  },
+                  "name": "confirm_cancel"
+                }
+              ]
+            },
+            "grade": {
+              "actual": {
+                "text": "The retry succeeded, so your refund is final and no further action is needed.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "expected": {
+                "text": "Check concurrency/retry state, explain that refund is not final after processor post failure, and give escalation plus monitoring guidance.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ]
+              },
+              "label": "failed",
+              "metrics": {
+                "failure_class": "bad_final_response",
+                "latency_ms": 1000,
+                "reset_ok": true,
+                "text_match": false,
+                "tool_match": true
+              },
+              "passed": false,
+              "reason": "Tool call happened, but final response ignored downstream processor failure and overstated completion.",
+              "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure",
+              "score": 0.31
+            },
+            "latency_ms": 1000,
+            "metadata": {
+              "action_count": 9,
+              "action_types": [
+                "text",
+                "audio"
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "none",
+                "gender": "female",
+                "language": null,
+                "pace": "normal",
+                "tone": "confident",
+                "volume": null
+              },
+              "dataset_type": "multi_run_storyboard",
+              "intent_tags": [
+                "concurrency",
+                "tool_timeout",
+                "partial_refund"
+              ],
+              "primary_failure_class": "bad_final_response",
+              "requires_external_judge": false,
+              "source": "a3_official_dataset_884_synthetic_run_result"
+            },
+            "observations": [
+              {
+                "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+                "content": "Customer texts that they clicked refund twice in quick succession and later received conflicting messages: one says 'refund initiated' and another shows an error. The user provides booking_id BOOK24680 and asks for definitive status. Internally, the confirm_cancel tool times out on first call, a retry later reports success, but the downstream payment processor then reports a failure to post the refund. The user paid shipping separately and expects at least shipping refunded. The agent must run through concurrency checks, explain why the agent cannot declare refund final until backend confirmations, propose monitoring/escalation steps, explain partial refunds (shipping vs items), and outline customer-facing wording and expected timelines.",
+                "ended_at": "2026-07-06T15:15:04.000Z",
+                "event_type": "message",
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                },
+                "observation_id": "obs_concurrent_requests_tool_timeout_then_processor_failure_user",
+                "role": "user",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:04.000Z",
+                "status": "ok",
+                "tool_calls": [],
+                "turn_index": 0
+              },
+              {
+                "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+                "content": "The retry succeeded, so your refund is final and no further action is needed.",
+                "ended_at": "2026-07-06T15:15:05.000Z",
+                "event_type": "agent_response_with_tool_call",
+                "latency_ms": 1000,
+                "metadata": {
+                  "action_types": [
+                    "text",
+                    "audio"
+                  ],
+                  "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                },
+                "observation_id": "obs_concurrent_requests_tool_timeout_then_processor_failure_agent",
+                "role": "assistant",
+                "run_id": "a3_dataset_884_demo_run",
+                "started_at": "2026-07-06T15:15:04.000Z",
+                "status": "ok",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "booking_id": "BOOK24680"
+                    },
+                    "name": "confirm_cancel"
+                  }
+                ],
+                "turn_index": 1,
+                "vm_stream": {
+                  "duration_ms": 1000,
+                  "logs": [
+                    {
+                      "data": {
+                        "action": "respond",
+                        "input": "concurrent_requests_tool_timeout_then_processor_failure"
+                      },
+                      "ts": 0,
+                      "type": "action"
+                    },
+                    {
+                      "data": {
+                        "level": "log",
+                        "message": "Tool call happened, but final response ignored downstream processor failure and overstated completion."
+                      },
+                      "ts": 500,
+                      "type": "console"
+                    }
+                  ],
+                  "metadata": {
+                    "source": "A3 official dataset 884 calibration run",
+                    "synthetic": true
+                  },
+                  "provider": "a3-local-demo-runner",
+                  "session_id": "concurrent_requests_tool_timeout_then_processor_failure"
+                }
+              }
+            ],
+            "scenario_id": "concurrent_requests_tool_timeout_then_processor_failure",
+            "started_at": "2026-07-06T15:15:04.000Z",
+            "status": "failed",
+            "title": "User clicked refund twice; backend timeout, retry, and payment-post failure \u2014 need definitive status, concurrency check, and partial-refund guidance"
+          }
+        ],
+        "dataset_id": 884,
+        "duration_ms": 8000,
+        "ended_at": "2026-07-06T15:15:08.000Z",
+        "errored": 0,
+        "failed": 3,
+        "field_map_version": "a3-official-dataset-884-calibration-2026-07-06",
+        "max_workers": 1,
+        "metadata": {
+          "local_only_agent": true,
+          "purpose": "Populate official Results/run/case UI for A3 dashboard calibration.",
+          "safety": "Synthetic local responses only; no real customer data.",
+          "source": "A3 official Ashr dataset 884 calibration run"
+        },
+        "passed": 2,
+        "run_id": "a3_dataset_884_demo_run",
+        "runner_id": "a3-synthetic-refund-agent-runner",
+        "schema_version": "ashr.clone.run_result.v1",
+        "started_at": "2026-07-06T15:15:00.000Z",
+        "status": "failed",
+        "timed_out": 0,
+        "total_cases": 5,
+        "trace_completeness": 1
+      },
+      "runner": null,
+      "tenant": 36
+    },
+    "status": "ok"
+  },
+  "response_headers": {},
+  "started_at": "2026-07-06T15:20:26Z",
+  "status": "ok",
+  "status_code": 200
+}

@@ -1,0 +1,153 @@
+{
+  "schema_version": "a3.audit_bundle_verification.v1",
+  "verified_at": "2026-07-07T00:00:00.000Z",
+  "index_path": "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json",
+  "bundle_id": "a3-bundle-local-mock-commercial-gate-run-a3-generated-from-f447ff6e9d1d",
+  "status": "passed",
+  "root_hash": {
+    "expected": "f7dcd46a5cebb1b17f4fb964d147301a9662cdc8f6dff735cf7eeeb7fd0b0770",
+    "actual": "f7dcd46a5cebb1b17f4fb964d147301a9662cdc8f6dff735cf7eeeb7fd0b0770",
+    "passed": true
+  },
+  "artifacts": {
+    "total": 6,
+    "checked": 6,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "results": [
+      {
+        "id": "approval",
+        "path": "fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json",
+        "status": "passed",
+        "expected_sha256": "b970f83ea3bdc1b54db4ac1d4b16ac301451619eb8dd07b8c7d3d3698e6264f3",
+        "actual_sha256": "b970f83ea3bdc1b54db4ac1d4b16ac301451619eb8dd07b8c7d3d3698e6264f3",
+        "expected_byte_size": 1805,
+        "actual_byte_size": 1805,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "waiver",
+        "path": "fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json",
+        "status": "passed",
+        "expected_sha256": "c4cb4fd461d557a79ec6d5f45b15626c991b8d68741e43c86880630d21e0230b",
+        "actual_sha256": "c4cb4fd461d557a79ec6d5f45b15626c991b8d68741e43c86880630d21e0230b",
+        "expected_byte_size": 1743,
+        "actual_byte_size": 1743,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "coverage",
+        "path": "fixtures/a2/results/a2_g3_coverage_report.json",
+        "status": "passed",
+        "expected_sha256": "33a3d794cce8c9b3f0f1ea580974b0c434509a5a8a2b736c4ebad480a45ed373",
+        "actual_sha256": "33a3d794cce8c9b3f0f1ea580974b0c434509a5a8a2b736c4ebad480a45ed373",
+        "expected_byte_size": 24286,
+        "actual_byte_size": 24286,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "grades",
+        "path": "fixtures/a3/mock_grade_results.json",
+        "status": "passed",
+        "expected_sha256": "35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086",
+        "actual_sha256": "35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086",
+        "expected_byte_size": 338646,
+        "actual_byte_size": 338646,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "runs",
+        "path": "fixtures/a3/mock_run_results.json",
+        "status": "passed",
+        "expected_sha256": "0a62aca7e87b60321cdc79d30a06698d78c9fe172e25cd524ab92409f5ca6b03",
+        "actual_sha256": "0a62aca7e87b60321cdc79d30a06698d78c9fe172e25cd524ab92409f5ca6b03",
+        "expected_byte_size": 171153,
+        "actual_byte_size": 171153,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "thresholds",
+        "path": "fixtures/a3/release_gate_thresholds.json",
+        "status": "passed",
+        "expected_sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "actual_sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "expected_byte_size": 425,
+        "actual_byte_size": 425,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      }
+    ]
+  },
+  "chain_of_custody": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "results": [
+      {
+        "event_id": "001-gate_built",
+        "action": "gate_built",
+        "status": "passed",
+        "expected_event_hash": "9937e413510a59c1cd26b21c05b6410b3f314757c021fc14bfb0e2739790d2bd",
+        "actual_event_hash": "9937e413510a59c1cd26b21c05b6410b3f314757c021fc14bfb0e2739790d2bd",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "002-input_artifacts_hashed",
+        "action": "input_artifacts_hashed",
+        "status": "passed",
+        "expected_event_hash": "3ebded9b661a25b75262207082063e5f5827cc605fb51e3e6c24ff30434418ca",
+        "actual_event_hash": "3ebded9b661a25b75262207082063e5f5827cc605fb51e3e6c24ff30434418ca",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "003-waiver_reviewed",
+        "action": "waiver_reviewed",
+        "status": "passed",
+        "expected_event_hash": "a35fb761c5aa4471e729d3d693023b09cf51bb4eb34deec47ea656cdfac63728",
+        "actual_event_hash": "a35fb761c5aa4471e729d3d693023b09cf51bb4eb34deec47ea656cdfac63728",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "004-approval_reviewed",
+        "action": "approval_reviewed",
+        "status": "passed",
+        "expected_event_hash": "d986d25a6327260fad9af207f5fc0e14a9b9652a9d374c2e615e6c46b7e5f5a2",
+        "actual_event_hash": "d986d25a6327260fad9af207f5fc0e14a9b9652a9d374c2e615e6c46b7e5f5a2",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "005-bundle_index_written",
+        "action": "bundle_index_written",
+        "status": "passed",
+        "expected_event_hash": "50fcb4ee9f37ed6e04d7b26120b6bbb45a009051b40d579730a898963809c91e",
+        "actual_event_hash": "50fcb4ee9f37ed6e04d7b26120b6bbb45a009051b40d579730a898963809c91e",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      }
+    ]
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "unsafe_path_count": 0,
+    "self_hash_excluded": true
+  },
+  "findings": [],
+  "process_exit_code": 0
+}
