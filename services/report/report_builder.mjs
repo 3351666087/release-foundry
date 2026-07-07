@@ -443,6 +443,11 @@ export function summarizeMediaReadiness(runFixture = {}, gradeFixture = {}, usag
     unconfirmedSignedUrlTypes,
     renderLiveLinks
   });
+  const evidenceQueue = buildMediaEvidenceQueue(mediaCases, {
+    confirmedSignedUrlTypes,
+    unconfirmedSignedUrlTypes,
+    renderLiveLinks
+  });
 
   return {
     available: mediaCases.length > 0 || channels.length > 0 || signedUrlKeyCount > 0 || outputPathKeyCount > 0,
@@ -459,6 +464,8 @@ export function summarizeMediaReadiness(runFixture = {}, gradeFixture = {}, usag
     values_redacted: mediaSignedUrlFixture.signed_url_values_saved === false || mediaSignedUrlFixture.safety?.signed_url_values_saved === false,
     safety: objectOr(mediaSignedUrlFixture.safety),
     channel_matrix: channelMatrix,
+    evidence_queue: evidenceQueue,
+    evidence_queue_count: evidenceQueue.length,
     guidance: renderLiveLinks
       ? "Live signed media links can be rendered from the current evidence."
       : "Render media metadata only. Do not render live signed URLs until audio/image/video signed URL and expiry behavior are confirmed.",
@@ -704,6 +711,74 @@ export function summarizeOfficialFrontendMirror(mirrorFixture = {}) {
       raw_signed_urls_allowed: safety.raw_signed_urls_allowed === true
     },
     recommendation: mvpRecommendations[0] || "Use official frontend structure as product reference only, then implement A3-owned dashboard views with redacted fixtures."
+  };
+}
+
+export function summarizeOfficialParityRoadmap(
+  runFixture = {},
+  gradeFixture = {},
+  coverageFixture = {},
+  requestFixture = {},
+  usageFixture = {},
+  usageApiProbe = {},
+  mediaSignedUrlFixture = {},
+  frontendMirrorFixture = {}
+) {
+  const summary = buildDashboardSummary(runFixture, gradeFixture);
+  const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
+  const mirror = summarizeOfficialFrontendMirror(frontendMirrorFixture);
+  const media = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, mediaSignedUrlFixture);
+  const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
+  const copiedPages = mirror.pages.filter((page) => page.a3_status === "copy");
+  const partialPages = mirror.pages.filter((page) => page.a3_status === "partial");
+  const futurePages = mirror.pages.filter((page) => page.a3_status === "future");
+  const outOfScopePages = mirror.pages.filter((page) => page.a3_status === "out_of_scope");
+  const priorities = [
+    parityAction("Results review", "copy_now", summary.totalRuns > 0, "Keep run list, case detail, expected vs actual, score, pass/fail, and failed-case triage as the A3 core."),
+    parityAction("Trace / observability", media.vm_stream_count > 0 ? "copy_now" : "next", summary.traceCompleteness >= 90, "Use official Observability as inspiration for trace timeline, replay, latency, and tool-error review."),
+    parityAction("Media evidence", media.available ? "copy_now" : "next", media.available, media.guidance),
+    parityAction("Usage / quota", usageQuota.available ? "read_only" : "next", usageQuota.available, "Show quota and billing-adjacent signals as read-only evidence; do not copy checkout or enforcement."),
+    parityAction("Trust / audit", "copy_as_report", true, "Use official Trust ideas through local audit bundle, verifier, print/PDF, and release sign-off reports."),
+    parityAction("API keys / team / billing", "do_not_copy", false, "Keep OAuth, key creation, team invites, billing portal, and destructive cloud mutations out of the student MVP.")
+  ];
+  const mediaActions = [
+    ...media.signed_url_unconfirmed_types.map((channel) => parityAction(`${channel} signed URL`, "calibrate_next", false, `Collect a redacted ${channel} sample before rendering live previews.`)),
+    media.evidence_queue_count > 0
+      ? parityAction("Media evidence queue", "copy_now", true, `${media.evidence_queue_count} media case(s) can be reviewed with metadata-only previews.`)
+      : parityAction("Media evidence queue", "next", false, "Add redacted audio/image/video/file examples before claiming official media parity.")
+  ];
+
+  return {
+    schema_version: "a3.official_parity_roadmap.v1",
+    available: officialGap.available || mirror.available || media.available,
+    official_gap_blocked_count: officialGap.blocked_count,
+    official_gap_blocked_areas: officialGap.blocked.map((item) => item.area),
+    official_pages_observed: mirror.page_count,
+    copied_page_count: copiedPages.length,
+    partial_page_count: partialPages.length,
+    future_page_count: futurePages.length,
+    out_of_scope_page_count: outOfScopePages.length,
+    copied_pages: copiedPages.map((page) => page.label),
+    partial_pages: partialPages.map((page) => page.label),
+    future_pages: futurePages.map((page) => page.label),
+    out_of_scope_pages: outOfScopePages.map((page) => page.label),
+    priorities,
+    media_actions: mediaActions,
+    cloud_admin_boundaries: [
+      "Do not implement OAuth/login for A3 MVP.",
+      "Do not implement API-key creation, reveal, revoke, or storage.",
+      "Do not implement billing checkout, portal, upgrade, or quota enforcement.",
+      "Do not implement team invites or account administration.",
+      "Keep cloud/admin concepts as read-only product shell evidence."
+    ],
+    next_build_order: [
+      "Official Results-page visual confirmation for run 11926.",
+      "Trace/Observability replay lane for top-risk cases.",
+      "Redacted audio/image/video media samples and metadata-only previews.",
+      "Trust/audit report improvements tied to bundle verifier.",
+      "Self-host/enterprise shell that proves no secrets or cloud mutations are required."
+    ],
+    recommendation: "Use official Ashr for product workflow parity, but keep A3 focused on local release intelligence: results, case detail, trace, failure analysis, media evidence, reports, and audit."
   };
 }
 
@@ -1289,6 +1364,87 @@ function buildMediaChannelMatrix({
   });
 }
 
+function buildMediaEvidenceQueue(mediaCases = [], {
+  confirmedSignedUrlTypes = [],
+  unconfirmedSignedUrlTypes = [],
+  renderLiveLinks = false
+} = {}) {
+  return mediaCases
+    .map((item) => {
+      const evidence = item.media_evidence || {};
+      const evidenceItems = Array.isArray(evidence.evidence_items) ? evidence.evidence_items : [];
+      const vmStreams = Array.isArray(evidence.vm_streams) ? evidence.vm_streams : [];
+      const mediaTypes = sortMediaChannels([
+        evidence.primary_media_type,
+        ...(Array.isArray(evidence.media_types) ? evidence.media_types : []),
+        ...evidenceItems.map((entry) => entry.type),
+        ...vmStreams.map((entry) => entry.type || "vm_stream")
+      ].map(canonicalMediaChannel).filter(Boolean));
+      const primaryMediaType = canonicalMediaChannel(evidence.primary_media_type)
+        || mediaTypes[0]
+        || (vmStreams.length ? "vm_stream" : "files");
+      const hasConfirmedSignedUrl = mediaTypes.some((type) => confirmedSignedUrlTypes.includes(type));
+      const hasUnconfirmedSignedUrl = mediaTypes.some((type) => unconfirmedSignedUrlTypes.includes(type));
+      const safeToRender = renderLiveLinks && hasConfirmedSignedUrl && !hasUnconfirmedSignedUrl;
+      const signedUrlStatus = hasConfirmedSignedUrl
+        ? "confirmed_redacted_metadata"
+        : hasUnconfirmedSignedUrl
+          ? "unconfirmed"
+          : "not_observed";
+      const previewPolicy = safeToRender
+        ? "live_preview_allowed"
+        : hasConfirmedSignedUrl
+          ? "redacted_signed_url_metadata_only"
+          : primaryMediaType === "vm_stream"
+            ? "vm_stream_summary_only"
+            : "metadata_only";
+      const knownGaps = uniqueSorted([
+        ...(Array.isArray(evidence.known_gaps) ? evidence.known_gaps : []),
+        hasUnconfirmedSignedUrl ? `${primaryMediaType} signed URL behavior is unconfirmed.` : "",
+        safeToRender ? "" : "Live preview is disabled until signed URL safety is confirmed."
+      ]);
+
+      return {
+        case_id: item.case_id || "unknown_case",
+        scenario_id: item.scenario_id || "unknown_scenario",
+        title: item.title || "Untitled media case",
+        status: item.passed ? "passed" : "failed",
+        score: normalizeScore(item.score),
+        severity: item.severity || "none",
+        primary_failure_class: item.primary_failure_class || "none",
+        primary_media_type: primaryMediaType,
+        media_types: mediaTypes,
+        evidence_count: evidenceItems.length,
+        vm_stream_count: vmStreams.length,
+        signed_url_status: signedUrlStatus,
+        preview_policy: previewPolicy,
+        safe_to_render: safeToRender,
+        next_action: safeToRender
+          ? "Render live preview only from fresh runtime URLs."
+          : hasUnconfirmedSignedUrl
+            ? "Collect a redacted signed URL shape for this channel before live rendering."
+            : "Review metadata, output paths, VM stream summaries, and expected vs actual evidence.",
+        known_gaps: knownGaps
+      };
+    })
+    .sort((left, right) => (
+      Number(left.status === "passed") - Number(right.status === "passed")
+      || right.evidence_count - left.evidence_count
+      || right.vm_stream_count - left.vm_stream_count
+      || left.case_id.localeCompare(right.case_id)
+    ))
+    .slice(0, 8);
+}
+
+function parityAction(area, action, confirmed, note) {
+  return {
+    area,
+    action,
+    confirmed: Boolean(confirmed),
+    note
+  };
+}
+
 function caseHasMediaChannel(item = {}, channel = "") {
   const evidence = item.media_evidence || {};
   if (channel === "vm_stream") {
@@ -1790,6 +1946,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const cloudConsoleShell = summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe);
   const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
   const officialFrontendMirror = summarizeOfficialFrontendMirror(frontendMirrorFixture);
+  const officialParityRoadmap = summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture);
   const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
@@ -2029,6 +2186,38 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("");
   }
 
+  if (officialParityRoadmap.available) {
+    lines.push(
+      "## Official Parity Roadmap",
+      "",
+      `- Official pages observed: ${officialParityRoadmap.official_pages_observed}`,
+      `- Copied pages: ${officialParityRoadmap.copied_page_count}`,
+      `- Partial pages: ${officialParityRoadmap.partial_page_count}`,
+      `- Future pages: ${officialParityRoadmap.future_page_count}`,
+      `- Out-of-scope pages: ${officialParityRoadmap.out_of_scope_page_count}`,
+      `- Official blocked gaps: ${officialParityRoadmap.official_gap_blocked_count}`,
+      `- Recommendation: ${officialParityRoadmap.recommendation}`,
+      ""
+    );
+    lines.push("### Build Priorities", "");
+    for (const item of officialParityRoadmap.priorities) {
+      lines.push(`- ${item.area}: ${item.action} / ${item.confirmed ? "confirmed" : "unconfirmed"} - ${item.note}`);
+    }
+    lines.push("", "### Media Actions", "");
+    for (const item of officialParityRoadmap.media_actions) {
+      lines.push(`- ${item.area}: ${item.action} - ${item.note}`);
+    }
+    lines.push("", "### Cloud/Admin Boundaries", "");
+    for (const boundary of officialParityRoadmap.cloud_admin_boundaries) {
+      lines.push(`- ${boundary}`);
+    }
+    lines.push("", "### Next Build Order", "");
+    for (const step of officialParityRoadmap.next_build_order) {
+      lines.push(`- ${step}`);
+    }
+    lines.push("");
+  }
+
   lines.push(
     "## Failure Clusters",
     ""
@@ -2096,6 +2285,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     cloud_console_shell: summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe),
     official_ashr_gap: summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe),
     official_frontend_mirror: summarizeOfficialFrontendMirror(frontendMirrorFixture),
+    official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture),
     release_gate: summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
