@@ -563,6 +563,27 @@ test("probe CLI protected print-record is blocked before key lookup", async () =
   }
 });
 
+
+test("probe CLI output policy marks synthetic override", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const gateFile = join(temp, "gate.json");
+  const output = join(temp, "validation.json");
+  try {
+    writePlanBatchGate(gateFile, "go", { targetOperation: "create-request" });
+    const capture = captureStreams();
+    const code = await main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", gateFile, "--output", output, "--allow-nonprivate-output"], {}, capture.streams);
+    const record = readJson(output);
+
+    assert.equal(code, 0);
+    assert.equal(record.output_policy.private_output_required, true);
+    assert.equal(record.output_policy.allow_nonprivate_output, true);
+    assert.equal(record.output_policy.nonprivate_output_override_used, true);
+    assert.equal(record.output_policy.sink, "nonprivate_file");
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("probe CLI protected output blocks before key lookup", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
   const output = join(temp, "real.json");

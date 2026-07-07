@@ -142,7 +142,7 @@ export async function main(
     outputPath = candidateOutputPath;
     if (isLocalOperation(requireOperation(args.operation))) {
       dryRun = true;
-      const record = await runLocalOperation(args, { outputPath });
+      const record = withOutputPolicy(await runLocalOperation(args, { outputPath }), args, outputPath);
       await emitRecord(record, outputPath, streams.stdout, { printRecord: args.printRecord });
       if (args.operation === "validate-gate" && record.status === "error") {
         const validation = isRecord(record.response) && isRecord(record.response.validation) ? record.response.validation : undefined;
@@ -160,7 +160,7 @@ export async function main(
       maxRetries: args.maxRetries,
       retryBackoffMs: args.retryBackoffMs,
     });
-    const record = await runOperation(client, args, { dryRun, outputPath });
+    const record = withOutputPolicy(await runOperation(client, args, { dryRun, outputPath }), args, outputPath);
     await emitRecord(record, outputPath, streams.stdout, { printRecord: args.printRecord });
     return 0;
   } catch (error) {
@@ -1414,6 +1414,32 @@ function enforcePrivateOutputPath(args: ProbeCliArgs, outputPath: string | undef
     return;
   }
   throw new CliUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests");
+}
+
+function outputPolicy(args: ProbeCliArgs, outputPath: string | undefined): JsonRecord {
+  const required = requiresPrivateOutput(args);
+  const isPrivate = outputPath !== undefined && isPrivateOutputPath(outputPath);
+  return {
+    schema_version: "ashr.clone.output_policy.v1",
+    private_output_required: required,
+    allow_nonprivate_output: Boolean(args.allowNonprivateOutput),
+    nonprivate_output_override_used: Boolean(required && args.allowNonprivateOutput && !isPrivate),
+    output_is_private: isPrivate,
+    sink: outputPath === undefined ? "stdout" : isPrivate ? "private_file" : "nonprivate_file",
+    private_root: "docs/evidence/private_refs",
+    resolved_under_repo: outputPath === undefined ? null : repoRelativeOutputPath(outputPath),
+    full_record_stdout_blocked: Boolean(required && !args.allowNonprivateOutput),
+  };
+}
+
+function withOutputPolicy(record: AshrApiCallRecord, args: ProbeCliArgs, outputPath: string | undefined): AshrApiCallRecord {
+  return { ...(record as unknown as JsonRecord), output_policy: outputPolicy(args, outputPath) } as unknown as AshrApiCallRecord;
+}
+
+function repoRelativeOutputPath(outputPath: string): string {
+  const target = resolveOutputPath(outputPath);
+  const pathFromRepo = relative(REPO_ROOT, target);
+  return pathFromRepo.startsWith("..") || isAbsolute(pathFromRepo) ? "<outside-repo>" : pathFromRepo.replaceAll("\\", "/");
 }
 
 function requiresPrivateOutput(args: ProbeCliArgs): boolean {

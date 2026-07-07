@@ -189,6 +189,8 @@ def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_pa
     assert manifest["dry_run"] is True
     assert manifest["summary"]["total_steps"] == 5
     assert manifest["summary"]["mutating_steps"] == 0
+    assert manifest["guardrails"]["output_policy"]["private_output_required"] is False
+    assert manifest["guardrails"]["output_policy"]["sink"] == "nonprivate_file"
     assert output.exists()
     for step in manifest["steps"]:
         assert Path(step["private_record_path"]).exists()
@@ -203,6 +205,8 @@ def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path:
     assert manifest["status"] == "ok"
     assert manifest["summary"]["read_steps"] == 5
     assert manifest["summary"]["mutating_steps"] == 0
+    assert manifest["guardrails"]["output_policy"]["private_output_required"] is True
+    assert manifest["guardrails"]["output_policy"]["nonprivate_output_override_used"] is True
     assert all(call[0] != "create_request" for call in client.calls)
     assert manifest["guardrails"]["quota_gate"] is None
 

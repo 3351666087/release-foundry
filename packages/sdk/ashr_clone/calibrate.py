@@ -150,6 +150,7 @@ def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = No
                 "max_retries_for_execute": args.max_retries if args.execute else None,
                 "raw_records_private": True,
                 "quota_gate": quota_gate_summary,
+                "output_policy": output_policy(args, manifest_path),
             },
             "summary": {
                 "total_steps": len(step_results),
@@ -654,6 +655,30 @@ def enforce_private_output_path(args: CalibrationArgs, output: str | Path) -> No
     if _is_private_output_path(output):
         return
     raise CalibrationUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests")
+
+
+def output_policy(args: CalibrationArgs, output: str | Path) -> JsonDict:
+    required = _requires_private_output(args)
+    private = _is_private_output_path(output)
+    return {
+        "schema_version": "ashr.clone.output_policy.v1",
+        "private_output_required": required,
+        "allow_nonprivate_output": bool(args.allow_nonprivate_output),
+        "nonprivate_output_override_used": bool(required and args.allow_nonprivate_output and not private),
+        "output_is_private": private,
+        "sink": "private_file" if private else "nonprivate_file",
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": _repo_relative_output_path(output),
+        "full_record_stdout_blocked": bool(required and not args.allow_nonprivate_output),
+    }
+
+
+def _repo_relative_output_path(path: str | Path) -> str:
+    target = _resolve_output_path(path)
+    try:
+        return target.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return "<outside-repo>"
 
 
 def _requires_private_output(args: CalibrationArgs) -> bool:

@@ -892,6 +892,22 @@ def test_api_probe_quota_record_protected_output_blocks_before_record_read(tmp_p
     assert not output.exists()
 
 
+def test_api_probe_output_policy_marks_synthetic_override(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-request")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert record["output_policy"]["private_output_required"] is True
+    assert record["output_policy"]["allow_nonprivate_output"] is True
+    assert record["output_policy"]["nonprivate_output_override_used"] is True
+    assert record["output_policy"]["sink"] == "nonprivate_file"
+
+
 def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
     root = Path(__file__).resolve().parents[2]
     operations = {
@@ -923,6 +939,9 @@ def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
         assert record["attempts"] == 0
         assert record["request"]["function"] == expected_function
         assert record["request"]["mutates"] is False
+        assert record["output_policy"]["schema_version"] == "ashr.clone.output_policy.v1"
+        assert record["output_policy"]["private_output_required"] is False
+        assert record["output_policy"]["sink"] == "nonprivate_file"
 
 
 def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):

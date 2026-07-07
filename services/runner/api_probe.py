@@ -111,13 +111,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.operation == "plan-batch":
             if args.execute:
                 raise ValueError("plan-batch is planning-only; omit --execute")
-            record = run_operation(None, args, output=output, dry_run=True)
+            record = with_output_policy(run_operation(None, args, output=output, dry_run=True), args, output)
+            write_json(output, record)
             print("{mode} {operation}: status={status} attempts={attempts} output={output}".format(mode="planned", operation=args.operation, status=record["status"], attempts=record["attempts"], output=output))
             return 0
         if args.operation == "validate-gate":
             if args.execute:
                 raise ValueError("validate-gate is read-only; omit --execute")
-            record = run_operation(None, args, output=output, dry_run=True)
+            record = with_output_policy(run_operation(None, args, output=output, dry_run=True), args, output)
+            write_json(output, record)
             print("validated validate-gate: status={status} issues={issues} output={output}".format(status=record["status"], issues=len(record["response"]["validation"]["issues"]), output=output))
             return 0
         if args.execute and args.operation in MUTATING_OPERATIONS and not args.allow_mutate:
@@ -129,7 +131,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.base_url:
             client_kwargs["base_url"] = args.base_url
         client = AshrApiClient.from_env(required=args.execute, **client_kwargs)
-        record = run_operation(client, args, output=output, dry_run=dry_run)
+        record = with_output_policy(run_operation(client, args, output=output, dry_run=dry_run), args, output)
+        write_json(output, record)
         print("{mode} {operation}: status={status} attempts={attempts} output={output}".format(mode="executed" if args.execute else "planned", operation=args.operation, status=record["status"], attempts=record["attempts"], output=output))
         return 0
     except MissingAshrApiKeyError as exc:
@@ -816,6 +819,35 @@ def enforce_private_output_path(args: argparse.Namespace, output: Path) -> None:
     if _is_private_output_path(output):
         return
     raise ValueError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests")
+
+
+def output_policy(args: argparse.Namespace, output: Path) -> dict[str, Any]:
+    required = _requires_private_output(args)
+    private = _is_private_output_path(output)
+    return {
+        "schema_version": "ashr.clone.output_policy.v1",
+        "private_output_required": required,
+        "allow_nonprivate_output": bool(getattr(args, "allow_nonprivate_output", False)),
+        "nonprivate_output_override_used": bool(required and getattr(args, "allow_nonprivate_output", False) and not private),
+        "output_is_private": private,
+        "sink": "private_file" if private else "nonprivate_file",
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": _repo_relative_output_path(output),
+        "full_record_stdout_blocked": bool(required and not getattr(args, "allow_nonprivate_output", False)),
+    }
+
+
+def with_output_policy(record: dict[str, Any], args: argparse.Namespace, output: Path) -> dict[str, Any]:
+    record["output_policy"] = output_policy(args, output)
+    return record
+
+
+def _repo_relative_output_path(path: Path) -> str:
+    target = _resolve_output_path(path)
+    try:
+        return target.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return "<outside-repo>"
 
 
 def _requires_private_output(args: argparse.Namespace) -> bool:

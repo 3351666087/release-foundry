@@ -181,6 +181,7 @@ export async function runCalibration(args: CalibrationArgs, env: Record<string, 
       paid_media_requires_allow_paid_media: true,
       max_retries_for_execute: args.execute ? args.maxRetries : null,
       raw_records_private: true,
+      output_policy: outputPolicy(args, outputPath),
     },
     summary: {
       total_steps: stepResults.length,
@@ -814,6 +815,28 @@ function enforcePrivateOutputPath(args: CalibrationArgs, outputPath: string): vo
     return;
   }
   throw new CalibrationUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests");
+}
+
+function outputPolicy(args: CalibrationArgs, outputPath: string): JsonRecord {
+  const required = requiresPrivateOutput(args);
+  const isPrivate = isPrivateOutputPath(outputPath);
+  return {
+    schema_version: "ashr.clone.output_policy.v1",
+    private_output_required: required,
+    allow_nonprivate_output: Boolean(args.allowNonprivateOutput),
+    nonprivate_output_override_used: Boolean(required && args.allowNonprivateOutput && !isPrivate),
+    output_is_private: isPrivate,
+    sink: isPrivate ? "private_file" : "nonprivate_file",
+    private_root: "docs/evidence/private_refs",
+    resolved_under_repo: repoRelativeOutputPath(outputPath),
+    full_record_stdout_blocked: Boolean(required && !args.allowNonprivateOutput),
+  };
+}
+
+function repoRelativeOutputPath(outputPath: string): string {
+  const target = resolveOutputPath(outputPath);
+  const pathFromRepo = relative(REPO_ROOT, target);
+  return pathFromRepo.startsWith("..") || isAbsolute(pathFromRepo) ? "<outside-repo>" : pathFromRepo.replaceAll("\\", "/");
 }
 
 function requiresPrivateOutput(args: CalibrationArgs): boolean {

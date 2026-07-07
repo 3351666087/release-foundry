@@ -78,6 +78,8 @@ test("calibrate CLI dry-run writes a five-modality manifest without fetch", asyn
     assert.equal(manifest.schema_version, "ashr.clone.api_calibration_manifest.v1");
     assert.equal(manifest.summary.read_steps, 5);
     assert.equal(manifest.summary.mutating_steps, 0);
+    assert.equal(manifest.guardrails.output_policy.private_output_required, false);
+    assert.equal(manifest.guardrails.output_policy.sink, "nonprivate_file");
     assert.deepEqual(manifest.summary.modalities, []);
     assert.equal(manifest.env.auth_env_present.includes(ASHR_API_ENV_VAR), false);
     assert.equal(manifest.steps.every((step) => step.status === "planned"), true);
@@ -353,6 +355,8 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
     assert.equal(manifest.summary.read_steps, 5);
     assert.equal(manifest.summary.mutating_steps, 0);
     assert.equal(manifest.env.auth_env_present.includes(ASHR_API_ENV_VAR), true);
+    assert.equal(manifest.guardrails.output_policy.private_output_required, true);
+    assert.equal(manifest.guardrails.output_policy.nonprivate_output_override_used, true);
     assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
     assert.equal(seen.length, 6);
     assert.equal(seen.every((item) => item.authorization === "Bearer tp_syntheticsecret"), true);

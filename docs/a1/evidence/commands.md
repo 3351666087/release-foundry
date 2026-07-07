@@ -1027,3 +1027,35 @@ Results:
 - Public evidence index after merge: 337 records, 16 response-field functions, quota block count 41, lint issues 0.
 - Chrome retry after user opened Chrome failed at plugin runtime setup with `failed to write kernel assets: ??????????? (os error 3)`; no Ashr key was entered into Chrome or logs.
 - `git diff --check`: exit 0 with CRLF warnings only after whitespace cleanup.
+
+
+## 2026-07-07 Round13 A1 output policy and frontend mirror calibration
+
+Baseline:
+- Branch `codex/a1-local-sdk-runner` was synced with origin after Round12 push `44e22a6`.
+- Peer update observed on `origin/dev/g3-a2-calibration`; no A2/A3 files were staged in this A1 round.
+- Untracked `recon/` and `tools/` remain local reference artifacts and are not part of the commit.
+
+20 growth points considered:
+1. output_policy in Python probe; 2. output_policy in Python calibrator; 3. output_policy in TS probe; 4. output_policy in TS calibrator; 5. protected stdout policy tests; 6. synthetic override audit metadata; 7. repo-root private path metadata; 8. frontend mirror scan; 9. media parity labels; 10. Usage/nav labels; 11. TS/Python output_policy parity tests; 12. public-safe mirror evidence; 13. full A1 pytest; 14. full TS test; 15. readiness smoke; 16. public evidence lint; 17. secret scan; 18. Growth-Auditor review; 19. Reviewer P1 follow-up; 20. next-round frontend field map.
+
+Implemented:
+- Added `output_policy` metadata to Python/TS API probe records and Python/TS calibration manifests.
+- `output_policy` records `schema_version`, `private_output_required`, `allow_nonprivate_output`, `nonprivate_output_override_used`, `output_is_private`, `sink`, `private_root`, `resolved_under_repo`, and `full_record_stdout_blocked`.
+- Added tests proving dry-run nonprotected records, protected synthetic overrides, and calibrator manifests expose safe output policy metadata.
+- Read-only scanned `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` via `%TEMP%` and wrote public-safe summary `docs/a1/evidence/round13_frontend_mirror_findings.md`.
+
+Validation so far:
+- Focused Python probe/calibrator tests: `97 passed`.
+- TypeScript package tests: `180 passed`.
+
+Known gaps:
+- Final validation: Python A1 full 196 passed, TS package 180 passed, readiness ok, public evidence lint 0, git diff check ok; secret scan only matched historical/synthetic tokens. Need Growth-Auditor follow-up and commit/push.
+
+
+Growth-Auditor Round13 follow-up:
+- P0 next: promote `output_policy` into a formal schema/readiness contract, aggregate it in public evidence index, and block unsafe public summaries from real nonprivate override records.
+- P0 next: govern frontend mirror outputs through public-safe mirror indexes instead of committing raw `recon/`/zip artifacts.
+- P0 next: convert real API evidence into a commercial capability matrix: local-only / real-read verified / mutating verified / quota-blocked / frontend-mirrored.
+- P1 next: add `--nonprivate-output-reason`, stronger real execute override friction, official mirror diffing, and real API error taxonomy.
+- Current round remains valid: output_policy metadata and frontend mirror findings move A1 toward enterprise evidence governance, but do not complete the long-running commercial goal.
