@@ -21,6 +21,31 @@
     "validate_gate": 3
   },
   "label": "a1-real-api-2026-07-07-round12-private-output-guard",
+  "output_policy_counts": {
+    "by_producer": {},
+    "by_record_class": {},
+    "missing": 337,
+    "none": 0,
+    "nonprivate_file": 0,
+    "nonprivate_override": 0,
+    "present": 0,
+    "private_file": 0,
+    "private_not_required": 0,
+    "private_required": 0,
+    "private_required_but_not_private": 0,
+    "resolved_outside_repo": 0,
+    "resolved_under_private_root": 0,
+    "sink": {
+      "none": 0,
+      "nonprivate_file": 0,
+      "private_file": 0,
+      "stdout": 0
+    },
+    "stdout": 0,
+    "stdout_full_record_blocked": 0,
+    "stdout_full_record_requested": 0,
+    "unsafe_real_nonprivate_override": 0
+  },
   "quota_block_count": 41,
   "records": [
     {

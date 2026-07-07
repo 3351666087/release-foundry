@@ -1059,3 +1059,53 @@ Growth-Auditor Round13 follow-up:
 - P0 next: convert real API evidence into a commercial capability matrix: local-only / real-read verified / mutating verified / quota-blocked / frontend-mirrored.
 - P1 next: add `--nonprivate-output-reason`, stronger real execute override friction, official mirror diffing, and real API error taxonomy.
 - Current round remains valid: output_policy metadata and frontend mirror findings move A1 toward enterprise evidence governance, but do not complete the long-running commercial goal.
+
+
+## 2026-07-07 Round14 A1 evidence contract and frontend mirror index
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner` after Round13 push `726881b`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` completed; untracked `recon/` and `tools/` remain unstaged local references.
+
+20 A1 growth points considered:
+1. output_policy schema; 2. evidence index output_policy counts; 3. unsafe real nonprivate override blocker; 4. schema test; 5. public index refresh; 6. frontend mirror safe index; 7. frontend mirror schema; 8. mirror secret policy test; 9. mirror media labels; 10. mirror API entrypoint; 11. mirror lifecycle labels; 12. readiness smoke; 13. Python full regression; 14. TS full regression; 15. public evidence lint; 16. diff check; 17. secret scan; 18. Growth-Auditor review; 19. Worker-Mirror design alignment; 20. next-round commercial capability matrix.
+
+Implemented:
+- Added `docs/a1/schemas/output_policy.schema.json`.
+- Extended `docs/a1/schemas/evidence_index.schema.json` with `output_policy_counts`.
+- Updated `packages/sdk/ashr_clone/evidence.py` to preserve public-safe output policy metadata, aggregate output-policy counts, and flag unsafe real nonprivate output overrides.
+- Refreshed `docs/a1/api_calibration/real_api_evidence_index.json` and response field map artifacts; historical records are counted as `output_policy_counts.missing=337` until regenerated from newer private evidence.
+- Added `docs/a1/frontend_mirror/frontend_mirror_index.json` and `docs/a1/frontend_mirror/index.schema.json` as a public-safe index derived from the desktop frontend mirror zip without committing raw mirror files.
+- Added `tests/a1/test_frontend_mirror_index.py` and expanded evidence-index tests.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 199 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 180 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round14_contracts.json`: ok.
+- Public evidence lint: 337 records, output_policy_counts present, lint issues 0.
+- `git diff --check`: ok.
+
+Growth-Auditor / Worker-Mirror follow-up:
+- P0 remaining: turn output_policy into readiness gate across A2/A3, add stale/legacy evidence scanner, and expand frontend mirror safe index into route/assets/function-domain structure.
+- P0 remaining: build commercial capability matrix from local-only / real-read verified / mutating verified / quota-blocked / frontend-mirrored evidence.
+- Worker-Mirror recommended richer `frontend_mirror_index.v1`; this round lands an MVP public-safe index and tests, with full route/assets/domain expansion next.
+
+## Round14 final hardening addendum - 2026-07-07
+
+```powershell
+python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider
+python -B -m pytest tests/a1/test_frontend_mirror_index.py tests/a1/test_evidence_index.py -q -p no:cacheprovider
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round14_contracts_final.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import validate_public_evidence_index; index=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); print({'records': index['total_records'], 'output_policy_counts': index.get('output_policy_counts'), 'lint_issues': len(validate_public_evidence_index(index))})"
+git diff --check
+```
+
+Results:
+- Focused frontend/evidence tests: 15 passed.
+- Python A1 full suite: 202 passed.
+- TypeScript package suite: 180 passed.
+- Readiness smoke: ok, private summary at `docs/evidence/private_refs/a1_readiness_round14_contracts_final.json` (not committed).
+- Public evidence index: 337 records, extended output policy counts present, lint issues 0.
+- Diff whitespace check: ok.
