@@ -6,11 +6,13 @@ import type { JsonRecord } from "./index.js";
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
 export const SAAS_CLIENT_VERSION = "ashr.clone.ts_saas_ingestion_client.v1";
 export const SAAS_OPENAPI_SCHEMA_VERSION = "ashr.clone.saas_openapi.v1";
+export const CONTROL_PLANE_OPENAPI_VERSION = "3.0.3";
 export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "api_key.create": 100,
   "run.upload": 10000,
   "sdk.submit": 10000,
   "trace.ingest": 100000,
+  "artifact.manifest": 10000,
 };
 
 export const API_KEY_ADMIN_SCOPE = "api_key:write";
@@ -18,6 +20,7 @@ export const API_KEY_READ_SCOPE = "api_key:read";
 export const RUN_CREATE_SCOPE = "run:create";
 export const RUN_UPLOAD_SCOPE = "run:upload";
 export const TRACE_INGEST_SCOPE = "trace:ingest";
+export const ARTIFACT_MANIFEST_SCOPE = "artifact:upload";
 export const ADMIN_ALL_SCOPE = "admin:all";
 export const USAGE_READ_SCOPE = "usage:read";
 export const AUDIT_READ_SCOPE = "audit:read";
@@ -29,6 +32,8 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "runs:write": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE],
   "write:runs": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE],
   "traces:write": [TRACE_INGEST_SCOPE],
+  "artifact:write": [ARTIFACT_MANIFEST_SCOPE],
+  "artifacts:write": [ARTIFACT_MANIFEST_SCOPE],
   [API_KEY_ADMIN_SCOPE]: [API_KEY_READ_SCOPE],
   [ADMIN_ALL_SCOPE]: ["*"],
 };
@@ -41,6 +46,7 @@ export interface SaaSControlPlaneStore {
   audit_log: Record<string, JsonRecord>;
   usage_ledger: Record<string, JsonRecord>;
   idempotency_keys: Record<string, JsonRecord>;
+  artifact_manifests: Record<string, JsonRecord>;
 }
 
 export interface SaaSControlPlaneState extends JsonRecord {
@@ -83,6 +89,7 @@ export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore>
     audit_log: { ...(seed.audit_log ?? {}) },
     usage_ledger: { ...(seed.usage_ledger ?? {}) },
     idempotency_keys: { ...(seed.idempotency_keys ?? {}) },
+    artifact_manifests: { ...(seed.artifact_manifests ?? {}) },
   };
 }
 
@@ -305,8 +312,9 @@ export class SaaSControlPlaneService {
     };
   }
 
-  usageSnapshot(tenantId: string, projectId: string): JsonRecord {
+  usageSnapshot(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
     this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: USAGE_READ_SCOPE });
     const events = Object.values(this.store.usage_ledger).filter((item) => item.tenant_id === tenantId && item.project_id === projectId);
     const totals: Record<string, number> = {};
     for (const event of events) {
@@ -314,6 +322,42 @@ export class SaaSControlPlaneService {
       totals[op] = (totals[op] ?? 0) + Number(event.units ?? 0);
     }
     return { schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, events, totals, quota: this.cloud.quotaSnapshot(tenantId, projectId) };
+  }
+
+  createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
+    this.cloud.getRun(tenantId, projectId, runId);
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
+    const cached = this.idempotencyLookup(tenantId, projectId, "artifact.manifest", options.idempotencyKey);
+    if (cached !== null) return { ...cached, idempotent_replay: true };
+    const usage = this.consumeUsage(tenantId, projectId, "artifact.manifest", { apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId });
+    const artifactId = options.artifactId ?? newId("artifact");
+    const manifestCopy = cloneJson(manifest) as JsonRecord;
+    const record: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      tenant_id: tenantId,
+      project_id: projectId,
+      run_id: runId,
+      manifest_schema_version: String(manifestCopy.schema_version ?? "ashr.clone.artifact_manifest.v1"),
+      manifest_keys: Object.keys(manifestCopy).sort(),
+      manifest_sha256: sha256(JSON.stringify(sortJson(manifestCopy))),
+      raw_manifest_included: false,
+      api_key_id: options.apiKeyId ?? null,
+      request_id: options.requestId ?? null,
+      created_at: utcNow(),
+      usage_event_id: usage.usage_event_id,
+    };
+    this.store.artifact_manifests[artifactId] = record;
+    this.appendAudit(tenantId, projectId, "artifact.manifest", { targetId: runId, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: record });
+    const response = cloneJson(record) as JsonRecord;
+    this.idempotencyStore(tenantId, projectId, "artifact.manifest", options.idempotencyKey, response);
+    return response;
+  }
+
+  listArtifactManifests(tenantId: string, projectId: string, runId?: string, options: { authKeyId?: string } = {}): JsonRecord[] {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
+    return Object.values(this.store.artifact_manifests).filter((item) => item.tenant_id === tenantId && item.project_id === projectId && (runId === undefined || item.run_id === runId)).map((item) => cloneJson(item) as JsonRecord);
   }
 
   snapshotState(): SaaSControlPlaneState {
@@ -359,6 +403,7 @@ export class SaaSControlPlaneService {
         audit_log: stateBucket(control, "audit_log"),
         usage_ledger: stateBucket(control, "usage_ledger"),
         idempotency_keys: stateBucket(control, "idempotency_keys"),
+        artifact_manifests: stateBucket(control, "artifact_manifests"),
       },
     });
   }
@@ -456,7 +501,7 @@ export class SaaSControlPlaneRouter {
       if (upperMethod === "GET" && (parts.join("/") === "healthz" || parts.join("/") === "v1/healthz")) {
         return { status_code: 200, body: saasHealthz() };
       }
-      if (upperMethod === "GET" && (parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi")) {
+      if (upperMethod === "GET" && (parts.join("/") === "openapi.json" || parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi")) {
         return { status_code: 200, body: exportSaaSOpenApiSpec() };
       }
       if (upperMethod === "POST" && parts.join("/") === "v1/bootstrap") {
@@ -482,6 +527,9 @@ export class SaaSControlPlaneRouter {
         if (upperMethod === "POST" && parts.length === 4 && parts[3] === "sdk-submit") {
           return { status_code: 202, body: this.service.sdkSubmitRun(tenantId, projectId, { datasetId: String(body.dataset_id ?? ""), agentRef: String(body.agent_ref ?? ""), runId: optionalString(body.run_id), metadata: isRecord(body.metadata) ? body.metadata : undefined, apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
         }
+        if (upperMethod === "GET" && parts.length === 4 && parts[3] === "usage") {
+          return { status_code: 200, body: this.service.usageSnapshot(tenantId, projectId, { authKeyId }) };
+        }
         if (parts.length === 6 && parts[3] === "runs") {
           const runId = parts[4];
           if (upperMethod === "POST" && parts[5] === "upload") {
@@ -492,6 +540,12 @@ export class SaaSControlPlaneRouter {
           }
           if (upperMethod === "GET" && parts[5] === "lifecycle") {
             return { status_code: 200, body: this.service.lifecycleSnapshot(tenantId, projectId, runId) };
+          }
+          if (upperMethod === "POST" && parts[5] === "artifact-manifests") {
+            return { status_code: 202, body: this.service.createArtifactManifest(tenantId, projectId, runId, isRecord(body.manifest) ? body.manifest : body, { artifactId: optionalString(body.artifact_id), apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
+          }
+          if (upperMethod === "GET" && parts[5] === "artifact-manifests") {
+            return { status_code: 200, body: { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, { authKeyId }) } };
           }
         }
       }
@@ -557,25 +611,27 @@ export function saasHealthz(): JsonRecord {
     status: "ok",
     local_only: true,
     ashr_api_used: false,
-    service: "ashr-clone-saas-control-plane",
+    service: "ashr-saas-control-plane",
     client_version: SAAS_CLIENT_VERSION,
-    openapi_path: "/healthz/openapi",
+    openapi_path: "/openapi.json",
+    legacy_openapi_path: "/healthz/openapi",
   };
 }
 
 export function exportSaaSOpenApiSpec(options: { title?: string; version?: string; serverUrl?: string } = {}): JsonRecord {
-  const title = options.title ?? "Ashr Clone SaaS Control Plane";
-  const version = options.version ?? SAAS_OPENAPI_SCHEMA_VERSION;
+  const title = options.title ?? "Ashr SaaS Control Plane Runtime";
+  const version = options.version ?? CONTROL_PLANE_SCHEMA_VERSION;
   const serverUrl = options.serverUrl ?? "http://localhost";
   const json = { "application/json": { schema: { type: "object", additionalProperties: true } } };
   const response = (description: string): JsonRecord => ({ description, content: json });
   return {
-    openapi: "3.1.0",
-    info: { title, version, "x-schema-version": SAAS_OPENAPI_SCHEMA_VERSION, "x-client-version": SAAS_CLIENT_VERSION },
+    openapi: CONTROL_PLANE_OPENAPI_VERSION,
+    info: { title, version, description: "Local hosted/self-host control-plane HTTP adapter for SaaSControlPlaneRouter.", "x-schema-version": SAAS_OPENAPI_SCHEMA_VERSION, "x-client-version": SAAS_CLIENT_VERSION },
     servers: [{ url: serverUrl }],
     paths: {
       "/healthz": { get: { operationId: "healthz", responses: { "200": response("Health check") } } },
-      "/healthz/openapi": { get: { operationId: "exportOpenApi", responses: { "200": response("OpenAPI document") } } },
+      "/openapi.json": { get: { operationId: "exportOpenApi", responses: { "200": response("OpenAPI document") } } },
+      "/healthz/openapi": { get: { operationId: "exportOpenApiLegacy", responses: { "200": response("OpenAPI document") } } },
       "/v1/bootstrap": { post: { operationId: "bootstrapProject", requestBody: { content: json }, responses: { "201": response("Bootstrap result") } } },
       "/v1/projects/{project_id}/api-keys": {
         get: { operationId: "listApiKeys", parameters: pathTenantParameters(), responses: { "200": response("API keys") } },
@@ -587,6 +643,11 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/upload": { post: { operationId: "uploadRun", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Uploaded run result") } } },
       "/v1/projects/{project_id}/runs/{run_id}/trace-events": { post: { operationId: "ingestTrace", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Trace batch") } } },
       "/v1/projects/{project_id}/runs/{run_id}/lifecycle": { get: { operationId: "lifecycle", parameters: pathTenantParameters("run_id"), responses: { "200": response("Run lifecycle") } } },
+      "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests": {
+        get: { operationId: "listArtifactManifests", parameters: pathTenantParameters("run_id"), responses: { "200": response("Artifact manifests") } },
+        post: { operationId: "createArtifactManifest", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Artifact manifest receipt") } },
+      },
     },
     components: { schemas: { JsonRecord: { type: "object", additionalProperties: true } } },
     "x-local-only": true,
@@ -623,7 +684,7 @@ export class SaaSIngestionClient {
   }
 
   async openApi(options: { serverUrl?: string } = {}): Promise<JsonRecord> {
-    if (this.transport !== undefined) return this.requestJson("GET", "/healthz/openapi");
+    if (this.transport !== undefined) return this.requestJson("GET", "/openapi.json");
     return exportSaaSOpenApiSpec({ serverUrl: options.serverUrl });
   }
 
@@ -696,8 +757,16 @@ export class SaaSIngestionClient {
     return envelope("lifecycle", this.service.lifecycleSnapshot(tenantId, projectId, runId));
   }
 
-  usage(tenantId: string, projectId: string): JsonRecord {
-    return envelope("usage", this.service.usageSnapshot(tenantId, projectId));
+  usage(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
+    return envelope("usage", this.service.usageSnapshot(tenantId, projectId, options));
+  }
+
+  createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
+    return envelope("artifact_manifest", this.service.createArtifactManifest(tenantId, projectId, runId, manifest, options));
+  }
+
+  listArtifactManifests(tenantId: string, projectId: string, runId?: string, options: { authKeyId?: string } = {}): JsonRecord {
+    return envelope("artifact_manifests", { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, options) });
   }
 
   async createApiKeyHttp(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; apiKey?: string }): Promise<JsonRecord> {
@@ -727,6 +796,21 @@ export class SaaSIngestionClient {
   async lifecycleHttp(tenantId: string, projectId: string, runId: string): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/lifecycle`, { tenant_id: tenantId });
     return envelope("lifecycle", body);
+  }
+
+  async usageHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+    return envelope("usage", body);
+  }
+
+  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+    return envelope("artifact_manifest", body);
+  }
+
+  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+    return envelope("artifact_manifests", body);
   }
 }
 export const snapshotSaaSControlPlane = (service: SaaSControlPlaneService): SaaSControlPlaneState => service.snapshotState();

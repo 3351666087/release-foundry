@@ -135,3 +135,38 @@ test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+
+test("TS SaaS artifact manifests and usage parity are redacted and idempotent", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_artifact", projectId: "project_ts_artifact" });
+  service.cloud.createDataset("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", name: "Dataset", cases: [{ id: "case-1" }] });
+  service.createApiKey("tenant_ts_artifact", "project_ts_artifact", { name: "artifact-writer", scopes: ["sdk:submit", "artifact:write"], keyId: "key_ts_artifact" });
+  service.sdkSubmitRun("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", agentRef: "mock", runId: "run_ts_artifact", apiKeyId: "key_ts_artifact" });
+
+  const manifest = service.createArtifactManifest(
+    "tenant_ts_artifact",
+    "project_ts_artifact",
+    "run_ts_artifact",
+    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "tp_should_not_leak" }] },
+    { artifactId: "artifact_ts", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+  );
+  const replay = service.createArtifactManifest(
+    "tenant_ts_artifact",
+    "project_ts_artifact",
+    "run_ts_artifact",
+    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "different" }] },
+    { artifactId: "artifact_ts_again", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+  );
+
+  assert.equal(manifest.artifact_id, "artifact_ts");
+  assert.equal(manifest.raw_manifest_included, false);
+  assert.equal(replay.idempotent_replay, true);
+  assert.equal(replay.artifact_id, "artifact_ts");
+  assert.equal(JSON.stringify(manifest).includes("tp_should_not_leak"), false);
+
+  const listed = service.listArtifactManifests("tenant_ts_artifact", "project_ts_artifact", "run_ts_artifact");
+  assert.equal(listed.length, 1);
+  const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact");
+  assert.equal(usage.totals["artifact.manifest"], 1);
+});
