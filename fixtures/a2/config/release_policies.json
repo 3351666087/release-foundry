@@ -11,8 +11,22 @@
       "priority": 20
     },
     {
+      "assignment_id": "project_enterprise_saas_agent_prod",
+      "project_id": "project_enterprise_saas_agent",
+      "environment": "prod",
+      "policy_id": "release_policy_prod_strict",
+      "priority": 20
+    },
+    {
       "assignment_id": "project_enterprise_staging",
       "project_id": "project_enterprise",
+      "environment": "staging",
+      "policy_id": "release_policy_staging_balanced",
+      "priority": 10
+    },
+    {
+      "assignment_id": "project_enterprise_saas_agent_staging",
+      "project_id": "project_enterprise_saas_agent",
       "environment": "staging",
       "policy_id": "release_policy_staging_balanced",
       "priority": 10
