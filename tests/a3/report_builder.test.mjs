@@ -23,6 +23,7 @@ import {
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
+  summarizeRegressionFactory,
   summarizeIncidentReplayQueue,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseGate,
@@ -311,6 +312,40 @@ test("A3 observability replay matrix packages trace, error, judge, media, and of
   assert.match(markdown, /## Observability Replay Matrix/);
   assert.match(markdown, /Official observability confirmed: yes/);
   assert.match(markdown, /Trace Timeline/);
+});
+
+test("A3 regression factory turns replay failures into A1/A2 calibrated regression candidates", async () => {
+  const riskyRuns = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+  const frontendCodeCrawl = await loadJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
+
+  const factory = summarizeRegressionFactory(riskyRuns, riskyGrades, coverage, mediaSignedUrlCoverage, frontendCodeCrawl);
+
+  assert.equal(factory.schema_version, "a3.regression_factory.v1");
+  assert.equal(factory.available, true);
+  assert.ok(factory.candidate_count > 0);
+  assert.ok(factory.blocked_count > 0);
+  assert.ok(factory.tool_candidate_count > 0);
+  assert.equal(factory.official_results_review_confirmed, true);
+  assert.ok(factory.lanes.some((lane) => lane.lane === "A1 Trace Capture" && lane.ready_count > 0));
+  assert.ok(factory.lanes.some((lane) => lane.lane === "A2 Judge Contract" && lane.ready_count > 0));
+  assert.ok(factory.lanes.some((lane) => lane.lane === "Official Results Parity" && lane.status === "ready"));
+  assert.ok(factory.candidates.some((item) => item.required_contracts.includes("a1_trace_events")));
+  assert.ok(factory.candidates.some((item) => item.required_contracts.includes("a2_judge_evidence")));
+  assert.ok(factory.candidates.some((item) => item.proposed_assertions.some((assertion) => assertion.startsWith("assert_failure_class:"))));
+  assert.ok(factory.promotion_steps.some((step) => /A1 trace/.test(step)));
+  assert.ok(factory.promotion_steps.some((step) => /A2 judge/.test(step)));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.equal(json.regression_factory.schema_version, "a3.regression_factory.v1");
+  assert.equal(json.regression_factory.official_results_review_confirmed, true);
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.match(markdown, /## Regression Factory/);
+  assert.match(markdown, /Generated Suite Plan/);
+  assert.match(markdown, /Official Results review confirmed: yes/);
 });
 
 test("A3 report builder clusters failures by primary failure class", async () => {

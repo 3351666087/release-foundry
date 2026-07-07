@@ -334,6 +334,16 @@
 - [x] Added report-builder and dashboard-wiring tests for Observability Replay.
 - [x] Browser-smoke verified Observability Replay after official-demo dashboard load.
 - [x] Saved Observability Replay screenshot under `docs/screenshots/a3-dashboard-observability-replay-matrix.png`.
+- [x] Added Regression Factory summary schema `a3.regression_factory.v1`.
+- [x] Added `regression_factory` JSON export field.
+- [x] Added Regression Factory Markdown and print/PDF report sections.
+- [x] Added Regression Factory dashboard panel.
+- [x] Added regression candidates that derive from Incident Replay and Observability Replay evidence.
+- [x] Calibrated regression candidates against A1 trace/tool-call evidence, A2 judge/coverage evidence, and official Results review parity.
+- [x] Added generated suite plan, required contracts, proposed assertions, and next action per candidate.
+- [x] Added report-builder and dashboard-wiring tests for Regression Factory.
+- [x] Browser-smoke verified Regression Factory after official-demo dashboard load.
+- [x] Saved Regression Factory screenshot under `docs/screenshots/a3-dashboard-regression-factory.png`.
 
 ## Next Acceptance Targets
 

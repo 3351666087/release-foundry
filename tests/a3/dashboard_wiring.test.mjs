@@ -309,6 +309,27 @@ test("A3 dashboard wires observability replay matrix into console and reports", 
   assert.match(html, /Official Observability/);
 });
 
+test("A3 dashboard wires regression factory into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeRegressionFactory/);
+  assert.match(html, /href="#regression-factory"/);
+  assert.match(html, /id="regression-factory"/);
+  assert.match(html, /Regression Factory/);
+  assert.match(html, /id="regression-factory-status"/);
+  assert.match(html, /id="regression-factory-summary"/);
+  assert.match(html, /id="regression-factory-metrics"/);
+  assert.match(html, /id="regression-factory-lanes"/);
+  assert.match(html, /id="regression-factory-candidates"/);
+  assert.match(html, /function renderRegressionFactory\(\)/);
+  assert.match(html, /function regressionFactoryLaneRow\(lane\)/);
+  assert.match(html, /function regressionCandidateRow\(item\)/);
+  assert.match(html, /renderRegressionFactory\(\)/);
+  assert.match(html, /regressionFactory\.candidate_count/);
+  assert.match(html, /Regression Factory<\/h4>/);
+  assert.match(html, /Generated Suite Plan|Coverage gaps/);
+});
+
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
   const html = await loadDashboardHtml();
 

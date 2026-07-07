@@ -2342,3 +2342,85 @@ Browser smoke:
 ### Current interpretation
 
 Observability Replay Matrix is the production replay layer A3 was missing. It connects incident replay to trace evidence, tool/error evidence, A2 judge findings, media metadata, and official Observability parity. This moves A3 closer to a sellable release-intelligence platform that can block risky agent releases and support incident review.
+
+## 2026-07-07 - Regression Factory
+
+### Goal
+
+Turn failed incident replay cases into regression-test candidates for the next release gate.
+
+### Work completed
+
+- Added `summarizeRegressionFactory()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `regression_factory`
+- Added Markdown report section:
+  - `Regression Factory`
+- Added dashboard panel:
+  - `Regression Factory`
+- Added print/PDF report section:
+  - `Regression Factory`
+- Added per-candidate fields:
+  - regression id
+  - generator state
+  - owner lane
+  - coverage status
+  - required contracts
+  - proposed assertions
+  - generated artifact plan
+  - next action
+- Added implementation note:
+  - `docs/a3/p3_regression_factory_growth_2026_07_07.md`
+- Added contract delta note from integration explorer:
+  - `docs/a3/p3_a1_a2_a3_contract_delta_2026_07_07.md`
+- Added official frontend parity backlog:
+  - `docs/a3/p3_official_frontend_parity_backlog_2026_07_07.md`
+- Added Growth-Auditor round note:
+  - `docs/a3/p3_growth_auditor_round_2026_07_07_enterprise_push.md`
+
+### A1/A2/Official calibration
+
+- A1 supplies trace, observation, expected vs actual, tool-call, media metadata, and replay evidence.
+- A2 supplies pass/fail, score, primary failure class, judge evidence, severity, remediation, and coverage.
+- Official code crawl supplies Results review parity signals without copying official source.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+50 tests
+50 pass
+0 fail
+```
+
+Full A3 command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+86 tests
+86 pass
+0 fail
+```
+
+Browser smoke:
+
+- Opened the local dashboard with the official demo source.
+- Confirmed `Regression Factory`, candidate count, coverage information, A1 Trace Capture, and A2 Judge Contract render.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-regression-factory.png`
+
+### Current interpretation
+
+Regression Factory is the next commercial layer after Incident Replay and Observability Replay. Incident Replay says what failed, Observability Replay says whether the evidence is replayable, and Regression Factory says whether the failure can become a repeatable regression candidate before the next release. This moves A3 closer to a paid release-intelligence workflow instead of a one-time demo dashboard.

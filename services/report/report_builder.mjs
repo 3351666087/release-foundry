@@ -1567,6 +1567,232 @@ function countErrorSignals(item = {}) {
   })) ? 1 : 0;
 }
 
+export function summarizeRegressionFactory(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, frontendCodeCrawlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const coverage = summarizeCoverage(coverageFixture);
+  const incidentReplay = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 10 });
+  const observability = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture, { limit: options.limit || 10 });
+  const codeCrawl = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
+  const caseById = new Map(cases.map((item) => [item.case_id, item]));
+  const observabilityByCase = new Map(observability.items.map((item) => [item.case_id, item]));
+  const candidates = incidentReplay.queue.map((item, index) => buildRegressionCandidate(
+    item,
+    caseById.get(item.case_id) || {},
+    observabilityByCase.get(item.case_id) || {},
+    coverage,
+    index
+  ));
+  const readyCount = candidates.filter((item) => item.generator_state === "ready_to_promote").length;
+  const blockedCount = candidates.filter((item) => item.generator_state === "blocked").length;
+  const needsEvidenceCount = candidates.filter((item) => item.generator_state === "needs_evidence").length;
+  const coverageGapCount = candidates.filter((item) => item.coverage_status === "coverage_gap").length;
+  const toolCandidateCount = candidates.filter((item) => item.tool_diff_count > 0).length;
+  const mediaCandidateCount = candidates.filter((item) => item.media_evidence_count > 0).length;
+  const officialResultsMapped = officialResultsReviewConfirmed(codeCrawl);
+
+  return {
+    schema_version: "a3.regression_factory.v1",
+    available: candidates.length > 0,
+    factory_state: blockedCount > 0 ? "blocked" : needsEvidenceCount > 0 ? "needs_evidence" : readyCount > 0 ? "ready" : "empty",
+    candidate_count: candidates.length,
+    ready_count: readyCount,
+    needs_evidence_count: needsEvidenceCount,
+    blocked_count: blockedCount,
+    coverage_gap_count: coverageGapCount,
+    tool_candidate_count: toolCandidateCount,
+    media_candidate_count: mediaCandidateCount,
+    official_results_review_confirmed: officialResultsMapped,
+    generated_suite_plan: {
+      suite_id: `a3-regression-${incidentReplay.run_ids.join("-") || "local"}`,
+      source_mode: incidentReplay.replay_mode,
+      target_paths: [
+        "packages/scenarios/a2_g3_full_pack.json",
+        "fixtures/a2/runs/*.json",
+        "fixtures/a2/results/*_grade.json",
+        "fixtures/a3/p3/*.redacted.json"
+      ],
+      redaction_required: true,
+      live_cloud_mutation_required: false
+    },
+    lanes: buildRegressionFactoryLanes(candidates, coverage, officialResultsMapped),
+    candidates,
+    a1_a2_calibration: {
+      normalized_case_count: cases.length,
+      a1_trace_ready_count: candidates.filter((item) => item.trace_ready).length,
+      a1_tool_diff_ready_count: toolCandidateCount,
+      a2_judge_evidence_ready_count: candidates.filter((item) => item.judge_evidence_count > 0).length,
+      coverage_available: coverage.available,
+      official_results_review_confirmed: officialResultsMapped
+    },
+    promotion_steps: [
+      "Start from failed incident replay cases, not hand-written demo scenarios.",
+      "Require A1 trace, expected vs actual, and tool-call diff evidence before promotion.",
+      "Require A2 judge score, failure class, and remediation before marking the regression ready.",
+      "Map the case to A2 coverage and failure taxonomy so the suite improves release coverage.",
+      "Keep media evidence metadata-only and do not embed live signed URLs in generated regressions.",
+      "Attach the generated regression suite to PR gate and audit bundle outputs before merge."
+    ],
+    commercial_value: "Converts production failures into repeatable regression candidates so teams can prove a risky agent fix will not regress before the next release."
+  };
+}
+
+function buildRegressionCandidate(replayItem = {}, caseItem = {}, observabilityItem = {}, coverage = {}, index = 0) {
+  const traceReady = replayItem.trace_ready || observabilityItem.trace_ready === true;
+  const judgeReady = replayItem.judge_evidence_count > 0 || observabilityItem.judge_evidence_count > 0;
+  const toolDiffCount = numberOrDefault(replayItem.tool_diff_count, 0);
+  const mediaEvidenceCount = Number(replayItem.media_evidence_count || 0) + Number(replayItem.vm_stream_count || 0);
+  const coverageStatus = regressionCoverageStatus(replayItem.primary_failure_class, coverage);
+  const blocked = replayItem.release_blocker || replayItem.severity === "critical";
+  const generatorState = !traceReady || !judgeReady
+    ? "needs_evidence"
+    : blocked
+      ? "blocked"
+      : "ready_to_promote";
+  const requiredContracts = regressionRequiredContracts({ traceReady, judgeReady, toolDiffCount, mediaEvidenceCount, coverageStatus });
+  const expectedToolCount = normalizeToolCalls(caseItem.expected?.tool_calls).length;
+  const actualToolCount = normalizeToolCalls(caseItem.actual?.tool_calls).length;
+
+  return {
+    rank: index + 1,
+    regression_id: `regression-${replayItem.case_id || index + 1}`,
+    case_id: replayItem.case_id,
+    run_id: replayItem.run_id,
+    scenario_id: replayItem.scenario_id,
+    owner_lane: regressionOwnerLane(replayItem),
+    generator_state: generatorState,
+    release_blocker: Boolean(replayItem.release_blocker),
+    coverage_status: coverageStatus,
+    primary_failure_class: replayItem.primary_failure_class,
+    severity: replayItem.severity,
+    score: replayItem.score,
+    trace_ready: traceReady,
+    trace_event_count: replayItem.trace_event_count,
+    observation_count: replayItem.observation_count,
+    tool_diff_count: toolDiffCount,
+    expected_tool_count: expectedToolCount,
+    actual_tool_count: actualToolCount,
+    judge_evidence_count: Math.max(numberOrDefault(replayItem.judge_evidence_count, 0), numberOrDefault(observabilityItem.judge_evidence_count, 0)),
+    media_evidence_count: mediaEvidenceCount,
+    required_contracts: requiredContracts,
+    proposed_assertions: regressionAssertions(replayItem.primary_failure_class, caseItem),
+    generated_artifacts: [
+      `scenario:${replayItem.scenario_id || "unknown"}`,
+      `run_fixture:${replayItem.case_id || "unknown"}`,
+      `grade_fixture:${replayItem.case_id || "unknown"}`,
+      "pr_gate_regression_note"
+    ],
+    next_action: regressionNextAction({ generatorState, coverageStatus, toolDiffCount, mediaEvidenceCount, releaseBlocker: replayItem.release_blocker })
+  };
+}
+
+function buildRegressionFactoryLanes(candidates = [], coverage = {}, officialResultsMapped = false) {
+  const total = candidates.length;
+  return [
+    regressionFactoryLane("A1 Trace Capture", candidates.filter((item) => item.trace_ready).length, total, "Trace, observations, expected vs actual, and tool-call diffs must be replayable."),
+    regressionFactoryLane("A2 Judge Contract", candidates.filter((item) => item.judge_evidence_count > 0).length, total, "Judge score, failure class, severity, and remediation must be attached."),
+    regressionFactoryLane("Coverage Promotion", candidates.filter((item) => item.coverage_status === "covered").length, total, coverage.available ? "Promote gaps into A2 coverage instead of adding isolated one-off tests." : "Load A2 coverage report before suite promotion."),
+    regressionFactoryLane("Tool Regression", candidates.filter((item) => item.tool_diff_count > 0).length, total, "Tool failures need expected/actual call and argument assertions."),
+    regressionFactoryLane("Media Regression", candidates.filter((item) => item.media_evidence_count > 0).length, total, "Media cases stay metadata-only until signed URL safety is proven."),
+    regressionFactoryLane("Official Results Parity", officialResultsMapped ? 1 : 0, 1, "Match official Results review concepts without copying official frontend source.")
+  ];
+}
+
+function regressionFactoryLane(lane, readyCount, totalCount, nextAction) {
+  const status = totalCount === 0
+    ? "empty"
+    : readyCount === totalCount
+      ? "ready"
+      : readyCount > 0
+        ? "partial"
+        : "needs_evidence";
+  return {
+    lane,
+    ready_count: readyCount,
+    total_count: totalCount,
+    status,
+    next_action: nextAction
+  };
+}
+
+function regressionCoverageStatus(failureClass = "none", coverage = {}) {
+  if (!coverage.available) {
+    return "unknown";
+  }
+  const executable = objectOr(coverage.executable_failure_class_cases);
+  const golden = objectOr(coverage.golden_failure_class_cases);
+  const hasExecutable = Array.isArray(executable[failureClass]) && executable[failureClass].length > 0;
+  const hasGolden = Array.isArray(golden[failureClass]) && golden[failureClass].length > 0;
+  return hasExecutable && hasGolden ? "covered" : "coverage_gap";
+}
+
+function regressionRequiredContracts({ traceReady = false, judgeReady = false, toolDiffCount = 0, mediaEvidenceCount = 0, coverageStatus = "unknown" } = {}) {
+  return uniqueSorted([
+    "case_id",
+    "scenario_id",
+    "expected_vs_actual",
+    traceReady ? "a1_trace_events" : "missing_a1_trace_events",
+    judgeReady ? "a2_judge_evidence" : "missing_a2_judge_evidence",
+    toolDiffCount > 0 ? "tool_call_diff" : "response_assertion",
+    mediaEvidenceCount > 0 ? "media_metadata" : "",
+    coverageStatus === "coverage_gap" ? "coverage_update" : "coverage_link"
+  ]);
+}
+
+function regressionOwnerLane(item = {}) {
+  if (item.primary_failure_class === "unsafe_or_policy_violation") {
+    return "Safety regression owner";
+  }
+  if (/tool|argument|order/.test(item.primary_failure_class || "")) {
+    return "Runner/tool regression owner";
+  }
+  if (item.media_evidence_count > 0 || item.vm_stream_count > 0) {
+    return "Media regression owner";
+  }
+  return "Judge regression owner";
+}
+
+function regressionAssertions(failureClass = "", caseItem = {}) {
+  const base = ["preserve_case_prompt", "compare_expected_vs_actual_response", `assert_failure_class:${failureClass || "unknown"}`];
+  const expectedTools = normalizeToolCalls(caseItem.expected?.tool_calls);
+  if (expectedTools.length > 0 || /tool|argument|order/.test(failureClass)) {
+    base.push("assert_expected_tool_sequence");
+    base.push("assert_tool_arguments");
+  }
+  if (failureClass === "unsafe_or_policy_violation") {
+    base.push("assert_no_secret_or_policy_leak");
+  }
+  if (failureClass === "missing_clarification") {
+    base.push("assert_clarification_question");
+  }
+  if ((caseItem.media_evidence?.media_types || []).length > 0) {
+    base.push("assert_media_metadata_only");
+  }
+  return uniqueSorted(base);
+}
+
+function regressionNextAction({ generatorState = "needs_evidence", coverageStatus = "unknown", toolDiffCount = 0, mediaEvidenceCount = 0, releaseBlocker = false } = {}) {
+  if (generatorState === "needs_evidence") {
+    return "Collect A1 trace and A2 judge evidence before generating a regression.";
+  }
+  if (releaseBlocker) {
+    return "Keep release blocked; promote this case only after owner fix and reviewer disposition.";
+  }
+  if (coverageStatus === "coverage_gap") {
+    return "Add this failure class to A2 coverage and then generate run/grade fixtures.";
+  }
+  if (toolDiffCount > 0) {
+    return "Generate tool-call regression assertions from expected vs actual diff rows.";
+  }
+  if (mediaEvidenceCount > 0) {
+    return "Generate metadata-only media regression and keep live media URLs out of fixtures.";
+  }
+  return "Promote to regression suite and bind it to PR gate before next release.";
+}
+
+function officialResultsReviewConfirmed(codeCrawl = {}) {
+  return Array.isArray(codeCrawl.parity_targets) && codeCrawl.parity_targets.some((target) => target.target === "Results review");
+}
+
 function gateCheck(id, passed, observed, detail) {
   return { id, passed, observed, detail };
 }
@@ -2588,6 +2814,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture);
   const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const regressionFactory = summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2731,6 +2958,41 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("", "### Replay Items", "");
     for (const item of observabilityReplayMatrix.items) {
       lines.push(`- ${item.case_id}: ${item.production_risk} / ${item.observability_state} / trace ${item.trace_event_count} / errors ${item.error_signal_count} / judge ${item.judge_evidence_count} - ${item.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (regressionFactory.available) {
+    lines.push(
+      "## Regression Factory",
+      "",
+      `- Factory state: ${regressionFactory.factory_state}`,
+      `- Candidate count: ${regressionFactory.candidate_count}`,
+      `- Ready candidates: ${regressionFactory.ready_count}`,
+      `- Needs evidence: ${regressionFactory.needs_evidence_count}`,
+      `- Blocked candidates: ${regressionFactory.blocked_count}`,
+      `- Coverage gaps: ${regressionFactory.coverage_gap_count}`,
+      `- Tool candidates: ${regressionFactory.tool_candidate_count}`,
+      `- Media candidates: ${regressionFactory.media_candidate_count}`,
+      `- Official Results review confirmed: ${regressionFactory.official_results_review_confirmed ? "yes" : "no"}`,
+      `- Commercial value: ${regressionFactory.commercial_value}`,
+      ""
+    );
+    lines.push("### Generated Suite Plan", "");
+    lines.push(
+      `- Suite id: ${regressionFactory.generated_suite_plan.suite_id}`,
+      `- Source mode: ${regressionFactory.generated_suite_plan.source_mode}`,
+      `- Redaction required: ${regressionFactory.generated_suite_plan.redaction_required ? "yes" : "no"}`,
+      `- Live cloud mutation required: ${regressionFactory.generated_suite_plan.live_cloud_mutation_required ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Factory Lanes", "");
+    for (const lane of regressionFactory.lanes) {
+      lines.push(`- ${lane.lane}: ${lane.status} / ${lane.ready_count}/${lane.total_count} - ${lane.next_action}`);
+    }
+    lines.push("", "### Regression Candidates", "");
+    for (const item of regressionFactory.candidates) {
+      lines.push(`- ${item.regression_id}: ${item.generator_state} / ${item.primary_failure_class} / ${item.coverage_status} / contracts ${item.required_contracts.join(", ")} - ${item.next_action}`);
     }
     lines.push("");
   }
@@ -3035,6 +3297,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture),
     reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     observability_replay_matrix: summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture),
+    regression_factory: summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,
