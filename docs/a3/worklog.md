@@ -1,5 +1,79 @@
 # A3 Worklog
 
+## 2026-07-07 - SaaS Admin Cloud Parity Growth
+
+### Goal
+
+Strengthen the A3 Product Console so it covers the SaaS-style areas the team asked for: login, team management, usage, API keys, trust, and cloud/project management. Keep the implementation clean-room and safe, and keep A1/A2 compatibility intact.
+
+### Work completed
+
+- Extended `services/report/a3_saas_admin.mjs`.
+  - Added richer login/session posture without reading or saving cookies/tokens.
+  - Added RBAC matrix for owner, admin, developer, reviewer, auditor, and billing admin.
+  - Added invite workflow states while keeping real email invites disabled.
+  - Added API key lifecycle states for create/store/rotate/revoke while keeping real secrets forbidden.
+  - Added usage plan snapshot and preview-only budget controls.
+  - Added Trust Center preview artifacts and redacted audit-log policy.
+  - Added cloud resources, project switcher, audit controls, and product-console map.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs`.
+  - Dashboard now renders Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map.
+- Extended `services/report/a3_sql_migrations.mjs`.
+  - Added SaaS database tables to the migration contract: `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
+- Extended `apps/dashboard/src/app.mjs`.
+  - Static runtime contract now lists SaaS admin API surfaces and SaaS tables.
+- Added `docs/a3/p3_saas_admin_cloud_parity_growth_2026_07_07.md`.
+  - Documents what was copied as product logic, what remains plan-only, and why no official private source or secrets were committed.
+
+### A1/A2 compatibility
+
+- A3 still reads A1 evidence through normalized runs, cases, trace events, observations, and tool calls.
+- A3 still reads A2 evidence through normalized grades, judge results, score, pass/fail, and failure class.
+- No A1 runner logic or A2 judge semantics were changed.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+35 tests
+35 pass
+0 fail
+```
+
+Full A3 suite result after this round:
+
+```text
+127 tests
+127 pass
+0 fail
+```
+
+Safety checks:
+
+```text
+git status --ignored -sb -- .env.local
+=> !! .env.local
+
+git diff --check
+=> no whitespace errors; only Windows CRLF warnings
+
+secret/path scan
+=> only intentional redaction-test strings and policy docs matched; no real secret or account data was added
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not write real API keys, cookies, tokens, emails, signed URLs, account identities, or official private frontend source.
+- Did not call live Ashr, hosted auth, billing, database, email, or cloud mutation APIs.
+
 ## 2026-07-04 - First A3 pass
 
 ### Goal
@@ -2174,6 +2248,22 @@ Focused result:
 0 fail
 ```
 
+Final A3 suite result:
+
+```text
+127 tests
+127 pass
+0 fail
+```
+
+Export firewall result:
+
+```text
+1 generated-artifact secret/path scan
+1 pass
+0 fail
+```
+
 Full command:
 
 ```text
@@ -2875,6 +2965,71 @@ This is a useful SaaS step because Report Center is now becoming a control plane
 - Did not read or print `.env.local`.
 - Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
 - Did not add real cloud mutation, real login, real API-key management, team invite, billing mutation, Trust publish, or destructive retention behavior.
+- No real key, token, cookie, account email, signed URL, or official private source was committed.
+
+## 2026-07-07 - Share Token Lifecycle For Hosted Reports
+
+### Goal
+
+Move hosted report sharing from internal report-id URLs toward external share-token URLs so customer-facing evidence links can be expired, revoked, audited, and summarized without exposing internal report ids as the primary sharing mechanism.
+
+### Work completed
+
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Adds external `share_url_path` in the `/r/:shareToken` shape.
+  - Keeps internal admin path as `internal_url_path` in the `/reports/:reportId` shape.
+  - Adds `share_link` metadata with token hash, token hash prefix, scope, expiry, and revocation fields.
+  - Renders controlled denied pages for revoked, expired, blocked, or missing share access without rendering report body/case evidence.
+- Extended `services/report/a3_store.mjs`.
+  - Registers share links by token hash.
+  - Stores redacted `/r/[REDACTED_TOKEN]` paths instead of raw share tokens.
+  - Adds `getReportForShareToken(...)`.
+  - Records allowed and denied share-link access events as redacted audit events.
+  - Revoking a report also revokes its share link.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /r/:shareToken`.
+  - Returns hosted report HTML for active share tokens.
+  - Returns controlled denied HTML and no report body for revoked/expired/missing tokens.
+- Extended SQL/usage/report-center contracts.
+  - Adds `report_share_links` migration contract.
+  - Adds `access_result` and `token_hash_prefix` fields to report view event planning.
+  - Counts share-link access events in the usage ledger report-view meter.
+  - Shows token hash prefix in Report Center dashboard rows.
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_share_token_lifecycle_growth_2026_07_07.md`
+  - Covers sellable capability, remaining toy-like gaps, enterprise/self-host/audit value, and 30 next growth points.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/shareable_report.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_center_index.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+44 tests
+44 pass
+0 fail
+```
+
+### Current interpretation
+
+This is a commercial hardening step:
+
+- `/reports/:reportId` can stay as an internal/admin report path.
+- `/r/:shareToken` becomes the safer external sharing boundary.
+- Raw share tokens are returned once to the creator but not stored in durable report payloads.
+- Report Center can show token hash prefixes, lifecycle state, view counts, manifest readiness, and redaction status.
+- Expired/revoked/missing token access now produces audit evidence instead of silently failing.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not add real auth/RBAC, real billing, real email sharing, real API-key management, or destructive retention behavior.
 - No real key, token, cookie, account email, signed URL, or official private source was committed.
 
 ## 2026-07-07 - Import Idempotency And Hosted Report Lifecycle

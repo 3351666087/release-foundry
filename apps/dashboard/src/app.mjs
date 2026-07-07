@@ -1376,6 +1376,7 @@ function hostedReportRow(report) {
       <span>${escapeHtml(report.view_count || 0)} view(s)</span>
     </div>
     <div class="case-meta">
+      <span>token ${escapeHtml(report.share_link?.token_hash_prefix || "n/a")}</span>
       <span>manifest ${escapeHtml(report.manifest?.completeness_score ?? 0)}%</span>
       <span>${escapeHtml(report.manifest?.artifact_count || 0)} artifact(s)</span>
       <span>${escapeHtml(report.redaction?.status || "unknown")} redaction</span>
@@ -2186,13 +2187,16 @@ function resetSaasRuntime(mode = "static_fixture") {
         "POST /api/a3/import/a1-run-result",
         "POST /api/a3/import/a2-grade-result",
         "GET /api/a3/enterprise/readiness",
+        "GET /api/a3/admin/console",
+        "POST /api/a3/admin/actions/plan",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center"
       ],
-      tables: ["runs", "cases", "trace_events", "grade_results", "shareable_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
+        "Login, team, API key, usage, and trust controls stay read-only or plan-only until hosted auth exists.",
         "Hosted reports must pass export redaction before sharing."
       ]
     },

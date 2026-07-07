@@ -70,6 +70,8 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   const createdAt = options.createdAt || new Date().toISOString();
   const expiresAt = options.expiresAt || defaultExpiry(createdAt);
   const reportId = options.reportId || stableReportId(safeEnvelope.value, createdAt);
+  const shareToken = options.shareToken || stableShareToken(reportId, createdAt);
+  const shareTokenHash = sha256(shareToken);
   const payloadHash = sha256(stableJson(safeEnvelope.value));
   const blocked = Boolean(safeEnvelope.blocked || jsonReport.export_redaction_firewall?.status === "blocked");
 
@@ -79,7 +81,8 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     title: safeEnvelope.value.title,
     source: safeEnvelope.value.source,
     visibility: safeEnvelope.value.visibility,
-    share_url_path: `/reports/${reportId}`,
+    internal_url_path: `/reports/${reportId}`,
+    share_url_path: `/r/${shareToken}`,
     status: blocked ? "blocked" : "shareable",
     created_at: createdAt,
     expires_at: expiresAt,
@@ -94,6 +97,16 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
       view_count: 0,
       last_viewed_at: null,
       last_event_id: null
+    },
+    share_link: {
+      schema_version: "a3.report_share_link.v1",
+      token_hash: shareTokenHash,
+      token_hash_prefix: shareTokenHash.slice(0, 12),
+      scope: "private_link",
+      created_at: createdAt,
+      expires_at: expiresAt,
+      revoked_at: null,
+      raw_token_returned_once: true
     },
     tenant_scope: {
       organization_id: options.organizationId || inputs.organizationId || "org-local",
@@ -137,6 +150,10 @@ export function renderShareableReportHtml(report = {}) {
   const releaseGate = report.release_gate || payload.release_gate || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
+
+  if (status !== "shareable") {
+    return renderDeniedReportHtml(report, status);
+  }
 
   return `<!doctype html>
 <html lang="en">
@@ -215,6 +232,43 @@ export function renderShareableReportHtml(report = {}) {
 </html>`;
 }
 
+function renderDeniedReportHtml(report, status) {
+  const reason = report.access_result || status || "unavailable";
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 Report Unavailable</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: #f7f8fb; color: #172033; }
+    main { max-width: 760px; margin: 0 auto; padding: 48px 20px; }
+    .card { background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 20px; }
+    .pill { display: inline-flex; border: 1px solid #c9d3e5; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; background: #fff; }
+    .muted { color: #667085; font-size: 13px; line-height: 1.5; }
+    pre { white-space: pre-wrap; background: #101828; color: #f8fafc; border-radius: 8px; padding: 12px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <span class="pill">${escapeHtml(reason)}</span>
+      <h1>A3 report is not available</h1>
+      <p class="muted">This shared report link is expired, revoked, blocked, or unknown. The report body is not rendered for denied external access.</p>
+      <pre>${escapeHtml(JSON.stringify({
+    report_id: report.report_id || null,
+    status,
+    access_result: reason,
+    token_hash_prefix: report.share_link?.token_hash_prefix || null,
+    payload_hash_present: Boolean(report.sealed_evidence?.payload_hash)
+  }, null, 2))}</pre>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 function artifactDescriptor(id, contentType, value) {
   return {
     id,
@@ -238,6 +292,14 @@ function stableReportId(value, createdAt) {
     return `a3r_${hash}_${randomUUID().slice(0, 8)}`;
   } catch {
     return `a3r_${hash}`;
+  }
+}
+
+function stableShareToken(reportId, createdAt) {
+  try {
+    return `a3s_${randomUUID().replaceAll("-", "").slice(0, 24)}`;
+  } catch {
+    return `a3s_${sha256(`${reportId}:${createdAt}`).slice(0, 24)}`;
   }
 }
 

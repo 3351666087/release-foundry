@@ -215,6 +215,20 @@ export function createA3ApiHandler(options = {}) {
           : sendHtml(response, 404, `<h1>Report not found</h1><p>${escapeHtml(hostedReportMatch[1])}</p>`);
       }
 
+      const shareTokenMatch = url.pathname.match(/^\/r\/([^/]+)$/);
+      if (request.method === "GET" && shareTokenMatch) {
+        const report = await store.getReportForShareToken(decodeURIComponent(shareTokenMatch[1]), {
+          viewer: "share_token",
+          viewedAt: url.searchParams.get("viewed_at") || undefined
+        });
+        if (!report || report.status === "not_found") {
+          return sendHtml(response, 404, renderShareableReportHtml(report || { status: "not_found", access_result: "not_found" }));
+        }
+        return report.status === "shareable"
+          ? sendHtml(response, 200, renderShareableReportHtml(report))
+          : sendHtml(response, 410, renderShareableReportHtml(report));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/reports") {
         return sendJson(response, 200, {
           schema_version: "a3.api_report_list.v1",

@@ -14,33 +14,44 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
       row("Status", admin.login?.status || "unknown"),
       row("Provider", admin.login?.provider || "unknown"),
       row("Session", admin.login?.session_storage || "not persisted"),
-      row("Identity", admin.login?.user_identity || "[REDACTED]")
+      row("Identity", admin.login?.user_identity || "[REDACTED]"),
+      row("RBAC", admin.login?.rbac_boundary?.enforced_now ? "enforced" : "planned")
     ]),
+    sessionBlock(admin.login || {}),
+    rbacBlock(admin.rbac || {}),
     sectionBlock("Team", [
       row("Members", String(admin.team?.members?.length || 0)),
       row("Roles", (admin.team?.roles || []).join(", ") || "none"),
-      row("Invite mode", admin.team?.invite_mode || "disabled")
+      row("Invite mode", admin.team?.invite_mode || "disabled"),
+      row("Self approval", admin.team?.approval_policy?.self_approval_allowed ? "allowed" : "blocked")
     ]),
     rosterBlock(admin.team?.members || []),
+    workflowBlock("Invite Workflow", admin.team?.invite_workflow || [], "step", "status", "reason"),
     sectionBlock("Usage", [
       row("Status", admin.usage?.status || "unknown"),
       row("Runs", String(admin.usage?.local_meter?.run_count || 0)),
       row("Cases", String(admin.usage?.local_meter?.case_count || 0)),
       row("Channels", (admin.usage?.channels || []).join(", ") || "local meter"),
-      row("OAuth-only", (admin.usage?.oauth_only_functions || []).join(", ") || "none")
+      row("OAuth-only", (admin.usage?.oauth_only_functions || []).join(", ") || "none"),
+      row("Plan", admin.usage?.plan_snapshot?.plan_name || "local_dev")
     ]),
+    workflowBlock("Usage Controls", admin.usage?.budget_controls || [], "control", "status", "mutation_enabled"),
     sectionBlock("API Keys", [
       row("Status", admin.api_keys?.status || "unknown"),
       row("Create mode", admin.api_keys?.create_mode || "server required"),
       row("Reveal policy", admin.api_keys?.reveal_policy || "one-time only")
     ]),
     keyBlock(admin.api_keys?.keys || []),
+    workflowBlock("API Key Lifecycle", admin.api_keys?.lifecycle || [], "step", "status", "safety"),
     sectionBlock("Trust", [
       row("Status", admin.trust?.status || "unknown"),
       row("Certificate", admin.trust?.public_certificate_mode || "preview"),
       row("Publish", admin.trust?.publish_enabled ? "enabled" : "disabled"),
       row("Gate", admin.trust?.release_gate_label || admin.trust?.release_gate_decision || "unknown")
     ]),
+    trustBlock(admin.trust || {}),
+    cloudManagementBlock(admin.cloud_management || {}),
+    workflowBlock("Product Console Map", admin.product_console_map || [], "page", "a3_decision", "purpose"),
     actionPlanBlock(actions, selectedAction, selectedPlan),
     compatibilityBlock(admin.a1_a2_compatibility || {})
   );
@@ -108,6 +119,39 @@ function rosterBlock(members) {
   return block;
 }
 
+function sessionBlock(login) {
+  const session = login.session || {};
+  const rbac = login.rbac_boundary || {};
+  return sectionBlock("Auth Session", [
+    row("Session status", session.status || "unknown"),
+    row("Cookies", session.cookie_storage || "not read"),
+    row("Tokens", session.token_storage || "not read"),
+    row("Required claims", (rbac.required_claims || []).join(", ") || "none"),
+    row("Policy", rbac.dashboard_policy || "read-only")
+  ]);
+}
+
+function rbacBlock(rbac) {
+  const block = sectionBlock("RBAC Matrix", [
+    row("Status", rbac.status || "unknown"),
+    row("Default role", rbac.default_role || "developer"),
+    row("Enforcement", rbac.current_enforcement || "planned")
+  ]);
+  for (const role of rbac.permission_matrix || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(role.role)}</strong>
+        <span class="badge info">${escapeHtml(role.permission_count || 0)} permission(s)</span>
+      </div>
+      <div class="muted">${escapeHtml((role.permissions || []).join(", "))}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
 function keyBlock(keys) {
   const block = sectionBlock("API Key Metadata", []);
   for (const key of keys) {
@@ -121,8 +165,81 @@ function keyBlock(keys) {
       <div class="case-meta">
         <span>${escapeHtml(key.prefix)}</span>
         <span>${escapeHtml((key.scopes || []).join(", "))}</span>
+        <span>${escapeHtml(key.owner_role || "unassigned")}</span>
       </div>
       <div class="muted">secret value never rendered</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function workflowBlock(title, items, primaryKey, badgeKey, detailKey) {
+  const block = sectionBlock(title, []);
+  if (!Array.isArray(items) || !items.length) {
+    const empty = document.createElement("div");
+    empty.className = "matrix-row";
+    empty.innerHTML = `<div class="muted">No ${escapeHtml(title.toLowerCase())} loaded.</div>`;
+    block.appendChild(empty);
+    return block;
+  }
+  for (const item of items) {
+    const node = document.createElement("div");
+    const badge = item[badgeKey];
+    const detail = detailKey === "mutation_enabled"
+      ? (item[detailKey] ? "mutation enabled" : "mutation disabled")
+      : item[detailKey];
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(item[primaryKey] || "item")}</strong>
+        <span class="badge ${badgeClass(String(badge))}">${escapeHtml(badge ?? "unknown")}</span>
+      </div>
+      <div class="muted">${escapeHtml(detail || "")}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function trustBlock(trust) {
+  const center = trust.trust_center || {};
+  const artifacts = Array.isArray(center.artifacts) ? center.artifacts : [];
+  const block = sectionBlock("Trust Center", [
+    row("Preview", center.preview_enabled ? "enabled" : "disabled"),
+    row("Public publish", center.public_publish_enabled ? "enabled" : "blocked"),
+    row("Audit payload", trust.audit_log_policy?.redacted_payload_only ? "redacted" : "unknown")
+  ]);
+  for (const artifact of artifacts) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(artifact.artifact)}</strong>
+        <span class="badge ${badgeClass(artifact.status)}">${escapeHtml(artifact.status)}</span>
+      </div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function cloudManagementBlock(cloud) {
+  const block = sectionBlock("Cloud Management", [
+    row("Status", cloud.status || "unknown"),
+    row("Project switcher", cloud.project_switcher?.enabled ? "read-only" : "disabled"),
+    row("Real mutations", cloud.real_mutations_enabled ? "enabled" : "disabled"),
+    row("Audit storage", cloud.audit_controls?.storage_target || "audit_events")
+  ]);
+  for (const resource of cloud.resources || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(resource.type)} / ${escapeHtml(resource.id)}</strong>
+        <span class="badge neutral">${escapeHtml(resource.mode)}</span>
+      </div>
+      <div class="muted">${escapeHtml(resource.label)}</div>
     `;
     block.appendChild(node);
   }
@@ -170,6 +287,19 @@ function compatibilityBlock(compatibility) {
     row("A2 judge cases", String(compatibility.a2_judge_case_count || 0)),
     row("Dashboard cases", String(compatibility.dashboard_case_count || 0))
   ]);
+}
+
+function badgeClass(value) {
+  if (["available", "enabled", "copy_now", "read_only", "contract_ready", "approve_release"].includes(value)) {
+    return "pass";
+  }
+  if (["blocked", "disabled", "plan_only", "missing", "block_release"].includes(value)) {
+    return "warn";
+  }
+  if (["preview", "preview_only", "planned"].includes(value)) {
+    return "info";
+  }
+  return "neutral";
 }
 
 function escapeHtml(value) {

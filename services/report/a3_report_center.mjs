@@ -57,6 +57,7 @@ function reportCenterItem(report = {}, options = {}) {
     source: report.source || "unknown",
     status,
     share_url_path: report.share_url_path || null,
+    internal_url_path: report.internal_url_path || null,
     created_at: report.created_at || null,
     expires_at: report.expires_at || null,
     revoked_at: report.revoked_at || null,
@@ -67,6 +68,13 @@ function reportCenterItem(report = {}, options = {}) {
       public_indexing_allowed: report.lifecycle?.public_indexing_allowed === true,
       expired: status === "expired",
       revoked: status === "revoked"
+    },
+    share_link: {
+      token_hash_prefix: report.share_link?.token_hash_prefix || null,
+      scope: report.share_link?.scope || "private_link",
+      raw_token_stored: false,
+      expires_at: report.share_link?.expires_at || report.expires_at || null,
+      revoked_at: report.share_link?.revoked_at || report.revoked_at || null
     },
     redaction: {
       status: report.redaction?.status || "unknown",
@@ -94,6 +102,7 @@ function reportCenterItem(report = {}, options = {}) {
 function manifestCompleteness(manifest, report, status) {
   const checks = [
     ["share_url_path", Boolean(report.share_url_path)],
+    ["share_token_hash", Boolean(report.share_link?.token_hash)],
     ["payload_hash", Boolean(report.sealed_evidence?.payload_hash)],
     ["redaction_passed", report.redaction?.status === "passed" && report.redaction?.blocked !== true],
     ["hosted_report_ready", manifest.release_packet.hosted_report_ready || status !== "shareable"],

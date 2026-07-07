@@ -11,6 +11,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
     tenancy_columns: ["organization_id", "project_id"],
     guardrails: [
       "Every tenant-owned row must include organization_id and project_id.",
+      "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
@@ -40,6 +41,61 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at ${types.timestamp} NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);`),
+    statement("003_identity_team_keys_trust", ["users", "roles", "team_members", "api_keys", "trust_reports"], `
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  identity_hash TEXT NOT NULL,
+  display_name TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_identity_hash ON users(organization_id, identity_hash);
+CREATE TABLE IF NOT EXISTS roles (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  name TEXT NOT NULL,
+  permissions ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_org_name ON roles(organization_id, name);
+CREATE TABLE IF NOT EXISTS team_members (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  role_id TEXT NOT NULL REFERENCES roles(id),
+  status TEXT NOT NULL DEFAULT 'active',
+  invited_by_user_id TEXT,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_team_members_project ON team_members(project_id, status);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  key_hash TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  name TEXT NOT NULL,
+  scopes ${types.json} NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_by_user_id TEXT,
+  last_used_at ${types.timestamp},
+  revoked_at ${types.timestamp},
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+CREATE TABLE IF NOT EXISTS trust_reports (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  report_id TEXT,
+  status TEXT NOT NULL,
+  release_gate_decision TEXT,
+  evidence_hash TEXT,
+  published_at ${types.timestamp},
+  created_at ${types.timestamp} NOT NULL
+);`),
     statement("003_runs_cases", ["runs", "cases"], `
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
@@ -122,7 +178,7 @@ CREATE TABLE IF NOT EXISTS api_import_receipts (
   dashboard_case_count INTEGER NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );`),
-    statement("006_reports_audit_usage", ["shareable_reports", "report_view_events", "report_revocations", "audit_events", "usage_ledger"], `
+    statement("006_reports_audit_usage", ["shareable_reports", "report_share_links", "report_view_events", "report_revocations", "audit_events", "usage_ledger"], `
 CREATE TABLE IF NOT EXISTS shareable_reports (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
@@ -135,11 +191,26 @@ CREATE TABLE IF NOT EXISTS shareable_reports (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
+CREATE TABLE IF NOT EXISTS report_share_links (
+  token_hash TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  report_id TEXT NOT NULL REFERENCES shareable_reports(id),
+  scope TEXT NOT NULL,
+  expires_at ${types.timestamp},
+  revoked_at ${types.timestamp},
+  created_by TEXT,
+  created_at ${types.timestamp} NOT NULL,
+  last_viewed_at ${types.timestamp}
+);
+CREATE INDEX IF NOT EXISTS idx_report_share_links_report ON report_share_links(project_id, report_id);
 CREATE TABLE IF NOT EXISTS report_view_events (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   project_id TEXT NOT NULL,
   report_id TEXT NOT NULL REFERENCES shareable_reports(id),
+  token_hash_prefix TEXT,
+  access_result TEXT NOT NULL DEFAULT 'allowed',
   viewer_hash TEXT,
   viewed_at ${types.timestamp} NOT NULL
 );

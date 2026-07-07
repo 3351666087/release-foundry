@@ -49,11 +49,22 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   const missing = await store.getCase("missing-case", { source: "mock" });
   assert.equal(missing, null);
 
-  const report = await store.createShareableReport({ source: "mock", createdAt: "2026-07-07T00:00:00.000Z" });
+  const report = await store.createShareableReport({
+    source: "mock",
+    createdAt: "2026-07-07T00:00:00.000Z",
+    shareToken: "unit_store_share_token"
+  });
   assert.equal(report.schema_version, "a3.shareable_report.v1");
   assert.equal(report.status, "shareable");
-  assert.match(report.share_url_path, /^\/reports\/a3r_/);
+  assert.equal(report.share_url_path, "/r/unit_store_share_token");
+  assert.match(report.internal_url_path, /^\/reports\/a3r_/);
   assert.equal(report.sealed_evidence.secret_free, true);
+
+  const savedReport = await store.getReport(report.report_id);
+  assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
+  assert.equal(savedReport.share_link.token_hash, undefined);
+  assert.match(savedReport.share_link.token_hash_prefix, /^[a-f0-9]{12}$/);
+  assert.doesNotMatch(JSON.stringify(savedReport), /unit_store_share_token/);
 
   const admin = await store.getSaasAdminConsole({ source: "mock" });
   assert.equal(admin.team.members.length, 4);
@@ -182,7 +193,8 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   const report = await store.createShareableReport({
     source: "mock",
     createdAt: "2026-07-07T00:00:00.000Z",
-    expiresAt: "2026-07-08T00:00:00.000Z"
+    expiresAt: "2026-07-08T00:00:00.000Z",
+    shareToken: "unit_lifecycle_share_token"
   });
   assert.equal(report.status, "shareable");
   assert.equal(report.expires_at, "2026-07-08T00:00:00.000Z");
@@ -194,11 +206,26 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   assert.equal(viewed.status, "shareable");
   assert.equal(viewed.view_audit.view_count, 1);
 
+  const shared = await store.getReportForShareToken("unit_lifecycle_share_token", {
+    viewer: "unit-test-token",
+    viewedAt: "2026-07-07T12:30:00.000Z"
+  });
+  assert.equal(shared.status, "shareable");
+  assert.equal(shared.access_result, "allowed");
+  assert.equal(shared.view_audit.view_count, 2);
+
   const expired = await store.getReportForView(report.report_id, {
     viewer: "unit-test",
     viewedAt: "2026-07-09T00:00:00.000Z"
   });
   assert.equal(expired.status, "expired");
+
+  const expiredShare = await store.getReportForShareToken("unit_lifecycle_share_token", {
+    viewer: "unit-test-token",
+    viewedAt: "2026-07-09T00:00:00.000Z"
+  });
+  assert.equal(expiredShare.status, "expired");
+  assert.equal(expiredShare.payload, null);
 
   const revoke = await store.revokeReport(report.report_id, {
     revokedBy: "unit-test",
@@ -207,15 +234,22 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   assert.equal(revoke.schema_version, "a3.report_revoke_receipt.v1");
   assert.equal(revoke.status, "revoked");
 
+  const revokedShare = await store.getReportForShareToken("unit_lifecycle_share_token", {
+    viewer: "unit-test-token",
+    viewedAt: "2026-07-07T13:30:00.000Z"
+  });
+  assert.equal(revokedShare.status, "revoked");
+  assert.equal(revokedShare.payload, null);
+
   const manifest = await store.getReportManifest(report.report_id, { source: "mock" });
   assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
-  assert.equal(manifest.release_packet.migration_count, 6);
+  assert.equal(manifest.release_packet.migration_count, 7);
   assert.ok(manifest.artifacts.some((item) => item.id === "usage_ledger"));
 
   const center = await store.getReportCenter({ source: "mock" });
   assert.equal(center.summary.report_count, 1);
   assert.equal(center.reports[0].report_id, report.report_id);
-  assert.equal(center.reports[0].manifest.migration_count, 6);
+  assert.equal(center.reports[0].manifest.migration_count, 7);
   assert.ok(center.reports[0].manifest.completeness_score > 0);
 
   const revoked = await store.getReportForView(report.report_id, {

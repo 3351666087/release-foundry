@@ -457,12 +457,15 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /state\.reportCenter/);
   assert.match(html, /GET \/api\/a3\/reports\/center/);
   assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
   assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });
 
 test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and trust", async () => {
   const html = await loadDashboardHtml();
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const adminModel = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
 
   assert.match(html, /a3_saas_admin\.mjs/);
   assert.match(html, /components\/saas-admin-console\.mjs/);
@@ -476,6 +479,14 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /planA3AdminAction/);
   assert.match(html, /data-admin-action-select/);
   assert.match(html, /login, team, usage, API key, and trust state/);
+  assert.match(adminComponent, /RBAC Matrix/);
+  assert.match(adminComponent, /Invite Workflow/);
+  assert.match(adminComponent, /API Key Lifecycle/);
+  assert.match(adminComponent, /Trust Center/);
+  assert.match(adminComponent, /Cloud Management/);
+  assert.match(adminComponent, /Product Console Map/);
+  assert.match(adminModel, /quota_mutations_enabled/);
+  assert.match(html, /state\.saasRuntime\.usage_ledger/);
   assert.match(html, /saas_admin_console/);
   assert.match(html, /selectedAdminAction/);
   assert.match(html, /selectedAdminPlan/);

@@ -378,6 +378,9 @@
 - [x] Add `GET /api/a3/admin/console` and `POST /api/a3/admin/actions/plan`.
 - [x] Keep SaaS admin actions safe: real login, API-key creation, team invites, billing mutations, and Trust publishing are disabled or plan-only.
 - [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
+- [x] Add Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map to SaaS Admin dashboard rendering.
+- [x] Add SaaS database migration-contract tables for `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
+- [x] Keep SaaS admin and cloud-management parity clean-room: no official private source, no real account data, and no cloud mutations committed.
 - [x] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
@@ -393,3 +396,6 @@
 - [x] Add report center manifest contract for hosted report artifacts, usage ledger evidence, and DB migration evidence.
 - [x] Add Report Center index/control-plane API for hosted report lifecycle, manifest readiness, usage, migration, and redaction status.
 - [x] Wire Report Center index into API-backed dashboard after hosted report creation.
+- [x] Add external `/r/:shareToken` hosted report route with token-hash lookup.
+- [x] Keep raw share tokens out of stored report payloads and durable Report Center summaries.
+- [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.

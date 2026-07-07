@@ -11,6 +11,11 @@ test("A3 Report Center index summarizes hosted report lifecycle and manifest rea
       source: "mock",
       status: "shareable",
       share_url_path: "/reports/a3r_shareable",
+      share_link: {
+        token_hash: "hash-shareable",
+        token_hash_prefix: "hash-shareabl",
+        scope: "private_link"
+      },
       created_at: "2026-07-07T00:00:00.000Z",
       expires_at: "2026-07-08T00:00:00.000Z",
       lifecycle: { revocable: true, view_audit_enabled: true },
@@ -53,6 +58,8 @@ test("A3 Report Center index summarizes hosted report lifecycle and manifest rea
   assert.equal(center.control_plane.live_cloud_mutations_enabled, false);
   assert.ok(center.reports[0].manifest.completeness_score >= 80);
   assert.equal(center.reports[0].redaction.status, "passed");
+  assert.equal(center.reports[0].share_link.raw_token_stored, false);
+  assert.equal(center.reports[0].share_link.token_hash_prefix, "hash-shareabl");
   assert.equal(center.reports[1].status, "revoked");
 });
 

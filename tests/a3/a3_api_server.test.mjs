@@ -35,8 +35,13 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");
+    assert.equal(admin.login.session.cookie_storage, "not_read_or_saved");
+    assert.equal(admin.rbac.status, "contract_ready");
     assert.equal(admin.api_keys.status, "metadata_only");
+    assert.equal(admin.usage.plan_snapshot.quota_mutations_enabled, false);
+    assert.equal(admin.trust.trust_center.public_publish_enabled, false);
     assert.equal(admin.cloud_management.real_mutations_enabled, false);
+    assert.ok(admin.cloud_management.resources.some((item) => item.type === "report_center"));
 
     const actionResponse = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
       method: "POST",
@@ -185,9 +190,14 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(report.status, "shareable");
     assert.equal(report.lifecycle.revocable, true);
     assert.ok(report.expires_at);
+    assert.match(report.share_url_path, /^\/r\/a3s_/);
+    assert.match(report.internal_url_path, /^\/reports\/a3r_/);
 
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
+    assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
+    assert.equal(savedReport.share_link.token_hash, undefined);
+    assert.match(savedReport.share_link.token_hash_prefix, /^[a-f0-9]{12}$/);
 
     const manifest = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/manifest?source=mock`);
     assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
@@ -212,6 +222,13 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(viewReceipt.schema_version, "a3.report_view_receipt.v1");
     assert.equal(viewReceipt.view_audit.view_count, 1);
 
+    const internalReport = await fetch(`${url}${report.internal_url_path}`);
+    assert.equal(internalReport.status, 200);
+    assert.match(internalReport.headers.get("content-type"), /text\/html/);
+    const internalHtml = await internalReport.text();
+    assert.match(internalHtml, /A3 API smoke report/);
+    assert.match(internalHtml, /Sealed Evidence/);
+
     const hostedReport = await fetch(`${url}${report.share_url_path}`);
     assert.equal(hostedReport.status, 200);
     assert.match(hostedReport.headers.get("content-type"), /text\/html/);
@@ -230,6 +247,12 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const revokedHostedReport = await fetch(`${url}${report.share_url_path}`);
     assert.equal(revokedHostedReport.status, 410);
+    const revokedHostedHtml = await revokedHostedReport.text();
+    assert.match(revokedHostedHtml, /A3 report is not available/);
+    assert.doesNotMatch(revokedHostedHtml, /Case Evidence/);
+
+    const missingShareToken = await fetch(`${url}/r/missing-share-token`);
+    assert.equal(missingShareToken.status, 404);
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);

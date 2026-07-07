@@ -31,9 +31,15 @@ test("A3 SaaS admin console models login, team, usage, API keys, and trust witho
   assert.equal(admin.schema_version, "a3.saas_admin_console.v1");
   assert.equal(admin.login.status, "observed_read_only");
   assert.equal(admin.team.invite_mode, "disabled_until_auth");
+  assert.equal(admin.rbac.status, "contract_ready");
   assert.equal(admin.api_keys.status, "metadata_only");
+  assert.ok(admin.api_keys.lifecycle.some((item) => item.step === "rotate"));
   assert.equal(admin.usage.status, "frontend_calibrated");
+  assert.equal(admin.usage.plan_snapshot.quota_mutations_enabled, false);
   assert.equal(admin.trust.publish_enabled, false);
+  assert.equal(admin.trust.trust_center.public_publish_enabled, false);
+  assert.ok(admin.cloud_management.resources.some((item) => item.type === "project"));
+  assert.ok(admin.product_console_map.some((item) => item.page === "Team"));
   assert.equal(admin.safety.real_api_key_secrets_enabled, false);
   assert.equal(admin.a1_a2_compatibility.a1_run_result_ready, true);
   assert.equal(admin.a1_a2_compatibility.a2_grade_result_ready, true);
@@ -49,6 +55,15 @@ test("A3 SaaS admin actions are explicit read-only or plan-only guardrails", () 
   assert.equal(invite.enabled, false);
   assert.equal(invite.writes_real_ashr_cloud, false);
   assert.equal(invite.secret_values_included, false);
+
+  const rbac = planSaasAdminAction("configure_rbac", {});
+  assert.equal(rbac.mode, "contract_ready");
+  assert.equal(rbac.enabled, true);
+  assert.equal(rbac.writes_real_ashr_cloud, false);
+
+  const usageLimit = planSaasAdminAction("manage_usage_limit", {});
+  assert.equal(usageLimit.mode, "plan_only");
+  assert.equal(usageLimit.enabled, false);
 
   const usage = planSaasAdminAction("view_usage", {
     usage: { available: true, direct_api_accessible: false, guidance: "OAuth-gated functions confirmed." }

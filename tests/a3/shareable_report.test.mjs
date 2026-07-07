@@ -41,12 +41,16 @@ test("A3 shareable report wraps release evidence in a hosted-report payload", ()
     source: "unit-test"
   }, {
     createdAt: "2026-07-07T00:00:00.000Z",
-    reportId: "a3r_unit_test"
+    reportId: "a3r_unit_test",
+    shareToken: "unit_share_token"
   });
 
   assert.equal(report.schema_version, "a3.shareable_report.v1");
   assert.equal(report.report_id, "a3r_unit_test");
-  assert.equal(report.share_url_path, "/reports/a3r_unit_test");
+  assert.equal(report.internal_url_path, "/reports/a3r_unit_test");
+  assert.equal(report.share_url_path, "/r/unit_share_token");
+  assert.equal(report.share_link.token_hash_prefix, report.share_link.token_hash.slice(0, 12));
+  assert.equal(report.share_link.raw_token_returned_once, true);
   assert.equal(report.status, "shareable");
   assert.equal(report.expires_at, "2026-08-06T00:00:00.000Z");
   assert.equal(report.lifecycle.revocable, true);
@@ -60,6 +64,24 @@ test("A3 shareable report wraps release evidence in a hosted-report payload", ()
   assert.match(html, /A3 Shareable Report|A3 Release Intelligence Report/);
   assert.match(html, /Sealed Evidence/);
   assert.match(html, /case-share-smoke/);
+});
+
+test("A3 shareable report renders a controlled denied page without report body", () => {
+  const html = renderShareableReportHtml({
+    report_id: "a3r_denied",
+    status: "revoked",
+    access_result: "revoked",
+    share_link: { token_hash_prefix: "abc123" },
+    sealed_evidence: { payload_hash: "hash", hash_algorithm: "sha256" },
+    payload: {
+      cases: [{ case_id: "case-should-not-render" }]
+    }
+  });
+
+  assert.match(html, /A3 report is not available/);
+  assert.match(html, /revoked/);
+  assert.doesNotMatch(html, /case-should-not-render/);
+  assert.doesNotMatch(html, /Case Evidence/);
 });
 
 test("A3 shareable report redacts secrets before producing hosted payloads", () => {

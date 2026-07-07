@@ -10,14 +10,20 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
 
   assert.equal(plan.schema_version, "a3.sql_migration_plan.v1");
   assert.equal(plan.dialect, "postgres");
-  assert.ok(plan.migration_count >= 6);
+  assert.ok(plan.migration_count >= 7);
   assert.ok(plan.guardrails.some((item) => item.includes("organization_id")));
 
   const sql = plan.statements.map((item) => item.sql).join("\n");
   for (const table of [
+    "users",
+    "roles",
+    "team_members",
+    "api_keys",
+    "trust_reports",
     "idempotency_keys",
     "api_import_receipts",
     "shareable_reports",
+    "report_share_links",
     "report_view_events",
     "report_revocations",
     "audit_events",
@@ -25,6 +31,11 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
+  assert.match(sql, /identity_hash TEXT NOT NULL/);
+  assert.match(sql, /key_hash TEXT NOT NULL/);
+  assert.match(sql, /release_gate_decision TEXT/);
+  assert.match(sql, /token_hash TEXT PRIMARY KEY/);
+  assert.match(sql, /access_result TEXT NOT NULL DEFAULT 'allowed'/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_usage_meter/);
 });
 

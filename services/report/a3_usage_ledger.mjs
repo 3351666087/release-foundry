@@ -25,7 +25,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     meter("judge_results", countJudgeResults(cases), "A2 judge result entries"),
     meter("media_evidence_cases", summary.mediaEvidenceCases || 0, "Cases with media evidence metadata"),
     meter("shareable_reports", reports.length, "Hosted report payloads"),
-    meter("report_views", auditEvents.filter((item) => item.event_type === "report_view").length, "Hosted report view events"),
+    meter("report_views", auditEvents.filter((item) => item.event_type === "report_view" || item.event_type === "report_share_link_viewed").length, "Hosted report view and share-link access events"),
     meter("report_revocations", auditEvents.filter((item) => item.event_type === "report_revoke").length, "Hosted report revocation events"),
     meter("api_imports", importReceipts.length, "A1/A2 API import receipts")
   ];
