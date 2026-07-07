@@ -20,8 +20,11 @@ def main() -> int:
         "endpoint",
         choices=[
             "/internal/judge/case",
+            "/internal/judge/run",
             "/internal/judge/batch",
             "/internal/release-policy/evaluate",
+            "/internal/regression/replay",
+            "/internal/calibration/evaluate",
         ],
     )
     parser.add_argument("--method", default="POST")

@@ -78,8 +78,11 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(report["tenant"]["environment"], "prod")
         self.assertTrue(report["tenant"]["tenant_scoped"])
         self.assertIn("/internal/judge/case", endpoint_paths)
+        self.assertIn("/internal/judge/run", endpoint_paths)
         self.assertIn("/internal/judge/batch", endpoint_paths)
         self.assertIn("/internal/release-policy/evaluate", endpoint_paths)
+        self.assertIn("/internal/regression/replay", endpoint_paths)
+        self.assertIn("/internal/calibration/evaluate", endpoint_paths)
         self.assertIn("/internal/scenarios/select", endpoint_paths)
         self.assertIn("/internal/results/persist", endpoint_paths)
 

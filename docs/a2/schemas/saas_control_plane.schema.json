@@ -45,7 +45,7 @@
         "endpoints": {
           "type": "array",
           "items": { "$ref": "#/$defs/endpoint" },
-          "minItems": 5
+          "minItems": 8
         },
         "async_job_compatible": { "type": "boolean" },
         "safe_for_worker_dispatch": { "type": "boolean" }

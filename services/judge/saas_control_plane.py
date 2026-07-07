@@ -6,7 +6,15 @@ from collections import Counter
 from typing import Any
 
 from .release_policy import compute_policy_hash, policy_hash_matches, select_release_policy
-from .service_wrapper import BATCH_ENDPOINT, CASE_ENDPOINT, RELEASE_POLICY_ENDPOINT, SERVICE_VERSION
+from .service_wrapper import (
+    BATCH_ENDPOINT,
+    CALIBRATION_EVALUATE_ENDPOINT,
+    CASE_ENDPOINT,
+    REGRESSION_REPLAY_ENDPOINT,
+    RELEASE_POLICY_ENDPOINT,
+    RUN_ENDPOINT,
+    SERVICE_VERSION,
+)
 
 
 SCHEMA_VERSION = "a2.saas_control_plane_report.v1"
@@ -106,12 +114,25 @@ def _service_summary() -> dict[str, Any]:
         "mode": "deterministic_local_service_contract",
         "endpoints": [
             _endpoint("judge_case", CASE_ENDPOINT, ["scenario_id", "case_id", "run"], ["judge_result"]),
+            _endpoint("judge_run", RUN_ENDPOINT, ["run_id", "cases"], ["grade_report", "run_summary"]),
             _endpoint("judge_batch", BATCH_ENDPOINT, ["cases"], ["grade_report"]),
             _endpoint(
                 "release_policy_evaluate",
                 RELEASE_POLICY_ENDPOINT,
                 ["project_id", "environment", "grade_report"],
                 ["release_gate", "policy_evaluation"],
+            ),
+            _endpoint(
+                "regression_replay",
+                REGRESSION_REPLAY_ENDPOINT,
+                ["calibration_matrix", "case_book_report"],
+                ["replay_report"],
+            ),
+            _endpoint(
+                "calibration_evaluate",
+                CALIBRATION_EVALUATE_ENDPOINT,
+                ["pack_path", "run_dir", "observations_path"],
+                ["calibration_matrix", "source_coverage"],
             ),
             _endpoint(
                 "scenario_selection",

@@ -31,6 +31,21 @@
         "requires_network": false
       },
       {
+        "endpoint_id": "judge_run",
+        "method": "POST",
+        "path": "/internal/judge/run",
+        "request_fields": [
+          "run_id",
+          "cases"
+        ],
+        "response_fields": [
+          "grade_report",
+          "run_summary"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
         "endpoint_id": "judge_batch",
         "method": "POST",
         "path": "/internal/judge/batch",
@@ -55,6 +70,36 @@
         "response_fields": [
           "release_gate",
           "policy_evaluation"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "regression_replay",
+        "method": "POST",
+        "path": "/internal/regression/replay",
+        "request_fields": [
+          "calibration_matrix",
+          "case_book_report"
+        ],
+        "response_fields": [
+          "replay_report"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "calibration_evaluate",
+        "method": "POST",
+        "path": "/internal/calibration/evaluate",
+        "request_fields": [
+          "pack_path",
+          "run_dir",
+          "observations_path"
+        ],
+        "response_fields": [
+          "calibration_matrix",
+          "source_coverage"
         ],
         "deterministic": true,
         "requires_network": false

@@ -18,12 +18,20 @@ from .scenario_selection import build_project_scenario_selection, build_scenario
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
 from .service_wrapper import (
+    CALIBRATION_EVALUATE_ENDPOINT,
     handle_internal_request,
     judge_batch,
     judge_case,
+    judge_run,
+    post_internal_calibration_evaluate,
     post_internal_judge_batch,
     post_internal_judge_case,
+    post_internal_judge_run,
+    post_internal_regression_replay,
     post_internal_release_policy_evaluate,
+    replay_regressions,
+    REGRESSION_REPLAY_ENDPOINT,
+    RUN_ENDPOINT,
     select_project_scenarios,
 )
 from .grounding import GroundingJudge
@@ -38,6 +46,9 @@ __all__ = [
     "GradeResult",
     "GroundingJudge",
     "OutcomeJudge",
+    "CALIBRATION_EVALUATE_ENDPOINT",
+    "REGRESSION_REPLAY_ENDPOINT",
+    "RUN_ENDPOINT",
     "SafetyBoundaryJudge",
     "TraceIntegrityJudge",
     "ToolPolicyJudge",
@@ -60,10 +71,15 @@ __all__ = [
     "import_semantic_judge_observations",
     "judge_batch",
     "judge_case",
+    "judge_run",
     "merge_calibration_observations",
+    "post_internal_calibration_evaluate",
     "post_internal_judge_batch",
     "post_internal_judge_case",
+    "post_internal_judge_run",
+    "post_internal_regression_replay",
     "post_internal_release_policy_evaluate",
+    "replay_regressions",
     "select_project_scenarios",
     "write_jsonl",
 ]

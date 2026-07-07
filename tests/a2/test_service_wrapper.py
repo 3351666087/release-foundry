@@ -7,11 +7,17 @@ from pathlib import Path
 
 from services.judge.service_wrapper import (
     BATCH_ENDPOINT,
+    CALIBRATION_EVALUATE_ENDPOINT,
     CASE_ENDPOINT,
+    REGRESSION_REPLAY_ENDPOINT,
     RELEASE_POLICY_ENDPOINT,
+    RUN_ENDPOINT,
     handle_internal_request,
+    post_internal_calibration_evaluate,
     post_internal_judge_batch,
     post_internal_judge_case,
+    post_internal_judge_run,
+    post_internal_regression_replay,
     post_internal_release_policy_evaluate,
 )
 
@@ -72,6 +78,33 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["result"]["failed"], 1)
         failure_classes = {item["primary_failure_class"] for item in response["result"]["grade_results"]}
         self.assertIn("missing_required_tool", failure_classes)
+
+    def test_run_endpoint_grades_run_cases_with_summary(self):
+        pass_case = json.loads((ROOT / "fixtures/a2/runs/a2_s001_pass.json").read_text(encoding="utf-8"))
+        fail_case = json.loads((ROOT / "fixtures/a2/runs/a2_s004_missing_tool.json").read_text(encoding="utf-8"))
+
+        response = post_internal_judge_run(
+            {
+                "request_id": "svc-run-smoke",
+                "tenant_id": "tenant_demo",
+                "project_id": "proj_demo",
+                "run_id": "run_service_demo",
+                "cases": [pass_case, fail_case],
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], RUN_ENDPOINT)
+        self.assertEqual(response["result"]["schema_version"], "a2.judge_service.run_response.v1")
+        self.assertEqual(response["result"]["total_cases"], 2)
+        self.assertEqual(response["result"]["passed"], 1)
+        self.assertEqual(response["result"]["failed"], 1)
+        self.assertEqual(response["result"]["run_summary"]["pass_rate"], 50.0)
+        self.assertEqual(response["result"]["run_summary"]["primary_failure_class_counts"]["none"], 1)
+        self.assertEqual(
+            response["result"]["run_summary"]["primary_failure_class_counts"]["missing_required_tool"],
+            1,
+        )
 
     def test_release_policy_endpoint_wraps_existing_gate_report(self):
         response = post_internal_release_policy_evaluate(
@@ -157,6 +190,39 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(policy_evaluation["waiver_summary"]["applied_count"], 1)
         self.assertEqual(policy_evaluation["waiver_summary"]["waived_blocking_count"], 1)
 
+    def test_regression_replay_endpoint_returns_replay_report(self):
+        response = post_internal_regression_replay(
+            {
+                "request_id": "svc-regression-replay",
+                "tenant_id": "tenant_demo",
+                "project_id": "proj_demo",
+                "run_id": "run_regression_demo",
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], REGRESSION_REPLAY_ENDPOINT)
+        self.assertEqual(response["result"]["schema_version"], "a2.regression_replay.v1")
+        self.assertIn("replay_ready", response["result"])
+        self.assertIn("maturity_gate", response["result"])
+
+    def test_calibration_evaluate_endpoint_returns_public_matrix(self):
+        response = post_internal_calibration_evaluate(
+            {
+                "request_id": "svc-calibration",
+                "tenant_id": "tenant_demo",
+                "project_id": "proj_demo",
+                "run_id": "run_calibration_demo",
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], CALIBRATION_EVALUATE_ENDPOINT)
+        self.assertEqual(response["result"]["schema_version"], "a2.calibration_matrix.v1")
+        self.assertEqual(response["result"]["case_count"], 6)
+        self.assertEqual(response["result"]["source_coverage"]["local_judge"]["available"], 6)
+        self.assertIn("ashr_grading", response["result"]["source_coverage"])
+
     def test_dispatcher_rejects_unknown_internal_route(self):
         response = handle_internal_request("/internal/judge/unknown", {}, method="POST")
 
@@ -195,6 +261,30 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual(response["endpoint"], CASE_ENDPOINT)
         self.assertEqual(response["result"]["case_id"], "cli-a2-s001-pass")
+
+    def test_cli_exposes_calibration_endpoint(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            input_path = Path(tmp_dir) / "payload.json"
+            input_path.write_text(json.dumps({"request_id": "cli-calibration"}), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/a2_judge_service.py"),
+                    CALIBRATION_EVALUATE_ENDPOINT,
+                    "--input",
+                    str(input_path),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        response = json.loads(result.stdout)
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], CALIBRATION_EVALUATE_ENDPOINT)
+        self.assertEqual(response["result"]["schema_version"], "a2.calibration_matrix.v1")
 
 
 if __name__ == "__main__":
