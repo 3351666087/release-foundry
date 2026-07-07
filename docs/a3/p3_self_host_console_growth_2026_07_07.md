@@ -357,4 +357,3 @@ Recommended verification command for this document:
 ```text
 node --test tests/a3/self_host_console_contract.test.mjs
 ```
-

@@ -127,4 +127,3 @@ The next A3 round should be a coherence round, not another surface-area round. T
 If this round succeeds, A3 can sell a stronger promise:
 
 > "We do not just show a release report. We preserve the evidence, meter it, scan it, manifest it, gate it, share it safely, and let your platform team operate it."
-

@@ -52,4 +52,3 @@ test("A3 self-host console contract preserves current API, DB, and safety anchor
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-

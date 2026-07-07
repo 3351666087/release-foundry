@@ -131,4 +131,3 @@ test("A3 SQL adapter contract includes required Postgres index DDL", async () =>
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-
