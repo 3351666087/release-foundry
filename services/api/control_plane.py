@@ -6,9 +6,47 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 from uuid import uuid4
 
-from .runtime import CloudApiService, JsonDict, ValidationError, _jsonable, _utc_now
+from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _utc_now
 
 CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1"
+API_KEY_ADMIN_SCOPE = "api_key:write"
+API_KEY_READ_SCOPE = "api_key:read"
+API_KEY_LEGACY_ADMIN_SCOPE = "key:admin"
+API_KEY_LEGACY_READ_SCOPE = "key:read"
+RUN_CREATE_SCOPE = "run:create"
+RUN_UPLOAD_SCOPE = "run:upload"
+TRACE_INGEST_SCOPE = "trace:ingest"
+USAGE_READ_SCOPE = "usage:read"
+AUDIT_READ_SCOPE = "audit:read"
+ADMIN_ALL_SCOPE = "admin:all"
+CONTROL_PLANE_SCOPES = {
+    "project:read",
+    "project:write",
+    "dataset:read",
+    "dataset:write",
+    "run:read",
+    RUN_CREATE_SCOPE,
+    RUN_UPLOAD_SCOPE,
+    TRACE_INGEST_SCOPE,
+    "artifact:upload",
+    "evidence:read",
+    "release_gate:evaluate",
+    API_KEY_READ_SCOPE,
+    API_KEY_ADMIN_SCOPE,
+    USAGE_READ_SCOPE,
+    AUDIT_READ_SCOPE,
+    ADMIN_ALL_SCOPE,
+}
+API_KEY_SCOPE_ALIASES = {
+    API_KEY_LEGACY_ADMIN_SCOPE: {API_KEY_ADMIN_SCOPE, API_KEY_READ_SCOPE},
+    API_KEY_LEGACY_READ_SCOPE: {API_KEY_READ_SCOPE},
+    "sdk:submit": {RUN_CREATE_SCOPE},
+    "runs:write": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE},
+    "write:runs": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE},
+    "traces:write": {TRACE_INGEST_SCOPE},
+    API_KEY_ADMIN_SCOPE: {API_KEY_READ_SCOPE},
+    ADMIN_ALL_SCOPE: set(CONTROL_PLANE_SCOPES),
+}
 SAAS_QUOTA_LIMITS = {
     "api_key.create": 100,
     "run.upload": 10_000,
@@ -27,6 +65,9 @@ class SaaSControlPlaneStore:
     uploads: dict[str, JsonDict] = field(default_factory=dict)
     trace_batches: dict[str, JsonDict] = field(default_factory=dict)
     sdk_submissions: dict[str, JsonDict] = field(default_factory=dict)
+    audit_log: dict[str, JsonDict] = field(default_factory=dict)
+    usage_ledger: dict[str, JsonDict] = field(default_factory=dict)
+    idempotency_keys: dict[str, JsonDict] = field(default_factory=dict)
 
 
 class SaaSControlPlaneService:
@@ -47,12 +88,26 @@ class SaaSControlPlaneService:
         self.cloud.quota.configure(tenant["tenant_id"], project["project_id"], SAAS_QUOTA_LIMITS)
         return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant": tenant, "project": project, "quota": self.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])}
 
-    def create_api_key(self, tenant_id: str, project_id: str, *, name: str, scopes: list[str], key_id: str | None = None) -> JsonDict:
+    def create_api_key(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        name: str,
+        scopes: list[str],
+        key_id: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
         project = self.cloud.get_project(tenant_id, project_id)
-        if not scopes:
+        if auth_key_id is not None:
+            self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=API_KEY_ADMIN_SCOPE)
+        normalized_scopes = [_normalize_scope(scope) for scope in scopes]
+        if not normalized_scopes:
             raise ValidationError("api key scopes must not be empty")
         self.cloud.quota.consume(project["tenant_id"], project["project_id"], "api_key.create")
         key_id = key_id or _new_id("key")
+        if key_id in self.store.api_keys:
+            raise ValidationError(f"api key already exists: {key_id}")
         synthetic_secret = f"ashr_local_{key_id}_{uuid4().hex}"
         digest = hashlib.sha256(synthetic_secret.encode("utf-8")).hexdigest()
         now = _utc_now()
@@ -66,26 +121,67 @@ class SaaSControlPlaneService:
             "secret_hash_sha256": digest,
             "secret_value_present": False,
             "status": "active",
-            "scopes": list(scopes),
+            "scopes": normalized_scopes,
             "created_at": now,
             "revoked_at": None,
             "last_used_at": None,
         }
         self.store.api_keys[key_id] = record
-        return _public_api_key(record)
+        public = _public_api_key(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "api_key.create", target_id=key_id, api_key_id=auth_key_id, after=public)
+        return public
 
-    def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str) -> JsonDict:
+    def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=API_KEY_ADMIN_SCOPE)
         record = self._api_key_record(tenant_id, project_id, key_id)
+        before = _public_api_key(record)
         record["status"] = "revoked"
         record["revoked_at"] = _utc_now()
-        return _public_api_key(record)
+        public = _public_api_key(record)
+        self._append_audit(tenant_id, project_id, "api_key.revoke", target_id=key_id, api_key_id=auth_key_id, before=before, after=public)
+        return public
 
-    def list_api_keys(self, tenant_id: str, project_id: str) -> list[JsonDict]:
+    def list_api_keys(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> list[JsonDict]:
         self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=API_KEY_READ_SCOPE)
         return [_public_api_key(record) for record in self.store.api_keys.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)]
 
-    def sdk_submit_run(self, tenant_id: str, project_id: str, *, dataset_id: str, agent_ref: str, run_id: str | None = None, metadata: Mapping[str, Any] | None = None) -> JsonDict:
+    def authenticate_api_key(self, tenant_id: str, project_id: str, *, key_id: str, scope: str) -> JsonDict:
+        """Authenticate a local API key by id and required scope.
+
+        This sandbox contract intentionally never accepts or returns a raw secret;
+        the caller supplies the key id and desired scope, and receives a public,
+        redacted key view when the key is active and authorized.
+        """
+        record = self._api_key_record(tenant_id, project_id, key_id)
+        required_scope = _normalize_scope(scope)
+        if record.get("status") != "active":
+            raise ValidationError(f"api key is not active: {key_id}")
+        if not _scope_allows(record.get("scopes", []), required_scope):
+            raise ValidationError(f"api key {key_id} missing required scope: {required_scope}")
+        record["last_used_at"] = _utc_now()
+        return {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": record.get("tenant_id"),
+            "project_id": record.get("project_id"),
+            "key_id": record.get("key_id"),
+            "authenticated": True,
+            "required_scope": required_scope,
+            "api_key": _public_api_key(record),
+            "secret_value_present": False,
+        }
+
+    def sdk_submit_run(self, tenant_id: str, project_id: str, *, dataset_id: str, agent_ref: str, run_id: str | None = None, metadata: Mapping[str, Any] | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope="sdk:submit")
+        idem = self._idempotency_lookup(tenant_id, project_id, "sdk.submit", idempotency_key)
+        if idem is not None:
+            return idem
+        self.cloud.quota.check(tenant_id, project_id, "sdk.submit")
         run = self.cloud.create_queued_run(tenant_id, project_id, dataset_id=dataset_id, run_id=run_id, runner_id="sdk-submit", metadata={"submitted_by": "sdk", "agent_ref": agent_ref, **dict(metadata or {})})
+        self._consume_usage(tenant_id, project_id, "sdk.submit", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, run_id=run["run_id"])
         submission = {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
             "submission_id": _new_id("sdksub"),
@@ -95,14 +191,24 @@ class SaaSControlPlaneService:
             "run_id": run["run_id"],
             "agent_ref": str(agent_ref),
             "status": "accepted",
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
             "created_at": _utc_now(),
         }
         self.store.sdk_submissions[submission["submission_id"]] = submission
-        return _jsonable({"submission": submission, "run": run})
+        response = _jsonable({"submission": submission, "run": run})
+        self._idempotency_store(tenant_id, project_id, "sdk.submit", idempotency_key, response)
+        self._append_audit(tenant_id, project_id, "sdk.submit", target_id=run["run_id"], api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"run_id": run["run_id"], "submission_id": submission["submission_id"]})
+        return response
 
-    def upload_run_result(self, tenant_id: str, project_id: str, run_id: str, result: Mapping[str, Any], *, upload_id: str | None = None) -> JsonDict:
+    def upload_run_result(self, tenant_id: str, project_id: str, run_id: str, result: Mapping[str, Any], *, upload_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=RUN_UPLOAD_SCOPE)
+        idem = self._idempotency_lookup(tenant_id, project_id, "run.upload", idempotency_key)
+        if idem is not None:
+            return idem
         run = self.cloud.get_run(tenant_id, project_id, run_id)
-        self.cloud.quota.consume(tenant_id, project_id, "run.upload")
+        self._consume_usage(tenant_id, project_id, "run.upload", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id)
         upload_id = upload_id or _new_id("upload")
         payload = _jsonable(dict(result))
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
@@ -115,18 +221,30 @@ class SaaSControlPlaneService:
             "payload_sha256": digest,
             "payload_keys": sorted(payload.keys()),
             "raw_payload_included": False,
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
             "status": "uploaded",
             "created_at": _utc_now(),
         }
         self.store.uploads[upload_id] = record
-        return _jsonable(record)
+        response = _jsonable(record)
+        self._idempotency_store(tenant_id, project_id, "run.upload", idempotency_key, response)
+        self._append_audit(tenant_id, project_id, "run.upload", target_id=run_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"upload_id": upload_id, "payload_sha256": digest})
+        return response
 
-    def ingest_trace(self, tenant_id: str, project_id: str, run_id: str, observations: list[Mapping[str, Any]], *, batch_id: str | None = None) -> JsonDict:
+    def ingest_trace(self, tenant_id: str, project_id: str, run_id: str, observations: list[Mapping[str, Any]], *, batch_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=TRACE_INGEST_SCOPE)
+        idem = self._idempotency_lookup(tenant_id, project_id, "trace.ingest", idempotency_key)
+        if idem is not None:
+            return idem
         self.cloud.get_run(tenant_id, project_id, run_id)
         if not observations:
             raise ValidationError("trace ingestion requires at least one observation")
-        self.cloud.quota.consume(tenant_id, project_id, "trace.ingest", units=len(observations))
-        appended = [self.cloud.append_observation(tenant_id, project_id, run_id, observation) for observation in observations]
+        self._consume_usage(tenant_id, project_id, "trace.ingest", units=len(observations), api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id)
+        normalized_observations = [_jsonable(observation) for observation in observations]
+        batch_sha256 = hashlib.sha256(json.dumps(normalized_observations, sort_keys=True).encode("utf-8")).hexdigest()
+        appended = [self.cloud.append_observation(tenant_id, project_id, run_id, observation) for observation in normalized_observations]
         batch_id = batch_id or _new_id("tracebatch")
         record = {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
@@ -136,11 +254,18 @@ class SaaSControlPlaneService:
             "run_id": run_id,
             "observation_count": len(appended),
             "observation_ids": [item.get("observation_id") for item in appended],
+            "batch_sha256": batch_sha256,
+            "raw_payload_included": False,
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
             "status": "ingested",
             "created_at": _utc_now(),
         }
         self.store.trace_batches[batch_id] = record
-        return _jsonable(record)
+        response = _jsonable(record)
+        self._idempotency_store(tenant_id, project_id, "trace.ingest", idempotency_key, response)
+        self._append_audit(tenant_id, project_id, "trace.ingest", target_id=run_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"batch_id": batch_id, "batch_sha256": batch_sha256})
+        return response
 
     def lifecycle_snapshot(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
         tenant = self.cloud.get_tenant(tenant_id)
@@ -160,13 +285,126 @@ class SaaSControlPlaneService:
             "api_keys": self.list_api_keys(tenant_id, project_id),
             "uploads": [item for item in self.store.uploads.values() if item.get("run_id") == run_id],
             "trace_batches": [item for item in self.store.trace_batches.values() if item.get("run_id") == run_id],
+            "usage_ledger": [item for item in self.store.usage_ledger.values() if item.get("tenant_id") == tenant_id and item.get("project_id") == project_id and item.get("run_id") in {None, run_id}],
+            "audit_log": [item for item in self.store.audit_log.values() if item.get("tenant_id") == tenant_id and item.get("project_id") == project_id and item.get("target_id") in {None, run_id}],
+        }
+
+    def usage_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=USAGE_READ_SCOPE)
+        events = [item for item in self.store.usage_ledger.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
+        totals: dict[str, int] = {}
+        for event in events:
+            operation = str(event.get("operation"))
+            totals[operation] = totals.get(operation, 0) + int(event.get("units", 0))
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "events": _jsonable(events), "totals": totals, "quota": self.cloud.quota_snapshot(tenant_id, project_id)}
+
+    def audit_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=AUDIT_READ_SCOPE)
+        events = [item for item in self.store.audit_log.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "events": _jsonable(events)}
+
+
+    def _consume_usage(self, tenant_id: str, project_id: str, operation: str, *, units: int = 1, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, run_id: str | None = None) -> JsonDict:
+        self.cloud.quota.consume(tenant_id, project_id, operation, units=units)
+        usage_event_id = _new_id("usage")
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "usage_event_id": usage_event_id,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "run_id": run_id,
+            "api_key_id": api_key_id,
+            "operation": str(operation),
+            "units": int(units),
+            "source": "local_control_plane",
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
+            "created_at": _utc_now(),
+        }
+        self.store.usage_ledger[usage_event_id] = record
+        return _jsonable(record)
+
+    def _append_audit(self, tenant_id: str, project_id: str, action: str, *, target_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, before: Mapping[str, Any] | None = None, after: Mapping[str, Any] | None = None) -> JsonDict:
+        event_id = _new_id("audit")
+        before_payload = _jsonable(before or {})
+        after_payload = _jsonable(after or {})
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "audit_event_id": event_id,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "api_key_id": api_key_id,
+            "action": str(action),
+            "target_id": target_id,
+            "before_sha256": hashlib.sha256(json.dumps(before_payload, sort_keys=True).encode("utf-8")).hexdigest() if before_payload else None,
+            "after_sha256": hashlib.sha256(json.dumps(after_payload, sort_keys=True).encode("utf-8")).hexdigest() if after_payload else None,
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
+            "created_at": _utc_now(),
+        }
+        self.store.audit_log[event_id] = record
+        return _jsonable(record)
+
+    def _idempotency_lookup(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None) -> JsonDict | None:
+        if not idempotency_key:
+            return None
+        key = _idempotency_record_key(tenant_id, project_id, operation, idempotency_key)
+        record = self.store.idempotency_keys.get(key)
+        if record is None:
+            return None
+        response = _jsonable(record.get("response", {}))
+        if isinstance(response, dict):
+            response.setdefault("idempotent_replay", True)
+        return response
+
+    def _idempotency_store(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None, response: Mapping[str, Any]) -> None:
+        if not idempotency_key:
+            return
+        key = _idempotency_record_key(tenant_id, project_id, operation, idempotency_key)
+        self.store.idempotency_keys[key] = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "operation": str(operation),
+            "idempotency_key": str(idempotency_key),
+            "response": _jsonable(response),
+            "created_at": _utc_now(),
         }
 
     def _api_key_record(self, tenant_id: str, project_id: str, key_id: str) -> JsonDict:
         record = self.store.api_keys.get(str(key_id))
         if not record or record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
-            raise ValidationError("api key not found for project")
+            raise NotFoundError("api key not found for project")
         return record
+
+
+def _normalize_scope(scope: str) -> str:
+    parsed = str(scope).strip()
+    if not parsed:
+        raise ValidationError("required scope must not be empty")
+    return parsed
+
+
+def _scope_allows(granted_scopes: Any, required_scope: str) -> bool:
+    granted = {str(scope).strip() for scope in granted_scopes or [] if str(scope).strip()}
+    expanded = set(granted)
+    for scope in list(granted):
+        expanded.update(API_KEY_SCOPE_ALIASES.get(scope, set()))
+    if "*" in expanded or ADMIN_ALL_SCOPE in expanded or required_scope in expanded:
+        return True
+    for scope in expanded:
+        if scope.endswith(":*") and required_scope.startswith(f"{scope[:-2]}:"):
+            return True
+    return False
+
+
+def _idempotency_record_key(tenant_id: str, project_id: str, operation: str, idempotency_key: str) -> str:
+    raw = f"{tenant_id}:{project_id}:{operation}:{idempotency_key}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
@@ -185,3 +423,105 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
         "revoked_at": record.get("revoked_at"),
         "last_used_at": record.get("last_used_at"),
     }
+
+class SaaSControlPlaneRouter:
+    """In-process REST-ish router for local tests and CLI smoke flows."""
+
+    def __init__(self, service: SaaSControlPlaneService | None = None) -> None:
+        self.service = service or SaaSControlPlaneService()
+
+    def handle(self, method: str, path: str, body: Mapping[str, Any] | None = None) -> JsonDict:
+        method = method.upper()
+        body = dict(body or {})
+        parts = [part for part in path.strip("/").split("/") if part]
+        try:
+            if method == "POST" and parts == ["v1", "bootstrap"]:
+                return {"status_code": 201, "body": self.service.bootstrap_project(**body)}
+            if len(parts) >= 4 and parts[0] == "v1" and parts[1] == "projects":
+                project_id = parts[2]
+                tenant_id = str(body.get("tenant_id") or body.get("organization_id") or body.get("tenant") or "")
+                if not tenant_id:
+                    raise ValidationError("tenant_id is required")
+                auth_key_id = body.get("auth_key_id") or body.get("api_key_id")
+                if method == "POST" and len(parts) == 4 and parts[3] == "api-keys":
+                    return {"status_code": 201, "body": self.service.create_api_key(tenant_id, project_id, name=str(body.get("name") or "API key"), scopes=list(body.get("scopes") or []), key_id=body.get("key_id"), auth_key_id=auth_key_id)}
+                if method == "GET" and len(parts) == 4 and parts[3] == "api-keys":
+                    return {"status_code": 200, "body": {"api_keys": self.service.list_api_keys(tenant_id, project_id, auth_key_id=auth_key_id)}}
+                if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "revoke":
+                    return {"status_code": 200, "body": self.service.revoke_api_key(tenant_id, project_id, parts[4], auth_key_id=auth_key_id)}
+                if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "authenticate":
+                    return {"status_code": 200, "body": self.service.authenticate_api_key(tenant_id, project_id, key_id=parts[4], scope=str(body.get("scope") or ""))}
+                if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
+                    return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
+                if len(parts) >= 6 and parts[3] == "runs":
+                    run_id = parts[4]
+                    if method == "POST" and len(parts) == 6 and parts[5] == "upload":
+                        result = body.get("result") if isinstance(body.get("result"), Mapping) else body
+                        return {"status_code": 202, "body": self.service.upload_run_result(tenant_id, project_id, run_id, result, upload_id=body.get("upload_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
+                    if method == "POST" and len(parts) == 6 and parts[5] == "trace-events":
+                        observations = body.get("observations") if isinstance(body.get("observations"), list) else []
+                        return {"status_code": 202, "body": self.service.ingest_trace(tenant_id, project_id, run_id, observations, batch_id=body.get("batch_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
+                    if method == "GET" and len(parts) == 6 and parts[5] == "lifecycle":
+                        return {"status_code": 200, "body": self.service.lifecycle_snapshot(tenant_id, project_id, run_id)}
+            raise ValidationError(f"unsupported route: {method} {path}")
+        except Exception as exc:  # Public-safe local router envelope.
+            code = getattr(exc, "code", "validation_error")
+            status_code = 404 if code == "not_found" else 400
+            return {"status_code": status_code, "body": {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "error": {"code": code, "message": str(exc)}}}
+
+
+def snapshot_control_plane(service: SaaSControlPlaneService) -> JsonDict:
+    payload = {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "state_schema_version": 2,
+        "cloud": service.cloud.snapshot_state(),
+        "metadata": {"local_only": True, "ashr_api_used": False},
+        "state_metadata": {"writer": "services.api.control_plane", "updated_at": _utc_now()},
+        "control_plane": {
+            "api_keys": _jsonable(service.store.api_keys),
+            "uploads": _jsonable(service.store.uploads),
+            "trace_batches": _jsonable(service.store.trace_batches),
+            "sdk_submissions": _jsonable(service.store.sdk_submissions),
+            "audit_log": _jsonable(service.store.audit_log),
+            "usage_ledger": _jsonable(service.store.usage_ledger),
+            "idempotency_keys": _jsonable(service.store.idempotency_keys),
+        },
+    }
+    payload["integrity"] = {"payload_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
+    return payload
+
+
+def write_control_plane_state(service: SaaSControlPlaneService, path: str) -> str:
+    from pathlib import Path
+
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    tmp = output.with_suffix(output.suffix + ".tmp")
+    tmp.write_text(json.dumps(snapshot_control_plane(service), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.replace(output)
+    return str(output)
+
+
+def control_plane_from_state(payload: Mapping[str, Any]) -> SaaSControlPlaneService:
+    state_version = int(payload.get("state_schema_version", 1))
+    if state_version not in {1, 2}:
+        raise ValidationError(f"unsupported control-plane state schema version: {state_version}")
+    cloud_payload = payload.get("cloud") if isinstance(payload.get("cloud"), Mapping) else {}
+    control_payload = payload.get("control_plane") if isinstance(payload.get("control_plane"), Mapping) else {}
+    cloud = CloudApiService.from_state(cloud_payload)
+    store = SaaSControlPlaneStore(
+        api_keys=dict(control_payload.get("api_keys") or {}),
+        uploads=dict(control_payload.get("uploads") or {}),
+        trace_batches=dict(control_payload.get("trace_batches") or {}),
+        sdk_submissions=dict(control_payload.get("sdk_submissions") or {}),
+        audit_log=dict(control_payload.get("audit_log") or {}),
+        usage_ledger=dict(control_payload.get("usage_ledger") or {}),
+        idempotency_keys=dict(control_payload.get("idempotency_keys") or {}),
+    )
+    return SaaSControlPlaneService(cloud, store=store)
+
+
+def control_plane_from_state_file(path: str) -> SaaSControlPlaneService:
+    from pathlib import Path
+
+    return control_plane_from_state(json.loads(Path(path).read_text(encoding="utf-8")))

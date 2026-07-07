@@ -62,6 +62,7 @@ from .trace import (
     validate_run_fixture,
     write_run_fixture,
 )
+from .saas import SAAS_CLIENT_VERSION, SaaSIngestionClient, SecretInputError
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
 __all__ = [
@@ -120,6 +121,9 @@ __all__ = [
     "Observation",
     "RunResult",
     "ToolCall",
+    "SAAS_CLIENT_VERSION",
+    "SaaSIngestionClient",
+    "SecretInputError",
     "TraceEvent",
     "TraceRecorder",
     "build_run_fixture",

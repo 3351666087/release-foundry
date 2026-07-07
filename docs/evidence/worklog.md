@@ -2599,3 +2599,86 @@ Final Round15 validation:
 - `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round15_saas.json`: ok.
 - Public evidence index lint: 342 records, `output_policy_counts.present=5`, `unsafe_real_nonprivate_override=0`, lint issues 0.
 - `git diff --check`: ok.
+
+Round16 Worker-CLI-Ingestion:
+- Added `services/api/control_plane_cli.py`, a local-only SaaS control-plane CLI/helper covering bootstrap, sdk-submit, run-upload, trace-ingest, lifecycle-snapshot, state-read/write, and redacted API key create/list/revoke flows.
+- CLI refuses to read `.secrets` or `docs/evidence/private_refs` input paths, emits `metadata.local_only=true` / `ashr_api_used=false`, and persists public-safe local state only.
+- Updated `services/api/control_plane.py` state snapshots to carry public-safe local-only metadata.
+- Added `tests/a1/test_saas_control_plane_cli.py` for state roundtrip, redaction, private path rejection, and `python -m services.api.control_plane_cli` smoke coverage.
+- Validation: `python -B -m pytest tests/a1/test_saas_control_plane_cli.py tests/a1/test_saas_control_plane.py -q -p no:cacheprovider` => 12 passed.
+- Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` => 223 passed.
+
+## Round16 — A1 SaaS ingestion/control-plane hardening (2026-07-07)
+
+Goal baseline:
+- Repo/branch: `C:\Users\33516\Documents\Ashr` on `codex/a1-local-sdk-runner`.
+- Strategy source read from `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md`; private copy: `docs/evidence/private_refs/a1_round16_large_saas_strategy_20260707_214801.md`.
+- Frontend mirror zip inspected read-only from `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip`; raw mirror not committed; private redacted index: `docs/evidence/private_refs/a1_round16_frontend_mirror_a1_index_20260707_215253.json` (589 entries, 231 A1-relevant records).
+- Peer/remote: `origin/dev/g3-a2-calibration` advanced during baseline fetch; no A1-owned files pulled into this commit from peer branches.
+
+20+ growth points executed or advanced this round:
+1. API key scope taxonomy added (`api_key:read/write`, `run:create`, `run:upload`, `trace:ingest`, `usage:read`, `audit:read`, `admin:all`) with legacy aliases.
+2. API key create/list/revoke/authenticate now has redacted public responses and revoked-key blocking.
+3. SDK submit supports scoped `api_key_id`, request id, idempotency key, and explicit `sdk.submit` usage event.
+4. Run upload supports scoped `api_key_id`, request id, idempotency key, payload hash/key summary, and raw payload exclusion.
+5. Trace ingestion supports scoped `api_key_id`, request id, idempotency key, batch hash, and raw payload exclusion.
+6. Quota ledger remains enforced before mutations; trace quota failure is tested before observation append.
+7. Append-only usage ledger added for SaaS operations.
+8. Audit log added for API key create/revoke and submit/upload/trace actions.
+9. Idempotency store added for submit/upload/trace retry-safe ingestion.
+10. Control-plane state snapshot/restore now carries control-plane stores, schema version, state metadata, and integrity hash.
+11. Atomic state write via temp-file replacement added.
+12. Router covers local REST-ish API key, submit, upload, trace, lifecycle, auth, and revoke routes.
+13. Router propagates idempotency/request ids to service layer.
+14. Internal service CLI added for local SaaS control-plane smoke flows.
+15. Python SDK SaaS ingestion client and customer-facing CLI added.
+16. Python quickstart example and docs added for bootstrap -> key handle -> submit -> upload -> trace -> lifecycle -> quota.
+17. TypeScript SaaS control-plane parity added in `packages/ts/ashr-clone/src/saas.ts`.
+18. TS SaaS router and state restore tests added.
+19. TS package exports SaaS control-plane symbols from `src/index.ts`.
+20. Private path guard covers `.secrets` / `private_refs` for state reads/writes in SDK/CLI paths.
+21. Real Ashr API read-only calibration batch executed from env-only key and stored only under private refs.
+22. Official frontend mirror private index generated and not staged.
+23. Schema docs updated for scoped auth, idempotency, usage ledger, audit log, state integrity.
+24. `git diff --check` repaired after TS EOF issue.
+
+Real API evidence (private, ignored; no raw key logged):
+- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` — dry-run batch plan.
+- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` — read-only health check.
+- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` — read-only dataset list.
+- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` — read-only run list.
+- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` — read-only request list.
+- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` — read-only agent list.
+
+Validation:
+- `git diff --check`: pass after EOF cleanup.
+- `python -B -m py_compile packages/sdk/ashr_clone/__init__.py packages/sdk/ashr_clone/saas.py packages/sdk/ashr_clone/saas_cli.py services/api/control_plane.py services/api/control_plane_cli.py`: pass.
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane.py tests/a1/test_saas_control_plane_cli.py -q -p no:cacheprovider`: 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 230 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 182 passed.
+
+Known gaps / next money-grade growth points:
+1. Hosted HTTP server / FastAPI or ASGI surface, not just in-process router.
+2. OpenAPI spec and generated SDKs.
+3. Real API key secret verification / one-time secret display, not just key-id handle contract.
+4. Postgres migrations and tenant-scoped indexes.
+5. Object storage abstraction for large artifacts/traces.
+6. Run upload processing/complete-run lifecycle decision.
+7. API error taxonomy for unauthorized/forbidden/conflict/quota.
+8. Per-key rate limiting and billing-period usage ledger.
+9. Webhook signing and delivery log.
+10. Release gate API contract for A2/A3.
+11. Dashboard read API for A3 project/run/usage/audit views.
+12. Service account/user/org/team/role model.
+13. Public-safe state export that strips secret hashes from full private state.
+14. Secret scan gate for staged files.
+15. Full official API field parity beyond read-only endpoints.
+16. Paid mutating API calibration with quota gate and reviewed request configs.
+17. TraceEvent schema separated from Observation schema.
+18. Artifact manifest schema with size/content-type/redaction status.
+19. Tenant context derived from auth rather than body.
+20. Docker/dev service for self-host worker/control-plane.
+
+Growth-Auditor notes:
+- New sellable capabilities: scoped ingestion API key governance, SDK/CLI submit/upload/trace ingestion, usage/audit/idempotency state, TS/Python SDK parity, frontend mirror evidence indexing.
+- Not yet production-grade: hosted REST, DB, real secret verification, billing-grade ledger, object storage, release gate, webhook, RBAC.

@@ -3,6 +3,7 @@ export * from "./cloud-queue.js";
 export * from "./dataset-adapter.js";
 export * from "./evidence.js";
 export * from "./runner.js";
+export * from "./saas.js";
 export * from "./trace.js";
 
 export const CLOUD_API_SCHEMA_VERSION = "ashr.clone.cloud_api.v1";
