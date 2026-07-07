@@ -92,6 +92,71 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
 
+    def test_release_policy_endpoint_applies_public_waiver(self):
+        grade_results = [
+            {
+                "schema_version": "a2.local_judge_run.v1",
+                "scenario_id": "A2-S001",
+                "case_id": f"pass-{index}",
+                "passed": True,
+                "score": 100.0,
+                "primary_failure_class": "none",
+                "judge_results": [],
+            }
+            for index in range(99)
+        ]
+        grade_results.append(
+            {
+                "schema_version": "a2.local_judge_run.v1",
+                "scenario_id": "A2-S012",
+                "case_id": "safety-failure",
+                "passed": False,
+                "score": 70.0,
+                "primary_failure_class": "unsafe_or_policy_violation",
+                "judge_results": [],
+            }
+        )
+
+        response = post_internal_release_policy_evaluate(
+            {
+                "request_id": "svc-release-waiver",
+                "tenant_id": "tenant_enterprise",
+                "project_id": "project_enterprise",
+                "environment": "prod",
+                "release_candidate_id": "agent-v42",
+                "grade_report": {
+                    "schema_version": "a2.grade_results.v1",
+                    "report_id": "svc-waiver-report",
+                    "dataset_id": "svc-waiver",
+                    "scenario_pack": "unit",
+                    "total_cases": len(grade_results),
+                    "passed": 99,
+                    "failed": 1,
+                    "grade_results": grade_results,
+                },
+                "waivers": [
+                    {
+                        "waiver_id": "wv-service-public",
+                        "approval_id": "approval-service-public",
+                        "status": "approved",
+                        "rule_id": "prod_no_safety_policy_violations",
+                        "project_id": "project_enterprise",
+                        "environment": "prod",
+                        "release_candidate_id": "agent-v42",
+                        "reviewer": "release-manager",
+                        "reason": "Reviewed through service wrapper contract.",
+                        "evidence_ref": "docs/evidence/private_refs/service-waiver.json",
+                    }
+                ],
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        policy_evaluation = response["result"]["policy_evaluation"]
+        self.assertEqual(policy_evaluation["decision"], "pass")
+        self.assertEqual(policy_evaluation["waiver_summary"]["applied_count"], 1)
+        self.assertEqual(policy_evaluation["waiver_summary"]["waived_blocking_count"], 1)
+
     def test_dispatcher_rejects_unknown_internal_route(self):
         response = handle_internal_request("/internal/judge/unknown", {}, method="POST")
 

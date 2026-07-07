@@ -99,6 +99,7 @@ def evaluate_release_policy_config(
     grade_report: dict[str, Any],
     metrics: dict[str, Any] | None = None,
     release_candidate_id: str = "",
+    waivers: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     policy, selection = select_release_policy(config, project_id=project_id, environment=environment)
     return evaluate_release_policy(
@@ -109,6 +110,7 @@ def evaluate_release_policy_config(
         environment=environment,
         release_candidate_id=release_candidate_id,
         selection=selection,
+        waivers=waivers,
     )
 
 
@@ -121,6 +123,7 @@ def evaluate_release_policy(
     environment: str = "",
     release_candidate_id: str = "",
     selection: dict[str, Any] | None = None,
+    waivers: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Evaluate failure-class and metric thresholds against a grade report."""
     if not policy_hash_matches(policy):
@@ -148,6 +151,20 @@ def evaluate_release_policy(
             else:
                 warnings.append(evaluation)
 
+    waiver_result = _apply_waivers(
+        blockers + warnings,
+        waivers or [],
+        project_id=project_id,
+        environment=environment,
+        release_candidate_id=release_candidate_id,
+        policy_id=str(policy.get("policy_id", "")),
+        policy_version=str(policy.get("policy_version", "")),
+    )
+    active_violations = waiver_result["active_violations"]
+    blockers = [item for item in active_violations if item["mode"] == "blocking"]
+    warnings = [item for item in active_violations if item["mode"] != "blocking"]
+    evaluated_rules = _mark_waived_rules(evaluated_rules, waiver_result["waived_violations"])
+
     decision = "block" if blockers else "warn" if warnings else "pass"
     policy_hash = compute_policy_hash(policy)
     return {
@@ -161,7 +178,12 @@ def evaluate_release_policy(
         "decision": decision,
         "blocking_violation_count": len(blockers),
         "non_blocking_violation_count": len(warnings),
+        "waived_violation_count": len(waiver_result["waived_violations"]),
         "violations": blockers + warnings,
+        "waived_violations": waiver_result["waived_violations"],
+        "waiver_summary": waiver_result["summary"],
+        "applied_waivers": waiver_result["applied_waivers"],
+        "unapplied_waivers": waiver_result["unapplied_waivers"],
         "evaluated_rules": evaluated_rules,
         "metrics": metric_summary,
         "failure_class_counts": failure_counts,
@@ -173,6 +195,95 @@ def evaluate_release_policy(
             "does_not_execute_live_calls": True,
         },
     }
+
+
+def _apply_waivers(
+    violations: list[dict[str, Any]],
+    waivers: list[dict[str, Any]],
+    *,
+    project_id: str,
+    environment: str,
+    release_candidate_id: str,
+    policy_id: str,
+    policy_version: str,
+) -> dict[str, Any]:
+    active_violations = [dict(item) for item in violations]
+    waived_violations: list[dict[str, Any]] = []
+    applied_waivers: list[dict[str, Any]] = []
+    unapplied_waivers: list[dict[str, Any]] = []
+    context = {
+        "project_id": project_id,
+        "environment": environment,
+        "release_candidate_id": release_candidate_id,
+        "policy_id": policy_id,
+        "policy_version": policy_version,
+    }
+
+    for raw_waiver in waivers:
+        waiver = _public_waiver_record(raw_waiver)
+        invalid_reason = _waiver_invalid_reason(waiver, context)
+        if invalid_reason:
+            unapplied_waivers.append({**waiver, "unapplied_reason": invalid_reason})
+            continue
+
+        match_index = next(
+            (
+                index
+                for index, violation in enumerate(active_violations)
+                if _waiver_matches_violation(waiver, violation)
+            ),
+            None,
+        )
+        if match_index is None:
+            unapplied_waivers.append({**waiver, "unapplied_reason": "no_matching_active_violation"})
+            continue
+
+        violation = dict(active_violations.pop(match_index))
+        waiver_ref = _waiver_reference(waiver)
+        violation["waived"] = True
+        violation["waiver"] = waiver_ref
+        waived_violations.append(violation)
+        applied_waivers.append(
+            {
+                **waiver_ref,
+                "waived_rule_id": violation.get("rule_id", ""),
+                "waived_mode": violation.get("mode", ""),
+                "waived_severity": violation.get("severity", ""),
+                "waived_type": violation.get("type", ""),
+            }
+        )
+
+    return {
+        "active_violations": active_violations,
+        "waived_violations": waived_violations,
+        "applied_waivers": applied_waivers,
+        "unapplied_waivers": unapplied_waivers,
+        "summary": {
+            "submitted_count": len(waivers),
+            "applied_count": len(applied_waivers),
+            "unapplied_count": len(unapplied_waivers),
+            "waived_blocking_count": sum(1 for item in waived_violations if item.get("mode") == "blocking"),
+            "waived_non_blocking_count": sum(1 for item in waived_violations if item.get("mode") != "blocking"),
+            "active_blocking_count": sum(1 for item in active_violations if item.get("mode") == "blocking"),
+            "active_non_blocking_count": sum(1 for item in active_violations if item.get("mode") != "blocking"),
+        },
+    }
+
+
+def _mark_waived_rules(
+    evaluated_rules: list[dict[str, Any]],
+    waived_violations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    waived_by_rule_id = {str(item.get("rule_id", "")): item.get("waiver", {}) for item in waived_violations}
+    marked: list[dict[str, Any]] = []
+    for rule in evaluated_rules:
+        next_rule = dict(rule)
+        waiver = waived_by_rule_id.get(str(rule.get("rule_id", "")))
+        if waiver:
+            next_rule["waived"] = True
+            next_rule["waiver"] = waiver
+        marked.append(next_rule)
+    return marked
 
 
 def summarize_grade_report(grade_report: dict[str, Any]) -> dict[str, Any]:
@@ -311,6 +422,111 @@ def _rule_result(
         if isinstance(rule.get("remediation"), list)
         else [],
     }
+
+
+def _public_waiver_record(raw_waiver: Any) -> dict[str, Any]:
+    if not isinstance(raw_waiver, dict):
+        return {}
+    record: dict[str, Any] = {}
+    for field in (
+        "waiver_id",
+        "approval_id",
+        "status",
+        "rule_id",
+        "failure_class",
+        "metric",
+        "project_id",
+        "environment",
+        "release_candidate_id",
+        "policy_id",
+        "policy_version",
+        "reviewer",
+        "reviewed_by",
+        "approver",
+        "approved_by",
+        "reason",
+        "evidence_ref",
+        "expires_at",
+    ):
+        value = raw_waiver.get(field)
+        if value is not None:
+            record[field] = str(value)
+    evidence_refs = raw_waiver.get("evidence_refs")
+    if isinstance(evidence_refs, list):
+        record["evidence_refs"] = [str(item) for item in evidence_refs if str(item).strip()]
+    return record
+
+
+def _waiver_invalid_reason(waiver: dict[str, Any], context: dict[str, str]) -> str:
+    if not waiver:
+        return "waiver_must_be_object"
+    if waiver.get("status", "").strip().lower() != "approved":
+        return "status_not_approved"
+    if not _reviewer(waiver):
+        return "missing_reviewer"
+    if not waiver.get("reason", "").strip():
+        return "missing_reason"
+    if not _audit_anchor(waiver):
+        return "missing_approval_or_evidence_ref"
+    for field in ("project_id", "environment", "release_candidate_id", "policy_id", "policy_version"):
+        if not _optional_scope_matches(waiver.get(field), context.get(field, "")):
+            return f"{field}_scope_mismatch"
+    return ""
+
+
+def _waiver_matches_violation(waiver: dict[str, Any], violation: dict[str, Any]) -> bool:
+    checks: list[bool] = []
+    if waiver.get("rule_id"):
+        checks.append(waiver["rule_id"] == str(violation.get("rule_id", "")))
+    observed = violation.get("observed", {})
+    if not isinstance(observed, dict):
+        observed = {}
+    if waiver.get("failure_class"):
+        checks.append(waiver["failure_class"] == str(observed.get("failure_class", "")))
+    if waiver.get("metric"):
+        checks.append(waiver["metric"] == str(observed.get("metric", "")))
+    return bool(checks) and all(checks)
+
+
+def _waiver_reference(waiver: dict[str, Any]) -> dict[str, Any]:
+    reference = {
+        "waiver_id": waiver.get("waiver_id", ""),
+        "approval_id": waiver.get("approval_id", ""),
+        "status": waiver.get("status", ""),
+        "reviewer": _reviewer(waiver),
+        "reason": waiver.get("reason", ""),
+        "evidence_ref": waiver.get("evidence_ref", ""),
+        "expires_at": waiver.get("expires_at", ""),
+    }
+    if waiver.get("evidence_refs"):
+        reference["evidence_refs"] = waiver["evidence_refs"]
+    return {key: value for key, value in reference.items() if value}
+
+
+def _reviewer(waiver: dict[str, Any]) -> str:
+    return str(
+        waiver.get("reviewer")
+        or waiver.get("reviewed_by")
+        or waiver.get("approver")
+        or waiver.get("approved_by")
+        or ""
+    ).strip()
+
+
+def _audit_anchor(waiver: dict[str, Any]) -> str:
+    evidence_refs = waiver.get("evidence_refs")
+    if isinstance(evidence_refs, list) and evidence_refs:
+        return str(evidence_refs[0])
+    return str(waiver.get("approval_id") or waiver.get("evidence_ref") or "").strip()
+
+
+def _optional_scope_matches(configured: Any, requested: str) -> bool:
+    if configured is None or str(configured).strip() == "":
+        return True
+    if isinstance(configured, list):
+        return any(_optional_scope_matches(item, requested) for item in configured)
+    configured_text = str(configured)
+    return configured_text in {"*", "any"} or configured_text == requested
 
 
 def _configured_assignments(config: dict[str, Any], policies: list[Any]) -> list[dict[str, Any]]:

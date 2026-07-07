@@ -52,6 +52,12 @@ def case_row(case_id: str, passed: bool, score: float, failure_class: str = "non
     }
 
 
+def prod_report_with_one_safety_failure() -> dict:
+    rows = [case_row(f"pass-{index}", True, 100.0) for index in range(99)]
+    rows.append(case_row("safety-failure", False, 70.0, "unsafe_or_policy_violation"))
+    return grade_report(rows)
+
+
 class A2ReleasePolicyTests(unittest.TestCase):
     def test_fixture_matches_schema_and_policy_hashes(self):
         config = load_json(POLICY_FIXTURE)
@@ -153,6 +159,116 @@ class A2ReleasePolicyTests(unittest.TestCase):
                 project_id="project_enterprise",
                 environment="prod",
             )
+
+    def test_approved_waiver_suppresses_matching_blocking_violation(self):
+        config = load_json(POLICY_FIXTURE)
+
+        evaluation = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise",
+            environment="prod",
+            release_candidate_id="agent-v42",
+            grade_report=prod_report_with_one_safety_failure(),
+            waivers=[
+                {
+                    "waiver_id": "wv-prod-safety-reviewed",
+                    "approval_id": "approval-123",
+                    "status": "approved",
+                    "rule_id": "prod_no_safety_policy_violations",
+                    "project_id": "project_enterprise",
+                    "environment": "prod",
+                    "release_candidate_id": "agent-v42",
+                    "reviewer": "release-manager",
+                    "reason": "Known reviewed fixture used to validate waiver workflow.",
+                    "evidence_ref": "docs/evidence/private_refs/reviewed-waiver-123.json",
+                }
+            ],
+        )
+
+        self.assertEqual(evaluation["decision"], "pass")
+        self.assertEqual(evaluation["blocking_violation_count"], 0)
+        self.assertEqual(evaluation["waived_violation_count"], 1)
+        self.assertEqual(evaluation["waiver_summary"]["applied_count"], 1)
+        self.assertEqual(evaluation["waiver_summary"]["waived_blocking_count"], 1)
+        self.assertEqual(evaluation["waived_violations"][0]["rule_id"], "prod_no_safety_policy_violations")
+        self.assertTrue(evaluation["evaluated_rules"][0]["waived"])
+
+    def test_unapproved_or_mismatched_waiver_does_not_suppress_block(self):
+        config = load_json(POLICY_FIXTURE)
+
+        evaluation = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise",
+            environment="prod",
+            release_candidate_id="agent-v42",
+            grade_report=prod_report_with_one_safety_failure(),
+            waivers=[
+                {
+                    "waiver_id": "wv-pending",
+                    "approval_id": "approval-pending",
+                    "status": "requested",
+                    "rule_id": "prod_no_safety_policy_violations",
+                    "reviewer": "release-manager",
+                    "reason": "Still pending.",
+                },
+                {
+                    "waiver_id": "wv-wrong-env",
+                    "approval_id": "approval-wrong-env",
+                    "status": "approved",
+                    "rule_id": "prod_no_safety_policy_violations",
+                    "environment": "staging",
+                    "reviewer": "release-manager",
+                    "reason": "Approved for staging only.",
+                },
+            ],
+        )
+
+        self.assertEqual(evaluation["decision"], "block")
+        self.assertEqual(evaluation["blocking_violation_count"], 1)
+        self.assertEqual(evaluation["waiver_summary"]["applied_count"], 0)
+        self.assertEqual(evaluation["waiver_summary"]["unapplied_count"], 2)
+        self.assertEqual(
+            {item["unapplied_reason"] for item in evaluation["unapplied_waivers"]},
+            {"status_not_approved", "environment_scope_mismatch"},
+        )
+
+    def test_waiver_audit_output_is_public_safe(self):
+        config = load_json(POLICY_FIXTURE)
+
+        evaluation = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise",
+            environment="prod",
+            release_candidate_id="agent-v42",
+            grade_report=prod_report_with_one_safety_failure(),
+            waivers=[
+                {
+                    "waiver_id": "wv-public-safe",
+                    "approval_id": "approval-public-safe",
+                    "status": "approved",
+                    "failure_class": "unsafe_or_policy_violation",
+                    "reviewer": "release-manager",
+                    "reason": "Reviewed against private evidence bundle.",
+                    "evidence_refs": ["docs/evidence/private_refs/reviewed-waiver-456.json"],
+                    "secret_value": "do-not-emit",
+                    "raw_payload": {"token": "do-not-emit"},
+                    "api_key": "do-not-emit",
+                }
+            ],
+        )
+
+        serialized = json.dumps(
+            {
+                "applied": evaluation["applied_waivers"],
+                "waived": evaluation["waived_violations"],
+                "unapplied": evaluation["unapplied_waivers"],
+            },
+            sort_keys=True,
+        )
+        self.assertNotIn("do-not-emit", serialized)
+        self.assertNotIn("secret_value", serialized)
+        self.assertNotIn("raw_payload", serialized)
+        self.assertNotIn("api_key", serialized)
 
 
 if __name__ == "__main__":

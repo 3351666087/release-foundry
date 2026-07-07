@@ -121,6 +121,7 @@ def evaluate_release_policy(
         grade_report=grade_report,
         metrics=request.get("metrics"),
         release_candidate_id=str(request.get("release_candidate_id", request.get("run_id", ""))),
+        waivers=request.get("waivers") if isinstance(request.get("waivers"), list) else None,
     )
     gate_report = dict(request.get("release_gate_report") or _read_json(release_gate_path))
     gate_report["policy_evaluation"] = policy_evaluation
