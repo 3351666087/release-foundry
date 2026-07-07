@@ -135,6 +135,35 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
 
+    def test_release_policy_endpoint_applies_a1_output_policy_gate(self):
+        evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
+        evidence_index["output_policy_counts"] = {
+            **evidence_index["output_policy_counts"],
+            "unsafe_real_nonprivate_override": 1,
+            "private_required_but_not_private": 0,
+        }
+
+        response = post_internal_release_policy_evaluate(
+            {
+                "request_id": "svc-release-a1-output-policy",
+                "tenant_id": "tenant_demo",
+                "project_id": "project_enterprise",
+                "environment": "prod",
+                "release_candidate_id": "agent-v44",
+                "a1_evidence_index": evidence_index,
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        result = response["result"]
+        self.assertEqual(result["a1_output_policy_gate"]["status"], "blocked")
+        self.assertEqual(result["a1_output_policy_blocker_count"], 1)
+        self.assertTrue(any(item["type"] == "a1_output_policy_gate" for item in result["blockers"]))
+        self.assertTrue(result["a3_release_gate_summary"]["blocks_merge"])
+        self.assertTrue(
+            any(item["id"] == "A1-OUTPUT-POLICY" for item in result["a3_release_gate_summary"]["failed_checks"])
+        )
+
     def test_release_policy_endpoint_applies_public_waiver(self):
         grade_results = [
             {

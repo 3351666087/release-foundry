@@ -1508,7 +1508,8 @@ class A2ContractTests(unittest.TestCase):
         calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
         replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
-        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection)
+        evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
+        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection, evidence_index)
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
         report_text = json.dumps(report)
 
@@ -1524,6 +1525,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["scenario_selection_gate"]["status"], "ready")
         self.assertTrue(report["scenario_selection_gate"]["minimums_ready"])
         self.assertEqual(report["scenario_selection_blocker_count"], 0)
+        self.assertEqual(report["a1_output_policy_gate"]["status"], "ready")
+        self.assertEqual(report["a1_output_policy_blocker_count"], 0)
         self.assertGreaterEqual(report["warning_count"], 2)
         self.assertTrue(any(warning["type"] == "api_probe_gate_validation" for warning in report["warnings"]))
         blocker_gates = {blocker.get("gate") for blocker in report["blockers"]}
@@ -1555,6 +1558,33 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(len(scenario_blockers), 1)
         self.assertEqual(scenario_blockers[0]["gate"], "S1")
         self.assertIn("fixtures/a2/results/a2_scenario_selection_report.json", scenario_blockers[0]["evidence_refs"])
+
+    def test_release_gate_blocks_on_a1_unsafe_output_policy_counts(self):
+        commercial = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
+        evidence = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
+        replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
+        scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
+        evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
+        evidence_index["output_policy_counts"] = {
+            **evidence_index["output_policy_counts"],
+            "unsafe_real_nonprivate_override": 1,
+            "private_required_but_not_private": 2,
+        }
+
+        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection, evidence_index)
+        output_policy_blockers = [item for item in report["blockers"] if item["type"] == "a1_output_policy_gate"]
+
+        self.assertEqual(report["a1_output_policy_gate"]["status"], "blocked")
+        self.assertFalse(report["a1_output_policy_gate"]["ready"])
+        self.assertEqual(report["a1_output_policy_blocker_count"], 1)
+        self.assertEqual(len(output_policy_blockers), 1)
+        self.assertEqual(output_policy_blockers[0]["gate"], "A1-OUTPUT-POLICY")
+        self.assertEqual(output_policy_blockers[0]["severity"], "critical")
+        self.assertEqual(output_policy_blockers[0]["dangerous_counts"]["unsafe_real_nonprivate_override"], 1)
+        self.assertEqual(output_policy_blockers[0]["dangerous_counts"]["private_required_but_not_private"], 2)
+        self.assertIn("a1_output_policy_gate", report["machine_contract"]["blocking_fields"])
+        self.assertIn("docs/a1/api_calibration/real_api_evidence_index.json", report["evidence_refs"])
 
     def test_release_gate_cli_can_fail_on_block_for_ci(self):
         result = subprocess.run(

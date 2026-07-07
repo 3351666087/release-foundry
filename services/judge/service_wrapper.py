@@ -8,6 +8,7 @@ from typing import Any
 
 from .calibration import build_calibration_matrix
 from .regression_replay import build_regression_replay_report
+from .release_gate import apply_a1_output_policy_gate
 from .release_policy import ReleasePolicyError, evaluate_release_policy_config
 from .result_persistence import build_result_record, stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
@@ -175,6 +176,8 @@ def evaluate_release_policy(
         approvals=request.get("approvals") if isinstance(request.get("approvals"), list) else None,
     )
     gate_report = dict(request.get("release_gate_report") or _read_json(release_gate_path))
+    if isinstance(request.get("a1_evidence_index"), dict):
+        gate_report = apply_a1_output_policy_gate(gate_report, request["a1_evidence_index"])
     gate_report["policy_evaluation"] = policy_evaluation
     gate_report["a3_release_gate_summary"] = _a3_release_gate_summary(gate_report, policy_evaluation)
     gate_report["release_candidate"] = {

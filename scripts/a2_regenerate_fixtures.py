@@ -51,6 +51,7 @@ DEFAULT_INCIDENT_SUMMARY = Path("fixtures/a2/incidents/a2_prod_incident_summary.
 DEFAULT_INCIDENT_REGRESSION_CANDIDATES = DEFAULT_RESULT_DIR / "a2_incident_regression_candidates.json"
 DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 DEFAULT_RELEASE_GATE = DEFAULT_RESULT_DIR / "a2_release_gate_report.json"
+DEFAULT_A1_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
 DEFAULT_SCENARIO_SELECTION_PROFILE = Path("fixtures/a2/config/a2_saas_project_selection_profile.json")
 DEFAULT_SCENARIO_SELECTION = DEFAULT_RESULT_DIR / "a2_scenario_selection_report.json"
 DEFAULT_RESULT_PERSISTENCE_MANIFEST = DEFAULT_RESULT_DIR / "a2_result_persistence_manifest.json"
@@ -85,6 +86,7 @@ def main() -> int:
     parser.add_argument("--incident-regression-candidates", default=DEFAULT_INCIDENT_REGRESSION_CANDIDATES.as_posix())
     parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     parser.add_argument("--release-gate", default=DEFAULT_RELEASE_GATE.as_posix())
+    parser.add_argument("--a1-evidence-index", default=DEFAULT_A1_EVIDENCE_INDEX.as_posix())
     parser.add_argument("--scenario-selection-profile", default=DEFAULT_SCENARIO_SELECTION_PROFILE.as_posix())
     parser.add_argument("--scenario-selection", default=DEFAULT_SCENARIO_SELECTION.as_posix())
     parser.add_argument("--result-persistence-manifest", default=DEFAULT_RESULT_PERSISTENCE_MANIFEST.as_posix())
@@ -118,6 +120,7 @@ def main() -> int:
         incident_regression_candidates_path=Path(args.incident_regression_candidates),
         evidence_readiness_path=Path(args.evidence_readiness),
         release_gate_path=Path(args.release_gate),
+        a1_evidence_index_path=Path(args.a1_evidence_index),
         scenario_selection_profile_path=Path(args.scenario_selection_profile),
         scenario_selection_path=Path(args.scenario_selection),
         result_persistence_manifest_path=Path(args.result_persistence_manifest),
@@ -156,6 +159,7 @@ def generate_outputs(
     incident_regression_candidates_path: Path,
     evidence_readiness_path: Path,
     release_gate_path: Path,
+    a1_evidence_index_path: Path,
     scenario_selection_profile_path: Path,
     scenario_selection_path: Path,
     result_persistence_manifest_path: Path,
@@ -257,6 +261,7 @@ def generate_outputs(
         calibration_matrix,
         regression_replay,
         scenario_selection,
+        _load_optional_object(a1_evidence_index_path),
     )
     outputs[release_gate_path] = release_gate
     scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
@@ -308,6 +313,13 @@ def load_run_fixtures(run_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
     for path in sorted(run_dir.glob("*.json")):
         fixtures.append((path, json.loads(path.read_text(encoding="utf-8"))))
     return fixtures
+
+
+def _load_optional_object(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    return value if isinstance(value, dict) else None
 
 
 def check_outputs(outputs: dict[Path, dict[str, Any]]) -> int:
