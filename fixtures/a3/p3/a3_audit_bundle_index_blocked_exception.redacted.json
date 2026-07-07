@@ -83,8 +83,8 @@
       "bundle_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "33a3d794cce8c9b3f0f1ea580974b0c434509a5a8a2b736c4ebad480a45ed373",
-      "byte_size": 24286,
+      "sha256": "ed268686f04099f846560c834675b63ab901f58d303c323ff908b6823db872aa",
+      "byte_size": 46810,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -223,5 +223,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "f7dcd46a5cebb1b17f4fb964d147301a9662cdc8f6dff735cf7eeeb7fd0b0770"
+  "bundle_root_hash": "1945a36ef253bfed65ba38e25352fe173351ba69c565800a9b7a2733fe2dd2d8"
 }

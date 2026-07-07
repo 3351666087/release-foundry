@@ -5,8 +5,8 @@
   "bundle_id": "a3-bundle-local-mock-commercial-gate-run-a3-generated-from-f447ff6e9d1d",
   "status": "passed",
   "root_hash": {
-    "expected": "f7dcd46a5cebb1b17f4fb964d147301a9662cdc8f6dff735cf7eeeb7fd0b0770",
-    "actual": "f7dcd46a5cebb1b17f4fb964d147301a9662cdc8f6dff735cf7eeeb7fd0b0770",
+    "expected": "1945a36ef253bfed65ba38e25352fe173351ba69c565800a9b7a2733fe2dd2d8",
+    "actual": "1945a36ef253bfed65ba38e25352fe173351ba69c565800a9b7a2733fe2dd2d8",
     "passed": true
   },
   "artifacts": {
@@ -44,10 +44,10 @@
         "id": "coverage",
         "path": "fixtures/a2/results/a2_g3_coverage_report.json",
         "status": "passed",
-        "expected_sha256": "33a3d794cce8c9b3f0f1ea580974b0c434509a5a8a2b736c4ebad480a45ed373",
-        "actual_sha256": "33a3d794cce8c9b3f0f1ea580974b0c434509a5a8a2b736c4ebad480a45ed373",
-        "expected_byte_size": 24286,
-        "actual_byte_size": 24286,
+        "expected_sha256": "ed268686f04099f846560c834675b63ab901f58d303c323ff908b6823db872aa",
+        "actual_sha256": "ed268686f04099f846560c834675b63ab901f58d303c323ff908b6823db872aa",
+        "expected_byte_size": 46810,
+        "actual_byte_size": 46810,
         "path_is_absolute": false,
         "path_includes_user_home": false,
         "message": "Artifact hash and byte size match."
