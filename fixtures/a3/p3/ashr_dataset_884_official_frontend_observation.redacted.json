@@ -1,0 +1,107 @@
+{
+  "schema_version": "a3.p3_official_frontend_observation.v1",
+  "captured_at": "2026-07-06",
+  "capture_method": "Authenticated normal Chrome via local CDP, read-only DOM observation",
+  "target": {
+    "dataset_id": 884,
+    "dataset_display_id": "#00000374",
+    "dataset_name": "A3 Refund Demo Dataset",
+    "api_run_id": 11925,
+    "frontend_path": "https://lab.ashr.io/?tab=analysis&dataset=884"
+  },
+  "safety": {
+    "api_key_printed": false,
+    "cookies_saved": false,
+    "tokens_saved": false,
+    "headers_saved": false,
+    "account_email_saved": false,
+    "screenshots_saved": false,
+    "cloud_mutation_attempted": false,
+    "raw_payload_opened": false,
+    "config_payload_opened": false
+  },
+  "overview": {
+    "authenticated": true,
+    "dataset_visible": true,
+    "visible_tabs": ["Overview", "Test cases (5)", "Results (0)"],
+    "dataset_type": "multi run storyboard",
+    "total_tests": 5,
+    "request_status": "Completed",
+    "creator_id": "[REDACTED]",
+    "run_info_duration": "-",
+    "run_info_environment": "unknown"
+  },
+  "test_cases_tab": {
+    "visible": true,
+    "cases_visible": 5,
+    "fields_visible_per_case": [
+      "ordinal",
+      "title",
+      "case_key",
+      "description",
+      "actions_count",
+      "tags_count"
+    ],
+    "case_keys": [
+      "happy_path_text_valid_booking",
+      "pdf_receipt_ocr_split_payment",
+      "audio_cutoff_by_two_minutes_exception_request",
+      "ui_shows_refund_but_backend_no_tool_call_image",
+      "concurrent_requests_tool_timeout_then_processor_failure"
+    ]
+  },
+  "case_detail": {
+    "sample_case_key": "happy_path_text_valid_booking",
+    "frontend_url": "https://lab.ashr.io/?tab=analysis&dataset=884&run=happy_path_text_valid_booking",
+    "visible_sections": [
+      "TEST DETAILS",
+      "tags",
+      "ACTIONS",
+      "Tool Calls",
+      "Back to Tests",
+      "Open Most Recent Run"
+    ],
+    "action_fields_visible": [
+      "ordinal",
+      "actor",
+      "action name",
+      "content",
+      "input/media type"
+    ],
+    "media_or_input_types_visible": ["TEXT", "AUDIO"],
+    "tool_calls_visible": true
+  },
+  "results_tab": {
+    "visible_label": "Results (0)",
+    "runs_history_text": "No runs found; this dataset hasn't been run yet",
+    "api_run_11925_visible": false,
+    "score_visible": false,
+    "pass_fail_visible": false,
+    "expected_actual_result_visible": false,
+    "trace_result_visible": false
+  },
+  "run_id_direct_url_check": {
+    "attempted_url": "https://lab.ashr.io/?tab=analysis&dataset=884&run=11925",
+    "final_url": "https://lab.ashr.io/?tab=analysis&dataset=884",
+    "api_run_11925_visible": false,
+    "result_ui_visible": false
+  },
+  "frontend_resource_paths": {
+    "captured_query_strings": false,
+    "captured_headers": false,
+    "captured_bodies": false,
+    "script_assets": [
+      "https://lab.ashr.io/assets/DatasetsPage-C6F1zCF4.js",
+      "https://lab.ashr.io/assets/CreateRequestModal-LwtjGDgm.js",
+      "https://lab.ashr.io/assets/RequestDetailDrawer-SLqhBzSz.js"
+    ],
+    "api_paths": [
+      "https://api.ashr.io/testing-platform-api"
+    ]
+  },
+  "interpretation": {
+    "summary": "The official frontend confirms dataset and test-case browsing for dataset 884, but it does not surface API-created run 11925 in Results.",
+    "a3_decision": "Keep A3's p3-official-demo source as a local calibrated view of the API run. Treat official Results UI parity as blocked by product/API visibility mismatch, not by missing local mapping.",
+    "next_step": "Ask whether Ashr has a separate official UI run/execution action or result import path that attaches runs to Results."
+  }
+}

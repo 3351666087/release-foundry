@@ -4,563 +4,36 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>A3 Dashboard & Triage</title>
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #f6f7f9;
-        --panel: #ffffff;
-        --line: #d9dee7;
-        --text: #18212f;
-        --muted: #657184;
-        --green: #1e7a4d;
-        --red: #b42318;
-        --amber: #a15c00;
-        --blue: #285c9f;
-        --ink-soft: #eef1f5;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-      }
-
-      button,
-      select {
-        font: inherit;
-      }
-
-      .shell {
-        min-height: 100vh;
-        display: grid;
-        grid-template-columns: 220px minmax(0, 1fr);
-      }
-
-      .sidebar {
-        border-right: 1px solid var(--line);
-        background: #202633;
-        color: #f7f9fc;
-        padding: 22px 14px;
-      }
-
-      .brand {
-        font-size: 17px;
-        font-weight: 700;
-        margin-bottom: 6px;
-      }
-
-      .subtitle {
-        color: #b8c1cf;
-        font-size: 13px;
-        line-height: 1.5;
-        margin-bottom: 26px;
-      }
-
-      .nav {
-        display: grid;
-        gap: 7px;
-      }
-
-      .nav a {
-        color: #dce3ee;
-        text-decoration: none;
-        padding: 9px 10px;
-        border-radius: 6px;
-        font-size: 14px;
-      }
-
-      .nav a.active,
-      .nav a:hover {
-        background: #343c4c;
-        color: #fff;
-      }
-
-      .content {
-        padding: 24px;
-        display: grid;
-        gap: 18px;
-      }
-
-      .topbar {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 18px;
-      }
-
-      .topbar > div:first-child {
-        flex: 1 1 320px;
-        min-width: 240px;
-      }
-
-      h1 {
-        font-size: 24px;
-        margin: 0 0 6px;
-      }
-
-      .caption {
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      .actions {
-        display: flex;
-        flex: 1 1 320px;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
-
-      .source-picker {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .source-picker select {
-        min-height: 36px;
-        max-width: 190px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fff;
-        color: var(--text);
-        padding: 6px 8px;
-      }
-
-      .button {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: var(--panel);
-        color: var(--text);
-        padding: 8px 11px;
-        cursor: pointer;
-      }
-
-      .button:hover {
-        border-color: #aab3c1;
-      }
-
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 12px;
-      }
-
-      .console-grid {
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr 1fr;
-        gap: 14px;
-      }
-
-      .workflow {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(80px, 1fr));
-        gap: 8px;
-      }
-
-      .workflow-step {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 9px;
-        background: #fbfcfe;
-        min-width: 0;
-      }
-
-      .workflow-step strong {
-        display: block;
-        font-size: 13px;
-        margin-bottom: 4px;
-      }
-
-      .mini-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .mini-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        border-bottom: 1px solid var(--ink-soft);
-        padding-bottom: 7px;
-        font-size: 13px;
-      }
-
-      .mini-row:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
-      }
-
-      .progress {
-        height: 8px;
-        border-radius: 999px;
-        background: var(--ink-soft);
-        overflow: hidden;
-        margin-top: 10px;
-      }
-
-      .progress span {
-        display: block;
-        height: 100%;
-        width: 0;
-        background: var(--green);
-      }
-
-      .metric,
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-      }
-
-      .metric {
-        padding: 14px;
-      }
-
-      .metric label {
-        display: block;
-        color: var(--muted);
-        font-size: 12px;
-        margin-bottom: 8px;
-      }
-
-      .metric strong {
-        font-size: 24px;
-      }
-
-      .filters {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 10px;
-        padding: 12px;
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-      }
-
-      .field label {
-        display: block;
-        color: var(--muted);
-        font-size: 12px;
-        margin-bottom: 5px;
-      }
-
-      .field select {
-        width: 100%;
-        min-height: 36px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fff;
-        color: var(--text);
-        padding: 6px 8px;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: minmax(300px, 0.8fr) minmax(420px, 1.2fr);
-        gap: 14px;
-      }
-
-      .panel {
-        min-width: 0;
-      }
-
-      .panel-header {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--line);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .panel-header h2 {
-        font-size: 16px;
-        margin: 0;
-      }
-
-      .panel-body {
-        padding: 14px 16px;
-      }
-
-      .run-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .case-row {
-        width: 100%;
-        text-align: left;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fff;
-        padding: 11px;
-        cursor: pointer;
-      }
-
-      .case-row.active {
-        border-color: var(--blue);
-        box-shadow: inset 3px 0 0 var(--blue);
-      }
-
-      .case-title {
-        font-weight: 700;
-        margin-bottom: 5px;
-      }
-
-      .case-meta {
-        color: var(--muted);
-        font-size: 12px;
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        min-height: 22px;
-        border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 12px;
-        font-weight: 700;
-      }
-
-      .badge.pass {
-        color: var(--green);
-        background: #e8f4ee;
-      }
-
-      .badge.fail {
-        color: var(--red);
-        background: #fdebea;
-      }
-
-      .badge.neutral {
-        color: #3f4a5f;
-        background: var(--ink-soft);
-      }
-
-      .detail-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 12px;
-      }
-
-      .compare {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        overflow: hidden;
-      }
-
-      .compare h3 {
-        margin: 0;
-        padding: 10px 12px;
-        font-size: 14px;
-        border-bottom: 1px solid var(--line);
-        background: var(--ink-soft);
-      }
-
-      .compare pre {
-        margin: 0;
-        padding: 12px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-size: 12px;
-        line-height: 1.5;
-        max-height: 260px;
-        overflow: auto;
-      }
-
-      .timeline {
-        display: grid;
-        gap: 10px;
-      }
-
-      .judge-list {
-        display: grid;
-        gap: 8px;
-        margin-top: 12px;
-      }
-
-      .media-evidence {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        margin-top: 12px;
-        padding: 12px;
-        background: #fbfcfe;
-      }
-
-      .media-evidence h3,
-      .tool-diff h3 {
-        margin: 0 0 8px;
-        font-size: 14px;
-      }
-
-      .tool-diff {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        margin-top: 12px;
-        padding: 12px;
-        background: #fff;
-      }
-
-      .diff-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .diff-row {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 10px;
-        background: #fbfcfe;
-      }
-
-      .diff-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 8px;
-      }
-
-      .diff-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 8px;
-      }
-
-      .diff-box {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fff;
-        padding: 8px;
-        min-width: 0;
-      }
-
-      .diff-box pre {
-        margin: 6px 0 0;
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-size: 12px;
-        line-height: 1.4;
-      }
-
-      .evidence-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 8px;
-      }
-
-      .evidence-item {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 9px;
-        background: #fff;
-        min-width: 0;
-      }
-
-      .evidence-item strong {
-        display: block;
-        font-size: 13px;
-        margin-bottom: 4px;
-        word-break: break-word;
-      }
-
-      .judge {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 10px;
-        background: #fff;
-      }
-
-      .judge-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 5px;
-      }
-
-      .event {
-        border-left: 3px solid #9aa6b6;
-        padding-left: 11px;
-      }
-
-      .event strong {
-        display: block;
-        font-size: 13px;
-        margin-bottom: 3px;
-      }
-
-      .event span {
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .cluster-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .cluster {
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 10px;
-      }
-
-      .cluster strong {
-        display: block;
-        margin-bottom: 4px;
-      }
-
-      .muted {
-        color: var(--muted);
-      }
-
-      @media (max-width: 1000px) {
-        .shell {
-          grid-template-columns: 1fr;
-        }
-
-        .sidebar {
-          border-right: 0;
-          border-bottom: 1px solid var(--line);
-        }
-
-        .metrics,
-        .console-grid,
-        .filters,
-        .grid,
-        .detail-grid,
-        .diff-grid,
-        .workflow {
-          grid-template-columns: 1fr;
-        }
-
-        .actions {
-          justify-content: flex-start;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <div class="shell">
       <aside class="sidebar">
-        <div class="brand">Ashr A3</div>
+        <div class="brand"><span class="brand-mark">A3</span><span>Ashr A3</span></div>
         <div class="subtitle">Product console for run triage, evidence review, and report export.</div>
         <nav class="nav" aria-label="Dashboard sections">
           <a href="#summary" class="active">Overview</a>
           <a href="#console">Console</a>
+          <a href="#saas-runtime">SaaS Runtime</a>
+          <a href="#product-console">Product Console</a>
+          <a href="#saas-admin">SaaS Admin</a>
+          <a href="#enterprise-readiness">Enterprise Readiness</a>
+          <a href="#media-readiness">Media</a>
+          <a href="#cloud-shell">Cloud Shell</a>
+          <a href="#official-gap">Official Gap</a>
+          <a href="#official-mirror">Frontend Mirror</a>
+          <a href="#official-code-crawl">Code Crawl</a>
+          <a href="#official-roadmap">Parity Roadmap</a>
+          <a href="#release-gate">Release Gate</a>
+          <a href="#war-room">War Room</a>
+          <a href="#incident-replay">Incident Replay</a>
+          <a href="#observability-replay">Observability Replay</a>
+          <a href="#regression-factory">Regression Factory</a>
+          <a href="#reviewer-workflow">Reviewer Workflow</a>
+          <a href="#pr-gate">PR Gate</a>
+          <a href="#export-redaction">Export Safety</a>
+          <a href="#operations">Operations</a>
+          <a href="#report-preview">Report</a>
           <a href="#runs">Run List</a>
           <a href="#detail">Case Detail</a>
           <a href="#timeline">Trace Timeline</a>
@@ -573,28 +46,38 @@
           <div>
             <h1>A3 Product Console</h1>
             <div class="caption" id="data-source">Loading local fixtures...</div>
+            <div class="topbar-meta">
+              <span class="status-chip">Local read-only</span>
+              <span class="status-chip">Redacted evidence</span>
+              <span class="status-chip">No cloud mutations</span>
+            </div>
           </div>
           <div class="actions">
             <label class="source-picker" for="source-select">
               Data
               <select id="source-select">
                 <option value="mock">A1/A2 Mock</option>
+                <option value="api-mock">API-backed Mock</option>
+                <option value="raw-a1">Raw A1 RunResult</option>
+                <option value="raw-a2">Raw A2 Single Case</option>
                 <option value="p3-media">P3 Media Sample</option>
+                <option value="p3-official-demo">P3 Official Demo 884/11926</option>
               </select>
             </label>
-            <button class="button" id="export-json" type="button">Export JSON</button>
-            <button class="button" id="export-csv" type="button">Export CSV</button>
-            <button class="button" id="export-md" type="button">Export Markdown</button>
+            <button class="button primary" id="export-json" data-export="json" type="button">Export JSON</button>
+            <button class="button subtle" id="export-csv" data-export="csv" type="button">Export CSV</button>
+            <button class="button subtle" id="export-md" data-export="md" type="button">Export Markdown</button>
+            <button class="button subtle" data-print type="button">Print Report</button>
           </div>
         </section>
 
         <section class="metrics" aria-label="Run summary metrics">
-          <div class="metric"><label>Runs</label><strong id="metric-runs">0</strong></div>
-          <div class="metric"><label>Cases</label><strong id="metric-cases">0</strong></div>
-          <div class="metric"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong></div>
-          <div class="metric"><label>Average Score</label><strong id="metric-score">0</strong></div>
-          <div class="metric"><label>Trace Complete</label><strong id="metric-trace">0%</strong></div>
-          <div class="metric"><label>Media Evidence</label><strong id="metric-media">0</strong></div>
+          <div class="metric info" id="metric-runs-card"><label>Runs</label><strong id="metric-runs">0</strong><span>execution batches</span></div>
+          <div class="metric info" id="metric-cases-card"><label>Cases</label><strong id="metric-cases">0</strong><span>normalized test cases</span></div>
+          <div class="metric" id="metric-pass-card"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong><span>current source</span></div>
+          <div class="metric" id="metric-score-card"><label>Average Score</label><strong id="metric-score">0</strong><span>0-100 normalized</span></div>
+          <div class="metric" id="metric-trace-card"><label>Trace Complete</label><strong id="metric-trace">0%</strong><span>A1 evidence coverage</span></div>
+          <div class="metric info" id="metric-media-card"><label>Media Evidence</label><strong id="metric-media">0</strong><span>case-level attachments</span></div>
         </section>
 
         <section class="console-grid" id="console" aria-label="Product console overview">
@@ -614,6 +97,46 @@
             </div>
           </div>
 
+          <div class="panel" id="saas-runtime">
+            <div class="panel-header">
+              <h2>SaaS Runtime</h2>
+              <span class="badge info">API + DB-ready</span>
+            </div>
+            <div class="panel-body" id="saas-runtime-body">
+              <div class="caption">Waiting for runtime contract.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="product-console">
+            <div class="panel-header">
+              <h2>Product Console</h2>
+              <span class="badge info">onboarding / audit</span>
+            </div>
+            <div class="panel-body" id="product-console-body">
+              <div class="caption">Waiting for onboarding, project, and audit workflow state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="saas-admin">
+            <div class="panel-header">
+              <h2>SaaS Admin Console</h2>
+              <span class="badge warn">clean-room shell</span>
+            </div>
+            <div class="panel-body" id="saas-admin-body">
+              <div class="caption">Waiting for login, team, usage, API key, and trust state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="enterprise-readiness">
+            <div class="panel-header">
+              <h2>Enterprise Readiness</h2>
+              <span class="badge info">self-host / audit</span>
+            </div>
+            <div class="panel-body" id="enterprise-readiness-body">
+              <div class="caption">Waiting for A1/A2 evidence, admin guardrails, and DB contract.</div>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-header">
               <h2>Usage / Quota</h2>
@@ -622,6 +145,21 @@
             <div class="panel-body">
               <div class="caption" id="usage-detail">Waiting for fixture data.</div>
               <div class="progress" aria-hidden="true"><span id="usage-bar"></span></div>
+              <div class="mini-list" id="usage-quota-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="media-readiness">
+            <div class="panel-header">
+              <h2>Media Readiness</h2>
+              <span class="badge neutral" id="media-render-policy">metadata only</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="media-readiness-summary">Waiting for media calibration data.</div>
+              <div class="channel-strip" id="media-channel-strip"></div>
+              <div class="mini-list" id="media-readiness-list"></div>
+              <div class="matrix-list" id="media-channel-matrix"></div>
+              <div class="matrix-list" id="media-evidence-queue"></div>
             </div>
           </div>
 
@@ -633,6 +171,241 @@
             <div class="panel-body">
               <div class="mini-list" id="object-summary"></div>
             </div>
+          </div>
+
+          <div class="panel" id="cloud-shell">
+            <div class="panel-header">
+              <h2>Cloud Console Shell</h2>
+              <span class="badge warn">mock controls</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="cloud-shell-summary">Waiting for auth and frontend calibration data.</div>
+              <div class="cloud-list" id="cloud-shell-list"></div>
+              <div class="action-list" id="cloud-action-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-gap">
+            <div class="panel-header">
+              <h2>Official Ashr Gap</h2>
+              <span class="badge neutral">read-only map</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-gap-summary">Comparing A3 with observed Ashr Lab structure.</div>
+              <div class="health-grid" id="official-gap-counts"></div>
+              <div class="gap-list" id="official-gap-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-mirror">
+            <div class="panel-header">
+              <h2>Official Frontend Mirror</h2>
+              <span class="badge neutral">clean-room</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-mirror-summary">Waiting for official frontend mirror summary.</div>
+              <div class="health-grid" id="official-mirror-counts"></div>
+              <div class="gap-list" id="official-mirror-pages"></div>
+              <div class="matrix-list" id="official-mirror-api"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-code-crawl">
+            <div class="panel-header">
+              <h2>Official Code Crawl</h2>
+              <span class="badge neutral">clean-room</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-code-crawl-summary">Waiting for official code crawl summary.</div>
+              <div class="health-grid" id="official-code-crawl-counts"></div>
+              <div class="matrix-list" id="official-code-crawl-chunks"></div>
+              <div class="matrix-list" id="official-code-crawl-targets"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-roadmap">
+            <div class="panel-header">
+              <h2>Official Parity Roadmap</h2>
+              <span class="badge info">build order</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-roadmap-summary">Waiting for official parity roadmap.</div>
+              <div class="health-grid" id="official-roadmap-counts"></div>
+              <div class="matrix-list" id="official-roadmap-priorities"></div>
+              <div class="matrix-list" id="official-roadmap-media"></div>
+              <div class="matrix-list" id="official-roadmap-next"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Request Provenance</h2>
+              <span class="badge neutral" id="request-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="request-summary">Waiting for request calibration data.</div>
+              <div class="mini-list" id="request-provenance"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ops-grid" id="operations" aria-label="Operational triage">
+          <div class="panel" id="release-gate">
+            <div class="panel-header">
+              <h2>Release Gate</h2>
+              <span class="badge neutral" id="release-gate-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="release-gate-summary">Waiting for release evidence.</div>
+              <div class="health-grid" id="release-gate-metrics"></div>
+              <div class="matrix-list" id="release-gate-checks"></div>
+              <div class="warning-list" id="release-gate-blockers"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="war-room">
+            <div class="panel-header">
+              <h2>Release War Room</h2>
+              <span class="badge neutral" id="war-room-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="war-room-summary">Waiting for release decision evidence.</div>
+              <div class="health-grid" id="war-room-metrics"></div>
+              <div class="warning-list" id="war-room-brief"></div>
+              <div class="matrix-list" id="war-room-lanes"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="incident-replay">
+            <div class="panel-header">
+              <h2>Incident Replay</h2>
+              <span class="badge warn" id="incident-replay-status">waiting</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="incident-replay-summary">Waiting for failed-case replay evidence.</div>
+              <div class="health-grid" id="incident-replay-metrics"></div>
+              <div class="matrix-list" id="incident-replay-list"></div>
+              <div class="matrix-list" id="incident-replay-steps"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="observability-replay">
+            <div class="panel-header">
+              <h2>Observability Replay</h2>
+              <span class="badge neutral" id="observability-replay-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="observability-replay-summary">Waiting for trace replay evidence.</div>
+              <div class="health-grid" id="observability-replay-metrics"></div>
+              <div class="matrix-list" id="observability-replay-lanes"></div>
+              <div class="matrix-list" id="observability-replay-items"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="regression-factory">
+            <div class="panel-header">
+              <h2>Regression Factory</h2>
+              <span class="badge neutral" id="regression-factory-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="regression-factory-summary">Waiting for failed-case regression evidence.</div>
+              <div class="health-grid" id="regression-factory-metrics"></div>
+              <div class="matrix-list" id="regression-factory-lanes"></div>
+              <div class="matrix-list" id="regression-factory-candidates"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="reviewer-workflow">
+            <div class="panel-header">
+              <h2>Reviewer Workflow</h2>
+              <span class="badge neutral" id="reviewer-workflow-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="reviewer-workflow-summary">Waiting for reviewer workflow evidence.</div>
+              <div class="health-grid" id="reviewer-workflow-metrics"></div>
+              <div class="matrix-list" id="reviewer-workflow-lanes"></div>
+              <div class="matrix-list" id="reviewer-workflow-items"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="pr-gate">
+            <div class="panel-header">
+              <h2>PR Gate & Audit</h2>
+              <span class="badge neutral" id="pr-gate-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="pr-gate-summary">Waiting for PR workflow evidence.</div>
+              <div class="health-grid" id="pr-gate-metrics"></div>
+              <div class="mini-list" id="pr-gate-review"></div>
+              <div class="matrix-list" id="audit-bundle-list"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Coverage Health</h2>
+              <span class="badge neutral" id="coverage-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="coverage-summary">Waiting for A2 coverage fixture.</div>
+              <div class="health-grid" id="coverage-grid"></div>
+              <div class="warning-list" id="coverage-warnings"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Triage Queue</h2>
+              <span class="caption">Highest-risk failures first</span>
+            </div>
+            <div class="panel-body">
+              <div class="triage-list" id="triage-queue"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Report Center</h2>
+              <span class="badge info" id="report-status">ready</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="report-summary">Exports include normalized A3 cases and evidence.</div>
+              <div class="report-actions">
+                <button class="button primary" data-export="json" type="button">JSON</button>
+                <button class="button subtle" data-export="csv" type="button">CSV</button>
+                <button class="button subtle" data-export="md" type="button">Markdown</button>
+                <button class="button subtle" data-print type="button">Print/PDF</button>
+                <button class="button subtle" data-share-report type="button">Share Hosted Report</button>
+              </div>
+              <div class="share-status">
+                <span class="badge neutral" id="share-report-status">not shared</span>
+                <span class="caption" id="share-report-detail">API-backed mode can create a redacted hosted report payload.</span>
+              </div>
+              <div class="report-list" id="report-center"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="export-redaction">
+            <div class="panel-header">
+              <h2>Export Safety</h2>
+              <span class="badge neutral" id="export-redaction-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="export-redaction-summary">Waiting for export firewall scan.</div>
+              <div class="health-grid" id="export-redaction-metrics"></div>
+              <div class="matrix-list" id="export-redaction-surfaces"></div>
+              <div class="mini-list" id="export-redaction-guardrails"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel report-preview" id="report-preview" aria-label="PDF-ready report preview">
+          <div class="panel-header">
+            <h2>Report Preview</h2>
+            <span class="caption">Print-ready handoff</span>
+          </div>
+          <div class="panel-body">
+            <div class="print-report" id="print-report"></div>
           </div>
         </section>
 
@@ -672,6 +445,12 @@
           <div class="field">
             <label for="filter-score">Score Band</label>
             <select id="filter-score">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-judge">Judge Mode</label>
+            <select id="filter-judge">
               <option value="all">All</option>
             </select>
           </div>
@@ -735,441 +514,6 @@
         </section>
       </main>
     </div>
-
-    <script type="module">
-      import {
-        buildCsvReport,
-        buildDashboardSummary,
-        buildJsonReport,
-        buildMarkdownReport,
-        buildToolCallDiffs,
-        clusterFailures,
-        filterCases,
-        getFilterOptions,
-        normalizeCases
-      } from "../../services/report/report_builder.mjs";
-      import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
-
-      const state = {
-        runs: null,
-        grades: null,
-        coverage: {},
-        evidenceReadiness: {},
-        caseBook: {},
-        regressionReplay: {},
-        cases: [],
-        filteredCases: [],
-        selectedCaseId: null,
-        source: "mock"
-      };
-
-      const $ = (id) => document.getElementById(id);
-
-      async function loadJson(path) {
-        const response = await fetch(path);
-        if (!response.ok) {
-          throw new Error(`Failed to load ${path}: ${response.status}`);
-        }
-        return response.json();
-      }
-
-      async function loadOptionalJson(path) {
-        try {
-          return await loadJson(path);
-        } catch (error) {
-          console.warn(error.message);
-          return {};
-        }
-      }
-
-      function formatJson(value) {
-        return JSON.stringify(value ?? {}, null, 2);
-      }
-
-      function escapeHtml(value) {
-        return String(value ?? "")
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;")
-          .replaceAll("'", "&#039;");
-      }
-
-      function fillSelect(selectId, values) {
-        const select = $(selectId);
-        while (select.options.length > 1) {
-          select.remove(1);
-        }
-        for (const value of values) {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = value;
-          select.appendChild(option);
-        }
-      }
-
-      function applyFilters() {
-        const status = $("filter-status").value;
-        const family = $("filter-family").value;
-        const failure = $("filter-failure").value;
-        const run = $("filter-run").value;
-        const severity = $("filter-severity").value;
-        const selectedScoreBand = $("filter-score").value;
-
-        state.filteredCases = filterCases(state.cases, {
-          status,
-          family,
-          failureClass: failure,
-          runId: run,
-          severity,
-          scoreBand: selectedScoreBand
-        });
-
-        if (!state.filteredCases.some((item) => item.case_id === state.selectedCaseId)) {
-          state.selectedCaseId = state.filteredCases[0]?.case_id || null;
-        }
-
-        renderCaseList();
-        renderDetail();
-      }
-
-      function renderSummary() {
-        const summary = buildDashboardSummary(state.runs, state.grades);
-        $("metric-runs").textContent = summary.totalRuns;
-        $("metric-cases").textContent = summary.totalCases;
-        $("metric-pass-rate").textContent = `${summary.passRate}%`;
-        $("metric-score").textContent = summary.avgScore;
-        $("metric-trace").textContent = `${summary.traceCompleteness}%`;
-        $("metric-media").textContent = summary.mediaEvidenceCases;
-        const coverageLabel = state.coverage?.pack_id ? `; Coverage: ${state.coverage.pack_id}` : "";
-        $("data-source").textContent = `${sourceLabel(state.source)}: ${summary.lastRunId}${coverageLabel}`;
-      }
-
-      function renderConsoleStats() {
-        const summary = buildDashboardSummary(state.runs, state.grades);
-        const runs = Array.isArray(state.runs?.runs) ? state.runs.runs : [];
-        const datasets = new Set(runs.map((item) => item.dataset_id).filter(Boolean));
-        const runners = new Set(runs.map((item) => item.runner_id).filter(Boolean));
-        $("workflow-requests").textContent = state.source === "p3-media" ? "API sample" : "mock seed";
-        $("workflow-datasets").textContent = `${datasets.size || 1} dataset`;
-        $("workflow-runs").textContent = `${summary.totalRuns} run`;
-        $("workflow-analysis").textContent = `${summary.failed} failed`;
-        $("usage-detail").textContent = `${summary.traceCompleteness}% trace coverage, ${summary.mediaEvidenceCases} media case(s), ${summary.vmStreamCases} VM stream case(s). Quota is tracked as a known external field until Ashr usage API is exposed to A3.`;
-        $("usage-bar").style.width = `${Math.min(100, Math.max(0, summary.traceCompleteness))}%`;
-        $("object-summary").replaceChildren(...[
-          miniRow("Requests", state.source === "p3-media" ? "sampled read-only" : "mock only"),
-          miniRow("Datasets", String(datasets.size || 1)),
-          miniRow("Runs", String(summary.totalRuns)),
-          miniRow("Runners", String(runners.size || 1)),
-          miniRow("Export", "JSON / CSV / Markdown")
-        ]);
-      }
-
-      function miniRow(label, value) {
-        const node = document.createElement("div");
-        node.className = "mini-row";
-        node.innerHTML = `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>`;
-        return node;
-      }
-
-      function sourceLabel(source) {
-        return source === "p3-media" ? "P3 redacted Ashr media sample" : "Local A1/A2 mock fixture";
-      }
-
-      function renderCaseList() {
-        $("visible-count").textContent = `${state.filteredCases.length} visible`;
-        if (!state.filteredCases.length) {
-          const empty = document.createElement("div");
-          empty.className = "muted";
-          empty.textContent = "No cases match the current filters.";
-          $("case-list").replaceChildren(empty);
-          return;
-        }
-
-        $("case-list").replaceChildren(...state.filteredCases.map((item) => {
-          const button = document.createElement("button");
-          button.className = `case-row ${item.case_id === state.selectedCaseId ? "active" : ""}`;
-          button.type = "button";
-          button.addEventListener("click", () => {
-            state.selectedCaseId = item.case_id;
-            renderCaseList();
-            renderDetail();
-          });
-          button.innerHTML = `
-            <div class="case-title">${escapeHtml(item.title)}</div>
-            <div class="case-meta">
-              <span>${escapeHtml(item.case_id)}</span>
-              <span>${escapeHtml(item.scenario_id)}</span>
-              <span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span>
-              <span>${escapeHtml(item.primary_failure_class)}</span>
-              <span>${escapeHtml(item.severity)}</span>
-              <span>${escapeHtml(item.score)}</span>
-            </div>
-          `;
-          return button;
-        }));
-      }
-
-      function renderDetail() {
-        const item = state.cases.find((candidate) => candidate.case_id === state.selectedCaseId);
-        if (!item) {
-          $("detail-status").className = "badge neutral";
-          $("detail-status").textContent = "No case";
-          $("case-heading").textContent = "Select a case to inspect expected vs actual.";
-          $("expected-view").textContent = "{}";
-          $("actual-view").textContent = "{}";
-          $("timeline-view").textContent = "";
-          $("judge-view").textContent = "";
-          $("tool-diff-view").textContent = "";
-          $("media-view").textContent = "";
-          return;
-        }
-
-        $("detail-status").className = `badge ${item.passed ? "pass" : "fail"}`;
-        $("detail-status").textContent = item.passed ? "PASS" : "FAIL";
-        $("case-heading").textContent = `${item.case_id} / ${item.scenario_id} - ${item.failure_summary}`;
-        $("expected-view").textContent = formatJson(item.expected);
-        $("actual-view").textContent = formatJson(item.actual);
-        renderToolDiff(item);
-        renderMediaEvidence(item);
-        $("judge-view").replaceChildren(...(item.judge_results || []).map((judge) => {
-          const node = document.createElement("div");
-          node.className = "judge";
-          const analysis = judge.failure_analysis || {};
-          node.innerHTML = `
-            <div class="judge-head">
-              <strong>${judge.judge_mode || "judge"}</strong>
-              <span class="badge ${judge.passed ? "pass" : "fail"}">${judge.passed ? "PASS" : "FAIL"} ${judge.score ?? ""}</span>
-            </div>
-            <div class="muted">${analysis.primary_failure_class || "none"} / ${analysis.severity || "none"}</div>
-            <div>${analysis.summary || "No failure analysis summary."}</div>
-          `;
-          return node;
-        }));
-
-        const events = Array.isArray(item.trace_events) && item.trace_events.length
-          ? item.trace_events
-          : (item.observations || []).map((obs, index) => ({
-            seq: index,
-            phase: obs.event_type,
-            event_type: obs.event_type,
-            source: obs.role,
-            observation: {
-              kind: obs.event_type,
-              channel: obs.role,
-              status: obs.status,
-              text: obs.content,
-              data: { tool_calls: obs.tool_calls }
-            }
-          }));
-
-        $("timeline-view").replaceChildren(...events.map((event) => {
-          const node = document.createElement("div");
-          node.className = "event";
-          const text = event.observation?.text || "";
-          node.innerHTML = `
-            <strong>#${event.seq} ${event.event_type}</strong>
-            <span>${event.phase} / ${event.source} / ${event.observation?.status || "unknown"}</span>
-            <div>${text}</div>
-          `;
-          return node;
-        }));
-      }
-
-      function renderClusters() {
-        const clusters = clusterFailures(state.runs, state.grades);
-        if (!clusters.length) {
-          const empty = document.createElement("div");
-          empty.className = "muted";
-          empty.textContent = "No failure clusters for the current data source.";
-          $("cluster-list").replaceChildren(empty);
-          return;
-        }
-        $("cluster-list").replaceChildren(...clusters.map((cluster) => {
-          const node = document.createElement("div");
-          node.className = "cluster";
-          node.innerHTML = `
-            <strong>${cluster.failureClass}</strong>
-            <div class="muted">${cluster.count} case(s), severity ${cluster.severity}</div>
-            <div>${cluster.summaries[0] || "No summary."}</div>
-          `;
-          return node;
-        }));
-      }
-
-      function renderToolDiff(item) {
-        const diffs = buildToolCallDiffs(item);
-        if (!diffs.length) {
-          $("tool-diff-view").innerHTML = `
-            <h3>Tool Call Diff</h3>
-            <div class="muted">No tool calls were expected or observed for this case.</div>
-          `;
-          return;
-        }
-
-        $("tool-diff-view").innerHTML = `
-          <h3>Tool Call Diff</h3>
-          <div class="diff-list">
-            ${diffs.map((diff) => `
-              <div class="diff-row">
-                <div class="diff-head">
-                  <strong>#${diff.index + 1} ${escapeHtml(diff.summary)}</strong>
-                  <span class="badge ${diff.status === "match" ? "pass" : "fail"}">${escapeHtml(diff.status)}</span>
-                </div>
-                <div class="diff-grid">
-                  <div class="diff-box">
-                    <strong>Expected: ${escapeHtml(diff.expected?.name || "none")}</strong>
-                    <pre>${escapeHtml(formatJson(diff.expected?.arguments || {}))}</pre>
-                  </div>
-                  <div class="diff-box">
-                    <strong>Actual: ${escapeHtml(diff.actual?.name || "none")}</strong>
-                    <pre>${escapeHtml(formatJson(diff.actual?.arguments || {}))}</pre>
-                  </div>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        `;
-      }
-
-      function renderMediaEvidence(item) {
-        const media = item.media_evidence;
-        if (!media || !((media.evidence_items || []).length || (media.vm_streams || []).length || (media.media_types || []).length)) {
-          $("media-view").innerHTML = `
-            <h3>Media Evidence</h3>
-            <div class="muted">No image/audio/file/video/VM evidence is attached to this case. For mock fixtures this is expected; switch to the P3 Media Sample to inspect calibrated media fields.</div>
-          `;
-          return;
-        }
-
-        const knownGaps = (media.known_gaps || []).map((item) => `<div class="muted">${escapeHtml(item)}</div>`).join("");
-        const evidenceItems = (media.evidence_items || []).map((entry) => `
-          <div class="evidence-item">
-            <strong>${escapeHtml(entry.type || "evidence")}</strong>
-            <div class="muted">${escapeHtml(entry.name || entry.provider || "source")}</div>
-            <div>${escapeHtml(entry.output_path || entry.session_id || "no direct media URL")}</div>
-          </div>
-        `).join("");
-        $("media-view").innerHTML = `
-          <h3>Media Evidence</h3>
-          <div class="case-meta" style="margin-bottom: 8px;">
-            <span class="badge neutral">${escapeHtml(media.primary_media_type || "media")}</span>
-            <span>${escapeHtml((media.media_types || []).join(", ") || "vm_stream")}</span>
-            <span>${escapeHtml((media.vm_streams || []).length)} VM stream(s)</span>
-          </div>
-          <div class="evidence-grid">${evidenceItems || "<div class=\"muted\">No evidence item details.</div>"}</div>
-          ${knownGaps ? `<div style="margin-top: 8px;">${knownGaps}</div>` : ""}
-        `;
-      }
-
-      function download(name, content, type) {
-        const blob = new Blob([content], { type });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = name;
-        anchor.click();
-        URL.revokeObjectURL(url);
-      }
-
-      async function loadDataSource(source) {
-        state.source = source;
-        if (source === "p3-media") {
-          const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
-          const mapped = mapAshrSampleToA3Fixtures(sample, {
-            fixtureId: "p3_ashr_media_dashboard_sample",
-            gradeFixtureId: "p3_ashr_media_dashboard_grades"
-          });
-          state.runs = mapped.runFixture;
-          state.grades = mapped.gradeFixture;
-        } else {
-          state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
-          state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
-        }
-        state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
-        state.evidenceReadiness = await loadOptionalJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
-        state.caseBook = await loadOptionalJson("../../fixtures/a2/results/a2_case_book.json");
-        state.regressionReplay = await loadOptionalJson("../../fixtures/a2/results/a2_regression_replay_report.json");
-        state.cases = normalizeCases(state.runs, state.grades);
-        state.filteredCases = state.cases;
-        state.selectedCaseId = state.cases[0]?.case_id || null;
-
-        const filterOptions = getFilterOptions(state.cases);
-        fillSelect("filter-family", filterOptions.families);
-        fillSelect("filter-failure", filterOptions.failureClasses);
-        fillSelect("filter-run", filterOptions.runIds);
-        fillSelect("filter-severity", filterOptions.severities);
-        fillSelect("filter-score", filterOptions.scoreBands);
-        for (const id of ["filter-status", "filter-family", "filter-failure", "filter-run", "filter-severity", "filter-score"]) {
-          $(id).value = "all";
-        }
-
-        renderSummary();
-        renderConsoleStats();
-        renderCaseList();
-        renderDetail();
-        renderClusters();
-      }
-
-      async function init() {
-        const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
-        $("source-select").value = initialSource === "p3-media" ? "p3-media" : "mock";
-        await loadDataSource($("source-select").value);
-
-        for (const id of ["filter-status", "filter-family", "filter-failure", "filter-run", "filter-severity", "filter-score"]) {
-          $(id).addEventListener("change", applyFilters);
-        }
-
-        $("source-select").addEventListener("change", async () => {
-          try {
-            await loadDataSource($("source-select").value);
-          } catch (error) {
-            $("data-source").textContent = error.message;
-            console.error(error);
-          }
-        });
-
-        $("export-json").addEventListener("click", () => {
-          download(
-            "a3-dashboard-report.json",
-            JSON.stringify(
-              buildJsonReport(
-                state.runs,
-                state.grades,
-                state.coverage,
-                state.evidenceReadiness,
-                state.caseBook,
-                state.regressionReplay
-              ),
-              null,
-              2
-            ),
-            "application/json"
-          );
-        });
-        $("export-csv").addEventListener("click", () => {
-          download("a3-dashboard-report.csv", buildCsvReport(state.runs, state.grades), "text/csv");
-        });
-        $("export-md").addEventListener("click", () => {
-          download(
-            "a3-dashboard-report.md",
-            buildMarkdownReport(
-              state.runs,
-              state.grades,
-              state.coverage,
-              state.evidenceReadiness,
-              state.caseBook,
-              state.regressionReplay
-            ),
-            "text/markdown"
-          );
-        });
-      }
-
-      init().catch((error) => {
-        $("data-source").textContent = error.message;
-        console.error(error);
-      });
-    </script>
+    <script type="module" src="./src/app.mjs"></script>
   </body>
 </html>

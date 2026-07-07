@@ -10,17 +10,42 @@
     "get_request": 11,
     "get_run": 4,
     "init": 33,
-    "keep_alive": 31,
-    "list_agents": 32,
-    "list_datasets": 38,
-    "list_requests": 41,
-    "list_runs": 4,
+    "keep_alive": 32,
+    "list_agents": 33,
+    "list_datasets": 39,
+    "list_requests": 42,
+    "list_runs": 5,
     "plan_batch": 3,
     "poll_request": 1,
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-a2-real-api-2026-07-07-output-policy-merged",
+  "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+  "output_policy_counts": {
+    "by_producer": {},
+    "by_record_class": {},
+    "missing": 363,
+    "none": 0,
+    "nonprivate_file": 0,
+    "nonprivate_override": 0,
+    "present": 5,
+    "private_file": 5,
+    "private_not_required": 0,
+    "private_required": 5,
+    "private_required_but_not_private": 0,
+    "resolved_outside_repo": 0,
+    "resolved_under_private_root": 0,
+    "sink": {
+      "none": 0,
+      "nonprivate_file": 0,
+      "private_file": 5,
+      "stdout": 0
+    },
+    "stdout": 0,
+    "stdout_full_record_blocked": 5,
+    "stdout_full_record_requested": 0,
+    "unsafe_real_nonprivate_override": 0
+  },
   "quota_block_count": 43,
   "records": [
     {
@@ -3212,6 +3237,191 @@
       "status": "error",
       "status_code": 200,
       "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "keep_alive",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": true,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": true,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a1_round15_health-check_real_20260707_171150.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a1_round15_health-check_real_20260707_171150.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_agents",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": true,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": true,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a1_round15_list-agents_real_20260707_171150.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a1_round15_list-agents_real_20260707_171150.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_datasets",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": true,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": true,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a1_round15_list-datasets_real_20260707_171150.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a1_round15_list-datasets_real_20260707_171150.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "datasets": 2
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": true,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": true,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a1_round15_list-requests_real_20260707_171150.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a1_round15_list-requests_real_20260707_171150.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 2
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_runs",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": true,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": true,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a1_round15_list-runs_real_20260707_171150.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a1_round15_list-runs_real_20260707_171150.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "runs",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "runs": 2
+      }
     },
     {
       "attempts": 0,
@@ -8512,11 +8722,11 @@
     "completed": 13,
     "error": 27,
     "failed": 1,
-    "ok": 209,
+    "ok": 214,
     "partial": 13,
     "passed": 11,
     "planned": 53,
     "timeout": 1
   },
-  "total_records": 363
+  "total_records": 368
 }

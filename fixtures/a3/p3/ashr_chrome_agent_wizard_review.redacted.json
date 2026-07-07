@@ -1,0 +1,182 @@
+{
+  "captured_at": "2026-07-06",
+  "capture_method": "Isolated Chrome profile connected over local CDP after manual login",
+  "safety": {
+    "secrets_saved": false,
+    "cookies_saved": false,
+    "tokens_saved": false,
+    "emails_redacted": true,
+    "final_cloud_generation_submitted": false,
+    "note": "The wizard was filled to the Review step only. The Generate Test Suite button was not clicked."
+  },
+  "top_level_navigation": [
+    {
+      "page": "Datasets",
+      "path": "?tab=analysis",
+      "observed_fields": [
+        "search datasets",
+        "Type",
+        "Agent",
+        "Creator",
+        "Status",
+        "Runs",
+        "time filter",
+        "Sort",
+        "Group",
+        "New dataset"
+      ],
+      "observed_state": "0 visible datasets"
+    },
+    {
+      "page": "Agents",
+      "path": "?tab=agents",
+      "observed_fields": [
+        "agent list"
+      ],
+      "observed_state": "No agents yet"
+    },
+    {
+      "page": "Folders",
+      "path": "?tab=folders",
+      "observed_fields": [
+        "search folders",
+        "New folder"
+      ],
+      "observed_state": "No folders yet"
+    },
+    {
+      "page": "Analytics",
+      "path": "?tab=analytics",
+      "observed_fields": [
+        "Agents",
+        "Datasets",
+        "Graded runs",
+        "Overall pass rate",
+        "Run volume",
+        "Pass rate over time",
+        "Runs by agent",
+        "Pass rate by agent"
+      ],
+      "observed_state": "Not enough data yet"
+    },
+    {
+      "page": "Usage",
+      "path": "?tab=usage",
+      "observed_fields": [
+        "Images",
+        "Audio",
+        "Files",
+        "Upgrade"
+      ],
+      "observed_state": "Images 0 of 100, Audio 0 of 200, Files 0 of 100"
+    },
+    {
+      "page": "Trust",
+      "path": "?tab=trust",
+      "observed_fields": [
+        "Public trust page",
+        "frozen metrics",
+        "Preview",
+        "Refresh"
+      ],
+      "observed_state": "Run some tests first"
+    },
+    {
+      "page": "API Keys",
+      "path": "?tab=api-keys",
+      "observed_fields": [
+        "Create New Key",
+        "SDK environment variable guidance",
+        "programmatic access empty state"
+      ],
+      "observed_state": "No API keys visible in UI"
+    },
+    {
+      "page": "Team",
+      "path": "?tab=team",
+      "observed_fields": [
+        "Invite User",
+        "member status",
+        "join date"
+      ],
+      "observed_state": "Account-specific email redacted"
+    }
+  ],
+  "new_dataset_wizard": {
+    "steps": [
+      "Basic Info",
+      "Agent",
+      "Inputs",
+      "Tools",
+      "Context",
+      "Test Config",
+      "Behaviors",
+      "Review"
+    ],
+    "review_step_reached": true,
+    "final_button": "Generate Test Suite",
+    "final_button_clicked": false,
+    "draft_configuration": {
+      "dataset": {
+        "name": "A3 Refund Demo Dataset",
+        "description": "Minimal demo dataset for A3 Ashr dashboard calibration. Refund/cancellation workflow only.",
+        "tags": [
+          "a3-demo"
+        ]
+      },
+      "agent": {
+        "name": "A3 Refund Demo Agent",
+        "description": "A minimal test support agent used by the A3 dashboard team to calibrate refund, cancellation, trace, tool-call, and expected-versus-actual UI behavior.",
+        "tools_count": 1,
+        "accepted_inputs": [
+          "text",
+          "audio",
+          "file",
+          "image"
+        ]
+      },
+      "tool": {
+        "name": "confirm_cancel",
+        "description": "Confirms a booking cancellation and issues the eligible refund when policy allows it.",
+        "parameters": [
+          {
+            "name": "booking_id",
+            "type": "string",
+            "description": "Booking identifier used to confirm cancellation and refund."
+          }
+        ]
+      },
+      "context": {
+        "domain": "e-commerce",
+        "use_case": "Test whether a support agent correctly handles a refund request, verifies order eligibility, calls the correct refund confirmation tool, and explains the expected refund outcome.",
+        "scenario_context": "Customer asks to cancel or refund a recent order within the allowed policy window. The agent should not claim refund completion unless the correct tool call succeeds.",
+        "sample_data": "Order IDs, receipt files, refund policy window, tool-call result, expected refund amount, and customer message history."
+      },
+      "test_config": {
+        "variation_count": 5,
+        "strategy": "diverse",
+        "coverage": [
+          "happy path",
+          "edge cases",
+          "error handling",
+          "multi turn",
+          "multi input"
+        ],
+        "focus_area": "refund eligibility, tool-call correctness, receipt file/image/audio evidence"
+      },
+      "behaviors": {
+        "tool_order": "strict",
+        "required_keyword": "refund confirmed",
+        "forbidden_term": "refund completed without confirmation",
+        "required_entity": "order_id and refund_amount"
+      }
+    }
+  },
+  "a3_implications": [
+    "Official Ashr creates evaluation data through a dataset generation wizard rather than a standalone A3-style triage console.",
+    "Agent identity, accepted inputs, tools, context, generation config, and behavior criteria are upstream provenance that A3 should display on reports.",
+    "Media support is configured as accepted input types at dataset generation time: text, audio, file, image, video, website simulation, and custom schema.",
+    "Tool-call correctness maps directly to the A3 Tool Call Diff and Expected vs Actual panels.",
+    "The official Review step is a useful model for A3's Report Center and audit export summary."
+  ]
+}

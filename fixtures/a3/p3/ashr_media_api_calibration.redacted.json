@@ -1,0 +1,1373 @@
+{
+  "calls": {
+    "get_dataset_1": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_dataset_2": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_dataset_3": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_request_1": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_request_2": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_request_3": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_request_4": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_request_5": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_run_1": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "get_run_2": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "init": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "list_datasets": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "list_datasets_signed_url_probe": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "list_requests": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    },
+    "list_runs": {
+      "error": null,
+      "ok": true,
+      "status": "ok",
+      "status_code": 200
+    }
+  },
+  "conclusion": {
+    "media_terms_seen": {
+      "audio": 148,
+      "file": 64,
+      "image": 288,
+      "video": 25
+    },
+    "signed_url_confirmed": true,
+    "usage_quota_api_confirmed": true
+  },
+  "counts": {
+    "datasets": 3,
+    "datasets_signed_probe": 3,
+    "get_dataset_calls": 3,
+    "get_request_calls": 5,
+    "get_run_calls": 2,
+    "requests": 5,
+    "runs": 2
+  },
+  "field_summary": {
+    "error_like_fields": [
+      {
+        "path": "list_requests.requests[].request._failure.error",
+        "sample": "AttributeError: 'bool' object has no attribute 'get'",
+        "type": "string"
+      },
+      {
+        "path": "list_requests.requests[].request._failure.error",
+        "sample": "AttributeError: 'bool' object has no attribute 'get'",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].grade.reason",
+        "sample": "local expected/actual mismatch",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].observations[].vm_stream.logs[].data.message",
+        "sample": "[REDACTED_TEXT_SAMPLE]",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].grade.reason",
+        "sample": "local expected/actual mismatch",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].observations[].vm_stream.logs[].data.message",
+        "sample": "[REDACTED_TEXT_SAMPLE]",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].grade.reason",
+        "sample": "local expected/actual mismatch",
+        "type": "string"
+      },
+      {
+        "path": "list_runs.runs[].result.cases[].observations[].vm_stream.logs[].data.message",
+        "sample": "[REDACTED_TEXT_SAMPLE]",
+        "type": "string"
+      },
+      {
+        "path": "get_request_1.request.request._failure.error",
+        "sample": "AttributeError: 'bool' object has no attribute 'get'",
+        "type": "string"
+      },
+      {
+        "path": "get_request_3.request.request._failure.error",
+        "sample": "AttributeError: 'bool' object has no attribute 'get'",
+        "type": "string"
+      }
+    ],
+    "media_field_paths": [
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path",
+        "types": {
+          "null": 4
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags",
+        "types": {
+          "object[8]": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.accent",
+        "types": {
+          "string": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.age",
+        "types": {
+          "null": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.background_noise",
+        "types": {
+          "string": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.gender",
+        "types": {
+          "string": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.language",
+        "types": {
+          "null": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.pace",
+        "types": {
+          "string": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.tone",
+        "types": {
+          "string": 1
+        }
+      },
+      {
+        "path": "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].audio_tags.volume",
+        "types": {
+          "null": 1
+        }
+      }
+    ],
+    "media_term_counts": {
+      "audio": 148,
+      "file": 64,
+      "image": 288,
+      "video": 25
+    },
+    "output_path_paths": {
+      "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 4,
+      "get_dataset_2.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+      "get_dataset_3.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+      "list_datasets.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+      "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6
+    },
+    "request_media_flags": {
+      "get_request_1.request.request.agent.accepted_inputs.audio": 1,
+      "get_request_1.request.request.agent.accepted_inputs.conversation=False": 1,
+      "get_request_1.request.request.agent.accepted_inputs.file": 1,
+      "get_request_1.request.request.agent.accepted_inputs.image": 1,
+      "get_request_1.request.request.agent.accepted_inputs.text": 1,
+      "get_request_1.request.request.agent.accepted_inputs.video=False": 1,
+      "get_request_1.request.request.generation_options.generate_audio": 1,
+      "get_request_1.request.request.generation_options.generate_files": 1,
+      "get_request_1.request.request.generation_options.generate_images": 1,
+      "get_request_1.request.request.generation_options.generate_simulations=False": 1,
+      "get_request_1.request.request.generation_options.generate_videos=False": 1,
+      "get_request_2.request.request.agent.accepted_inputs.audio=False": 1,
+      "get_request_2.request.request.agent.accepted_inputs.conversation=False": 1,
+      "get_request_2.request.request.agent.accepted_inputs.file=False": 1,
+      "get_request_2.request.request.agent.accepted_inputs.image=False": 1,
+      "get_request_2.request.request.agent.accepted_inputs.text": 1,
+      "get_request_2.request.request.agent.accepted_inputs.video=False": 1,
+      "get_request_2.request.request.generation_options.generate_audio=False": 1,
+      "get_request_2.request.request.generation_options.generate_files=False": 1,
+      "get_request_2.request.request.generation_options.generate_images=False": 1,
+      "get_request_2.request.request.generation_options.generate_simulations=False": 1,
+      "get_request_2.request.request.generation_options.generate_videos=False": 1,
+      "get_request_3.request.request.agent.accepted_inputs.audio": 1,
+      "get_request_3.request.request.agent.accepted_inputs.conversation=False": 1,
+      "get_request_3.request.request.agent.accepted_inputs.file": 1,
+      "get_request_3.request.request.agent.accepted_inputs.image": 1,
+      "get_request_3.request.request.agent.accepted_inputs.text": 1,
+      "get_request_3.request.request.agent.accepted_inputs.video=False": 1,
+      "get_request_3.request.request.generation_options.generate_audio": 1,
+      "get_request_3.request.request.generation_options.generate_files": 1,
+      "get_request_3.request.request.generation_options.generate_images": 1,
+      "get_request_3.request.request.generation_options.generate_simulations=False": 1,
+      "get_request_3.request.request.generation_options.generate_videos=False": 1,
+      "get_request_3.request.request.generation_options.scenario_count=1": 1,
+      "get_request_4.request.request.agent.accepted_inputs.audio.enabled": 1,
+      "get_request_4.request.request.agent.accepted_inputs.conversation.enabled=False": 1,
+      "get_request_4.request.request.agent.accepted_inputs.file.enabled": 1,
+      "get_request_4.request.request.agent.accepted_inputs.image.enabled": 1,
+      "get_request_4.request.request.agent.accepted_inputs.text.enabled": 1,
+      "get_request_4.request.request.agent.accepted_inputs.video.enabled=False": 1,
+      "get_request_4.request.request.generation_options.generate_audio": 1,
+      "get_request_4.request.request.generation_options.generate_files": 1,
+      "get_request_4.request.request.generation_options.generate_images": 1,
+      "get_request_4.request.request.generation_options.generate_simulations=False": 1,
+      "get_request_4.request.request.generation_options.generate_videos=False": 1,
+      "get_request_4.request.request.generation_options.scenario_count=1": 1,
+      "get_request_5.request.request.agent.accepted_inputs.audio=False": 1,
+      "get_request_5.request.request.agent.accepted_inputs.conversation=False": 1,
+      "get_request_5.request.request.agent.accepted_inputs.file=False": 1,
+      "get_request_5.request.request.agent.accepted_inputs.image=False": 1,
+      "get_request_5.request.request.agent.accepted_inputs.text": 1,
+      "get_request_5.request.request.agent.accepted_inputs.video=False": 1,
+      "get_request_5.request.request.generation_options.generate_audio=False": 1,
+      "get_request_5.request.request.generation_options.generate_files=False": 1,
+      "get_request_5.request.request.generation_options.generate_images=False": 1,
+      "get_request_5.request.request.generation_options.generate_simulations=False": 1,
+      "get_request_5.request.request.generation_options.generate_videos=False": 1,
+      "get_request_5.request.request.generation_options.scenario_count=1": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.audio": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.audio.enabled": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.audio=False": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.conversation.enabled=False": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.conversation=False": 4,
+      "list_requests.requests[].request.agent.accepted_inputs.file": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.file.enabled": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.file=False": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.image": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.image.enabled": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.image=False": 2,
+      "list_requests.requests[].request.agent.accepted_inputs.text": 4,
+      "list_requests.requests[].request.agent.accepted_inputs.text.enabled": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.video.enabled=False": 1,
+      "list_requests.requests[].request.agent.accepted_inputs.video=False": 4,
+      "list_requests.requests[].request.generation_options.generate_audio": 3,
+      "list_requests.requests[].request.generation_options.generate_audio=False": 2,
+      "list_requests.requests[].request.generation_options.generate_files": 3,
+      "list_requests.requests[].request.generation_options.generate_files=False": 2,
+      "list_requests.requests[].request.generation_options.generate_images": 3,
+      "list_requests.requests[].request.generation_options.generate_images=False": 2,
+      "list_requests.requests[].request.generation_options.generate_simulations=False": 5,
+      "list_requests.requests[].request.generation_options.generate_videos=False": 5,
+      "list_requests.requests[].request.generation_options.scenario_count=1": 3
+    },
+    "signed_url_paths": {
+      "get_dataset_2.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].signed_url": 1,
+      "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].signed_url": 1
+    },
+    "usage_quota_plan_paths": {
+      "init.tenant.plan": 1
+    }
+  },
+  "observed_at": "2026-07-06T04:27:11Z",
+  "safety": {
+    "mutating_calls": 0,
+    "raw_headers_saved": false,
+    "raw_key_saved": false,
+    "raw_signed_urls_saved": false,
+    "response_bodies_redacted": true
+  },
+  "sample_shapes": {
+    "get_dataset_1": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "dataset": {
+        "agent_id": "null",
+        "created_at": "string",
+        "creator": "integer",
+        "dataset_source": {
+          "dataset_type": "string",
+          "runs": {
+            "medium_missing_id_followup_embedded_ord1002_home": {
+              "actions": [
+                "object[6]"
+              ],
+              "audio_tags": {
+                "accent": "string",
+                "age": "null",
+                "background_noise": "string",
+                "gender": "string",
+                "language": "null",
+                "pace": "string",
+                "tone": "string",
+                "volume": "null"
+              },
+              "description": "string",
+              "intent": "string",
+              "intent_tags": [
+                "string"
+              ],
+              "run_id": "string",
+              "simulation": "null",
+              "title": "string"
+            }
+          },
+          "total_runs": "integer"
+        },
+        "description": "string",
+        "id": "integer",
+        "name": "string",
+        "repo_id": "null",
+        "request_id": "integer",
+        "tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_dataset_2": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "dataset": {
+        "agent_id": "null",
+        "created_at": "string",
+        "creator": "integer",
+        "dataset_source": {
+          "dataset_type": "string",
+          "runs": {
+            "image_ocr_samsung_980pro_heatsink_pricecap": {
+              "actions": [
+                "object[6]"
+              ],
+              "audio_tags": {
+                "accent": "string",
+                "age": "null",
+                "background_noise": "string",
+                "gender": "string",
+                "language": "null",
+                "pace": "string",
+                "tone": "string",
+                "volume": "null"
+              },
+              "description": "string",
+              "intent": "string",
+              "intent_tags": [
+                "string"
+              ],
+              "run_id": "string",
+              "simulation": "null",
+              "title": "string"
+            }
+          },
+          "total_runs": "integer"
+        },
+        "description": "string",
+        "id": "integer",
+        "name": "string",
+        "repo_id": "null",
+        "request_id": "integer",
+        "tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_dataset_3": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "dataset": {
+        "agent_id": "null",
+        "created_at": "string",
+        "creator": "integer",
+        "dataset_source": {
+          "dataset_type": "string",
+          "runs": {
+            "where_is_my_package_no_id_coffeeshop": {
+              "actions": [
+                "object[6]"
+              ],
+              "audio_tags": {
+                "accent": "string",
+                "age": "null",
+                "background_noise": "string",
+                "gender": "string",
+                "language": "null",
+                "pace": "string",
+                "tone": "string",
+                "volume": "null"
+              },
+              "description": "string",
+              "intent": "string",
+              "intent_tags": [
+                "string"
+              ],
+              "run_id": "string",
+              "simulation": "null",
+              "title": "string"
+            }
+          },
+          "total_runs": "integer"
+        },
+        "description": "string",
+        "id": "integer",
+        "name": "string",
+        "repo_id": "null",
+        "request_id": "integer",
+        "tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_request_1": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "request": {
+        "actual_duration_s": "integer",
+        "completed_at": "string",
+        "created_at": "string",
+        "estimated_duration_s": "integer",
+        "id": "integer",
+        "prompt_version_id": "null",
+        "request": {
+          "_failure": {
+            "at": "string",
+            "error": "string"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": "boolean",
+              "conversation": "boolean",
+              "file": "boolean",
+              "image": "boolean",
+              "text": "boolean",
+              "video": "boolean"
+            },
+            "description": "string",
+            "name": "string",
+            "output_format": {
+              "type": "string"
+            },
+            "tools": [
+              {
+                "description": "string",
+                "name": "string",
+                "parameters": "object[3]"
+              }
+            ]
+          },
+          "context": {
+            "domain": "string",
+            "scenario_context": "string",
+            "use_case": "string"
+          },
+          "generation_options": {
+            "generate_audio": "boolean",
+            "generate_files": "boolean",
+            "generate_images": "boolean",
+            "generate_simulations": "boolean",
+            "generate_videos": "boolean"
+          },
+          "metadata": {
+            "dataset_name": "string",
+            "description": "string"
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": "boolean",
+              "error_handling": "boolean",
+              "happy_path": "boolean"
+            },
+            "num_variations": "integer",
+            "strategy": "string"
+          }
+        },
+        "request_input_schema": {
+          "additionalProperties": "boolean",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string",
+              "parameters": {
+                "properties": "object[1]",
+                "required": "array[1]",
+                "type": "string"
+              }
+            }
+          ],
+          "type": "string"
+        },
+        "request_name": "string",
+        "request_status": "string",
+        "requestor_id": "[REDACTED]",
+        "requestor_tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_request_2": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "request": {
+        "actual_duration_s": "integer",
+        "completed_at": "string",
+        "created_at": "string",
+        "estimated_duration_s": "integer",
+        "id": "integer",
+        "prompt_version_id": "null",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": "boolean",
+              "conversation": "boolean",
+              "file": "boolean",
+              "image": "boolean",
+              "text": "boolean",
+              "video": "boolean"
+            },
+            "description": "string",
+            "name": "string",
+            "output_format": {
+              "type": "string"
+            },
+            "tools": [
+              {
+                "description": "string",
+                "name": "string",
+                "parameters": "object[3]"
+              }
+            ]
+          },
+          "context": {
+            "domain": "string",
+            "scenario_context": "string",
+            "use_case": "string"
+          },
+          "generation_options": {
+            "generate_audio": "boolean",
+            "generate_files": "boolean",
+            "generate_images": "boolean",
+            "generate_simulations": "boolean",
+            "generate_videos": "boolean"
+          },
+          "metadata": {
+            "dataset_name": "string",
+            "description": "string"
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": "boolean",
+              "error_handling": "boolean",
+              "happy_path": "boolean"
+            },
+            "num_variations": "integer",
+            "strategy": "string"
+          }
+        },
+        "request_input_schema": {
+          "additionalProperties": "boolean",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string",
+              "parameters": {
+                "properties": "object[1]",
+                "required": "array[1]",
+                "type": "string"
+              }
+            }
+          ],
+          "type": "string"
+        },
+        "request_name": "string",
+        "request_status": "string",
+        "requestor_id": "[REDACTED]",
+        "requestor_tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_request_3": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "request": {
+        "actual_duration_s": "integer",
+        "completed_at": "string",
+        "created_at": "string",
+        "estimated_duration_s": "integer",
+        "id": "integer",
+        "prompt_version_id": "integer",
+        "request": {
+          "_failure": {
+            "at": "string",
+            "error": "string"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": "boolean",
+              "conversation": "boolean",
+              "file": "boolean",
+              "image": "boolean",
+              "text": "boolean",
+              "video": "boolean"
+            },
+            "description": "string",
+            "name": "string",
+            "output_format": {
+              "type": "string"
+            },
+            "system_prompt": "string",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string",
+                "parameters": "object[3]"
+              }
+            ]
+          },
+          "context": {
+            "domain": "string",
+            "scenario_context": "string",
+            "use_case": "string"
+          },
+          "generation_options": {
+            "generate_audio": "boolean",
+            "generate_files": "boolean",
+            "generate_images": "boolean",
+            "generate_simulations": "boolean",
+            "generate_videos": "boolean",
+            "scenario_count": "integer"
+          },
+          "metadata": {
+            "dataset_name": "string",
+            "description": "string"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": "integer",
+              "moderate": "integer",
+              "simple": "integer"
+            },
+            "coverage": {
+              "edge_cases": "boolean",
+              "error_handling": "boolean",
+              "happy_path": "boolean",
+              "multi_input": "boolean",
+              "multi_turn": "boolean"
+            },
+            "num_variations": "integer",
+            "strategy": "string"
+          }
+        },
+        "request_input_schema": {
+          "properties": {},
+          "type": "string"
+        },
+        "request_name": "string",
+        "request_status": "string",
+        "requestor_id": "[REDACTED]",
+        "requestor_tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_request_4": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "request": {
+        "actual_duration_s": "integer",
+        "completed_at": "string",
+        "created_at": "string",
+        "estimated_duration_s": "integer",
+        "id": "integer",
+        "prompt_version_id": "integer",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": {
+                "enabled": "boolean"
+              },
+              "conversation": {
+                "enabled": "boolean"
+              },
+              "file": {
+                "enabled": "boolean"
+              },
+              "image": {
+                "enabled": "boolean"
+              },
+              "text": {
+                "enabled": "boolean"
+              },
+              "video": {
+                "enabled": "boolean"
+              }
+            },
+            "description": "string",
+            "name": "string",
+            "output_format": {
+              "type": "string"
+            },
+            "system_prompt": "string",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string",
+                "parameters": "object[3]"
+              }
+            ]
+          },
+          "context": {
+            "domain": "string",
+            "scenario_context": "string",
+            "use_case": "string"
+          },
+          "generation_options": {
+            "generate_audio": "boolean",
+            "generate_files": "boolean",
+            "generate_images": "boolean",
+            "generate_simulations": "boolean",
+            "generate_videos": "boolean",
+            "scenario_count": "integer"
+          },
+          "metadata": {
+            "dataset_name": "string",
+            "description": "string"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": "integer",
+              "moderate": "integer",
+              "simple": "integer"
+            },
+            "coverage": {
+              "edge_cases": "boolean",
+              "error_handling": "boolean",
+              "happy_path": "boolean",
+              "multi_input": "boolean",
+              "multi_turn": "boolean"
+            },
+            "num_variations": "integer",
+            "strategy": "string"
+          }
+        },
+        "request_input_schema": {
+          "properties": {},
+          "type": "string"
+        },
+        "request_name": "string",
+        "request_status": "string",
+        "requestor_id": "[REDACTED]",
+        "requestor_tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_request_5": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "request": {
+        "actual_duration_s": "integer",
+        "completed_at": "string",
+        "created_at": "string",
+        "estimated_duration_s": "integer",
+        "id": "integer",
+        "prompt_version_id": "integer",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": "boolean",
+              "conversation": "boolean",
+              "file": "boolean",
+              "image": "boolean",
+              "text": "boolean",
+              "video": "boolean"
+            },
+            "description": "string",
+            "name": "string",
+            "output_format": {
+              "type": "string"
+            },
+            "system_prompt": "string",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string",
+                "parameters": "object[3]"
+              }
+            ]
+          },
+          "context": {
+            "domain": "string",
+            "scenario_context": "string",
+            "use_case": "string"
+          },
+          "generation_options": {
+            "generate_audio": "boolean",
+            "generate_files": "boolean",
+            "generate_images": "boolean",
+            "generate_simulations": "boolean",
+            "generate_videos": "boolean",
+            "scenario_count": "integer"
+          },
+          "metadata": {
+            "dataset_name": "string",
+            "description": "string"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": "integer",
+              "moderate": "integer",
+              "simple": "integer"
+            },
+            "coverage": {
+              "edge_cases": "boolean",
+              "error_handling": "boolean",
+              "happy_path": "boolean"
+            },
+            "num_variations": "integer",
+            "strategy": "string"
+          }
+        },
+        "request_input_schema": {
+          "properties": {},
+          "type": "string"
+        },
+        "request_name": "string",
+        "request_status": "string",
+        "requestor_id": "[REDACTED]",
+        "requestor_tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_run_1": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "run": {
+        "created_at": "string",
+        "dataset": "integer",
+        "id": "integer",
+        "result": {
+          "aggregate_metrics": {
+            "errored": "integer",
+            "failed": "integer",
+            "passed": "integer",
+            "schema_version": "string",
+            "timed_out": "integer",
+            "total_tool_calls": "integer",
+            "trace_completeness": "number"
+          },
+          "cases": [
+            {
+              "agent_output": {
+                "latency_ms": "integer",
+                "metadata": "object[3]",
+                "schema_version": "string",
+                "status": "string",
+                "text": "string",
+                "tool_calls": "array[0]"
+              },
+              "case_id": "string",
+              "ended_at": "string",
+              "expected": {
+                "text": "string"
+              },
+              "grade": {
+                "actual": "object[2]",
+                "expected": "object[1]",
+                "label": "string",
+                "metrics": "object[4]",
+                "passed": "boolean",
+                "reason": "string",
+                "scenario_id": "string",
+                "score": "number"
+              },
+              "latency_ms": "integer",
+              "metadata": {
+                "action_count": "integer",
+                "action_index": "integer",
+                "action_name": "string",
+                "action_tags": "array[0]",
+                "action_type": "string",
+                "adapter_version": "string",
+                "audio_tags": "array[1]",
+                "dataset_type": "string",
+                "intent_tags": "array[3]",
+                "requires_external_judge": "boolean",
+                "source": "string",
+                "source_run_hash": "string",
+                "total_runs": "integer"
+              },
+              "observations": [
+                "object[12]"
+              ],
+              "scenario_id": "string",
+              "started_at": "string",
+              "status": "string",
+              "title": "string"
+            }
+          ],
+          "dataset_id": "string",
+          "duration_ms": "integer",
+          "ended_at": "string",
+          "errored": "integer",
+          "failed": "integer",
+          "field_map_version": "string",
+          "max_workers": "integer",
+          "metadata": {
+            "ashr_api_used": "boolean",
+            "local_only": "boolean"
+          },
+          "passed": "integer",
+          "run_id": "string",
+          "runner_id": "string",
+          "started_at": "string",
+          "status": "string",
+          "timed_out": "integer",
+          "total_cases": "integer",
+          "trace_completeness": "number"
+        },
+        "runner": "null",
+        "tenant": "integer"
+      },
+      "status": "string"
+    },
+    "get_run_2": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "run": {
+        "created_at": "string",
+        "dataset": "integer",
+        "id": "integer",
+        "result": {
+          "aggregate_metrics": {
+            "action_summary": {
+              "failed": "integer",
+              "passed": "integer",
+              "total": "integer"
+            },
+            "average_similarity_score": "number",
+            "tests_failed": "integer",
+            "tests_passed": "integer",
+            "total_response_divergence": "integer",
+            "total_tests": "integer",
+            "total_tool_call_divergence": "integer",
+            "weighted_tool_divergence": "number"
+          },
+          "completed_at": "string",
+          "started_at": "string",
+          "status": "string",
+          "tests": [
+            {
+              "action_results": [
+                "object[6]"
+              ],
+              "coherence": {
+                "issues": "array[0]",
+                "score": "number",
+                "summary": "string"
+              },
+              "completed_at": "string",
+              "started_at": "string",
+              "status": "string",
+              "test_id": "string"
+            }
+          ]
+        },
+        "runner": "integer",
+        "tenant": "integer"
+      },
+      "status": "string"
+    },
+    "init": {
+      "features": {
+        "agents": "boolean",
+        "ash": "boolean",
+        "lightberry_generator": "boolean",
+        "lightberry_live": "boolean",
+        "lightberry_viewer": "boolean",
+        "observability": "boolean",
+        "pax_historia": "boolean"
+      },
+      "notes": [],
+      "status": "string",
+      "tenant": {
+        "created_at": "string",
+        "id": "integer",
+        "is_active": "boolean",
+        "owner_email": "[REDACTED]",
+        "plan": "string",
+        "signup_method": "string",
+        "tenant_name": "string"
+      },
+      "user": {
+        "created_at": "string",
+        "email": "[REDACTED]",
+        "id": "integer",
+        "is_active": "boolean",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]"
+      }
+    },
+    "list_datasets": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "datasets": [
+        {
+          "agent_details": "null",
+          "agent_id": "null",
+          "created_at": "string",
+          "creator": "integer",
+          "creator_details": {
+            "id": "integer",
+            "name": "string"
+          },
+          "dataset_source": {
+            "dataset_type": "string",
+            "runs": {
+              "medium_missing_id_followup_embedded_ord1002_home": {
+                "actions": "array[4]",
+                "audio_tags": "object[8]",
+                "description": "string",
+                "intent": "string",
+                "intent_tags": "array[4]",
+                "run_id": "string",
+                "simulation": "null",
+                "title": "string"
+              }
+            },
+            "total_runs": "integer"
+          },
+          "dataset_type": "string",
+          "description": "string",
+          "id": "integer",
+          "name": "string",
+          "repo_id": "null",
+          "request_id": "integer",
+          "run_count": "integer",
+          "tenant": "integer"
+        }
+      ],
+      "next_cursor": "null",
+      "status": "string"
+    },
+    "list_datasets_signed_url_probe": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "datasets": [
+        {
+          "agent_details": "null",
+          "agent_id": "null",
+          "created_at": "string",
+          "creator": "integer",
+          "creator_details": {
+            "id": "integer",
+            "name": "string"
+          },
+          "dataset_source": {
+            "dataset_type": "string",
+            "runs": {
+              "medium_missing_id_followup_embedded_ord1002_home": {
+                "actions": "array[4]",
+                "audio_tags": "object[8]",
+                "description": "string",
+                "intent": "string",
+                "intent_tags": "array[4]",
+                "run_id": "string",
+                "simulation": "null",
+                "title": "string"
+              }
+            },
+            "total_runs": "integer"
+          },
+          "dataset_type": "string",
+          "description": "string",
+          "id": "integer",
+          "name": "string",
+          "repo_id": "null",
+          "request_id": "integer",
+          "run_count": "integer",
+          "tenant": "integer"
+        }
+      ],
+      "next_cursor": "null",
+      "status": "string"
+    },
+    "list_requests": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "next_cursor": "integer",
+      "requests": [
+        {
+          "actual_duration_s": "integer",
+          "completed_at": "string",
+          "created_at": "string",
+          "estimated_duration_s": "integer",
+          "id": "integer",
+          "request": {
+            "_failure": {
+              "at": "string",
+              "error": "string"
+            },
+            "agent": {
+              "accepted_inputs": {
+                "audio": "boolean",
+                "conversation": "boolean",
+                "file": "boolean",
+                "image": "boolean",
+                "text": "boolean",
+                "video": "boolean"
+              },
+              "description": "string",
+              "name": "string",
+              "output_format": {
+                "type": "string"
+              },
+              "tools": [
+                "object[3]"
+              ]
+            },
+            "context": {
+              "domain": "string",
+              "scenario_context": "string",
+              "use_case": "string"
+            },
+            "generation_options": {
+              "generate_audio": "boolean",
+              "generate_files": "boolean",
+              "generate_images": "boolean",
+              "generate_simulations": "boolean",
+              "generate_videos": "boolean"
+            },
+            "metadata": {
+              "dataset_name": "string",
+              "description": "string"
+            },
+            "test_config": {
+              "coverage": {
+                "edge_cases": "boolean",
+                "error_handling": "boolean",
+                "happy_path": "boolean"
+              },
+              "num_variations": "integer",
+              "strategy": "string"
+            }
+          },
+          "request_name": "string",
+          "request_status": "string",
+          "requestor_details": {
+            "id": "integer",
+            "name": "string"
+          },
+          "requestor_id": "[REDACTED]",
+          "requestor_tenant": "integer"
+        }
+      ],
+      "status": "string"
+    },
+    "list_runs": {
+      "_user": {
+        "auth_method": "string",
+        "email": "[REDACTED]",
+        "is_owner": "[REDACTED]",
+        "name": "string",
+        "tenant_id": "[REDACTED]",
+        "user_id": "[REDACTED]"
+      },
+      "runs": [
+        {
+          "created_at": "string",
+          "dataset": "integer",
+          "dataset_details": {
+            "description": "string",
+            "id": "integer",
+            "name": "string"
+          },
+          "id": "integer",
+          "result": {
+            "aggregate_metrics": {
+              "errored": "integer",
+              "failed": "integer",
+              "passed": "integer",
+              "schema_version": "string",
+              "timed_out": "integer",
+              "total_tool_calls": "integer",
+              "trace_completeness": "number"
+            },
+            "cases": [
+              {
+                "agent_output": "object[6]",
+                "case_id": "string",
+                "ended_at": "string",
+                "expected": "object[1]",
+                "grade": "object[8]",
+                "latency_ms": "integer",
+                "metadata": "object[13]",
+                "observations": "array[2]",
+                "scenario_id": "string",
+                "started_at": "string",
+                "status": "string",
+                "title": "string"
+              }
+            ],
+            "dataset_id": "string",
+            "duration_ms": "integer",
+            "ended_at": "string",
+            "errored": "integer",
+            "failed": "integer",
+            "field_map_version": "string",
+            "max_workers": "integer",
+            "metadata": {
+              "ashr_api_used": "boolean",
+              "local_only": "boolean"
+            },
+            "passed": "integer",
+            "run_id": "string",
+            "runner_id": "string",
+            "started_at": "string",
+            "status": "string",
+            "timed_out": "integer",
+            "total_cases": "integer",
+            "trace_completeness": "number"
+          },
+          "runner": "null",
+          "runner_details": "null",
+          "tenant": "integer"
+        }
+      ],
+      "status": "string"
+    }
+  },
+  "schema_version": "a3.p3.media_api_calibration.v1",
+  "source": "Read-only Ashr API L0 calibration through env-only ASHR_API_KEY/ASHR_LABS_API_KEY."
+}

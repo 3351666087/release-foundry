@@ -2,7 +2,17 @@
 
 ## Purpose
 
-This contract lets A3 build dashboard UI before A1/A2 draft PRs are merged. It is intentionally small and local-only.
+This contract lets A3 build dashboard UI from local fixture data without calling the real Ashr API.
+
+The original A3 mock data was hand-maintained while A1/A2 were still draft PRs. After A1/A2 merged, the mock fixtures were replaced with generated fixtures built from the merged A2 scenario pack, executable run fixtures, and aggregate grade results.
+
+Regenerate them with:
+
+```text
+node services/report/a3_fixture_builder.mjs --write
+```
+
+The generator is covered by `tests/a3/a3_fixture_builder.test.mjs`, which verifies that the checked-in A3 mock fixtures match the current merged A2 outputs.
 
 ## `fixtures/a3/mock_run_results.json`
 
@@ -10,7 +20,7 @@ Top-level fields:
 
 - `schema_version`: `a3.dashboard_fixture.v1`
 - `fixture_id`: fixture name
-- `source_notes`: PR and path provenance
+- `source_notes`: source path provenance
 - `runs[]`: list of local run summaries
 
 Run fields:
@@ -85,7 +95,11 @@ Judge fields:
 
 ## Replacement rule
 
-After A1/A2 merge, A3 should not keep hand-maintained mock data as the source of truth. It should either:
+A3 no longer keeps hand-maintained mock data as the source of truth. The current replacement path is:
 
-1. Read A1/A2 fixture JSON directly, or
-2. Add a small transform that writes the same A3 view model from real A1/A2 outputs.
+1. Read `packages/scenarios/a2_g3_full_pack.json`.
+2. Read `fixtures/a2/results/a2_g3_grade_results.json`.
+3. Read all `fixtures/a2/runs/*.json`.
+4. Use `services/report/a3_fixture_builder.mjs` to write the A3 view model into `fixtures/a3/mock_run_results.json` and `fixtures/a3/mock_grade_results.json`.
+
+This keeps the dashboard stable while making the mock data reproducible from merged A2 outputs.

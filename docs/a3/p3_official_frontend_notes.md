@@ -69,3 +69,57 @@ Result:
 1. Ask a logged-in teammate to open `lab.ashr.io` and confirm the dashboard tabs.
 2. Capture private screenshots only if they are sanitized and saved under an approved evidence path.
 3. Update A3 page names if official authenticated navigation uses different names for requests/datasets/runs/analysis.
+
+## 2026-07-05 Authenticated Continuation
+
+Current round status:
+
+- The user's Windows app list showed an Edge window titled `Ashr Labs ... Microsoft Edge`, indicating a logged-in or at least Lab-focused browser window was open.
+- Direct Windows browser inspection stopped before page content could be read because the automation layer could not verify the current browser URL with enough confidence.
+- Codex in-app browser was available, but it did not share the user's Edge login state.
+- No screenshots were saved from the logged-in Edge page.
+- No forms were submitted and no settings were changed.
+
+New supporting evidence:
+
+- Read-only API calibration succeeded for account/session, datasets, requests, runs, dataset detail, request detail, run detail, and signed-url dataset probes.
+- New frontend/API planning docs:
+  - `docs/a3/p3_frontend_page_map.md`
+  - `docs/a3/p3_frontend_workflow_notes.md`
+  - `docs/a3/p3_frontend_field_mapping.md`
+  - `docs/a3/p3_frontend_to_a3_mvp_gap.md`
+  - `docs/a3/p3_a3_mvp_recommendations.md`
+
+Practical next step:
+
+- Log into `https://lab.ashr.io/` inside the Codex in-app browser, or provide sanitized screenshots of the logged-in Edge pages, then update the page map with direct UI evidence.
+
+## 2026-07-06 Authenticated Lab Observation
+
+The user successfully logged into an isolated Chrome profile launched for this calibration session. Codex connected to that browser through a local CDP debugging port and performed read-only observation. No screenshots were saved, no cookies/tokens were exported, no API key values were read from the page, and no create/delete/submit actions were performed.
+
+Confirmed authenticated navigation:
+
+- Datasets: `https://lab.ashr.io/?tab=analysis`
+- Agents: `https://lab.ashr.io/?tab=agents`
+- Folders: `https://lab.ashr.io/?tab=folders`
+- Analytics: `https://lab.ashr.io/?tab=analytics`
+- Usage: `https://lab.ashr.io/?tab=usage`
+- Trust: `https://lab.ashr.io/?tab=trust`
+- API Keys: `https://lab.ashr.io/?tab=api-keys`
+- Team: `https://lab.ashr.io/?tab=team`
+
+Observed page logic:
+
+- Datasets page has search, filter, sort, group, pinned-only, and `New dataset` controls.
+- New Dataset opens an 8-step wizard: Basic Info, Agent, Inputs, Tools, Context, Test Config, Behaviors, Review.
+- Analytics page presents product-level health: agents, datasets, graded runs, pass rate, run volume, pass-rate trend, runs by agent, and pass rate by agent.
+- Usage page presents Images, Audio, and Files quota counters.
+- Trust page presents a public trust/certificate concept with frozen metrics.
+- API Keys and Team exist as account/admin pages but are outside A3's MVP scope.
+- Settings exposes Theme and Low Power toggles.
+
+Limitations:
+
+- The observed account had no UI-visible datasets, agents, folders, or graded runs.
+- Populated run detail, case detail, trace timeline, expected-vs-actual, and native frontend failure labels still need a real hosted run to observe.

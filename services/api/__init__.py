@@ -17,6 +17,16 @@ from .demo import (
     run_agent_cloud_queue_demo,
 )
 from .queue_worker import CloudQueueWorker, QueueRunRequest
+from .control_plane import (
+    CONTROL_PLANE_SCHEMA_VERSION,
+    SaaSControlPlaneRouter,
+    SaaSControlPlaneService,
+    SaaSControlPlaneStore,
+    control_plane_from_state,
+    control_plane_from_state_file,
+    snapshot_control_plane,
+    write_control_plane_state,
+)
 
 __all__ = [
     "CLOUD_API_SCHEMA_VERSION",
@@ -24,11 +34,19 @@ __all__ = [
     "DEFAULT_QUOTA_LIMITS",
     "CloudApiError",
     "CloudApiService",
+    "CONTROL_PLANE_SCHEMA_VERSION",
     "InMemoryCloudStore",
     "NotFoundError",
     "QuotaExceededError",
     "QuotaLedger",
     "QueueRunRequest",
+    "SaaSControlPlaneRouter",
+    "control_plane_from_state",
+    "control_plane_from_state_file",
+    "snapshot_control_plane",
+    "write_control_plane_state",
+    "SaaSControlPlaneService",
+    "SaaSControlPlaneStore",
     "ValidationError",
     "create_agent_cloud_queue_state",
     "export_run_fixture_from_state",

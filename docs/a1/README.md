@@ -1,4 +1,4 @@
-﻿# A1 Local SDK/Runner
+# A1 Local SDK/Runner
 
 Local SDK/Runner/Adapter/Trace loop. The G2 baseline wraps external agents, runs 30-80 case batches, records observations and VM stream metadata, and emits JSON fixtures for A2/A3. Subscription-era A1 calibration now adds a quota-safe Ashr API probe wrapper and a real `dataset_source.runs` adapter without committing keys or private responses.
 
@@ -6,6 +6,16 @@ Fresh setup:
 
 Prerequisite: run from the repository root with Python 3.12+ and `pytest` available in the environment.
 
+SaaS ingestion quickstart (local-only SDK/CLI, no real keys):
+
+```powershell
+$env:PYTHONPATH="packages/sdk;."
+python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane.py tests/a1/test_saas_control_plane_cli.py -q -p no:cacheprovider
+python -B examples/agents/saas_ingestion_quickstart.py
+python -B -m ashr_clone.saas_cli --state-output tmp/a1_saas_ingestion_cli_state.json bootstrap --tenant-name "Quickstart Tenant" --project-name "Quickstart Project" --tenant-id tenant_cli --project-id project_cli --dataset-id dataset_cli
+```
+
+See `docs/a1/saas_ingestion_quickstart.md` for the full API key handle / SDK submit / run upload / trace ingestion / lifecycle / quota snapshot flow. The client is local-only, rejects raw API key values, refuses `.secrets` and `private_refs` input paths, and stays decoupled from A2/A3 contracts.
 ```powershell
 python -B -m pytest tests/a1 -q -p no:cacheprovider
 python -B -m pytest tests/a1/test_cloud_api.py -q -p no:cacheprovider
@@ -100,3 +110,9 @@ node packages/ts/ashr-clone/dist/runner-cli.js --input docs/a1/evidence/local_ag
 `packages/ts/ashr-clone` builds TypeScript source with `tsc`, exports `AgentInput`, `AgentAdapter`, `AgentResult`, `LocalEvalRunner`, `BatchRunner`, `runAgentBatch(...)`, `runCase(...)`, `runBatch(...)`, `runFile(...)`, `buildRunFixture(...)`, `TraceRecorder`, strict fixture validation/read/write helpers, dataset-source adapter helpers/CLI, `CloudApiService`, `CloudQueueWorker`, `QuotaLedger`, `buildDefaultRequestInputSchema(...)`, `runAgentCloudDemo(...)`, redaction helpers, and a hosted-parity `AshrApiClient`. Its local runtime tests poison `globalThis.fetch`, and API-client tests prove dry-run plans require no key and do not call the network. The TS runner smoke completes 30/30 A1 local cases with trace completeness 1.0; the TS cloud smoke replays two queued 30-case runs with 60 observations each and exports restored-state fixtures.
 
 The TypeScript probe CLI is `node packages/ts/ashr-clone/dist/probe.js ...` or the package bin `ashr-clone-probe` / `ashr-clone-api-probe` after install. It writes JSON probe records to ignored private evidence by default, prints only one-line summaries to stdout, and requires `--execute` plus environment-only API keys for real calls. Mutating execution also requires `--allow-mutate --max-retries 0`.
+
+## SaaS ingestion control-plane quickstarts
+
+- Python SDK/CLI: see docs/a1/saas_ingestion_quickstart.md and examples/agents/saas_ingestion_quickstart.py.
+- TypeScript parity: packages/ts/ashr-clone/src/saas.ts exports SaaSControlPlaneService, SaaSControlPlaneRouter, SaaSIngestionClient, and local state helpers; covered by packages/ts/ashr-clone/test/saas.test.mjs.
+- Scope: local-only A1 SaaS control-plane contract for API key handles, SDK submit, run upload, trace ingestion, usage/audit ledger, idempotency, state restore, and tenant/project/run lifecycle. Raw Ashr keys remain environment-only for official API probes and are never required by local SaaS quickstarts.

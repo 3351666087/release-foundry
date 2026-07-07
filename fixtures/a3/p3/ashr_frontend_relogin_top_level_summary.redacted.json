@@ -1,0 +1,84 @@
+{
+  "observed_at": "2026-07-06T01:12:48.149Z",
+  "source": "Read-only Chrome/CDP observation of a manually logged-in Ashr Lab page.",
+  "safety": {
+    "saved_headers": false,
+    "saved_cookies": false,
+    "saved_tokens": false,
+    "saved_response_bodies": false,
+    "saved_screenshots": false,
+    "account_values": "[REDACTED]"
+  },
+  "auth_state": {
+    "frontend_session_valid": true,
+    "frontend_api_statuses_seen": [200],
+    "session_expired_text_seen": false
+  },
+  "pages": [
+    {
+      "page": "Usage",
+      "path": "/?tab=usage",
+      "confirmed_modules": ["Images quota", "Audio quota", "Files quota", "Upgrade"],
+      "network": ["GET 200 lab.ashr.io/?tab=usage", "POST 200 api.ashr.io/testing-platform-api"]
+    },
+    {
+      "page": "Datasets",
+      "path": "/?tab=analysis",
+      "confirmed_modules": [
+        "New dataset",
+        "Type filter",
+        "Agent filter",
+        "Creator filter",
+        "Status filter",
+        "Runs filter",
+        "Time filter",
+        "Sort",
+        "Group"
+      ],
+      "visible_state": "0 visible datasets; No datasets match your filters.",
+      "network": ["GET 200 lab.ashr.io/?tab=analysis", "POST 200 api.ashr.io/testing-platform-api"]
+    },
+    {
+      "page": "Analytics",
+      "path": "/?tab=analytics",
+      "confirmed_modules": [
+        "Agents count",
+        "Datasets count",
+        "Graded runs count",
+        "Overall pass rate",
+        "Run volume",
+        "Pass rate over time",
+        "Runs by agent",
+        "Pass rate by agent"
+      ],
+      "visible_state": "0 agents, 0 datasets, 0 graded runs; not enough data yet.",
+      "network": ["GET 200 lab.ashr.io/?tab=analytics", "POST 200 api.ashr.io/testing-platform-api"]
+    },
+    {
+      "page": "Agents",
+      "path": "/?tab=agents",
+      "confirmed_modules": ["Agents list"],
+      "visible_state": "0 agents; No agents yet.",
+      "network": ["GET 200 lab.ashr.io/?tab=agents", "POST 200 api.ashr.io/testing-platform-api"]
+    },
+    {
+      "page": "Folders",
+      "path": "/?tab=folders",
+      "confirmed_modules": ["Folders list", "New folder"],
+      "visible_state": "0 folders; No folders yet.",
+      "network": ["GET 200 lab.ashr.io/?tab=folders", "POST 200 api.ashr.io/testing-platform-api"]
+    },
+    {
+      "page": "Trust",
+      "path": "/?tab=trust",
+      "confirmed_modules": ["Public trust page", "Preview", "Refresh"],
+      "visible_state": "Run some tests first; there are no results to certify yet.",
+      "network": ["GET 200 lab.ashr.io/?tab=trust", "POST 200 api.ashr.io/testing-platform-api"]
+    }
+  ],
+  "conclusion": {
+    "what_changed": "Fresh manual login restored frontend access; requests no longer returned 401.",
+    "what_still_blocks_deep_ui_calibration": "The current frontend account still has no UI-visible populated dataset/run to open.",
+    "a3_decision": "Keep using sanitized real API fixtures for populated run/case/trace evidence until one UI-visible hosted run is available."
+  }
+}

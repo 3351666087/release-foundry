@@ -32,6 +32,14 @@ from .dataset_adapter import (
     replay_fixture_from_source_run,
     write_cases,
 )
+from .capability_matrix import (
+    CAPABILITY_MATRIX_SCHEMA_VERSION,
+    CapabilityMatrixInputs,
+    assert_capability_matrix_safe,
+    build_capability_matrix,
+    validate_capability_matrix,
+    write_capability_matrix,
+)
 from .evidence import (
     build_private_evidence_index,
     build_private_evidence_index_from_dir,
@@ -54,6 +62,7 @@ from .trace import (
     validate_run_fixture,
     write_run_fixture,
 )
+from .saas import SAAS_CLIENT_VERSION, SaaSIngestionClient, SecretInputError
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
 __all__ = [
@@ -93,6 +102,12 @@ __all__ = [
     "load_cases_from_api_record",
     "replay_fixture_from_source_run",
     "write_cases",
+    "CAPABILITY_MATRIX_SCHEMA_VERSION",
+    "CapabilityMatrixInputs",
+    "assert_capability_matrix_safe",
+    "build_capability_matrix",
+    "validate_capability_matrix",
+    "write_capability_matrix",
     "build_private_evidence_index",
     "build_private_evidence_index_from_dir",
     "build_response_field_map",
@@ -106,6 +121,9 @@ __all__ = [
     "Observation",
     "RunResult",
     "ToolCall",
+    "SAAS_CLIENT_VERSION",
+    "SaaSIngestionClient",
+    "SecretInputError",
     "TraceEvent",
     "TraceRecorder",
     "build_run_fixture",

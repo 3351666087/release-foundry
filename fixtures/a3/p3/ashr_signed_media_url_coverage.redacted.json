@@ -1,0 +1,58 @@
+{
+  "schema_version": "a3.p3.signed_media_url_coverage.v1",
+  "captured_at": "2026-07-06",
+  "source": "local scan of redacted P3 fixtures",
+  "safety": {
+    "signed_url_values_saved": false,
+    "raw_urls_saved": false,
+    "headers_saved": false,
+    "cookies_saved": false,
+    "tokens_saved": false
+  },
+  "files_scanned": 18,
+  "media_type_mentions": {
+    "text": 111,
+    "file": 8,
+    "audio": 47,
+    "tool_call": 5,
+    "str": 1
+  },
+  "signed_url_key_count": 2,
+  "signed_url_by_nearest_type": {
+    "file": 2
+  },
+  "signed_url_files": {
+    "ashr_frontend_api_objects.redacted.json": 1,
+    "ashr_media_url_sample.redacted.json": 1
+  },
+  "output_path_key_count": 122,
+  "output_path_by_nearest_type": {
+    "text": 83,
+    "file": 8,
+    "audio": 23,
+    "unknown": 8
+  },
+  "accepted_input_flags": {
+    "text": 27,
+    "audio": 18,
+    "file": 18,
+    "image": 18,
+    "video": 1,
+    "conversation": 1
+  },
+  "generation_output_flags": {
+    "generate_audio": 19,
+    "generate_files": 19,
+    "generate_images": 19,
+    "generate_videos": 2,
+    "generate_simulations": 2
+  },
+  "conclusion": {
+    "file_signed_url_confirmed": true,
+    "audio_signed_url_confirmed": false,
+    "image_signed_url_confirmed": false,
+    "video_signed_url_confirmed": false,
+    "render_live_signed_links_in_a3": false,
+    "reason": "Only redacted file signed_url fields were found. Audio has output_path evidence, and image/video appear in request flags, but no audio/image/video signed_url sample is available."
+  }
+}

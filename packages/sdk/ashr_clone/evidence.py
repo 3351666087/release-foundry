@@ -9,6 +9,8 @@ from typing import Any, Iterable, Mapping
 from .api_client import ASHR_API_FIELD_MAP_VERSION, redact_sensitive, summarize_quota_error
 
 JsonDict = dict[str, Any]
+OUTPUT_POLICY_SCHEMA_VERSION = "ashr.clone.output_policy.v1"
+_REAL_RECORD_CLASSES = {"real_readonly", "real_mutating", "quota_gate"}
 EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1"
 _PUBLIC_SECRET_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
@@ -25,11 +27,22 @@ class EvidenceIndexOptions:
     label: str = "a1-real-api"
 
 
-def build_private_evidence_index(paths: Iterable[str | Path], *, label: str = "a1-real-api") -> JsonDict:
+class PublicEvidenceIndexError(ValueError):
+    """Raised when a public-safe evidence index contains blocking safety issues."""
+
+    def __init__(self, issues: list[JsonDict]):
+        self.issues = issues
+        super().__init__(f"public evidence index has {len(issues)} blocking issue(s)")
+
+
+def build_private_evidence_index(paths: Iterable[str | Path], *, label: str = "a1-real-api", strict_public: bool = False) -> JsonDict:
     entries = [_summarize_record_path(Path(path)) for path in paths]
     entries = [entry for entry in entries if entry is not None]
     entries.sort(key=lambda item: str(item["path"]))
-    return _build_evidence_index(entries, label=label)
+    index = _build_evidence_index(entries, label=label)
+    if strict_public:
+        assert_public_evidence_index_safe(index)
+    return index
 
 
 def merge_evidence_indices(existing_index: Mapping[str, Any] | None, fresh_index: Mapping[str, Any], *, label: str = "a1-real-api") -> JsonDict:
@@ -53,6 +66,7 @@ def _build_evidence_index(entries: list[JsonDict], *, label: str) -> JsonDict:
             "function_counts": _count_by(public_entries, "function"),
             "error_kind_counts": _count_by(public_entries, "error_kind"),
             "quota_block_count": sum(1 for entry in public_entries if entry.get("quota") and entry["quota"].get("blocked") is True),
+            "output_policy_counts": _output_policy_counts(public_entries),
             "records": public_entries,
         }
     )
@@ -93,11 +107,20 @@ def build_private_evidence_index_from_dir(root: str | Path, options: EvidenceInd
     return build_private_evidence_index(unique_paths, label=opts.label)
 
 
-def write_private_evidence_index(path: str | Path, index: Mapping[str, Any]) -> Path:
+def write_private_evidence_index(path: str | Path, index: Mapping[str, Any], *, strict_public: bool = False) -> Path:
+    if strict_public:
+        assert_public_evidence_index_safe(index)
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(redact_sensitive(dict(index)), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
+
+
+def assert_public_evidence_index_safe(index: Mapping[str, Any]) -> None:
+    issues = validate_public_evidence_index(index)
+    blocking = [issue for issue in issues if issue.get("severity") == "error"]
+    if blocking:
+        raise PublicEvidenceIndexError(blocking)
 
 
 def validate_public_evidence_index(index: Mapping[str, Any]) -> list[JsonDict]:
@@ -115,6 +138,21 @@ def validate_public_evidence_index(index: Mapping[str, Any]) -> list[JsonDict]:
         if not isinstance(record, Mapping):
             issues.append({"severity": "error", "kind": "malformed_record", "record_index": offset})
             continue
+        output_policy = record.get("output_policy")
+        if output_policy is None:
+            pass
+        elif not isinstance(output_policy, Mapping):
+            issues.append({"severity": "error", "kind": "malformed_output_policy", "record_index": offset})
+        else:
+            if output_policy.get("schema_version") != OUTPUT_POLICY_SCHEMA_VERSION:
+                issues.append({"severity": "error", "kind": "bad_output_policy_schema", "record_index": offset})
+            if _is_unsafe_real_nonprivate_override(record):
+                issues.append({"severity": "error", "kind": "unsafe_real_nonprivate_output_override", "record_index": offset})
+            if output_policy.get("private_output_required") is True and output_policy.get("output_is_private") is not True:
+                issues.append({"severity": "error", "kind": "private_required_but_not_private", "record_index": offset})
+            unsafe_path = _unsafe_output_policy_path(output_policy.get("resolved_under_repo"))
+            if unsafe_path:
+                issues.append({"severity": "error", "kind": "unsafe_output_policy_path", "record_index": offset, "field": "resolved_under_repo"})
         quota = record.get("quota")
         if not isinstance(quota, Mapping):
             continue
@@ -245,9 +283,35 @@ def _summarize_record_path(path: Path) -> JsonDict | None:
         "error_kind": error.get("error_kind") if isinstance(error.get("error_kind"), str) else None,
         "top_counts": _top_counts(response),
     }
+    output_policy = _public_safe_output_policy(record.get("output_policy"))
+    if output_policy:
+        entry["output_policy"] = output_policy
     if quota:
         entry["quota"] = quota
     return redact_sensitive(entry)
+
+
+def _public_safe_output_policy(value: Any) -> JsonDict | None:
+    if not isinstance(value, Mapping):
+        return None
+    allowed = {
+        "schema_version",
+        "private_output_required",
+        "allow_nonprivate_output",
+        "nonprivate_output_override_used",
+        "output_is_private",
+        "sink",
+        "private_root",
+        "resolved_under_repo",
+        "full_record_stdout_blocked",
+        "record_class",
+        "producer",
+        "policy_decision",
+        "resolved_under_private_root",
+        "resolved_outside_repo",
+        "stdout_full_record_requested",
+    }
+    return {str(key): value.get(key) for key in allowed if key in value}
 
 
 def _public_safe_quota_summary(quota: Mapping[str, Any] | None) -> JsonDict | None:
@@ -318,3 +382,82 @@ def _count_nested(entries: Iterable[Mapping[str, Any]], outer_key: str, inner_ke
             continue
         counts[str(value)] = counts.get(str(value), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _output_policy_counts(entries: Iterable[Mapping[str, Any]]) -> JsonDict:
+    counts: JsonDict = {
+        "missing": 0,
+        "present": 0,
+        "private_required": 0,
+        "private_not_required": 0,
+        "private_file": 0,
+        "nonprivate_file": 0,
+        "stdout": 0,
+        "none": 0,
+        "nonprivate_override": 0,
+        "unsafe_real_nonprivate_override": 0,
+        "stdout_full_record_blocked": 0,
+        "stdout_full_record_requested": 0,
+        "resolved_outside_repo": 0,
+        "resolved_under_private_root": 0,
+        "private_required_but_not_private": 0,
+        "sink": {"private_file": 0, "nonprivate_file": 0, "stdout": 0, "none": 0},
+        "by_record_class": {},
+        "by_producer": {},
+    }
+    for entry in entries:
+        policy = entry.get("output_policy")
+        if not isinstance(policy, Mapping):
+            counts["missing"] += 1
+            continue
+        counts["present"] += 1
+        if policy.get("private_output_required") is True:
+            counts["private_required"] += 1
+            if policy.get("output_is_private") is not True:
+                counts["private_required_but_not_private"] += 1
+        elif policy.get("private_output_required") is False:
+            counts["private_not_required"] += 1
+        sink = policy.get("sink")
+        if sink in counts["sink"]:
+            counts["sink"][sink] += 1
+            counts[sink] += 1
+        if policy.get("nonprivate_output_override_used") is True:
+            counts["nonprivate_override"] += 1
+        if _is_unsafe_real_nonprivate_override(entry):
+            counts["unsafe_real_nonprivate_override"] += 1
+        if policy.get("full_record_stdout_blocked") is True:
+            counts["stdout_full_record_blocked"] += 1
+        if policy.get("stdout_full_record_requested") is True:
+            counts["stdout_full_record_requested"] += 1
+        if policy.get("resolved_outside_repo") is True or policy.get("resolved_under_repo") == "<outside-repo>":
+            counts["resolved_outside_repo"] += 1
+        if policy.get("resolved_under_private_root") is True:
+            counts["resolved_under_private_root"] += 1
+        record_class = policy.get("record_class")
+        if isinstance(record_class, str):
+            by_record_class = counts["by_record_class"]
+            by_record_class[record_class] = by_record_class.get(record_class, 0) + 1
+        producer = policy.get("producer")
+        if isinstance(producer, str):
+            by_producer = counts["by_producer"]
+            by_producer[producer] = by_producer.get(producer, 0) + 1
+    counts["sink"] = dict(sorted(counts["sink"].items()))
+    counts["by_record_class"] = dict(sorted(counts["by_record_class"].items()))
+    counts["by_producer"] = dict(sorted(counts["by_producer"].items()))
+    return counts
+
+
+def _is_unsafe_real_nonprivate_override(record: Mapping[str, Any]) -> bool:
+    policy = record.get("output_policy")
+    if not isinstance(policy, Mapping):
+        return False
+    is_real = record.get("dry_run") is False or policy.get("record_class") in _REAL_RECORD_CLASSES
+    return bool(is_real and policy.get("private_output_required") is True and policy.get("nonprivate_output_override_used") is True)
+
+
+def _unsafe_output_policy_path(value: Any) -> bool:
+    if value is None or value == "<outside-repo>":
+        return False
+    if not isinstance(value, str):
+        return True
+    return bool(re.match(r"^[A-Za-z]:", value) or value.startswith("/") or "\\" in value or any(part == ".." for part in value.split("/")))

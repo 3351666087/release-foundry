@@ -98,15 +98,15 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-a2-real-api-2026-07-07-output-policy-merged",
+    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 363,
+    "total_records": 368,
     "status_counts": {
       "blocked": 2,
       "completed": 13,
       "error": 27,
       "failed": 1,
-      "ok": 209,
+      "ok": 214,
       "partial": 13,
       "passed": 11,
       "planned": 53,
@@ -119,11 +119,11 @@
       "get_request": 11,
       "get_run": 4,
       "init": 33,
-      "keep_alive": 31,
-      "list_agents": 32,
-      "list_datasets": 38,
-      "list_requests": 41,
-      "list_runs": 4,
+      "keep_alive": 32,
+      "list_agents": 33,
+      "list_datasets": 39,
+      "list_requests": 42,
+      "list_runs": 5,
       "plan_batch": 3,
       "poll_request": 1,
       "poll_run": 2,
@@ -147,10 +147,10 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 236,
+    "real_record_count": 241,
     "real_read_status_counts": {
       "error": 11,
-      "ok": 167,
+      "ok": 172,
       "timeout": 1
     },
     "real_create_request_status_counts": {
@@ -218,7 +218,7 @@
       ],
       "release_interpretation": "mixed_gate_evidence_review_required"
     },
-    "c3_candidate_record_count": 6,
+    "c3_candidate_record_count": 7,
     "c3_grading_ready": false,
     "notes": [
       "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",

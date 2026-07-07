@@ -58,6 +58,17 @@ def test_evidence_index_extracts_safe_shapes_without_raw_payload(tmp_path: Path)
                 "request": {"function": "list_datasets", "params": {"tenant_id": 36}},
                 "response": {"status": "ok", "datasets": [{"id": 1, "name": "Sensitive raw dataset name"}], "next_cursor": 1},
                 "response_headers": {},
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": False,
+                    "nonprivate_output_override_used": False,
+                    "output_is_private": True,
+                    "sink": "private_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "docs/evidence/private_refs/ok.json",
+                    "full_record_stdout_blocked": True,
+                },
             }
         ),
         encoding="utf-8",
@@ -73,6 +84,17 @@ def test_evidence_index_extracts_safe_shapes_without_raw_payload(tmp_path: Path)
                 "attempts": 1,
                 "request": {"params": {"request": {"prompt": "raw prompt must not appear"}}},
                 "response_headers": {},
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": False,
+                    "nonprivate_output_override_used": False,
+                    "output_is_private": True,
+                    "sink": "private_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "docs/evidence/private_refs/quota.json",
+                    "full_record_stdout_blocked": True,
+                },
                 "error": {
                     "message": "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
                     "error_kind": "api",
@@ -94,6 +116,9 @@ def test_evidence_index_extracts_safe_shapes_without_raw_payload(tmp_path: Path)
     assert index["status_counts"] == {"error": 1, "ok": 1}
     assert index["function_counts"] == {"create_request": 1, "list_datasets": 1}
     assert index["quota_block_count"] == 1
+    assert index["output_policy_counts"]["private_required"] == 2
+    assert index["output_policy_counts"]["private_file"] == 2
+    assert index["output_policy_counts"]["missing"] == 0
     assert index["error_kind_counts"] == {"api": 1}
     assert index["records"][0]["response_keys"]
     assert "Sensitive raw dataset name" not in json.dumps(index)
@@ -148,6 +173,41 @@ def test_public_evidence_linter_scans_raw_secret_like_values_before_redaction():
 
     assert [issue["kind"] for issue in issues].count("secret_like_text") == 4
 
+
+
+def test_public_evidence_linter_blocks_real_nonprivate_output_override():
+    index = {
+        "records": [
+            {
+                "function": "create_request",
+                "dry_run": False,
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": True,
+                    "nonprivate_output_override_used": True,
+                    "output_is_private": False,
+                    "sink": "nonprivate_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "tmp/unsafe.json",
+                    "full_record_stdout_blocked": False,
+                },
+            }
+        ]
+    }
+
+    issues = validate_public_evidence_index(index)
+
+    assert any(issue["kind"] == "unsafe_real_nonprivate_output_override" for issue in issues)
+
+
+def test_output_policy_schema_artifact_exists_and_matches_index_counts():
+    root = Path(__file__).resolve().parents[2]
+    schema = json.loads((root / "docs" / "a1" / "schemas" / "output_policy.schema.json").read_text(encoding="utf-8"))
+
+    assert schema["properties"]["schema_version"]["const"] == "ashr.clone.output_policy.v1"
+    assert "nonprivate_output_override_used" in schema["required"]
+    assert "private_file" in schema["properties"]["sink"]["enum"]
 
 def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
     record = tmp_path / "record.json"
@@ -274,3 +334,136 @@ def test_response_field_map_markdown_report_is_public_safe(tmp_path: Path):
     assert "5/5 used" not in markdown
     assert '"remaining": 0' not in markdown
     assert output.read_text(encoding="utf-8") == markdown
+
+
+def test_output_policy_counts_include_extended_safety_stats(tmp_path: Path):
+    missing = tmp_path / "missing.json"
+    missing.write_text(json.dumps({"function": "init", "dry_run": True, "status": "planned"}), encoding="utf-8")
+    dry_run = tmp_path / "dry_run.json"
+    dry_run.write_text(
+        json.dumps(
+            {
+                "function": "create_request",
+                "dry_run": True,
+                "status": "planned",
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": False,
+                    "allow_nonprivate_output": True,
+                    "nonprivate_output_override_used": True,
+                    "output_is_private": False,
+                    "sink": "nonprivate_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "tmp/dry_run.json",
+                    "full_record_stdout_blocked": False,
+                    "record_class": "dry_run_plan",
+                    "producer": "services.runner.api_probe",
+                    "policy_decision": "allow_nonprivate_dry_run",
+                    "stdout_full_record_requested": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    real_private = tmp_path / "real_private.json"
+    real_private.write_text(
+        json.dumps(
+            {
+                "function": "list_runs",
+                "dry_run": False,
+                "status": "ok",
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": False,
+                    "nonprivate_output_override_used": False,
+                    "output_is_private": True,
+                    "sink": "private_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "docs/evidence/private_refs/real_private.json",
+                    "full_record_stdout_blocked": True,
+                    "record_class": "real_readonly",
+                    "producer": "packages.sdk.ashr_clone.calibrate",
+                    "policy_decision": "allow_private",
+                    "resolved_under_private_root": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    index = build_private_evidence_index([missing, dry_run, real_private], label="policy-stats")
+    counts = index["output_policy_counts"]
+
+    assert counts["missing"] == 1
+    assert counts["present"] == 2
+    assert counts["private_required"] == 1
+    assert counts["private_not_required"] == 1
+    assert counts["private_file"] == 1
+    assert counts["nonprivate_file"] == 1
+    assert counts["sink"]["private_file"] == 1
+    assert counts["nonprivate_override"] == 1
+    assert counts["unsafe_real_nonprivate_override"] == 0
+    assert counts["stdout_full_record_requested"] == 1
+    assert counts["stdout_full_record_blocked"] == 1
+    assert counts["resolved_under_private_root"] == 1
+    assert counts["by_record_class"] == {"dry_run_plan": 1, "real_readonly": 1}
+    assert counts["by_producer"] == {"packages.sdk.ashr_clone.calibrate": 1, "services.runner.api_probe": 1}
+
+
+def test_public_evidence_linter_blocks_policy_path_and_private_mismatch():
+    index = {
+        "records": [
+            {
+                "function": "list_runs",
+                "dry_run": False,
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": False,
+                    "nonprivate_output_override_used": False,
+                    "output_is_private": False,
+                    "sink": "nonprivate_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "C:/Users/33516/Desktop/leak.json",
+                    "full_record_stdout_blocked": False,
+                },
+            }
+        ]
+    }
+
+    kinds = {issue["kind"] for issue in validate_public_evidence_index(index)}
+
+    assert "private_required_but_not_private" in kinds
+    assert "unsafe_output_policy_path" in kinds
+
+
+def test_strict_public_write_refuses_unsafe_override(tmp_path: Path):
+    index = {
+        "records": [
+            {
+                "function": "create_request",
+                "dry_run": False,
+                "output_policy": {
+                    "schema_version": "ashr.clone.output_policy.v1",
+                    "private_output_required": True,
+                    "allow_nonprivate_output": True,
+                    "nonprivate_output_override_used": True,
+                    "output_is_private": False,
+                    "sink": "nonprivate_file",
+                    "private_root": "docs/evidence/private_refs",
+                    "resolved_under_repo": "tmp/unsafe.json",
+                    "full_record_stdout_blocked": False,
+                },
+            }
+        ]
+    }
+
+    output = tmp_path / "unsafe-index.json"
+    try:
+        write_private_evidence_index(output, index, strict_public=True)
+    except ValueError as exc:
+        assert "public evidence index" in str(exc)
+    else:
+        raise AssertionError("strict public write should reject unsafe nonprivate real output")
+    assert not output.exists()

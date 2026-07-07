@@ -221,9 +221,9 @@
     "regression_replay_maturity": "seed",
     "evidence_readiness_ready": true,
     "real_api_evidence_available": true,
-    "real_api_total_records": 363,
-    "real_api_record_count": 236,
-    "real_api_read_ok_count": 167,
+    "real_api_total_records": 368,
+    "real_api_record_count": 241,
+    "real_api_read_ok_count": 172,
     "real_api_quota_block_count": 43,
     "real_api_create_request_blocked": true,
     "official_sdk_smoke_read_only_reachable": true,
@@ -344,7 +344,7 @@
       ]
     },
     "current_evidence_strength": {
-      "real_api_record_count": 236,
+      "real_api_record_count": 241,
       "semantic_live_evidence_available": false,
       "ashr_missing_reviewed_observations": 6,
       "growth_point_count": 20
