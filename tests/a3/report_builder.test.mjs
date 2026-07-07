@@ -16,6 +16,7 @@ import {
   summarizeCommercialReadiness,
   summarizeCoverage,
   summarizeEvidenceReadiness,
+  summarizeReleaseGate,
   summarizeRegressionReadiness
 } from "../../services/report/report_builder.mjs";
 
@@ -564,4 +565,67 @@ test("A3 report builder can summarize A2 commercial readiness fixture", async ()
   assert.match(markdown, new RegExp(`Commercial real API records: ${summary.real_api_record_count}\\/${summary.real_api_total_records}`));
   assert.match(markdown, /Commercial create-request quota blocked: yes/);
   assert.match(markdown, /Commercial official SDK smoke: ok \(6 ok, 0 error\)/);
+});
+
+test("A3 report builder can summarize A2 release gate fixture", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const caseBook = await loadJson("../../fixtures/a2/results/a2_case_book.json");
+  const regressionReplay = await loadJson("../../fixtures/a2/results/a2_regression_replay_report.json");
+  const commercial = await loadJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
+  const releaseGate = await loadJson("../../fixtures/a2/results/a2_release_gate_report.json");
+
+  const summary = summarizeReleaseGate(releaseGate);
+  assert.equal(summary.available, true);
+  assert.equal(summary.schema_version, "a2.release_gate.v1");
+  assert.equal(summary.decision, "block");
+  assert.equal(summary.blocks_release, true);
+  assert.equal(summary.exit_code, 2);
+  assert.equal(summary.risk_score, 100);
+  assert.equal(summary.current_commercial_gate, "C2");
+  assert.equal(summary.ready_for_commercial_gate, false);
+  assert.equal(summary.blocking_gate_count, 3);
+  assert.equal(summary.evidence_blocker_count, 4);
+  assert.equal(summary.warning_count, 3);
+  assert.deepEqual(summary.blocker_gates, ["C3", "C4", "C5"]);
+  assert.deepEqual(summary.required_sources, ["ashr_grading", "llm_judge"]);
+  assert.equal(summary.required_source_counts.ashr_grading.required_count, 6);
+  assert.equal(summary.required_source_counts.ashr_grading.current_available, 0);
+  assert.equal(summary.required_source_counts.llm_judge.required_count, 6);
+  assert.equal(summary.required_source_counts.llm_judge.current_available, 0);
+  assert.equal(summary.ci_mode, "fail on decision=block");
+  assert.ok(summary.evidence_refs.includes("fixtures/a2/results/a2_g3_calibration_matrix.json"));
+
+  const json = buildJsonReport(
+    runs,
+    grades,
+    coverage,
+    readiness,
+    caseBook,
+    regressionReplay,
+    commercial,
+    releaseGate
+  );
+  assert.equal(json.release_gate.available, true);
+  assert.equal(json.release_gate.decision, "block");
+  assert.equal(json.release_gate.blocks_release, true);
+  assert.deepEqual(json.release_gate.required_sources, ["ashr_grading", "llm_judge"]);
+
+  const markdown = buildMarkdownReport(
+    runs,
+    grades,
+    coverage,
+    readiness,
+    caseBook,
+    regressionReplay,
+    commercial,
+    releaseGate
+  );
+  assert.match(markdown, /## Release Gate/);
+  assert.match(markdown, /Decision: block/);
+  assert.match(markdown, /Blocks release: yes/);
+  assert.match(markdown, /Blocking gates: C3, C4, C5/);
+  assert.match(markdown, /Required sources: ashr_grading, llm_judge/);
 });

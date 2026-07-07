@@ -418,6 +418,45 @@ export function summarizeCommercialReadiness(commercialFixture = {}) {
   };
 }
 
+export function summarizeReleaseGate(releaseGateFixture = {}) {
+  const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const available = isObject(releaseGateFixture) && Object.keys(releaseGateFixture).length > 0;
+  const requiredEvidence = missing(releaseGateFixture.required_evidence);
+  const blockers = missing(releaseGateFixture.blockers);
+  const warnings = missing(releaseGateFixture.warnings);
+
+  return {
+    available,
+    schema_version: available ? releaseGateFixture.schema_version || "unknown" : "none",
+    report_id: available ? releaseGateFixture.report_id || "unknown" : "none",
+    decision: releaseGateFixture.decision || "none",
+    exit_code: releaseGateFixture.exit_code || 0,
+    risk_score: releaseGateFixture.risk_score || 0,
+    current_commercial_gate: releaseGateFixture.current_commercial_gate || "none",
+    ready_for_commercial_gate: releaseGateFixture.ready_for_commercial_gate === true,
+    blocks_release: releaseGateFixture.decision === "block",
+    blocking_gate_count: releaseGateFixture.blocking_gate_count || blockers.length,
+    evidence_blocker_count: releaseGateFixture.evidence_blocker_count || 0,
+    warning_count: releaseGateFixture.warning_count || warnings.length,
+    blocker_gates: [...new Set(blockers.map((item) => item.gate).filter(Boolean))].sort(),
+    blocker_types: [...new Set(blockers.map((item) => item.type).filter(Boolean))].sort(),
+    warning_types: [...new Set(warnings.map((item) => item.type).filter(Boolean))].sort(),
+    required_sources: requiredEvidence.map((item) => item.source).filter(Boolean).sort(),
+    required_source_counts: Object.fromEntries(requiredEvidence
+      .filter((item) => item && item.source)
+      .map((item) => [item.source, {
+        required_count: item.required_count || 0,
+        current_available: item.current_available || 0,
+        collection_packet_ref: item.collection_packet_ref || ""
+      }])),
+    pr_annotation_count: missing(releaseGateFixture.pr_annotations).length,
+    ci_mode: mapping(releaseGateFixture.machine_contract).ci_mode || "unknown",
+    evidence_refs: missing(releaseGateFixture.evidence_refs)
+  };
+}
+
 function formatCoverageCaseRefs(refs = []) {
   if (!Array.isArray(refs) || refs.length === 0) {
     return "none";
@@ -514,13 +553,15 @@ export function buildMarkdownReport(
   evidenceReadinessFixture = {},
   caseBookFixture = {},
   regressionReplayFixture = {},
-  commercialReadinessFixture = {}
+  commercialReadinessFixture = {},
+  releaseGateFixture = {}
 ) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
   const regressionReadiness = summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture);
   const commercialReadiness = summarizeCommercialReadiness(commercialReadinessFixture);
+  const releaseGate = summarizeReleaseGate(releaseGateFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -648,6 +689,25 @@ export function buildMarkdownReport(
     );
   }
 
+  if (releaseGate.available) {
+    lines.push(
+      "## Release Gate",
+      "",
+      `- Decision: ${releaseGate.decision}`,
+      `- Blocks release: ${releaseGate.blocks_release ? "yes" : "no"}`,
+      `- Exit code: ${releaseGate.exit_code}`,
+      `- Risk score: ${releaseGate.risk_score}`,
+      `- Current commercial gate: ${releaseGate.current_commercial_gate}`,
+      `- Blocking gates: ${releaseGate.blocker_gates.join(", ") || "none"}`,
+      `- Blocker types: ${releaseGate.blocker_types.join(", ") || "none"}`,
+      `- Evidence blockers: ${releaseGate.evidence_blocker_count}`,
+      `- Warnings: ${releaseGate.warning_count}`,
+      `- Required sources: ${releaseGate.required_sources.join(", ") || "none"}`,
+      `- CI mode: ${releaseGate.ci_mode}`,
+      ""
+    );
+  }
+
   lines.push(
     "## Failure Clusters",
     ""
@@ -710,7 +770,8 @@ export function buildJsonReport(
   evidenceReadinessFixture = {},
   caseBookFixture = {},
   regressionReplayFixture = {},
-  commercialReadinessFixture = {}
+  commercialReadinessFixture = {},
+  releaseGateFixture = {}
 ) {
   return {
     schema_version: "a3.export_report.v1",
@@ -719,6 +780,7 @@ export function buildJsonReport(
     evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
     regression_readiness: summarizeRegressionReadiness(caseBookFixture, regressionReplayFixture),
     commercial_readiness: summarizeCommercialReadiness(commercialReadinessFixture),
+    release_gate: summarizeReleaseGate(releaseGateFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

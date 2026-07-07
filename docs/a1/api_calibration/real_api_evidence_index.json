@@ -20,7 +20,7 @@
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-a2-real-api-2026-07-07-merged",
+  "label": "a1-a2-real-api-2026-07-07-release-gate",
   "quota_block_count": 43,
   "records": [
     {
@@ -1746,7 +1746,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "datasets": 1
+        "datasets": 2
       }
     },
     {
@@ -1795,7 +1795,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "requests": 1
+        "requests": 2
       }
     },
     {

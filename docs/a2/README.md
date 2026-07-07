@@ -44,6 +44,7 @@ This module provides the local G1-G2 foundation for:
 - Public-safe semantic judge collection packet: `fixtures/a2/calibration/a2_semantic_judge_collection_packet.json`
 - External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
+- Release/PR gate report: `fixtures/a2/results/a2_release_gate_report.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
 - 32 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
@@ -315,6 +316,28 @@ The July 4 commercial-goals PDF is now tracked as a deterministic A2 readiness o
 The readiness report does not replace A2's grade, coverage, or calibration contracts. It summarizes the PDF's C0-C6 gate expectations, the current evidence snapshot, and the next three highest-ROI A2 moves. The current state is C2 met with C3-C5 still partial because SDK runner consumption and quota-aware batch planning are covered, the C4 semantic harness is ready, and C5 replay is executable, but Ashr grading evidence is missing, LLM evidence is offline-only, and the case book/regression suite is not mature yet. The commercial snapshot also mirrors `ashr_public_merge_gate`, so C3 remains partial while `ashr_safe_to_mark_c3_met` is false.
 
 The same report now includes `scope_boundary`, which explains why A2 is larger than A1/A3 and how that growth is constrained. A2 owns evaluation contracts, deterministic judges, calibration fixtures, and evidence gates. Hosted run execution, raw SDK/API collection, and cloud worker behavior remain A1-owned; dashboard UI, filtering, and presentation exports remain A3-owned. Additive audit fields, deterministic fixtures, and evidence gates are allowed growth, but live calls in local tests, runner orchestration, dashboard ownership, or breaking `a2.grade_results.v1` changes are blocked growth.
+
+## Release Gate
+
+A2 also generates `fixtures/a2/results/a2_release_gate_report.json` from `services/judge/release_gate.py`. This is the machine-readable PR/release gate for A2:
+
+- `decision: block | warn | pass`,
+- CI-oriented `exit_code`,
+- C0-C5 hard gate ids,
+- C3/C4/C5 blockers,
+- required reviewed evidence counts,
+- PR annotations for A3 or GitHub comments,
+- reviewer workflow and private evidence boundary.
+
+The current strict-commercial decision is `block`, because C3 reviewed Ashr grading, C4 audited semantic judge evidence, and C5 mature regression replay are still incomplete. That is expected: A2 should not let an agent release pass until replay, judge, evidence, review, and regression gates are proven.
+
+For CI-style enforcement:
+
+```bash
+python scripts/a2_build_release_gate_report.py --check --fail-on-block
+```
+
+This exits with `2` when the gate blocks release. It reads committed public fixtures only and does not read raw private evidence.
 
 ## G1-G2 Boundary
 

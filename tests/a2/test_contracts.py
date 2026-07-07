@@ -19,6 +19,7 @@ from services.judge.casebook import build_case_book_report
 from services.judge.coverage import build_coverage_report
 from services.judge.evidence_readiness import build_evidence_readiness_report
 from services.judge.readiness import build_commercial_readiness_report
+from services.judge.release_gate import build_release_gate_report
 from services.judge.regression_replay import build_regression_replay_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
@@ -319,6 +320,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
+        release_gate_schema = json.loads((schema_dir / "release_gate.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
@@ -334,6 +336,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
@@ -363,6 +366,10 @@ class A2ContractTests(unittest.TestCase):
             evidence_readiness_schema["properties"]["schema_version"]["const"],
             evidence_readiness["schema_version"],
         )
+        self.assertEqual(
+            release_gate_schema["properties"]["schema_version"]["const"],
+            release_gate["schema_version"],
+        )
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
@@ -377,6 +384,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
+        self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -392,6 +400,12 @@ class A2ContractTests(unittest.TestCase):
         quota_gate_required = set(evidence_readiness_schema["$defs"]["real_quota_gate"]["required"])
         self.assertLessEqual(quota_gate_required, set(evidence_readiness["a1_real_api_evidence"]["real_quota_gate"]))
         self.assertIn("create_request_blocked", quota_gate_required)
+        api_probe_gate_required = set(evidence_readiness_schema["$defs"]["api_probe_gate_validation"]["required"])
+        self.assertLessEqual(
+            api_probe_gate_required,
+            set(evidence_readiness["a1_real_api_evidence"]["api_probe_gate_validation"]),
+        )
+        self.assertIn("validate_gate_count", api_probe_gate_required)
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
@@ -516,6 +530,11 @@ class A2ContractTests(unittest.TestCase):
         for evidence_case in evidence_readiness["calibration_cases"]:
             with self.subTest(evidence_readiness_case=evidence_case["case_id"]):
                 self.assertLessEqual(evidence_case_required, set(evidence_case))
+
+        release_blocker_required = set(release_gate_schema["$defs"]["release_item"]["required"])
+        for blocker in release_gate["blockers"]:
+            with self.subTest(release_gate_blocker=blocker["type"]):
+                self.assertLessEqual(release_blocker_required, set(blocker))
 
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
@@ -1040,6 +1059,16 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("limit", quota_gate["quota_keys"])
         self.assertIn("remaining", quota_gate["quota_keys"])
         self.assertIn("request quota", quota_gate["public_action"])
+        gate_validation = report["a1_real_api_evidence"]["api_probe_gate_validation"]
+        self.assertTrue(gate_validation["available"])
+        self.assertGreaterEqual(gate_validation["plan_batch_count"], 3)
+        self.assertGreaterEqual(gate_validation["validate_gate_count"], 3)
+        self.assertGreaterEqual(gate_validation["ok_validate_gate_count"], 1)
+        self.assertGreaterEqual(gate_validation["error_validate_gate_count"], 1)
+        self.assertIn(gate_validation["release_interpretation"], {
+            "mixed_gate_evidence_review_required",
+            "gate_validation_or_plan_blocked",
+        })
         self.assertFalse(report["a1_real_api_evidence"]["c3_grading_ready"])
         self.assertIn(
             "docs/a1/api_calibration/real_api_evidence_index.json",
@@ -1367,6 +1396,51 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["evidence_snapshot"]["planned_batch_count"], 5)
         self.assertTrue(report["evidence_snapshot"]["batch_plan_ready"])
         self.assertEqual(report["next_top_3"][0]["id"], "fill_ashr_grading_column")
+
+    def test_release_gate_blocks_until_c3_c4_c5_are_reviewed_and_mature(self):
+        commercial = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
+        evidence = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
+        replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
+        report = build_release_gate_report(commercial, evidence, calibration, replay)
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        report_text = json.dumps(report)
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.release_gate.v1")
+        self.assertEqual(report["decision"], "block")
+        self.assertEqual(report["exit_code"], 2)
+        self.assertGreaterEqual(report["risk_score"], 90)
+        self.assertEqual(report["current_commercial_gate"], "C2")
+        self.assertEqual(report["hard_gate_ids"], ["C0", "C1", "C2", "C3", "C4", "C5"])
+        self.assertGreaterEqual(report["blocking_gate_count"], 3)
+        self.assertGreaterEqual(report["evidence_blocker_count"], 3)
+        self.assertGreaterEqual(report["warning_count"], 2)
+        self.assertTrue(any(warning["type"] == "api_probe_gate_validation" for warning in report["warnings"]))
+        blocker_gates = {blocker.get("gate") for blocker in report["blockers"]}
+        self.assertLessEqual({"C3", "C4", "C5"}, blocker_gates)
+        self.assertIn("fixtures/a2/results/a2_evidence_readiness_report.json", report["evidence_refs"])
+        self.assertIn("A2 owner", report["review_workflow"]["required_reviewers"])
+        self.assertEqual(report["machine_contract"]["ci_mode"], "fail on decision=block")
+        self.assertTrue(any(annotation["level"] == "failure" for annotation in report["pr_annotations"]))
+        self.assertNotIn("Bearer ", report_text)
+        self.assertNotRegex(report_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
+
+    def test_release_gate_cli_can_fail_on_block_for_ci(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_build_release_gate_report.py"),
+                "--check",
+                "--fail-on-block",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("A2 release gate report matches", result.stdout)
 
     def test_ashr_grading_import_can_fill_calibration_matrix_source(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))

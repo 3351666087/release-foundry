@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ReleaseGateReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "release_candidate",
+    "decision",
+    "exit_code",
+    "risk_score",
+    "hard_gate_ids",
+    "current_commercial_gate",
+    "ready_for_commercial_gate",
+    "blocking_gate_count",
+    "evidence_blocker_count",
+    "warning_count",
+    "blockers",
+    "warnings",
+    "required_evidence",
+    "pr_annotations",
+    "review_workflow",
+    "machine_contract",
+    "evidence_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.release_gate.v1" },
+    "report_id": { "type": "string" },
+    "release_candidate": { "type": "object" },
+    "decision": { "enum": ["pass", "warn", "block"] },
+    "exit_code": { "type": "integer", "minimum": 0 },
+    "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "hard_gate_ids": { "$ref": "#/$defs/string_array" },
+    "current_commercial_gate": { "type": "string" },
+    "ready_for_commercial_gate": { "type": "boolean" },
+    "blocking_gate_count": { "type": "integer", "minimum": 0 },
+    "evidence_blocker_count": { "type": "integer", "minimum": 0 },
+    "warning_count": { "type": "integer", "minimum": 0 },
+    "blockers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/release_item" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/release_item" }
+    },
+    "required_evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/required_evidence" }
+    },
+    "pr_annotations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pr_annotation" }
+    },
+    "review_workflow": { "type": "object" },
+    "machine_contract": { "type": "object" },
+    "evidence_refs": { "$ref": "#/$defs/string_array" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "release_item": {
+      "type": "object",
+      "required": ["type", "severity", "summary", "evidence_refs"],
+      "properties": {
+        "type": { "type": "string" },
+        "gate": { "type": "string" },
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "summary": { "type": "string" },
+        "required_action": { "type": "string" },
+        "missing_count": { "type": "integer", "minimum": 0 },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "required_evidence": {
+      "type": "object",
+      "required": ["source", "required_count", "current_available", "private_input_ref", "collection_packet_ref", "commands"],
+      "properties": {
+        "source": { "type": "string" },
+        "required_count": { "type": "integer", "minimum": 0 },
+        "current_available": { "type": "integer", "minimum": 0 },
+        "private_input_ref": { "type": "string" },
+        "collection_packet_ref": { "type": "string" },
+        "commands": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "pr_annotation": {
+      "type": "object",
+      "required": ["level", "title", "message", "evidence_refs"],
+      "properties": {
+        "level": { "enum": ["failure", "warning", "notice"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

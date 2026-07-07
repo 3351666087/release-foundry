@@ -98,15 +98,15 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a2-g3-real-api-20260707",
+    "label": "a1-a2-real-api-2026-07-07-release-gate",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 352,
+    "total_records": 359,
     "status_counts": {
-      "blocked": 1,
+      "blocked": 2,
       "completed": 13,
-      "error": 26,
+      "error": 27,
       "failed": 1,
-      "ok": 200,
+      "ok": 205,
       "partial": 13,
       "passed": 11,
       "planned": 53,
@@ -120,13 +120,14 @@
       "get_run": 4,
       "init": 33,
       "keep_alive": 31,
-      "list_agents": 31,
-      "list_datasets": 37,
-      "list_requests": 38,
+      "list_agents": 32,
+      "list_datasets": 38,
+      "list_requests": 39,
       "list_runs": 4,
-      "plan_batch": 2,
+      "plan_batch": 3,
       "poll_request": 1,
-      "poll_run": 2
+      "poll_run": 2,
+      "validate_gate": 3
     },
     "quota_block_count": 43,
     "real_ok_functions": [
@@ -146,10 +147,10 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 229,
+    "real_record_count": 232,
     "real_read_status_counts": {
       "error": 11,
-      "ok": 162,
+      "ok": 165,
       "timeout": 1
     },
     "real_create_request_status_counts": {
@@ -190,6 +191,32 @@
         "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json"
       ],
       "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
+    },
+    "api_probe_gate_validation": {
+      "available": true,
+      "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
+      "plan_batch_count": 3,
+      "validate_gate_count": 3,
+      "plan_batch_status_counts": {
+        "blocked": 2,
+        "planned": 1
+      },
+      "validate_gate_status_counts": {
+        "error": 1,
+        "ok": 2
+      },
+      "ok_validate_gate_count": 2,
+      "error_validate_gate_count": 1,
+      "blocked_plan_batch_count": 2,
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+        "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json"
+      ],
+      "release_interpretation": "mixed_gate_evidence_review_required"
     },
     "c3_candidate_record_count": 6,
     "c3_grading_ready": false,
