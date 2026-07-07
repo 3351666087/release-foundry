@@ -40,7 +40,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const ingestRunResponse = await fetch(`${url}/api/a3/import/a1-run-result`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "idempotency-key": "idem-api-run-1" },
       body: JSON.stringify({
         source: "api-ingest",
         run_result: {
@@ -65,6 +65,52 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const ingestRun = await ingestRunResponse.json();
     assert.equal(ingestRun.schema_version, "a3.a1_run_result_ingest.v1");
     assert.equal(ingestRun.imported_run_count, 1);
+    assert.equal(ingestRun.idempotency.status, "recorded");
+
+    const duplicateRunResponse = await fetch(`${url}/api/a3/import/a1-run-result`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-api-run-1" },
+      body: JSON.stringify({
+        source: "api-ingest",
+        run_result: {
+          runs: [{
+            run_id: "run-ingested-api",
+            dataset_id: "dataset-ingested-api",
+            runner_id: "a1-api-runner",
+            status: "completed",
+            cases: [{
+              case_id: "case-ingested-api",
+              scenario_id: "scenario-ingested-api",
+              status: "failed",
+              expected: { final_response: "Deny refund." },
+              actual: { final_response: "Refund approved." },
+              trace_events: [{ event_type: "agent_response" }]
+            }]
+          }]
+        }
+      })
+    });
+    assert.equal(duplicateRunResponse.status, 201);
+    const duplicateRun = await duplicateRunResponse.json();
+    assert.equal(duplicateRun.idempotency.status, "duplicate_replay");
+
+    const conflictRunResponse = await fetch(`${url}/api/a3/import/a1-run-result`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-api-run-1" },
+      body: JSON.stringify({
+        source: "api-ingest",
+        run_result: {
+          runs: [{
+            run_id: "run-conflict",
+            cases: [{ case_id: "case-conflict", status: "passed" }]
+          }]
+        }
+      })
+    });
+    assert.equal(conflictRunResponse.status, 409);
+    const conflictRun = await conflictRunResponse.json();
+    assert.equal(conflictRun.schema_version, "a3.api_validation_error.v1");
+    assert.equal(conflictRun.error, "idempotency_conflict");
 
     const ingestGradeResponse = await fetch(`${url}/api/a3/import/a2-grade-result`, {
       method: "POST",
@@ -85,6 +131,16 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const ingestGrade = await ingestGradeResponse.json();
     assert.equal(ingestGrade.imported_grade_count, 1);
     assert.equal(ingestGrade.a1_a2_join_ready, true);
+
+    const invalidGradeResponse = await fetch(`${url}/api/a3/import/a2-grade-result`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ source: "api-ingest", grade_result: { score: 0.1 } })
+    });
+    assert.equal(invalidGradeResponse.status, 400);
+    const invalidGrade = await invalidGradeResponse.json();
+    assert.equal(invalidGrade.error, "validation_error");
+    assert.equal(invalidGrade.quota_or_cost, "local_validation_only");
 
     const ingestedDashboard = await getJson(`${url}/api/a3/dashboard?source=api-ingest`);
     assert.equal(ingestedDashboard.summary.failed, 1);
@@ -113,9 +169,21 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const report = await shareResponse.json();
     assert.equal(report.schema_version, "a3.shareable_report.v1");
     assert.equal(report.status, "shareable");
+    assert.equal(report.lifecycle.revocable, true);
+    assert.ok(report.expires_at);
 
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
+
+    const viewResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/view`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ viewer: "test-viewer" })
+    });
+    assert.equal(viewResponse.status, 200);
+    const viewReceipt = await viewResponse.json();
+    assert.equal(viewReceipt.schema_version, "a3.report_view_receipt.v1");
+    assert.equal(viewReceipt.view_audit.view_count, 1);
 
     const hostedReport = await fetch(`${url}${report.share_url_path}`);
     assert.equal(hostedReport.status, 200);
@@ -123,6 +191,18 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const hostedHtml = await hostedReport.text();
     assert.match(hostedHtml, /A3 API smoke report/);
     assert.match(hostedHtml, /Sealed Evidence/);
+
+    const revokeResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "unit-test" })
+    });
+    assert.equal(revokeResponse.status, 200);
+    const revokeReceipt = await revokeResponse.json();
+    assert.equal(revokeReceipt.status, "revoked");
+
+    const revokedHostedReport = await fetch(`${url}${report.share_url_path}`);
+    assert.equal(revokedHostedReport.status, 410);
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);

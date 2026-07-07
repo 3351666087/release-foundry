@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import {
   A3_DB_CONTRACT,
+  A3StoreValidationError,
   createFileBackedA3Store,
   createFixtureBackedA3Store,
   createMemoryA3Store,
@@ -112,6 +113,88 @@ test("A3 store imports A1 run results and A2 grade results into an API-ingest so
   assert.equal(dashboard.cases[0].primary_failure_class, "wrong_intent");
   assert.equal(dashboard.enterprise_readiness.a1_a2_compatibility_notes.a1.compatible, true);
   assert.equal(dashboard.enterprise_readiness.a1_a2_compatibility_notes.a2.compatible, true);
+});
+
+test("A3 store applies idempotency and validation to A1/A2 imports", async () => {
+  const store = createMemoryA3Store();
+  const runResult = {
+    runs: [{
+      run_id: "run-idempotent",
+      cases: [{
+        case_id: "case-idempotent",
+        status: "passed",
+        actual: { final_response: "ok" },
+        trace_events: [{ event_type: "agent_response" }]
+      }]
+    }]
+  };
+  const first = await store.importA1RunResult(runResult, {
+    source: "api-ingest",
+    idempotencyKey: "idem-run-1"
+  });
+  const duplicate = await store.importA1RunResult(runResult, {
+    source: "api-ingest",
+    idempotencyKey: "idem-run-1"
+  });
+  assert.equal(first.idempotency.status, "recorded");
+  assert.equal(duplicate.idempotency.status, "duplicate_replay");
+  assert.equal(duplicate.idempotency.duplicate, true);
+  assert.equal(duplicate.payload_hash, first.payload_hash);
+
+  await assert.rejects(
+    () => store.importA1RunResult({ runs: [{ run_id: "different", cases: [{ case_id: "different" }] }] }, {
+      source: "api-ingest",
+      idempotencyKey: "idem-run-1"
+    }),
+    (error) => error instanceof A3StoreValidationError && error.statusCode === 409
+  );
+
+  await assert.rejects(
+    () => store.importA1RunResult({ runs: [] }, { source: "bad-import" }),
+    (error) => error instanceof A3StoreValidationError && error.details.some((item) => item.field === "run_result.runs")
+  );
+
+  await assert.rejects(
+    () => store.importA2GradeResult({ grade_results: [{ score: 0.5 }] }, { source: "bad-import" }),
+    (error) => error instanceof A3StoreValidationError && error.details.some((item) => item.field.includes("case_id"))
+  );
+});
+
+test("A3 store tracks hosted report expiry, revoke, and view audit state", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["mock"] });
+  const report = await store.createShareableReport({
+    source: "mock",
+    createdAt: "2026-07-07T00:00:00.000Z",
+    expiresAt: "2026-07-08T00:00:00.000Z"
+  });
+  assert.equal(report.status, "shareable");
+  assert.equal(report.expires_at, "2026-07-08T00:00:00.000Z");
+
+  const viewed = await store.getReportForView(report.report_id, {
+    viewer: "unit-test",
+    viewedAt: "2026-07-07T12:00:00.000Z"
+  });
+  assert.equal(viewed.status, "shareable");
+  assert.equal(viewed.view_audit.view_count, 1);
+
+  const expired = await store.getReportForView(report.report_id, {
+    viewer: "unit-test",
+    viewedAt: "2026-07-09T00:00:00.000Z"
+  });
+  assert.equal(expired.status, "expired");
+
+  const revoke = await store.revokeReport(report.report_id, {
+    revokedBy: "unit-test",
+    reason: "rotated_report"
+  });
+  assert.equal(revoke.schema_version, "a3.report_revoke_receipt.v1");
+  assert.equal(revoke.status, "revoked");
+
+  const revoked = await store.getReportForView(report.report_id, {
+    viewer: "unit-test",
+    viewedAt: "2026-07-07T13:00:00.000Z"
+  });
+  assert.equal(revoked.status, "revoked");
 });
 
 test("A3 file-backed store persists shareable report metadata without a real DB server", async () => {

@@ -2703,3 +2703,82 @@ This round directly advances the team lead's SaaS migration points:
 - No real Ashr API key, token, cookie, account data, or signed media URL was printed or committed.
 - No real cloud mutation, API-key rotation, team invite, billing mutation, or Trust publish was executed.
 - Hosted report HTML uses redacted shareable payload data and sealed evidence metadata only.
+
+## 2026-07-07 - Growth auditor import and hosted report commercialization artifact
+
+### Goal
+
+Create a docs-only Growth-Auditor artifact for the current A3 commercial SaaS round focused on A1/A2 API ingest idempotency and validation, hosted report expiry/revocation/view audit, enterprise readiness, SQL/self-host next steps, and PR Gate / Report Center commercialization.
+
+### Work completed
+
+- Added `docs/a3/p3_growth_auditor_round_import_hosted_report_2026_07_07.md`.
+- Captured 32 concrete growth points, each tagged across code/test/API/UI/docs/evidence and mapped to money value.
+- Kept the round documentation-only; no code, tests, fixtures, schemas, secrets, or runtime files were changed.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
+- Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
+
+## 2026-07-07 - Import Idempotency And Hosted Report Lifecycle
+
+### Goal
+
+Turn the new A1/A2 import routes and hosted report route into SaaS-grade contracts instead of one-off demo endpoints.
+
+### Work completed
+
+- Extended `services/report/a3_store.mjs`.
+  - Added `A3StoreValidationError`.
+  - Added validation for A1 RunResult imports and A2 GradeResult imports.
+  - Added idempotency receipt tracking keyed by request type, source, idempotency key hash, and payload hash.
+  - Added duplicate replay behavior for matching idempotency keys.
+  - Added 409 conflict behavior when the same idempotency key is reused with a different payload.
+  - Added hosted report view audit, expiry status, revoke receipt, and report lifecycle status.
+- Extended `services/report/a3_api_server.mjs`.
+  - Reads `Idempotency-Key` / `X-Idempotency-Key` for import routes.
+  - Returns `a3.api_validation_error.v1` with redacted summary and quota/cost note for bad imports.
+  - Adds `POST /api/a3/reports/:reportId/view`.
+  - Adds `POST /api/a3/reports/:reportId/revoke`.
+  - Hosted report HTML returns `410` for expired or revoked reports.
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Adds default 30-day `expires_at`.
+  - Adds lifecycle metadata and initial view audit metadata.
+- Added SQL adapter contract artifact:
+  - `docs/a3/p3_sql_adapter_contract_2026_07_07.md`
+  - `tests/a3/sql_adapter_contract.test.mjs`
+- Added API calibration/error-shape evidence artifact:
+  - `docs/a3/p3_api_calibration_import_error_shapes_2026_07_07.md`
+  - `tests/a3/api_calibration_contract.test.mjs`
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/sql_adapter_contract.test.mjs tests/a3/api_calibration_contract.test.mjs
+```
+
+Focused result:
+
+```text
+14 tests
+14 pass
+0 fail
+```
+
+### Current interpretation
+
+This is an important SaaS hardening step:
+
+- Import routes now behave like production APIs: repeat-safe, conflict-aware, and validation-shaped.
+- Hosted reports now behave like customer-facing share links: expirable, revocable, and view-audited.
+- SQL/self-host planning now has explicit table/index/ledger anchors for the next DB-backed implementation round.
+
+### Safety boundary
+
+- No real Ashr API key, token, cookie, account data, or signed URL was printed or committed.
+- Validation errors do not echo request payloads.
+- Idempotency ledger stores a hashed key prefix and payload hash, not raw API keys or secrets.

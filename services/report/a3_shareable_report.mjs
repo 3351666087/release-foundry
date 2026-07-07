@@ -68,6 +68,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   }, { surface: "shareable_report" });
 
   const createdAt = options.createdAt || new Date().toISOString();
+  const expiresAt = options.expiresAt || defaultExpiry(createdAt);
   const reportId = options.reportId || stableReportId(safeEnvelope.value, createdAt);
   const payloadHash = sha256(stableJson(safeEnvelope.value));
   const blocked = Boolean(safeEnvelope.blocked || jsonReport.export_redaction_firewall?.status === "blocked");
@@ -81,7 +82,19 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     share_url_path: `/reports/${reportId}`,
     status: blocked ? "blocked" : "shareable",
     created_at: createdAt,
+    expires_at: expiresAt,
     created_by: options.createdBy || "a3-system",
+    lifecycle: {
+      expiry_policy: "default_30_days",
+      revocable: true,
+      view_audit_enabled: true,
+      public_indexing_allowed: false
+    },
+    view_audit: {
+      view_count: 0,
+      last_viewed_at: null,
+      last_event_id: null
+    },
     tenant_scope: {
       organization_id: options.organizationId || inputs.organizationId || "org-local",
       project_id: options.projectId || inputs.projectId || "project-local"
@@ -157,7 +170,7 @@ export function renderShareableReportHtml(report = {}) {
     <header>
       <div>
         <h1>${escapeHtml(report.title || payload.title || "A3 Shareable Report")}</h1>
-        <div class="muted">${escapeHtml(report.report_id || "local-report")} / ${escapeHtml(report.created_at || "")}</div>
+        <div class="muted">${escapeHtml(report.report_id || "local-report")} / ${escapeHtml(report.created_at || "")} / expires ${escapeHtml(report.expires_at || "unknown")}</div>
       </div>
       <span class="pill">${escapeHtml(status)}</span>
     </header>
@@ -226,6 +239,15 @@ function stableReportId(value, createdAt) {
   } catch {
     return `a3r_${hash}`;
   }
+}
+
+function defaultExpiry(createdAt) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setUTCDate(date.getUTCDate() + 30);
+  return date.toISOString();
 }
 
 function sha256(value) {

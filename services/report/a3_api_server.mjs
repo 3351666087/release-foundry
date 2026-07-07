@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   A3_DB_CONTRACT,
+  A3StoreValidationError,
   createFixtureBackedA3Store
 } from "./a3_store.mjs";
 import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
@@ -43,7 +44,8 @@ export function createA3ApiHandler(options = {}) {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
           organizationId: body.organization_id,
-          projectId: body.project_id
+          projectId: body.project_id,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 201, receipt);
       }
@@ -54,7 +56,8 @@ export function createA3ApiHandler(options = {}) {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
           organizationId: body.organization_id,
-          projectId: body.project_id
+          projectId: body.project_id,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 201, receipt);
       }
@@ -120,6 +123,7 @@ export function createA3ApiHandler(options = {}) {
           title: body.title,
           visibility: body.visibility,
           createdBy: body.created_by || body.createdBy || "a3-api",
+          expiresAt: body.expires_at || body.expiresAt,
           organizationId: body.organization_id,
           projectId: body.project_id
         });
@@ -134,11 +138,48 @@ export function createA3ApiHandler(options = {}) {
           : sendJson(response, 404, notFound("report", reportMatch[1]));
       }
 
+      const reportRevokeMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/revoke$/);
+      if (request.method === "POST" && reportRevokeMatch) {
+        const body = await readJsonBody(request);
+        const receipt = await store.revokeReport(decodeURIComponent(reportRevokeMatch[1]), {
+          reason: body.reason,
+          revokedBy: body.revoked_by || body.revokedBy || "a3-api",
+          revokedAt: body.revoked_at || body.revokedAt
+        });
+        return receipt
+          ? sendJson(response, 200, receipt)
+          : sendJson(response, 404, notFound("report", reportRevokeMatch[1]));
+      }
+
+      const reportViewMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/view$/);
+      if (request.method === "POST" && reportViewMatch) {
+        const body = await readJsonBody(request);
+        const report = await store.getReportForView(decodeURIComponent(reportViewMatch[1]), {
+          viewer: body.viewer || "api",
+          viewedAt: body.viewed_at || body.viewedAt
+        });
+        return report
+          ? sendJson(response, report.status === "shareable" ? 200 : 410, {
+            schema_version: "a3.report_view_receipt.v1",
+            report_id: report.report_id,
+            status: report.status,
+            view_audit: report.view_audit,
+            expires_at: report.expires_at,
+            revoked_at: report.revoked_at
+          })
+          : sendJson(response, 404, notFound("report", reportViewMatch[1]));
+      }
+
       const hostedReportMatch = url.pathname.match(/^\/reports\/([^/]+)$/);
       if (request.method === "GET" && hostedReportMatch) {
-        const report = await store.getReport(decodeURIComponent(hostedReportMatch[1]));
+        const report = await store.getReportForView(decodeURIComponent(hostedReportMatch[1]), {
+          viewer: "hosted_report",
+          viewedAt: url.searchParams.get("viewed_at") || undefined
+        });
         return report
-          ? sendHtml(response, 200, renderShareableReportHtml(report))
+          ? report.status === "shareable"
+            ? sendHtml(response, 200, renderShareableReportHtml(report))
+            : sendHtml(response, 410, renderShareableReportHtml(report))
           : sendHtml(response, 404, `<h1>Report not found</h1><p>${escapeHtml(hostedReportMatch[1])}</p>`);
       }
 
@@ -151,6 +192,9 @@ export function createA3ApiHandler(options = {}) {
 
       return sendJson(response, 404, notFound("route", url.pathname));
     } catch (error) {
+      if (error instanceof A3StoreValidationError) {
+        return sendJson(response, error.statusCode || 400, validationErrorPayload(error));
+      }
       return sendJson(response, 500, {
         schema_version: "a3.api_error.v1",
         error: "internal_error",
@@ -180,6 +224,13 @@ function sourceFrom(url) {
   return url.searchParams.get("source") || "mock";
 }
 
+function idempotencyKeyFrom(request, body = {}) {
+  return request.headers["idempotency-key"]
+    || request.headers["x-idempotency-key"]
+    || body.idempotency_key
+    || body.idempotencyKey;
+}
+
 async function readJsonBody(request) {
   const chunks = [];
   for await (const chunk of request) {
@@ -196,7 +247,7 @@ function sendJson(response, statusCode, payload) {
     "cache-control": "no-store",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type"
+    "access-control-allow-headers": "content-type,idempotency-key,x-idempotency-key"
   });
   response.end(body);
 }
@@ -216,6 +267,20 @@ function notFound(kind, id) {
     error: "not_found",
     kind,
     id: String(id)
+  };
+}
+
+function validationErrorPayload(error) {
+  return {
+    schema_version: error.schema_version || "a3.api_validation_error.v1",
+    error: error.error || "validation_error",
+    message: error.message,
+    request_type: error.requestType || "unknown",
+    source: error.source || "unknown",
+    details: error.details || [],
+    private_evidence_path: null,
+    redacted_summary: "Request was rejected before persistence; payload body is not echoed.",
+    quota_or_cost: "local_validation_only"
   };
 }
 

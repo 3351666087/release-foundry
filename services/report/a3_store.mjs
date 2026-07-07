@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,6 +16,19 @@ import {
 import { buildEnterpriseReadinessReport } from "./a3_enterprise_readiness.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
+
+export class A3StoreValidationError extends Error {
+  constructor(message, details = [], options = {}) {
+    super(message);
+    this.name = "A3StoreValidationError";
+    this.schema_version = "a3.api_validation_error.v1";
+    this.statusCode = options.statusCode || 400;
+    this.error = options.error || "validation_error";
+    this.details = details;
+    this.requestType = options.requestType || "unknown";
+    this.source = options.source || "unknown";
+  }
+}
 
 export const A3_SOURCE_FIXTURES = {
   mock: {
@@ -80,7 +94,11 @@ export const A3_DB_CONTRACT = {
     "failure_clusters",
     "media_evidence",
     "shareable_reports",
+    "report_view_events",
+    "report_revocations",
     "trust_reports",
+    "idempotency_keys",
+    "api_import_receipts",
     "audit_events",
     "usage_ledger"
   ],
@@ -94,6 +112,8 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
     "GET /reports/:reportId",
+    "POST /api/a3/reports/:reportId/revoke",
+    "POST /api/a3/reports/:reportId/view",
     "GET /api/a3/admin/console",
     "POST /api/a3/admin/actions/plan",
     "GET /api/a3/enterprise/readiness"
@@ -161,6 +181,8 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
 export function createMemoryA3Store(seed = {}) {
   const snapshots = new Map();
   const reports = new Map();
+  const idempotencyReceipts = new Map();
+  const auditEvents = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -176,6 +198,12 @@ export function createMemoryA3Store(seed = {}) {
   }
   for (const report of seed.reports || []) {
     reports.set(report.report_id, report);
+  }
+  for (const entry of seed.idempotencyReceipts || []) {
+    idempotencyReceipts.set(entry.key, entry);
+  }
+  for (const event of seed.auditEvents || []) {
+    auditEvents.push(event);
   }
 
   return {
@@ -233,6 +261,18 @@ export function createMemoryA3Store(seed = {}) {
 
     async importA1RunResult(runResult, options = {}) {
       const source = normalizeSourceKey(options.source || runResult?.source || "api-ingest");
+      const validation = validateA1RunResult(runResult);
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A1 RunResult import failed validation.", validation.details, {
+          requestType: "a1_run_result_import",
+          source
+        });
+      }
+      const payloadHash = sha256(stableJson(runResult || {}));
+      const replay = getIdempotentReplay(idempotencyReceipts, "a1_run_result_import", source, options.idempotencyKey, payloadHash);
+      if (replay) {
+        return replay;
+      }
       const existing = snapshots.get(source);
       const normalized = normalizeSnapshot({
         ...(existing || {}),
@@ -249,14 +289,30 @@ export function createMemoryA3Store(seed = {}) {
         }
       });
       snapshots.set(source, normalized);
-      return buildIngestReceipt("a3.a1_run_result_ingest.v1", normalized, {
+      const receipt = buildIngestReceipt("a3.a1_run_result_ingest.v1", normalized, {
         imported_run_count: extractRunRecords(normalized.runFixture).length,
-        imported_grade_count: countGradeResults(normalized.gradeFixture)
+        imported_grade_count: countGradeResults(normalized.gradeFixture),
+        idempotencyKey: options.idempotencyKey,
+        payloadHash
       });
+      rememberIdempotentReceipt(idempotencyReceipts, "a1_run_result_import", source, options.idempotencyKey, payloadHash, receipt);
+      return receipt;
     },
 
     async importA2GradeResult(gradeResult, options = {}) {
       const source = normalizeSourceKey(options.source || gradeResult?.source || "api-ingest");
+      const validation = validateA2GradeResult(gradeResult);
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A2 GradeResult import failed validation.", validation.details, {
+          requestType: "a2_grade_result_import",
+          source
+        });
+      }
+      const payloadHash = sha256(stableJson(gradeResult || {}));
+      const replay = getIdempotentReplay(idempotencyReceipts, "a2_grade_result_import", source, options.idempotencyKey, payloadHash);
+      if (replay) {
+        return replay;
+      }
       const existing = snapshots.get(source);
       const mergedGradeFixture = mergeGradeFixtures(existing?.gradeFixture, gradeResult);
       const normalized = normalizeSnapshot({
@@ -274,10 +330,14 @@ export function createMemoryA3Store(seed = {}) {
         }
       });
       snapshots.set(source, normalized);
-      return buildIngestReceipt("a3.a2_grade_result_ingest.v1", normalized, {
+      const receipt = buildIngestReceipt("a3.a2_grade_result_ingest.v1", normalized, {
         imported_run_count: extractRunRecords(normalized.runFixture).length,
-        imported_grade_count: countGradeResults(normalized.gradeFixture)
+        imported_grade_count: countGradeResults(normalized.gradeFixture),
+        idempotencyKey: options.idempotencyKey,
+        payloadHash
       });
+      rememberIdempotentReceipt(idempotencyReceipts, "a2_grade_result_import", source, options.idempotencyKey, payloadHash, receipt);
+      return receipt;
     },
 
     async getSaasAdminConsole(options = {}) {
@@ -332,6 +392,7 @@ export function createMemoryA3Store(seed = {}) {
         visibility: options.visibility,
         createdBy: options.createdBy,
         createdAt: options.createdAt,
+        expiresAt: options.expiresAt,
         organizationId: options.organizationId,
         projectId: options.projectId
       });
@@ -343,14 +404,81 @@ export function createMemoryA3Store(seed = {}) {
       return reports.get(reportId) || null;
     },
 
+    async getReportForView(reportId, options = {}) {
+      const report = reports.get(reportId);
+      if (!report) {
+        return null;
+      }
+      const now = options.viewedAt || new Date().toISOString();
+      const status = reportLifecycleStatus(report, now);
+      if (status === "shareable") {
+        const event = {
+          event_id: `rve_${sha256(`${reportId}:${now}:${auditEvents.length}`).slice(0, 12)}`,
+          report_id: reportId,
+          event_type: "report_view",
+          viewed_at: now,
+          viewer: options.viewer || "anonymous",
+          source: report.source,
+          redacted: true
+        };
+        auditEvents.push(event);
+        report.view_audit = {
+          ...(report.view_audit || {}),
+          view_count: (report.view_audit?.view_count || 0) + 1,
+          last_viewed_at: now,
+          last_event_id: event.event_id
+        };
+      }
+      return {
+        ...report,
+        status
+      };
+    },
+
+    async revokeReport(reportId, options = {}) {
+      const report = reports.get(reportId);
+      if (!report) {
+        return null;
+      }
+      const revokedAt = options.revokedAt || new Date().toISOString();
+      const revoked = {
+        ...report,
+        status: "revoked",
+        revoked_at: revokedAt,
+        revoked_by: options.revokedBy || "a3-api",
+        revocation_reason: options.reason || "manual_revoke"
+      };
+      reports.set(reportId, revoked);
+      auditEvents.push({
+        event_id: `rrv_${sha256(`${reportId}:${revokedAt}:${auditEvents.length}`).slice(0, 12)}`,
+        report_id: reportId,
+        event_type: "report_revoke",
+        revoked_at: revokedAt,
+        revoked_by: revoked.revoked_by,
+        reason: revoked.revocation_reason,
+        redacted: true
+      });
+      return {
+        schema_version: "a3.report_revoke_receipt.v1",
+        report_id: reportId,
+        status: "revoked",
+        revoked_at: revokedAt,
+        revoked_by: revoked.revoked_by,
+        reason: revoked.revocation_reason
+      };
+    },
+
     async listReports() {
       return [...reports.values()].map((report) => ({
         report_id: report.report_id,
         title: report.title,
-        status: report.status,
+        status: reportLifecycleStatus(report),
         source: report.source,
         share_url_path: report.share_url_path,
-        created_at: report.created_at
+        created_at: report.created_at,
+        expires_at: report.expires_at,
+        revoked_at: report.revoked_at,
+        view_count: report.view_audit?.view_count || 0
       }));
     },
 
@@ -359,7 +487,9 @@ export function createMemoryA3Store(seed = {}) {
         schema_version: A3_STORE_SCHEMA_VERSION,
         storage_mode: this.storage_mode,
         sources: Object.fromEntries(snapshots.entries()),
-        reports: [...reports.values()]
+        reports: [...reports.values()],
+        idempotencyReceipts: [...idempotencyReceipts.entries()].map(([key, value]) => ({ key, ...value })),
+        auditEvents
       };
     }
   };
@@ -419,6 +549,16 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
+      await persist();
+      return result;
+    },
+    async revokeReport(reportId, options = {}) {
+      const result = await store.revokeReport(reportId, options);
+      await persist();
+      return result;
+    },
+    async getReportForView(reportId, options = {}) {
+      const result = await store.getReportForView(reportId, options);
       await persist();
       return result;
     },
@@ -584,6 +724,7 @@ function summarizeCases(cases = []) {
 
 function buildIngestReceipt(schemaVersion, snapshot, counts = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
+  const idempotencyKeyPresent = Boolean(counts.idempotencyKey);
   return {
     schema_version: schemaVersion,
     source: snapshot.source,
@@ -592,6 +733,12 @@ function buildIngestReceipt(schemaVersion, snapshot, counts = {}) {
     db_ready: true,
     imported_run_count: counts.imported_run_count || 0,
     imported_grade_count: counts.imported_grade_count || 0,
+    payload_hash: counts.payloadHash || null,
+    idempotency: {
+      key_present: idempotencyKeyPresent,
+      duplicate: false,
+      status: idempotencyKeyPresent ? "recorded" : "not_provided"
+    },
     dashboard_case_count: cases.length,
     summary: snapshot.summary,
     a1_a2_join_ready: cases.some((item) => (
@@ -600,6 +747,112 @@ function buildIngestReceipt(schemaVersion, snapshot, counts = {}) {
       || item.grade
     ))
   };
+}
+
+function validateA1RunResult(runResult = {}) {
+  const details = [];
+  if (!runResult || typeof runResult !== "object" || Array.isArray(runResult)) {
+    details.push({ field: "run_result", issue: "must be an object" });
+  } else {
+    const runRecords = extractRunRecords(runResult);
+    const cases = normalizeCases(runResult, {});
+    if (runRecords.length === 0) {
+      details.push({ field: "run_result.runs", issue: "must contain at least one run" });
+    }
+    if (cases.length === 0) {
+      details.push({ field: "run_result.cases", issue: "must contain at least one case" });
+    }
+    for (const [index, item] of cases.entries()) {
+      if (!item.case_id) {
+        details.push({ field: `run_result.cases[${index}].case_id`, issue: "is required" });
+      }
+    }
+  }
+  return {
+    valid: details.length === 0,
+    details
+  };
+}
+
+function validateA2GradeResult(gradeResult = {}) {
+  const details = [];
+  if (!gradeResult || typeof gradeResult !== "object" || Array.isArray(gradeResult)) {
+    details.push({ field: "grade_result", issue: "must be an object" });
+  } else {
+    const grades = extractGradeResults(gradeResult);
+    if (grades.length === 0) {
+      details.push({ field: "grade_result", issue: "must contain at least one grade result" });
+    }
+    for (const [index, grade] of grades.entries()) {
+      if (!grade.case_id) {
+        details.push({ field: `grade_result[${index}].case_id`, issue: "is required" });
+      }
+      if (!("passed" in grade) && !("score" in grade) && !Array.isArray(grade.judge_results)) {
+        details.push({ field: `grade_result[${index}]`, issue: "must include passed, score, or judge_results" });
+      }
+    }
+  }
+  return {
+    valid: details.length === 0,
+    details
+  };
+}
+
+function getIdempotentReplay(idempotencyReceipts, requestType, source, idempotencyKey, payloadHash) {
+  if (!idempotencyKey) {
+    return null;
+  }
+  const ledgerKey = idempotencyLedgerKey(requestType, source, idempotencyKey);
+  const existing = idempotencyReceipts.get(ledgerKey);
+  if (!existing) {
+    return null;
+  }
+  if (existing.payload_hash !== payloadHash) {
+    throw new A3StoreValidationError("Idempotency key was already used with a different payload.", [
+      { field: "Idempotency-Key", issue: "conflicts with a previous payload hash for this source and request type" }
+    ], {
+      requestType,
+      source,
+      statusCode: 409,
+      error: "idempotency_conflict"
+    });
+  }
+  return {
+    ...existing.receipt,
+    idempotency: {
+      ...existing.receipt.idempotency,
+      duplicate: true,
+      status: "duplicate_replay"
+    }
+  };
+}
+
+function rememberIdempotentReceipt(idempotencyReceipts, requestType, source, idempotencyKey, payloadHash, receipt) {
+  if (!idempotencyKey) {
+    return;
+  }
+  const ledgerKey = idempotencyLedgerKey(requestType, source, idempotencyKey);
+  idempotencyReceipts.set(ledgerKey, {
+    request_type: requestType,
+    source,
+    idempotency_key_hash: sha256(idempotencyKey).slice(0, 16),
+    payload_hash: payloadHash,
+    receipt
+  });
+}
+
+function idempotencyLedgerKey(requestType, source, idempotencyKey) {
+  return `${requestType}:${source}:${sha256(idempotencyKey).slice(0, 32)}`;
+}
+
+function reportLifecycleStatus(report = {}, now = new Date().toISOString()) {
+  if (report.revoked_at || report.status === "revoked") {
+    return "revoked";
+  }
+  if (report.expires_at && report.expires_at <= now) {
+    return "expired";
+  }
+  return report.status || "unknown";
 }
 
 function mergeGradeFixtures(existing = {}, incoming = {}) {
@@ -638,6 +891,28 @@ function extractGradeResults(gradeFixture = {}) {
 
 function countGradeResults(gradeFixture = {}) {
   return extractGradeResults(gradeFixture).length;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
+}
+
+function stableJson(value) {
+  return JSON.stringify(sortForStableJson(value));
+}
+
+function sortForStableJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(sortForStableJson);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, sortForStableJson(item)])
+    );
+  }
+  return value;
 }
 
 async function readJson(root, relativePath) {

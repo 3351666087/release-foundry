@@ -384,5 +384,7 @@
 - [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
 - [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
 - [x] Add self-host console contract artifact and document-contract tests.
-- [ ] Add idempotency keys and validation error shapes to A1/A2 import routes.
-- [ ] Add view audit event and expiry/revocation policy for hosted reports.
+- [x] Add idempotency keys and validation error shapes to A1/A2 import routes.
+- [x] Add view audit event and expiry/revocation policy for hosted reports.
+- [x] Add SQL adapter contract artifact for idempotency ledger, audit events, share/revoke/view tables, and usage ledger.
+- [x] Add API calibration evidence artifact for import validation/error shapes.

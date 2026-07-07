@@ -48,6 +48,9 @@ test("A3 shareable report wraps release evidence in a hosted-report payload", ()
   assert.equal(report.report_id, "a3r_unit_test");
   assert.equal(report.share_url_path, "/reports/a3r_unit_test");
   assert.equal(report.status, "shareable");
+  assert.equal(report.expires_at, "2026-08-06T00:00:00.000Z");
+  assert.equal(report.lifecycle.revocable, true);
+  assert.equal(report.view_audit.view_count, 0);
   assert.equal(report.report_center.hosted_page_available, true);
   assert.equal(report.artifacts.length, 3);
   assert.match(report.sealed_evidence.payload_hash, /^[a-f0-9]{64}$/);
