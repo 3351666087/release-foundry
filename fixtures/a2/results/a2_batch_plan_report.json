@@ -76,6 +76,7 @@
       "requires_private_evidence": true,
       "evidence_refs": [
         "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
         "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"
       ]
     },

@@ -163,7 +163,10 @@ def _quota_plan(
 
 
 def _semantic_evidence_refs(semantic_harness_report: dict[str, Any] | None) -> list[str]:
-    refs = ["fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger"]
+    refs = [
+        "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+        "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger",
+    ]
     if semantic_harness_report:
         refs.insert(0, "fixtures/a2/results/a2_semantic_harness_report.json")
     return refs
