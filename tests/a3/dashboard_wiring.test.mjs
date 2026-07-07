@@ -493,6 +493,26 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /clean-room shell/);
 });
 
+test("A3 dashboard wires product console onboarding, project, and audit workflow", async () => {
+  const html = await loadDashboardHtml();
+  const productComponent = await readFile(new URL("../../apps/dashboard/src/components/product-console-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /a3_product_console\.mjs/);
+  assert.match(html, /components\/product-console-panel\.mjs/);
+  assert.match(html, /fetchA3ProductConsole/);
+  assert.match(html, /href="#product-console"/);
+  assert.match(html, /id="product-console"/);
+  assert.match(html, /id="product-console-body"/);
+  assert.match(html, /function refreshLocalProductConsole\(\)/);
+  assert.match(html, /function renderProductConsole\(\)/);
+  assert.match(html, /product_console/);
+  assert.match(html, /GET \/api\/a3\/product\/console/);
+  assert.match(productComponent, /Onboarding Flow/);
+  assert.match(productComponent, /Project Console/);
+  assert.match(productComponent, /Audit Log/);
+  assert.match(productComponent, /Commercial Readiness/);
+});
+
 test("A3 dashboard wires enterprise readiness for self-host and audit review", async () => {
   const html = await loadDashboardHtml();
 

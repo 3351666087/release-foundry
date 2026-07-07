@@ -18,6 +18,7 @@ import { buildReportCenterIndex } from "./a3_report_center.mjs";
 import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
+import { buildA3ProductConsole } from "./a3_product_console.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -122,6 +123,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/reports/:reportId/view",
     "GET /api/a3/admin/console",
     "POST /api/a3/admin/actions/plan",
+    "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
@@ -477,6 +479,33 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async getProductConsole(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const usageLedger = buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      const reportCenter = buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        migrationPlan: buildA3SqlMigrationPlan()
+      });
+      return buildA3ProductConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        reportCenter,
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
+    },
+
     async getReportForView(reportId, options = {}) {
       const report = reports.get(reportId);
       if (!report) {
@@ -763,6 +792,22 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     importReceipts: options.importReceipts || []
   });
   const migrationPlan = buildA3SqlMigrationPlan();
+  const reportCenter = buildReportCenterIndex(options.reports || [], {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId,
+    usageLedger,
+    migrationPlan
+  });
+  const productConsole = buildA3ProductConsole(snapshot, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId,
+    usageLedger,
+    reportCenter,
+    auditEvents: options.auditEvents || [],
+    importReceipts: options.importReceipts || []
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -800,13 +845,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       dbContract: A3_DB_CONTRACT
     }),
     usage_ledger: usageLedger,
-    report_center: buildReportCenterIndex(options.reports || [], {
-      source: snapshot.source,
-      organizationId: snapshot.organizationId,
-      projectId: snapshot.projectId,
-      usageLedger,
-      migrationPlan
-    }),
+    report_center: reportCenter,
+    product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({
       run_id: item.run_id,

@@ -18,6 +18,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.storage.db_contract.mysql_compatible, true);
     assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
     assert.equal(dashboard.enterprise_readiness.schema_version, "a3.enterprise_readiness.v1");
+    assert.equal(dashboard.product_console.schema_version, "a3.product_console.v1");
     assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
     assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
 
@@ -56,6 +57,12 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const readiness = await getJson(`${url}/api/a3/enterprise/readiness?source=mock`);
     assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
     assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+
+    const productConsole = await getJson(`${url}/api/a3/product/console?source=mock`);
+    assert.equal(productConsole.schema_version, "a3.product_console.v1");
+    assert.equal(productConsole.project_console.summary.case_count, 32);
+    assert.equal(productConsole.audit_log.redacted_payload_only, true);
+    assert.ok(productConsole.onboarding.steps.some((item) => item.id === "submit_first_run"));
 
     const ingestRunResponse = await fetch(`${url}/api/a3/import/a1-run-result`, {
       method: "POST",

@@ -381,6 +381,11 @@
 - [x] Add Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map to SaaS Admin dashboard rendering.
 - [x] Add SaaS database migration-contract tables for `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
 - [x] Keep SaaS admin and cloud-management parity clean-room: no official private source, no real account data, and no cloud mutations committed.
+- [x] Add Product Console workflow model for onboarding, project console, audit log, and commercial readiness.
+- [x] Add `GET /api/a3/product/console`.
+- [x] Wire Product Console into API-backed dashboard payload and dashboard UI.
+- [x] Add A1/A2 compatibility evidence for Product Console workflow.
+- [x] Add Growth-Auditor artifact with at least 20 next growth points for onboarding/audit/project console.
 - [x] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.

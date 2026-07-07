@@ -46,6 +46,16 @@ export async function fetchA3ReportCenter(options = {}) {
   return response.json();
 }
 
+export async function fetchA3ProductConsole(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/product/console?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API product console load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

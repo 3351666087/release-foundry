@@ -1,5 +1,76 @@
 # A3 Worklog
 
+## 2026-07-07 - Product Console Onboarding Audit Project Workflow
+
+### Goal
+
+Continue the large-SaaS plan from `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` by adding a real user-workflow layer for onboarding, project console state, audit log evidence, and commercial readiness. This targets A3-2 information architecture, A3-3 onboarding, A3-4 project/run UI, and A3-10 settings/audit/admin direction.
+
+### Work completed
+
+- Added `services/report/a3_product_console.mjs`.
+  - Builds `a3.product_console.v1`.
+  - Converts A1/A2/report/usage/audit evidence into onboarding state, project console state, audit log state, and commercial readiness.
+  - Keeps empty projects honest with `setup_required`, `empty`, and `needs_more_real_evidence`.
+- Added `GET /api/a3/product/console`.
+  - Read-only API route.
+  - Uses tenant/project scoped options where available.
+  - Does not perform real login, invite, billing, or cloud mutations.
+- Added dashboard Product Console panel.
+  - Renders Onboarding Flow, Project Console, Audit Log, and Commercial Readiness.
+  - Refreshes after API-backed hosted report creation.
+- Added tests.
+  - `tests/a3/a3_product_console.test.mjs`
+  - Updated API server and dashboard wiring tests.
+- Added evidence artifacts.
+  - `docs/a3/p3_growth_auditor_onboarding_audit_project_console_2026_07_07.md`
+  - `docs/a3/p3_onboarding_audit_a1_a2_compatibility_2026_07_07.md`
+
+### 20+ growth points produced
+
+The Growth-Auditor artifact lists 24 next growth points, including SQL persistence for audit events, project console route, onboarding route, project list UI, audit export, report-center event timeline, waiver/approval audit ingestion, usage/billing plan card, official onboarding parity, product console export, tenant-scope tests, Playwright screenshot evidence, reviewer SLA, and retention policy preview.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_product_console.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+32 tests
+32 pass
+0 fail
+```
+
+Full A3 suite result:
+
+```text
+130 tests
+130 pass
+0 fail
+```
+
+Safety checks:
+
+```text
+git diff --check
+=> no whitespace errors; only Windows CRLF warnings
+
+secret/path scan
+=> only intentional redaction-test strings and policy docs matched; no real key, token, cookie, signed URL, account email, or local user path was added
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr or mutate real cloud resources.
+- Did not commit API keys, cookies, tokens, account emails, signed URLs, or official private source.
+- Did not modify A1 runner logic or A2 judge semantics.
+
 ## 2026-07-07 - SaaS Admin Cloud Parity Growth
 
 ### Goal

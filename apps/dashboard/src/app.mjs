@@ -30,6 +30,7 @@ import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapp
 import {
   createShareableA3Report,
   fetchA3DashboardSnapshot,
+  fetchA3ProductConsole,
   fetchA3ReportCenter,
   planA3AdminAction,
   isA3ApiSource
@@ -37,8 +38,10 @@ import {
 import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
 import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
 import { renderEnterpriseReadinessPanel } from "./components/enterprise-readiness-panel.mjs";
+import { renderProductConsolePanel } from "./components/product-console-panel.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
+import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
 
 const state = {
   runs: null,
@@ -55,6 +58,7 @@ const state = {
   saasRuntime: {},
   saasAdmin: {},
   enterpriseReadiness: {},
+  productConsole: {},
   usageLedger: {},
   reportCenter: {},
   selectedAdminAction: "view_usage",
@@ -2133,7 +2137,12 @@ async function shareReport() {
       source: state.source,
       baseUrl: getA3ApiBaseUrl()
     });
+    state.productConsole = await fetchA3ProductConsole({
+      source: state.source,
+      baseUrl: getA3ApiBaseUrl()
+    });
     renderReportCenter();
+    renderProductConsole();
   } catch (error) {
     status.className = "badge fail";
     status.textContent = "failed";
@@ -2161,6 +2170,7 @@ function applyApiDashboardPayload(payload) {
   state.frontendCodeCrawl = payload.frontend_code_crawl || {};
   state.saasAdmin = payload.saas_admin_console || {};
   state.enterpriseReadiness = payload.enterprise_readiness || {};
+  state.productConsole = payload.product_console || {};
   state.usageLedger = payload.usage_ledger || {};
   state.reportCenter = payload.report_center || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
@@ -2189,6 +2199,7 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/enterprise/readiness",
         "GET /api/a3/admin/console",
         "POST /api/a3/admin/actions/plan",
+        "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center"
       ],
@@ -2293,6 +2304,25 @@ function renderEnterpriseReadiness() {
   renderEnterpriseReadinessPanel($("enterprise-readiness-body"), state.enterpriseReadiness);
 }
 
+function refreshLocalProductConsole() {
+  state.productConsole = buildA3ProductConsole({
+    source: state.source,
+    runFixture: state.runs,
+    gradeFixture: state.grades,
+    usageLedger: state.usageLedger
+  }, {
+    source: state.source,
+    usageLedger: state.usageLedger,
+    reportCenter: state.reportCenter || {},
+    auditEvents: [],
+    importReceipts: []
+  });
+}
+
+function renderProductConsole() {
+  renderProductConsolePanel($("product-console-body"), state.productConsole);
+}
+
 async function loadDataSource(source) {
   state.source = source;
   if (isA3ApiSource(source)) {
@@ -2349,6 +2379,7 @@ async function loadDataSource(source) {
     state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
+    refreshLocalProductConsole();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -2371,6 +2402,7 @@ async function loadDataSource(source) {
   renderSaasRuntime();
   renderSaasAdmin();
   renderEnterpriseReadiness();
+  renderProductConsole();
   renderCoverageHealth();
   renderReleaseGate();
   renderReleaseWarRoom();
