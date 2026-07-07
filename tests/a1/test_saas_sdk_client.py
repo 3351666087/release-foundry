@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -23,7 +24,9 @@ def test_sdk_saas_client_end_to_end_without_raw_keys(tmp_path: Path):
         project_id="project_sdk_client",
         dataset_id="dataset_sdk_client",
     )
-    assert boot["metadata"] == {"local_only": True, "ashr_api_used": False, "raw_auth_material_used": False}
+    assert boot["metadata"]["local_only"] is True
+    assert boot["metadata"]["ashr_api_used"] is False
+    assert boot["metadata"]["raw_auth_material_used"] is False
 
     key = client.create_api_key(
         "tenant_sdk_client",
@@ -146,3 +149,149 @@ def test_sdk_saas_cli_rejects_private_input_paths_without_reading(tmp_path: Path
     assert proc.returncode == 2
     assert "refusing to read private_refs or .secrets" in proc.stderr
     assert "not json" not in proc.stderr
+
+
+def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
+    calls: list[tuple[str, dict]] = []
+
+    def transport(url: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+        data = dict(payload)
+        calls.append((url, data))
+        assert "api_key" not in data
+        if url.endswith("/runs/submit"):
+            return {"run_id": data["run_id"], "status": "submitted", "echo_metadata": data["metadata"]}
+        if url.endswith("/runs/upload"):
+            return {
+                "upload_id": data["upload_id"],
+                "raw_payload_included": False,
+                "payload": data["result"],
+            }
+        if url.endswith("/traces/ingest"):
+            observations = data["observations"]
+            return {"batch_id": data["batch_id"], "observation_count": len(observations)}
+        if url.endswith("/quota"):
+            return {"used": {"run.submit": 1}}
+        raise AssertionError(url)
+
+    client = SaaSIngestionClient.from_base_url("http://127.0.0.1:8765/a1", http_transport=transport)
+
+    submitted = client.sdk_submit(
+        "tenant_http",
+        "project_http",
+        dataset_id="dataset_http",
+        agent_ref="mock",
+        run_id="run_http",
+        metadata={"source": "test"},
+        api_key_id="key_http",
+        idempotency_key="idem_http",
+        request_id="req_http",
+    )
+    assert submitted["metadata"]["transport"] == "http"
+    assert submitted["metadata"]["local_only"] is False
+    assert submitted["result"]["echo_metadata"]["client"] == "ashr.clone.saas_ingestion_client.v1"
+
+    uploaded = client.upload_run(
+        "tenant_http",
+        "project_http",
+        "run_http",
+        {"status": "completed", "api_key": "tp_should_redact"},
+        upload_id="upload_http",
+        api_key_id="key_http",
+    )
+    assert uploaded["result"]["raw_payload_included"] is False
+    assert uploaded["result"]["payload"]["api_key"] == "[redacted]"
+
+    trace = client.ingest_trace(
+        "tenant_http",
+        "project_http",
+        "run_http",
+        [{"observation_id": "obs_http", "type": "agent_message"}],
+        batch_id="trace_http",
+        api_key_id="key_http",
+    )
+    assert trace["result"]["observation_count"] == 1
+    assert client.quota_snapshot("tenant_http", "project_http")["result"]["used"]["run.submit"] == 1
+    assert [url for url, _payload in calls] == [
+        "http://127.0.0.1:8765/a1/runs/submit",
+        "http://127.0.0.1:8765/a1/runs/upload",
+        "http://127.0.0.1:8765/a1/traces/ingest",
+        "http://127.0.0.1:8765/a1/quota",
+    ]
+    assert calls[0][1]["api_key_id"] == "key_http"
+
+
+def test_sdk_saas_client_base_url_rejects_raw_api_key_before_transport():
+    called = False
+
+    def transport(url: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+        nonlocal called
+        called = True
+        return {}
+
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=transport)
+    with pytest.raises(SecretInputError, match="raw API key values are not accepted"):
+        client.sdk_submit("tenant", "project", dataset_id="dataset", agent_ref="mock", api_key="tp_not_allowed")
+    assert called is False
+
+
+
+def test_sdk_saas_cli_base_url_selects_http_client(monkeypatch):
+    from ashr_clone import saas_cli
+
+    captured: dict[str, object] = {}
+
+    class FakeHttpClient:
+        uses_http = True
+
+        def sdk_submit(self, tenant_id: str, project_id: str, **kwargs: object) -> Mapping[str, object]:
+            captured["tenant_id"] = tenant_id
+            captured["project_id"] = project_id
+            captured["kwargs"] = kwargs
+            return {
+                "schema_version": "ashr.clone.saas_ingestion_client.v1",
+                "operation": "sdk_submit",
+                "result": {"run_id": kwargs["run_id"]},
+                "metadata": {"local_only": False, "ashr_api_used": False, "raw_auth_material_used": False, "transport": "http"},
+            }
+
+    def fake_from_base_url(base_url: str) -> FakeHttpClient:
+        captured["base_url"] = base_url
+        return FakeHttpClient()
+
+    monkeypatch.setattr(saas_cli.SaaSIngestionClient, "from_base_url", staticmethod(fake_from_base_url))
+    args = saas_cli.build_parser().parse_args(
+        [
+            "--base-url",
+            "http://127.0.0.1:8765/a1",
+            "sdk-submit",
+            "--tenant-id",
+            "tenant_cli_http",
+            "--project-id",
+            "project_cli_http",
+            "--dataset-id",
+            "dataset_cli_http",
+            "--agent-ref",
+            "mock",
+            "--run-id",
+            "run_cli_http",
+            "--api-key-id",
+            "key_cli_http",
+        ]
+    )
+
+    envelope = saas_cli.run_command(args)
+
+    assert captured["base_url"] == "http://127.0.0.1:8765/a1"
+    assert captured["tenant_id"] == "tenant_cli_http"
+    assert captured["project_id"] == "project_cli_http"
+    assert captured["kwargs"]["api_key_id"] == "key_cli_http"
+    assert envelope["metadata"]["transport"] == "http"
+
+
+def test_sdk_saas_cli_base_url_rejects_state_files():
+    from ashr_clone import saas_cli
+
+    parser = saas_cli.build_parser()
+    args = parser.parse_args(["--base-url", "http://localhost:9000", "--state-input", "state.json", "state"])
+    with pytest.raises(SecretInputError, match="--base-url cannot be combined with --state-input"):
+        saas_cli.run_command(args)

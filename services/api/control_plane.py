@@ -3,7 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Callable, Iterable, Mapping
+from urllib.parse import parse_qs
 from uuid import uuid4
 
 from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _utc_now
@@ -423,6 +424,238 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
         "revoked_at": record.get("revoked_at"),
         "last_used_at": record.get("last_used_at"),
     }
+
+
+CONTROL_PLANE_OPENAPI_VERSION = "3.0.3"
+
+
+def control_plane_openapi_document() -> JsonDict:
+    """Return the public local control-plane HTTP contract.
+
+    The schema is intentionally hand-written and conservative so it can be
+    served without importing a web framework or introspecting environment
+    variables. It documents request fields, not generated secrets or stored
+    secret hashes.
+    """
+
+    tenant_project_body = {
+        "type": "object",
+        "properties": {
+            "tenant_id": {"type": "string"},
+            "organization_id": {"type": "string"},
+            "tenant": {"type": "string"},
+            "auth_key_id": {"type": "string"},
+            "api_key_id": {"type": "string"},
+        },
+    }
+    json_response = {
+        "description": "JSON response",
+        "content": {"application/json": {"schema": {"type": "object"}}},
+    }
+    json_request = {
+        "required": False,
+        "content": {"application/json": {"schema": {"type": "object"}}},
+    }
+    return {
+        "openapi": CONTROL_PLANE_OPENAPI_VERSION,
+        "info": {
+            "title": "Ashr SaaS Control Plane Runtime",
+            "version": CONTROL_PLANE_SCHEMA_VERSION,
+            "description": "Local hosted/self-host control-plane HTTP adapter for SaaSControlPlaneRouter.",
+        },
+        "paths": {
+            "/healthz": {
+                "get": {
+                    "summary": "Runtime health check",
+                    "responses": {"200": json_response},
+                }
+            },
+            "/openapi.json": {
+                "get": {
+                    "summary": "OpenAPI document",
+                    "responses": {"200": json_response},
+                }
+            },
+            "/v1/bootstrap": {
+                "post": {
+                    "summary": "Bootstrap tenant/project quota state",
+                    "requestBody": json_request,
+                    "responses": {"201": json_response, "400": json_response},
+                }
+            },
+            "/v1/projects/{project_id}/api-keys": {
+                "get": {
+                    "summary": "List redacted API keys",
+                    "parameters": [{"name": "project_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                    "requestBody": {**json_request, "content": {"application/json": {"schema": tenant_project_body}}},
+                    "responses": {"200": json_response, "400": json_response, "404": json_response},
+                },
+                "post": {
+                    "summary": "Create an API key record and return only redacted metadata",
+                    "requestBody": json_request,
+                    "responses": {"201": json_response, "400": json_response, "404": json_response},
+                },
+            },
+            "/v1/projects/{project_id}/api-keys/{key_id}/revoke": {
+                "post": {"summary": "Revoke an API key", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/api-keys/{key_id}/authenticate": {
+                "post": {"summary": "Validate a key id and scope", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/sdk-submit": {
+                "post": {"summary": "Submit a run through the SDK control-plane surface", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/upload": {
+                "post": {"summary": "Upload redacted run result metadata", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/trace-events": {
+                "post": {"summary": "Ingest trace event metadata", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/lifecycle": {
+                "get": {"summary": "Fetch project/run lifecycle snapshot", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+        },
+    }
+
+
+def _control_plane_error_response(status_code: int, code: str, message: str) -> JsonDict:
+    return {
+        "status_code": status_code,
+        "body": {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "error": {"code": code, "message": message},
+        },
+    }
+
+
+def _json_response_bytes(payload: Mapping[str, Any]) -> bytes:
+    return json.dumps(_jsonable(payload), sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _query_body(environ: Mapping[str, Any]) -> JsonDict:
+    parsed = parse_qs(str(environ.get("QUERY_STRING") or ""), keep_blank_values=True)
+    body: JsonDict = {}
+    for key, values in parsed.items():
+        if not values:
+            continue
+        if len(values) == 1:
+            body[str(key)] = values[0]
+        else:
+            body[str(key)] = list(values)
+    return body
+
+
+def _read_json_wsgi_body(environ: Mapping[str, Any]) -> JsonDict:
+    try:
+        length = int(str(environ.get("CONTENT_LENGTH") or "0") or "0")
+    except ValueError as exc:
+        raise ValidationError("CONTENT_LENGTH must be an integer") from exc
+    if length < 0:
+        raise ValidationError("CONTENT_LENGTH must be non-negative")
+    if length == 0:
+        return {}
+    stream = environ.get("wsgi.input")
+    if stream is None or not hasattr(stream, "read"):
+        raise ValidationError("wsgi.input is required")
+    raw = stream.read(length)
+    if isinstance(raw, str):
+        raw = raw.encode("utf-8")
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValidationError("request body must be valid UTF-8 JSON") from exc
+    if not isinstance(payload, Mapping):
+        raise ValidationError("request JSON body must be an object")
+    return dict(payload)
+
+
+class SaaSControlPlaneWSGIApp:
+    """Framework-free WSGI adapter for :class:`SaaSControlPlaneRouter`.
+
+    The adapter is suitable for local hosted/self-host smoke deployments via
+    ``wsgiref.simple_server`` and for in-process tests. It never reads process
+    secrets or API-key environment variables; authentication test fixtures pass
+    explicit key ids through JSON payloads, matching the in-process router.
+    """
+
+    server_software = "ashr-saas-control-plane-wsgi/1"
+
+    def __init__(self, router: SaaSControlPlaneRouter | None = None, *, service: SaaSControlPlaneService | None = None) -> None:
+        if router is not None and service is not None:
+            raise ValidationError("provide router or service, not both")
+        self.router = router or SaaSControlPlaneRouter(service)
+
+    def __call__(self, environ: Mapping[str, Any], start_response: Callable[[str, list[tuple[str, str]]], Any]) -> Iterable[bytes]:
+        response = self.handle_environ(environ)
+        status_code = int(response["status_code"])
+        body_bytes = _json_response_bytes(response["body"])
+        status = f"{status_code} {_http_status_reason(status_code)}"
+        headers = [
+            ("Content-Type", "application/json; charset=utf-8"),
+            ("Content-Length", str(len(body_bytes))),
+            ("Cache-Control", "no-store"),
+            ("X-Content-Type-Options", "nosniff"),
+        ]
+        start_response(status, headers)
+        return [body_bytes]
+
+    def handle_environ(self, environ: Mapping[str, Any]) -> JsonDict:
+        method = str(environ.get("REQUEST_METHOD") or "GET").upper()
+        path = str(environ.get("PATH_INFO") or "/")
+
+        if path == "/healthz" and method == "GET":
+            return {
+                "status_code": 200,
+                "body": {
+                    "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+                    "status": "ok",
+                    "service": "ashr-saas-control-plane",
+                    "local_only": True,
+                    "ashr_api_used": False,
+                },
+            }
+        if path == "/openapi.json" and method == "GET":
+            return {"status_code": 200, "body": control_plane_openapi_document()}
+
+        try:
+            body = _query_body(environ)
+            body.update(_read_json_wsgi_body(environ))
+        except Exception as exc:
+            code = getattr(exc, "code", "validation_error")
+            return _control_plane_error_response(400, str(code), str(exc))
+        return self.router.handle(method, path, body)
+
+
+def create_control_plane_wsgi_app(service: SaaSControlPlaneService | None = None, router: SaaSControlPlaneRouter | None = None) -> SaaSControlPlaneWSGIApp:
+    return SaaSControlPlaneWSGIApp(router, service=service)
+
+
+def serve_control_plane_http(host: str = "127.0.0.1", port: int = 8080, *, service: SaaSControlPlaneService | None = None, router: SaaSControlPlaneRouter | None = None):
+    """Create a stdlib WSGI HTTP server for the SaaS control plane.
+
+    The returned ``wsgiref.simple_server.WSGIServer`` is not started
+    automatically; callers can invoke ``serve_forever()`` or coordinate it in a
+    test thread.
+    """
+
+    from wsgiref.simple_server import make_server
+
+    app = create_control_plane_wsgi_app(service=service, router=router)
+    return make_server(host, int(port), app)
+
+
+def _http_status_reason(status_code: int) -> str:
+    return {
+        200: "OK",
+        201: "Created",
+        202: "Accepted",
+        400: "Bad Request",
+        404: "Not Found",
+        405: "Method Not Allowed",
+        500: "Internal Server Error",
+    }.get(int(status_code), "OK")
 
 class SaaSControlPlaneRouter:
     """In-process REST-ish router for local tests and CLI smoke flows."""

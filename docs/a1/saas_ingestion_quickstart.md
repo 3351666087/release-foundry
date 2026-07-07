@@ -76,3 +76,18 @@ python -B -m ashr_clone.saas_cli --state-input $state lifecycle --tenant-id tena
 - Raw API key values are rejected by the SDK surface; use `api_key_id` only.
 - `--state-input`, `--metadata-file`, `--result-file`, `--observations-file`, and `--cases-file` refuse `.secrets` and `private_refs` paths.
 - A3/A2 remain decoupled: this client records ingestion/lifecycle/quota state and does not import or require A2 judge contracts or A3 fixture exporters.
+
+## Hosted/self-host HTTP adapter
+
+Round17 adds a framework-free WSGI adapter for the same local SaaS control-plane contract. This moves A1 from only an in-process router toward a self-hostable API platform surface while still avoiding real Ashr API calls and raw key material.
+
+```python
+from services.api import serve_control_plane_http
+
+server = serve_control_plane_http("127.0.0.1", 8080)
+server.serve_forever()
+```
+
+Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, SDK submit, run upload, trace ingestion, and lifecycle snapshots. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
+
+The Python SDK can target the hosted adapter with `SaaSIngestionClient.from_base_url("http://127.0.0.1:8080")`, and the CLI accepts `--base-url` for HTTP JSON transport. `--base-url` is intentionally mutually exclusive with local state file read/write flags.

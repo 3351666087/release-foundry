@@ -5,6 +5,7 @@ import type { JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
 export const SAAS_CLIENT_VERSION = "ashr.clone.ts_saas_ingestion_client.v1";
+export const SAAS_OPENAPI_SCHEMA_VERSION = "ashr.clone.saas_openapi.v1";
 export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "api_key.create": 100,
   "run.upload": 10000,
@@ -55,6 +56,22 @@ export interface SaaSControlPlaneState extends JsonRecord {
 export interface SaaSRouterResponse extends JsonRecord {
   status_code: number;
   body: JsonRecord;
+}
+
+export type SaaSFetchLike = (input: string | URL, init?: {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}) => Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>;
+
+export interface SaaSHttpTransportOptions {
+  baseUrl: string;
+  fetch?: SaaSFetchLike;
+  headers?: Record<string, string>;
+}
+
+export interface SaaSClientTransport {
+  requestJson(method: string, path: string, body?: JsonRecord): Promise<JsonRecord>;
 }
 
 export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore> = {}): SaaSControlPlaneStore {
@@ -436,6 +453,12 @@ export class SaaSControlPlaneRouter {
     const upperMethod = method.toUpperCase();
     const parts = path.split("/").filter(Boolean);
     try {
+      if (upperMethod === "GET" && (parts.join("/") === "healthz" || parts.join("/") === "v1/healthz")) {
+        return { status_code: 200, body: saasHealthz() };
+      }
+      if (upperMethod === "GET" && (parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi")) {
+        return { status_code: 200, body: exportSaaSOpenApiSpec() };
+      }
       if (upperMethod === "POST" && parts.join("/") === "v1/bootstrap") {
         return { status_code: 201, body: this.service.bootstrapProject({ tenantName: String(body.tenant_name ?? body.tenantName ?? ""), projectName: String(body.project_name ?? body.projectName ?? ""), tenantId: optionalString(body.tenant_id), projectId: optionalString(body.project_id) }) };
       }
@@ -481,15 +504,127 @@ export class SaaSControlPlaneRouter {
 }
 
 
+export class SaaSHttpJsonTransport implements SaaSClientTransport {
+  readonly baseUrl: string;
+  readonly headers: Record<string, string>;
+  private readonly fetchImpl: SaaSFetchLike;
+
+  constructor(options: SaaSHttpTransportOptions) {
+    if (!options.baseUrl || !String(options.baseUrl).trim()) throw new ValidationError("baseUrl must be a non-empty string");
+    const candidate = options.fetch ?? (globalThis.fetch as unknown as SaaSFetchLike | undefined);
+    if (candidate === undefined) throw new ValidationError("fetch implementation is required for SaaS HTTP transport");
+    this.baseUrl = String(options.baseUrl).replace(/\/+$/, "");
+    this.headers = { ...(options.headers ?? {}) };
+    this.fetchImpl = candidate;
+  }
+
+  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
+    const upperMethod = method.toUpperCase();
+    const url = new URL(path.startsWith("/") ? path : `/${path}`, `${this.baseUrl}/`);
+    const init: { method: string; headers: Record<string, string>; body?: string } = {
+      method: upperMethod,
+      headers: { accept: "application/json", ...this.headers },
+    };
+    if (upperMethod === "GET") {
+      for (const [key, value] of Object.entries(body)) {
+        if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
+      }
+    } else {
+      init.headers["content-type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+    const response = await this.fetchImpl(url, init);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = { error: { code: "invalid_json", message: await response.text() } };
+    }
+    if (!isRecord(payload)) {
+      throw new ValidationError(`SaaS HTTP response must be a JSON object for ${upperMethod} ${url.pathname}`);
+    }
+    if (!response.ok) {
+      const err = isRecord(payload.error) ? payload.error : {};
+      throw new ValidationError(String(err.message ?? `SaaS HTTP request failed with status ${response.status}`));
+    }
+    return payload;
+  }
+}
+
+export function saasHealthz(): JsonRecord {
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+    status: "ok",
+    local_only: true,
+    ashr_api_used: false,
+    service: "ashr-clone-saas-control-plane",
+    client_version: SAAS_CLIENT_VERSION,
+    openapi_path: "/healthz/openapi",
+  };
+}
+
+export function exportSaaSOpenApiSpec(options: { title?: string; version?: string; serverUrl?: string } = {}): JsonRecord {
+  const title = options.title ?? "Ashr Clone SaaS Control Plane";
+  const version = options.version ?? SAAS_OPENAPI_SCHEMA_VERSION;
+  const serverUrl = options.serverUrl ?? "http://localhost";
+  const json = { "application/json": { schema: { type: "object", additionalProperties: true } } };
+  const response = (description: string): JsonRecord => ({ description, content: json });
+  return {
+    openapi: "3.1.0",
+    info: { title, version, "x-schema-version": SAAS_OPENAPI_SCHEMA_VERSION, "x-client-version": SAAS_CLIENT_VERSION },
+    servers: [{ url: serverUrl }],
+    paths: {
+      "/healthz": { get: { operationId: "healthz", responses: { "200": response("Health check") } } },
+      "/healthz/openapi": { get: { operationId: "exportOpenApi", responses: { "200": response("OpenAPI document") } } },
+      "/v1/bootstrap": { post: { operationId: "bootstrapProject", requestBody: { content: json }, responses: { "201": response("Bootstrap result") } } },
+      "/v1/projects/{project_id}/api-keys": {
+        get: { operationId: "listApiKeys", parameters: pathTenantParameters(), responses: { "200": response("API keys") } },
+        post: { operationId: "createApiKey", parameters: [{ name: "project_id", in: "path", required: true, schema: { type: "string" } }], requestBody: { content: json }, responses: { "201": response("API key") } },
+      },
+      "/v1/projects/{project_id}/api-keys/{key_id}/authenticate": { post: { operationId: "authenticateApiKey", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("Authentication result") } } },
+      "/v1/projects/{project_id}/api-keys/{key_id}/revoke": { post: { operationId: "revokeApiKey", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("Revocation result") } } },
+      "/v1/projects/{project_id}/sdk-submit": { post: { operationId: "sdkSubmit", parameters: [{ name: "project_id", in: "path", required: true, schema: { type: "string" } }], requestBody: { content: json }, responses: { "202": response("Submitted run") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/upload": { post: { operationId: "uploadRun", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Uploaded run result") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/trace-events": { post: { operationId: "ingestTrace", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Trace batch") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/lifecycle": { get: { operationId: "lifecycle", parameters: pathTenantParameters("run_id"), responses: { "200": response("Run lifecycle") } } },
+    },
+    components: { schemas: { JsonRecord: { type: "object", additionalProperties: true } } },
+    "x-local-only": true,
+    "x-ashr-api-used": false,
+  };
+}
+
+
+
 export class SecretInputError extends Error {
   code = "secret_input_error";
 }
 
 export class SaaSIngestionClient {
   readonly service: SaaSControlPlaneService;
+  readonly transport?: SaaSClientTransport;
 
-  constructor(options: { service?: SaaSControlPlaneService } = {}) {
+  constructor(options: { service?: SaaSControlPlaneService; transport?: SaaSClientTransport; baseUrl?: string; fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}) {
     this.service = options.service ?? new SaaSControlPlaneService();
+    this.transport = options.transport ?? (options.baseUrl !== undefined ? new SaaSHttpJsonTransport({ baseUrl: options.baseUrl, fetch: options.fetch, headers: options.headers }) : undefined);
+  }
+
+  static forBaseUrl(baseUrl: string, options: { fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}): SaaSIngestionClient {
+    return new SaaSIngestionClient({ baseUrl, fetch: options.fetch, headers: options.headers });
+  }
+
+  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
+    if (this.transport !== undefined) return this.transport.requestJson(method, path, body);
+    return new SaaSControlPlaneRouter(this.service).handle(method, path, body).body;
+  }
+
+  async healthz(): Promise<JsonRecord> {
+    return this.requestJson("GET", "/healthz");
+  }
+
+  async openApi(options: { serverUrl?: string } = {}): Promise<JsonRecord> {
+    if (this.transport !== undefined) return this.requestJson("GET", "/healthz/openapi");
+    return exportSaaSOpenApiSpec({ serverUrl: options.serverUrl });
   }
 
   static async fromStateFile(inputPath: string): Promise<SaaSIngestionClient> {
@@ -564,6 +699,35 @@ export class SaaSIngestionClient {
   usage(tenantId: string, projectId: string): JsonRecord {
     return envelope("usage", this.service.usageSnapshot(tenantId, projectId));
   }
+
+  async createApiKeyHttp(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; apiKey?: string }): Promise<JsonRecord> {
+    rejectRawApiKey(options.apiKey);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: options.name, scopes: options.scopes, key_id: options.keyId, auth_key_id: options.authKeyId });
+    return envelope("create_api_key", body);
+  }
+
+  async sdkSubmitHttp(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string }): Promise<JsonRecord> {
+    rejectRawApiKey(options.apiKey);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: options.datasetId, agent_ref: options.agentRef, run_id: options.runId, metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+    return envelope("sdk_submit", body);
+  }
+
+  async uploadRunHttp(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: { uploadId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(options.apiKey);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: options.uploadId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+    return envelope("upload_run", body);
+  }
+
+  async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: { batchId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(options.apiKey);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: options.batchId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+    return envelope("ingest_trace", body);
+  }
+
+  async lifecycleHttp(tenantId: string, projectId: string, runId: string): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/lifecycle`, { tenant_id: tenantId });
+    return envelope("lifecycle", body);
+  }
 }
 export const snapshotSaaSControlPlane = (service: SaaSControlPlaneService): SaaSControlPlaneState => service.snapshotState();
 export const writeSaaSControlPlaneState = (service: SaaSControlPlaneService, outputPath: string): Promise<string> => service.writeState(outputPath);
@@ -574,6 +738,15 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 function envelope(operation: string, result: JsonRecord): JsonRecord { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
 function rejectRawApiKey(value: unknown): void { if (value !== undefined && value !== null && String(value).trim() !== "") throw new SecretInputError("raw API key values are not accepted by the local SaaS client; pass apiKeyId/keyId handles only"); }
 function assertPublicControlPlanePath(inputPath: string): void { const normalized = resolve(inputPath).replaceAll("\\", "/").toLowerCase(); for (const part of [".secrets", "private_refs"]) { if (normalized.includes("/" + part + "/") || normalized.endsWith("/" + part)) throw new SecretInputError("refusing to read or write control-plane state under " + part); } }
+
+function pathTenantParameters(extraPathName?: string): JsonRecord[] {
+  const params: JsonRecord[] = [
+    { name: "project_id", in: "path", required: true, schema: { type: "string" } },
+    { name: "tenant_id", in: "query", required: false, schema: { type: "string" } },
+  ];
+  if (extraPathName !== undefined) params.splice(1, 0, { name: extraPathName, in: "path", required: true, schema: { type: "string" } });
+  return params;
+}
 
 function publicApiKey(record: JsonRecord): JsonRecord {
   return {

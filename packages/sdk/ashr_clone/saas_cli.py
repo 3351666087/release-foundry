@@ -13,6 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Local-only Ashr SaaS ingestion SDK client CLI.")
     parser.add_argument("--state-input", help="Optional public local control-plane state JSON. .secrets/private_refs are refused.")
     parser.add_argument("--state-output", help="Optional local control-plane state JSON to write after command completion.")
+    parser.add_argument("--base-url", help="Optional local hosted adapter base URL for HTTP JSON transport.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     bootstrap = subparsers.add_parser("bootstrap", help="Create local tenant/project quota bootstrap state.")
@@ -79,7 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_command(args: argparse.Namespace) -> dict[str, Any]:
-    client = SaaSIngestionClient.from_state_file(args.state_input) if args.state_input else SaaSIngestionClient()
+    if args.base_url and args.state_input:
+        raise SecretInputError("--base-url cannot be combined with --state-input")
+    if args.base_url and args.state_output:
+        raise SecretInputError("--base-url cannot be combined with --state-output")
+    client = SaaSIngestionClient.from_base_url(args.base_url) if args.base_url else (SaaSIngestionClient.from_state_file(args.state_input) if args.state_input else SaaSIngestionClient())
     command = args.command
     if command == "bootstrap":
         cases = _load_optional_array(args.cases_file)
@@ -142,7 +147,7 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             "schema_version": "ashr.clone.saas_ingestion_client.v1",
             "operation": "state",
             "result": snapshot if args.include_full else _state_summary(snapshot),
-            "metadata": {"local_only": True, "ashr_api_used": False, "raw_auth_material_used": False},
+            "metadata": _client_metadata(client),
         }
     else:  # pragma: no cover
         raise SecretInputError(f"unsupported command: {command}")
@@ -223,6 +228,12 @@ def _state_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         "cloud_counts": {name: len(value) for name, value in store.items() if isinstance(value, Mapping)},
         "control_plane_counts": {name: len(value) for name, value in control.items() if isinstance(value, Mapping)},
     }
+
+
+def _client_metadata(client: SaaSIngestionClient) -> dict[str, Any]:
+    if client.uses_http:
+        return {"local_only": False, "ashr_api_used": False, "raw_auth_material_used": False, "transport": "http"}
+    return {"local_only": True, "ashr_api_used": False, "raw_auth_material_used": False}
 
 
 if __name__ == "__main__":

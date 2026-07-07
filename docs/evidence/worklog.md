@@ -2682,3 +2682,73 @@ Known gaps / next money-grade growth points:
 Growth-Auditor notes:
 - New sellable capabilities: scoped ingestion API key governance, SDK/CLI submit/upload/trace ingestion, usage/audit/idempotency state, TS/Python SDK parity, frontend mirror evidence indexing.
 - Not yet production-grade: hosted REST, DB, real secret verification, billing-grade ledger, object storage, release gate, webhook, RBAC.
+
+
+## A1 Round17 - hosted/self-host control-plane adapter and main全集校验 (2026-07-07)
+
+Round goal: continue the large-SaaS A1 path after PR #14 by moving the local SaaS control plane beyond an in-process router toward a self-hostable API platform surface, while first validating against `origin/main` as the A1/A2/A3 integrated baseline.
+
+Baseline / peer changes:
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed `origin/main` advanced to `87f995a923f760a9a666348597ba533307786f26`.
+- Local A1 branch was fast-forwarded from `e690ad2` to `origin/main`; this pulled the A1/A2/A3 integrated main baseline before continuing Round17 work.
+- Open PRs observed: A1 PR #14 and A3 PR #13. After fast-forward, local branch is ahead of `origin/codex/a1-local-sdk-runner` by the integrated main commits plus this WIP.
+- Untracked `recon/**` and `tools/**` remain excluded from staging.
+
+20 Round17 growth points considered / advanced:
+1. Framework-free hosted HTTP adapter for SaaS control plane.
+2. `/healthz` endpoint with no secret/env leakage.
+3. `/openapi.json` public local OpenAPI document.
+4. WSGI adapter request parsing for JSON body plus query-string tenant context.
+5. Standard-library `wsgiref` server factory for self-host smoke deploys.
+6. Python SDK `base_url` mode.
+7. Python SDK injectable HTTP transport for tests/enterprise adapters.
+8. Python SDK `urllib` default JSON transport.
+9. Python SDK HTTP response redaction.
+10. Python CLI `--base-url` mode.
+11. CLI guard preventing `--base-url` with local state read/write.
+12. TS health/OpenAPI helper parity.
+13. TS HTTP JSON client transport.
+14. TS baseUrl client methods for API key, submit, upload, trace, lifecycle.
+15. TS local HTTP server parity test.
+16. WSGI end-to-end tests for bootstrap, API key, submit, upload, trace, lifecycle.
+17. Secret/env non-leak tests for hosted adapter.
+18. Real Ashr API read-only calibration small batch.
+19. `origin/main` integrated baseline validation before continuing.
+20. A1 docs updated for hosted/self-host SDK quickstart.
+
+Implemented files:
+- `services/api/control_plane.py`: `control_plane_openapi_document`, `SaaSControlPlaneWSGIApp`, `create_control_plane_wsgi_app`, `serve_control_plane_http`, health/OpenAPI handling, JSON/query request parsing.
+- `services/api/__init__.py`: exports hosted adapter/OpenAPI helpers.
+- `packages/sdk/ashr_clone/saas.py`: `from_base_url`, HTTP transport, base URL routing, redacted remote envelopes.
+- `packages/sdk/ashr_clone/saas_cli.py`: `--base-url` plus state/HTTP mutual exclusion.
+- `packages/ts/ashr-clone/src/saas.ts`: health/OpenAPI helpers and baseUrl JSON client parity.
+- `tests/a1/test_saas_control_plane_http.py`: hosted adapter tests.
+- `tests/a1/test_saas_sdk_client.py`: Python SDK HTTP transport tests.
+- `packages/ts/ashr-clone/test/saas.test.mjs`: TS HTTP/baseUrl tests.
+- `docs/a1/saas_ingestion_quickstart.md`: hosted/self-host adapter usage.
+
+Real API calibration (private, ignored; env key only; no raw key logged):
+- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` — plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` — status `ok`.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 6 passed.
+- `python -B -m pytest tests/a1/test_saas_control_plane_http.py -q -p no:cacheprovider`: 4 passed.
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: passed.
+- `npm test --prefix packages/ts/ashr-clone`: 184 passed.
+
+Known gaps still not production-grade:
+1. No Postgres migrations / tenant indexes yet.
+2. API key auth still uses local handle, not one-time secret display + hash verification.
+3. No object storage abstraction for large uploads/traces.
+4. No per-key rate limiting or billing-period ledger rollups.
+5. No webhook signing/delivery log.
+6. No A2/A3 release gate HTTP bridge from this adapter yet.
+7. OpenAPI is hand-written skeleton, not schema-generated.
+8. No Docker compose/dev service wrapper yet.
+9. Mutating official API calibration remains gated and not executed this round.
+10. No hosted auth middleware deriving tenant from key.

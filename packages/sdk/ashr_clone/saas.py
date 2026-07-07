@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
+from urllib import error, request
+from urllib.parse import urljoin
 
-from .api_client import redact_text
+from .api_client import redact_sensitive, redact_text
 
 JsonDict = dict[str, Any]
 SAAS_CLIENT_VERSION = "ashr.clone.saas_ingestion_client.v1"
@@ -20,16 +22,27 @@ class SecretInputError(SaaSClientError):
 
 
 class SaaSIngestionClient:
-    """Local-only SaaS ingestion client for the A1 Python SDK.
+    """SaaS ingestion client for the A1 Python SDK.
 
-    The client intentionally models the SaaS ingestion/control-plane surface
-    against the local ``services.api.control_plane`` runtime. It never reads
-    API keys from environment variables and never accepts raw key material;
-    callers pass public ``api_key_id`` handles for scoped local auth checks.
+    By default the client uses the in-process ``services.api.control_plane``
+    runtime. Passing ``base_url`` switches to HTTP JSON transport for a local
+    hosted adapter. The client never reads API keys from environment variables
+    and never accepts raw key material; callers pass public ``api_key_id``
+    handles for scoped local auth checks.
     """
 
-    def __init__(self, *, service: Any | None = None) -> None:
-        if service is None:
+    def __init__(
+        self,
+        *,
+        service: Any | None = None,
+        base_url: str | None = None,
+        http_transport: Callable[[str, Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    ) -> None:
+        if service is not None and base_url is not None:
+            raise SaaSClientError("provide either service or base_url, not both")
+        self.base_url = _normalize_base_url(base_url) if base_url else None
+        self._http_transport = http_transport or _post_json
+        if self.base_url is None and service is None:
             service = _new_service()
         self.service = service
 
@@ -40,12 +53,29 @@ class SaaSIngestionClient:
 
         return cls(service=control_plane_from_state_file(str(path)))
 
+    @classmethod
+    def from_base_url(
+        cls,
+        base_url: str,
+        *,
+        http_transport: Callable[[str, Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    ) -> "SaaSIngestionClient":
+        return cls(base_url=base_url, http_transport=http_transport)
+
+    @property
+    def uses_http(self) -> bool:
+        return self.base_url is not None
+
     def write_state(self, path: str | Path) -> str:
+        if self.uses_http:
+            raise SaaSClientError("state files are only supported in in-process mode")
         from services.api.control_plane import write_control_plane_state
 
         return write_control_plane_state(self.service, str(path))
 
     def snapshot_state(self) -> JsonDict:
+        if self.uses_http:
+            return self._request("state", {})["result"]
         from services.api.control_plane import snapshot_control_plane
 
         return redact_sensitive(snapshot_control_plane(self.service))
@@ -61,6 +91,19 @@ class SaaSIngestionClient:
         dataset_name: str = "SDK Bootstrap Dataset",
         cases: Sequence[Mapping[str, Any]] | None = None,
     ) -> JsonDict:
+        if self.uses_http:
+            return self._request(
+                "bootstrap_project",
+                {
+                    "tenant_name": tenant_name,
+                    "project_name": project_name,
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "dataset_id": dataset_id,
+                    "dataset_name": dataset_name,
+                    "cases": list(cases) if cases is not None else None,
+                },
+            )
         result = self.service.bootstrap_project(
             tenant_name=tenant_name,
             project_name=project_name,
@@ -91,6 +134,18 @@ class SaaSIngestionClient:
         api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request(
+                "create_api_key",
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "name": name,
+                    "scopes": [str(scope) for scope in scopes],
+                    "key_id": key_id,
+                    "auth_key_id": auth_key_id,
+                },
+            )
         result = self.service.create_api_key(
             tenant_id,
             project_id,
@@ -103,10 +158,14 @@ class SaaSIngestionClient:
 
     def list_api_keys(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request("list_api_keys", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id})
         return _envelope("list_api_keys", {"api_keys": self.service.list_api_keys(tenant_id, project_id, auth_key_id=auth_key_id)})
 
     def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str, *, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request("revoke_api_key", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "auth_key_id": auth_key_id})
         return _envelope("revoke_api_key", self.service.revoke_api_key(tenant_id, project_id, key_id, auth_key_id=auth_key_id))
 
     def sdk_submit(
@@ -124,6 +183,21 @@ class SaaSIngestionClient:
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request(
+                "sdk_submit",
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "dataset_id": dataset_id,
+                    "agent_ref": agent_ref,
+                    "run_id": run_id,
+                    "metadata": {"client": SAAS_CLIENT_VERSION, **dict(metadata or {})},
+                    "api_key_id": api_key_id,
+                    "idempotency_key": idempotency_key,
+                    "request_id": request_id,
+                },
+            )
         result = self.service.sdk_submit_run(
             tenant_id,
             project_id,
@@ -151,6 +225,20 @@ class SaaSIngestionClient:
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request(
+                "upload_run",
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "run_id": run_id,
+                    "result": dict(result),
+                    "upload_id": upload_id,
+                    "api_key_id": api_key_id,
+                    "idempotency_key": idempotency_key,
+                    "request_id": request_id,
+                },
+            )
         upload = self.service.upload_run_result(
             tenant_id,
             project_id,
@@ -177,6 +265,20 @@ class SaaSIngestionClient:
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request(
+                "ingest_trace",
+                {
+                    "tenant_id": tenant_id,
+                    "project_id": project_id,
+                    "run_id": run_id,
+                    "observations": [dict(item) for item in observations],
+                    "batch_id": batch_id,
+                    "api_key_id": api_key_id,
+                    "idempotency_key": idempotency_key,
+                    "request_id": request_id,
+                },
+            )
         result = self.service.ingest_trace(
             tenant_id,
             project_id,
@@ -190,10 +292,78 @@ class SaaSIngestionClient:
         return _envelope("ingest_trace", result)
 
     def lifecycle_snapshot(self, tenant_id: str, project_id: str, run_id: str) -> JsonDict:
+        if self.uses_http:
+            return self._request("lifecycle_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id})
         return _envelope("lifecycle_snapshot", self.service.lifecycle_snapshot(tenant_id, project_id, run_id))
 
     def quota_snapshot(self, tenant_id: str, project_id: str) -> JsonDict:
+        if self.uses_http:
+            return self._request("quota_snapshot", {"tenant_id": tenant_id, "project_id": project_id})
         return _envelope("quota_snapshot", self.service.cloud.quota_snapshot(tenant_id, project_id))
+
+    def _request(self, operation: str, payload: Mapping[str, Any]) -> JsonDict:
+        if not self.base_url:  # pragma: no cover
+            raise SaaSClientError("HTTP transport requested without base_url")
+        url = urljoin(self.base_url, f"{_operation_path(operation)}")
+        response = dict(self._http_transport(url, _drop_none(payload)))
+        if {"schema_version", "operation", "result"}.issubset(response):
+            return redact_sensitive(response)
+        return _remote_envelope(operation, response)
+
+
+_OPERATION_PATHS = {
+    "bootstrap_project": "bootstrap",
+    "create_api_key": "api-keys",
+    "list_api_keys": "api-keys/list",
+    "revoke_api_key": "api-keys/revoke",
+    "sdk_submit": "runs/submit",
+    "upload_run": "runs/upload",
+    "ingest_trace": "traces/ingest",
+    "lifecycle_snapshot": "lifecycle",
+    "quota_snapshot": "quota",
+    "state": "state",
+}
+
+
+def _operation_path(operation: str) -> str:
+    return _OPERATION_PATHS.get(operation, operation.replace("_", "-"))
+
+
+def _normalize_base_url(base_url: str) -> str:
+    value = base_url.strip()
+    if not value:
+        raise SaaSClientError("base_url must not be empty")
+    return value.rstrip("/") + "/"
+
+
+def _drop_none(payload: Mapping[str, Any]) -> JsonDict:
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def _post_json(url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    body = json.dumps(payload, sort_keys=True).encode("utf-8")
+    req = request.Request(url, data=body, headers={"Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+    try:
+        with request.urlopen(req, timeout=30) as resp:  # nosec - caller supplied local hosted adapter URL.
+            raw = resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise SaaSClientError(f"HTTP {exc.code} from hosted adapter: {redact_text(detail)}") from exc
+    except error.URLError as exc:
+        raise SaaSClientError(f"hosted adapter request failed: {redact_text(str(exc.reason))}") from exc
+    data = json.loads(raw or "{}")
+    if not isinstance(data, Mapping):
+        raise SaaSClientError("hosted adapter JSON response must be an object")
+    return data
+
+
+def _remote_envelope(operation: str, result: Mapping[str, Any]) -> JsonDict:
+    return {
+        "schema_version": SAAS_CLIENT_VERSION,
+        "operation": operation,
+        "result": redact_sensitive(result),
+        "metadata": {"local_only": False, "ashr_api_used": False, "raw_auth_material_used": False, "transport": "http"},
+    }
 
 
 def load_json_file(path: str | Path) -> Any:

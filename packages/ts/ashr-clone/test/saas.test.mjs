@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SaaSControlPlaneRouter, SaaSControlPlaneService, CONTROL_PLANE_SCHEMA_VERSION } from "../dist/saas.js";
+import { SaaSControlPlaneRouter, SaaSControlPlaneService, SaaSIngestionClient, CONTROL_PLANE_SCHEMA_VERSION } from "../dist/saas.js";
 
 test("TS SaaS control plane covers key submit upload trace lifecycle idempotency", async () => {
   const service = new SaaSControlPlaneService();
@@ -61,4 +61,76 @@ test("TS SaaS router maps local REST-ish ingestion and redacts errors", () => {
   service.revokeApiKey("tenant_ts_router", "project_ts_router", "key_ts_router");
   const blocked = router.handle("POST", "/v1/projects/project_ts_router/sdk-submit", { ...body, api_key_id: "key_ts_router", dataset_id: "dataset_ts_router", agent_ref: "mock", run_id: "blocked" });
   assert.equal(blocked.status_code, 400);
+});
+
+test("TS SaaS router exposes healthz and OpenAPI helper", async () => {
+  const router = new SaaSControlPlaneRouter();
+  const health = router.handle("GET", "/healthz");
+  assert.equal(health.status_code, 200);
+  assert.equal(health.body.status, "ok");
+  assert.equal(health.body.ashr_api_used, false);
+  assert.equal(health.body.openapi_path, "/healthz/openapi");
+
+  const openapi = router.handle("GET", "/healthz/openapi");
+  assert.equal(openapi.status_code, 200);
+  assert.equal(openapi.body.openapi, "3.1.0");
+  assert.ok(openapi.body.paths["/v1/projects/{project_id}/sdk-submit"]);
+  assert.ok(openapi.body.paths["/healthz/openapi"]);
+
+  const localClient = new SaaSIngestionClient();
+  const localSpec = await localClient.openApi({ serverUrl: "http://unit.test" });
+  assert.equal(localSpec.servers[0].url, "http://unit.test");
+});
+
+test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
+  const { createServer } = await import("node:http");
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_http", projectId: "project_ts_http" });
+  service.cloud.createDataset("tenant_ts_http", "project_ts_http", { datasetId: "dataset_ts_http", name: "Dataset", cases: [{ id: "case-1" }] });
+  const router = new SaaSControlPlaneRouter(service);
+
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => { raw += chunk; });
+    req.on("end", () => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      const body = raw ? JSON.parse(raw) : Object.fromEntries(url.searchParams.entries());
+      const routed = router.handle(req.method ?? "GET", url.pathname, body);
+      res.statusCode = routed.status_code;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(routed.body));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const client = SaaSIngestionClient.forBaseUrl(baseUrl);
+
+    const health = await client.healthz();
+    assert.equal(health.status, "ok");
+
+    const spec = await client.openApi();
+    assert.equal(spec.openapi, "3.1.0");
+
+    const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest"], keyId: "key_ts_http" });
+    assert.equal(key.result.key_id, "key_ts_http");
+    assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
+
+    const submitted = await client.sdkSubmitHttp("tenant_ts_http", "project_ts_http", { datasetId: "dataset_ts_http", agentRef: "mock", runId: "run_ts_http", apiKeyId: "key_ts_http" });
+    assert.equal(submitted.result.run.run_id, "run_ts_http");
+
+    const upload = await client.uploadRunHttp("tenant_ts_http", "project_ts_http", "run_ts_http", { status: "completed", api_key: "tp_should_not_leak" }, { uploadId: "upload_ts_http", apiKeyId: "key_ts_http" });
+    assert.equal(upload.result.upload_id, "upload_ts_http");
+    assert.equal(JSON.stringify(upload).includes("tp_should_not_leak"), false);
+
+    const trace = await client.ingestTraceHttp("tenant_ts_http", "project_ts_http", "run_ts_http", [{ observation_id: "obs_ts_http" }], { batchId: "trace_ts_http", apiKeyId: "key_ts_http" });
+    assert.deepEqual(trace.result.observation_ids, ["obs_ts_http"]);
+
+    const lifecycle = await client.lifecycleHttp("tenant_ts_http", "project_ts_http", "run_ts_http");
+    assert.equal(lifecycle.result.quota.used["trace.ingest"], 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
