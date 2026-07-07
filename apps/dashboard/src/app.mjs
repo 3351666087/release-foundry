@@ -27,6 +27,12 @@ import {
   summarizeUsageQuota
 } from "../../../services/report/report_builder.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapper.mjs?v=a3-polish";
+import {
+  createShareableA3Report,
+  fetchA3DashboardSnapshot,
+  isA3ApiSource
+} from "./api-client.mjs";
+import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
 
 const state = {
   runs: null,
@@ -40,6 +46,7 @@ const state = {
   frontendSummary: {},
   frontendMirror: {},
   frontendCodeCrawl: {},
+  saasRuntime: {},
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -1091,6 +1098,9 @@ function miniRow(label, value) {
 }
 
 function sourceLabel(source) {
+  if (source === "api-mock") {
+    return "API-backed A1/A2 mock fixture";
+  }
   if (source === "raw-a1") {
     return "Raw A1 RunResult fixture";
   }
@@ -2042,14 +2052,92 @@ function exportReport(format) {
   ), "text/markdown");
 }
 
+async function shareReport() {
+  const status = $("share-report-status");
+  if (!isA3ApiSource(state.source)) {
+    status.className = "badge warn";
+    status.textContent = "API required";
+    $("share-report-detail").textContent = "Switch Data to API-backed Mock before creating a hosted report link.";
+    return;
+  }
+
+  status.className = "badge neutral";
+  status.textContent = "creating";
+  $("share-report-detail").textContent = "Calling the local A3 API and running export redaction before sharing.";
+  try {
+    const report = await createShareableA3Report({
+      source: state.source,
+      title: "A3 Release Intelligence Report",
+      baseUrl: getA3ApiBaseUrl()
+    });
+    status.className = `badge ${report.status === "shareable" ? "pass" : "fail"}`;
+    status.textContent = report.status;
+    $("share-report-detail").textContent = `${report.share_url_path} / ${report.sealed_evidence.hash_algorithm}:${report.sealed_evidence.payload_hash.slice(0, 12)} / ${report.redaction.status}`;
+  } catch (error) {
+    status.className = "badge fail";
+    status.textContent = "failed";
+    $("share-report-detail").textContent = error.message;
+    console.error(error);
+  }
+}
+
 function printReport() {
   renderPrintReport();
   window.print();
 }
 
+function applyApiDashboardPayload(payload) {
+  state.runs = payload.run_fixture || {};
+  state.grades = payload.grade_fixture || {};
+  state.coverage = payload.coverage || {};
+  state.requestProvenance = payload.request_provenance || {};
+  state.usageQuota = payload.usage_quota || {};
+  state.usageQuotaApiProbe = payload.usage_quota_api_probe || {};
+  state.mediaSignedUrlCoverage = payload.media_signed_url_coverage || {};
+  state.authCheck = payload.auth_check || {};
+  state.frontendSummary = payload.frontend_summary || {};
+  state.frontendMirror = payload.frontend_mirror || {};
+  state.frontendCodeCrawl = payload.frontend_code_crawl || {};
+  state.saasRuntime = {
+    ...(payload.storage || {}),
+    source: payload.source,
+    source_label: payload.source_label,
+    summary: payload.summary
+  };
+}
+
+function resetSaasRuntime(mode = "static_fixture") {
+  state.saasRuntime = {
+    mode,
+    db_ready: mode !== "static_fixture",
+    db_contract: {
+      recommended_primary_db: "postgres",
+      mysql_compatible: true,
+      api_surfaces: [
+        "GET /api/a3/dashboard",
+        "GET /api/a3/runs",
+        "GET /api/a3/cases/:caseId",
+        "POST /api/a3/reports/share"
+      ],
+      tables: ["runs", "cases", "trace_events", "grade_results", "shareable_reports"],
+      guardrails: [
+        "Static mode keeps existing fixtures working.",
+        "API mode uses the same A1/A2 normalized fields.",
+        "Hosted reports must pass export redaction before sharing."
+      ]
+    }
+  };
+}
+
+function renderSaasRuntime() {
+  renderSaasRuntimePanel($("saas-runtime-body"), state.saasRuntime);
+}
+
 async function loadDataSource(source) {
   state.source = source;
-  if (source === "p3-media") {
+  if (isA3ApiSource(source)) {
+    applyApiDashboardPayload(await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() }));
+  } else if (source === "p3-media") {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");
     state.requestProvenance = await loadOptionalJson("../../fixtures/a3/p3/ashr_request_detail_sample.redacted.json");
@@ -2094,9 +2182,12 @@ async function loadDataSource(source) {
     state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
     resetCalibrationState();
   }
-  state.frontendMirror = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
-  state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
-  state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  if (!isA3ApiSource(source)) {
+    resetSaasRuntime("static_fixture");
+    state.frontendMirror = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
+    state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
+    state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  }
   state.cases = normalizeCases(state.runs, state.grades);
   state.filteredCases = state.cases;
   state.selectedCaseId = state.cases[0]?.case_id || null;
@@ -2114,6 +2205,7 @@ async function loadDataSource(source) {
 
   renderSummary();
   renderConsoleStats();
+  renderSaasRuntime();
   renderCoverageHealth();
   renderReleaseGate();
   renderReleaseWarRoom();
@@ -2131,6 +2223,11 @@ async function loadDataSource(source) {
   renderClusters();
 }
 
+function getA3ApiBaseUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("apiBase") || window.A3_API_BASE_URL || "";
+}
+
 function resetCalibrationState() {
   state.requestProvenance = {};
   state.usageQuota = {};
@@ -2142,7 +2239,7 @@ function resetCalibrationState() {
 
 async function init() {
   const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
-  const allowedSources = new Set(["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
+  const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";
   await loadDataSource($("source-select").value);
 
@@ -2161,6 +2258,9 @@ async function init() {
 
   for (const button of document.querySelectorAll("[data-export]")) {
     button.addEventListener("click", () => exportReport(button.dataset.export));
+  }
+  for (const button of document.querySelectorAll("[data-share-report]")) {
+    button.addEventListener("click", shareReport);
   }
   for (const button of document.querySelectorAll("[data-print]")) {
     button.addEventListener("click", printReport);

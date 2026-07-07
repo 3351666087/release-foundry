@@ -331,6 +331,22 @@ h1 {
   margin-top: 12px;
 }
 
+.share-status {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.share-status .caption {
+  overflow-wrap: anywhere;
+}
+
 .report-list {
   margin-top: 12px;
 }

@@ -78,7 +78,7 @@ test("A3 dashboard wires official generated demo dataset 884 and run 11926 sourc
   assert.match(html, /ashr_after_generate_dataset_884\.redacted\.json/);
   assert.match(html, /ashr_after_generate_frontend_summary\.redacted\.json/);
   assert.match(html, /p3_official_demo_884_11926_dashboard_sample/);
-  assert.match(html, /allowedSources = new Set\(\["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
   assert.match(html, /P3 official Ashr demo dataset 884 \/ run 11926/);
 });
 
@@ -427,4 +427,26 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
   assert.match(html, /ashr_auth_check\.redacted\.json/);
   assert.match(html, /ashr_frontend_relogin_top_level_summary\.redacted\.json/);
   assert.match(html, /No cloud mutations/);
+});
+
+test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /api-client\.mjs/);
+  assert.match(html, /components\/saas-runtime-panel\.mjs/);
+  assert.match(html, /value="api-mock"/);
+  assert.match(html, /API-backed Mock/);
+  assert.match(html, /id="saas-runtime"/);
+  assert.match(html, /id="saas-runtime-body"/);
+  assert.match(html, /function applyApiDashboardPayload\(payload\)/);
+  assert.match(html, /function getA3ApiBaseUrl\(\)/);
+  assert.match(html, /params\.get\("apiBase"\)/);
+  assert.match(html, /fetchA3DashboardSnapshot/);
+  assert.match(html, /isA3ApiSource\(source\)/);
+  assert.match(html, /renderSaasRuntime\(\)/);
+  assert.match(html, /data-share-report/);
+  assert.match(html, /createShareableA3Report/);
+  assert.match(html, /id="share-report-status"/);
+  assert.match(html, /id="share-report-detail"/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });

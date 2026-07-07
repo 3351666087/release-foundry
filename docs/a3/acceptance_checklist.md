@@ -368,5 +368,13 @@
 - [x] Add severity and score-band filters.
 - [x] Add judge-mode filter after A2 exposes more varied judge-mode cases.
 - [x] Expand from current 4 screenshots to 10 demo screenshots.
-- [ ] Add a dashboard data-source option that loads raw A1/A2 fixtures directly.
+- [x] Add a dashboard data-source option that loads raw A1/A2 fixtures directly.
+- [x] Add an API-backed dashboard source that can serve the current A3 normalized payload through `/api/a3/dashboard`.
+- [x] Add a DB-ready store abstraction with memory, JSON-file, and fixture-backed implementations.
+- [x] Add a shareable hosted report payload with redaction, hashes, report metadata, and share URL path.
+- [x] Add dashboard component boundary for SaaS Runtime instead of keeping every new UI block inside the main app module.
+- [x] Add tests for A3 store, A3 API server, shareable report payloads, and dashboard API wiring.
 - [ ] Add CI export-firewall scans for generated docs and fixtures.
+- [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
+- [ ] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
+- [ ] Add API import routes for new A1 RunResult and A2 GradeResult uploads.

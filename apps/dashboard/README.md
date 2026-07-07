@@ -34,3 +34,27 @@ The dashboard reads:
 - A2 coverage evidence in JSON/Markdown exports
 
 This is G2 local-only work. It does not call the real Ashr API and does not require secrets.
+
+## API-backed preview
+
+The SaaS slice can also serve the same dashboard data through the local A3 API.
+
+Terminal 1:
+
+```bash
+node services/report/a3_api_server.mjs 4183
+```
+
+Terminal 2:
+
+```bash
+python -m http.server 5173
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173/apps/dashboard/index.html?source=api-mock&apiBase=http://127.0.0.1:4183
+```
+
+This path is still local and redacted. It demonstrates `static -> API-backed`, while the store contract keeps the next DB adapter compatible with the same dashboard payload.

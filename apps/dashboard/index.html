@@ -14,6 +14,7 @@
         <nav class="nav" aria-label="Dashboard sections">
           <a href="#summary" class="active">Overview</a>
           <a href="#console">Console</a>
+          <a href="#saas-runtime">SaaS Runtime</a>
           <a href="#media-readiness">Media</a>
           <a href="#cloud-shell">Cloud Shell</a>
           <a href="#official-gap">Official Gap</a>
@@ -53,6 +54,7 @@
               Data
               <select id="source-select">
                 <option value="mock">A1/A2 Mock</option>
+                <option value="api-mock">API-backed Mock</option>
                 <option value="raw-a1">Raw A1 RunResult</option>
                 <option value="raw-a2">Raw A2 Single Case</option>
                 <option value="p3-media">P3 Media Sample</option>
@@ -89,6 +91,16 @@
                 <div class="workflow-step"><strong>Analysis</strong><span class="muted" id="workflow-analysis">ready</span></div>
                 <div class="workflow-step"><strong>Export</strong><span class="muted">JSON/CSV/MD</span></div>
               </div>
+            </div>
+          </div>
+
+          <div class="panel" id="saas-runtime">
+            <div class="panel-header">
+              <h2>SaaS Runtime</h2>
+              <span class="badge info">API + DB-ready</span>
+            </div>
+            <div class="panel-body" id="saas-runtime-body">
+              <div class="caption">Waiting for runtime contract.</div>
             </div>
           </div>
 
@@ -330,6 +342,11 @@
                 <button class="button subtle" data-export="csv" type="button">CSV</button>
                 <button class="button subtle" data-export="md" type="button">Markdown</button>
                 <button class="button subtle" data-print type="button">Print/PDF</button>
+                <button class="button subtle" data-share-report type="button">Share Hosted Report</button>
+              </div>
+              <div class="share-status">
+                <span class="badge neutral" id="share-report-status">not shared</span>
+                <span class="caption" id="share-report-detail">API-backed mode can create a redacted hosted report payload.</span>
               </div>
               <div class="report-list" id="report-center"></div>
             </div>

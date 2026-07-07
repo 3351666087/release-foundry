@@ -2556,3 +2556,47 @@ Browser smoke:
 ### Current interpretation
 
 The A1/A2 compatibility work is now visible from the dashboard, not only proven in unit tests. This makes the A3 handoff easier to demo and easier for A1/A2 teammates to validate.
+
+## 2026-07-07 - SaaS API Store And Hosted Report Slice
+
+### Goal
+
+Move A3 from a static fixture dashboard toward a SaaS-shaped product path without breaking the current mock/raw A1/raw A2/P3 demo sources.
+
+### Work completed
+
+- Added a DB-ready A3 store abstraction:
+  - `services/report/a3_store.mjs`
+  - Supports memory store, JSON-file-backed store, fixture-backed source loading, run list, run detail, case detail, and shareable report persistence.
+- Added a minimal A3 API server:
+  - `services/report/a3_api_server.mjs`
+  - Supports `GET /api/a3/health`, `GET /api/a3/db-contract`, `GET /api/a3/dashboard`, `GET /api/a3/runs`, `GET /api/a3/runs/:runId`, `GET /api/a3/cases/:caseId`, `POST /api/a3/reports/share`, and `GET /api/a3/reports/:reportId`.
+- Added shareable hosted report payload builder:
+  - `services/report/a3_shareable_report.mjs`
+  - Wraps existing JSON/Markdown report outputs into `a3.shareable_report.v1`.
+  - Reuses the export redaction firewall before a report is considered shareable.
+- Added dashboard API client and component boundary:
+  - `apps/dashboard/src/api-client.mjs`
+  - `apps/dashboard/src/components/saas-runtime-panel.mjs`
+- Added dashboard UI wiring:
+  - New `API-backed Mock` Data source.
+  - New `SaaS Runtime` panel showing API and DB-ready contract.
+  - New `Share Hosted Report` action in Report Center.
+- Added SaaS migration plan:
+  - `docs/a3/p3_saas_api_db_migration_2026_07_07.md`
+  - Covers 30 growth points across API, DB, app components, hosted reports, A1/A2 compatibility, secret safety, and verification evidence.
+
+### Current interpretation
+
+This is not yet a full SaaS app, but it changes the architecture direction in the right way:
+
+- Static -> API-backed: dashboard can load the same A3 data shape through `/api/a3/dashboard`.
+- Mock fixture -> DB data: store interface now hides whether data came from memory, JSON file, fixtures, or a future SQL adapter.
+- HTML blob -> app components: the SaaS Runtime panel is now a real component module.
+- Report export -> shareable hosted report: report output can be sealed, redacted, hashed, and stored behind a share URL path.
+
+### Next highest-value targets
+
+- Add a real SQL adapter behind `a3_store.mjs` after A1 chooses Postgres/MySQL/SQLite migration tooling.
+- Add hosted report route rendering, not only hosted report payload creation.
+- Add import endpoints for A1 RunResult and A2 GradeResult so API data can be created without hand-loaded fixtures.
