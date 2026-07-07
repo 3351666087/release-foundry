@@ -418,7 +418,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} ? ${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} · ${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -1000,7 +1000,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} ? ${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} · ${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
