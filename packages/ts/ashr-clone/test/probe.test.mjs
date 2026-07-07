@@ -304,6 +304,192 @@ test("probe CLI create-run dry-run records a mutating plan without a key", async
   }
 });
 
+test("probe CLI plan-batch is local-only and creates request-bound media quota gate evidence", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const requestFile = join(temp, "request.json");
+  const output = join(temp, "plan.json");
+  const env = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === ASHR_API_ENV_VAR || prop === ASHR_LABS_API_ENV_VAR) {
+          throw new Error("plan-batch must not read API key env");
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    writeFileSync(
+      requestFile,
+      JSON.stringify({
+        agent: { name: "all-media", accepted_inputs: { text: true, image: true, audio: true, file: true, video: true } },
+        generation_options: { generate_images: true, generate_audio: true, generate_files: true, generate_videos: true },
+        test_config: { num_variations: 3 },
+      }),
+      "utf8",
+    );
+    const capture = captureStreams();
+    const code = await main(
+      [
+        "plan-batch",
+        "--target-operation",
+        "create-request",
+        "--request-file",
+        requestFile,
+        "--allow-media-generation",
+        "--allow-non-text-inputs",
+        "--max-request-variations",
+        "3",
+        "--small-batch-size",
+        "1",
+        "--batch-size",
+        "4",
+        "--output",
+        output,
+      ],
+      env,
+      capture.streams,
+    );
+    const record = readJson(output);
+    const plan = record.response.plan;
+
+    assert.equal(code, 0);
+    assert.equal(capture.stderr, "");
+    assert.match(capture.stdout, /function=plan_batch status=blocked/);
+    assert.equal(record.schema_version, "ashr.clone.api_probe_batch_plan.v1");
+    assert.equal(record.function, "plan_batch");
+    assert.equal(record.status, "blocked");
+    assert.equal(plan.target_operation, "create-request");
+    assert.equal(plan.batch_size, 4);
+    assert.equal(plan.quota_stop_go.decision, "wait");
+    assert.equal(plan.quota_stop_go.source, "not-provided");
+    assert.equal(plan.target_binding.schema_version, "ashr.clone.api_probe_target_binding.v1");
+    assert.equal(plan.target_binding.raw_request_not_recorded, true);
+    assert.deepEqual(plan.target_binding.modalities, ["text", "image", "audio", "file", "video"]);
+    assert.deepEqual(plan.modality_sequence.map((item) => item.modality), ["text", "image", "audio", "file", "video"]);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI plan-batch promotes reviewed quota header evidence to go", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const requestFile = join(temp, "request.json");
+  const quotaRecord = join(temp, "quota-record.json");
+  const output = join(temp, "plan-go.json");
+  try {
+    writeFileSync(requestFile, JSON.stringify({ agent: { accepted_inputs: { text: true } }, test_config: { num_variations: 1 } }), "utf8");
+    writeFileSync(
+      quotaRecord,
+      JSON.stringify({
+        function: "list_requests",
+        status: "ok",
+        response_headers: { "x-ratelimit-remaining": "10" },
+      }),
+      "utf8",
+    );
+
+    const capture = captureStreams();
+    const code = await main(["plan-batch", "--request-file", requestFile, "--quota-record", quotaRecord, "--output", output], {}, capture.streams);
+    const record = readJson(output);
+
+    assert.equal(code, 0);
+    assert.equal(capture.stderr, "");
+    assert.equal(record.status, "planned");
+    assert.equal(record.response.plan.quota_stop_go.decision, "go");
+    assert.equal(record.response.plan.quota_stop_go.quota_or_reset_evidence_present, true);
+    assert.deepEqual(record.response.plan.quota_stop_go.reset.header_keys, ["x-ratelimit-remaining"]);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI validate-gate accepts a matching TS plan-batch request binding", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const requestFile = join(temp, "request.json");
+  const quotaRecord = join(temp, "quota-record.json");
+  const planOutput = join(temp, "plan.json");
+  const validationOutput = join(temp, "validation.json");
+  try {
+    writeFileSync(requestFile, JSON.stringify({ agent: { name: "match", accepted_inputs: { text: true } }, test_config: { num_variations: 1 } }), "utf8");
+    writeFileSync(quotaRecord, JSON.stringify({ response_headers: { "x-ratelimit-remaining": "5" } }), "utf8");
+
+    assert.equal(await main(["plan-batch", "--request-file", requestFile, "--quota-record", quotaRecord, "--output", planOutput], {}, captureStreams().streams), 0);
+
+    const capture = captureStreams();
+    const code = await main(["validate-gate", "--target-operation", "create-request", "--request-file", requestFile, "--quota-gate-record", planOutput, "--output", validationOutput], {}, capture.streams);
+    const record = readJson(validationOutput);
+
+    assert.equal(code, 0);
+    assert.equal(capture.stderr, "");
+    assert.match(capture.stdout, /function=validate_gate status=ok/);
+    assert.equal(record.schema_version, "ashr.clone.api_probe_gate_validation.v1");
+    assert.equal(record.response.validation.valid, true);
+    assert.equal(record.response.validation.issues.length, 0);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI validate-gate rejects stale wrong-target and wrong-request gates without key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const requestFile = join(temp, "request.json");
+  const changedRequestFile = join(temp, "changed-request.json");
+  const staleGate = join(temp, "stale-gate.json");
+  const wrongTargetGate = join(temp, "wrong-target-gate.json");
+  const wrongRequestGate = join(temp, "wrong-request-gate.json");
+  const env = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === ASHR_API_ENV_VAR || prop === ASHR_LABS_API_ENV_VAR) {
+          throw new Error("validate-gate must not read API key env");
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const request = { agent: { name: "original", accepted_inputs: { text: true } }, test_config: { num_variations: 1 } };
+    writeFileSync(requestFile, JSON.stringify(request), "utf8");
+    writeFileSync(changedRequestFile, JSON.stringify({ agent: { name: "changed", accepted_inputs: { text: true } }, test_config: { num_variations: 1 } }), "utf8");
+    writePlanBatchGate(staleGate, "go", { targetOperation: "create-request", request, createdAt: "2000-01-01T00:00:00Z" });
+    writePlanBatchGate(wrongTargetGate, "go", { targetOperation: "create-run" });
+    writePlanBatchGate(wrongRequestGate, "go", { targetOperation: "create-request", request });
+
+    const cases = [
+      {
+        args: ["validate-gate", "--target-operation", "create-request", "--quota-gate-record", staleGate, "--output", join(temp, "stale.json")],
+        issue: "stale_gate",
+      },
+      {
+        args: ["validate-gate", "--target-operation", "create-request", "--quota-gate-record", wrongTargetGate, "--output", join(temp, "wrong-target.json")],
+        issue: "target_operation_mismatch",
+      },
+      {
+        args: ["validate-gate", "--target-operation", "create-request", "--request-file", changedRequestFile, "--quota-gate-record", wrongRequestGate, "--output", join(temp, "wrong-request.json")],
+        issue: "target_binding_mismatch",
+      },
+    ];
+
+    for (const item of cases) {
+      const capture = captureStreams();
+      const output = item.args[item.args.length - 1];
+      const code = await main(item.args, env, capture.streams);
+      const record = readJson(output);
+
+      assert.equal(code, 2);
+      assert.match(capture.stderr, /quota gate validation failed/);
+      assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+      assert.equal(record.status, "error");
+      assert.equal(record.response.validation.issues[0].code, item.issue);
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("probe CLI non-dry-run requires a key before read-only transport", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
   const output = join(temp, "missing-key.json");

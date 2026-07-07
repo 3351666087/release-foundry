@@ -149,7 +149,7 @@
     "list_agents": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 27,
+      "records": 28,
       "response_keys": [
         "_user",
         "agents",
@@ -158,7 +158,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 23,
+        "ok": 24,
         "planned": 4
       },
       "top_count_keys": [
@@ -168,7 +168,7 @@
     "list_datasets": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 33,
+      "records": 34,
       "response_keys": [
         "_user",
         "datasets",
@@ -178,7 +178,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 28,
+        "ok": 29,
         "planned": 5
       },
       "top_count_keys": [
@@ -188,7 +188,7 @@
     "list_requests": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 34,
+      "records": 35,
       "response_keys": [
         "_user",
         "next_cursor",
@@ -198,7 +198,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 31,
+        "ok": 32,
         "planned": 3
       },
       "top_count_keys": [
@@ -227,13 +227,13 @@
     "plan_batch": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 2,
+      "records": 3,
       "response_keys": [
         "plan"
       ],
       "response_summary_keys": [],
       "statuses": {
-        "blocked": 1,
+        "blocked": 2,
         "planned": 1
       },
       "top_count_keys": []
@@ -279,9 +279,23 @@
         "planned": 7
       },
       "top_count_keys": []
+    },
+    "validate_gate": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 3,
+      "response_keys": [
+        "validation"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 1,
+        "ok": 2
+      },
+      "top_count_keys": []
     }
   },
   "schema_version": "ashr.clone.response_field_map.v1",
-  "source_label": "a1-real-api-2026-07-07-round9-quota-gate-parity",
-  "source_total_records": 326
+  "source_label": "a1-real-api-2026-07-07-round11-ts-probe-parity",
+  "source_total_records": 333
 }
