@@ -1109,3 +1109,41 @@ Results:
 - Readiness smoke: ok, private summary at `docs/evidence/private_refs/a1_readiness_round14_contracts_final.json` (not committed).
 - Public evidence index: 337 records, extended output policy counts present, lint issues 0.
 - Diff whitespace check: ok.
+
+## Round15 enterprise SaaS control plane expansion - 2026-07-07
+
+```powershell
+Get-ChildItem Env:ASHR_API_KEY, Env:ASHR_LABS_API_KEY -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name)=present(length=$($_.Value.Length))" }
+python -B -m services.runner.api_probe health-check --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_round15_health-check_real_20260707_171150.json
+python -B -m services.runner.api_probe list-datasets --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_round15_list-datasets_real_20260707_171150.json
+python -B -m services.runner.api_probe list-runs --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_round15_list-runs_real_20260707_171150.json
+python -B -m services.runner.api_probe list-requests --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_round15_list-requests_real_20260707_171150.json
+python -B -m services.runner.api_probe list-agents --execute --max-retries 0 --limit 2 --output docs/evidence/private_refs/a1_round15_list-agents_real_20260707_171150.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, merge_evidence_indices, write_private_evidence_index, validate_public_evidence_index; existing=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); paths=sorted(Path('docs/evidence/private_refs').glob('a1_round15_*_real_20260707_171150.json')); fresh=build_private_evidence_index(paths,label='a1-round15-real-readonly'); merged=merge_evidence_indices(existing,fresh,label='a1-real-api-2026-07-07-round15-saas-control-plane'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', merged, strict_public=True); print({'records': merged['total_records'], 'fresh': fresh['total_records'], 'output_policy_counts': merged['output_policy_counts'], 'lint_issues': len(validate_public_evidence_index(merged))})"
+python -B -m pytest tests/a1/test_commercial_control_plane.py tests/a1/test_saas_control_plane.py tests/a1/test_capability_matrix.py tests/a1/test_legacy_evidence_scanner.py -q -p no:cacheprovider
+```
+
+Results:
+- Env check recorded presence/length only; raw key was not printed or written.
+- Real read-only probes: 5 ok records written to ignored private refs.
+- Public evidence index: 342 records, 5 output-policy-present private records, lint issues 0.
+- Focused SaaS/commercial tests: 13 passed.
+
+## Round15 final validation and strategy alignment - 2026-07-07
+
+```powershell
+git show origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md | Select-Object -First 260
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round15_saas.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import validate_public_evidence_index; idx=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); print({'records':idx['total_records'],'output_policy_counts':idx['output_policy_counts'],'lint_issues':len(validate_public_evidence_index(idx))})"
+git diff --check
+```
+
+Results:
+- GitHub main strategy was read-only inspected; local branch did not contain the file yet.
+- Python A1 full suite: 215 passed.
+- TypeScript suite: 180 passed.
+- A1 readiness: ok, private summary path ignored.
+- Public evidence index: 342 records, 5 output-policy-present real read-only records, lint issues 0.
+- Diff check: ok.
