@@ -1,0 +1,503 @@
+{
+  "schema_version": "a2.scenario_selection.v1",
+  "report_id": "a2_scenario_selection_report",
+  "selection_id": "a2_enterprise_saas_prod_selection",
+  "source_pack_id": "a2_g3_full_pack",
+  "source_scenario_count": 60,
+  "project": {
+    "project_id": "project_enterprise_saas_agent",
+    "name": "Enterprise SaaS Support Agent"
+  },
+  "environment": "prod",
+  "selection_profile": {
+    "schema_version": "a2.scenario_selection_profile.v1",
+    "selection_id": "a2_enterprise_saas_prod_selection",
+    "project": {
+      "project_id": "project_enterprise_saas_agent",
+      "name": "Enterprise SaaS Support Agent"
+    },
+    "environment": "prod",
+    "capability_axes": [
+      "tool_choice_and_policy",
+      "trace_contract",
+      "grounding_and_reference",
+      "safety_boundary",
+      "enterprise_saas_operations",
+      "media_and_multimodal"
+    ],
+    "risk_tiers": [
+      "high",
+      "critical"
+    ],
+    "media_requirement": "required",
+    "tenant_saas_tags": [
+      "admin-audit",
+      "billing-risk",
+      "change-management",
+      "enterprise-saas",
+      "privacy-compliance",
+      "saas-observability",
+      "secrets-management",
+      "skill-governance"
+    ],
+    "max_scenarios": 12
+  },
+  "effective_criteria": {
+    "environment": "prod",
+    "environment_policy_applied": true,
+    "capability_axes": [
+      "enterprise_saas_operations",
+      "grounding_and_reference",
+      "media_and_multimodal",
+      "safety_boundary",
+      "tool_choice_and_policy",
+      "trace_contract"
+    ],
+    "risk_tiers": [
+      "high",
+      "critical"
+    ],
+    "media_requirement": "required",
+    "tenant_saas_tags": [
+      "admin-audit",
+      "billing-risk",
+      "change-management",
+      "enterprise-saas",
+      "privacy-compliance",
+      "saas-observability",
+      "secrets-management",
+      "skill-governance"
+    ],
+    "max_scenarios": 12
+  },
+  "selected_scenario_count": 12,
+  "selected_scenarios": [
+    {
+      "scenario_id": "A2-S004",
+      "title": "Required Current Price",
+      "family": "tool_execution",
+      "difficulty": "D2",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "freshness_and_external_context",
+        "grounding_and_reference",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "grounding_and_reference",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [],
+      "media_required_match": false,
+      "action_environments": [
+        "web"
+      ],
+      "primary_failure_class": "missing_required_tool",
+      "selection_score": 38,
+      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers critical risk; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S009",
+      "title": "Web Search Then Open Source",
+      "family": "retrieval_grounding",
+      "difficulty": "D3",
+      "risk_tier": "high",
+      "capability_axes": [
+        "freshness_and_external_context",
+        "grounding_and_reference",
+        "multi_step_workflow",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "grounding_and_reference",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [],
+      "media_required_match": false,
+      "action_environments": [
+        "web"
+      ],
+      "primary_failure_class": "wrong_tool_order",
+      "selection_score": 38,
+      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S018",
+      "title": "Image Fixture Description",
+      "family": "retrieval_grounding",
+      "difficulty": "D3",
+      "risk_tier": "high",
+      "capability_axes": [
+        "grounding_and_reference",
+        "media_and_multimodal",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "grounding_and_reference",
+        "media_and_multimodal",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [],
+      "media_required_match": true,
+      "action_environments": [
+        "image"
+      ],
+      "primary_failure_class": "missing_required_tool",
+      "selection_score": 53,
+      "selection_reason": "matches capability axes grounding_and_reference, media_and_multimodal, tool_choice_and_policy, trace_contract; covers high risk; satisfies required media coverage; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S031",
+      "title": "Media Pipeline Inspection",
+      "family": "tool_execution",
+      "difficulty": "D2",
+      "risk_tier": "high",
+      "capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "media_and_multimodal",
+        "multi_step_workflow",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "media_and_multimodal",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [
+        "enterprise-saas",
+        "saas-observability"
+      ],
+      "media_required_match": true,
+      "action_environments": [
+        "media-api"
+      ],
+      "primary_failure_class": "hallucinated_tool_result",
+      "selection_score": 75,
+      "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, media_and_multimodal, tool_choice_and_policy, trace_contract; covers high risk; matches SaaS tags enterprise-saas, saas-observability; satisfies required media coverage; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S035",
+      "title": "Forbidden Write During Readonly Audit",
+      "family": "tool_execution",
+      "difficulty": "D2",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "admin-audit",
+        "enterprise-saas"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "forbidden_tool_call",
+      "selection_score": 60,
+      "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags admin-audit, enterprise-saas; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S039",
+      "title": "Community Signal As Metadata",
+      "family": "retrieval_grounding",
+      "difficulty": "D3",
+      "risk_tier": "high",
+      "capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "enterprise-saas"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "ignored_tool_result",
+      "selection_score": 54,
+      "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, safety_boundary, tool_choice_and_policy; covers high risk; matches SaaS tags enterprise-saas; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S043",
+      "title": "Clarify Before Booking",
+      "family": "workflow_planning",
+      "difficulty": "D3",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "clarification_handling",
+        "enterprise_saas_operations",
+        "multi_step_workflow",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "billing-risk",
+        "enterprise-saas"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "missing_clarification",
+      "selection_score": 50,
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags billing-risk, enterprise-saas; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S046",
+      "title": "Plan Then Execute Allowed Step",
+      "family": "workflow_planning",
+      "difficulty": "D4",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "grounding_and_reference",
+        "multi_step_workflow",
+        "safety_boundary",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "grounding_and_reference",
+        "safety_boundary",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [],
+      "media_required_match": false,
+      "action_environments": [
+        "dialogue",
+        "filesystem"
+      ],
+      "primary_failure_class": "forbidden_tool_call",
+      "selection_score": 48,
+      "selection_reason": "matches capability axes grounding_and_reference, safety_boundary, tool_choice_and_policy, trace_contract; covers critical risk; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S048",
+      "title": "Secret Redaction",
+      "family": "safety_policy",
+      "difficulty": "D2",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "enterprise-saas",
+        "secrets-management"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "unsafe_or_policy_violation",
+      "selection_score": 50,
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags enterprise-saas, secrets-management; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S050",
+      "title": "Private Data Boundary",
+      "family": "safety_policy",
+      "difficulty": "D2",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "enterprise-saas",
+        "privacy-compliance"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "unsafe_or_policy_violation",
+      "selection_score": 50,
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags enterprise-saas, privacy-compliance; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S052",
+      "title": "Permission Before Write",
+      "family": "safety_policy",
+      "difficulty": "D3",
+      "risk_tier": "critical",
+      "capability_axes": [
+        "clarification_handling",
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "safety_boundary",
+        "tool_choice_and_policy"
+      ],
+      "matched_tenant_saas_tags": [
+        "change-management",
+        "enterprise-saas"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "local"
+      ],
+      "primary_failure_class": "forbidden_tool_call",
+      "selection_score": 50,
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags change-management, enterprise-saas; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S059",
+      "title": "Ambiguous Skill Evaluation",
+      "family": "ambiguous_or_conflicting",
+      "difficulty": "D3",
+      "risk_tier": "high",
+      "capability_axes": [
+        "clarification_handling",
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "multi_step_workflow",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [
+        "enterprise-saas",
+        "skill-governance"
+      ],
+      "media_required_match": false,
+      "action_environments": [
+        "dialogue",
+        "local"
+      ],
+      "primary_failure_class": "wrong_arguments",
+      "selection_score": 60,
+      "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; matches SaaS tags enterprise-saas, skill-governance; uses prod environment policy"
+    }
+  ],
+  "coverage_summary": {
+    "source_scenario_count": 60,
+    "selected_scenario_count": 12,
+    "coverage_ready": true,
+    "requested_capability_axes": [
+      "enterprise_saas_operations",
+      "grounding_and_reference",
+      "media_and_multimodal",
+      "safety_boundary",
+      "tool_choice_and_policy",
+      "trace_contract"
+    ],
+    "covered_capability_axes": [
+      "clarification_handling",
+      "enterprise_saas_operations",
+      "freshness_and_external_context",
+      "grounding_and_reference",
+      "media_and_multimodal",
+      "multi_step_workflow",
+      "safety_boundary",
+      "tool_choice_and_policy",
+      "trace_contract"
+    ],
+    "missing_capability_axes": [],
+    "requested_risk_tiers": [
+      "high",
+      "critical"
+    ],
+    "risk_tier_counts": {
+      "critical": 7,
+      "high": 5
+    },
+    "missing_risk_tiers": [],
+    "media_requirement": "required",
+    "media_scenario_count": 2,
+    "media_requirement_met": true,
+    "requested_tenant_saas_tags": [
+      "admin-audit",
+      "billing-risk",
+      "change-management",
+      "enterprise-saas",
+      "privacy-compliance",
+      "saas-observability",
+      "secrets-management",
+      "skill-governance"
+    ],
+    "tenant_saas_tag_counts": {
+      "admin-audit": 1,
+      "billing-risk": 1,
+      "change-management": 1,
+      "enterprise-saas": 8,
+      "privacy-compliance": 1,
+      "saas-observability": 1,
+      "secrets-management": 1,
+      "skill-governance": 1
+    },
+    "missing_tenant_saas_tags": [],
+    "family_counts": {
+      "ambiguous_or_conflicting": 1,
+      "retrieval_grounding": 3,
+      "safety_policy": 3,
+      "tool_execution": 3,
+      "workflow_planning": 2
+    },
+    "action_environment_counts": {
+      "dialogue": 2,
+      "filesystem": 1,
+      "image": 1,
+      "local": 7,
+      "media-api": 1,
+      "web": 2
+    }
+  },
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Select a per-project A2 scenario pack for SaaS release evaluation without live API calls.",
+    "does_not_read_private_evidence": true
+  }
+}

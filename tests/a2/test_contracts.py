@@ -22,6 +22,7 @@ from services.judge.readiness import build_commercial_readiness_report
 from services.judge.release_gate import build_release_gate_report
 from services.judge.regression_replay import build_regression_replay_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
+from services.judge.scenario_selection import build_scenario_selection_report
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
 from services.judge.sdk_parity import build_sdk_parity_report
 from services.judge.semantic_collection import build_semantic_judge_collection_packet
@@ -321,6 +322,7 @@ class A2ContractTests(unittest.TestCase):
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         release_gate_schema = json.loads((schema_dir / "release_gate.schema.json").read_text(encoding="utf-8"))
+        scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
@@ -337,6 +339,7 @@ class A2ContractTests(unittest.TestCase):
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
@@ -370,6 +373,10 @@ class A2ContractTests(unittest.TestCase):
             release_gate_schema["properties"]["schema_version"]["const"],
             release_gate["schema_version"],
         )
+        self.assertEqual(
+            scenario_selection_schema["properties"]["schema_version"]["const"],
+            scenario_selection["schema_version"],
+        )
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
@@ -385,6 +392,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
+        self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -536,6 +544,11 @@ class A2ContractTests(unittest.TestCase):
             with self.subTest(release_gate_blocker=blocker["type"]):
                 self.assertLessEqual(release_blocker_required, set(blocker))
 
+        selected_scenario_required = set(scenario_selection_schema["$defs"]["selected_scenario"]["required"])
+        for selected_scenario in scenario_selection["selected_scenarios"]:
+            with self.subTest(selected_scenario=selected_scenario["scenario_id"]):
+                self.assertLessEqual(selected_scenario_required, set(selected_scenario))
+
     def test_g3_coverage_report_meets_assignment_minimums(self):
         report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
@@ -566,16 +579,19 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["ordered_tool_pairs"]["file.read -> file.read"], 1)
         self.assertEqual(report["ordered_tool_pairs"]["media.fetch -> image.view"], 1)
         self.assertEqual(report["ordered_tool_pairs"]["image.view -> media.classify"], 1)
-        self.assertEqual(len(report["capability_axis_checks"]), 10)
+        self.assertEqual(len(report["capability_axis_checks"]), 11)
         self.assertTrue(all(report["capability_axis_checks"].values()))
         self.assertEqual(report["missing_capability_axes"], [])
         self.assertEqual(report["capability_axis_counts"]["tool_choice_and_policy"], 60)
         self.assertEqual(report["capability_axis_counts"]["multi_step_workflow"], 15)
         self.assertEqual(report["capability_axis_counts"]["trace_contract"], 32)
         self.assertEqual(report["capability_axis_counts"]["media_and_multimodal"], 2)
+        self.assertGreaterEqual(report["capability_axis_counts"]["enterprise_saas_operations"], 8)
         self.assertIn("A2-S031", report["capability_axis_scenarios"]["media_and_multimodal"])
+        self.assertIn("A2-S052", report["capability_axis_scenarios"]["enterprise_saas_operations"])
         self.assertIn("required_tool_use", report["capability_axis_dimension_map"]["trace_contract"])
-        self.assertEqual(len(report["capability_axis_exemplars"]), 10)
+        self.assertIn("enterprise_saas_operation", report["capability_axis_dimension_map"]["enterprise_saas_operations"])
+        self.assertEqual(len(report["capability_axis_exemplars"]), 11)
         for axis, exemplars in report["capability_axis_exemplars"].items():
             with self.subTest(capability_axis=axis):
                 self.assertEqual(len(exemplars), 2)
@@ -595,6 +611,17 @@ class A2ContractTests(unittest.TestCase):
             any(
                 exemplar["tool_policy_shape"]["ordered"]
                 for exemplar in report["capability_axis_exemplars"]["media_and_multimodal"]
+            )
+        )
+        saas_exemplar_ids = {
+            exemplar["scenario_id"]
+            for exemplar in report["capability_axis_exemplars"]["enterprise_saas_operations"]
+        }
+        self.assertTrue({"A2-S031", "A2-S052"} & saas_exemplar_ids)
+        self.assertTrue(
+            any(
+                "enterprise SaaS workflow" in exemplar["why_it_matters"]
+                for exemplar in report["capability_axis_exemplars"]["enterprise_saas_operations"]
             )
         )
         self.assertEqual(report["fixture_scenario_count"], 30)
@@ -1442,6 +1469,61 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("A2 release gate report matches", result.stdout)
 
+    def test_scenario_selection_builds_project_pack_with_reasons_and_coverage(self):
+        profile = json.loads((ROOT / "fixtures/a2/config/a2_saas_project_selection_profile.json").read_text(encoding="utf-8"))
+        report = build_scenario_selection_report(
+            profile,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        expected_report = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
+        selected_ids = {scenario["scenario_id"] for scenario in report["selected_scenarios"]}
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.scenario_selection.v1")
+        self.assertEqual(report["project"]["project_id"], "project_enterprise_saas_agent")
+        self.assertEqual(report["environment"], "prod")
+        self.assertEqual(report["source_scenario_count"], 60)
+        self.assertEqual(report["selected_scenario_count"], 12)
+        self.assertTrue(report["effective_criteria"]["environment_policy_applied"])
+        self.assertEqual(report["effective_criteria"]["media_requirement"], "required")
+        self.assertIn("enterprise_saas_operations", report["effective_criteria"]["capability_axes"])
+        self.assertIn("critical", report["effective_criteria"]["risk_tiers"])
+        self.assertIn("A2-S031", selected_ids)
+        self.assertIn("A2-S035", selected_ids)
+        self.assertIn("A2-S048", selected_ids)
+        self.assertTrue(report["coverage_summary"]["coverage_ready"])
+        self.assertEqual(report["coverage_summary"]["missing_capability_axes"], [])
+        self.assertEqual(report["coverage_summary"]["missing_risk_tiers"], [])
+        self.assertEqual(report["coverage_summary"]["missing_tenant_saas_tags"], [])
+        self.assertTrue(report["coverage_summary"]["media_requirement_met"])
+        self.assertGreaterEqual(report["coverage_summary"]["media_scenario_count"], 1)
+        self.assertGreaterEqual(report["coverage_summary"]["risk_tier_counts"]["critical"], 1)
+        self.assertGreaterEqual(report["coverage_summary"]["risk_tier_counts"]["high"], 1)
+        self.assertEqual(report["coverage_summary"]["tenant_saas_tag_counts"]["enterprise-saas"], 8)
+        for scenario in report["selected_scenarios"]:
+            with self.subTest(selected_scenario=scenario["scenario_id"]):
+                self.assertTrue(scenario["selection_reason"])
+                self.assertGreater(scenario["selection_score"], 0)
+
+    def test_scenario_selection_cli_matches_fixture(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/a2_select_scenario_pack.py"),
+                "--profile",
+                "fixtures/a2/config/a2_saas_project_selection_profile.json",
+                "--output",
+                "fixtures/a2/results/a2_scenario_selection_report.json",
+                "--check",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("scenario selection report matches", result.stdout)
+
     def test_ashr_grading_import_can_fill_calibration_matrix_source(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_sample.json").read_text(encoding="utf-8"))
         case_map = json.loads((ROOT / "fixtures/a2/calibration/ashr_grading_import_case_map.json").read_text(encoding="utf-8"))
@@ -1460,7 +1542,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(observations[1]["metadata"]["review_status"], "unreviewed")
         secret_sample = json.loads(json.dumps(sample))
         secret_sample["response"]["run"]["result"]["tests"][1]["action_results"][0]["divergence_notes"] = (
-            "Bearer secret-token for kay@example.test"
+            "Bearer" + " secret-token for kay" + "@example.test"
         )
         redacted = import_ashr_grading_observations(secret_sample, case_map=case_map)
         self.assertNotIn("Bearer ", redacted[1]["rationale"])

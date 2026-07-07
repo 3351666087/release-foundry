@@ -281,10 +281,15 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.equal(summary.capability_axis_counts.multi_step_workflow, 15);
   assert.equal(summary.capability_axis_counts.trace_contract, 32);
   assert.equal(summary.capability_axis_counts.media_and_multimodal, 2);
+  assert.ok(summary.capability_axis_counts.enterprise_saas_operations >= 8);
   assert.equal(summary.capability_axis_checks.media_and_multimodal, true);
-  assert.equal(Object.keys(summary.capability_axis_exemplars).length, 10);
+  assert.equal(summary.capability_axis_checks.enterprise_saas_operations, true);
+  assert.equal(Object.keys(summary.capability_axis_exemplars).length, 11);
   assert.ok(summary.capability_axis_exemplars.media_and_multimodal.some((item) => (
     item.scenario_id === "A2-S031"
+  )));
+  assert.ok(summary.capability_axis_exemplars.enterprise_saas_operations.some((item) => (
+    item.why_it_matters.includes("enterprise SaaS workflow")
   )));
   assert.match(
     summary.capability_axis_exemplars.media_and_multimodal[0].why_it_matters,
@@ -342,10 +347,11 @@ test("A3 report builder can summarize A2 G3 coverage fixture", async () => {
   assert.match(markdown, /## Coverage/);
   assert.match(markdown, /Assignment minimums met: yes/);
   assert.match(markdown, /Scenarios: 60/);
-  assert.match(markdown, /Scenario dimensions met: 16\/16/);
-  assert.match(markdown, /Capability axes met: 10\/10/);
+  assert.match(markdown, /Scenario dimensions met: 17\/17/);
+  assert.match(markdown, /Capability axes met: 11\/11/);
   assert.match(markdown, /### Capability Axis Exemplars/);
   assert.match(markdown, /media_and_multimodal: A2-S031/);
+  assert.match(markdown, /enterprise_saas_operations:/);
   assert.match(markdown, /Scenario quality warnings: 0/);
   assert.doesNotMatch(markdown, /### Scenario Quality Warnings/);
   assert.match(markdown, /Coverage warnings: 0/);

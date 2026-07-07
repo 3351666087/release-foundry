@@ -45,6 +45,12 @@ This module provides the local G1-G2 foundation for:
 - External evidence readiness report: `fixtures/a2/results/a2_evidence_readiness_report.json`
 - Commercial readiness gate report: `fixtures/a2/results/a2_commercial_readiness_report.json`
 - Release/PR gate report: `fixtures/a2/results/a2_release_gate_report.json`
+- Internal judge service wrapper: `services/judge/service_wrapper.py`
+- Configurable release policy engine: `services/judge/release_policy.py`
+- Project-aware scenario selection: `services/judge/scenario_selection.py`
+- Public-safe result persistence manifest: `services/judge/result_persistence.py`
+- SaaS scenario selection report: `fixtures/a2/results/a2_scenario_selection_report.json`
+- SaaS result persistence manifest: `fixtures/a2/results/a2_result_persistence_manifest.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
 - A2/A3 handoff schema snapshots: `docs/a2/schemas/`
 - 32 executable calibration run fixtures, including G3 tool/workflow/media cases in `fixtures/a2/runs`
@@ -82,6 +88,35 @@ from services.judge.runner import grade_run
 
 result = grade_run("A2-S004", run)
 ```
+
+## Large SaaS Service Layer
+
+The main-branch SaaS plan moves A2 from a local judge library toward an internal evaluation intelligence service. This repository now keeps that boundary lightweight and deterministic:
+
+- `/internal/judge/case`: `post_internal_judge_case(...)` grades one case.
+- `/internal/judge/batch`: `post_internal_judge_batch(...)` grades a batch and returns `a2.grade_results.v1`.
+- `/internal/release-policy/evaluate`: `post_internal_release_policy_evaluate(...)` wraps the A2 release gate and attaches configurable policy evaluation.
+- Project scenario selection builds a per-project pack from capability axes, risk tier, tenant/SaaS tags, and media requirements.
+- Result persistence produces public-safe audit records and a manifest with org/project/run/case, judge version, policy hash, input/output hashes, and no raw private evidence.
+
+The service wrapper is intentionally not a hosted web server. A1 can mount it behind API/worker infrastructure later; A3 can consume the stable JSON reports immediately.
+
+CLI examples:
+
+```bash
+python scripts/a2_judge_service.py /internal/judge/case --input payload.json
+python scripts/a2_select_scenario_pack.py --check --output fixtures/a2/results/a2_scenario_selection_report.json
+```
+
+Config and schemas:
+
+- `fixtures/a2/config/release_policies.json`
+- `fixtures/a2/config/a2_saas_project_selection_profile.json`
+- `docs/a2/schemas/release_policy.schema.json`
+- `docs/a2/schemas/scenario_selection.schema.json`
+- `docs/a2/schemas/result_persistence_manifest.schema.json`
+
+This layer supports SaaS direction without taking ownership of tenant auth, queues, storage credentials, billing, or dashboard UI.
 
 ## SDK Parity
 

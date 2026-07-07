@@ -11,8 +11,19 @@ from .casebook import build_case_book_report
 from .coverage import build_coverage_report
 from .readiness import build_commercial_readiness_report
 from .regression_replay import build_regression_replay_report
+from .result_persistence import build_result_record, build_result_persistence_manifest, write_jsonl
+from .scenario_selection import build_project_scenario_selection, build_scenario_selection_report
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
+from .service_wrapper import (
+    handle_internal_request,
+    judge_batch,
+    judge_case,
+    post_internal_judge_batch,
+    post_internal_judge_case,
+    post_internal_release_policy_evaluate,
+    select_project_scenarios,
+)
 from .grounding import GroundingJudge
 from .outcome import OutcomeJudge
 from .safety_boundary import SafetyBoundaryJudge
@@ -33,10 +44,22 @@ __all__ = [
     "build_case_book_report",
     "build_commercial_readiness_report",
     "build_coverage_report",
+    "build_project_scenario_selection",
     "build_regression_replay_report",
+    "build_result_record",
+    "build_result_persistence_manifest",
+    "build_scenario_selection_report",
     "build_sdk_parity_report",
     "build_semantic_harness_report",
+    "handle_internal_request",
     "import_ashr_grading_observations",
     "import_semantic_judge_observations",
+    "judge_batch",
+    "judge_case",
     "merge_calibration_observations",
+    "post_internal_judge_batch",
+    "post_internal_judge_case",
+    "post_internal_release_policy_evaluate",
+    "select_project_scenarios",
+    "write_jsonl",
 ]

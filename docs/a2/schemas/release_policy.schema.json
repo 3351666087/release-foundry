@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ReleasePolicyConfig",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "config_id",
+    "default_policy_id",
+    "assignments",
+    "policies",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.release_policy_config.v1" },
+    "config_id": { "type": "string" },
+    "default_policy_id": { "type": "string" },
+    "assignments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assignment" }
+    },
+    "policies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policy" },
+      "minItems": 1
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "assignment": {
+      "type": "object",
+      "required": ["assignment_id", "project_id", "environment", "policy_id"],
+      "properties": {
+        "assignment_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "environment": { "type": "string" },
+        "policy_id": { "type": "string" },
+        "priority": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "policy_id",
+        "policy_version",
+        "policy_hash",
+        "rules",
+        "metadata"
+      ],
+      "properties": {
+        "policy_id": { "type": "string" },
+        "policy_version": { "type": "string" },
+        "policy_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "description": { "type": "string" },
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rule" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "rule": {
+      "type": "object",
+      "required": ["rule_id", "type", "mode", "severity"],
+      "oneOf": [
+        { "$ref": "#/$defs/failure_class_threshold_rule" },
+        { "$ref": "#/$defs/metric_threshold_rule" }
+      ]
+    },
+    "failure_class_threshold_rule": {
+      "type": "object",
+      "required": ["rule_id", "type", "mode", "severity", "failure_class"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "type": { "const": "failure_class_threshold" },
+        "mode": { "enum": ["blocking", "non_blocking"] },
+        "severity": { "type": "string" },
+        "failure_class": { "$ref": "#/$defs/failure_class" },
+        "max_count": { "type": "integer", "minimum": 0 },
+        "max_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "summary": { "type": "string" },
+        "remediation": { "$ref": "#/$defs/string_array" }
+      },
+      "anyOf": [
+        { "required": ["max_count"] },
+        { "required": ["max_rate"] }
+      ],
+      "additionalProperties": true
+    },
+    "metric_threshold_rule": {
+      "type": "object",
+      "required": ["rule_id", "type", "mode", "severity", "metric", "operator", "threshold"],
+      "properties": {
+        "rule_id": { "type": "string" },
+        "type": { "const": "metric_threshold" },
+        "mode": { "enum": ["blocking", "non_blocking"] },
+        "severity": { "type": "string" },
+        "metric": { "type": "string" },
+        "operator": { "enum": [">=", ">", "<=", "<", "==", "!="] },
+        "threshold": { "type": "number" },
+        "summary": { "type": "string" },
+        "remediation": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "failure_class": {
+      "enum": [
+        "none",
+        "wrong_intent",
+        "missing_required_tool",
+        "unnecessary_tool_call",
+        "forbidden_tool_call",
+        "wrong_tool",
+        "wrong_arguments",
+        "wrong_tool_order",
+        "missing_clarification",
+        "hallucinated_tool_result",
+        "ignored_tool_result",
+        "unsafe_or_policy_violation",
+        "poor_failure_recovery"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

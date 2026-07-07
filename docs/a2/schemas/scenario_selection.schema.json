@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ScenarioSelectionReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "selection_id",
+    "source_pack_id",
+    "source_scenario_count",
+    "project",
+    "environment",
+    "selection_profile",
+    "effective_criteria",
+    "selected_scenario_count",
+    "selected_scenarios",
+    "coverage_summary",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.scenario_selection.v1" },
+    "report_id": { "type": "string" },
+    "selection_id": { "type": "string" },
+    "source_pack_id": { "type": "string" },
+    "source_scenario_count": { "type": "integer", "minimum": 0 },
+    "project": { "type": "object" },
+    "environment": { "type": "string" },
+    "selection_profile": { "type": "object" },
+    "effective_criteria": { "type": "object" },
+    "selected_scenario_count": { "type": "integer", "minimum": 0 },
+    "selected_scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/selected_scenario" }
+    },
+    "coverage_summary": { "$ref": "#/$defs/coverage_summary" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "selected_scenario": {
+      "type": "object",
+      "required": [
+        "scenario_id",
+        "title",
+        "family",
+        "difficulty",
+        "risk_tier",
+        "matched_capability_axes",
+        "matched_tenant_saas_tags",
+        "media_required_match",
+        "selection_score",
+        "selection_reason"
+      ],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "title": { "type": "string" },
+        "family": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "risk_tier": { "enum": ["low", "medium", "high", "critical"] },
+        "capability_axes": { "$ref": "#/$defs/string_array" },
+        "matched_capability_axes": { "$ref": "#/$defs/string_array" },
+        "matched_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
+        "media_required_match": { "type": "boolean" },
+        "action_environments": { "$ref": "#/$defs/string_array" },
+        "primary_failure_class": { "type": "string" },
+        "selection_score": { "type": "integer", "minimum": 0 },
+        "selection_reason": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "coverage_summary": {
+      "type": "object",
+      "required": [
+        "source_scenario_count",
+        "selected_scenario_count",
+        "coverage_ready",
+        "requested_capability_axes",
+        "covered_capability_axes",
+        "missing_capability_axes",
+        "requested_risk_tiers",
+        "risk_tier_counts",
+        "missing_risk_tiers",
+        "media_requirement",
+        "media_scenario_count",
+        "media_requirement_met",
+        "requested_tenant_saas_tags",
+        "tenant_saas_tag_counts",
+        "missing_tenant_saas_tags",
+        "family_counts",
+        "action_environment_counts"
+      ],
+      "properties": {
+        "source_scenario_count": { "type": "integer", "minimum": 0 },
+        "selected_scenario_count": { "type": "integer", "minimum": 0 },
+        "coverage_ready": { "type": "boolean" },
+        "requested_capability_axes": { "$ref": "#/$defs/string_array" },
+        "covered_capability_axes": { "$ref": "#/$defs/string_array" },
+        "missing_capability_axes": { "$ref": "#/$defs/string_array" },
+        "requested_risk_tiers": { "$ref": "#/$defs/string_array" },
+        "risk_tier_counts": { "type": "object" },
+        "missing_risk_tiers": { "$ref": "#/$defs/string_array" },
+        "media_requirement": { "type": "string" },
+        "media_scenario_count": { "type": "integer", "minimum": 0 },
+        "media_requirement_met": { "type": "boolean" },
+        "requested_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
+        "tenant_saas_tag_counts": { "type": "object" },
+        "missing_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
+        "family_counts": { "type": "object" },
+        "action_environment_counts": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
