@@ -201,9 +201,9 @@
     "selected_policy": {
       "policy_id": "release_policy_prod_strict",
       "policy_version": "2026-07-07.2",
-      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
+      "policy_hash": "sha256:f9aaa946c0f1c91c5660813ead9f97f562f7cb33cc5af4de7c83a5fb07b3e090",
       "policy_hash_valid": true,
-      "rule_count": 4,
+      "rule_count": 8,
       "selection": {
         "assignment_id": "project_enterprise_saas_agent_prod",
         "match_scope": "project_environment",

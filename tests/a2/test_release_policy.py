@@ -135,6 +135,43 @@ class A2ReleasePolicyTests(unittest.TestCase):
         self.assertIn("risk", evaluation)
         self.assertIn("a3_release_gate_fields", evaluation["consumer_contract"])
 
+    def test_prod_policy_blocks_saas_surface_risks_from_frontend_mapping(self):
+        config = load_json(POLICY_FIXTURE)
+        report = grade_report([case_row("pass", True, 100.0)])
+
+        evaluation = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise_saas_agent",
+            environment="prod",
+            branch="main",
+            release_candidate_id="agent-v43",
+            grade_report=report,
+            metrics={
+                "usage_quota_blocked": 1,
+                "trust_publishability_blocked": 1,
+                "api_key_boundary_violations": 1,
+                "server_side_grading_stale": 1,
+            },
+        )
+
+        self.assertEqual(evaluation["decision"], "block")
+        violation_ids = {item["rule_id"] for item in evaluation["violations"]}
+        self.assertLessEqual(
+            {
+                "prod_usage_quota_not_blocked",
+                "prod_no_api_key_boundary_violations",
+                "prod_trust_publishability_not_blocked",
+                "prod_server_side_grading_fresh",
+            },
+            violation_ids,
+        )
+        self.assertEqual(evaluation["metrics"]["usage_quota_blocked"], 1)
+        self.assertEqual(evaluation["metrics"]["trust_publishability_blocked"], 1)
+        self.assertEqual(evaluation["metrics"]["api_key_boundary_violations"], 1)
+        self.assertEqual(evaluation["metrics"]["server_side_grading_stale"], 1)
+        self.assertTrue(all(item["mode"] == "blocking" for item in evaluation["violations"]))
+        self.assertIn("docs/a2/frontend_mirror_saas_mapping_20260707.md", json.dumps(evaluation["evaluated_rules"]))
+
     def test_staging_policy_can_warn_without_blocking(self):
         config = load_json(POLICY_FIXTURE)
         rows = [case_row(f"pass-{index}", True, 100.0) for index in range(9)]
@@ -154,6 +191,46 @@ class A2ReleasePolicyTests(unittest.TestCase):
         self.assertEqual(evaluation["violations"][0]["mode"], "non_blocking")
         self.assertEqual(evaluation["violations"][0]["observed"]["failure_class"], "wrong_arguments")
         self.assertEqual(evaluation["metrics"]["pass_rate"], 90.0)
+
+    def test_staging_policy_warns_on_saas_readiness_but_blocks_api_key_boundary(self):
+        config = load_json(POLICY_FIXTURE)
+        report = grade_report([case_row("pass", True, 100.0)])
+
+        readiness_warning = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise_saas_agent",
+            environment="staging",
+            grade_report=report,
+            metrics={
+                "usage_quota_blocked": 1,
+                "trust_publishability_blocked": 1,
+                "server_side_grading_stale": 1,
+            },
+        )
+        api_key_block = evaluate_release_policy_config(
+            config,
+            project_id="project_enterprise_saas_agent",
+            environment="staging",
+            grade_report=report,
+            metrics={"api_key_boundary_violations": 1},
+        )
+
+        self.assertEqual(readiness_warning["decision"], "warn")
+        self.assertEqual(readiness_warning["blocking_violation_count"], 0)
+        warning_ids = {item["rule_id"] for item in readiness_warning["violations"]}
+        self.assertLessEqual(
+            {
+                "staging_usage_quota_watch",
+                "staging_trust_publishability_watch",
+                "staging_server_side_grading_freshness_watch",
+            },
+            warning_ids,
+        )
+        self.assertEqual(api_key_block["decision"], "block")
+        self.assertIn(
+            "staging_no_api_key_boundary_violations",
+            {item["rule_id"] for item in api_key_block["violations"]},
+        )
 
     def test_dev_policy_uses_wildcard_assignment_and_passes_clean_report(self):
         config = load_json(POLICY_FIXTURE)
