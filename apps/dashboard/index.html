@@ -1165,6 +1165,7 @@
           <a href="#release-gate">Release Gate</a>
           <a href="#war-room">War Room</a>
           <a href="#incident-replay">Incident Replay</a>
+          <a href="#observability-replay">Observability Replay</a>
           <a href="#reviewer-workflow">Reviewer Workflow</a>
           <a href="#pr-gate">PR Gate</a>
           <a href="#operations">Operations</a>
@@ -1381,6 +1382,19 @@
             </div>
           </div>
 
+          <div class="panel" id="observability-replay">
+            <div class="panel-header">
+              <h2>Observability Replay</h2>
+              <span class="badge neutral" id="observability-replay-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="observability-replay-summary">Waiting for trace replay evidence.</div>
+              <div class="health-grid" id="observability-replay-metrics"></div>
+              <div class="matrix-list" id="observability-replay-lanes"></div>
+              <div class="matrix-list" id="observability-replay-items"></div>
+            </div>
+          </div>
+
           <div class="panel" id="reviewer-workflow">
             <div class="panel-header">
               <h2>Reviewer Workflow</h2>
@@ -1581,6 +1595,7 @@
         summarizeOfficialCodeCrawlParity,
         summarizeOfficialFrontendMirror,
         summarizeOfficialParityRoadmap,
+        summarizeObservabilityReplayMatrix,
         summarizeIncidentReplayQueue,
         summarizeReviewerWorkflowBoard,
         summarizeReleaseGate,
@@ -2302,6 +2317,94 @@
         return node;
       }
 
+      function renderObservabilityReplayMatrix() {
+        const matrix = summarizeObservabilityReplayMatrix(
+          state.runs,
+          state.grades,
+          state.mediaSignedUrlCoverage,
+          state.frontendCodeCrawl
+        );
+        const status = $("observability-replay-status");
+        status.className = `badge ${matrix.blocked_replay_count > 0 ? "fail" : matrix.replay_case_count > 0 ? "warn" : "pass"}`;
+        status.textContent = matrix.replay_case_count > 0 ? `${matrix.replay_case_count} replay` : "clear";
+        $("observability-replay-summary").textContent = matrix.available
+          ? `${matrix.commercial_value} Trace ${matrix.trace_ready_count}, tool/error ${matrix.tool_error_case_count}, judge ${matrix.judge_linked_count}, official Observability ${matrix.official_observability_confirmed ? "mapped" : "unconfirmed"}.`
+          : "No failed cases require observability replay for this source.";
+        $("observability-replay-metrics").replaceChildren(
+          healthTile(String(matrix.replay_case_count), "replay cases"),
+          healthTile(String(matrix.trace_ready_count), "trace ready"),
+          healthTile(String(matrix.tool_error_case_count), "tool/error"),
+          healthTile(String(matrix.judge_linked_count), "judge linked")
+        );
+        $("observability-replay-lanes").replaceChildren(...(
+          matrix.lanes.length
+            ? matrix.lanes.map((lane) => observabilityLaneRow(lane))
+            : [emptyMatrixRow("No observability replay lanes are available.")]
+        ));
+        $("observability-replay-items").replaceChildren(...(
+          matrix.items.length
+            ? matrix.items.map((item) => observabilityReplayItemRow(item))
+            : [emptyMatrixRow("No observability replay items are queued.")]
+        ));
+      }
+
+      function observabilityLaneRow(lane) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(lane.lane)}</strong>
+            <span class="badge ${observabilityStatusClass(lane.status)}">${escapeHtml(lane.status)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(lane.ready_count)}/${escapeHtml(lane.total_count)} ready</span>
+          </div>
+          <div class="muted">${escapeHtml(lane.next_action)}</div>
+        `;
+        return node;
+      }
+
+      function observabilityReplayItemRow(item) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>#${escapeHtml(item.rank)} ${escapeHtml(item.case_id)}</strong>
+            <span class="badge ${observabilityStatusClass(item.production_risk)}">${escapeHtml(item.production_risk)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(item.observability_state)}</span>
+            <span>${escapeHtml(item.primary_failure_class)}</span>
+            <span>trace ${escapeHtml(item.trace_event_count)}</span>
+            <span>tool errors ${escapeHtml(item.tool_error_count)}</span>
+            <span>judge ${escapeHtml(item.judge_evidence_count)}</span>
+            <span>media ${escapeHtml(item.media_evidence_count)}</span>
+          </div>
+          <div class="muted">${escapeHtml(item.next_action)}</div>
+        `;
+        node.addEventListener("click", () => {
+          state.selectedCaseId = item.case_id;
+          renderCaseList();
+          renderTriageQueue();
+          renderPrintReport();
+          renderDetail();
+        });
+        return node;
+      }
+
+      function observabilityStatusClass(status) {
+        if (["ready", "replay_ready", "mapped", "metadata_only"].includes(status)) {
+          return "pass";
+        }
+        if (["needs_replay", "active", "watch", "needs_evidence", "unconfirmed"].includes(status)) {
+          return "warn";
+        }
+        if (["blocker", "blocked_with_evidence"].includes(status)) {
+          return "fail";
+        }
+        return "neutral";
+      }
+
       function renderReviewerWorkflowBoard() {
         const board = summarizeReviewerWorkflowBoard(
           state.runs,
@@ -2613,18 +2716,19 @@
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
+        const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
         const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
         $("report-status").className = "badge info";
         $("report-status").textContent = `${summary.totalCases} cases`;
-        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
         $("report-center").replaceChildren(
-          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, reviewer workflow board, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
+          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, reviewer workflow board, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
           reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class."),
-          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
+          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, observability replay matrix, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
+          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
         );
       }
 
@@ -2647,6 +2751,7 @@
         const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
+        const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
         const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
@@ -2741,6 +2846,29 @@
               item.owner_lane,
               `${item.primary_failure_class} / ${item.severity} / trace ${item.trace_event_count} / diffs ${item.tool_diff_count} / judge ${item.judge_evidence_count}`
             ]), "No incident replay cases.")}
+          </div>
+          <div class="report-section">
+            <h4>Observability Replay Matrix</h4>
+            <div class="muted">${escapeHtml(observabilityReplay.commercial_value)}</div>
+            ${renderReportTable(["Signal", "Value"], [
+              ["Replay cases", observabilityReplay.replay_case_count],
+              ["Trace ready", observabilityReplay.trace_ready_count],
+              ["Tool/error cases", observabilityReplay.tool_error_case_count],
+              ["Latency/duration cases", observabilityReplay.latency_case_count],
+              ["Judge linked", observabilityReplay.judge_linked_count],
+              ["Blocked replay", observabilityReplay.blocked_replay_count],
+              ["Official Observability", observabilityReplay.official_observability_confirmed ? "mapped" : "unconfirmed"]
+            ])}
+            ${renderReportTable(["Lane", "Status", "Next Action"], observabilityReplay.lanes.map((lane) => [
+              `${lane.lane} (${lane.ready_count}/${lane.total_count})`,
+              lane.status,
+              lane.next_action
+            ]), "No observability replay lanes.")}
+            ${renderReportTable(["Case", "Risk", "Replay Evidence"], observabilityReplay.items.map((item) => [
+              `${item.case_id} / ${item.owner_lane}`,
+              item.production_risk,
+              `${item.observability_state}; trace ${item.trace_event_count}; errors ${item.error_signal_count}; judge ${item.judge_evidence_count}`
+            ]), "No observability replay items.")}
           </div>
           <div class="report-section">
             <h4>Reviewer Workflow Board</h4>
@@ -3351,6 +3479,7 @@
         renderReleaseGate();
         renderReleaseWarRoom();
         renderIncidentReplayQueue();
+        renderObservabilityReplayMatrix();
         renderReviewerWorkflowBoard();
         renderReleaseWorkflow();
         renderReportCenter();

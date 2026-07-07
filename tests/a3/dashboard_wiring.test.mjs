@@ -288,6 +288,27 @@ test("A3 dashboard wires incident replay queue into console and reports", async 
   assert.match(html, /Incident Replay Queue<\/h4>/);
 });
 
+test("A3 dashboard wires observability replay matrix into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeObservabilityReplayMatrix/);
+  assert.match(html, /href="#observability-replay"/);
+  assert.match(html, /id="observability-replay"/);
+  assert.match(html, /Observability Replay/);
+  assert.match(html, /id="observability-replay-status"/);
+  assert.match(html, /id="observability-replay-summary"/);
+  assert.match(html, /id="observability-replay-metrics"/);
+  assert.match(html, /id="observability-replay-lanes"/);
+  assert.match(html, /id="observability-replay-items"/);
+  assert.match(html, /function renderObservabilityReplayMatrix\(\)/);
+  assert.match(html, /function observabilityLaneRow\(lane\)/);
+  assert.match(html, /function observabilityReplayItemRow\(item\)/);
+  assert.match(html, /renderObservabilityReplayMatrix\(\)/);
+  assert.match(html, /observabilityReplay\.replay_case_count/);
+  assert.match(html, /Observability Replay Matrix<\/h4>/);
+  assert.match(html, /Official Observability/);
+});
+
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
   const html = await loadDashboardHtml();
 

@@ -2263,3 +2263,82 @@ Full result:
 ### Current interpretation
 
 Official Code Crawl Parity gives A3 a stronger product reference without copying official source. It shows which official frontend chunks imply results review, trace observability, media evidence, trust/audit, usage, API keys, and team admin. A3 should copy the release-intelligence workflow and keep admin, billing, and secret flows out of scope.
+
+## 2026-07-07 - Observability Replay Matrix
+
+### Goal
+
+Turn failed-case replay into production-style observability replay evidence.
+
+### Work completed
+
+- Added `summarizeObservabilityReplayMatrix()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `observability_replay_matrix`
+- Added Markdown report section:
+  - `Observability Replay Matrix`
+- Added dashboard panel:
+  - `Observability Replay`
+- Added print/PDF report section:
+  - `Observability Replay Matrix`
+- Added replay lanes for:
+  - trace timeline
+  - tool errors
+  - latency / duration
+  - A2 judge link
+  - media metadata
+  - official Observability parity
+- Added per-case production replay items with production risk, observability state, trace counts, tool/error counts, judge counts, media counts, and next action.
+- Added implementation note:
+  - `docs/a3/p3_observability_replay_matrix_growth_2026_07_07.md`
+- Added clean-room explorer note:
+  - `docs/a3/p3_observability_replay_cleanroom_2026_07_07.md`
+- Added Growth-Auditor note:
+  - `docs/a3/p3_growth_auditor_observability_replay_2026_07_07.md`
+
+### A1/A2/Official calibration
+
+- A1 supplies trace events, observations, tool-call diffs, latency/duration fields, and tool-error text.
+- A2 supplies score, pass/fail, primary failure class, judge evidence, and remediation.
+- Official code crawl supplies ObservabilityPage / trace / latency / error product signals without copying official source.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+48 tests
+48 pass
+0 fail
+```
+
+Full A3 command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+84 tests
+84 pass
+0 fail
+```
+
+Browser smoke:
+
+- Opened the local dashboard with the official demo source.
+- Confirmed `Observability Replay`, `Trace Timeline`, and `Official Observability Parity` render.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-observability-replay-matrix.png`
+
+### Current interpretation
+
+Observability Replay Matrix is the production replay layer A3 was missing. It connects incident replay to trace evidence, tool/error evidence, A2 judge findings, media metadata, and official Observability parity. This moves A3 closer to a sellable release-intelligence platform that can block risky agent releases and support incident review.

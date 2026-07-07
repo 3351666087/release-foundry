@@ -323,6 +323,17 @@
 - [x] Added report-builder and dashboard-wiring tests for Official Code Crawl.
 - [x] Browser-smoke verified Official Code Crawl with 9 chunk rows, 6 parity target rows, and `source committed no`.
 - [x] Saved Official Code Crawl screenshot under `docs/screenshots/a3-dashboard-official-code-crawl-parity.png`.
+- [x] Added Observability Replay Matrix summary schema `a3.observability_replay_matrix.v1`.
+- [x] Added `observability_replay_matrix` JSON export field.
+- [x] Added Observability Replay Matrix Markdown and print/PDF report sections.
+- [x] Added Observability Replay dashboard panel.
+- [x] Added replay lanes for trace timeline, tool errors, latency/duration, A2 judge link, media metadata, and official Observability parity.
+- [x] Added per-case observability replay items with production risk, observability state, trace/tool/error/judge/media counts, official parity source, and next action.
+- [x] Calibrated Observability Replay against A1 trace/observation/tool-call evidence and A2 score/pass-fail/failure/judge evidence.
+- [x] Calibrated Observability Replay against official clean-room Observability code-crawl signals without copying source.
+- [x] Added report-builder and dashboard-wiring tests for Observability Replay.
+- [x] Browser-smoke verified Observability Replay after official-demo dashboard load.
+- [x] Saved Observability Replay screenshot under `docs/screenshots/a3-dashboard-observability-replay-matrix.png`.
 
 ## Next Acceptance Targets
 

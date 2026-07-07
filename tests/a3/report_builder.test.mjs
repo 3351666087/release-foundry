@@ -22,6 +22,7 @@ import {
   summarizeOfficialCodeCrawlParity,
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
+  summarizeObservabilityReplayMatrix,
   summarizeIncidentReplayQueue,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseGate,
@@ -273,6 +274,43 @@ test("A3 reviewer workflow board turns A1 and A2 evidence into owner review stat
   assert.match(markdown, /## Reviewer Workflow Board/);
   assert.match(markdown, /A1 trace ready/);
   assert.match(markdown, /A2 judge evidence ready/);
+});
+
+test("A3 observability replay matrix packages trace, error, judge, media, and official Observability signals", async () => {
+  const riskyRuns = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+  const frontendCodeCrawl = await loadJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
+
+  const matrix = summarizeObservabilityReplayMatrix(riskyRuns, riskyGrades, mediaSignedUrlCoverage, frontendCodeCrawl);
+
+  assert.equal(matrix.schema_version, "a3.observability_replay_matrix.v1");
+  assert.equal(matrix.available, true);
+  assert.ok(matrix.replay_case_count > 0);
+  assert.ok(matrix.trace_ready_count > 0);
+  assert.ok(matrix.tool_error_case_count > 0);
+  assert.ok(matrix.judge_linked_count > 0);
+  assert.equal(matrix.official_observability_confirmed, true);
+  assert.ok(matrix.official_observability_chunks.some((chunk) => /ObservabilityPage/.test(chunk)));
+  assert.ok(matrix.lanes.some((lane) => lane.lane === "Trace Timeline" && lane.ready_count > 0));
+  assert.ok(matrix.lanes.some((lane) => lane.lane === "A2 Judge Link" && lane.ready_count > 0));
+  assert.ok(matrix.lanes.some((lane) => lane.lane === "Official Observability Parity" && lane.status === "mapped"));
+  assert.ok(matrix.items.some((item) => item.production_risk === "blocker"));
+  assert.ok(matrix.items.some((item) => item.trace_event_count > 0));
+  assert.ok(matrix.items.some((item) => item.judge_evidence_count > 0));
+  assert.ok(matrix.items.some((item) => /ObservabilityPage/.test(item.official_parity_source)));
+  assert.ok(matrix.replay_steps.some((step) => /A1 trace/.test(step)));
+  assert.ok(matrix.replay_steps.some((step) => /A2 judge/.test(step)));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.equal(json.observability_replay_matrix.schema_version, "a3.observability_replay_matrix.v1");
+  assert.equal(json.observability_replay_matrix.official_observability_confirmed, true);
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage, {}, {}, {}, frontendCodeCrawl);
+  assert.match(markdown, /## Observability Replay Matrix/);
+  assert.match(markdown, /Official observability confirmed: yes/);
+  assert.match(markdown, /Trace Timeline/);
 });
 
 test("A3 report builder clusters failures by primary failure class", async () => {

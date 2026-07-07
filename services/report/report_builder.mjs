@@ -1377,6 +1377,196 @@ function reviewerWorkflowNextAction(item = {}, reviewState = "", missingArtifact
   return item.failure_summary || "Review case evidence and record disposition.";
 }
 
+export function summarizeObservabilityReplayMatrix(runFixture = {}, gradeFixture = {}, mediaSignedUrlFixture = {}, frontendCodeCrawlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const replayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 8 });
+  const codeCrawl = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
+  const officialObservabilityMapped = officialObservabilityConfirmed(codeCrawl);
+  const officialObservabilityChunkNames = officialObservabilityChunks(codeCrawl);
+  const caseById = new Map(cases.map((item) => [item.case_id, item]));
+  const items = replayQueue.queue.map((replayItem, index) => buildObservabilityReplayItem(
+    replayItem,
+    caseById.get(replayItem.case_id) || {},
+    index,
+    codeCrawl
+  ));
+  const lanes = buildObservabilityReplayLanes(items, codeCrawl);
+  const traceReadyCount = items.filter((item) => item.trace_ready).length;
+  const toolErrorCaseCount = items.filter((item) => item.tool_error_count > 0 || item.error_signal_count > 0).length;
+  const latencyCaseCount = items.filter((item) => item.latency_ms > 0 || item.duration_ms > 0).length;
+  const mediaCaseCount = items.filter((item) => item.media_evidence_count > 0).length;
+  const judgeLinkedCount = items.filter((item) => item.judge_evidence_count > 0).length;
+  const blockedReplayCount = items.filter((item) => item.production_risk === "blocker").length;
+
+  return {
+    schema_version: "a3.observability_replay_matrix.v1",
+    available: items.length > 0,
+    replay_case_count: items.length,
+    trace_ready_count: traceReadyCount,
+    tool_error_case_count: toolErrorCaseCount,
+    latency_case_count: latencyCaseCount,
+    media_case_count: mediaCaseCount,
+    judge_linked_count: judgeLinkedCount,
+    blocked_replay_count: blockedReplayCount,
+    official_observability_confirmed: officialObservabilityMapped,
+    official_observability_chunks: officialObservabilityChunkNames,
+    lanes,
+    items,
+    a1_a2_calibration: {
+      normalized_case_count: cases.length,
+      a1_trace_ready_count: traceReadyCount,
+      a1_tool_diff_ready_count: replayQueue.tool_diff_ready_count,
+      a2_judge_evidence_ready_count: judgeLinkedCount,
+      media_evidence_ready_count: mediaCaseCount
+    },
+    replay_steps: [
+      "Open the failed case in A3 and confirm run id, case id, score, and failure class.",
+      "Replay A1 trace events and observations before assigning a production disposition.",
+      "Inspect tool-call diffs, tool errors, timeout/error text, and latency signals.",
+      "Read A2 judge evidence and remediation to explain why the incident matters.",
+      "Attach media metadata only; do not render live signed media URLs.",
+      "Record whether the incident is reproducible, fixed, waived, or blocked before release."
+    ],
+    commercial_value: "Turns trace, tool errors, latency, judge findings, and media metadata into a production replay matrix that can block risky agent releases and support incident review."
+  };
+}
+
+function buildObservabilityReplayItem(replayItem = {}, caseItem = {}, index = 0, codeCrawl = {}) {
+  const traceEvents = Array.isArray(caseItem.trace_events) ? caseItem.trace_events : [];
+  const observations = Array.isArray(caseItem.observations) ? caseItem.observations : [];
+  const traceReady = replayItem.trace_ready || traceEvents.length > 0 || observations.length > 0;
+  const toolErrorCount = countToolErrorSignals(caseItem);
+  const errorSignalCount = countErrorSignals(caseItem);
+  const latencyMs = numberOrDefault(caseItem.latency_ms, 0);
+  const durationMs = numberOrDefault(caseItem.duration_ms, 0);
+  const mediaEvidenceCount = Number(replayItem.media_evidence_count || 0) + Number(replayItem.vm_stream_count || 0);
+  const productionRisk = replayItem.release_blocker || toolErrorCount > 0 || errorSignalCount > 0
+    ? "blocker"
+    : replayItem.tool_diff_count > 0 || replayItem.judge_evidence_count > 0
+      ? "needs_replay"
+      : "watch";
+  const observabilityState = traceReady && replayItem.judge_evidence_count > 0
+    ? productionRisk === "blocker" ? "blocked_with_evidence" : "replay_ready"
+    : "needs_evidence";
+
+  return {
+    rank: index + 1,
+    run_id: replayItem.run_id,
+    case_id: replayItem.case_id,
+    scenario_id: replayItem.scenario_id,
+    owner_lane: replayItem.owner_lane,
+    production_risk: productionRisk,
+    observability_state: observabilityState,
+    score: replayItem.score,
+    severity: replayItem.severity,
+    primary_failure_class: replayItem.primary_failure_class,
+    trace_ready: traceReady,
+    trace_event_count: traceEvents.length || replayItem.trace_event_count,
+    observation_count: observations.length || replayItem.observation_count,
+    latency_ms: latencyMs,
+    duration_ms: durationMs,
+    tool_diff_count: replayItem.tool_diff_count,
+    tool_error_count: toolErrorCount,
+    error_signal_count: errorSignalCount,
+    judge_evidence_count: replayItem.judge_evidence_count,
+    media_evidence_count: mediaEvidenceCount,
+    official_parity_source: observabilityParitySource(codeCrawl),
+    next_action: observabilityReplayNextAction({
+      traceReady,
+      productionRisk,
+      toolErrorCount,
+      errorSignalCount,
+      judgeEvidenceCount: replayItem.judge_evidence_count,
+      mediaEvidenceCount
+    })
+  };
+}
+
+function buildObservabilityReplayLanes(items = [], codeCrawl = {}) {
+  const traceReadyCount = items.filter((item) => item.trace_ready).length;
+  const toolErrorCount = items.filter((item) => item.tool_error_count > 0 || item.error_signal_count > 0).length;
+  const latencyCount = items.filter((item) => item.latency_ms > 0 || item.duration_ms > 0).length;
+  const judgeCount = items.filter((item) => item.judge_evidence_count > 0).length;
+  const mediaCount = items.filter((item) => item.media_evidence_count > 0).length;
+  const officialMapped = officialObservabilityConfirmed(codeCrawl);
+
+  return [
+    observabilityLane("Trace Timeline", traceReadyCount, items.length, traceReadyCount === items.length ? "ready" : "needs_evidence", "Replay A1 trace events and observations for every queued incident."),
+    observabilityLane("Tool Errors", toolErrorCount, items.length, toolErrorCount > 0 ? "active" : "watch", "Inspect tool errors, timeouts, wrong tools, wrong arguments, and tool-order drift."),
+    observabilityLane("Latency / Duration", latencyCount, items.length, latencyCount > 0 ? "active" : "watch", "Use latency or duration fields when available; request A1 timing evidence when missing."),
+    observabilityLane("A2 Judge Link", judgeCount, items.length, judgeCount === items.length ? "ready" : "needs_evidence", "Read A2 failure class, score, summary, details, and remediation before disposition."),
+    observabilityLane("Media Metadata", mediaCount, items.length, mediaCount > 0 ? "metadata_only" : "watch", "Attach media metadata only and keep live signed URLs blocked."),
+    observabilityLane("Official Observability Parity", officialMapped ? 1 : 0, 1, officialMapped ? "mapped" : "unconfirmed", "Use official Observability code-crawl signals as product reference, not copied source.")
+  ];
+}
+
+function observabilityLane(lane, readyCount, totalCount, status, nextAction) {
+  return {
+    lane,
+    ready_count: readyCount,
+    total_count: totalCount,
+    status,
+    next_action: nextAction
+  };
+}
+
+function observabilityReplayNextAction({
+  traceReady = false,
+  productionRisk = "watch",
+  toolErrorCount = 0,
+  errorSignalCount = 0,
+  judgeEvidenceCount = 0,
+  mediaEvidenceCount = 0
+} = {}) {
+  if (!traceReady) {
+    return "Request A1 trace/observation evidence before production replay sign-off.";
+  }
+  if (judgeEvidenceCount === 0) {
+    return "Request A2 judge evidence before assigning incident disposition.";
+  }
+  if (productionRisk === "blocker") {
+    return toolErrorCount > 0 || errorSignalCount > 0
+      ? "Replay tool/error path and block release until owner records fix or exception."
+      : "Replay high-risk trace and block release until reviewer disposition is recorded.";
+  }
+  if (mediaEvidenceCount > 0) {
+    return "Review media metadata and attach it to the replay packet without rendering signed URLs.";
+  }
+  return "Replay trace, confirm expected vs actual, and record reviewer disposition.";
+}
+
+function observabilityParitySource(codeCrawl = {}) {
+  const chunks = officialObservabilityChunks(codeCrawl);
+  return chunks[0] || "ObservabilityPage clean-room signal";
+}
+
+function officialObservabilityConfirmed(codeCrawl = {}) {
+  return Array.isArray(codeCrawl.parity_targets) && codeCrawl.parity_targets.some((target) => target.target === "Trace observability");
+}
+
+function officialObservabilityChunks(codeCrawl = {}) {
+  return (Array.isArray(codeCrawl.chunks) ? codeCrawl.chunks : [])
+    .filter((chunk) => /observability|trace|latency|error/i.test(`${chunk.role} ${chunk.chunk} ${chunk.a3_decision}`))
+    .map((chunk) => chunk.chunk);
+}
+
+function countToolErrorSignals(item = {}) {
+  const values = [
+    ...(Array.isArray(item.trace_events) ? item.trace_events : []),
+    ...(Array.isArray(item.observations) ? item.observations : [])
+  ];
+  return values.filter((entry) => /tool-error|timeout|error|failed|failure/i.test(JSON.stringify(entry))).length;
+}
+
+function countErrorSignals(item = {}) {
+  return /timeout|error|failed|failure|exception/i.test(JSON.stringify({
+    failure_summary: item.failure_summary,
+    trace_events: item.trace_events,
+    observations: item.observations,
+    actual: item.actual
+  })) ? 1 : 0;
+}
+
 function gateCheck(id, passed, observed, detail) {
   return { id, passed, observed, detail };
 }
@@ -2397,6 +2587,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
   const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture);
   const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
+  const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2514,6 +2705,32 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("", "### Reviewer Items", "");
     for (const item of reviewerWorkflowBoard.items) {
       lines.push(`- ${item.case_id}: ${item.review_state} / ${item.owner_lane} / missing ${item.missing_artifacts.join(", ") || "none"} - ${item.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (observabilityReplayMatrix.available) {
+    lines.push(
+      "## Observability Replay Matrix",
+      "",
+      `- Replay cases: ${observabilityReplayMatrix.replay_case_count}`,
+      `- Trace-ready cases: ${observabilityReplayMatrix.trace_ready_count}`,
+      `- Tool/error cases: ${observabilityReplayMatrix.tool_error_case_count}`,
+      `- Latency/duration cases: ${observabilityReplayMatrix.latency_case_count}`,
+      `- Judge-linked cases: ${observabilityReplayMatrix.judge_linked_count}`,
+      `- Media cases: ${observabilityReplayMatrix.media_case_count}`,
+      `- Blocked replay cases: ${observabilityReplayMatrix.blocked_replay_count}`,
+      `- Official observability confirmed: ${observabilityReplayMatrix.official_observability_confirmed ? "yes" : "no"}`,
+      `- Commercial value: ${observabilityReplayMatrix.commercial_value}`,
+      ""
+    );
+    lines.push("### Observability Lanes", "");
+    for (const lane of observabilityReplayMatrix.lanes) {
+      lines.push(`- ${lane.lane}: ${lane.status} / ${lane.ready_count}/${lane.total_count} - ${lane.next_action}`);
+    }
+    lines.push("", "### Replay Items", "");
+    for (const item of observabilityReplayMatrix.items) {
+      lines.push(`- ${item.case_id}: ${item.production_risk} / ${item.observability_state} / trace ${item.trace_event_count} / errors ${item.error_signal_count} / judge ${item.judge_evidence_count} - ${item.next_action}`);
     }
     lines.push("");
   }
@@ -2817,6 +3034,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
     incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture),
     reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
+    observability_replay_matrix: summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,
