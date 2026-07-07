@@ -2153,3 +2153,65 @@ Result:
 ### API calibration note
 
 No live Ashr API call was made in this pass. The work uses existing redacted P3 Ashr fixtures, the official frontend clean-room summary, and local A1/A2-derived fixtures. No API key, token, cookie, email, raw signed media URL, or official source file was saved.
+
+## 2026-07-07 - Incident replay queue
+
+### Goal
+
+Build a replay-first failed-case queue that can support release review, incident review, waiver review, and audit export.
+
+### Added capability
+
+A3 now supports:
+
+- `a3.incident_replay_queue.v1`
+- `summarizeIncidentReplayQueue()`
+- dashboard `Incident Replay` panel
+- JSON export field `incident_replay_queue`
+- Markdown section `Incident Replay Queue`
+- print/PDF section `Incident Replay Queue`
+- reviewer packet artifact list per replay case
+
+### A1/A2 calibration note
+
+The replay queue is intentionally joined from upstream evidence:
+
+- A1-style trace/observation readiness
+- A1 expected-vs-actual tool-call diff evidence
+- A2 judge evidence count and judge modes
+- A2 failure class and severity
+- A3 release blocker status
+- P3 metadata-only media evidence
+
+This means A3 replay is still connected to runner and judge output instead of becoming a dashboard-only mock.
+
+### Artifacts
+
+- Code:
+  - `services/report/report_builder.mjs`
+  - `apps/dashboard/index.html`
+- Tests:
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+- Docs:
+  - `docs/a3/p3_incident_replay_queue_growth_2026_07_07.md`
+- Screenshot:
+  - `docs/screenshots/a3-dashboard-incident-replay-queue.png`
+
+### Verification
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+78 tests
+78 pass
+0 fail
+```
+
+### API calibration note
+
+No live Ashr API call was made in this pass. The work uses existing redacted P3 Ashr fixtures and local A1/A2-derived fixtures. No API key, token, cookie, email, raw signed media URL, or official source file was saved.

@@ -1093,6 +1093,44 @@ export function summarizeReleaseWarRoom(
   };
 }
 
+export function summarizeIncidentReplayQueue(runFixture = {}, gradeFixture = {}, mediaSignedUrlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, {}, mediaSignedUrlFixture);
+  const failedCases = cases
+    .filter((item) => !item.passed)
+    .sort((left, right) => incidentReplayWeight(right) - incidentReplayWeight(left) || left.score - right.score)
+    .slice(0, options.limit || 8);
+  const queue = failedCases.map((item, index) => buildIncidentReplayItem(item, index, mediaReadiness));
+  const ownerCounts = queue.reduce((counts, item) => {
+    counts[item.owner_lane] = (counts[item.owner_lane] || 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    schema_version: "a3.incident_replay_queue.v1",
+    available: queue.length > 0,
+    replay_mode: "failed_cases_first",
+    queue_count: queue.length,
+    run_ids: uniqueSorted(queue.map((item) => item.run_id)),
+    owner_counts: ownerCounts,
+    blocker_count: queue.filter((item) => item.release_blocker).length,
+    trace_ready_count: queue.filter((item) => item.trace_ready).length,
+    tool_diff_ready_count: queue.filter((item) => item.tool_diff_count > 0).length,
+    judge_evidence_ready_count: queue.filter((item) => item.judge_evidence_count > 0).length,
+    media_evidence_ready_count: queue.filter((item) => item.media_evidence_count > 0 || item.vm_stream_count > 0).length,
+    queue,
+    replay_steps: [
+      "Open the failed case detail before approving the release.",
+      "Replay A1 trace events and tool-call diffs.",
+      "Read linked A2 judge evidence and remediation.",
+      "Compare expected vs actual response and required tools.",
+      "Attach media evidence metadata when present.",
+      "Record reviewer owner, disposition, and follow-up issue before waiver or merge."
+    ],
+    commercial_value: "Packages failed agent behavior into replay-first incident evidence so reviewers can reproduce risk before signing off."
+  };
+}
+
 function gateCheck(id, passed, observed, detail) {
   return { id, passed, observed, detail };
 }
@@ -1176,6 +1214,135 @@ function warRoomLane(lane, owner, status, evidence, nextAction) {
     evidence,
     next_action: nextAction
   };
+}
+
+function buildIncidentReplayItem(item, index, mediaReadiness = {}) {
+  const toolDiffs = buildToolCallDiffs(item);
+  const nonMatchingDiffs = toolDiffs.filter((diff) => diff.status !== "match");
+  const traceEvents = Array.isArray(item.trace_events) ? item.trace_events : [];
+  const observations = Array.isArray(item.observations) ? item.observations : [];
+  const judgeEvidence = toolDiffs.flatMap((diff) => diff.judge_evidence || []);
+  const media = item.media_evidence || {};
+  const mediaEvidenceItems = Array.isArray(media.evidence_items) ? media.evidence_items : [];
+  const vmStreams = Array.isArray(media.vm_streams) ? media.vm_streams : [];
+  const traceReady = traceEvents.length > 0 || observations.length > 0;
+  const releaseBlocker = ["critical", "blocker", "major", "high"].includes(item.severity)
+    || [
+      "unsafe_or_policy_violation",
+      "forbidden_tool_call",
+      "missing_required_tool"
+    ].includes(item.primary_failure_class);
+  const ownerLane = incidentReplayOwnerLane(item.primary_failure_class, {
+    hasToolDiffs: nonMatchingDiffs.length > 0,
+    hasMedia: mediaEvidenceItems.length > 0 || vmStreams.length > 0
+  });
+
+  return {
+    rank: index + 1,
+    run_id: item.run_id || "unknown-run",
+    case_id: item.case_id,
+    scenario_id: item.scenario_id,
+    title: item.title,
+    status: item.passed ? "passed" : "failed",
+    score: normalizeScore(item.score),
+    severity: item.severity || "major",
+    primary_failure_class: item.primary_failure_class || "wrong_intent",
+    failure_summary: item.failure_summary,
+    release_blocker: releaseBlocker,
+    owner_lane: ownerLane,
+    trace_ready: traceReady,
+    trace_event_count: traceEvents.length,
+    observation_count: observations.length,
+    tool_diff_count: nonMatchingDiffs.length,
+    tool_diff_statuses: uniqueSorted(nonMatchingDiffs.map((diff) => diff.status)),
+    judge_evidence_count: judgeEvidence.length,
+    judge_modes: uniqueSorted(item.judge_modes || []),
+    media_evidence_count: mediaEvidenceItems.length,
+    vm_stream_count: vmStreams.length,
+    media_types: sortMediaChannels([
+      media.primary_media_type,
+      ...(Array.isArray(media.media_types) ? media.media_types : []),
+      ...mediaEvidenceItems.map((entry) => entry.type)
+    ].map(canonicalMediaChannel).filter(Boolean)),
+    signed_url_policy: mediaReadiness.live_rendering_allowed
+      ? "live_preview_allowed"
+      : "metadata_only",
+    replay_actions: buildIncidentReplayActions(item, {
+      traceReady,
+      nonMatchingDiffs,
+      judgeEvidence,
+      mediaEvidenceItems,
+      vmStreams
+    }),
+    reviewer_packet: {
+      required: true,
+      owner_lane: ownerLane,
+      artifacts: uniqueSorted([
+        "case_detail",
+        traceReady ? "trace_timeline" : "",
+        nonMatchingDiffs.length ? "tool_call_diff" : "",
+        judgeEvidence.length ? "a2_judge_evidence" : "",
+        mediaEvidenceItems.length || vmStreams.length ? "media_metadata" : "",
+        "expected_vs_actual",
+        "release_gate"
+      ])
+    }
+  };
+}
+
+function incidentReplayOwnerLane(failureClass = "", { hasToolDiffs = false, hasMedia = false } = {}) {
+  if (["unsafe_or_policy_violation", "forbidden_tool_call"].includes(failureClass)) {
+    return "Safety reviewer";
+  }
+  if ([
+    "missing_required_tool",
+    "wrong_tool",
+    "wrong_arguments",
+    "wrong_tool_order",
+    "hallucinated_tool_result",
+    "ignored_tool_result"
+  ].includes(failureClass) || hasToolDiffs) {
+    return "Runner/tooling owner";
+  }
+  if (hasMedia) {
+    return "Media evidence owner";
+  }
+  if (failureClass === "missing_clarification") {
+    return "Conversation design owner";
+  }
+  return "A3 triage owner";
+}
+
+function buildIncidentReplayActions(item, {
+  traceReady = false,
+  nonMatchingDiffs = [],
+  judgeEvidence = [],
+  mediaEvidenceItems = [],
+  vmStreams = []
+} = {}) {
+  return [
+    replayAction("case_detail", true, "Open case detail and confirm expected vs actual behavior."),
+    replayAction("trace_timeline", traceReady, traceReady ? "Replay A1 trace/observation timeline." : "Trace is missing; request A1 trace evidence."),
+    replayAction("tool_call_diff", nonMatchingDiffs.length > 0, nonMatchingDiffs.length ? `Inspect ${nonMatchingDiffs.length} non-matching tool-call diff(s).` : "No tool-call diff evidence is attached."),
+    replayAction("a2_judge_evidence", judgeEvidence.length > 0 || (item.judge_results || []).length > 0, "Read A2 judge summary, severity, remediation, and evidence ids."),
+    replayAction("media_metadata", mediaEvidenceItems.length > 0 || vmStreams.length > 0, "Review media evidence metadata only; do not render live signed URLs."),
+    replayAction("release_decision", true, "Record reviewer disposition before waiver, approval, or merge.")
+  ];
+}
+
+function replayAction(action, ready, detail) {
+  return {
+    action,
+    ready: Boolean(ready),
+    detail
+  };
+}
+
+function incidentReplayWeight(item = {}) {
+  return releaseGateCaseWeight(item)
+    + (item.media_evidence ? 15 : 0)
+    + buildToolCallDiffs(item).filter((diff) => diff.status !== "match").length * 10
+    + ((item.judge_results || []).length ? 5 : 0);
 }
 
 function buildWarRoomExecutiveBrief({
@@ -1950,6 +2117,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
+  const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2017,6 +2185,28 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("### War Room Lanes", "");
     for (const lane of releaseWarRoom.lanes) {
       lines.push(`- ${lane.lane}: ${lane.status} / ${lane.owner} - ${lane.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (incidentReplayQueue.available) {
+    lines.push(
+      "## Incident Replay Queue",
+      "",
+      `- Replay mode: ${incidentReplayQueue.replay_mode}`,
+      `- Queue count: ${incidentReplayQueue.queue_count}`,
+      `- Blocker cases: ${incidentReplayQueue.blocker_count}`,
+      `- Trace-ready cases: ${incidentReplayQueue.trace_ready_count}`,
+      `- Tool-diff-ready cases: ${incidentReplayQueue.tool_diff_ready_count}`,
+      `- Judge-evidence-ready cases: ${incidentReplayQueue.judge_evidence_ready_count}`,
+      `- Media-evidence-ready cases: ${incidentReplayQueue.media_evidence_ready_count}`,
+      `- Commercial value: ${incidentReplayQueue.commercial_value}`,
+      ""
+    );
+    lines.push("### Replay Steps", "", ...incidentReplayQueue.replay_steps.map((step) => `- ${step}`), "");
+    lines.push("### Replay Cases", "");
+    for (const item of incidentReplayQueue.queue) {
+      lines.push(`- ${item.rank}. ${item.case_id}: ${item.primary_failure_class} / ${item.severity} / ${item.score} / ${item.owner_lane} - ${item.failure_summary}`);
     }
     lines.push("");
   }
@@ -2289,6 +2479,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     release_gate: summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
+    incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

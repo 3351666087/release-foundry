@@ -246,6 +246,26 @@ test("A3 dashboard wires release war room into console and reports", async () =>
   assert.match(html, /Revenue risk score/);
 });
 
+test("A3 dashboard wires incident replay queue into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeIncidentReplayQueue/);
+  assert.match(html, /href="#incident-replay"/);
+  assert.match(html, /id="incident-replay"/);
+  assert.match(html, /Incident Replay/);
+  assert.match(html, /id="incident-replay-status"/);
+  assert.match(html, /id="incident-replay-summary"/);
+  assert.match(html, /id="incident-replay-metrics"/);
+  assert.match(html, /id="incident-replay-list"/);
+  assert.match(html, /id="incident-replay-steps"/);
+  assert.match(html, /function renderIncidentReplayQueue\(\)/);
+  assert.match(html, /function incidentReplayRow\(item\)/);
+  assert.match(html, /function incidentReplayStepRow\(index, step\)/);
+  assert.match(html, /renderIncidentReplayQueue\(\)/);
+  assert.match(html, /incidentReplay\.queue_count/);
+  assert.match(html, /Incident Replay Queue<\/h4>/);
+});
+
 test("A3 dashboard wires media readiness and safe cloud shell panels", async () => {
   const html = await loadDashboardHtml();
 

@@ -21,6 +21,7 @@ import {
   summarizeOfficialAshrGap,
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
+  summarizeIncidentReplayQueue,
   summarizeReleaseGate,
   summarizeReleaseWarRoom,
   summarizeReleaseWorkflow,
@@ -204,6 +205,37 @@ test("A3 release war room joins gate, replay, audit, and official parity signals
   assert.equal(committedWarRoom.decision, "no_go");
   assert.equal(committedWarRoom.safety.secret_values_saved, false);
   assert.equal(committedWarRoom.safety.raw_signed_urls_saved, false);
+});
+
+test("A3 incident replay queue packages failed cases with A1 and A2 evidence", async () => {
+  const riskyRuns = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+
+  const replay = summarizeIncidentReplayQueue(riskyRuns, riskyGrades, mediaSignedUrlCoverage);
+
+  assert.equal(replay.schema_version, "a3.incident_replay_queue.v1");
+  assert.equal(replay.available, true);
+  assert.ok(replay.queue_count > 0);
+  assert.ok(replay.blocker_count > 0);
+  assert.ok(replay.trace_ready_count > 0);
+  assert.ok(replay.tool_diff_ready_count > 0);
+  assert.ok(replay.judge_evidence_ready_count > 0);
+  assert.ok(replay.replay_steps.some((step) => /A1 trace/.test(step)));
+  assert.ok(replay.replay_steps.some((step) => /A2 judge/.test(step)));
+  assert.ok(replay.queue.some((item) => item.reviewer_packet.artifacts.includes("tool_call_diff")));
+  assert.ok(replay.queue.some((item) => item.reviewer_packet.artifacts.includes("a2_judge_evidence")));
+  assert.ok(replay.queue.every((item) => item.reviewer_packet.required));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage);
+  assert.equal(json.incident_replay_queue.schema_version, "a3.incident_replay_queue.v1");
+  assert.ok(json.incident_replay_queue.queue_count > 0);
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage);
+  assert.match(markdown, /## Incident Replay Queue/);
+  assert.match(markdown, /Replay A1 trace events and tool-call diffs/);
+  assert.match(markdown, /Read linked A2 judge evidence/);
 });
 
 test("A3 report builder clusters failures by primary failure class", async () => {

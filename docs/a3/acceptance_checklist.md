@@ -294,6 +294,15 @@
 - [x] Browser-smoke verified Official Parity Roadmap with 6 priority rows and Media Evidence Queue with 5 queued cases.
 - [x] Saved Official Parity Roadmap screenshot under `docs/screenshots/a3-dashboard-official-parity-media-queue.png`.
 - [x] Saved Media Evidence Queue screenshots under `docs/screenshots/a3-dashboard-media-evidence-queue.png` and `docs/screenshots/a3-dashboard-media-evidence-queue-detail.png`.
+- [x] Added Incident Replay Queue summary schema `a3.incident_replay_queue.v1`.
+- [x] Added `incident_replay_queue` JSON export field.
+- [x] Added Incident Replay Queue Markdown and print/PDF report sections.
+- [x] Added Incident Replay dashboard panel.
+- [x] Added reviewer packet artifacts per replay case.
+- [x] Added report-builder tests proving A1 trace/tool-call evidence and A2 judge evidence are packaged into replay queue.
+- [x] Added dashboard-wiring tests for Incident Replay.
+- [x] Browser-smoke verified Incident Replay Queue with 3 queued official-demo failed cases and 6 replay steps.
+- [x] Saved Incident Replay Queue screenshot under `docs/screenshots/a3-dashboard-incident-replay-queue.png`.
 
 ## Next Acceptance Targets
 

@@ -2075,3 +2075,51 @@ Result:
 ### Current interpretation
 
 A3 now explains not only what it already copied from official Ashr, but also the next build order and the cloud/admin boundaries that should remain disabled. Media evidence is still metadata-only, but reviewers can now see which cases are queued for media review and what evidence is missing.
+
+## 2026-07-07 - Incident Replay Queue
+
+### Goal
+
+Upgrade A3 from a release dashboard into a replay-first incident review workflow.
+
+### Work completed
+
+- Added `summarizeIncidentReplayQueue()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `incident_replay_queue`
+- Added Markdown report section:
+  - `Incident Replay Queue`
+- Added dashboard panel:
+  - `Incident Replay`
+- Added print/PDF report section:
+  - `Incident Replay Queue`
+- Updated Report Center copy to include incident replay evidence.
+- Added report-builder tests that prove the replay queue packages:
+  - A1 trace / observation readiness
+  - A1 tool-call diff evidence
+  - A2 judge evidence
+  - media metadata evidence
+  - reviewer packet artifacts
+- Added dashboard wiring tests for the Incident Replay panel.
+- Added implementation note:
+  - `docs/a3/p3_incident_replay_queue_growth_2026_07_07.md`
+- Saved browser verification screenshot:
+  - `docs/screenshots/a3-dashboard-incident-replay-queue.png`
+
+### Verification
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+78 tests
+78 pass
+0 fail
+```
+
+### Current interpretation
+
+Incident Replay Queue is a commercial workflow, not a cosmetic list. It turns failed cases into ranked replay packets with owner lanes, trace readiness, tool-call divergence, A2 judge evidence, media metadata, and release-blocker state. This moves A3 closer to a platform that can stop risky releases and help reviewers reproduce failures before sign-off.
