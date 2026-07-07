@@ -144,6 +144,14 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 201, report);
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/reports/center") {
+        return sendJson(response, 200, await store.getReportCenter({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       const reportMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)$/);
       if (request.method === "GET" && reportMatch) {
         const report = await store.getReport(decodeURIComponent(reportMatch[1]));

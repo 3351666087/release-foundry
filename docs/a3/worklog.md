@@ -2802,6 +2802,81 @@ A3 now has the shape of a SaaS product, not just a local HTML demo:
 - Did not copy official private frontend source; the UI remains a clean-room local implementation.
 - No real login, API-key creation, team invite, billing mutation, Trust publish, cloud delete, key reveal, token, cookie, account email, or signed URL was added.
 
+## 2026-07-07 - Report Center Control Plane Index
+
+### Goal
+
+Move A3 Report Center beyond local export buttons by adding an API-backed report inventory that can summarize hosted report lifecycle, manifest readiness, usage evidence, migration evidence, and redaction status.
+
+### Work completed
+
+- Added `services/report/a3_report_center.mjs`.
+  - New schema: `a3.report_center_index.v1`.
+  - Summarizes hosted report count, shareable/expired/revoked/blocked status, total views, manifest readiness, firewall pass count, usage meter count, SQL migration count, and next actions.
+  - Keeps cloud mutations and billing mutations disabled.
+- Extended `services/report/a3_store.mjs`.
+  - Adds `getReportCenter(...)`.
+  - Adds `report_center` to `/api/a3/dashboard` payloads.
+  - Keeps A1/A2 evidence joins intact through the existing normalized snapshot.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/reports/center`.
+- Extended dashboard API client and UI.
+  - Adds `fetchA3ReportCenter(...)`.
+  - API-backed dashboard state now includes `state.reportCenter`.
+  - Sharing a hosted report refreshes Report Center.
+  - Report Center now shows hosted reports with status, share path, view count, manifest completeness, artifact count, and redaction state.
+- Added `docs/a3/p3_report_center_control_plane_growth_2026_07_07.md`.
+  - Documents commercial meaning, incomplete parts, and next 20 growth points.
+- Updated `docs/a3/acceptance_checklist.md`.
+  - Marks Report Center index/API/dashboard wiring complete.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_center_index.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+37 tests
+37 pass
+0 fail
+```
+
+Final A3 suite result:
+
+```text
+126 tests
+126 pass
+0 fail
+```
+
+Secret/path scan result:
+
+```text
+Only intentional redaction-test strings and existing redaction policy examples were matched.
+No real key, cookie, token, account email, signed media URL, or local user artifact was added.
+```
+
+### Current interpretation
+
+This is a useful SaaS step because Report Center is now becoming a control plane:
+
+- It can list hosted reports instead of only creating one link.
+- It can tell whether each report is shareable, revoked, expired, or blocked.
+- It links reports to manifest completeness, redaction status, usage ledger, and SQL migration evidence.
+- It gives PR Gate, audit bundle, and self-host readiness a common future anchor.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not add real cloud mutation, real login, real API-key management, team invite, billing mutation, Trust publish, or destructive retention behavior.
+- No real key, token, cookie, account email, signed URL, or official private source was committed.
+
 ## 2026-07-07 - Import Idempotency And Hosted Report Lifecycle
 
 ### Goal

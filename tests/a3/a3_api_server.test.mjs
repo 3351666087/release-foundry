@@ -194,6 +194,14 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(manifest.release_packet.hosted_report_ready, true);
     assert.ok(manifest.artifacts.some((item) => item.id === "db_migration_plan"));
 
+    const reportCenter = await getJson(`${url}/api/a3/reports/center?source=mock`);
+    assert.equal(reportCenter.schema_version, "a3.report_center_index.v1");
+    assert.equal(reportCenter.summary.report_count, 1);
+    assert.equal(reportCenter.summary.shareable_count, 1);
+    assert.equal(reportCenter.reports[0].report_id, report.report_id);
+    assert.equal(reportCenter.control_plane.sql_contract_ready, true);
+    assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+
     const viewResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/view`, {
       method: "POST",
       headers: { "content-type": "application/json" },

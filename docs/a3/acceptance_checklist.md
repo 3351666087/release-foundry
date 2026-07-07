@@ -391,3 +391,5 @@
 - [x] Add SQL migration contract generator for Postgres, MySQL, and SQLite targets.
 - [x] Add read-only usage ledger meters for runs, cases, trace events, tool-call cases, judge results, hosted reports, report views, revocations, and API imports.
 - [x] Add report center manifest contract for hosted report artifacts, usage ledger evidence, and DB migration evidence.
+- [x] Add Report Center index/control-plane API for hosted report lifecycle, manifest readiness, usage, migration, and redaction status.
+- [x] Wire Report Center index into API-backed dashboard after hosted report creation.

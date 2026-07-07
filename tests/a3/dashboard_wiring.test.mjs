@@ -451,8 +451,13 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(runtimeComponent, /Usage meters/);
   assert.match(html, /data-share-report/);
   assert.match(html, /createShareableA3Report/);
+  assert.match(html, /fetchA3ReportCenter/);
   assert.match(html, /id="share-report-status"/);
   assert.match(html, /id="share-report-detail"/);
+  assert.match(html, /state\.reportCenter/);
+  assert.match(html, /GET \/api\/a3\/reports\/center/);
+  assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });
 

@@ -74,6 +74,13 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   const ledger = await store.getUsageLedger({ source: "mock" });
   assert.equal(ledger.schema_version, "a3.usage_ledger.v1");
   assert.equal(ledger.meters.find((item) => item.meter === "cases").quantity, 32);
+
+  const reportCenter = await store.getReportCenter({ source: "mock" });
+  assert.equal(reportCenter.schema_version, "a3.report_center_index.v1");
+  assert.equal(reportCenter.summary.report_count, 1);
+  assert.equal(reportCenter.summary.shareable_count, 1);
+  assert.equal(reportCenter.control_plane.sql_contract_ready, true);
+  assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
 });
 
 test("A3 store imports A1 run results and A2 grade results into an API-ingest source", async () => {
@@ -204,6 +211,12 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
   assert.equal(manifest.release_packet.migration_count, 6);
   assert.ok(manifest.artifacts.some((item) => item.id === "usage_ledger"));
+
+  const center = await store.getReportCenter({ source: "mock" });
+  assert.equal(center.summary.report_count, 1);
+  assert.equal(center.reports[0].report_id, report.report_id);
+  assert.equal(center.reports[0].manifest.migration_count, 6);
+  assert.ok(center.reports[0].manifest.completeness_score > 0);
 
   const revoked = await store.getReportForView(report.report_id, {
     viewer: "unit-test",

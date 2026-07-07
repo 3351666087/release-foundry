@@ -36,6 +36,16 @@ export async function fetchA3EnterpriseReadiness(options = {}) {
   return response.json();
 }
 
+export async function fetchA3ReportCenter(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/reports/center?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API report center load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

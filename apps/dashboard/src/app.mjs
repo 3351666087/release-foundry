@@ -30,6 +30,7 @@ import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapp
 import {
   createShareableA3Report,
   fetchA3DashboardSnapshot,
+  fetchA3ReportCenter,
   planA3AdminAction,
   isA3ApiSource
 } from "./api-client.mjs";
@@ -55,6 +56,7 @@ const state = {
   saasAdmin: {},
   enterpriseReadiness: {},
   usageLedger: {},
+  reportCenter: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   cases: [],
@@ -1276,15 +1278,22 @@ function renderReportCenter() {
   const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
+  const reportCenter = state.reportCenter || {};
+  const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
-  $("report-status").textContent = `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
-  $("report-center").replaceChildren(
+  $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
     reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
     reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
-  );
+  ];
+  if (hostedReports.length) {
+    tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
+    tiles.push(...hostedReports.map(hostedReportRow));
+  }
+  $("report-center").replaceChildren(...tiles);
 }
 
 function renderExportRedactionFirewall() {
@@ -1351,6 +1360,42 @@ function reportTile(label, description) {
   node.className = "report-tile";
   node.innerHTML = `<strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span>`;
   return node;
+}
+
+function hostedReportRow(report) {
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>${escapeHtml(report.title || report.report_id)}</strong>
+      <span class="badge ${reportStatusClass(report.status)}">${escapeHtml(report.status)}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(report.report_id)}</span>
+      <span>${escapeHtml(report.share_url_path || "no share path")}</span>
+      <span>${escapeHtml(report.view_count || 0)} view(s)</span>
+    </div>
+    <div class="case-meta">
+      <span>manifest ${escapeHtml(report.manifest?.completeness_score ?? 0)}%</span>
+      <span>${escapeHtml(report.manifest?.artifact_count || 0)} artifact(s)</span>
+      <span>${escapeHtml(report.redaction?.status || "unknown")} redaction</span>
+    </div>
+    <div class="muted">${escapeHtml((report.manifest?.missing || []).length ? `Missing: ${report.manifest.missing.join(", ")}` : "Manifest evidence is ready for PR gate and audit bundle linkage.")}</div>
+  `;
+  return node;
+}
+
+function reportStatusClass(status) {
+  if (status === "shareable") {
+    return "pass";
+  }
+  if (status === "expired" || status === "revoked") {
+    return "warn";
+  }
+  if (status === "blocked") {
+    return "fail";
+  }
+  return "neutral";
 }
 
 function renderPrintReport() {
@@ -2083,6 +2128,11 @@ async function shareReport() {
     status.className = `badge ${report.status === "shareable" ? "pass" : "fail"}`;
     status.textContent = report.status;
     $("share-report-detail").textContent = `${report.share_url_path} / ${report.sealed_evidence.hash_algorithm}:${report.sealed_evidence.payload_hash.slice(0, 12)} / ${report.redaction.status}`;
+    state.reportCenter = await fetchA3ReportCenter({
+      source: state.source,
+      baseUrl: getA3ApiBaseUrl()
+    });
+    renderReportCenter();
   } catch (error) {
     status.className = "badge fail";
     status.textContent = "failed";
@@ -2111,6 +2161,7 @@ function applyApiDashboardPayload(payload) {
   state.saasAdmin = payload.saas_admin_console || {};
   state.enterpriseReadiness = payload.enterprise_readiness || {};
   state.usageLedger = payload.usage_ledger || {};
+  state.reportCenter = payload.report_center || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2135,7 +2186,8 @@ function resetSaasRuntime(mode = "static_fixture") {
         "POST /api/a3/import/a1-run-result",
         "POST /api/a3/import/a2-grade-result",
         "GET /api/a3/enterprise/readiness",
-        "POST /api/a3/reports/share"
+        "POST /api/a3/reports/share",
+        "GET /api/a3/reports/center"
       ],
       tables: ["runs", "cases", "trace_events", "grade_results", "shareable_reports"],
       guardrails: [
@@ -2344,6 +2396,7 @@ function resetCalibrationState() {
   state.mediaSignedUrlCoverage = {};
   state.authCheck = {};
   state.frontendSummary = {};
+  state.reportCenter = {};
 }
 
 async function init() {

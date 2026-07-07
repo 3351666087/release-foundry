@@ -14,6 +14,7 @@ import {
   planSaasAdminAction
 } from "./a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "./a3_enterprise_readiness.mjs";
+import { buildReportCenterIndex } from "./a3_report_center.mjs";
 import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
@@ -122,6 +123,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
+    "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest"
   ],
   guardrails: [
@@ -225,7 +227,11 @@ export function createMemoryA3Store(seed = {}) {
 
     async getDashboardSnapshot(source = "mock") {
       const snapshot = selectSnapshot(snapshots, source);
-      return buildDashboardPayload(snapshot, this.storage_mode);
+      return buildDashboardPayload(snapshot, this.storage_mode, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
     },
 
     async listRuns(options = {}) {
@@ -447,6 +453,23 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async getReportCenter(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      return buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger: buildA3UsageLedger(snapshot, {
+          reports: [...reports.values()],
+          auditEvents,
+          importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+          organizationId: options.organizationId || snapshot.organizationId,
+          projectId: options.projectId || snapshot.projectId
+        }),
+        migrationPlan: buildA3SqlMigrationPlan()
+      });
+    },
+
     async getReportForView(reportId, options = {}) {
       const report = reports.get(reportId);
       if (!report) {
@@ -642,8 +665,14 @@ function normalizeSnapshot(snapshot = {}) {
   };
 }
 
-function buildDashboardPayload(snapshot, storageMode) {
+function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
+  const usageLedger = buildA3UsageLedger(snapshot, {
+    reports: options.reports || [],
+    auditEvents: options.auditEvents || [],
+    importReceipts: options.importReceipts || []
+  });
+  const migrationPlan = buildA3SqlMigrationPlan();
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -652,7 +681,7 @@ function buildDashboardPayload(snapshot, storageMode) {
       ...snapshot.storage,
       mode: storageMode || snapshot.storage?.mode || "memory",
       db_contract: A3_DB_CONTRACT,
-      db_migrations: buildA3SqlMigrationPlan()
+      db_migrations: migrationPlan
     },
     run_fixture: snapshot.runFixture,
     grade_fixture: snapshot.gradeFixture,
@@ -680,7 +709,14 @@ function buildDashboardPayload(snapshot, storageMode) {
       }),
       dbContract: A3_DB_CONTRACT
     }),
-    usage_ledger: buildA3UsageLedger(snapshot),
+    usage_ledger: usageLedger,
+    report_center: buildReportCenterIndex(options.reports || [], {
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId,
+      usageLedger,
+      migrationPlan
+    }),
     summary: snapshot.summary,
     cases: cases.map((item) => ({
       run_id: item.run_id,
