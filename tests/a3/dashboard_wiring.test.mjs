@@ -174,6 +174,26 @@ test("A3 dashboard wires official frontend mirror into console and exports", asy
   assert.match(html, /officialMirror\.api_method_groups/);
 });
 
+test("A3 dashboard wires official parity roadmap into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeOfficialParityRoadmap/);
+  assert.match(html, /href="#official-roadmap"/);
+  assert.match(html, /id="official-roadmap"/);
+  assert.match(html, /Official Parity Roadmap/);
+  assert.match(html, /id="official-roadmap-summary"/);
+  assert.match(html, /id="official-roadmap-counts"/);
+  assert.match(html, /id="official-roadmap-priorities"/);
+  assert.match(html, /id="official-roadmap-media"/);
+  assert.match(html, /id="official-roadmap-next"/);
+  assert.match(html, /function renderOfficialParityRoadmap\(\)/);
+  assert.match(html, /function roadmapActionRow\(item\)/);
+  assert.match(html, /function roadmapNextRow\(index, item\)/);
+  assert.match(html, /renderOfficialParityRoadmap\(\)/);
+  assert.match(html, /officialParityRoadmap\.recommendation/);
+  assert.match(html, /Official Parity Roadmap<\/h4>/);
+});
+
 test("A3 dashboard wires commercial release gate into console and reports", async () => {
   const html = await loadDashboardHtml();
 
@@ -235,8 +255,11 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
   assert.match(html, /id="media-channel-strip"/);
   assert.match(html, /id="media-readiness-list"/);
   assert.match(html, /id="media-channel-matrix"/);
+  assert.match(html, /id="media-evidence-queue"/);
   assert.match(html, /function renderMediaReadiness\(\)/);
   assert.match(html, /function mediaMatrixRow\(channel\)/);
+  assert.match(html, /function mediaQueueRow\(item\)/);
+  assert.match(html, /media\.evidence_queue/);
   assert.match(html, /ashr_signed_media_url_coverage\.redacted\.json/);
   assert.match(html, /metadata only/);
   assert.match(html, /id="cloud-shell"/);

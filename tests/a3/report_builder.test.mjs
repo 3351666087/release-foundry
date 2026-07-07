@@ -20,12 +20,14 @@ import {
   summarizeMediaReadiness,
   summarizeOfficialAshrGap,
   summarizeOfficialFrontendMirror,
+  summarizeOfficialParityRoadmap,
   summarizeReleaseGate,
   summarizeReleaseWarRoom,
   summarizeReleaseWorkflow,
   summarizeRequestProvenance,
   summarizeUsageQuota
 } from "../../services/report/report_builder.mjs";
+import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
 async function loadJson(path) {
   return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
@@ -868,17 +870,68 @@ test("A3 report builder summarizes official frontend mirror clean-room parity", 
   assert.match(markdown, /Official source committed: no/);
 });
 
+test("A3 report builder summarizes official parity roadmap and media evidence queue", async () => {
+  const runSample = await loadJson("../../fixtures/a3/p3/ashr_dataset_884_run_11926_ui_tests_detail.redacted.json");
+  const datasetSample = await loadJson("../../fixtures/a3/p3/ashr_after_generate_dataset_884.redacted.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const requestSample = await loadJson("../../fixtures/a3/p3/ashr_request_detail_sample.redacted.json");
+  const usageSample = await loadJson("../../fixtures/a3/p3/ashr_usage_quota_sample.redacted.json");
+  const usageApiProbe = await loadJson("../../fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+  const frontendMirror = await loadJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
+  const mapped = mapAshrSampleToA3Fixtures(runSample, {
+    datasetSample,
+    fixtureId: "p3_official_demo_884_11926_dashboard_sample",
+    gradeFixtureId: "p3_official_demo_884_11926_dashboard_grades"
+  });
+
+  const runs = mapped.runFixture;
+  const grades = mapped.gradeFixture;
+  const roadmap = summarizeOfficialParityRoadmap(
+    runs,
+    grades,
+    coverage,
+    requestSample,
+    usageSample,
+    usageApiProbe,
+    mediaSignedUrlCoverage,
+    frontendMirror
+  );
+  const media = summarizeMediaReadiness(runs, grades, usageSample, mediaSignedUrlCoverage);
+
+  assert.equal(roadmap.schema_version, "a3.official_parity_roadmap.v1");
+  assert.equal(roadmap.available, true);
+  assert.ok(roadmap.priorities.some((item) => item.area === "Results review" && item.action === "copy_now"));
+  assert.ok(roadmap.priorities.some((item) => item.area === "API keys / team / billing" && item.action === "do_not_copy"));
+  assert.ok(roadmap.media_actions.some((item) => item.area === "Media evidence queue" && item.action === "copy_now"));
+  assert.ok(roadmap.cloud_admin_boundaries.some((item) => /API-key creation/.test(item)));
+  assert.ok(roadmap.next_build_order.some((item) => /Trace\/Observability/.test(item)));
+  assert.ok(media.evidence_queue_count > 0);
+  assert.ok(media.evidence_queue.some((item) => item.safe_to_render === false && item.preview_policy.includes("metadata")));
+
+  const json = buildJsonReport(runs, grades, coverage, {}, requestSample, usageSample, usageApiProbe, mediaSignedUrlCoverage, {}, {}, frontendMirror);
+  assert.equal(json.official_parity_roadmap.schema_version, "a3.official_parity_roadmap.v1");
+  assert.ok(json.media_readiness.evidence_queue_count > 0);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, {}, requestSample, usageSample, usageApiProbe, mediaSignedUrlCoverage, {}, {}, frontendMirror);
+  assert.match(markdown, /## Official Parity Roadmap/);
+  assert.match(markdown, /### Build Priorities/);
+  assert.match(markdown, /API keys \/ team \/ billing: do_not_copy/);
+  assert.match(markdown, /Media evidence queue: copy_now/);
+});
+
 test("A3 report builder summarizes media readiness and cloud console shell", async () => {
-  const sample = await loadJson("../../fixtures/a3/p3/ashr_media_run_case_sample.redacted.json");
+  const rawSample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
   const usageSample = await loadJson("../../fixtures/a3/p3/ashr_usage_quota_sample.redacted.json");
   const usageApiProbe = await loadJson("../../fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json");
   const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
   const requestSample = await loadJson("../../fixtures/a3/p3/ashr_request_detail_sample.redacted.json");
   const authSample = await loadJson("../../fixtures/a3/p3/ashr_auth_check.redacted.json");
   const frontendSummary = await loadJson("../../fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json");
+  const mapped = mapAshrSampleToA3Fixtures(rawSample);
 
-  const runs = sample.runFixture;
-  const grades = sample.gradeFixture;
+  const runs = mapped.runFixture;
+  const grades = mapped.gradeFixture;
 
   const media = summarizeMediaReadiness(runs, grades, usageSample, mediaSignedUrlCoverage);
   assert.equal(media.available, true);
@@ -913,6 +966,7 @@ test("A3 report builder summarizes media readiness and cloud console shell", asy
   const json = buildJsonReport(runs, grades, {}, {}, requestSample, usageSample, usageApiProbe, mediaSignedUrlCoverage, authSample, frontendSummary);
   assert.equal(json.media_readiness.live_rendering_allowed, false);
   assert.ok(json.media_readiness.channel_matrix.length >= 4);
+  assert.ok(json.media_readiness.evidence_queue_count > 0);
   assert.equal(json.cloud_console_shell.real_mutations_enabled, false);
   assert.ok(json.cloud_console_shell.actions.length >= 10);
 

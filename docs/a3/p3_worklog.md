@@ -2092,3 +2092,64 @@ No live Ashr API call was made in this pass. The fixture was generated from exis
 ### Current interpretation
 
 This makes A3 feel less like an eval viewer and more like an agent release command center. The current official demo War Room says `no_go`, revenue risk score `93`, merge blocked, waiver required, and audit evidence required.
+
+## 2026-07-07 - Official parity roadmap and media queue
+
+### Goal
+
+Convert official frontend mirror evidence and media calibration evidence into dashboard-visible reviewer workflow.
+
+### Added capability
+
+A3 now supports:
+
+- dashboard `Official Parity Roadmap` panel
+- `official_parity_roadmap` JSON export field
+- Markdown `Official Parity Roadmap` section
+- print/PDF `Official Parity Roadmap` section
+- Media Readiness `Media Evidence Queue`
+- report-center copy that names parity roadmap as part of the release evidence packet
+
+### A1/A2 calibration note
+
+This pass re-ran A3 tests over:
+
+- A1-style generated run/tool-call/trace fixture paths
+- A2 G3 grade results
+- A2 G3 coverage report
+- P3 Ashr mapper output for real redacted run shapes
+
+The goal is to keep A3 attached to A1 runner output and A2 judge output instead of becoming a standalone dashboard mock.
+
+### Artifacts
+
+- Code:
+  - `services/report/report_builder.mjs`
+  - `apps/dashboard/index.html`
+- Tests:
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+- Docs:
+  - `docs/a3/p3_official_parity_media_queue_2026_07_07.md`
+- Screenshots:
+  - `docs/screenshots/a3-dashboard-official-parity-media-queue.png`
+  - `docs/screenshots/a3-dashboard-media-evidence-queue.png`
+  - `docs/screenshots/a3-dashboard-media-evidence-queue-detail.png`
+
+### Verification
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+76 tests
+76 pass
+0 fail
+```
+
+### API calibration note
+
+No live Ashr API call was made in this pass. The work uses existing redacted P3 Ashr fixtures, the official frontend clean-room summary, and local A1/A2-derived fixtures. No API key, token, cookie, email, raw signed media URL, or official source file was saved.

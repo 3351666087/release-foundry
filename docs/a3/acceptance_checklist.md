@@ -284,6 +284,16 @@
 - [x] Added report-builder and dashboard-wiring tests for Release War Room.
 - [x] Browser-smoke verified Release War Room with `No-go`, 4 metrics, 4 executive brief lines, and 6 lanes.
 - [x] Saved Release War Room screenshot under `docs/screenshots/a3-dashboard-release-war-room.png`.
+- [x] Added `official_parity_roadmap` JSON export field.
+- [x] Added Official Parity Roadmap Markdown and print/PDF report sections.
+- [x] Added Official Parity Roadmap dashboard panel.
+- [x] Added Media Evidence Queue inside Media Readiness.
+- [x] Added report-builder tests for Official Parity Roadmap and Media Evidence Queue.
+- [x] Added dashboard-wiring tests for Official Parity Roadmap and Media Evidence Queue.
+- [x] Re-ran A3 report tests against A1-style run/tool-call data and A2 G3 grade/coverage fixtures.
+- [x] Browser-smoke verified Official Parity Roadmap with 6 priority rows and Media Evidence Queue with 5 queued cases.
+- [x] Saved Official Parity Roadmap screenshot under `docs/screenshots/a3-dashboard-official-parity-media-queue.png`.
+- [x] Saved Media Evidence Queue screenshots under `docs/screenshots/a3-dashboard-media-evidence-queue.png` and `docs/screenshots/a3-dashboard-media-evidence-queue-detail.png`.
 
 ## Next Acceptance Targets
 

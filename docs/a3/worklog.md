@@ -2024,3 +2024,54 @@ Turn the existing Release Gate, PR Gate, incident replay, audit evidence, and of
 ### Current interpretation
 
 The Release War Room is the first A3 operational cockpit over release evidence. It gives a no-go/review/ship-ready decision, revenue risk score, merge-block status, waiver requirement, incident replay count, required audit artifact count, reviewer lanes, and official-product parity context. It does not call live APIs and does not store secrets, cookies, tokens, or live signed URLs.
+
+## 2026-07-07 - Official Parity Roadmap and Media Evidence Queue
+
+### Goal
+
+Move the official frontend mirror summary from background evidence into an actionable dashboard/report roadmap, and make media evidence review more concrete.
+
+### Work completed
+
+- Re-checked A1/A2 handoff assumptions through A3 tests:
+  - A1-style run/trace/tool-call fixtures still feed A3 normalization and tool-call diff logic.
+  - A2 G3 grade/coverage fixtures still join into A3 reports and filters.
+- Added dashboard panel:
+  - `Official Parity Roadmap`
+- Added Media Readiness sub-panel:
+  - `Media Evidence Queue`
+- Added print/PDF report section:
+  - `Official Parity Roadmap`
+- Updated Report Center copy to include official parity roadmap evidence.
+- Added report-builder tests for:
+  - `summarizeOfficialParityRoadmap()`
+  - `media_readiness.evidence_queue`
+  - JSON export `official_parity_roadmap`
+  - Markdown `Official Parity Roadmap`
+- Added dashboard wiring tests for:
+  - roadmap panel IDs/functions
+  - media evidence queue IDs/functions
+- Added implementation note:
+  - `docs/a3/p3_official_parity_media_queue_2026_07_07.md`
+- Saved browser verification screenshots:
+  - `docs/screenshots/a3-dashboard-official-parity-media-queue.png`
+  - `docs/screenshots/a3-dashboard-media-evidence-queue.png`
+  - `docs/screenshots/a3-dashboard-media-evidence-queue-detail.png`
+
+### Verification
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Result:
+
+```text
+76 tests
+76 pass
+0 fail
+```
+
+### Current interpretation
+
+A3 now explains not only what it already copied from official Ashr, but also the next build order and the cloud/admin boundaries that should remain disabled. Media evidence is still metadata-only, but reviewers can now see which cases are queued for media review and what evidence is missing.

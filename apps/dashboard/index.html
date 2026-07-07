@@ -1160,6 +1160,7 @@
           <a href="#cloud-shell">Cloud Shell</a>
           <a href="#official-gap">Official Gap</a>
           <a href="#official-mirror">Frontend Mirror</a>
+          <a href="#official-roadmap">Parity Roadmap</a>
           <a href="#release-gate">Release Gate</a>
           <a href="#war-room">War Room</a>
           <a href="#pr-gate">PR Gate</a>
@@ -1247,6 +1248,7 @@
               <div class="channel-strip" id="media-channel-strip"></div>
               <div class="mini-list" id="media-readiness-list"></div>
               <div class="matrix-list" id="media-channel-matrix"></div>
+              <div class="matrix-list" id="media-evidence-queue"></div>
             </div>
           </div>
 
@@ -1294,6 +1296,20 @@
               <div class="health-grid" id="official-mirror-counts"></div>
               <div class="gap-list" id="official-mirror-pages"></div>
               <div class="matrix-list" id="official-mirror-api"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-roadmap">
+            <div class="panel-header">
+              <h2>Official Parity Roadmap</h2>
+              <span class="badge info">build order</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-roadmap-summary">Waiting for official parity roadmap.</div>
+              <div class="health-grid" id="official-roadmap-counts"></div>
+              <div class="matrix-list" id="official-roadmap-priorities"></div>
+              <div class="matrix-list" id="official-roadmap-media"></div>
+              <div class="matrix-list" id="official-roadmap-next"></div>
             </div>
           </div>
 
@@ -1521,6 +1537,7 @@
         summarizeMediaReadiness,
         summarizeOfficialAshrGap,
         summarizeOfficialFrontendMirror,
+        summarizeOfficialParityRoadmap,
         summarizeReleaseGate,
         summarizeReleaseWarRoom,
         summarizeReleaseWorkflow,
@@ -1662,6 +1679,7 @@
         renderCloudShell();
         renderOfficialGap();
         renderOfficialFrontendMirror();
+        renderOfficialParityRoadmap();
         renderRequestProvenance();
       }
 
@@ -1713,6 +1731,11 @@
             ? media.channel_matrix.map((channel) => mediaMatrixRow(channel))
             : [emptyMatrixRow("No channel matrix is available for this source.")]
         ));
+        $("media-evidence-queue").replaceChildren(...(
+          media.evidence_queue.length
+            ? media.evidence_queue.map((item) => mediaQueueRow(item))
+            : [emptyMatrixRow("No media evidence queue is available for this source.")]
+        ));
       }
 
       function emptyPill(label) {
@@ -1736,6 +1759,26 @@
             <span>signed URL ${channel.signed_url_confirmed ? "yes" : "no"}</span>
           </div>
           <div class="muted">${escapeHtml(channel.decision)}</div>
+        `;
+        return node;
+      }
+
+      function mediaQueueRow(item) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(item.case_id)}</strong>
+            <span class="badge ${item.safe_to_render ? "pass" : item.signed_url_status === "unconfirmed" ? "warn" : "neutral"}">${escapeHtml(item.preview_policy)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(item.primary_media_type)}</span>
+            <span>${escapeHtml(item.media_types.join(", ") || "unknown")}</span>
+            <span>${escapeHtml(item.evidence_count)} evidence</span>
+            <span>${escapeHtml(item.vm_stream_count)} vm</span>
+          </div>
+          <div class="muted">${escapeHtml(item.title)}</div>
+          <div class="muted">${escapeHtml(item.next_action)}</div>
         `;
         return node;
       }
@@ -1840,6 +1883,69 @@
             ? mirror.api_method_groups.map((group) => mirrorApiRow(group))
             : [emptyMatrixRow("No official API method summary is available.")]
         ));
+      }
+
+      function renderOfficialParityRoadmap() {
+        const roadmap = summarizeOfficialParityRoadmap(
+          state.runs,
+          state.grades,
+          state.coverage,
+          state.requestProvenance,
+          state.usageQuota,
+          state.usageQuotaApiProbe,
+          state.mediaSignedUrlCoverage,
+          state.frontendMirror
+        );
+        $("official-roadmap-summary").textContent = roadmap.available
+          ? roadmap.recommendation
+          : "No official parity roadmap is available.";
+        $("official-roadmap-counts").replaceChildren(
+          healthTile(String(roadmap.copied_page_count), "copy now"),
+          healthTile(String(roadmap.partial_page_count), "partial"),
+          healthTile(String(roadmap.future_page_count), "future"),
+          healthTile(String(roadmap.out_of_scope_page_count), "do not copy")
+        );
+        $("official-roadmap-priorities").replaceChildren(...(
+          roadmap.priorities.length
+            ? roadmap.priorities.map((item) => roadmapActionRow(item))
+            : [emptyMatrixRow("No official parity priorities are available.")]
+        ));
+        $("official-roadmap-media").replaceChildren(...(
+          roadmap.media_actions.length
+            ? roadmap.media_actions.map((item) => roadmapActionRow(item))
+            : [emptyMatrixRow("No media parity actions are available.")]
+        ));
+        $("official-roadmap-next").replaceChildren(...(
+          roadmap.next_build_order.length
+            ? roadmap.next_build_order.map((item, index) => roadmapNextRow(index + 1, item))
+            : [emptyMatrixRow("No next build order is available.")]
+        ));
+      }
+
+      function roadmapActionRow(item) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(item.area)}</strong>
+            <span class="badge ${item.action === "do_not_copy" ? "neutral" : item.confirmed ? "info" : "warn"}">${escapeHtml(item.action)}</span>
+          </div>
+          <div class="muted">${escapeHtml(item.note)}</div>
+        `;
+        return node;
+      }
+
+      function roadmapNextRow(index, item) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>Next ${escapeHtml(index)}</strong>
+            <span class="badge neutral">roadmap</span>
+          </div>
+          <div class="muted">${escapeHtml(item)}</div>
+        `;
+        return node;
       }
 
       function gapRow(page) {
@@ -2223,17 +2329,18 @@
         const usageQuota = summarizeUsageQuota(state.usageQuota, state.usageQuotaApiProbe);
         const mediaReadiness = summarizeMediaReadiness(state.runs, state.grades, state.usageQuota, state.mediaSignedUrlCoverage);
         const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
+        const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
         $("report-status").className = "badge info";
         $("report-status").textContent = `${summary.totalCases} cases`;
-        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
         $("report-center").replaceChildren(
-          reportTile("JSON", "Full machine-readable payload with release gate, war room, PR workflow, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
+          reportTile("JSON", "Full machine-readable payload with release gate, war room, PR workflow, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
           reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class."),
-          reportTile("Markdown", "Human-readable release-gate and war-room report with PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, media readiness, cloud safety, failures, and selected case evidence.")
+          reportTile("Markdown", "Human-readable release-gate and war-room report with official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
+          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
         );
       }
 
@@ -2253,6 +2360,7 @@
         const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialGap = summarizeOfficialAshrGap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
+        const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
@@ -2404,6 +2512,28 @@
               group.method_count,
               group.a3_status
             ]), "No official API method mirror summary.")}
+          </div>
+          <div class="report-section">
+            <h4>Official Parity Roadmap</h4>
+            <div class="muted">${escapeHtml(officialParityRoadmap.recommendation)}</div>
+            ${renderReportTable(["Signal", "Value"], [
+              ["Official pages observed", officialParityRoadmap.official_pages_observed],
+              ["Copy now", officialParityRoadmap.copied_page_count],
+              ["Partial", officialParityRoadmap.partial_page_count],
+              ["Future", officialParityRoadmap.future_page_count],
+              ["Do not copy", officialParityRoadmap.out_of_scope_page_count],
+              ["Official blocked gaps", officialParityRoadmap.official_gap_blocked_count]
+            ])}
+            ${renderReportTable(["Area", "Action", "Note"], officialParityRoadmap.priorities.map((item) => [
+              item.area,
+              item.action,
+              item.note
+            ]), "No parity priorities.")}
+            ${renderReportTable(["Media Area", "Action", "Note"], officialParityRoadmap.media_actions.map((item) => [
+              item.area,
+              item.action,
+              item.note
+            ]), "No media parity actions.")}
           </div>
           <div class="report-section">
             <h4>Failure Clusters</h4>
