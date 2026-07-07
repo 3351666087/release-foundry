@@ -84,6 +84,7 @@
         "real_record_count",
         "real_read_status_counts",
         "real_quota_gate",
+        "api_probe_gate_validation",
         "c3_grading_ready"
       ],
       "properties": {
@@ -103,6 +104,7 @@
         "real_create_request_status_counts": { "$ref": "#/$defs/count_map" },
         "real_create_request_error_kind_counts": { "$ref": "#/$defs/count_map" },
         "real_quota_gate": { "$ref": "#/$defs/real_quota_gate" },
+        "api_probe_gate_validation": { "$ref": "#/$defs/api_probe_gate_validation" },
         "c3_candidate_record_count": { "type": "integer", "minimum": 0 },
         "c3_grading_ready": { "type": "boolean" },
         "notes": { "$ref": "#/$defs/string_array" }
@@ -128,6 +130,36 @@
         "quota_keys": { "$ref": "#/$defs/string_array" },
         "private_record_refs": { "$ref": "#/$defs/string_array" },
         "public_action": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "api_probe_gate_validation": {
+      "type": "object",
+      "required": [
+        "available",
+        "schema_ref",
+        "plan_batch_count",
+        "validate_gate_count",
+        "plan_batch_status_counts",
+        "validate_gate_status_counts",
+        "ok_validate_gate_count",
+        "error_validate_gate_count",
+        "blocked_plan_batch_count",
+        "private_record_refs",
+        "release_interpretation"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "schema_ref": { "type": "string" },
+        "plan_batch_count": { "type": "integer", "minimum": 0 },
+        "validate_gate_count": { "type": "integer", "minimum": 0 },
+        "plan_batch_status_counts": { "$ref": "#/$defs/count_map" },
+        "validate_gate_status_counts": { "$ref": "#/$defs/count_map" },
+        "ok_validate_gate_count": { "type": "integer", "minimum": 0 },
+        "error_validate_gate_count": { "type": "integer", "minimum": 0 },
+        "blocked_plan_batch_count": { "type": "integer", "minimum": 0 },
+        "private_record_refs": { "$ref": "#/$defs/string_array" },
+        "release_interpretation": { "type": "string" }
       },
       "additionalProperties": true
     },

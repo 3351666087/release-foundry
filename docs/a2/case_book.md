@@ -17,6 +17,14 @@ It records calibration disagreements that should remain visible until reviewed A
 
 C5 remains partial because 2 more reviewed disagreement regressions are needed, and the regression set still needs reviewed Ashr grading or audited semantic evidence before the case book and replay suite should be called mature.
 
+## Incident Regression Candidates
+
+Production incidents can enter the case-book review queue through `fixtures/a2/results/a2_incident_regression_candidates.json`.
+
+The current public-safe candidate is `prod-inc-2026-07-support-status-retry`, mapped to `sample-a2-s041-poor-retry-recovery` / `A2-S041`. It is replayable through `fixtures/a2/runs/a2_s041_poor_retry_recovery.json` and preserves local `primary_failure_class=poor_failure_recovery`.
+
+This candidate is not counted as a mature C5 replay case yet. It still needs A2 owner review plus reviewed Ashr grading or audited semantic evidence before it can be promoted from `candidate` into the case-book regression set.
+
 ## Regression: sample-a2-s010-wrong-arguments
 
 - Scenario: `A2-S010`

@@ -226,6 +226,12 @@ export function summarizeCoverage(coverageFixture = {}) {
     scenario_dimension_counts: mapping(coverageFixture.scenario_dimension_counts),
     scenario_dimension_scenarios: mapping(coverageFixture.scenario_dimension_scenarios),
     thin_scenario_dimensions: mapping(coverageFixture.thin_scenario_dimensions),
+    capability_axis_targets: mapping(coverageFixture.capability_axis_targets),
+    capability_axis_checks: mapping(coverageFixture.capability_axis_checks),
+    capability_axis_counts: mapping(coverageFixture.capability_axis_counts),
+    capability_axis_scenarios: mapping(coverageFixture.capability_axis_scenarios),
+    capability_axis_exemplars: mapping(coverageFixture.capability_axis_exemplars),
+    missing_capability_axes: missing(coverageFixture.missing_capability_axes),
     scenario_quality_targets: mapping(coverageFixture.scenario_quality_targets),
     scenario_quality_warnings: missing(coverageFixture.scenario_quality_warnings),
     scenario_quality_warning_count: missing(coverageFixture.scenario_quality_warnings).length,
@@ -272,7 +278,12 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const missing = (value) => Array.isArray(value) ? value : [];
   const mapping = (value) => isObject(value) ? value : {};
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
+  const realApi = mapping(evidenceFixture.a1_real_api_evidence);
+  const realQuotaGate = mapping(realApi.real_quota_gate);
+  const officialSdkSmoke = mapping(evidenceFixture.official_sdk_smoke);
+  const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
+  const semanticMergeGate = mapping(evidenceFixture.semantic_live_merge_gate);
   const redaction = mapping(evidenceFixture.redaction_policy);
 
   return {
@@ -285,8 +296,45 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     ashr_current_missing: ashr.current_missing || 0,
     ashr_expected_observation_count: ashr.expected_observation_count || 0,
     ashr_case_map_covers_all_calibration_cases: ashr.case_map_covers_all_calibration_cases === true,
+    ashr_public_merge_status: ashrMergeGate.status || "unknown",
+    ashr_public_matrix_merged: ashrMergeGate.public_matrix_merged === true,
+    ashr_safe_to_mark_c3_met: ashrMergeGate.safe_to_mark_c3_met === true,
+    ashr_merged_public_observation_count: ashrMergeGate.merged_public_observation_count || 0,
+    ashr_reviewed_public_observation_count: ashrMergeGate.reviewed_public_observation_count || 0,
+    ashr_missing_public_observation_count: ashrMergeGate.missing_public_observation_count || 0,
+    ashr_missing_reviewed_observation_count: ashrMergeGate.missing_reviewed_observation_count || 0,
+    ashr_public_merge_blocking_reason: ashrMergeGate.blocking_reason || "",
+    real_api_evidence_available: realApi.available === true,
+    real_api_total_records: realApi.total_records || 0,
+    real_api_record_count: realApi.real_record_count || 0,
+    real_api_read_ok_count: mapping(realApi.real_read_status_counts).ok || 0,
+    real_api_quota_block_count: realApi.quota_block_count || 0,
+    real_api_create_request_blocked: realQuotaGate.create_request_blocked === true,
+    real_api_quota_blocked_functions: missing(realQuotaGate.blocked_functions),
+    real_api_quota_public_action: realQuotaGate.public_action || "",
+    official_sdk_smoke_available: officialSdkSmoke.available === true,
+    official_sdk_smoke_read_only_reachable: officialSdkSmoke.read_only_reachable === true,
+    official_sdk_smoke_ok_call_count: officialSdkSmoke.ok_call_count || 0,
+    official_sdk_smoke_error_call_count: officialSdkSmoke.error_call_count || 0,
+    official_sdk_smoke_call_names: missing(officialSdkSmoke.call_names),
     semantic_offline_reference_only: semantic.offline_reference_only === true,
     semantic_expected_reviewed_observation_count: semantic.expected_reviewed_observation_count || 0,
+    semantic_reviewed_live_observation_count: semantic.reviewed_live_observation_count || 0,
+    semantic_missing_reviewed_live_observation_count: semantic.missing_reviewed_live_observation_count || 0,
+    semantic_reviewed_live_sdk_languages: missing(semantic.reviewed_live_sdk_languages),
+    semantic_risk_assessment_status: semantic.risk_assessment_status || "unknown",
+    semantic_false_positive_tracking_ready: semantic.false_positive_tracking_ready === true,
+    semantic_false_positive_candidate_count: semantic.false_positive_candidate_count || 0,
+    semantic_false_negative_candidate_count: semantic.false_negative_candidate_count || 0,
+    semantic_failure_class_drift_candidate_count: semantic.failure_class_drift_candidate_count || 0,
+    semantic_score_delta_review_count: semantic.score_delta_review_count || 0,
+    semantic_risk_case_count: semantic.risk_case_count || 0,
+    semantic_live_merge_status: semanticMergeGate.status || "unknown",
+    semantic_audited_live_evidence_merged: semanticMergeGate.audited_live_evidence_merged === true,
+    semantic_safe_to_mark_c4_met: semanticMergeGate.safe_to_mark_c4_met === true,
+    semantic_live_reviewed_observation_count: semanticMergeGate.reviewed_live_observation_count || 0,
+    semantic_missing_audited_observation_count: semanticMergeGate.missing_audited_observation_count || 0,
+    semantic_live_merge_blocking_reason: semanticMergeGate.blocking_reason || "",
     semantic_required_fields: missing(semantic.required_fields),
     required_sdk_languages: missing(semantic.required_sdk_languages),
     covered_sdk_languages: missing(semantic.covered_sdk_languages),
@@ -372,19 +420,21 @@ export function summarizeCommercialReadiness(commercialFixture = {}) {
   };
 }
 
-function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageApiProbe = {}, bundle = {}) {
+function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageApiProbe = {}, bundle = {}, releaseGateCandidate = {}) {
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const schema = (value) => isObject(value) ? String(value.schema_version || "") : "";
   const explicit = isObject(bundle) ? bundle : {};
   const legacyA2Args = schema(requestFixture).includes("case_book")
     || schema(usageFixture).includes("regression")
-    || schema(usageApiProbe).includes("commercial_readiness");
+    || schema(usageApiProbe).includes("commercial_readiness")
+    || schema(releaseGateCandidate).includes("release_gate");
 
   return {
     legacyA2Args,
     caseBookFixture: explicit.caseBook || explicit.case_book || (legacyA2Args ? requestFixture : {}),
     regressionReplayFixture: explicit.regressionReplay || explicit.regression_replay || (legacyA2Args ? usageFixture : {}),
-    commercialReadinessFixture: explicit.commercialReadiness || explicit.commercial_readiness || (legacyA2Args ? usageApiProbe : {})
+    commercialReadinessFixture: explicit.commercialReadiness || explicit.commercial_readiness || (legacyA2Args ? usageApiProbe : {}),
+    releaseGateFixture: explicit.releaseGate || explicit.release_gate || (legacyA2Args ? releaseGateCandidate : {})
   };
 }
 
@@ -937,7 +987,58 @@ export function summarizeOfficialParityRoadmap(
   };
 }
 
+function isA2ReleaseGateFixture(value = {}) {
+  return isObject(value) && (
+    value.schema_version === "a2.release_gate.v1"
+    || value.report_id === "a2_release_gate"
+    || Array.isArray(value.required_evidence)
+    || Array.isArray(value.blockers)
+  );
+}
+
+function summarizeA2ReleaseGate(releaseGateFixture = {}) {
+  const missing = (value) => Array.isArray(value) ? value : [];
+  const mapping = (value) => isObject(value) ? value : {};
+  const available = isObject(releaseGateFixture) && Object.keys(releaseGateFixture).length > 0;
+  const requiredEvidence = missing(releaseGateFixture.required_evidence);
+  const blockers = missing(releaseGateFixture.blockers);
+  const warnings = missing(releaseGateFixture.warnings);
+
+  return {
+    available,
+    schema_version: available ? releaseGateFixture.schema_version || "unknown" : "none",
+    report_id: available ? releaseGateFixture.report_id || "unknown" : "none",
+    decision: releaseGateFixture.decision || "none",
+    exit_code: releaseGateFixture.exit_code || 0,
+    risk_score: releaseGateFixture.risk_score || 0,
+    current_commercial_gate: releaseGateFixture.current_commercial_gate || "none",
+    ready_for_commercial_gate: releaseGateFixture.ready_for_commercial_gate === true,
+    blocks_release: releaseGateFixture.decision === "block",
+    blocking_gate_count: releaseGateFixture.blocking_gate_count || blockers.length,
+    evidence_blocker_count: releaseGateFixture.evidence_blocker_count || 0,
+    warning_count: releaseGateFixture.warning_count || warnings.length,
+    blocker_gates: [...new Set(blockers.map((item) => item.gate).filter(Boolean))].sort(),
+    blocker_types: [...new Set(blockers.map((item) => item.type).filter(Boolean))].sort(),
+    warning_types: [...new Set(warnings.map((item) => item.type).filter(Boolean))].sort(),
+    required_sources: requiredEvidence.map((item) => item.source).filter(Boolean).sort(),
+    required_source_counts: Object.fromEntries(requiredEvidence
+      .filter((item) => item && item.source)
+      .map((item) => [item.source, {
+        required_count: item.required_count || 0,
+        current_available: item.current_available || 0,
+        collection_packet_ref: item.collection_packet_ref || ""
+      }])),
+    pr_annotation_count: missing(releaseGateFixture.pr_annotations).length,
+    ci_mode: mapping(releaseGateFixture.machine_contract).ci_mode || "unknown",
+    evidence_refs: missing(releaseGateFixture.evidence_refs)
+  };
+}
+
 export function summarizeReleaseGate(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, options = {}) {
+  if (isA2ReleaseGateFixture(runFixture)) {
+    return summarizeA2ReleaseGate(runFixture);
+  }
+
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
@@ -2419,6 +2520,16 @@ function coverageEvidenceLines(coverage = {}) {
     ));
 }
 
+function coverageExemplarLines(exemplars = {}) {
+  return Object.entries(exemplars)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([axis, items]) => (
+      Array.isArray(items) ? items : []
+    ).map((item) => (
+      `- ${axis}: ${item.scenario_id || "unknown"} (${item.title || "untitled"}) - ${item.why_it_matters || "No reviewer note."}`
+    )));
+}
+
 export function clusterFailures(runFixture = {}, gradeFixture = {}) {
   const failedCases = normalizeCases(runFixture, gradeFixture)
     .filter((item) => !item.passed && item.primary_failure_class !== "none");
@@ -2663,12 +2774,13 @@ export function buildArgumentDiffs(expectedArgs = {}, actualArgs = {}) {
 }
 
 export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, a2ReadinessBundle = {}) {
-  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle);
+  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle, mediaSignedUrlFixture);
   if (a2Readiness.legacyA2Args) {
     requestFixture = {};
     usageFixture = {};
     usageApiProbe = {};
   }
+  const reportMediaSignedUrlFixture = a2Readiness.legacyA2Args ? {} : mediaSignedUrlFixture;
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
@@ -2676,18 +2788,20 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const commercialReadiness = summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture);
   const requestProvenance = summarizeRequestProvenance(requestFixture);
   const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
-  const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, mediaSignedUrlFixture);
+  const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture);
   const cloudConsoleShell = summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe);
   const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
   const officialFrontendMirror = summarizeOfficialFrontendMirror(frontendMirrorFixture);
   const officialCodeCrawlParity = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
-  const officialParityRoadmap = summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture);
-  const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
-  const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
-  const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
-  const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture);
-  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
-  const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const officialParityRoadmap = summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture);
+  const releaseGate = isA2ReleaseGateFixture(a2Readiness.releaseGateFixture)
+    ? summarizeReleaseGate(a2Readiness.releaseGateFixture)
+    : summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
+  const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
+  const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
+  const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, reportMediaSignedUrlFixture);
+  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
+  const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2701,7 +2815,24 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     ""
   ];
 
-  if (releaseGate.available) {
+  if (releaseGate.available && releaseGate.schema_version === "a2.release_gate.v1") {
+    lines.push(
+      "## Release Gate",
+      "",
+      `- Decision: ${releaseGate.decision}`,
+      `- Blocks release: ${releaseGate.blocks_release ? "yes" : "no"}`,
+      `- Exit code: ${releaseGate.exit_code}`,
+      `- Risk score: ${releaseGate.risk_score}`,
+      `- Current commercial gate: ${releaseGate.current_commercial_gate}`,
+      `- Blocking gates: ${releaseGate.blocker_gates.join(", ") || "none"}`,
+      `- Blocker types: ${releaseGate.blocker_types.join(", ") || "none"}`,
+      `- Evidence blockers: ${releaseGate.evidence_blocker_count}`,
+      `- Warnings: ${releaseGate.warning_count}`,
+      `- Required sources: ${releaseGate.required_sources.join(", ") || "none"}`,
+      `- CI mode: ${releaseGate.ci_mode}`,
+      ""
+    );
+  } else if (releaseGate.available) {
     lines.push(
       "## Release Gate",
       "",
@@ -2837,12 +2968,14 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
 
   if (coverage.available) {
     const evidenceLines = coverageEvidenceLines(coverage);
+    const exemplarLines = coverageExemplarLines(coverage.capability_axis_exemplars);
     lines.push(
       "## Coverage",
       "",
       `- Assignment minimums met: ${coverage.meets_assignment_minimums ? "yes" : "no"}`,
       `- Scenarios: ${coverage.scenario_count}`,
       `- Scenario dimensions met: ${Object.values(coverage.scenario_dimension_checks).filter(Boolean).length}/${Object.keys(coverage.scenario_dimension_checks).length}`,
+      `- Capability axes met: ${Object.values(coverage.capability_axis_checks).filter(Boolean).length}/${Object.keys(coverage.capability_axis_checks).length}`,
       `- Scenario quality warnings: ${coverage.scenario_quality_warning_count}`,
       `- Rubric classes: ${coverage.rubric_class_count}`,
       `- Judge modes: ${coverage.judge_mode_count}`,
@@ -2859,6 +2992,14 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
         "### Scenario Quality Warnings",
         "",
         ...coverage.scenario_quality_warnings.map((warning) => `- ${warning}`),
+        ""
+      );
+    }
+    if (exemplarLines.length > 0) {
+      lines.push(
+        "### Capability Axis Exemplars",
+        "",
+        ...exemplarLines,
         ""
       );
     }
@@ -2880,7 +3021,16 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Ready for external collection: ${evidenceReadiness.ready_for_external_collection ? "yes" : "no"}`,
       `- Calibration cases: ${evidenceReadiness.calibration_case_count}`,
       `- Ashr grading missing: ${evidenceReadiness.ashr_current_missing}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Ashr public merge: ${evidenceReadiness.ashr_public_merge_status || "unknown"}`,
+      `- Ashr safely merged observations: ${evidenceReadiness.ashr_merged_public_observation_count || 0}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- Ashr reviewed public observations: ${evidenceReadiness.ashr_reviewed_public_observation_count || 0}/${evidenceReadiness.ashr_expected_observation_count}`,
+      `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
+      `- Real API evidence: ${evidenceReadiness.real_api_evidence_available ? "yes" : "no"} / records ${evidenceReadiness.real_api_total_records || 0}`,
+      `- Real API quota gate: ${evidenceReadiness.real_api_create_request_blocked ? "blocked" : "not blocked"} / ${evidenceReadiness.real_api_quota_block_count || 0}`,
+      `- Official SDK smoke: ${evidenceReadiness.official_sdk_smoke_read_only_reachable ? "read-only reachable" : "not confirmed"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
+      `- Semantic live reviewed: ${evidenceReadiness.semantic_reviewed_live_observation_count || 0}/${evidenceReadiness.semantic_expected_reviewed_observation_count || 0}`,
+      `- Semantic live merge: ${evidenceReadiness.semantic_live_merge_status || "unknown"}`,
       `- SDK languages covered: ${evidenceReadiness.covered_sdk_languages.join(", ") || "none"}`,
       `- Private evidence path: ${evidenceReadiness.private_raw_path || "none"}`,
       ""
@@ -3144,12 +3294,16 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
 }
 
 export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, a2ReadinessBundle = {}) {
-  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle);
+  const a2Readiness = normalizeA2ReadinessArgs(requestFixture, usageFixture, usageApiProbe, a2ReadinessBundle, mediaSignedUrlFixture);
   if (a2Readiness.legacyA2Args) {
     requestFixture = {};
     usageFixture = {};
     usageApiProbe = {};
   }
+  const reportMediaSignedUrlFixture = a2Readiness.legacyA2Args ? {} : mediaSignedUrlFixture;
+  const releaseGate = isA2ReleaseGateFixture(a2Readiness.releaseGateFixture)
+    ? summarizeReleaseGate(a2Readiness.releaseGateFixture)
+    : summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
 
   return {
     schema_version: "a3.export_report.v1",
@@ -3160,18 +3314,18 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     commercial_readiness: summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture),
     request_provenance: summarizeRequestProvenance(requestFixture),
     usage_quota: summarizeUsageQuota(usageFixture, usageApiProbe),
-    media_readiness: summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, mediaSignedUrlFixture),
+    media_readiness: summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture),
     cloud_console_shell: summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe),
     official_ashr_gap: summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe),
     official_frontend_mirror: summarizeOfficialFrontendMirror(frontendMirrorFixture),
     official_code_crawl_parity: summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture),
-    official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture),
-    release_gate: summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
-    release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
-    release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
-    incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture),
-    reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
-    observability_replay_matrix: summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture),
+    official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture),
+    release_gate: releaseGate,
+    release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
+    release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
+    incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, reportMediaSignedUrlFixture),
+    reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
+    observability_replay_matrix: summarizeObservabilityReplayMatrix(runFixture, gradeFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

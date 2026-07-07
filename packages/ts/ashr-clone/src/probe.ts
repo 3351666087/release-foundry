@@ -137,8 +137,8 @@ export async function main(
     }
     dryRun = !args.execute;
     const candidateOutputPath = args.output === "-" ? undefined : args.output ?? defaultOutputPath(requireOperation(args.operation), dryRun);
-    enforcePrivateOutputPath(args, candidateOutputPath);
     enforcePrivateStdoutPolicy(args);
+    enforcePrivateOutputPath(args, candidateOutputPath);
     outputPath = candidateOutputPath;
     if (isLocalOperation(requireOperation(args.operation))) {
       dryRun = true;

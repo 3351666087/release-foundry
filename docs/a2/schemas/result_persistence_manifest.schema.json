@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ResultPersistenceManifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "tenant_id",
+    "org",
+    "project",
+    "run",
+    "dataset_id",
+    "created_at",
+    "source_refs",
+    "record_count",
+    "record_type_counts",
+    "records",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.result_persistence_manifest.v1" },
+    "manifest_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
+    "org": { "type": "string" },
+    "project": { "type": "string" },
+    "run": { "type": "string" },
+    "dataset_id": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_refs": {
+      "type": "object",
+      "required": ["grade_report", "release_gate", "scenario_pack"],
+      "properties": {
+        "grade_report": { "type": "string" },
+        "release_gate": { "type": "string" },
+        "scenario_pack": { "type": "string" },
+        "scenario_selection": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "record_count": { "type": "integer", "minimum": 0 },
+    "record_type_counts": { "type": "object" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "hash_algorithm",
+        "canonical_json_hashing",
+        "raw_evidence_not_recorded",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "hash_algorithm": { "const": "sha256" },
+        "canonical_json_hashing": { "const": true },
+        "raw_evidence_not_recorded": { "const": true },
+        "raw_private_evidence_not_recorded": { "const": true },
+        "secrets_not_recorded": { "const": true },
+        "intended_consumers": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "record_type",
+        "tenant_id",
+        "org",
+        "project",
+        "run",
+        "case",
+        "case_id",
+        "scenario_id",
+        "judge_id",
+        "judge_version",
+        "policy_hash",
+        "input_hash",
+        "output_hash",
+        "created_at"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.result_persistence_record.v1" },
+        "record_type": {
+          "enum": ["judge_result", "release_gate", "scenario_selection"]
+        },
+        "org": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "project": { "type": "string" },
+        "run": { "type": "string" },
+        "case": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": ["string", "null"] },
+        "judge_id": { "type": "string" },
+        "judge_version": { "type": "string" },
+        "policy_hash": { "$ref": "#/$defs/hash" },
+        "input_hash": { "$ref": "#/$defs/hash" },
+        "output_hash": { "$ref": "#/$defs/hash" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "passed": { "type": "boolean" },
+        "score": { "type": ["number", "integer", "null"] },
+        "primary_failure_class": { "type": "string" },
+        "safety_blocking": { "type": "boolean" },
+        "decision": { "enum": ["pass", "warn", "block", null] },
+        "exit_code": { "type": ["integer", "null"], "minimum": 0 },
+        "risk_score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "selected": { "type": "boolean" },
+        "selected_count": { "type": ["integer", "null"], "minimum": 0 },
+        "selection_id": { "type": ["string", "null"] },
+        "family_counts": { "type": "object" },
+        "release_policy_audit": {
+          "type": "object",
+          "properties": {
+            "waiver_summary": { "type": "object" },
+            "applied_waivers": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
+            "waived_violations": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "additionalProperties": true
+        },
+        "result_schema_version": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

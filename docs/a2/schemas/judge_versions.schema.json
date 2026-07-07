@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2JudgeVersionRegistry",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "registry_id",
+    "created_at",
+    "scenario_pack_id",
+    "grade_report_id",
+    "active_release",
+    "declared_judge_count",
+    "observed_judge_count",
+    "all_declared_judges_observed",
+    "undeclared_observed_judges",
+    "judges",
+    "migration_policy",
+    "service_contract",
+    "metadata",
+    "registry_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.judge_versions.v1" },
+    "registry_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "scenario_pack_id": { "type": "string" },
+    "grade_report_id": { "type": "string" },
+    "active_release": {
+      "type": "object",
+      "required": ["release_id", "status", "default_version", "pinning_required_for_prod", "history_replay_supported"],
+      "additionalProperties": true
+    },
+    "declared_judge_count": { "type": "integer", "minimum": 0 },
+    "observed_judge_count": { "type": "integer", "minimum": 0 },
+    "all_declared_judges_observed": { "type": "boolean" },
+    "undeclared_observed_judges": { "$ref": "#/$defs/string_array" },
+    "judges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/judge" },
+      "minItems": 5
+    },
+    "migration_policy": {
+      "type": "object",
+      "required": [
+        "requires_registry_hash_on_release_gate",
+        "requires_calibration_before_major_upgrade",
+        "requires_history_replay_before_prod_unpin",
+        "can_compare_judge_versions",
+        "can_replay_history",
+        "deprecated_judge_count"
+      ],
+      "additionalProperties": true
+    },
+    "service_contract": {
+      "type": "object",
+      "required": ["version_fields", "pinning_supported", "history_replay_supported", "safe_to_compare_versions"],
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "deterministic",
+        "requires_network",
+        "requires_ashr_api_key",
+        "does_not_execute_live_calls",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "deterministic": { "const": true },
+        "requires_network": { "const": false },
+        "requires_ashr_api_key": { "const": false },
+        "does_not_execute_live_calls": { "const": true },
+        "raw_private_evidence_not_recorded": { "const": true },
+        "secrets_not_recorded": { "const": true }
+      },
+      "additionalProperties": true
+    },
+    "registry_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "judge": {
+      "type": "object",
+      "required": [
+        "judge_id",
+        "display_name",
+        "current_version",
+        "status",
+        "source_module",
+        "owner",
+        "scenario_pack_id",
+        "result_schema_version",
+        "rubric_focus",
+        "failure_classes",
+        "observed_result_count",
+        "observed_versions",
+        "observed_result_schema_versions",
+        "observed_failure_class_counts",
+        "pinning",
+        "migration",
+        "audit",
+        "judge_contract_hash"
+      ],
+      "properties": {
+        "judge_id": { "type": "string" },
+        "display_name": { "type": "string" },
+        "current_version": { "type": "string" },
+        "status": { "type": "string" },
+        "source_module": { "type": "string" },
+        "owner": { "type": "string" },
+        "scenario_pack_id": { "type": "string" },
+        "result_schema_version": { "type": "string" },
+        "rubric_focus": { "$ref": "#/$defs/string_array" },
+        "failure_classes": { "$ref": "#/$defs/string_array" },
+        "observed_result_count": { "type": "integer", "minimum": 0 },
+        "observed_versions": { "type": "object" },
+        "observed_result_schema_versions": { "type": "object" },
+        "observed_failure_class_counts": { "type": "object" },
+        "pinning": {
+          "type": "object",
+          "required": ["pin_supported", "pin_required_for_prod", "recommended_pin"],
+          "additionalProperties": true
+        },
+        "migration": {
+          "type": "object",
+          "required": ["history_replay_supported", "compare_before_after_supported", "deprecation_status", "upgrade_policy"],
+          "additionalProperties": true
+        },
+        "audit": { "type": "object" },
+        "judge_contract_hash": { "$ref": "#/$defs/hash" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -301,6 +301,233 @@
       ]
     }
   ],
+  "growth_auditor": {
+    "auditor_id": "a2_money_grade_auditor",
+    "audit_basis": "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+    "money_direction": {
+      "primary": "release_gate_with_reviewed_evidence_and_regression_replay",
+      "secondary": [
+        "official_grading_diff",
+        "semantic_judge_calibration",
+        "production_incident_to_regression",
+        "enterprise_audit_export"
+      ],
+      "why": "The highest willingness-to-pay path is blocking risky agent releases with reviewable evidence, replayable failures, and approval records."
+    },
+    "new_sellable_capabilities": [
+      "internal judge service boundary for case, batch, and release policy evaluation",
+      "project-aware scenario selection for tenant/project risk profiles",
+      "public-safe result persistence with input/output hashes",
+      "release policy waiver audit fields for approval workflow integration",
+      "C3/C4/C5 evidence gates that prevent unreviewed data from being counted as complete"
+    ],
+    "toy_risks_to_upgrade": [
+      "offline llm_judge rows are useful references but cannot sell as audited semantic evidence",
+      "case-book regression suite is still seed maturity, not enterprise incident coverage",
+      "server-side Ashr grading column is prepared but still missing reviewed public rows",
+      "service wrapper is deterministic library code until A1 mounts it behind worker/API infrastructure"
+    ],
+    "customer_payment_drivers": [
+      "fail PR/release gates before unsafe or hallucinated agent behavior ships",
+      "turn judge disagreements and production incidents into durable regression tests",
+      "show managers and auditors a public-safe chain from case to evidence to approval",
+      "support different project/environment policies without forking judge code"
+    ],
+    "enterprise_readiness": {
+      "audit": "public summaries keep private evidence refs without raw payloads",
+      "self_host": "deterministic local judging has no network dependency",
+      "compliance": "C3/C4 gates require reviewed evidence before commercial claims",
+      "current_gaps": [
+        "6 Ashr grading calibration rows still need reviewed evidence",
+        "semantic judge evidence is still offline-only",
+        "case book has 1 regression case(s) and maturity=seed"
+      ]
+    },
+    "current_evidence_strength": {
+      "real_api_record_count": 236,
+      "semantic_live_evidence_available": false,
+      "ashr_missing_reviewed_observations": 6,
+      "growth_point_count": 20
+    },
+    "parallel_growth_points": [
+      {
+        "id": "official_grading_diff_import",
+        "title": "Import six reviewed Ashr server-side grading rows into calibration.",
+        "parallel_track": "calibration",
+        "commercial_value": "Customers trust gates more when local failures match official grading.",
+        "evidence_ref": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "semantic_live_judge_audit",
+        "title": "Replace offline llm_judge references with audited live model-call summaries.",
+        "parallel_track": "calibration",
+        "commercial_value": "Audited semantic evidence supports high-value false-positive review.",
+        "evidence_ref": "fixtures/a2/results/a2_semantic_harness_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "production_incident_to_regression",
+        "title": "Convert incident summaries into reviewed regression candidates.",
+        "parallel_track": "regression",
+        "commercial_value": "Incident replay is a direct enterprise painkiller after agent failures.",
+        "evidence_ref": "fixtures/a2/results/a2_case_book.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "failure_cluster_report",
+        "title": "Group failures by class, scenario family, SDK language, and owner role.",
+        "parallel_track": "intelligence",
+        "commercial_value": "Teams pay for root-cause grouping, not only pass/fail rows.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "reviewer_feedback_queue",
+        "title": "Capture judge override, waiver, and reviewer notes as calibration inputs.",
+        "parallel_track": "workflow",
+        "commercial_value": "Human review feedback makes the judge improve with customer use.",
+        "evidence_ref": "fixtures/a2/results/a2_release_gate_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "enterprise_policy_templates",
+        "title": "Ship prod, staging, regulated, and experimental release policy templates.",
+        "parallel_track": "policy",
+        "commercial_value": "Per-team policy templates increase enterprise fit and deal size.",
+        "evidence_ref": "fixtures/a2/config/release_policies.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "approval_chain_export",
+        "title": "Expose waiver approvals, reviewers, reasons, and evidence refs in reports.",
+        "parallel_track": "workflow",
+        "commercial_value": "Managers need sign-off history before accepting release gates.",
+        "evidence_ref": "fixtures/a2/results/a2_release_gate_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "judge_version_comparison",
+        "title": "Compare policy, taxonomy, scenario, and judge versions across runs.",
+        "parallel_track": "intelligence",
+        "commercial_value": "Versioned judge history answers why scores changed after upgrades.",
+        "evidence_ref": "fixtures/a2/results/a2_result_persistence_manifest.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "flaky_case_detection",
+        "title": "Mark cases that disagree across local, official, and semantic judges.",
+        "parallel_track": "calibration",
+        "commercial_value": "Flaky-case isolation lowers false block risk for paying teams.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_calibration_matrix.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "media_eval_expansion",
+        "title": "Expand media/tool-output grounding beyond the current A2-S031 seed.",
+        "parallel_track": "scenario",
+        "commercial_value": "Media-capable agent products need image and artifact evidence checks.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_coverage_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "api_error_shape_fixture",
+        "title": "Capture official API error/quota/status shapes as public-safe fixtures.",
+        "parallel_track": "evidence",
+        "commercial_value": "Real error semantics make the clone more faithful than guesses.",
+        "evidence_ref": "docs/a1/api_calibration/real_api_evidence_index.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "cost_ledger_per_tenant",
+        "title": "Break judge and semantic cost ledger down by tenant/project/run.",
+        "parallel_track": "billing",
+        "commercial_value": "Usage-based billing needs per-tenant cost and volume evidence.",
+        "evidence_ref": "fixtures/a2/results/a2_batch_plan_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "scenario_pack_marketplace",
+        "title": "Define industry packs with owners, difficulty, tags, and review status.",
+        "parallel_track": "scenario",
+        "commercial_value": "Pack libraries turn A2 from static tests into configurable product inventory.",
+        "evidence_ref": "packages/scenarios/a2_g3_full_pack.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "a3_dashboard_contract",
+        "title": "Publish A2 dashboard-ready fields for gates, waivers, regressions, and costs.",
+        "parallel_track": "integration",
+        "commercial_value": "A3 can sell the workflow only if A2 outputs stable product data.",
+        "evidence_ref": "docs/a2/schemas",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "self_host_evidence_bundle",
+        "title": "Produce a self-host bundle with deterministic checks and no API dependency.",
+        "parallel_track": "enterprise",
+        "commercial_value": "Enterprise buyers often need self-host or offline verification.",
+        "evidence_ref": "scripts/a2_local_lite_check.py",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "pr_gate_annotations",
+        "title": "Make release gate blockers actionable as PR annotations with owner hints.",
+        "parallel_track": "workflow",
+        "commercial_value": "PR gates enter the customer's release workflow where budget is justified.",
+        "evidence_ref": "fixtures/a2/results/a2_release_gate_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "calibration_drift_report",
+        "title": "Track precision, recall, mismatch, and drift by failure class over time.",
+        "parallel_track": "calibration",
+        "commercial_value": "Judge quality metrics reduce buyer fear of false positives.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_calibration_matrix.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "golden_case_promotion",
+        "title": "Promote reviewed failures into golden cases with reviewer status.",
+        "parallel_track": "regression",
+        "commercial_value": "Customer incidents become compounding regression assets.",
+        "evidence_ref": "fixtures/golden/a2_g2_golden_cases.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "private_evidence_redaction_gate",
+        "title": "Block public merges unless evidence refs are reviewed and raw payloads stay private.",
+        "parallel_track": "evidence",
+        "commercial_value": "Compliance requires proof that secrets and account payloads are not leaked.",
+        "evidence_ref": "fixtures/a2/results/a2_evidence_readiness_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      },
+      {
+        "id": "typescript_python_parity_gate",
+        "title": "Keep Python and TypeScript SDK chains visible in every C3/C4 evidence path.",
+        "parallel_track": "integration",
+        "commercial_value": "Dual SDK parity matters because official Ashr exposes both languages.",
+        "evidence_ref": "fixtures/a2/results/a2_sdk_parity_report.json",
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence"
+      }
+    ],
+    "parallelization": {
+      "must_parallelize": true,
+      "tracks": [
+        "billing",
+        "calibration",
+        "enterprise",
+        "evidence",
+        "integration",
+        "intelligence",
+        "policy",
+        "regression",
+        "scenario",
+        "workflow"
+      ],
+      "integration_rule": "A2 may add public-safe reports and additive schema fields; A1 owns hosted execution and A3 owns UI."
+    }
+  },
   "metadata": {
     "deterministic": true,
     "inputs": [

@@ -1,0 +1,302 @@
+{
+  "schema_version": "a2.judge_versions.v1",
+  "registry_id": "a2_judge_version_registry",
+  "created_at": "2026-07-07T00:00:00Z",
+  "scenario_pack_id": "a2_g3_full_pack",
+  "grade_report_id": "a2_g3_grade_results",
+  "active_release": {
+    "release_id": "a2-local-deterministic-judge-0.1",
+    "status": "active",
+    "default_version": "0.1.0",
+    "pinning_required_for_prod": true,
+    "history_replay_supported": true
+  },
+  "declared_judge_count": 5,
+  "observed_judge_count": 5,
+  "all_declared_judges_observed": true,
+  "undeclared_observed_judges": [],
+  "judges": [
+    {
+      "judge_id": "g1_trace_contract_judge",
+      "display_name": "Trace and Tool Contract Judge",
+      "current_version": "0.1.0",
+      "status": "active",
+      "source_module": "services.judge.tool_policy.ToolPolicyJudge",
+      "owner": "A2",
+      "scenario_pack_id": "a2_g3_full_pack",
+      "result_schema_version": "a2.grade_result.v1",
+      "rubric_focus": [
+        "skill_protocol",
+        "argument_fidelity",
+        "safety_permissions"
+      ],
+      "failure_classes": [
+        "missing_required_tool",
+        "unnecessary_tool_call",
+        "forbidden_tool_call",
+        "wrong_tool",
+        "wrong_arguments",
+        "wrong_tool_order"
+      ],
+      "observed_result_count": 32,
+      "observed_versions": {
+        "0.1.0": 32
+      },
+      "observed_result_schema_versions": {
+        "a2.grade_result.v1": 32
+      },
+      "observed_failure_class_counts": {
+        "forbidden_tool_call": 2,
+        "missing_required_tool": 2,
+        "none": 16,
+        "unnecessary_tool_call": 2,
+        "wrong_arguments": 4,
+        "wrong_tool": 2,
+        "wrong_tool_order": 4
+      },
+      "pinning": {
+        "pin_supported": true,
+        "pin_required_for_prod": true,
+        "recommended_pin": "g1_trace_contract_judge@0.1.0"
+      },
+      "migration": {
+        "history_replay_supported": true,
+        "compare_before_after_supported": true,
+        "deprecation_status": "not_deprecated",
+        "upgrade_policy": "pin_before_prod_release"
+      },
+      "audit": {
+        "deterministic": true,
+        "requires_network": false,
+        "requires_ashr_api_key": false,
+        "raw_private_evidence_not_recorded": true
+      },
+      "judge_contract_hash": "sha256:0bdb8a94d0b7fcf5f30fa7ed2421763faa972830114c65d849a49f6672b7a054"
+    },
+    {
+      "judge_id": "g2_output_contract_judge",
+      "display_name": "Outcome Contract Judge",
+      "current_version": "0.1.0",
+      "status": "active",
+      "source_module": "services.judge.outcome.OutcomeJudge",
+      "owner": "A2",
+      "scenario_pack_id": "a2_g3_full_pack",
+      "result_schema_version": "a2.grade_result.v1",
+      "rubric_focus": [
+        "task_completion",
+        "final_response_quality"
+      ],
+      "failure_classes": [
+        "wrong_intent",
+        "missing_clarification",
+        "unsafe_or_policy_violation"
+      ],
+      "observed_result_count": 32,
+      "observed_versions": {
+        "0.1.0": 32
+      },
+      "observed_result_schema_versions": {
+        "a2.grade_result.v1": 32
+      },
+      "observed_failure_class_counts": {
+        "missing_clarification": 2,
+        "none": 26,
+        "unnecessary_tool_call": 2,
+        "wrong_intent": 2
+      },
+      "pinning": {
+        "pin_supported": true,
+        "pin_required_for_prod": true,
+        "recommended_pin": "g2_output_contract_judge@0.1.0"
+      },
+      "migration": {
+        "history_replay_supported": true,
+        "compare_before_after_supported": true,
+        "deprecation_status": "not_deprecated",
+        "upgrade_policy": "pin_before_prod_release"
+      },
+      "audit": {
+        "deterministic": true,
+        "requires_network": false,
+        "requires_ashr_api_key": false,
+        "raw_private_evidence_not_recorded": true
+      },
+      "judge_contract_hash": "sha256:4f63ca64eb5142867b1f696c9a84f000f793531fd690a730da6c18cc7680af82"
+    },
+    {
+      "judge_id": "g3_replay_sandbox_judge",
+      "display_name": "Replay and Trace Integrity Judge",
+      "current_version": "0.1.0",
+      "status": "active",
+      "source_module": "services.judge.trace_integrity.TraceIntegrityJudge",
+      "owner": "A2",
+      "scenario_pack_id": "a2_g3_full_pack",
+      "result_schema_version": "a2.grade_result.v1",
+      "rubric_focus": [
+        "task_completion",
+        "skill_protocol",
+        "argument_fidelity"
+      ],
+      "failure_classes": [
+        "wrong_tool",
+        "wrong_arguments",
+        "poor_failure_recovery"
+      ],
+      "observed_result_count": 32,
+      "observed_versions": {
+        "0.1.0": 32
+      },
+      "observed_result_schema_versions": {
+        "a2.grade_result.v1": 32
+      },
+      "observed_failure_class_counts": {
+        "none": 30,
+        "poor_failure_recovery": 2
+      },
+      "pinning": {
+        "pin_supported": true,
+        "pin_required_for_prod": true,
+        "recommended_pin": "g3_replay_sandbox_judge@0.1.0"
+      },
+      "migration": {
+        "history_replay_supported": true,
+        "compare_before_after_supported": true,
+        "deprecation_status": "not_deprecated",
+        "upgrade_policy": "pin_before_prod_release"
+      },
+      "audit": {
+        "deterministic": true,
+        "requires_network": false,
+        "requires_ashr_api_key": false,
+        "raw_private_evidence_not_recorded": true
+      },
+      "judge_contract_hash": "sha256:484ccd39ad7d67a31b7bb775dc8e9af06c478bebd8fa074af4b4d5cb5c81fd7a"
+    },
+    {
+      "judge_id": "g3_semantic_reference_judge",
+      "display_name": "Grounding and Reference Judge",
+      "current_version": "0.1.0",
+      "status": "active",
+      "source_module": "services.judge.grounding.GroundingJudge",
+      "owner": "A2",
+      "scenario_pack_id": "a2_g3_full_pack",
+      "result_schema_version": "a2.grade_result.v1",
+      "rubric_focus": [
+        "task_completion",
+        "final_response_quality"
+      ],
+      "failure_classes": [
+        "hallucinated_tool_result",
+        "ignored_tool_result",
+        "wrong_intent"
+      ],
+      "observed_result_count": 32,
+      "observed_versions": {
+        "0.1.0": 32
+      },
+      "observed_result_schema_versions": {
+        "a2.grade_result.v1": 32
+      },
+      "observed_failure_class_counts": {
+        "hallucinated_tool_result": 5,
+        "ignored_tool_result": 3,
+        "none": 24
+      },
+      "pinning": {
+        "pin_supported": true,
+        "pin_required_for_prod": true,
+        "recommended_pin": "g3_semantic_reference_judge@0.1.0"
+      },
+      "migration": {
+        "history_replay_supported": true,
+        "compare_before_after_supported": true,
+        "deprecation_status": "not_deprecated",
+        "upgrade_policy": "review_calibration_diff_before_prod"
+      },
+      "audit": {
+        "deterministic": true,
+        "requires_network": false,
+        "requires_ashr_api_key": false,
+        "raw_private_evidence_not_recorded": true
+      },
+      "judge_contract_hash": "sha256:b78f901da654b507c6943a09353bcc57928a016718f8dd400f8a8662f931be9b"
+    },
+    {
+      "judge_id": "g3_safety_boundary_judge",
+      "display_name": "Safety Boundary Judge",
+      "current_version": "0.1.0",
+      "status": "active",
+      "source_module": "services.judge.safety_boundary.SafetyBoundaryJudge",
+      "owner": "A2",
+      "scenario_pack_id": "a2_g3_full_pack",
+      "result_schema_version": "a2.grade_result.v1",
+      "rubric_focus": [
+        "safety_permissions"
+      ],
+      "failure_classes": [
+        "unsafe_or_policy_violation",
+        "forbidden_tool_call"
+      ],
+      "observed_result_count": 32,
+      "observed_versions": {
+        "0.1.0": 32
+      },
+      "observed_result_schema_versions": {
+        "a2.grade_result.v1": 32
+      },
+      "observed_failure_class_counts": {
+        "none": 30,
+        "unsafe_or_policy_violation": 2
+      },
+      "pinning": {
+        "pin_supported": true,
+        "pin_required_for_prod": true,
+        "recommended_pin": "g3_safety_boundary_judge@0.1.0"
+      },
+      "migration": {
+        "history_replay_supported": true,
+        "compare_before_after_supported": true,
+        "deprecation_status": "not_deprecated",
+        "upgrade_policy": "block_unreviewed_prod_upgrade"
+      },
+      "audit": {
+        "deterministic": true,
+        "requires_network": false,
+        "requires_ashr_api_key": false,
+        "raw_private_evidence_not_recorded": true
+      },
+      "judge_contract_hash": "sha256:43077c4540d520fd276fe53265bf9554d20ee47268acefc21b83a7b94d0fb0ad"
+    }
+  ],
+  "migration_policy": {
+    "requires_registry_hash_on_release_gate": true,
+    "requires_calibration_before_major_upgrade": true,
+    "requires_history_replay_before_prod_unpin": true,
+    "can_compare_judge_versions": true,
+    "can_replay_history": true,
+    "deprecated_judge_count": 0
+  },
+  "service_contract": {
+    "version_fields": [
+      "judge_id",
+      "judge_version",
+      "registry_hash",
+      "policy_hash",
+      "input_hash",
+      "output_hash"
+    ],
+    "pinning_supported": true,
+    "history_replay_supported": true,
+    "safe_to_compare_versions": true
+  },
+  "metadata": {
+    "public_safe": true,
+    "deterministic": true,
+    "requires_network": false,
+    "requires_ashr_api_key": false,
+    "does_not_execute_live_calls": true,
+    "raw_private_evidence_not_recorded": true,
+    "secrets_not_recorded": true
+  },
+  "registry_hash": "sha256:9c95179f6a73fdfeba40d220985d0fbaf8581ed227f4d50f0b9bdbe81dbc9e89"
+}

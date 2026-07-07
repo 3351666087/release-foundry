@@ -19,6 +19,11 @@ DEFAULT_PATTERNS = (
     "docs/evidence/private_refs/a1_ts_api_calibration_*.json",
     "docs/evidence/private_refs/a1_python_api_calibration_*.json",
     "docs/evidence/private_refs/a1_python_api_get_*_round2_real.json",
+    "docs/evidence/private_refs/a1_api_probe_batch_plan_*.json",
+    "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_*.json",
+    "docs/evidence/private_refs/a1_api_validate_gate_*.json",
+    "docs/evidence/private_refs/a1_ts_api_validate_gate_*.json",
+    "docs/evidence/private_refs/a1_*validate_gate*.json",
     "docs/evidence/private_refs/a2_g3_real_api_*/*/*.json",
 )
 

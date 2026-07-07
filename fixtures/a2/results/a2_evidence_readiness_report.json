@@ -98,7 +98,7 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-a2-real-api-2026-07-07-main-sync-union",
+    "label": "a1-a2-real-api-2026-07-07-output-policy-merged",
     "field_map_version": "a1-api-calibration-2026-07-04",
     "total_records": 363,
     "status_counts": {
@@ -191,6 +191,32 @@
         "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json"
       ],
       "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
+    },
+    "api_probe_gate_validation": {
+      "available": true,
+      "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
+      "plan_batch_count": 3,
+      "validate_gate_count": 3,
+      "plan_batch_status_counts": {
+        "blocked": 2,
+        "planned": 1
+      },
+      "validate_gate_status_counts": {
+        "error": 1,
+        "ok": 2
+      },
+      "ok_validate_gate_count": 2,
+      "error_validate_gate_count": 1,
+      "blocked_plan_batch_count": 2,
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+        "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json"
+      ],
+      "release_interpretation": "mixed_gate_evidence_review_required"
     },
     "c3_candidate_record_count": 6,
     "c3_grading_ready": false,

@@ -40,6 +40,7 @@ SCENARIO_DIMENSION_MINIMUMS = {
     "output_contract": 5,
     "freshness_current_info": 5,
     "tool_output_grounding": 1,
+    "enterprise_saas_operation": 8,
 }
 SCENARIO_QUALITY_TARGETS = {
     "d4_scenario_count": 2,
@@ -59,6 +60,7 @@ CAPABILITY_AXIS_TARGETS = {
     "output_contract": 5,
     "freshness_and_external_context": 5,
     "media_and_multimodal": 1,
+    "enterprise_saas_operations": 8,
 }
 CAPABILITY_AXIS_DIMENSIONS = {
     "tool_choice_and_policy": ["optional_tool_choice", "required_tool_use", "forbidden_tool_boundary"],
@@ -71,6 +73,7 @@ CAPABILITY_AXIS_DIMENSIONS = {
     "output_contract": ["output_contract"],
     "freshness_and_external_context": ["freshness_current_info"],
     "media_and_multimodal": ["media_or_multimodal"],
+    "enterprise_saas_operations": ["enterprise_saas_operation"],
 }
 CAPABILITY_AXIS_EXEMPLAR_LIMIT = 2
 CAPABILITY_AXIS_REVIEW_NOTES = {
@@ -84,6 +87,7 @@ CAPABILITY_AXIS_REVIEW_NOTES = {
     "output_contract": "Shows whether the final answer respects required structure, brevity, or schema constraints.",
     "freshness_and_external_context": "Shows whether the agent knows when current external context is required.",
     "media_and_multimodal": "Shows whether media or image evidence is actually inspected and used in the answer.",
+    "enterprise_saas_operations": "Shows whether the agent can handle tenant, admin, billing, audit, governance, and privacy-adjacent SaaS workflows.",
 }
 
 
@@ -312,6 +316,7 @@ def _scenario_dimension_refs(scenarios: list[dict[str, Any]]) -> dict[str, list[
     checks = {
         "argument_fidelity": _is_argument_fidelity,
         "clarification": _is_clarification,
+        "enterprise_saas_operation": _is_enterprise_saas_operation,
         "failure_recovery": _is_failure_recovery,
         "fixture_grounding": lambda scenario: bool(scenario.get("fixtureRefs")),
         "forbidden_tool_boundary": lambda scenario: bool(scenario.get("toolPolicy", {}).get("forbidden")),
@@ -402,6 +407,8 @@ def _exemplar_score(axis: str, scenario: dict[str, Any]) -> int:
         score += 2
     if _is_media_or_multimodal(scenario):
         score += 2 if axis == "media_and_multimodal" else 1
+    if _is_enterprise_saas_operation(scenario):
+        score += 2 if axis == "enterprise_saas_operations" else 1
     return score
 
 
@@ -462,6 +469,8 @@ def _exemplar_note(axis: str, scenario: dict[str, Any]) -> str:
         signals.append("tool-output grounding")
     if _is_media_or_multimodal(scenario):
         signals.append("media evidence")
+    if _is_enterprise_saas_operation(scenario):
+        signals.append("enterprise SaaS workflow")
     signal_text = ", ".join(signals) if signals else "metadata-only scenario"
     return f"{CAPABILITY_AXIS_REVIEW_NOTES.get(axis, 'Shows a reviewer-facing capability axis.')} Evidence signals: {signal_text}."
 
@@ -549,6 +558,45 @@ def _fixture_type(ref: str) -> str:
     if len(parts) >= 2:
         return parts[-2]
     return "unknown"
+
+
+def _is_enterprise_saas_operation(scenario: dict[str, Any]) -> bool:
+    tags = _tags(scenario)
+    explicit_tags = {
+        "enterprise-saas",
+        "admin-audit",
+        "api-calibration",
+        "billing-risk",
+        "change-management",
+        "marketplace-evaluation",
+        "privacy-compliance",
+        "saas-observability",
+        "secrets-management",
+        "skill-governance",
+    }
+    if tags & explicit_tags:
+        return True
+    text = json.dumps(
+        {
+            "title": scenario.get("title", ""),
+            "task": scenario.get("userTask", ""),
+            "expected": scenario.get("expectedBehaviors", []),
+            "tools": scenario.get("toolPolicy", {}),
+        },
+        sort_keys=True,
+    ).lower()
+    return any(
+        marker in text
+        for marker in (
+            "audit",
+            "billing",
+            "charge",
+            "permission",
+            "privacy",
+            "quota",
+            "tenant",
+        )
+    )
 
 
 def _ordered_tool_pairs(order: list[Any]) -> list[str]:

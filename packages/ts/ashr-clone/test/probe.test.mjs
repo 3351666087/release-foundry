@@ -936,7 +936,7 @@ test("probe CLI create-request execute preflight blocks unsafe media before tran
         output,
         "--allow-nonprivate-output",
       ],
-      { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" },
+      { [ASHR_API_ENV_VAR]: "test_synthetic_secret" },
       capture.streams,
     );
 

@@ -41,7 +41,7 @@ Baseline HEAD: `22007d6`
 - A1 public evidence is consumed by A2/A3. Public schemas and evidence index shape changes need compatibility review before merge.
 - `docs/evidence/private_refs` is a convention and an evidence boundary. A1 should enforce it in runtime paths, not rely only on operator discipline.
 - The README rewrite on `origin/main` may redefine cross-lane expectations. A1 docs should not hard-code stale setup or safety language after merging main.
-- Public evidence index summaries must avoid raw response payloads, request bodies, API keys, bearer values, emails, and private dashboard counters.
+- Public evidence index summaries must avoid raw response payloads, request bodies, API keys, authorization header values, emails, and private dashboard counters.
 - Gate validator output should be public-safe by design: issue codes, timestamps, target operation, hashes, and counts are acceptable; raw request/evidence payloads are not.
 - Request fingerprints are safe only if canonicalization excludes raw payload emission and remains deterministic across Python and TS.
 - A2/A3 readiness badges should depend on summarized gate states, not private evidence file contents.

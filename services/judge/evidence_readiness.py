@@ -328,6 +328,8 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
     real_quota_records = [
         record for record in real_records if isinstance(record.get("quota"), dict) and record["quota"].get("blocked")
     ]
+    plan_batch_records = [record for record in records if record.get("function") == "plan_batch"]
+    validate_gate_records = [record for record in records if record.get("function") == "validate_gate"]
     c3_candidate_records = [
         record
         for record in records
@@ -350,6 +352,7 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
         "real_create_request_status_counts": _count_records(real_create_request_records, "status"),
         "real_create_request_error_kind_counts": _count_records(real_create_request_records, "error_kind"),
         "real_quota_gate": _quota_gate_summary(real_quota_records),
+        "api_probe_gate_validation": _api_probe_gate_validation_summary(plan_batch_records, validate_gate_records),
         "c3_candidate_record_count": len(c3_candidate_records),
         "c3_grading_ready": False,
         "notes": [
@@ -358,6 +361,44 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
             "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge.",
         ],
     }
+
+
+def _api_probe_gate_validation_summary(
+    plan_batch_records: list[dict[str, Any]],
+    validate_gate_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    validation_status_counts = _count_records(validate_gate_records, "status")
+    plan_status_counts = _count_records(plan_batch_records, "status")
+    ok_count = int(validation_status_counts.get("ok", 0))
+    error_count = int(validation_status_counts.get("error", 0))
+    blocked_plan_count = int(plan_status_counts.get("blocked", 0))
+    return {
+        "available": bool(plan_batch_records or validate_gate_records),
+        "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
+        "plan_batch_count": len(plan_batch_records),
+        "validate_gate_count": len(validate_gate_records),
+        "plan_batch_status_counts": plan_status_counts,
+        "validate_gate_status_counts": validation_status_counts,
+        "ok_validate_gate_count": ok_count,
+        "error_validate_gate_count": error_count,
+        "blocked_plan_batch_count": blocked_plan_count,
+        "private_record_refs": sorted(
+            str(record.get("path"))
+            for record in (*plan_batch_records, *validate_gate_records)
+            if record.get("path")
+        ),
+        "release_interpretation": _api_probe_gate_interpretation(ok_count, error_count, blocked_plan_count),
+    }
+
+
+def _api_probe_gate_interpretation(ok_count: int, error_count: int, blocked_plan_count: int) -> str:
+    if ok_count and not error_count and not blocked_plan_count:
+        return "target_bound_gate_evidence_available"
+    if ok_count and (error_count or blocked_plan_count):
+        return "mixed_gate_evidence_review_required"
+    if error_count or blocked_plan_count:
+        return "gate_validation_or_plan_blocked"
+    return "not_indexed"
 
 
 def _count_records(records: list[dict[str, Any]], key: str) -> dict[str, int]:

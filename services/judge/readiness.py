@@ -259,6 +259,14 @@ def build_commercial_readiness_report(
             llm_is_offline_only=llm_is_offline_only,
             has_regression_candidates=has_regression_candidates,
         ),
+        "growth_auditor": _growth_auditor(
+            ashr_missing=ashr_missing,
+            llm_is_offline_only=llm_is_offline_only,
+            semantic_live_evidence=semantic_live_evidence,
+            case_book_count=case_book_count,
+            regression_replay_maturity=regression_replay_maturity,
+            real_api_record_count=int(a1_real_api_evidence.get("real_record_count", 0)),
+        ),
         "metadata": {
             "deterministic": True,
             "inputs": [
@@ -349,6 +357,243 @@ def _scope_boundary(
             "breaking changes to a2.grade_results.v1 without coordinated A1/A3 migration",
         ],
         "guardrails": guardrails,
+    }
+
+
+def _growth_auditor(
+    *,
+    ashr_missing: int,
+    llm_is_offline_only: bool,
+    semantic_live_evidence: bool,
+    case_book_count: int,
+    regression_replay_maturity: str,
+    real_api_record_count: int,
+) -> dict[str, Any]:
+    growth_points = _growth_points()
+    return {
+        "auditor_id": "a2_money_grade_auditor",
+        "audit_basis": "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+        "money_direction": {
+            "primary": "release_gate_with_reviewed_evidence_and_regression_replay",
+            "secondary": [
+                "official_grading_diff",
+                "semantic_judge_calibration",
+                "production_incident_to_regression",
+                "enterprise_audit_export",
+            ],
+            "why": (
+                "The highest willingness-to-pay path is blocking risky agent releases with "
+                "reviewable evidence, replayable failures, and approval records."
+            ),
+        },
+        "new_sellable_capabilities": [
+            "internal judge service boundary for case, batch, and release policy evaluation",
+            "project-aware scenario selection for tenant/project risk profiles",
+            "public-safe result persistence with input/output hashes",
+            "release policy waiver audit fields for approval workflow integration",
+            "C3/C4/C5 evidence gates that prevent unreviewed data from being counted as complete",
+        ],
+        "toy_risks_to_upgrade": [
+            "offline llm_judge rows are useful references but cannot sell as audited semantic evidence",
+            "case-book regression suite is still seed maturity, not enterprise incident coverage",
+            "server-side Ashr grading column is prepared but still missing reviewed public rows",
+            "service wrapper is deterministic library code until A1 mounts it behind worker/API infrastructure",
+        ],
+        "customer_payment_drivers": [
+            "fail PR/release gates before unsafe or hallucinated agent behavior ships",
+            "turn judge disagreements and production incidents into durable regression tests",
+            "show managers and auditors a public-safe chain from case to evidence to approval",
+            "support different project/environment policies without forking judge code",
+        ],
+        "enterprise_readiness": {
+            "audit": "public summaries keep private evidence refs without raw payloads",
+            "self_host": "deterministic local judging has no network dependency",
+            "compliance": "C3/C4 gates require reviewed evidence before commercial claims",
+            "current_gaps": [
+                f"{ashr_missing} Ashr grading calibration rows still need reviewed evidence",
+                "semantic judge evidence is still offline-only"
+                if llm_is_offline_only
+                else "semantic judge evidence needs more live samples",
+                f"case book has {case_book_count} regression case(s) and maturity={regression_replay_maturity}",
+            ],
+        },
+        "current_evidence_strength": {
+            "real_api_record_count": real_api_record_count,
+            "semantic_live_evidence_available": semantic_live_evidence,
+            "ashr_missing_reviewed_observations": ashr_missing,
+            "growth_point_count": len(growth_points),
+        },
+        "parallel_growth_points": growth_points,
+        "parallelization": {
+            "must_parallelize": True,
+            "tracks": sorted({point["parallel_track"] for point in growth_points}),
+            "integration_rule": (
+                "A2 may add public-safe reports and additive schema fields; "
+                "A1 owns hosted execution and A3 owns UI."
+            ),
+        },
+    }
+
+
+def _growth_points() -> list[dict[str, Any]]:
+    return [
+        _growth_point(
+            "official_grading_diff_import",
+            "Import six reviewed Ashr server-side grading rows into calibration.",
+            "calibration",
+            "Customers trust gates more when local failures match official grading.",
+            "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        ),
+        _growth_point(
+            "semantic_live_judge_audit",
+            "Replace offline llm_judge references with audited live model-call summaries.",
+            "calibration",
+            "Audited semantic evidence supports high-value false-positive review.",
+            "fixtures/a2/results/a2_semantic_harness_report.json",
+        ),
+        _growth_point(
+            "production_incident_to_regression",
+            "Convert incident summaries into reviewed regression candidates.",
+            "regression",
+            "Incident replay is a direct enterprise painkiller after agent failures.",
+            "fixtures/a2/results/a2_case_book.json",
+        ),
+        _growth_point(
+            "failure_cluster_report",
+            "Group failures by class, scenario family, SDK language, and owner role.",
+            "intelligence",
+            "Teams pay for root-cause grouping, not only pass/fail rows.",
+            "fixtures/a2/results/a2_g3_grade_results.json",
+        ),
+        _growth_point(
+            "reviewer_feedback_queue",
+            "Capture judge override, waiver, and reviewer notes as calibration inputs.",
+            "workflow",
+            "Human review feedback makes the judge improve with customer use.",
+            "fixtures/a2/results/a2_release_gate_report.json",
+        ),
+        _growth_point(
+            "enterprise_policy_templates",
+            "Ship prod, staging, regulated, and experimental release policy templates.",
+            "policy",
+            "Per-team policy templates increase enterprise fit and deal size.",
+            "fixtures/a2/config/release_policies.json",
+        ),
+        _growth_point(
+            "approval_chain_export",
+            "Expose waiver approvals, reviewers, reasons, and evidence refs in reports.",
+            "workflow",
+            "Managers need sign-off history before accepting release gates.",
+            "fixtures/a2/results/a2_release_gate_report.json",
+        ),
+        _growth_point(
+            "judge_version_comparison",
+            "Compare policy, taxonomy, scenario, and judge versions across runs.",
+            "intelligence",
+            "Versioned judge history answers why scores changed after upgrades.",
+            "fixtures/a2/results/a2_result_persistence_manifest.json",
+        ),
+        _growth_point(
+            "flaky_case_detection",
+            "Mark cases that disagree across local, official, and semantic judges.",
+            "calibration",
+            "Flaky-case isolation lowers false block risk for paying teams.",
+            "fixtures/a2/results/a2_g3_calibration_matrix.json",
+        ),
+        _growth_point(
+            "media_eval_expansion",
+            "Expand media/tool-output grounding beyond the current A2-S031 seed.",
+            "scenario",
+            "Media-capable agent products need image and artifact evidence checks.",
+            "fixtures/a2/results/a2_g3_coverage_report.json",
+        ),
+        _growth_point(
+            "api_error_shape_fixture",
+            "Capture official API error/quota/status shapes as public-safe fixtures.",
+            "evidence",
+            "Real error semantics make the clone more faithful than guesses.",
+            "docs/a1/api_calibration/real_api_evidence_index.json",
+        ),
+        _growth_point(
+            "cost_ledger_per_tenant",
+            "Break judge and semantic cost ledger down by tenant/project/run.",
+            "billing",
+            "Usage-based billing needs per-tenant cost and volume evidence.",
+            "fixtures/a2/results/a2_batch_plan_report.json",
+        ),
+        _growth_point(
+            "scenario_pack_marketplace",
+            "Define industry packs with owners, difficulty, tags, and review status.",
+            "scenario",
+            "Pack libraries turn A2 from static tests into configurable product inventory.",
+            "packages/scenarios/a2_g3_full_pack.json",
+        ),
+        _growth_point(
+            "a3_dashboard_contract",
+            "Publish A2 dashboard-ready fields for gates, waivers, regressions, and costs.",
+            "integration",
+            "A3 can sell the workflow only if A2 outputs stable product data.",
+            "docs/a2/schemas",
+        ),
+        _growth_point(
+            "self_host_evidence_bundle",
+            "Produce a self-host bundle with deterministic checks and no API dependency.",
+            "enterprise",
+            "Enterprise buyers often need self-host or offline verification.",
+            "scripts/a2_local_lite_check.py",
+        ),
+        _growth_point(
+            "pr_gate_annotations",
+            "Make release gate blockers actionable as PR annotations with owner hints.",
+            "workflow",
+            "PR gates enter the customer's release workflow where budget is justified.",
+            "fixtures/a2/results/a2_release_gate_report.json",
+        ),
+        _growth_point(
+            "calibration_drift_report",
+            "Track precision, recall, mismatch, and drift by failure class over time.",
+            "calibration",
+            "Judge quality metrics reduce buyer fear of false positives.",
+            "fixtures/a2/results/a2_g3_calibration_matrix.json",
+        ),
+        _growth_point(
+            "golden_case_promotion",
+            "Promote reviewed failures into golden cases with reviewer status.",
+            "regression",
+            "Customer incidents become compounding regression assets.",
+            "fixtures/golden/a2_g2_golden_cases.json",
+        ),
+        _growth_point(
+            "private_evidence_redaction_gate",
+            "Block public merges unless evidence refs are reviewed and raw payloads stay private.",
+            "evidence",
+            "Compliance requires proof that secrets and account payloads are not leaked.",
+            "fixtures/a2/results/a2_evidence_readiness_report.json",
+        ),
+        _growth_point(
+            "typescript_python_parity_gate",
+            "Keep Python and TypeScript SDK chains visible in every C3/C4 evidence path.",
+            "integration",
+            "Dual SDK parity matters because official Ashr exposes both languages.",
+            "fixtures/a2/results/a2_sdk_parity_report.json",
+        ),
+    ]
+
+
+def _growth_point(
+    point_id: str,
+    title: str,
+    parallel_track: str,
+    commercial_value: str,
+    evidence_ref: str,
+) -> dict[str, Any]:
+    return {
+        "id": point_id,
+        "title": title,
+        "parallel_track": parallel_track,
+        "commercial_value": commercial_value,
+        "evidence_ref": evidence_ref,
+        "required_artifact_type": "code_or_test_or_fixture_or_schema_or_evidence",
     }
 
 

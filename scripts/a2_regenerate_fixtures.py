@@ -17,12 +17,18 @@ from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
+from services.judge.incident_regression import build_incident_regression_candidate_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
+from services.judge.release_gate import build_release_gate_report  # noqa: E402
 from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
+from services.judge.result_persistence import build_result_persistence_manifest  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
+from services.judge.saas_control_plane import build_saas_control_plane_report  # noqa: E402
+from services.judge.scenario_selection import build_scenario_selection_report  # noqa: E402
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
+from services.judge.versioning import build_judge_version_registry  # noqa: E402
 
 
 DEFAULT_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
@@ -41,7 +47,16 @@ DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
 DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
 DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json"
 DEFAULT_REGRESSION_REPLAY = DEFAULT_RESULT_DIR / "a2_regression_replay_report.json"
+DEFAULT_INCIDENT_SUMMARY = Path("fixtures/a2/incidents/a2_prod_incident_summary.json")
+DEFAULT_INCIDENT_REGRESSION_CANDIDATES = DEFAULT_RESULT_DIR / "a2_incident_regression_candidates.json"
 DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
+DEFAULT_RELEASE_GATE = DEFAULT_RESULT_DIR / "a2_release_gate_report.json"
+DEFAULT_SCENARIO_SELECTION_PROFILE = Path("fixtures/a2/config/a2_saas_project_selection_profile.json")
+DEFAULT_SCENARIO_SELECTION = DEFAULT_RESULT_DIR / "a2_scenario_selection_report.json"
+DEFAULT_RESULT_PERSISTENCE_MANIFEST = DEFAULT_RESULT_DIR / "a2_result_persistence_manifest.json"
+DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
+DEFAULT_SAAS_CONTROL_PLANE = DEFAULT_RESULT_DIR / "a2_saas_control_plane_report.json"
+DEFAULT_JUDGE_VERSIONS = DEFAULT_RESULT_DIR / "a2_judge_versions.json"
 
 
 def main() -> int:
@@ -66,7 +81,16 @@ def main() -> int:
     parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
     parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
     parser.add_argument("--regression-replay", default=DEFAULT_REGRESSION_REPLAY.as_posix())
+    parser.add_argument("--incident-summary", default=DEFAULT_INCIDENT_SUMMARY.as_posix())
+    parser.add_argument("--incident-regression-candidates", default=DEFAULT_INCIDENT_REGRESSION_CANDIDATES.as_posix())
     parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
+    parser.add_argument("--release-gate", default=DEFAULT_RELEASE_GATE.as_posix())
+    parser.add_argument("--scenario-selection-profile", default=DEFAULT_SCENARIO_SELECTION_PROFILE.as_posix())
+    parser.add_argument("--scenario-selection", default=DEFAULT_SCENARIO_SELECTION.as_posix())
+    parser.add_argument("--result-persistence-manifest", default=DEFAULT_RESULT_PERSISTENCE_MANIFEST.as_posix())
+    parser.add_argument("--release-policy-config", default=DEFAULT_RELEASE_POLICY_CONFIG.as_posix())
+    parser.add_argument("--saas-control-plane", default=DEFAULT_SAAS_CONTROL_PLANE.as_posix())
+    parser.add_argument("--judge-versions", default=DEFAULT_JUDGE_VERSIONS.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -90,7 +114,16 @@ def main() -> int:
         batch_plan_path=Path(args.batch_plan),
         semantic_harness_path=Path(args.semantic_harness),
         regression_replay_path=Path(args.regression_replay),
+        incident_summary_path=Path(args.incident_summary),
+        incident_regression_candidates_path=Path(args.incident_regression_candidates),
         evidence_readiness_path=Path(args.evidence_readiness),
+        release_gate_path=Path(args.release_gate),
+        scenario_selection_profile_path=Path(args.scenario_selection_profile),
+        scenario_selection_path=Path(args.scenario_selection),
+        result_persistence_manifest_path=Path(args.result_persistence_manifest),
+        release_policy_config_path=Path(args.release_policy_config),
+        saas_control_plane_path=Path(args.saas_control_plane),
+        judge_versions_path=Path(args.judge_versions),
     )
 
     if args.check:
@@ -119,7 +152,16 @@ def generate_outputs(
     batch_plan_path: Path,
     semantic_harness_path: Path,
     regression_replay_path: Path,
+    incident_summary_path: Path,
+    incident_regression_candidates_path: Path,
     evidence_readiness_path: Path,
+    release_gate_path: Path,
+    scenario_selection_profile_path: Path,
+    scenario_selection_path: Path,
+    result_persistence_manifest_path: Path,
+    release_policy_config_path: Path,
+    saas_control_plane_path: Path,
+    judge_versions_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -169,6 +211,10 @@ def generate_outputs(
         pack_path=pack_path,
     )
     outputs[regression_replay_path] = regression_replay
+    outputs[incident_regression_candidates_path] = build_incident_regression_candidate_report(
+        incident_summary_path,
+        pack_path=pack_path,
+    )
     sdk_parity = build_sdk_parity_report(pack_path=pack_path)
     outputs[sdk_parity_path] = sdk_parity
     semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
@@ -188,7 +234,7 @@ def generate_outputs(
         semantic_harness_report=semantic_harness,
     )
     outputs[evidence_readiness_path] = evidence_readiness
-    outputs[commercial_readiness_path] = build_commercial_readiness_report(
+    commercial_readiness = build_commercial_readiness_report(
         coverage_report=coverage_report,
         calibration_matrix=calibration_matrix,
         case_book_report=case_book,
@@ -197,6 +243,62 @@ def generate_outputs(
         semantic_harness_report=semantic_harness,
         regression_replay_report=regression_replay,
         evidence_readiness_report=evidence_readiness,
+    )
+    outputs[commercial_readiness_path] = commercial_readiness
+    scenario_selection_profile = json.loads(scenario_selection_profile_path.read_text(encoding="utf-8"))
+    scenario_selection = build_scenario_selection_report(
+        scenario_selection_profile,
+        pack_path=pack_path,
+    )
+    outputs[scenario_selection_path] = scenario_selection
+    release_gate = build_release_gate_report(
+        commercial_readiness,
+        evidence_readiness,
+        calibration_matrix,
+        regression_replay,
+        scenario_selection,
+    )
+    outputs[release_gate_path] = release_gate
+    scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
+    result_persistence_manifest = build_result_persistence_manifest(
+        outputs[grade_report_path],
+        release_gate,
+        scenario_pack,
+        scenario_selection_report=scenario_selection,
+        run_fixtures=fixture_payloads,
+        source_refs={
+            "grade_report": grade_report_path.as_posix(),
+            "release_gate": release_gate_path.as_posix(),
+            "scenario_pack": pack_path.as_posix(),
+            "scenario_selection": scenario_selection_path.as_posix(),
+        },
+    )
+    outputs[result_persistence_manifest_path] = result_persistence_manifest
+    judge_version_registry = build_judge_version_registry(
+        scenario_pack=scenario_pack,
+        grade_report=outputs[grade_report_path],
+    )
+    outputs[judge_versions_path] = judge_version_registry
+    release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
+    outputs[saas_control_plane_path] = build_saas_control_plane_report(
+        grade_report=outputs[grade_report_path],
+        coverage_report=coverage_report,
+        calibration_matrix=calibration_matrix,
+        release_gate_report=release_gate,
+        scenario_selection_report=scenario_selection,
+        result_persistence_manifest=result_persistence_manifest,
+        judge_version_registry=judge_version_registry,
+        release_policy_config=release_policy_config,
+        source_refs={
+            "grade_report": grade_report_path.as_posix(),
+            "coverage_report": coverage_report_path.as_posix(),
+            "calibration_matrix": calibration_matrix_path.as_posix(),
+            "release_gate": release_gate_path.as_posix(),
+            "scenario_selection": scenario_selection_path.as_posix(),
+            "result_persistence": result_persistence_manifest_path.as_posix(),
+            "judge_versions": judge_versions_path.as_posix(),
+            "release_policy_config": release_policy_config_path.as_posix(),
+        },
     )
     return outputs
 

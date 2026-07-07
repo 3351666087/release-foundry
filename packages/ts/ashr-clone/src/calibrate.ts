@@ -100,8 +100,8 @@ export async function main(
       return 0;
     }
     const outputPath = args.output ?? defaultOutputPath(args.execute);
-    enforcePrivateOutputPath(args, outputPath);
     enforcePrivateStdoutPolicy(args);
+    enforcePrivateOutputPath(args, outputPath);
     await validateCalibrationGuards(args);
     const manifest = await runCalibration(args, env, outputPath);
     await writeJson(outputPath, manifest);

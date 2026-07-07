@@ -1,0 +1,416 @@
+{
+  "schema_version": "a2.saas_control_plane_report.v1",
+  "report_id": "a2_saas_control_plane_report",
+  "created_at": "2026-07-07T00:00:00Z",
+  "tenant": {
+    "tenant_id": "org_local_demo",
+    "org_id": "org_local_demo",
+    "project_id": "project_enterprise_saas_agent",
+    "environment": "prod",
+    "run_id": "a2_g3_grade_results",
+    "dataset_id": "a2-g3-calibration",
+    "tenant_scoped": true
+  },
+  "service": {
+    "service_version": "a2-judge-service-0.1.0",
+    "mode": "deterministic_local_service_contract",
+    "endpoints": [
+      {
+        "endpoint_id": "judge_case",
+        "method": "POST",
+        "path": "/internal/judge/case",
+        "request_fields": [
+          "scenario_id",
+          "case_id",
+          "run"
+        ],
+        "response_fields": [
+          "judge_result"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "judge_run",
+        "method": "POST",
+        "path": "/internal/judge/run",
+        "request_fields": [
+          "run_id",
+          "cases"
+        ],
+        "response_fields": [
+          "grade_report",
+          "run_summary"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "judge_batch",
+        "method": "POST",
+        "path": "/internal/judge/batch",
+        "request_fields": [
+          "cases"
+        ],
+        "response_fields": [
+          "grade_report"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "release_policy_evaluate",
+        "method": "POST",
+        "path": "/internal/release-policy/evaluate",
+        "request_fields": [
+          "project_id",
+          "environment",
+          "grade_report"
+        ],
+        "response_fields": [
+          "release_gate",
+          "policy_evaluation"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "regression_replay",
+        "method": "POST",
+        "path": "/internal/regression/replay",
+        "request_fields": [
+          "calibration_matrix",
+          "case_book_report"
+        ],
+        "response_fields": [
+          "replay_report"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "calibration_evaluate",
+        "method": "POST",
+        "path": "/internal/calibration/evaluate",
+        "request_fields": [
+          "pack_path",
+          "run_dir",
+          "observations_path"
+        ],
+        "response_fields": [
+          "calibration_matrix",
+          "source_coverage"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "scenario_selection",
+        "method": "POST",
+        "path": "/internal/scenarios/select",
+        "request_fields": [
+          "project_id",
+          "environment"
+        ],
+        "response_fields": [
+          "selected_scenario_ids",
+          "coverage_summary"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
+        "endpoint_id": "result_persistence_manifest",
+        "method": "POST",
+        "path": "/internal/results/persist",
+        "request_fields": [
+          "grade_report",
+          "release_gate",
+          "scenario_pack"
+        ],
+        "response_fields": [
+          "records",
+          "record_type_counts"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      }
+    ],
+    "async_job_compatible": true,
+    "safe_for_worker_dispatch": true
+  },
+  "judge_versioning": {
+    "judge_result_record_count": 160,
+    "judge_id_count": 5,
+    "judge_ids": [
+      "g1_trace_contract_judge",
+      "g2_output_contract_judge",
+      "g3_replay_sandbox_judge",
+      "g3_safety_boundary_judge",
+      "g3_semantic_reference_judge"
+    ],
+    "judge_versions": [
+      "0.1.0"
+    ],
+    "policy_hash_count": 132,
+    "all_records_have_policy_hash": true,
+    "all_records_have_input_hash": true,
+    "all_records_have_output_hash": true,
+    "version_fields": [
+      "judge_version",
+      "policy_hash",
+      "input_hash",
+      "output_hash",
+      "result_schema_version"
+    ]
+  },
+  "judge_version_registry": {
+    "registry_id": "a2_judge_version_registry",
+    "registry_hash": "sha256:9c95179f6a73fdfeba40d220985d0fbaf8581ed227f4d50f0b9bdbe81dbc9e89",
+    "active_release": {
+      "release_id": "a2-local-deterministic-judge-0.1",
+      "status": "active",
+      "default_version": "0.1.0",
+      "pinning_required_for_prod": true,
+      "history_replay_supported": true
+    },
+    "declared_judge_count": 5,
+    "observed_judge_count": 5,
+    "all_declared_judges_observed": true,
+    "pinning_supported": true,
+    "history_replay_supported": true,
+    "can_compare_judge_versions": true,
+    "can_replay_history": true,
+    "judge_pins": [
+      "g1_trace_contract_judge@0.1.0",
+      "g2_output_contract_judge@0.1.0",
+      "g3_replay_sandbox_judge@0.1.0",
+      "g3_semantic_reference_judge@0.1.0",
+      "g3_safety_boundary_judge@0.1.0"
+    ]
+  },
+  "policy_config": {
+    "config_id": "a2_release_policies_default",
+    "default_policy_id": "release_policy_dev_observe",
+    "policy_count": 3,
+    "assignment_count": 8,
+    "environments": [
+      "dev",
+      "prod",
+      "staging"
+    ],
+    "selected_policy": {
+      "policy_id": "release_policy_prod_strict",
+      "policy_version": "2026-07-07.2",
+      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
+      "policy_hash_valid": true,
+      "rule_count": 4,
+      "selection": {
+        "assignment_id": "project_enterprise_saas_agent_prod",
+        "match_scope": "project_environment",
+        "project_id": "project_enterprise_saas_agent",
+        "environment": "prod",
+        "branch": "",
+        "branch_pattern": "*,main,release/*"
+      }
+    },
+    "waiver_flow_supported": true,
+    "release_gate_decision": "block",
+    "metadata": {
+      "per_project_policy": true,
+      "per_environment_policy": true,
+      "policy_hash_algorithm": "sha256 over policy JSON excluding policy_hash"
+    }
+  },
+  "scenario_selection": {
+    "selection_id": "a2_enterprise_saas_prod_selection",
+    "source_pack_id": "a2_g3_full_pack",
+    "source_scenario_count": 60,
+    "selected_count": 12,
+    "selected_scenario_ids": [
+      "A2-S010",
+      "A2-S018",
+      "A2-S031",
+      "A2-S035",
+      "A2-S039",
+      "A2-S041",
+      "A2-S043",
+      "A2-S046",
+      "A2-S048",
+      "A2-S050",
+      "A2-S052",
+      "A2-S059"
+    ],
+    "coverage_ready": true,
+    "required_axes_met": {
+      "enterprise_saas_operations": true,
+      "grounding_and_reference": true,
+      "media_and_multimodal": true,
+      "safety_boundary": true,
+      "tool_choice_and_policy": true,
+      "trace_contract": true
+    },
+    "media_or_multimodal_count": 2,
+    "missing_capability_axes": [],
+    "missing_tenant_saas_tags": [],
+    "risk_tier_counts": {
+      "critical": 6,
+      "high": 6
+    }
+  },
+  "calibration": {
+    "matrix_id": "a2_g3_calibration_matrix",
+    "case_count": 6,
+    "sources": [
+      "local_judge",
+      "ashr_grading",
+      "llm_judge"
+    ],
+    "source_coverage": {
+      "local_judge": {
+        "available": 6,
+        "missing": 0,
+        "coverage_ratio": 1.0
+      },
+      "ashr_grading": {
+        "available": 0,
+        "missing": 6,
+        "coverage_ratio": 0.0
+      },
+      "llm_judge": {
+        "available": 6,
+        "missing": 0,
+        "coverage_ratio": 1.0
+      }
+    },
+    "agreement_mismatch_count": 1,
+    "cost_ledger": [
+      {
+        "source": "local_judge",
+        "sample_count": 6,
+        "provider_counts": {
+          "services.judge.runner.grade_run": 6
+        },
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "estimated_usd": 0.0
+      },
+      {
+        "source": "ashr_grading",
+        "sample_count": 0,
+        "provider_counts": {},
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "estimated_usd": 0.0
+      },
+      {
+        "source": "llm_judge",
+        "sample_count": 6,
+        "provider_counts": {
+          "offline_reference": 6
+        },
+        "prompt_tokens": 3795,
+        "completion_tokens": 534,
+        "estimated_usd": 0.008658
+      }
+    ],
+    "live_evidence_gates": {
+      "ashr_grading_missing": 6,
+      "llm_judge_missing": 0,
+      "ashr_grading_ready": false,
+      "semantic_judge_ready": true
+    }
+  },
+  "result_persistence": {
+    "manifest_id": "a2_result_persistence_manifest",
+    "record_count": 162,
+    "record_type_counts": {
+      "judge_result": 160,
+      "release_gate": 1,
+      "scenario_selection": 1
+    },
+    "public_safe": true,
+    "raw_private_evidence_not_recorded": true,
+    "secrets_not_recorded": true,
+    "ready_for_audit_export": true
+  },
+  "release_gate": {
+    "report_id": "a2_release_gate",
+    "decision": "block",
+    "exit_code": 2,
+    "risk_score": 100,
+    "current_commercial_gate": "C2",
+    "ready_for_commercial_gate": false,
+    "blocking_gate_count": 3,
+    "warning_count": 3,
+    "blocker_type_counts": {
+      "calibration_gap": 1,
+      "commercial_gate": 3,
+      "evidence_gate": 2,
+      "regression_maturity": 1
+    }
+  },
+  "a3_dashboard_contract": {
+    "consumer": "A3 SaaS admin console",
+    "status": "ready_for_read_only_dashboard_consumption",
+    "recommended_payload_keys": {
+      "gradeFixture": "fixtures/a2/results/a2_g3_grade_results.json",
+      "coverage": "fixtures/a2/results/a2_g3_coverage_report.json",
+      "releaseGate": "fixtures/a2/results/a2_release_gate_report.json",
+      "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
+      "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+      "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
+      "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json"
+    },
+    "dashboard_can_show": [
+      "tenant-scoped project/environment selection",
+      "selected scenario pack coverage",
+      "judge version and policy hash audit",
+      "judge registry pins and migration readiness",
+      "release policy decision and blocker counts",
+      "public-safe persistence record counts",
+      "calibration source coverage and live evidence gaps"
+    ],
+    "local_meter": {
+      "grade_case_count": 32,
+      "scenario_count": 60,
+      "selected_scenario_count": 12,
+      "audit_record_count": 162
+    },
+    "selected_policy_id": "release_policy_prod_strict",
+    "release_gate_decision": "block",
+    "selection_coverage_ready": true,
+    "private_fields_forbidden": [
+      "api_key",
+      "authorization",
+      "token",
+      "private_input_ref",
+      "raw_evidence"
+    ],
+    "mutations_enabled": false
+  },
+  "source_refs": {
+    "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
+    "coverage_report": "fixtures/a2/results/a2_g3_coverage_report.json",
+    "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
+    "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
+    "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+    "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
+    "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
+    "release_policy_config": "fixtures/a2/config/release_policies.json"
+  },
+  "metadata": {
+    "public_safe": true,
+    "deterministic": true,
+    "requires_network": false,
+    "requires_ashr_api_key": false,
+    "does_not_execute_live_calls": true,
+    "raw_private_evidence_not_recorded": true,
+    "secrets_not_recorded": true,
+    "intended_consumers": [
+      "A2 service wrapper",
+      "A3 SaaS admin console",
+      "release gate API"
+    ]
+  }
+}

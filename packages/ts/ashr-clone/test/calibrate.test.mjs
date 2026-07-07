@@ -345,7 +345,8 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
   };
   try {
     const capture = captureStreams();
-    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--allow-nonprivate-output"], { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" }, capture.streams);
+    const syntheticApiKey = "test_synthetic_secret";
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--allow-nonprivate-output"], { [ASHR_API_ENV_VAR]: syntheticApiKey }, capture.streams);
     const manifest = readJson(output);
 
     assert.equal(code, 0);
@@ -357,9 +358,9 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
     assert.equal(manifest.env.auth_env_present.includes(ASHR_API_ENV_VAR), true);
     assert.equal(manifest.guardrails.output_policy.private_output_required, true);
     assert.equal(manifest.guardrails.output_policy.nonprivate_output_override_used, true);
-    assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
+    assert.equal(JSON.stringify(manifest).includes(syntheticApiKey), false);
     assert.equal(seen.length, 6);
-    assert.equal(seen.every((item) => item.authorization === "Bearer tp_syntheticsecret"), true);
+    assert.equal(seen.every((item) => item.authorization === ["Bearer", syntheticApiKey].join(" ")), true);
     assert.ok(manifest.steps.some((step) => step.step_id === "list-datasets" && step.response_keys.includes("datasets")));
     assert.ok(manifest.steps.some((step) => step.step_id === "list-requests" && step.response_keys.includes("requests")));
   } finally {
@@ -413,7 +414,7 @@ test("calibrate CLI persists audited quota override reason in emitted evidence",
         output,
         "--allow-nonprivate-output",
       ],
-      { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" },
+      { [ASHR_API_ENV_VAR]: "test_synthetic_secret" },
       capture.streams,
     );
     const manifest = readJson(output);
@@ -427,7 +428,7 @@ test("calibrate CLI persists audited quota override reason in emitted evidence",
     assert.equal(manifest.guardrails.quota_gate.override.reason, reason);
     assert.equal(stepRecord.request.preflight.quota_gate.override.used, true);
     assert.equal(stepRecord.request.preflight.quota_gate.override.reason, reason);
-    assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
+    assert.equal(JSON.stringify(manifest).includes("test_synthetic_secret"), false);
   } finally {
     globalThis.fetch = originalFetch;
     rmSync(temp, { recursive: true, force: true });
