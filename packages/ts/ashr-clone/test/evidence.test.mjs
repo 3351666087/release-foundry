@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ASHR_API_FIELD_MAP_VERSION, buildPrivateEvidenceIndex, EVIDENCE_INDEX_SCHEMA_VERSION, writePrivateEvidenceIndex } from "../dist/index.js";
+import {
+  ASHR_API_FIELD_MAP_VERSION,
+  buildPrivateEvidenceIndex,
+  buildResponseFieldMap,
+  EVIDENCE_INDEX_SCHEMA_VERSION,
+  validatePublicEvidenceIndex,
+  writePrivateEvidenceIndex,
+} from "../dist/index.js";
 
 test("buildPrivateEvidenceIndex summarizes safe private API records", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-evidence-"));
@@ -60,19 +67,72 @@ test("buildPrivateEvidenceIndex summarizes safe private API records", async () =
     assert.deepEqual(index.records[0].top_counts, { runs: 2 });
     assert.deepEqual(index.records[1].quota, {
       blocked: true,
-      message: "Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+      message: "Usage limit exceeded; exact quota details are kept in private evidence",
       quota_keys: ["limit", "remaining", "requested", "resource", "secret_token", "used"],
       resource: "requests",
-      limit: 5,
-      used: 5,
-      requested: 1,
-      remaining: 0,
+      limit_present: true,
+      used_present: true,
+      requested_present: true,
+      remaining_present: true,
     });
     assert.equal(JSON.stringify(index).includes("tp_syntheticsecret"), false);
     assert.equal(JSON.stringify(index).includes("Bearer abc.secret"), false);
+    assert.equal(JSON.stringify(index).includes("5/5 " + "used"), false);
+    assert.deepEqual(validatePublicEvidenceIndex(index), []);
+
+    const fieldMap = buildResponseFieldMap(index);
+    assert.equal(fieldMap.schema_version, "ashr.clone.response_field_map.v1");
+    assert.equal(fieldMap.source_label, "a1-ts-test");
+    assert.equal(fieldMap.source_total_records, 2);
+    assert.equal(fieldMap.field_map_version, ASHR_API_FIELD_MAP_VERSION);
+    assert.deepEqual(fieldMap.functions.create_request, {
+      records: 1,
+      statuses: { error: 1 },
+      response_keys: ["message", "quota", "status"],
+      response_summary_keys: [],
+      error_keys: ["error_kind", "message"],
+      quota_block_count: 1,
+      top_count_keys: [],
+    });
+    assert.deepEqual(fieldMap.functions.list_runs, {
+      records: 1,
+      statuses: { planned: 1 },
+      response_keys: ["runs", "status"],
+      response_summary_keys: ["request_failure"],
+      error_keys: [],
+      quota_block_count: 0,
+      top_count_keys: ["runs"],
+    });
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test("validatePublicEvidenceIndex flags unsafe public evidence details", () => {
+  const issues = validatePublicEvidenceIndex({
+    records: [
+      {
+        function: "create_request",
+        quota: { blocked: true, limit: 5, used: 5, requested: 1, remaining: 0 },
+      },
+      "not-a-record",
+    ],
+    response: {
+      message: "Usage limit exceeded for requests: 5/5 used",
+      token: "tp_syntheticsecret",
+    },
+  });
+
+  assert.equal(issues.some((issue) => issue.kind === "exact_quota_detail" && issue.pattern === "5/5 used"), true);
+  assert.equal(issues.some((issue) => issue.kind === "secret_like_text"), true);
+  assert.equal(issues.some((issue) => issue.kind === "malformed_record" && issue.record_index === 1), true);
+  assert.deepEqual(
+    issues
+      .filter((issue) => issue.kind === "quota_value_not_public_safe")
+      .map((issue) => issue.field)
+      .sort(),
+    ["limit", "remaining", "requested", "used"],
+  );
 });
 
 test("writePrivateEvidenceIndex creates parents and redacts output", async () => {

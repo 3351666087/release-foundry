@@ -304,6 +304,9 @@ test("preflight helpers mirror Python guardrail semantics", () => {
   assert.equal(summary.num_variations, 2);
   assert.equal(summary.agent_input_schema_version, AGENT_INPUT_SCHEMA_VERSION);
   assert.equal(summary.media_generation_enabled, true);
+  assert.equal(summary.cost_risk.level, "paid_media_generation");
+  assert.equal(summary.cost_risk.estimated_generated_asset_units, 2);
+  assert.deepEqual(summary.cost_risk.generated_media_modalities, ["audio"]);
   assert.throws(() => enforceCreateRequestPreflight(summary, { allowMediaGeneration: true, allowNonTextInputs: true, maxRequestVariations: 1 }), /exceeds/);
   assert.deepEqual(redactApiSensitive({ api_key: "tp_syntheticsecret", url: "https://x.invalid/a?sig=1" }), {
     api_key: "[redacted]",

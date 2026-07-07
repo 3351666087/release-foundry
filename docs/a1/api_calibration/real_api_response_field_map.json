@@ -1,0 +1,301 @@
+{
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "functions": {
+    "create_request": {
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 11,
+      "records": 33,
+      "response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 13,
+        "ok": 2,
+        "planned": 18
+      },
+      "top_count_keys": []
+    },
+    "create_run": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 2,
+      "response_keys": [
+        "_user",
+        "plan",
+        "run",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 1,
+        "planned": 1
+      },
+      "top_count_keys": []
+    },
+    "get_dataset": {
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 0,
+      "records": 8,
+      "response_keys": [
+        "_user",
+        "dataset",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 6,
+        "ok": 2
+      },
+      "top_count_keys": []
+    },
+    "get_request": {
+      "error_keys": [
+        "error_kind",
+        "failure_summary",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "quota_block_count": 0,
+      "records": 11,
+      "response_keys": [
+        "_user",
+        "request",
+        "status"
+      ],
+      "response_summary_keys": [
+        "request_failure"
+      ],
+      "statuses": {
+        "error": 5,
+        "ok": 6
+      },
+      "top_count_keys": []
+    },
+    "get_run": {
+      "error_keys": [
+        "message",
+        "status_code"
+      ],
+      "quota_block_count": 0,
+      "records": 4,
+      "response_keys": [
+        "_user",
+        "plan",
+        "run",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 2,
+        "planned": 1,
+        "timeout": 1
+      },
+      "top_count_keys": []
+    },
+    "init": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 29,
+      "response_keys": [
+        "features",
+        "notes",
+        "plan",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 24,
+        "planned": 5
+      },
+      "top_count_keys": []
+    },
+    "keep_alive": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 27,
+      "response_keys": [
+        "db",
+        "message",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 23,
+        "planned": 4
+      },
+      "top_count_keys": []
+    },
+    "list_agents": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 28,
+      "response_keys": [
+        "_user",
+        "agents",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 24,
+        "planned": 4
+      },
+      "top_count_keys": [
+        "agents"
+      ]
+    },
+    "list_datasets": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 34,
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "plan",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 29,
+        "planned": 5
+      },
+      "top_count_keys": [
+        "datasets"
+      ]
+    },
+    "list_requests": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 37,
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "plan",
+        "requests",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 34,
+        "planned": 3
+      },
+      "top_count_keys": [
+        "requests"
+      ]
+    },
+    "list_runs": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 4,
+      "response_keys": [
+        "_user",
+        "plan",
+        "runs",
+        "status"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "ok": 3,
+        "planned": 1
+      },
+      "top_count_keys": [
+        "runs"
+      ]
+    },
+    "plan_batch": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 3,
+      "response_keys": [
+        "plan"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "blocked": 2,
+        "planned": 1
+      },
+      "top_count_keys": []
+    },
+    "poll_request": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 1,
+      "response_keys": [
+        "plan"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "planned": 1
+      },
+      "top_count_keys": []
+    },
+    "poll_run": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 2,
+      "response_keys": [
+        "plan"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "planned": 2
+      },
+      "top_count_keys": []
+    },
+    "unknown": {
+      "error_keys": [],
+      "quota_block_count": 30,
+      "records": 111,
+      "response_keys": [],
+      "response_summary_keys": [],
+      "statuses": {
+        "completed": 13,
+        "failed": 1,
+        "ok": 35,
+        "partial": 11,
+        "passed": 11,
+        "planned": 7
+      },
+      "top_count_keys": []
+    },
+    "validate_gate": {
+      "error_keys": [],
+      "quota_block_count": 0,
+      "records": 3,
+      "response_keys": [
+        "validation"
+      ],
+      "response_summary_keys": [],
+      "statuses": {
+        "error": 1,
+        "ok": 2
+      },
+      "top_count_keys": []
+    }
+  },
+  "schema_version": "ashr.clone.response_field_map.v1",
+  "source_label": "a1-real-api-2026-07-07-round12-private-output-guard",
+  "source_total_records": 337
+}

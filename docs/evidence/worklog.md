@@ -1893,3 +1893,641 @@ Next top 20:
 18. Add TS CLI parity for Python calibrator shape/schema assertions.
 19. Add schema contract tests for media/non-text safe envelope across Python, TS, and cloud runtime.
 20. Coordinate A2/A3 Gate-only contract change request for any shared review-status or evidence metadata.
+
+## A1 round - risk preflight, evidence linter, and response field-map (2026-07-06T22:20:00+08:00)
+
+Goal slice:
+- Continue under the updated Ashr++ commercial execution goal after commit `1eb80b6`.
+- Add non-blocked, high-ROI enterprise evidence capabilities while hosted `create_request` quota remains blocked: public/private evidence linter, response-key field-map artifact, cross-language quota redaction, and preflight cost-risk summaries.
+- Run another real Ashr API read-only small batch from env-only key to keep official evidence fresh without mutating quota.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`; worktree clean at round start after pushing `1eb80b6`.
+- Required start commands run: `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 30`.
+- PR #11 remains open draft. No peer-owned files were modified.
+- Official docs check: Python public API reference loaded and still exposed Testing Platform and Observability APIs; TypeScript public API reference returned an internal error in this pass, so no TS fields were inferred from that page.
+
+Top 20 A1 growth points considered:
+1. Python/TS preflight cost-risk estimate. Implemented.
+2. TS public-safe quota redaction parity with Python evidence index. Implemented.
+3. Python public evidence linter for exact quota and secret-like text. Implemented.
+4. Python response-key field-map generator from evidence index. Implemented.
+5. Tracked `real_api_response_field_map.json` artifact for A2/A3 and audit review. Implemented.
+6. Round6 real read-only API refresh. Implemented.
+7. Public evidence index refresh with round6 record. Implemented.
+8. Python root SDK exports for evidence helpers. Implemented.
+9. TS evidence tests for public-safe quota presence fields. Implemented.
+10. Python tests for cost-risk, linter, and field-map. Implemented.
+11. Full Python and TS test refresh. Implemented.
+12. Official docs recheck. Implemented as partial; TS docs failed.
+13. Successful text-only mutation after quota reset. Deferred; quota remains blocked.
+14. Request polling after successful mutation. Deferred behind successful mutation.
+15. Paid media real probes. Deferred behind text mutation and quota reset.
+16. API probe batch planner command. Deferred; cost-risk/linter foundation landed first.
+17. Typed quota/validation/auth error taxonomy. Deferred.
+18. Enterprise audit manifest combining tests, evidence, and field-map. Deferred to next round.
+19. Production trace ingestion schema. Deferred.
+20. Old-vs-new deterministic replay diff. Deferred.
+
+Implemented:
+- `packages/sdk/ashr_clone/api_client.py`: `summarize_generation_request` now includes `cost_risk` with level, reasons, generated media modalities, non-text input modalities, and generated asset unit estimate.
+- `packages/ts/ashr-clone/src/api-client.ts`: mirrored `cost_risk` in TS `summarizeGenerationRequest`.
+- `packages/ts/ashr-clone/src/evidence.ts`: public evidence index now redacts exact quota counts into `*_present` booleans, matching Python.
+- `packages/sdk/ashr_clone/evidence.py`: added `validate_public_evidence_index` and `build_response_field_map`.
+- `packages/sdk/ashr_clone/__init__.py`: exported evidence index, linter, and field-map helpers.
+- `docs/a1/api_calibration/real_api_response_field_map.json`: new public-safe response field-map artifact generated from 76 evidence records.
+- `tests/a1/test_api_client.py`, `tests/a1/test_evidence_index.py`, `packages/ts/ashr-clone/test/api-client.test.mjs`, and `packages/ts/ashr-clone/test/evidence.test.mjs`: added coverage for cost-risk, linter, field-map, and TS quota redaction.
+
+Real API calibration:
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_round6_real_readonly.json`.
+- Result: ok, 5/5 read steps, estimated calls 7, 0 errors. Raw key was not printed or written.
+- Public index regenerated with label `a1-real-api-2026-07-06-round6-cost-field-map`: 76 records, quota block count 2, lint issues 0.
+
+Validation:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 59 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 152 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 158 passed after Growth-Auditor P1 linter fix.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round6_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Known gaps:
+- Hosted `create_request` success remains unproven after Python shape/preflight fix because request quota is still blocked.
+- TS public docs were not available in this pass; keep relying on local TS tests plus previous official docs evidence until the page recovers.
+- The field-map is generated as JSON only; next round should add markdown/report formatting for human release review.
+
+Growth-Auditor feedback:
+- P0: none.
+- P1 before commit: `validate_public_evidence_index` originally scanned redacted JSON for secret-like text, so it could miss raw `tp_`, `sk-`, `Bearer`, or `ashr_live_` values. Fixed by scanning raw JSON for secret-like patterns and redacted JSON for quota detail patterns.
+- P2: the secret-key regex can false-positive some natural hyphenated text; current round label was changed to `round6-cost-field-map`, and regex hardening remains a follow-up.
+
+Next top 20:
+1. Add API probe batch planner command with dry-run/small-batch/batch phases.
+2. Add typed API error taxonomy for quota, validation, auth, transport, timeout, and hosted failed request.
+3. Add response field-map markdown report with saleable release-readiness framing.
+4. Add request quota reset detector using read-only list/usage evidence.
+5. Attempt one successful text mutation only after quota reset signal.
+6. Poll created request after successful text mutation and ingest hosted response into local replay.
+7. Add cost-risk docs and CLI explain command for preflight review.
+8. Add TS response field-map helper parity.
+9. Add public/private evidence linter CLI.
+10. Add enterprise audit manifest tying commit, tests, evidence index, response field-map, and known gaps.
+11. Add OpenAI-style create-request adapter examples.
+12. Add media envelope fixtures with no raw payloads.
+13. Add request schema version compatibility tests.
+14. Add dashboard Usage authenticated field-label capture when session loads.
+15. Add old-vs-new deterministic replay diff fixture and API.
+16. Add production trace ingestion schema and CLI.
+17. Add self-host worker audit report for queue leases and heartbeat.
+18. Add CI-friendly A1 readiness command docs in `docs/a1/README.md`.
+19. Add A3 handoff notes for `real_api_response_field_map.json`.
+20. Coordinate Gate-only shared evidence metadata changes with A2/A3.
+
+## A1 round - main evidence rebase, batch planner, TS parity, and round7 API refresh (2026-07-06T23:50:00+08:00)
+
+Goal slice:
+- Continue the active Ashr++ A1 goal after `origin/main` advanced with A2 real API evidence.
+- Preserve peer evidence, avoid stale 76-record API maps, and land a commercial-grade API probe batch planner plus human-readable field-map report.
+- Use official API and Chrome read-only calibration without storing or printing keys.
+
+Baseline / peer state:
+- Repo root: `C:/Users/33516/Documents/Ashr`; branch: `codex/a1-local-sdk-runner`.
+- Required start commands run: `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 20`.
+- `origin/main` had advanced to `80f76af Refresh readiness fixtures after evidence index merge`; A1 rebased onto main and resolved conflicts in `docs/a1/api_calibration/real_api_evidence_index.json` and `tests/a1/test_evidence_index.py`.
+- Peer impact: main/A2 raised the public evidence base from 76 records to 200 records. A1 kept that richer index, then refreshed to 323 records after round7 private refs.
+- Growth-Auditor P1s addressed: stale evidence base resolved; dirty TS parity intentionally restored and tested; exact quota details remain blocked from public artifacts.
+
+Top 20 A1 growth points considered:
+1. Rebase A1 onto `origin/main` and preserve A2 evidence. Implemented.
+2. Merge evidence-index conflict without losing public-safe linter. Implemented.
+3. Normalize legacy public quota records into `*_present` booleans. Implemented.
+4. Regenerate response field-map from 200+ records instead of 76. Implemented.
+5. Add Markdown response field-map report for release review. Implemented.
+6. Restore TypeScript public evidence linter parity. Implemented.
+7. Restore TypeScript response field-map builder parity. Implemented.
+8. Add API probe `plan-batch` CLI. Implemented.
+9. Attach batch plan summaries to create-request dry-runs. Implemented.
+10. Add dry-run -> small-batch -> batch phase metadata. Implemented.
+11. Add text-first media modality sequencing. Implemented.
+12. Add quota/reset stop-go metadata from prior private records. Implemented.
+13. Run Python read-only real API small batch. Implemented.
+14. Run TypeScript read-only real API small batch. Implemented.
+15. Chrome-check logged-in Usage field labels for Images/Audio/Files. Implemented.
+16. Generate quota-stop plan instead of blind paid mutation. Implemented.
+17. Refresh public evidence index and field-map/report after real API. Implemented.
+18. Full TS package validation after parity restore. Implemented.
+19. Full Python A1 validation and readiness smoke. In progress for final validation.
+20. Next enterprise audit manifest / typed API error taxonomy. Deferred.
+
+Implemented:
+- `services/runner/api_probe.py`: added `plan-batch`, batch phase planning, modality sequencing, quota/reset stop-go, and create-request dry-run batch-plan attachment.
+- `packages/sdk/ashr_clone/evidence.py`: added merge-safe public quota normalization, public evidence linter, response field-map builder, and Markdown response field-map writer.
+- `packages/sdk/ashr_clone/__init__.py`: exports merge/linter/field-map/report helpers.
+- `packages/ts/ashr-clone/src/evidence.ts`: TS public evidence linter and response field-map builder parity.
+- `tests/a1/test_api_client.py`, `tests/a1/test_evidence_index.py`, and `packages/ts/ashr-clone/test/evidence.test.mjs`: planner, linter, field-map, report, and quota-stop coverage.
+- `docs/a1/api_calibration/real_api_evidence_index.json`: regenerated public-safe index at 323 records.
+- `docs/a1/api_calibration/real_api_response_field_map.json` and `.md`: regenerated JSON and human-readable reports from the merged evidence base.
+
+Official/API evidence:
+- Chrome read-only: `https://ashr.io/` loaded; `https://docs.ashr.io/` returned connection closed and `https://ashr.io/docs` returned 404; `https://lab.ashr.io/?tab=usage` showed logged-in `Usage`, `Images`, `Audio`, and `Files` counters. Exact counter values are private only at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json`.
+- Python dry-run: `docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_dry_run.json`, planned 10 steps / 5 modalities / estimated calls 17.
+- Python real read-only: `docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_real_readonly.json`, status ok, 5 read steps.
+- TS real read-only: `docs/evidence/private_refs/a1_ts_api_calibration_manifest_round7_real_readonly.json`, status ok, 5 read steps.
+- Planner evidence: `docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json` and `docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json`.
+- Key source: process environment only. Raw key was not printed, copied, stored, or committed.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 65 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 153 passed.
+- Public evidence index linter: 0 issues after refresh.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 163 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round7_safety.json`: status ok, 2 steps.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan over touched public files matched only historical synthetic/documentation references; no operational key material was found.
+
+Known gaps:
+- `create_request` success remains unproven after quota block; no reset signal was available, so mutating paid calls were not retried.
+- `docs.ashr.io` was unavailable in this pass and `ashr.io/docs` returned 404. Public docs fields were not inferred from those failed pages.
+- Logged-in Usage exact values are private only; tracked docs record labels/counter availability, not counts.
+- API probe planner is planning/enforcement scaffolding; next round should connect it to a typed error taxonomy and automated quota reset detector.
+
+Next top 20:
+1. Add typed API error taxonomy for quota, validation, auth, transport, timeout, and hosted failed request.
+2. Add evidence linter CLI for public/private refs.
+3. Add API probe planner JSON schema.
+4. Add quota reset detector using read-only records and Usage labels.
+5. Attempt one text mutation only after reset signal.
+6. Poll successful request and ingest hosted response into replay.
+7. Add hosted run lifecycle calibration matrix for `list_runs`, `get_run`, `poll_run`, and safe `create_run`.
+8. Add enterprise audit manifest tying commit, tests, evidence, field-map, and known gaps.
+9. Add old-vs-new deterministic replay diff fixture.
+10. Add production trace ingestion schema and CLI.
+11. Add media/non-text safe envelope fixtures with no raw payloads.
+12. Add TS Markdown report generator parity.
+13. Add A3 handoff notes for response field-map artifacts.
+14. Add CI-friendly A1 readiness docs after rebase.
+15. Add official docs drift checker with gap output.
+16. Add OpenAI-style adapter examples for create-request envelopes.
+17. Add self-host worker audit report.
+18. Add quota ledger import/export audit manifest.
+19. Add batch-run 80-case stress fixture with max_workers >= 8.
+20. Coordinate Gate-only evidence metadata with A2/A3.
+
+## A1 round - hard quota gate for mutating API execution (2026-07-07T00:15:00+08:00)
+
+Goal slice:
+- Follow Growth-Auditor P2 from round7: `plan-batch` existed, but direct mutating execution was not forced to consume a quota gate.
+- Make real paid/mutating API calls auditable by default without blocking explicit user-authorized overrides.
+
+Baseline / peer state:
+- Required start commands rerun: fetch, repo/branch/status, and PR list.
+- Branch stayed `codex/a1-local-sdk-runner`, clean and aligned with origin at round start.
+- No A2/A3 owned files were changed.
+
+Top 20 A1 growth points considered:
+1. Hard-enforce quota gate on mutating execution. Implemented.
+2. Add explicit quota-gate override with audit reason. Implemented.
+3. Block missing quota gate before key lookup. Implemented.
+4. Block stop quota gate before client construction. Implemented.
+5. Preserve media preflight guardrail by allowing audited test override. Implemented.
+6. Run official read-only API probe for current field evidence. Implemented.
+7. Refresh public evidence index after probe. Implemented.
+8. Extend planner schema docs. Deferred.
+9. Add TS planner parity. Deferred.
+10. Split field-map `unknown` bucket. Deferred.
+11. Add TS Markdown report parity. Deferred.
+12. Add typed API error taxonomy. Deferred.
+13. Add quota reset detector from read-only records. Deferred.
+14. Attempt text mutation only after reset signal. Deferred.
+15. Poll successful request after reset. Deferred.
+16. Ingest hosted request into replay fixture. Deferred.
+17. Expand run lifecycle matrix. Deferred.
+18. Add public audit manifest. Deferred.
+19. Add official docs drift checker. Deferred.
+20. Add A3 handoff note for round7/8 field map. Deferred.
+
+Implemented:
+- `services/runner/api_probe.py`: added `--quota-gate-record`, `--allow-quota-override`, `--quota-override-reason`, `enforce_mutating_quota_gate`, and `extract_quota_gate`.
+- `tests/a1/test_api_client.py`: added missing-gate, stop-gate, and audited-override tests; adjusted media preflight test to use explicit quota override.
+- `docs/a1/api_calibration/real_api_evidence_index.json`, `real_api_response_field_map.json`, and `.md`: refreshed after read-only probe.
+
+Official/API evidence:
+- `python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round8_real.json`: status ok, attempts 1.
+- Public evidence index now has 325 records, 15 response-field functions, quota block count 41, and linter issues 0.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 59 passed.
+- `python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py`: passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 166 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 153 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round8_safety.json`: status ok, 2 steps.
+- Public evidence index linter: 0 issues after refresh.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan matched historical docs and synthetic test tokens only; no operational key material was found.
+
+Known gaps:
+- Quota gate is Python runner/probe enforcement only; TS probe parity and schema docs remain follow-up.
+- Override reason is captured in runtime preflight summary for create-request, but a future audit manifest should aggregate override events.
+- Successful real `create_request` remains gated behind quota reset evidence.
+
+Next top 20:
+1. Add typed API error taxonomy.
+2. Add quota-gate JSON schema and docs.
+3. Add TS API probe planner/quota-gate parity.
+4. Split `unknown` evidence field-map records.
+5. Add TS Markdown field-map report parity.
+6. Add public audit manifest.
+7. Add quota reset detector.
+8. Attempt text mutation after reset signal only.
+9. Poll successful text request.
+10. Ingest hosted request into replay.
+11. Expand hosted run lifecycle matrix.
+12. Add evidence linter CLI.
+13. Add field-map freshness checker.
+14. Add official docs drift checker.
+15. Add dashboard usage label capture artifact without values.
+16. Add A3 handoff note.
+17. Add local replay diff from hosted shapes.
+18. Add production trace ingestion schema.
+19. Add media envelope fixtures without raw payloads.
+20. Coordinate shared evidence metadata through Gate.
+
+## A1 round - repo-wide mutating quota-gate parity evidence draft superseded by final section below (2026-07-07T01:30:26+08:00)
+
+Goal slice:
+- Track this round's target: repo-wide mutating API quota gate, valid `plan-batch` gate record enforcement, override reason persistence, and Python+TS parity.
+- Evidence/docs worker scope only. No code was edited here; observed code/test changes are peer-owned in-progress edits.
+
+Baseline / peer state:
+- Branch: `codex/a1-local-sdk-runner`.
+- Initial status was clean, then peer-owned dirty files appeared during validation: `packages/sdk/ashr_clone/calibrate.py`, `packages/ts/ashr-clone/src/calibrate.ts`, `packages/ts/ashr-clone/src/probe.ts`, `packages/ts/ashr-clone/test/probe.test.mjs`, and `tests/a1/test_python_calibrator.py`.
+- No ignored private refs were opened, and no API key or raw private evidence was read or printed by this docs pass.
+
+Observed implementation state:
+- Existing Python probe gate from round8 still validates: mutating `services.runner.api_probe --execute` requires `--quota-gate-record` or `--allow-quota-override --quota-override-reason`.
+- Peer Python calibrator edits add mutating real-calibration quota-gate enforcement, require a `plan_batch` record with schema `ashr.clone.api_probe_batch_plan.v1`, reject non-`go` decisions unless explicitly overridden, persist redacted override reason metadata, and attach quota-gate summaries to manifest/step records.
+- Peer TS probe edits add quota gate flags, validate plan-batch gate records, persist override metadata on mutating records, and attach gate metadata to error records.
+- Historical draft observation: TS calibrator parity was still in progress during this docs-only pass; the final round9 section below supersedes this with passing TS validation.
+
+Validation so far:
+- `python -B -m pytest tests/a1/test_api_client.py -q -p no:cacheprovider`: 59 passed.
+- `python -B -m py_compile packages/sdk/ashr_clone/calibrate.py`: passed.
+- `python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 13 passed after peer test updates.
+- Historical draft validation note: TypeScript validation was incomplete during the draft; see final section below for the passing package run.
+- `git diff --check`: exit 0 with CRLF warnings only.
+
+Superseded placeholders:
+- The final section below records the completed Python/TS validation, readiness smoke, public evidence refresh, linter, and secret scan.
+- No live API probe was run; official/API evidence remains unchanged from round8.
+
+Known gaps:
+- TS calibrator parity is incomplete until it shares the plan-batch gate extraction, override-reason validation, and quota-gate persistence behavior.
+- Repo-wide mutating coverage still needs a final cross-surface audit after peer edits settle: Python probe, Python calibrator, TS probe, and TS calibrator should all block missing/invalid gates before client/key resolution where applicable.
+- Override reason aggregation into a public audit manifest remains a follow-up; current observed persistence is local manifest/record metadata only.
+
+## A1 round - repo-wide money-grade quota gate final (2026-07-07T02:10:00+08:00)
+
+Goal slice:
+- Close Growth-Auditor P1s for mutating paid API execution across Python runner, Python calibrator, TS probe, and TS calibrator.
+- Make `plan-batch` conservative: no quota/reset evidence now yields `decision=wait`, not `go`.
+- Persist audited override metadata into emitted evidence records while keeping keys/private payloads out of tracked artifacts.
+
+Implemented:
+- `services/runner/api_probe.py`: `plan-batch` without quota evidence now blocks/waits; mutating execution only accepts plan-batch gate records; `go` gates require reviewed quota/reset evidence; quota gate metadata is written back into mutating output records.
+- `packages/sdk/ashr_clone/calibrate.py`: Python calibrator enforces the same mutating gate, rejects read-only or evidence-free `go` records, and persists redacted override metadata in manifests and private step records.
+- `packages/ts/ashr-clone/src/probe.ts` and `packages/ts/ashr-clone/src/calibrate.ts`: TypeScript parity for missing/invalid/stop/wait/no-evidence gates plus audited override persistence.
+- Tests added for read-only record rejection, no-evidence `go` rejection, stop gate blocking, read-only execute unaffected, and override evidence persistence.
+- Public evidence artifacts refreshed merge-safely to 326 records; existing A2/main evidence base was preserved.
+
+Official/API evidence:
+- Chrome read-only check confirmed logged-in Usage tab still exposes `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; exact counts remain private only.
+- Official docs read-only check confirmed Python SDK overview still frames Testing Platform plus Observability and exposes dataset/run/agent/eval concepts.
+- Real API read-only command succeeded: `python -B -m services.runner.api_probe list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_api_list_requests_round9_real_readonly.json`.
+- No mutating paid API call was executed this round; the new gate requires quota/reset evidence or an explicit audited override.
+
+Validation:
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 76 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 161 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 175 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round9_safety.json`: status ok, 2 steps.
+- Public evidence linter: 326 records, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret-pattern scan matched historical docs and synthetic test tokens only; no operational key material was found.
+
+Growth-Auditor follow-up:
+- P0: none.
+- P1 fixed: no-evidence `go` can no longer unlock mutation; stale pending TS validation notes are superseded by this final section.
+- Remaining commercial gaps: add gate JSON schema/TTL, target-operation binding, public override audit manifest, and quota reset detector from Usage/read-only evidence.
+
+Next top 20:
+1. Add quota-gate JSON schema and CLI validator.
+2. Add freshness TTL and stale-gate failure tests.
+3. Bind gate records to target operation and request modality.
+4. Bind gate records to batch size and estimated calls.
+5. Add private evidence reviewed-ref metadata to gate summaries.
+6. Add quota reset detector from read-only records and Usage labels.
+7. Add dashboard Usage redacted counter import.
+8. Add override-event public audit manifest.
+9. Add typed API error taxonomy.
+10. Add shared Python/TS gate fixtures.
+11. Add direct SDK mutation gate option.
+12. Add public-safe gate report.
+13. Add PR checklist for quota safety.
+14. Add no-private-payload CI scan.
+15. Add stale evidence index detector.
+16. Split response field-map unknown buckets.
+17. Add live read-only calibration schedule.
+18. Add enterprise quota ledger export.
+19. Add A2/A3 gate metadata contract request.
+20. Add hosted run lifecycle calibration matrix behind the same gate.
+
+## A1 round10 - quota gate schema, validator, TTL, request binding, and real read-only calibration final (2026-07-07)
+
+Goal slice:
+- Close Round10 Growth-Auditor P1s: gate records now have a JSON schema, a CLI validator, freshness TTL, target-operation binding, and request-payload fingerprint binding before paid mutation.
+- Bring Python probe, Python calibrator, TS probe, and TS calibrator into the same gate posture before real API key/client lookup.
+- Use real Ashr API read-only calibration and Chrome/dashboard/docs read-only checks without writing raw keys or mutating paid resources.
+
+Baseline / peer state:
+- Branch: `codex/a1-local-sdk-runner`, tracking `origin/codex/a1-local-sdk-runner`.
+- Start-of-round checks run: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 20`.
+- PR scan showed prior A1 PRs 1/4/6/7/9/10/11 merged, A2 PR 2 merged, and A3 PRs 3/5/8 merged; no open remote PR conflict observed for this branch.
+- Peer/subagent changes integrated: Python calibrator parity by Copernicus, TS calibrator parity by Boole, earlier TS probe worker change, docs/evidence worker draft, Growth-Auditor pre-audit.
+
+Implemented:
+- `services/runner/api_probe.py`: added `validate-gate`, `--quota-gate-ttl-seconds` default `86400`, `ashr.clone.api_probe_gate_validation.v1`, `ashr.clone.api_probe_target_binding.v1`, request/schema stable sha256 fingerprints, and target-binding mismatch rejection.
+- `docs/a1/schemas/api_probe_quota_gate.schema.json`: new public schema for plan-batch quota gates requiring `target_operation`, `created_at`, `target_binding`, and `quota_stop_go`.
+- `packages/sdk/ashr_clone/calibrate.py`: mutating calibrator gates now enforce target `create-request`, TTL, optional modality binding, and request fingerprint binding.
+- `packages/ts/ashr-clone/src/probe.ts`: TS mutating probe now checks target, TTL, numeric plan bindings, and request-payload target binding before key lookup.
+- `packages/ts/ashr-clone/src/calibrate.ts`: TS calibrator now enforces target, TTL, modality binding, and request fingerprint binding instead of only recording the fingerprint.
+- Tests added in `tests/a1/test_api_client.py`, `tests/a1/test_python_calibrator.py`, `packages/ts/ashr-clone/test/probe.test.mjs`, and `packages/ts/ashr-clone/test/calibrate.test.mjs` for stale gates, wrong target, same-operation wrong request payload, request fingerprint mismatch, and schema snapshot coverage.
+
+Private evidence:
+- Python real read-only calibration: `docs/evidence/private_refs/a1_python_api_calibration_round10_readonly_real.json`, status `ok`, mode `small-batch`, 5 read steps, 0 mutating steps, estimated calls 7.
+- TS real read-only calibration: `docs/evidence/private_refs/a1_ts_api_calibration_round10_readonly_real.json`, status `ok`, mode `small-batch`, 5 read steps, 0 mutating steps, estimated calls 7.
+- Response keys observed from both Python and TS real read-only calibration: `init` -> `features, notes, status, tenant, user`; `health-check` -> `db, message, status`; `list-agents` -> `_user, agents, status`; `list-datasets` -> `_user, datasets, next_cursor, status`; `list-requests` -> `_user, next_cursor, requests, status`.
+- Gate validation evidence: `docs/evidence/private_refs/a1_api_validate_gate_round10_quota_stop.json`, `docs/evidence/private_refs/a1_api_probe_batch_plan_round10_request_bound.json`, `docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_ok.json`, `docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_mismatch.json`.
+- Request-bound gate proof: same request validates with `issues=0`; changed request fails with `target_binding_mismatch`.
+- Failed point recorded and fixed: first synthetic private request files were written with UTF-8 BOM and rejected by JSON parsing; rerun used UTF-8 without BOM.
+
+Official product/docs evidence:
+- Chrome read-only dashboard check, logged-in state: `https://lab.ashr.io/?tab=usage` showed Usage period started June 22, 2026, `Images 0 of 100`, `Audio 0 of 200`, `Files 1 of 100`, plus Upgrade.
+- Chrome read-only dashboard navigation confirmed top-level buttons: Agents, Datasets, Folders, Analytics, Usage, Trust, API Keys, Team, Sign out.
+- Chrome docs read-only check: `https://ashr.io/docs/python-sdk/overview/` confirms Python SDK surfaces Testing Platform plus Observability, `EvalRunner`, `RunBuilder`, `Agent`, `client.trace()`, `Span`, `Generation`, VM Integration, `pip install ashr-labs`, dataset generation, run deploy, poll run, and aggregate metrics.
+- No Ashr API key was entered into Chrome or written to tracked files.
+
+Validation:
+- `python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py packages/sdk/ashr_clone/calibrate.py tests/a1/test_python_calibrator.py`: passed.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 90 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 168 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 189 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round10_safety.json`: ok, 2 steps.
+- Public evidence linter: 326 records, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Public touched-file secret scan matched historical docs wording and intentional synthetic test strings such as `tp_test_secret`, `tp_syntheticsecret`, `Bearer tp_secret`, and placeholder docs text only; no operational key material was found.
+
+Current known gaps:
+- Public evidence index was not merge-refreshed for the two round10 calibration manifests because the private records remain sufficient for this round and the tracked index stayed clean at 326 records.
+- TS probe still lacks standalone `plan-batch`/`validate-gate` CLI generation parity; TS execution-side validation is enforced, but Python owns the current gate generator.
+- Private output path enforcement remains convention-based for custom `--output`; next round should add an owned private-output guard or explicit escape flag.
+
+Next top 20:
+1. Add TS `plan-batch` and standalone `validate-gate` CLI parity.
+2. Extract a shared quota-gate validator fixture set for Python/TS probe/calibrator.
+3. Add private-output-dir enforcement for real API and gate validation records.
+4. Add public override audit manifest with redacted reason hashes.
+5. Add Usage import parser for Images/Audio/Files quota labels.
+6. Add quota ledger mapping for image/audio/file/video/text as equal first-class resources.
+7. Add request fingerprint schema docs for calibrator modality maps.
+8. Add response header quota/reset detector fixtures.
+9. Add real read-only calibration merge into public evidence index with manifest-level summarization.
+10. Add dry-run plan that estimates per-modality paid call cost before mutating calibration.
+11. Add small-batch mutating text calibration path gated by fresh request-bound quota evidence.
+12. Add official API error taxonomy snapshots from read-only and controlled failure records.
+13. Add CI check that rejects stale gate evidence in committed docs/examples.
+14. Add no-private-output custom path linter.
+15. Add TypeScript docs quickstart matching Python SDK docs.
+16. Add observability trace/replay field parity for `client.trace`, `Span`, and `Generation`.
+17. Add VM stream fixture fields from official VM Integration docs.
+18. Add A3-consumable gate readiness badge from quota-gate validator output.
+19. Add enterprise audit export for gate decisions, overrides, TTL, and request fingerprints.
+20. Add release checklist requiring real API read-only calibration plus request-bound gate validation before any mutating paid batch.
+
+## A1 round11 - TypeScript standalone plan-batch / validate-gate parity and real read-only calibration final (2026-07-07T11:50:55+08:00)
+
+Goal slice:
+- Close the Round10 P2 gap where TS consumed quota gates but Python still owned standalone `plan-batch` and `validate-gate` generation.
+- Keep text, image, audio, file, and video at the same first-class modality level in target binding and phase planning.
+- Use Chrome and real Ashr API read-only calibration now that Chrome/login and `ASHR_API_KEY` env are available, without storing or printing the key and without mutating paid resources.
+
+Baseline / peer state:
+- Start-of-round checks run: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 30`.
+- Branch: `codex/a1-local-sdk-runner`, tracking `origin/codex/a1-local-sdk-runner`; baseline worktree was clean.
+- Peer impact: PR #12 (`codex/stellar-readme`) is merged to `main`; this branch remains on the A1 dev line and did not merge unrelated README/main changes this round.
+- Subagent artifacts created under owned docs: `docs/a1/evidence/round11_growth_auditor.md`, `docs/a1/evidence/round11_ts_probe_parity_checklist.md`, and `docs/a1/evidence/round11_reviewer_test_matrix.md`.
+
+Implemented:
+- `packages/ts/ashr-clone/src/probe.ts`: added local-only operations `plan-batch` and `validate-gate`; added `--target-operation`, `--small-batch-size`, `--batch-size`, and `--quota-record`; local ops reject `--execute`, skip API client/key lookup, and emit public-safe JSON records.
+- TS `plan-batch` now emits `ashr.clone.api_probe_batch_plan.v1` records with target binding, phase plan, modality sequence, guardrails, and conservative quota stop/go decisions. No quota/reset evidence produces `decision=wait` and record `status=blocked`.
+- TS `validate-gate` now emits `ashr.clone.api_probe_gate_validation.v1` records, writes validation issues before returning exit code 2 on invalid gates, and reuses the same TTL/target/request-binding validator as mutating execution.
+- TS target binding now includes request/schema fingerprints, schema source, media flags, max variations, small/batch sizes, modality order, and `raw_request_not_recorded=true` for create-request; non-request targets use operation-scope binding.
+- `packages/ts/ashr-clone/src/api-client.ts`: expanded `AshrApiCallRecord.status` to include `blocked` so TS planner evidence can mirror Python.
+- `packages/ts/ashr-clone/test/probe.test.mjs`: added standalone TS planner/validator tests for local-only env isolation, five-modality request binding, no-quota wait/block, quota-header `go`, matching validate success, and stale/wrong-target/wrong-request failures before key lookup.
+- Public evidence index and response field map were merge-refreshed from seven Round11 private records; public linter remains clean.
+
+Official product/API evidence:
+- Chrome read-only Usage check, logged-in state: `https://lab.ashr.io/?tab=usage` loaded and exposed `Usage`, `Images`, `Audio`, `Files`, and `Upgrade`; observed text included period start June 22, 2026 and the same image/audio/file usage labels as Round10. No key was entered into Chrome.
+- Chrome docs read-only check: `https://ashr.io/docs/python-sdk/overview/` still exposes Python SDK, Testing Platform, Observability, EvalRunner, RunBuilder, Agent, `client.trace`, Span, Generation, and VM Integration.
+- Environment check recorded only key presence/length: `ASHR_API_KEY=present(length=46)`; the raw key was not read from the desktop key file, printed, or written.
+- Real TS read-only API probes succeeded: `list-agents`, `list-datasets --limit 1`, and `list-requests --limit 1`, each `status=ok`, `attempts=1`, `status_code=200`.
+- Private real API evidence paths: `docs/evidence/private_refs/a1_ts_api_list_agents_round11_real_readonly.json`, `docs/evidence/private_refs/a1_ts_api_list_datasets_round11_real_readonly.json`, and `docs/evidence/private_refs/a1_ts_api_list_requests_round11_real_readonly.json`.
+- Private TS gate evidence paths: `docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_media_noquota.json`, `docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json`, `docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json`, `docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json`, and `docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json`.
+- Failed/learned point: an initial media validate command omitted the matching media flags / `--batch-size 3`, correctly producing `target_binding_mismatch`; rerun with matching flags validated successfully.
+- The real read-only `list-requests` record did not expose quota/reset header evidence sufficient to turn the request-bound plan into `go`; TS planner stayed conservative with `status=blocked`.
+- No mutating paid Ashr API call was executed this round.
+
+Validation:
+- `npm test --prefix packages/ts/ashr-clone`: 172 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 189 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round11_safety.json`: ok, 2 steps.
+- `python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py`: passed.
+- Public evidence merge/lint: 333 records, 16 response-field functions, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0, CRLF warnings only.
+- Public touched-file secret scan matched historical docs/pattern descriptions and the intentional synthetic TS test token `tp_syntheticsecret` only; no operational API key was printed or written.
+
+Bus / Growth-Auditor follow-up:
+- P0/P1 blockers: none observed for this slice.
+- Remaining commercial risks: private-output-dir enforcement is still convention-based; shared Python/TS bad-gate fixture corpus is not yet centralized; TS create-request dry-run does not yet attach the compact batch-plan summary that Python attaches; no successful mutating paid request has been attempted under a fresh `go` gate.
+- Evidence safety: private refs stayed ignored; public docs contain paths and summarized fields only.
+
+Next top 20:
+1. Add private-output-dir enforcement for real API and gate validation records, with an explicit unsafe escape flag.
+2. Build shared Python/TS gate fixture corpus for stale, wrong target, wrong request, stop, wait, no-evidence go, and override.
+3. Add TS create-request dry-run batch-plan attachment parity with Python.
+4. Add schema validation tests that TS-generated plan-batch records satisfy `docs/a1/schemas/api_probe_quota_gate.schema.json`.
+5. Add CI linter that fails committed gate examples with stale TTL or private output paths.
+6. Add public-safe gate validation summary artifact for A2/A3 readiness badges.
+7. Add override audit manifest with redacted reason hashes and validation issue codes.
+8. Add Usage dashboard import parser for Images, Audio, Files, period start, and Upgrade labels.
+9. Add first-class quota ledger/resource mapping for text, image, audio, file, and video hosted calls.
+10. Add quota/reset detector fixtures from response headers and dashboard labels.
+11. Add official docs drift checker for Python SDK, TS SDK, VM Integration, Observability, and Usage copy.
+12. Add real API read-only freshness badge for Python and TS calibration records.
+13. Add field-map freshness warning when private records are newer than the public index.
+14. Split response field-map unknown buckets into quota error, API error, pagination, and user/session envelopes.
+15. Add safe small-batch mutating text path that requires fresh request-bound `go` evidence plus explicit human approval.
+16. Add post-mutation polling and replay ingestion plan for any future successful hosted request.
+17. Add A3-consumable quota-gate readiness badge from TS/Python validation summaries.
+18. Add enterprise audit export for gate decision, target binding, TTL age, override metadata, and issue codes.
+19. Add release checklist requiring real read-only calibration, request-bound gate validation, public linter pass, and secret scan.
+20. Reconcile this branch against merged `origin/main` README changes only when ready to publish, without mixing unrelated peer work into A1 commits.
+
+## 2026-07-07 Round12 A1 private API evidence guard closeout
+
+Round goal: harden SDK/Runner/API calibration so any protected real Ashr API evidence, gate-validation artifact, quota record, or quota override output is forced under ignored `docs/evidence/private_refs`, while preserving synthetic temp output for tests via an explicit `--allow-nonprivate-output` escape.
+
+Baseline/peer scan:
+- `pwd`: `C:/Users/33516/Documents/Ashr`.
+- Branch: `codex/a1-local-sdk-runner`; remote `origin` = `https://github.com/3351666087/ashr-codex-factory`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed peer update `dev/g3-a2-calibration` `f4b1851..c80fb9b`.
+- PR scan: latest A1 PRs #1/#4/#6/#7/#9/#10/#11 are merged; README rewrite PR #12 merged to main. Current Round12 changes remain on the A1 branch and do not merge README/main.
+- Untracked `recon/` and `tools/ashr_*` artifacts are outside this Round12 commit scope and remain unstaged.
+
+20 A1 growth points considered this round:
+1. private evidence output guard for Python probe; 2. private evidence output guard for Python calibrator; 3. TypeScript probe parity guard; 4. TypeScript calibrator parity guard; 5. guard-before-key-lookup tests; 6. synthetic test escape flag; 7. real read-only Python probe evidence; 8. real read-only TS probe evidence; 9. Python small-batch read-only calibrator evidence; 10. TS small-batch read-only calibrator evidence; 11. public evidence index refresh; 12. response-field map refresh; 13. evidence lint check; 14. full A1 pytest regression; 15. full TS regression; 16. readiness smoke; 17. public secret scan; 18. Chrome official-page retry/gap documentation; 19. Growth-Auditor money-grade audit; 20. next-round API quota/replay growth plan.
+
+Implemented/highest ROI batch:
+- `services/runner/api_probe.py`: added `PRIVATE_EVIDENCE_DIR`, `--allow-nonprivate-output`, and guard for `--execute`, `validate-gate`, `--quota-record`, and `--quota-gate-record`.
+- `packages/sdk/ashr_clone/calibrate.py`: added matching private-output enforcement for `execute`, `quota_gate_record`, and quota override paths.
+- `packages/ts/ashr-clone/src/probe.ts` and `src/calibrate.ts`: added TS parity private-output guards and CLI flags.
+- Python/TS tests now prove protected output fails before API-key/client lookup, while synthetic nonprivate fixtures must opt in with `--allow-nonprivate-output`.
+
+Real API calibration (env-key only, private outputs only, no raw key written):
+- Python probe: `docs/evidence/private_refs/a1_api_list_requests_round12_real_readonly.json` status ok.
+- TS probe: `docs/evidence/private_refs/a1_ts_api_list_requests_round12_real_readonly.json` status ok.
+- Python calibrator: `docs/evidence/private_refs/a1_python_api_calibration_round12_readonly_real.json` status ok, 5 read steps, 0 mutating.
+- TS calibrator: `docs/evidence/private_refs/a1_ts_api_calibration_round12_readonly_real.json` status ok, 5 read steps, 0 mutating.
+- Public-safe evidence index refreshed to 337 records, 16 functions, 41 quota-block records, 0 lint issues.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 191 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 174 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round12_safety.json`: status ok after whitespace cleanup.
+- `git diff --check`: exit 0 with CRLF warnings only after cleanup.
+
+Official docs/product calibration:
+- Web source recheck on 2026-07-07: `https://ashr.io/docs/python-sdk/overview/` still describes Testing Platform + Observability sharing one SDK/API key; `EvalRunner`, `RunBuilder`, `Agent`, `client.trace()`, `Span`, `Generation`, VM Integration, and `pip install ashr-labs` remain public docs fields.
+- Web source recheck on 2026-07-07: `https://lab.ashr.io/` public/sign-in/plans surface includes usage dimensions for images/audio/sample files plus videos/simulations, matching the A1 requirement that text/audio/file/image/video be first-class envelope concerns.
+- Chrome extension reconnect was retried after user opened Chrome, but the local Chrome plugin Node runtime failed before browser selection with `failed to write kernel assets: Windows path not found (os error 3)`. This is recorded as a tooling gap and did not block API/readiness work.
+
+Evidence docs:
+- `docs/a1/evidence/round12_private_output_parity_checklist.md`
+- `docs/a1/evidence/round12_private_output_test_matrix.md`
+- `docs/a1/evidence/round12_growth_auditor.md`
+- `docs/evidence/official_site_gaps.md`
+
+Failures/gaps:
+- Chrome plugin could not connect because node_repl kernel asset write failed with Windows path error; fallback was web/read-only official source check and existing prior Chrome evidence.
+- No mutating paid API call was executed in Round12; the implemented value is evidence safety and read-only calibration. Next round should add purposeful quota-aware small mutating probe only when quota gate can bind to a concrete scenario and private output path.
+- `recon/` remains untracked and large; not staged in this A1 safety commit.
+
+Growth-Auditor follow-up:
+- P0: none confirmed.
+- P1: broaden artifact-class private policy to dry-run full records, require auditable override reason, emit output-policy metadata, harden TS realpath/symlink behavior, add public-safe summary mode, and enforce public-index freshness in CI.
+- P2: reject directory-as-output early, centralize policy naming/messages, document override governance, add buyer-facing evidence-boundary diagram, and expand Windows path tests.
+
+Reviewer P1 fixes landed after audit:
+- Python/TS calibrator private-output guard now runs before quota gate record reads.
+- Python/TS private roots are anchored to repo root instead of current working directory.
+- Protected `--print-record` is blocked for real API/gate evidence unless the synthetic-test escape is used.
+- Added Python/TS negative tests for validate-gate, quota-record/quota-gate-record, and protected stdout.
+- Final validation: Python focused 96 passed, Python A1 full 195 passed, TS package 179 passed, readiness ok, public evidence lint 0, `git diff --check` ok.
+
+Next-round top 20 candidates:
+1. artifact-class private guard for all full records; 2. `--nonprivate-output-reason`; 3. output-policy metadata in probe records; 4. guardrails output-policy metadata in calibration manifests; 5. TS realpath/symlink path hardening; 6. directory-as-output rejection; 7. public-safe stdout summary mode; 8. deny protected `--print-record`; 9. evidence index freshness CI; 10. stale private evidence detector; 11. quota-aware create-request dry-run to small paid batch; 12. official API error-shape taxonomy; 13. tenant/project isolation fixture; 14. run lifecycle poll parity; 15. production trace ingestion endpoint; 16. deterministic replay from real request; 17. queue lease expiry/retry; 18. TS SDK quickstart parity harness; 19. media envelope fixtures for text/audio/file/image/video; 20. self-host worker Docker compose.
+
+
+## 2026-07-07 Round13 A1 output policy and frontend mirror calibration
+
+Baseline:
+- Branch `codex/a1-local-sdk-runner` was synced with origin after Round12 push `44e22a6`.
+- Peer update observed on `origin/dev/g3-a2-calibration`; no A2/A3 files were staged in this A1 round.
+- Untracked `recon/` and `tools/` remain local reference artifacts and are not part of the commit.
+
+20 growth points considered:
+1. output_policy in Python probe; 2. output_policy in Python calibrator; 3. output_policy in TS probe; 4. output_policy in TS calibrator; 5. protected stdout policy tests; 6. synthetic override audit metadata; 7. repo-root private path metadata; 8. frontend mirror scan; 9. media parity labels; 10. Usage/nav labels; 11. TS/Python output_policy parity tests; 12. public-safe mirror evidence; 13. full A1 pytest; 14. full TS test; 15. readiness smoke; 16. public evidence lint; 17. secret scan; 18. Growth-Auditor review; 19. Reviewer P1 follow-up; 20. next-round frontend field map.
+
+Implemented:
+- Added `output_policy` metadata to Python/TS API probe records and Python/TS calibration manifests.
+- `output_policy` records `schema_version`, `private_output_required`, `allow_nonprivate_output`, `nonprivate_output_override_used`, `output_is_private`, `sink`, `private_root`, `resolved_under_repo`, and `full_record_stdout_blocked`.
+- Added tests proving dry-run nonprotected records, protected synthetic overrides, and calibrator manifests expose safe output policy metadata.
+- Read-only scanned `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` via `%TEMP%` and wrote public-safe summary `docs/a1/evidence/round13_frontend_mirror_findings.md`.
+
+Validation so far:
+- Focused Python probe/calibrator tests: `97 passed`.
+- TypeScript package tests: `180 passed`.
+
+Known gaps:
+- Final validation: Python A1 full 196 passed, TS package 180 passed, readiness ok, public evidence lint 0, git diff check ok; secret scan only matched historical/synthetic tokens. Need Growth-Auditor follow-up and commit/push.
+
+
+Growth-Auditor Round13 follow-up:
+- P0 next: promote `output_policy` into a formal schema/readiness contract, aggregate it in public evidence index, and block unsafe public summaries from real nonprivate override records.
+- P0 next: govern frontend mirror outputs through public-safe mirror indexes instead of committing raw `recon/`/zip artifacts.
+- P0 next: convert real API evidence into a commercial capability matrix: local-only / real-read verified / mutating verified / quota-blocked / frontend-mirrored.
+- P1 next: add `--nonprivate-output-reason`, stronger real execute override friction, official mirror diffing, and real API error taxonomy.
+- Current round remains valid: output_policy metadata and frontend mirror findings move A1 toward enterprise evidence governance, but do not complete the long-running commercial goal.
+
+
+## 2026-07-07 Round14 A1 evidence contract and frontend mirror index
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner` after Round13 push `726881b`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` completed; untracked `recon/` and `tools/` remain unstaged local references.
+
+20 A1 growth points considered:
+1. output_policy schema; 2. evidence index output_policy counts; 3. unsafe real nonprivate override blocker; 4. schema test; 5. public index refresh; 6. frontend mirror safe index; 7. frontend mirror schema; 8. mirror secret policy test; 9. mirror media labels; 10. mirror API entrypoint; 11. mirror lifecycle labels; 12. readiness smoke; 13. Python full regression; 14. TS full regression; 15. public evidence lint; 16. diff check; 17. secret scan; 18. Growth-Auditor review; 19. Worker-Mirror design alignment; 20. next-round commercial capability matrix.
+
+Implemented:
+- Added `docs/a1/schemas/output_policy.schema.json`.
+- Extended `docs/a1/schemas/evidence_index.schema.json` with `output_policy_counts`.
+- Updated `packages/sdk/ashr_clone/evidence.py` to preserve public-safe output policy metadata, aggregate output-policy counts, and flag unsafe real nonprivate output overrides.
+- Refreshed `docs/a1/api_calibration/real_api_evidence_index.json` and response field map artifacts; historical records are counted as `output_policy_counts.missing=337` until regenerated from newer private evidence.
+- Added `docs/a1/frontend_mirror/frontend_mirror_index.json` and `docs/a1/frontend_mirror/index.schema.json` as a public-safe index derived from the desktop frontend mirror zip without committing raw mirror files.
+- Added `tests/a1/test_frontend_mirror_index.py` and expanded evidence-index tests.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 199 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 180 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round14_contracts.json`: ok.
+- Public evidence lint: 337 records, output_policy_counts present, lint issues 0.
+- `git diff --check`: ok.
+
+Growth-Auditor / Worker-Mirror follow-up:
+- P0 remaining: turn output_policy into readiness gate across A2/A3, add stale/legacy evidence scanner, and expand frontend mirror safe index into route/assets/function-domain structure.
+- P0 remaining: build commercial capability matrix from local-only / real-read verified / mutating verified / quota-blocked / frontend-mirrored evidence.
+- Worker-Mirror recommended richer `frontend_mirror_index.v1`; this round lands an MVP public-safe index and tests, with full route/assets/domain expansion next.
+
+### Round14 final hardening addendum - 2026-07-07
+
+Additional implementation after Worker-Evidence review:
+- Expanded `output_policy.schema.json` with optional `record_class`, `producer`, `policy_decision`, `resolved_under_private_root`, `resolved_outside_repo`, and `stdout_full_record_requested` fields.
+- Expanded `evidence_index.schema.json` and `packages/sdk/ashr_clone/evidence.py` with extended `output_policy_counts`: present/missing, sink breakdown, unsafe real nonprivate override count, private-required mismatch count, stdout request/block counts, path-containment counts, producer and record-class buckets.
+- Added strict public evidence index validation via `assert_public_evidence_index_safe(...)` / `PublicEvidenceIndexError`; `write_private_evidence_index(..., strict_public=True)` now refuses blocking public-safety issues before writing.
+- Added tests for extended output-policy aggregation, unsafe path/private mismatch linting, and strict write refusal.
+- Frontend mirror MVP remains public-safe: raw mirror zip/extracted files are not committed; `recon/` and `tools/` remain unstaged local references.
+
+Final validation rerun:
+- `python -B -m pytest tests/a1/test_frontend_mirror_index.py tests/a1/test_evidence_index.py -q -p no:cacheprovider`: 15 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 202 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 180 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round14_contracts_final.json`: ok.
+- Public evidence lint: 337 records, extended output_policy_counts present, lint issues 0.
+- `git diff --check`: ok.
+
+Subagent notes:
+- Worker-Evidence returned P0 advice to promote output_policy from optional summary into a public index safety signal; implemented the feasible schema/count/linter/strict-write parts in this round.
+- Worker-Mirror returned the richer route/assets/function-domain design; this round keeps the MVP safe index and defers richer route/assets expansion to next round.
+- A fresh Growth-Auditor retry was attempted after concurrency recovered, but the agent handle returned `not_found`; this was recorded as a tooling issue, not a code blocker. Prior Growth-Auditor/Worker findings are captured above.
+
+Next-round top 20 A1 growth points:
+1. Commercial capability matrix from real API + frontend mirror + local runtime evidence; 2. legacy evidence scanner to identify records missing output_policy; 3. regenerate newer private records with output_policy metadata; 4. frontend mirror route/assets/function-domain expansion; 5. static frontend function coverage vs Python API client map; 6. TS API client coverage matrix vs Python; 7. official API read-only probe bundle with strict private output; 8. quota-ledger mapping for videos/images/simulations/audio/files/graded_scenarios/observations/voice_minutes; 9. create_request payload examples split into request/request_input_schema; 10. request lifecycle status adapter; 11. run aggregate metric adapter; 12. error taxonomy for top-level/message/error/_failure.error; 13. stale private evidence detector; 14. public index freshness gate; 15. private-output reason governance; 16. paid-media dry-run to gated small-batch plan; 17. hosted dataset source to local replay fixture; 18. production trace ingestion endpoint; 19. queue-worker self-host Docker compose; 20. PR gate report exporter.

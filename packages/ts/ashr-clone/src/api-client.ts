@@ -40,7 +40,7 @@ export interface AshrApiCallRecord {
   ended_at: string;
   duration_ms: number;
   attempts: number;
-  status: "planned" | "ok" | "error" | "timeout";
+  status: "planned" | "blocked" | "ok" | "error" | "timeout";
   status_code: number | null;
   request: ApiJsonRecord;
   response?: ApiJsonRecord | null;
@@ -626,6 +626,7 @@ export function summarizeGenerationRequest(request: ApiJsonRecord): ApiJsonRecor
     agent_input_schema_version: agentInputPartTypes.some((partType) => partType !== "text") ? ASHR_API_AGENT_INPUT_SCHEMA_VERSION : null,
     non_text_inputs_enabled: ["audio", "file", "image", "video", "conversation"].some((key) => acceptedFlags[key]),
     small_batch: numVariations !== null && numVariations <= 1,
+    cost_risk: generationCostRisk(numVariations, Object.values(acceptedFlagShapes).every(Boolean), acceptedFlags, mediaGeneration),
     notes: [
       "dry-run-first mutating create_request calibration",
       "use maxRetries=0 for real mutating execution",
@@ -654,6 +655,53 @@ export function enforceCreateRequestPreflight(
   if (typeof preflight.num_variations === "number" && preflight.num_variations > maxRequestVariations) {
     throw new Error(`create-request num_variations=${preflight.num_variations} exceeds maxRequestVariations=${maxRequestVariations}`);
   }
+}
+
+function generationCostRisk(
+  numVariations: number | null,
+  acceptedInputsKnown: boolean,
+  acceptedFlags: Record<string, boolean>,
+  mediaGeneration: Record<string, boolean>,
+): ApiJsonRecord {
+  const generatedMediaModalities = Object.entries(mediaGeneration).filter(([, enabled]) => enabled).map(([key]) => key);
+  const nonTextInputModalities = ["audio", "file", "image", "video", "conversation"].filter((key) => acceptedFlags[key]);
+  const reasons: string[] = [];
+  if (numVariations === null) {
+    reasons.push("num_variations_unknown");
+  }
+  if (!acceptedInputsKnown) {
+    reasons.push("accepted_inputs_unknown");
+  }
+  if (generatedMediaModalities.length > 0) {
+    reasons.push("media_generation_enabled");
+  }
+  if (nonTextInputModalities.length > 0) {
+    reasons.push("non_text_inputs_enabled");
+  }
+  if (numVariations !== null && numVariations > 1) {
+    reasons.push("multi_variation_batch");
+  }
+  if (reasons.length === 0) {
+    reasons.push("text_small_batch");
+  }
+  let level = "text_small_batch";
+  if (numVariations === null || !acceptedInputsKnown) {
+    level = "unknown";
+  } else if (generatedMediaModalities.length > 0) {
+    level = "paid_media_generation";
+  } else if (nonTextInputModalities.length > 0) {
+    level = "non_text_input_review";
+  } else if (numVariations > 1) {
+    level = "batch_review";
+  }
+  return {
+    level,
+    reasons,
+    num_variations: numVariations,
+    generated_media_modalities: generatedMediaModalities,
+    non_text_input_modalities: nonTextInputModalities,
+    estimated_generated_asset_units: numVariations === null ? null : numVariations * generatedMediaModalities.length,
+  };
 }
 
 export function redactApiText(value: string): string {

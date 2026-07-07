@@ -11,6 +11,46 @@ from ashr_clone.api_client import AshrApiClient, AshrApiError, build_default_req
 from services.runner import api_probe  # noqa: E402
 
 
+def probe_plan_gate_payload(decision="go", *, target_operation="create-request", created_at=None, request=None, request_schema=None, batch_size=None):
+    request = request if request is not None else {"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}
+    preflight = api_probe.summarize_generation_request(request) if target_operation == "create-request" else None
+    small_batch_size = 1
+    inferred_batch_size = api_probe._inferred_batch_size(preflight, small_batch_size, batch_size)
+    target_binding = api_probe.build_target_binding(
+        target_operation=target_operation,
+        request=request if target_operation == "create-request" else None,
+        request_input_schema=request_schema,
+        request_input_schema_source="file" if request_schema is not None else "client_default" if target_operation == "create-request" else "not_applicable",
+        allow_media_generation=False,
+        allow_non_text_inputs=False,
+        max_request_variations=1,
+        small_batch_size=small_batch_size,
+        batch_size=inferred_batch_size,
+        modality_sequence=api_probe.build_modality_sequence(preflight),
+    )
+    gate = {
+        "decision": decision,
+        "source": "quota-record",
+        "quota_or_reset_evidence_present": True,
+        "reset": {"known": False, "wait_hint_present": False, "header_keys": ["x-ratelimit-remaining"]},
+        "can_enter_small_batch": decision == "go",
+        "can_enter_batch": decision == "go",
+    }
+    return {
+        "schema_version": api_probe.API_PROBE_BATCH_PLAN_SCHEMA_VERSION,
+        "function": "plan_batch",
+        "response": {
+            "plan": {
+                "schema_version": api_probe.API_PROBE_BATCH_PLAN_SCHEMA_VERSION,
+                "target_operation": target_operation,
+                "created_at": created_at or api_probe.utc_now(),
+                "target_binding": target_binding,
+                "quota_stop_go": gate,
+            }
+        },
+    }
+
+
 def test_dry_run_records_plan_without_api_key(tmp_path):
     output = tmp_path / "dry_run.json"
     client = AshrApiClient(**{"api_" + "key": None})
@@ -638,7 +678,234 @@ def test_api_probe_create_request_dry_run_adds_preflight(tmp_path):
     assert record["request"]["preflight"]["media_generation_enabled"] is False
     assert record["request"]["preflight"]["small_batch"] is True
     assert record["request"]["preflight"]["request_input_schema_source"] == "client_default"
+    assert record["request"]["preflight"]["batch_plan"]["phase_order"] == ["dry-run", "small-batch", "batch"]
+    assert record["request"]["preflight"]["batch_plan"]["quota_decision"] == "wait"
+    assert record["request"]["preflight"]["batch_plan"]["modality_order"] == ["text"]
+    assert record["response"]["plan"]["batch_plan"]["phases"][1]["phase"] == "small-batch"
     assert record["request"]["params"]["request_input_schema"]["type"] == "object"
+
+
+def test_api_probe_batch_plan_sequences_text_then_media_without_raw_request():
+    request = {
+        "agent": {"name": "Mock", "accepted_inputs": {"text": True, "image": True, "audio": True, "file": False, "video": False}},
+        "context": {"scenario_context": "tp_should_not_be_recorded"},
+        "generation_options": {"generate_images": True, "generate_audio": True},
+        "test_config": {"num_variations": 3},
+    }
+
+    plan = api_probe.build_api_probe_batch_plan(
+        target_operation="create-request",
+        request=request,
+        allow_media_generation=True,
+        allow_non_text_inputs=True,
+        max_request_variations=3,
+        small_batch_size=1,
+    )
+
+    assert plan["phase_order"] == ["dry-run", "small-batch", "batch"]
+    assert plan["small_batch_size"] == 1
+    assert plan["batch_size"] == 3
+    assert [item["modality"] for item in plan["modality_sequence"]] == ["text", "image", "audio"]
+    assert plan["phases"][0]["estimated_real_api_calls"] == 0
+    assert plan["phases"][1]["phase"] == "small-batch"
+    assert plan["phases"][1]["modalities"] == ["text"]
+    assert plan["phases"][2]["modalities"] == ["text", "image", "audio"]
+    assert plan["guardrails"]["media_after_text_small_batch"] is True
+    assert plan["guardrails"]["sensitive_values_not_recorded"] is True
+    assert plan["quota_stop_go"]["decision"] == "wait"
+    assert plan["quota_stop_go"]["source"] == "not-provided"
+    assert plan["quota_stop_go"]["can_enter_small_batch"] is False
+    assert "tp_should_not_be_recorded" not in json.dumps(plan)
+
+
+def test_api_probe_batch_plan_quota_record_stops_until_reset():
+    quota_record = {
+        "status": "error",
+        "response_headers": {"retry-after": "60", "x-ratelimit-reset": "2026-07-06T01:00:00Z"},
+        "error": {
+            "response": {
+                "message": "Usage limit exceeded for requests",
+                "quota": {"resource": "requests", "limit": 5, "used": 5, "requested": 1, "remaining": 0},
+            }
+        },
+    }
+
+    plan = api_probe.build_api_probe_batch_plan(target_operation="create-request", request={"agent": {"accepted_inputs": {"text": True}}, "test_config": {"num_variations": 1}}, quota_record=quota_record)
+
+    quota_gate = plan["quota_stop_go"]
+    assert quota_gate["decision"] == "stop"
+    assert quota_gate["can_enter_small_batch"] is False
+    assert quota_gate["can_enter_batch"] is False
+    assert quota_gate["quota"]["blocked"] is True
+    assert quota_gate["quota"]["resource"] == "requests"
+    assert quota_gate["reset"]["known"] is True
+    assert quota_gate["reset"]["retry_after_seconds"] == 60
+    assert quota_gate["reset"]["ratelimit_reset"] == "2026-07-06T01:00:00Z"
+
+
+def test_api_probe_batch_plan_requires_quota_evidence_for_go():
+    plan = api_probe.build_api_probe_batch_plan(target_operation="create-request", request={"agent": {"accepted_inputs": {"text": True}}, "test_config": {"num_variations": 1}})
+
+    quota_gate = plan["quota_stop_go"]
+    assert quota_gate["decision"] == "wait"
+    assert quota_gate["source"] == "not-provided"
+    assert quota_gate["evidence_present"] is False
+    assert quota_gate["quota_or_reset_evidence_present"] is False
+    assert quota_gate["can_enter_small_batch"] is False
+
+
+def test_api_probe_plan_batch_cli_does_not_create_api_client(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    output = tmp_path / "plan.json"
+    request_file.write_text(json.dumps({"agent": {"accepted_inputs": {"text": True}}, "test_config": {"num_variations": 2}}), encoding="utf-8")
+
+    def fail_from_env(cls, **_kwargs):
+        raise AssertionError("plan-batch should not construct an API client")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(fail_from_env))
+
+    code = api_probe.main(["plan-batch", "--request-file", str(request_file), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "planned plan-batch" in captured.out
+    record = json.loads(output.read_text(encoding="utf-8"))
+    assert record["function"] == "plan_batch"
+    assert record["status"] == "blocked"
+    assert record["response"]["plan"]["batch_size"] == 2
+
+
+def test_api_probe_validate_gate_cli_accepts_fresh_target_bound_gate(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-request")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    captured = capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert "validated validate-gate: status=ok issues=0" in captured.out
+    assert record["schema_version"] == api_probe.API_PROBE_GATE_VALIDATION_SCHEMA_VERSION
+    assert record["response"]["validation"]["valid"] is True
+    assert record["response"]["validation"]["target_operation"] == "create-request"
+
+
+def test_api_probe_quota_gate_schema_snapshot_matches_validator_contract():
+    schema = json.loads((Path(__file__).resolve().parents[2] / "docs" / "a1" / "schemas" / "api_probe_quota_gate.schema.json").read_text(encoding="utf-8"))
+
+    assert schema["properties"]["schema_version"]["const"] == api_probe.API_PROBE_BATCH_PLAN_SCHEMA_VERSION
+    assert schema["properties"]["function"]["const"] == "plan_batch"
+    plan_schema = schema["properties"]["response"]["properties"]["plan"]
+    assert {"schema_version", "target_operation", "created_at", "target_binding", "quota_stop_go"}.issubset(plan_schema["required"])
+    binding_schema = plan_schema["properties"]["target_binding"]
+    assert binding_schema["properties"]["schema_version"]["const"] == api_probe.API_PROBE_TARGET_BINDING_SCHEMA_VERSION
+    assert {"fingerprint", "request_fingerprint", "raw_request_not_recorded"}.issubset(binding_schema["required"])
+    gate_schema = plan_schema["properties"]["quota_stop_go"]
+    assert gate_schema["properties"]["decision"]["enum"] == ["go", "stop", "wait"]
+
+
+def test_api_probe_validate_gate_cli_rejects_wrong_target(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-run")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    captured = capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 2
+    assert "target_operation" in captured.err
+    assert record["status"] == "error"
+    assert record["response"]["validation"]["issues"][0]["code"] == "target_operation_mismatch"
+
+
+def test_api_probe_validate_gate_cli_rejects_stale_gate(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", created_at="2026-01-01T00:00:00Z")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--quota-gate-ttl-seconds", "1", "--output", str(output), "--allow-nonprivate-output"])
+    captured = capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 2
+    assert "stale" in captured.err
+    assert record["response"]["validation"]["issues"][0]["code"] == "stale_gate"
+
+
+def test_api_probe_validate_gate_cli_rejects_same_operation_wrong_request_binding(tmp_path, capsys):
+    original_request = {"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}
+    changed_request = {"agent": {"name": "Changed"}, "test_config": {"num_variations": 1}}
+    gate_file = tmp_path / "gate.json"
+    request_file = tmp_path / "changed_request.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", request=original_request)), encoding="utf-8")
+    request_file.write_text(json.dumps(changed_request), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--request-file", str(request_file), "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    captured = capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 2
+    assert "target_binding.fingerprint" in captured.err
+    assert record["response"]["validation"]["issues"][0]["code"] == "target_binding_mismatch"
+
+
+def test_api_probe_protected_output_requires_private_dir_before_key_lookup(tmp_path, capsys):
+    output = tmp_path / "real.json"
+
+    code = api_probe.main(["health-check", "--execute", "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "ASHR_API_KEY" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_validate_gate_protected_output_blocks_before_gate_read(tmp_path, capsys):
+    output = tmp_path / "validation.json"
+    missing_gate = tmp_path / "missing-gate.json"
+
+    code = api_probe.main(["validate-gate", "--quota-gate-record", str(missing_gate), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "quota-gate-record" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_quota_record_protected_output_blocks_before_record_read(tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    output = tmp_path / "plan.json"
+    missing_quota = tmp_path / "missing-quota.json"
+
+    code = api_probe.main(["plan-batch", "--request-file", str(request_file), "--quota-record", str(missing_quota), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "quota-record" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_output_policy_marks_synthetic_override(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-request")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert record["output_policy"]["private_output_required"] is True
+    assert record["output_policy"]["allow_nonprivate_output"] is True
+    assert record["output_policy"]["nonprivate_output_override_used"] is True
+    assert record["output_policy"]["sink"] == "nonprivate_file"
 
 
 def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
@@ -672,6 +939,9 @@ def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
         assert record["attempts"] == 0
         assert record["request"]["function"] == expected_function
         assert record["request"]["mutates"] is False
+        assert record["output_policy"]["schema_version"] == "ashr.clone.output_policy.v1"
+        assert record["output_policy"]["private_output_required"] is False
+        assert record["output_policy"]["sink"] == "nonprivate_file"
 
 
 def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):
@@ -802,7 +1072,24 @@ def test_api_probe_create_request_preflight_supports_enabled_dict_inputs():
     assert preflight["accepted_input_flags"]["text"] is True
     assert preflight["accepted_input_flags"]["image"] is False
     assert preflight["num_variations"] == 1
+    assert preflight["cost_risk"]["level"] == "text_small_batch"
     api_probe.enforce_create_request_preflight(preflight, allow_media_generation=False, allow_non_text_inputs=False, max_request_variations=1)
+
+
+def test_create_request_preflight_cost_risk_marks_paid_media_and_batches():
+    preflight = summarize_generation_request(
+        {
+            "agent": {"accepted_inputs": {"text": True, "audio": True, "file": True}},
+            "generation_options": {"generate_audio": True, "generate_files": True},
+            "test_config": {"num_variations": 3},
+        }
+    )
+
+    assert preflight["cost_risk"]["level"] == "paid_media_generation"
+    assert preflight["cost_risk"]["estimated_generated_asset_units"] == 6
+    assert preflight["cost_risk"]["generated_media_modalities"] == ["audio", "files"]
+    assert preflight["cost_risk"]["non_text_input_modalities"] == ["audio", "file"]
+    assert "multi_variation_batch" in preflight["cost_risk"]["reasons"]
 
 
 def test_api_probe_create_request_preflight_blocks_unsupported_accepted_inputs_shape():
@@ -1003,6 +1290,293 @@ def test_api_probe_cli_create_request_execute_requires_zero_retries_before_env(t
     assert "ASHR_API_KEY" not in completed.stderr
 
 
+def test_api_probe_cli_mutating_execute_requires_quota_gate_before_env(tmp_path):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("ASHR_API_KEY", None)
+    env.pop("ASHR_LABS_API_KEY", None)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-m",
+            "services.runner.api_probe",
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+        ],
+        cwd=str(Path(__file__).resolve().parents[2]),
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+    assert completed.returncode == 2
+    assert "--quota-gate-record" in completed.stderr
+    assert "ASHR_API_KEY" not in completed.stderr
+
+
+def test_api_probe_cli_mutating_execute_blocks_stop_quota_gate(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "quota_stop.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("stop")), encoding="utf-8")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "quota gate decision=stop" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_rejects_read_only_quota_gate(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "list_requests.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(
+        json.dumps(
+            {
+                "function": "list_requests",
+                "dry_run": False,
+                "status": "ok",
+                "response": {"status": "ok", "requests": []},
+                "field_map_version": api_probe.ASHR_API_FIELD_MAP_VERSION,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "plan-batch record" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_rejects_go_gate_without_evidence(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "go_without_evidence.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(
+        json.dumps(
+            {
+                "schema_version": api_probe.API_PROBE_BATCH_PLAN_SCHEMA_VERSION,
+                "function": "plan_batch",
+                "response": {"plan": {"schema_version": api_probe.API_PROBE_BATCH_PLAN_SCHEMA_VERSION, "target_operation": "create-request", "created_at": api_probe.utc_now(), "quota_stop_go": {"decision": "go", "source": "not-provided"}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "requires reviewed quota/reset evidence" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_rejects_wrong_target_gate_before_env(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "wrong_target.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-run")), encoding="utf-8")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "target_operation" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_rejects_stale_gate_before_env(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "stale_gate.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", created_at="2026-01-01T00:00:00Z")), encoding="utf-8")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+            "--quota-gate-ttl-seconds",
+            "1",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "stale" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_rejects_wrong_request_binding_before_env(monkeypatch, tmp_path, capsys):
+    original_request = {"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}
+    changed_request = {"agent": {"name": "Changed"}, "test_config": {"num_variations": 1}}
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "wrong_request_binding.json"
+    request_file.write_text(json.dumps(changed_request), encoding="utf-8")
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", request=original_request)), encoding="utf-8")
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: (_ for _ in ()).throw(AssertionError("client should not be constructed"))))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Blocked",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "target_binding.fingerprint" in captured.err
+
+
+def test_api_probe_cli_mutating_execute_allows_audited_quota_override(monkeypatch, tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    gate_file = tmp_path / "quota_stop.json"
+    output_file = tmp_path / "override.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("stop")), encoding="utf-8")
+
+    class FakeClient:
+        def create_request(self, **kwargs):
+            assert kwargs["dry_run"] is False
+            record = {
+                "function": "create_request",
+                "dry_run": False,
+                "status": "ok",
+                "attempts": 1,
+                "request": {"preflight": {}},
+                "field_map_version": api_probe.ASHR_API_FIELD_MAP_VERSION,
+            }
+            api_probe.write_json(kwargs["output_path"], record)
+            return record
+
+    monkeypatch.setattr(api_probe.AshrApiClient, "from_env", classmethod(lambda cls, **_kwargs: FakeClient()))
+
+    code = api_probe.main(
+        [
+            "create-request",
+            "--execute",
+            "--allow-mutate",
+            "--max-retries",
+            "0",
+            "--request-name",
+            "Override",
+            "--request-file",
+            str(request_file),
+            "--quota-gate-record",
+            str(gate_file),
+            "--allow-quota-override",
+            "--quota-override-reason",
+            "manual paid calibration approved after external quota review",
+            "--output",
+            str(output_file),
+            "--allow-nonprivate-output",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "executed create-request: status=ok" in captured.out
+    record = json.loads(output_file.read_text(encoding="utf-8"))
+    assert record["quota_gate"]["decision"] == "stop"
+    assert record["quota_gate"]["override"]["used"] is True
+    assert record["request"]["preflight"]["quota_gate"]["override"]["reason"] == "manual paid calibration approved after external quota review"
+
+
 def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, tmp_path, capsys):
     request_file = tmp_path / "request.json"
     request_file.write_text(
@@ -1033,8 +1607,12 @@ def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, 
             "Blocked",
             "--request-file",
             str(request_file),
+            "--allow-quota-override",
+            "--quota-override-reason",
+            "unit test reaches media preflight guardrail",
             "--output",
             str(tmp_path / "blocked.json"),
+            "--allow-nonprivate-output",
         ]
     )
     captured = capsys.readouterr()
@@ -1052,7 +1630,7 @@ def test_api_probe_cli_reports_timeout_without_traceback(monkeypatch, capsys, tm
 
     monkeypatch.setattr(api_probe, "run_operation", raise_timeout)
 
-    code = api_probe.main(["poll-run", "--execute", "--run-id", "123", "--output", str(tmp_path / "poll.json")])
+    code = api_probe.main(["poll-run", "--execute", "--run-id", "123", "--output", str(tmp_path / "poll.json"), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
 
     assert code == 2

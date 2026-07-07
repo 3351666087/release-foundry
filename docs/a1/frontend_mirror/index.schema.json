@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/frontend_mirror_index.schema.json",
+  "title": "A1 Frontend Mirror Public-Safe Index",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source_zip",
+    "source_sha256",
+    "raw_files_committed",
+    "public_safe_summary",
+    "scanned_entry_count",
+    "important_assets",
+    "api_entrypoints",
+    "api_functions",
+    "usage_labels",
+    "media_terms",
+    "lifecycle_terms",
+    "secret_policy",
+    "a1_implications"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ashr.clone.frontend_mirror_index.v1"
+    },
+    "source_zip": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "raw_files_committed": {
+      "const": false
+    },
+    "public_safe_summary": {
+      "const": true
+    },
+    "scanned_entry_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "important_assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256",
+          "size"
+        ]
+      }
+    },
+    "api_entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "api_functions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "usage_labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "media_terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lifecycle_terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "secret_policy": {
+      "type": "object"
+    },
+    "a1_implications": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

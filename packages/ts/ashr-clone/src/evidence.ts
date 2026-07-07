@@ -6,6 +6,7 @@ import { ASHR_API_FIELD_MAP_VERSION, redactApiSensitive, redactApiText } from ".
 type JsonRecord = Record<string, unknown>;
 
 export const EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1";
+const PUBLIC_SECRET_PATTERNS = [/tp_[A-Za-z0-9_-]+/, /sk-[A-Za-z0-9_-]{8,}/, /Bearer\s+[A-Za-z0-9._-]+/i, /ashr_live_[A-Za-z0-9_-]+/];
 
 export interface EvidenceIndexOptions {
   label?: string;
@@ -41,6 +42,93 @@ export async function writePrivateEvidenceIndex(path: string, index: JsonRecord)
   return path;
 }
 
+export function validatePublicEvidenceIndex(index: JsonRecord): JsonRecord[] {
+  const issues: JsonRecord[] = [];
+  const rawText = JSON.stringify(index);
+  const redactedText = JSON.stringify(redactApiSensitive(index));
+  const quotaDetailChecks: Array<{ pattern: string; test: (value: string) => boolean }> = [
+    { pattern: "5/5 used", test: (value) => value.includes("5/5 used") },
+    { pattern: '"remaining": 0', test: (value) => /"remaining"\s*:\s*0/.test(value) },
+    { pattern: '"requested": 1', test: (value) => /"requested"\s*:\s*1/.test(value) },
+    { pattern: '"used": 5', test: (value) => /"used"\s*:\s*5/.test(value) },
+  ];
+  for (const check of quotaDetailChecks) {
+    if (check.test(redactedText)) {
+      issues.push({ severity: "error", kind: "exact_quota_detail", pattern: check.pattern });
+    }
+  }
+  for (const pattern of PUBLIC_SECRET_PATTERNS) {
+    if (pattern.test(rawText)) {
+      issues.push({ severity: "error", kind: "secret_like_text", pattern: pattern.source });
+    }
+  }
+  const records = Array.isArray(index.records) ? index.records : [];
+  records.forEach((record, recordIndex) => {
+    if (!isRecord(record)) {
+      issues.push({ severity: "error", kind: "malformed_record", record_index: recordIndex });
+      return;
+    }
+    const quota = record.quota;
+    if (!isRecord(quota)) {
+      return;
+    }
+    for (const key of ["limit", "used", "requested", "remaining"] as const) {
+      if (Object.prototype.hasOwnProperty.call(quota, key)) {
+        issues.push({ severity: "error", kind: "quota_value_not_public_safe", record_index: recordIndex, field: key });
+      }
+    }
+  });
+  return issues;
+}
+
+export function buildResponseFieldMap(index: JsonRecord): JsonRecord {
+  const records = Array.isArray(index.records) ? index.records : [];
+  const functions: Record<string, JsonRecord> = {};
+  for (const record of records) {
+    if (!isRecord(record)) {
+      continue;
+    }
+    const functionName = String(record.function ?? "unknown");
+    const item =
+      functions[functionName] ??
+      {
+        records: 0,
+        statuses: {},
+        response_keys: [],
+        response_summary_keys: [],
+        error_keys: [],
+        quota_block_count: 0,
+        top_count_keys: [],
+      };
+    item.records = Number(item.records) + 1;
+    if (record.status !== null && record.status !== undefined && isRecord(item.statuses)) {
+      const status = String(record.status);
+      item.statuses[status] = Number(item.statuses[status] ?? 0) + 1;
+    }
+    for (const [sourceKey, targetKey] of [
+      ["response_keys", "response_keys"],
+      ["response_summary_keys", "response_summary_keys"],
+      ["error_keys", "error_keys"],
+    ] as const) {
+      item[targetKey] = mergeStringArrays(item[targetKey], record[sourceKey]);
+    }
+    const topCounts = isRecord(record.top_counts) ? record.top_counts : {};
+    item.top_count_keys = mergeStringArrays(item.top_count_keys, Object.keys(topCounts));
+    const quota = isRecord(record.quota) ? record.quota : {};
+    if (quota.blocked === true) {
+      item.quota_block_count = Number(item.quota_block_count) + 1;
+    }
+    functions[functionName] = item;
+  }
+  return {
+    schema_version: "ashr.clone.response_field_map.v1",
+    source_label: index.label,
+    source_total_records: index.total_records,
+    field_map_version: index.field_map_version,
+    functions: Object.fromEntries(Object.entries(functions).sort(([left], [right]) => left.localeCompare(right))),
+  };
+}
+
 async function summarizeRecordPath(path: string): Promise<JsonRecord | null> {
   let parsed: unknown;
   try {
@@ -54,7 +142,7 @@ async function summarizeRecordPath(path: string): Promise<JsonRecord | null> {
   const response = isRecord(parsed.response) ? parsed.response : {};
   const error = isRecord(parsed.error) ? parsed.error : {};
   const request = isRecord(parsed.request) ? parsed.request : {};
-  const quota = summarizeQuotaError(parsed);
+  const quota = publicSafeQuotaSummary(summarizeQuotaError(parsed));
   const entry: JsonRecord = {
     path: path.replaceAll("\\", "/"),
     function: parsed.function,
@@ -104,6 +192,27 @@ function summarizeQuotaError(value: JsonRecord): JsonRecord | null {
   return null;
 }
 
+function publicSafeQuotaSummary(quota: JsonRecord | null): JsonRecord | null {
+  if (quota === null) {
+    return null;
+  }
+  const quotaKeys = Array.isArray(quota.quota_keys) ? quota.quota_keys.map(String).sort() : [];
+  const summary: JsonRecord = {
+    blocked: quota.blocked === true,
+    message: quota.blocked === true ? "Usage limit exceeded; exact quota details are kept in private evidence" : null,
+    quota_keys: quotaKeys,
+  };
+  if (["string", "number", "boolean"].includes(typeof quota.resource)) {
+    summary.resource = quota.resource;
+  }
+  for (const key of ["limit", "used", "requested", "remaining"] as const) {
+    if (key in quota) {
+      summary[`${key}_present`] = true;
+    }
+  }
+  return summary;
+}
+
 function quotaCandidates(value: JsonRecord): JsonRecord[] {
   const candidates: JsonRecord[] = [value];
   for (const key of ["error", "response"] as const) {
@@ -147,6 +256,25 @@ function countBy(entries: JsonRecord[], key: string): JsonRecord {
     counts[countKey] = (counts[countKey] ?? 0) + 1;
   }
   return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function mergeStringArrays(left: unknown, right: unknown): string[] {
+  const values = new Set<string>();
+  for (const item of arrayItems(left)) {
+    if (typeof item === "string") {
+      values.add(item);
+    }
+  }
+  for (const item of arrayItems(right)) {
+    if (typeof item === "string") {
+      values.add(item);
+    }
+  }
+  return Array.from(values).sort();
+}
+
+function arrayItems(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function normalizeMaxFiles(value: number): number {

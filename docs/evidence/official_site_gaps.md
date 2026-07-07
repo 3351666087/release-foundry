@@ -90,3 +90,26 @@ If any of these become required for A1/A2/A3, they need a Gate decision or expli
 - The same TypeScript docs pass showed `generate_audio`, `generate_files`, and `generate_simulations`, but did not expose `pollRun`, `listAgents`, `generate_images`, or `generate_videos`; Python docs continue to expose `poll_run`, `list_agents`, `generate_images`, and `generate_videos`.
 - `lab.ashr.io/?tab=usage` loaded as `Ashr Labs` but settled into unauthenticated onboarding/pricing copy during this pass. Authenticated usage counters and exact quota values were not recorded.
 - A1 local TypeScript now treats `text`, `audio`, `file`, `image`, and `video` as same-level `AgentInput.parts` values and dry-run request-schema values. Hosted TS SDK auth behavior, quota reset/enforcement timing, media generation failure semantics, and dashboard counter semantics remain unverified until a separate authenticated calibration uses env-only keys.
+
+2026-07-06 A1 round7 authenticated Usage/API refresh:
+
+- Chrome read-only check reached `https://lab.ashr.io/?tab=usage` in a logged-in state and confirmed `Usage`, `Images`, `Audio`, and `Files` counters were visible. Exact counter values are intentionally private-only at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json`.
+- `https://docs.ashr.io/` returned `net::ERR_CONNECTION_CLOSED` in Chrome, and `https://ashr.io/docs` returned `404 Not Found`. A1 did not infer docs fields from those failed pages.
+- `https://ashr.io/` remained accessible and showed public homepage/plans signals including Developer, Startup, Enterprise, `$39`, and `$500`.
+- Python and TypeScript real read-only calibrations succeeded from env-only API key; no key value was printed or written.
+- Prior hosted `create_request` quota block still has no reset signal. A1 generated a quota-stop batch plan and did not run paid mutating media/text calls this round.
+
+
+## 2026-07-07 Round12 Chrome verification gap
+
+After the user opened Chrome, A1 retried the required Chrome read-only official/dashboard verification through the bundled Chrome plugin. The plugin failed before selecting Chrome with:
+
+```text
+failed to write kernel assets: Windows path not found (os error 3)
+```
+
+Impact:
+- No dashboard/API-key page interaction occurred in this retry.
+- No Ashr API key was read, typed, logged, or written.
+- Round12 used official web/read-only public pages plus prior authenticated Chrome evidence for field calibration, and recorded the Chrome runtime failure as a tooling gap.
+- Next round should retry Chrome after node_repl/kernel asset path repair and capture private screenshots only under `docs/evidence/private_refs`.
