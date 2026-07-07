@@ -2640,3 +2640,66 @@ Add the missing SaaS product-console areas the team lead called out: login, clou
 ### Current interpretation
 
 A3 now looks more like a SaaS console instead of only a run/report dashboard. It still does not provide real auth/RBAC/API-key mutation, but it shows the exact product surfaces and guardrails needed before those become real hosted features.
+
+## 2026-07-07 - API Ingest, Hosted Report Page, And Enterprise Readiness
+
+### Goal
+
+Continue the large SaaS plan by moving A3 from fixture-only reporting toward API-ingested evidence, hosted report viewing, self-host readiness, and enterprise audit posture. Keep A1 runner semantics and A2 judge semantics unchanged.
+
+### Work completed
+
+- Extended `services/report/a3_store.mjs`.
+  - Added `importA1RunResult(...)`.
+  - Added `importA2GradeResult(...)`.
+  - Added `getEnterpriseReadiness(...)`.
+  - Added API contract entries for A1/A2 import routes, hosted report HTML, and enterprise readiness.
+- Extended `services/report/a3_api_server.mjs`.
+  - Added `POST /api/a3/import/a1-run-result`.
+  - Added `POST /api/a3/import/a2-grade-result`.
+  - Added `GET /api/a3/enterprise/readiness`.
+  - Added `GET /reports/:reportId` as a real HTML hosted-report route.
+- Extended `services/report/a3_shareable_report.mjs`.
+  - Added `renderShareableReportHtml(...)`.
+  - Hosted reports render only redacted/shareable report payload fields and sealed evidence metadata.
+- Added Enterprise Readiness.
+  - `services/report/a3_enterprise_readiness.mjs` produces `a3.enterprise_readiness.v1`.
+  - Dashboard now includes an Enterprise Readiness panel for self-host/audit review.
+  - The readiness report summarizes A1 run/trace/tool-call evidence, A2 grade/judge evidence, DB contract readiness, admin-console guardrails, blockers, capabilities, and next actions.
+- Added self-host contract artifact:
+  - `docs/a3/p3_self_host_console_growth_2026_07_07.md`
+  - `tests/a3/self_host_console_contract.test.mjs`
+- Added Growth-Auditor round artifact:
+  - `docs/a3/p3_growth_auditor_round_saas_2026_07_07.md`
+  - Contains 30 commercial growth points mapped to the A3 plan and current repo evidence.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/a3_enterprise_readiness.test.mjs tests/a3/self_host_console_contract.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+39 tests
+39 pass
+0 fail
+```
+
+### Current interpretation
+
+This round directly advances the team lead's SaaS migration points:
+
+- `static -> API-backed`: A3 can now accept A1 RunResult and A2 GradeResult through API routes.
+- `mock fixture -> real DB data`: the store contract now has ingest receipts and source isolation for `api-ingest`.
+- `HTML blob -> app components`: Enterprise Readiness is rendered through a component boundary.
+- `report export -> shareable hosted report`: shared reports now have an actual `/reports/:reportId` HTML route, not only JSON payloads.
+
+### Safety boundary
+
+- No real Ashr API key, token, cookie, account data, or signed media URL was printed or committed.
+- No real cloud mutation, API-key rotation, team invite, billing mutation, or Trust publish was executed.
+- Hosted report HTML uses redacted shareable payload data and sealed evidence metadata only.

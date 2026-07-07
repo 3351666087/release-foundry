@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildShareableReportPayload } from "../../services/report/a3_shareable_report.mjs";
+import {
+  buildShareableReportPayload,
+  renderShareableReportHtml
+} from "../../services/report/a3_shareable_report.mjs";
 
 test("A3 shareable report wraps release evidence in a hosted-report payload", () => {
   const runFixture = {
@@ -48,6 +51,12 @@ test("A3 shareable report wraps release evidence in a hosted-report payload", ()
   assert.equal(report.report_center.hosted_page_available, true);
   assert.equal(report.artifacts.length, 3);
   assert.match(report.sealed_evidence.payload_hash, /^[a-f0-9]{64}$/);
+
+  const html = renderShareableReportHtml(report);
+  assert.match(html, /<!doctype html>/);
+  assert.match(html, /A3 Shareable Report|A3 Release Intelligence Report/);
+  assert.match(html, /Sealed Evidence/);
+  assert.match(html, /case-share-smoke/);
 });
 
 test("A3 shareable report redacts secrets before producing hosted payloads", () => {
@@ -89,4 +98,9 @@ test("A3 shareable report redacts secrets before producing hosted payloads", () 
   assert.match(serialized, /\[REDACTED/);
   assert.equal(report.redaction.blocked, false);
   assert.equal(report.sealed_evidence.secret_free, true);
+
+  const html = renderShareableReportHtml(report);
+  assert.doesNotMatch(html, /secret_live_value/);
+  assert.doesNotMatch(html, /Bearer abcdefghijklmnopqrstuvwxyz/);
+  assert.match(html, /Sealed Evidence/);
 });

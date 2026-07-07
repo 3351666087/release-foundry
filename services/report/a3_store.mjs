@@ -12,6 +12,7 @@ import {
   buildSaasAdminConsole,
   planSaasAdminAction
 } from "./a3_saas_admin.mjs";
+import { buildEnterpriseReadinessReport } from "./a3_enterprise_readiness.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -88,10 +89,14 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/runs",
     "GET /api/a3/runs/:runId",
     "GET /api/a3/cases/:caseId",
+    "POST /api/a3/import/a1-run-result",
+    "POST /api/a3/import/a2-grade-result",
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
+    "GET /reports/:reportId",
     "GET /api/a3/admin/console",
-    "POST /api/a3/admin/actions/plan"
+    "POST /api/a3/admin/actions/plan",
+    "GET /api/a3/enterprise/readiness"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -226,12 +231,76 @@ export function createMemoryA3Store(seed = {}) {
       };
     },
 
+    async importA1RunResult(runResult, options = {}) {
+      const source = normalizeSourceKey(options.source || runResult?.source || "api-ingest");
+      const existing = snapshots.get(source);
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "API Ingest",
+        organizationId: options.organizationId || existing?.organizationId || runResult?.organization_id,
+        projectId: options.projectId || existing?.projectId || runResult?.project_id,
+        runFixture: runResult || {},
+        gradeFixture: existing?.gradeFixture || {},
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: true,
+          ingest_source: "a1_run_result_api"
+        }
+      });
+      snapshots.set(source, normalized);
+      return buildIngestReceipt("a3.a1_run_result_ingest.v1", normalized, {
+        imported_run_count: extractRunRecords(normalized.runFixture).length,
+        imported_grade_count: countGradeResults(normalized.gradeFixture)
+      });
+    },
+
+    async importA2GradeResult(gradeResult, options = {}) {
+      const source = normalizeSourceKey(options.source || gradeResult?.source || "api-ingest");
+      const existing = snapshots.get(source);
+      const mergedGradeFixture = mergeGradeFixtures(existing?.gradeFixture, gradeResult);
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "API Ingest",
+        organizationId: options.organizationId || existing?.organizationId || gradeResult?.organization_id,
+        projectId: options.projectId || existing?.projectId || gradeResult?.project_id,
+        runFixture: existing?.runFixture || {},
+        gradeFixture: mergedGradeFixture,
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: true,
+          ingest_source: "a2_grade_result_api"
+        }
+      });
+      snapshots.set(source, normalized);
+      return buildIngestReceipt("a3.a2_grade_result_ingest.v1", normalized, {
+        imported_run_count: extractRunRecords(normalized.runFixture).length,
+        imported_grade_count: countGradeResults(normalized.gradeFixture)
+      });
+    },
+
     async getSaasAdminConsole(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       return buildSaasAdminConsole(snapshot, {
         source: snapshot.source,
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId
+      });
+    },
+
+    async getEnterpriseReadiness(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const adminConsole = buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      return buildEnterpriseReadinessReport({
+        runFixture: snapshot.runFixture,
+        gradeFixture: snapshot.gradeFixture,
+        adminConsole,
+        dbContract: A3_DB_CONTRACT
       });
     },
 
@@ -338,6 +407,16 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async importA1RunResult(runResult, options = {}) {
+      const result = await store.importA1RunResult(runResult, options);
+      await persist();
+      return result;
+    },
+    async importA2GradeResult(gradeResult, options = {}) {
+      const result = await store.importA2GradeResult(gradeResult, options);
+      await persist();
+      return result;
+    },
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
       await persist();
@@ -406,6 +485,16 @@ function buildDashboardPayload(snapshot, storageMode) {
       source: snapshot.source,
       organizationId: snapshot.organizationId,
       projectId: snapshot.projectId
+    }),
+    enterprise_readiness: buildEnterpriseReadinessReport({
+      runFixture: snapshot.runFixture,
+      gradeFixture: snapshot.gradeFixture,
+      adminConsole: buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: snapshot.organizationId,
+        projectId: snapshot.projectId
+      }),
+      dbContract: A3_DB_CONTRACT
     }),
     summary: snapshot.summary,
     cases: cases.map((item) => ({
@@ -491,6 +580,64 @@ function summarizeCases(cases = []) {
     passed_cases: total - failed,
     pass_rate: total ? Math.round(((total - failed) / total) * 1000) / 10 : 0
   };
+}
+
+function buildIngestReceipt(schemaVersion, snapshot, counts = {}) {
+  const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
+  return {
+    schema_version: schemaVersion,
+    source: snapshot.source,
+    source_label: snapshot.source_label,
+    storage_mode: snapshot.storage?.mode || "memory",
+    db_ready: true,
+    imported_run_count: counts.imported_run_count || 0,
+    imported_grade_count: counts.imported_grade_count || 0,
+    dashboard_case_count: cases.length,
+    summary: snapshot.summary,
+    a1_a2_join_ready: cases.some((item) => (
+      item.trace_ready
+      || (item.judge_results || []).length > 0
+      || item.grade
+    ))
+  };
+}
+
+function mergeGradeFixtures(existing = {}, incoming = {}) {
+  const existingGrades = extractGradeResults(existing);
+  const incomingGrades = extractGradeResults(incoming);
+  const byCaseId = new Map();
+  for (const grade of [...existingGrades, ...incomingGrades]) {
+    byCaseId.set(grade.case_id || `grade-${byCaseId.size + 1}`, grade);
+  }
+  return {
+    schema_version: incoming.schema_version || existing.schema_version || "a3.api_ingest_grade_results.v1",
+    grade_results: [...byCaseId.values()]
+  };
+}
+
+function extractGradeResults(gradeFixture = {}) {
+  if (Array.isArray(gradeFixture)) {
+    return gradeFixture.flatMap(extractGradeResults);
+  }
+  if (Array.isArray(gradeFixture.grade_results)) {
+    return gradeFixture.grade_results;
+  }
+  if (gradeFixture.grade_result && typeof gradeFixture.grade_result === "object") {
+    return [gradeFixture.grade_result];
+  }
+  if (gradeFixture.case_id && (
+    Array.isArray(gradeFixture.judge_results)
+    || "passed" in gradeFixture
+    || "score" in gradeFixture
+    || "primary_failure_class" in gradeFixture
+  )) {
+    return [gradeFixture];
+  }
+  return [];
+}
+
+function countGradeResults(gradeFixture = {}) {
+  return extractGradeResults(gradeFixture).length;
 }
 
 async function readJson(root, relativePath) {

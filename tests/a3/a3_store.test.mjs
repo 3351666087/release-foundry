@@ -32,6 +32,8 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(dashboard.cases.length, 32);
   assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
   assert.equal(dashboard.saas_admin_console.api_keys.status, "metadata_only");
+  assert.equal(dashboard.enterprise_readiness.schema_version, "a3.enterprise_readiness.v1");
+  assert.ok(dashboard.enterprise_readiness.enabled_capabilities.length > 0);
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);
@@ -57,6 +59,59 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   const action = await store.planSaasAdminAction("rotate_api_key", { source: "mock" });
   assert.equal(action.mode, "plan_only");
   assert.equal(action.writes_real_ashr_cloud, false);
+
+  const readiness = await store.getEnterpriseReadiness({ source: "mock" });
+  assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
+  assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+});
+
+test("A3 store imports A1 run results and A2 grade results into an API-ingest source", async () => {
+  const store = createMemoryA3Store();
+  const runResult = {
+    runs: [{
+      run_id: "run-api-ingest",
+      dataset_id: "dataset-api-ingest",
+      runner_id: "a1-hosted-runner",
+      status: "completed",
+      cases: [{
+        case_id: "case-api-ingest",
+        scenario_id: "scenario-api-ingest",
+        title: "API ingest refund case",
+        status: "failed",
+        expected: { final_response: "Refund should be denied." },
+        actual: {
+          final_response: "Refund approved.",
+          tool_calls: [{ name: "refund_order", arguments: { order_id: "ord_123" } }]
+        },
+        trace_events: [{ event_type: "tool_call", name: "refund_order" }]
+      }]
+    }]
+  };
+  const gradeResult = {
+    case_id: "case-api-ingest",
+    scenario_id: "scenario-api-ingest",
+    passed: false,
+    score: 0.24,
+    primary_failure_class: "wrong_intent",
+    judge_results: [{ judge_mode: "deterministic", passed: false }]
+  };
+
+  const runReceipt = await store.importA1RunResult(runResult, { source: "api-ingest" });
+  assert.equal(runReceipt.schema_version, "a3.a1_run_result_ingest.v1");
+  assert.equal(runReceipt.imported_run_count, 1);
+  assert.equal(runReceipt.dashboard_case_count, 1);
+
+  const gradeReceipt = await store.importA2GradeResult(gradeResult, { source: "api-ingest" });
+  assert.equal(gradeReceipt.schema_version, "a3.a2_grade_result_ingest.v1");
+  assert.equal(gradeReceipt.imported_grade_count, 1);
+  assert.equal(gradeReceipt.a1_a2_join_ready, true);
+
+  const dashboard = await store.getDashboardSnapshot("api-ingest");
+  assert.equal(dashboard.summary.totalCases, 1);
+  assert.equal(dashboard.summary.failed, 1);
+  assert.equal(dashboard.cases[0].primary_failure_class, "wrong_intent");
+  assert.equal(dashboard.enterprise_readiness.a1_a2_compatibility_notes.a1.compatible, true);
+  assert.equal(dashboard.enterprise_readiness.a1_a2_compatibility_notes.a2.compatible, true);
 });
 
 test("A3 file-backed store persists shareable report metadata without a real DB server", async () => {

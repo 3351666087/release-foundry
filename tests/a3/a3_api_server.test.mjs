@@ -17,6 +17,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.summary.totalCases, 32);
     assert.equal(dashboard.storage.db_contract.mysql_compatible, true);
     assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
+    assert.equal(dashboard.enterprise_readiness.schema_version, "a3.enterprise_readiness.v1");
 
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");
@@ -32,6 +33,63 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const actionPlan = await actionResponse.json();
     assert.equal(actionPlan.mode, "plan_only");
     assert.equal(actionPlan.writes_real_ashr_cloud, false);
+
+    const readiness = await getJson(`${url}/api/a3/enterprise/readiness?source=mock`);
+    assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
+    assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+
+    const ingestRunResponse = await fetch(`${url}/api/a3/import/a1-run-result`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source: "api-ingest",
+        run_result: {
+          runs: [{
+            run_id: "run-ingested-api",
+            dataset_id: "dataset-ingested-api",
+            runner_id: "a1-api-runner",
+            status: "completed",
+            cases: [{
+              case_id: "case-ingested-api",
+              scenario_id: "scenario-ingested-api",
+              status: "failed",
+              expected: { final_response: "Deny refund." },
+              actual: { final_response: "Refund approved." },
+              trace_events: [{ event_type: "agent_response" }]
+            }]
+          }]
+        }
+      })
+    });
+    assert.equal(ingestRunResponse.status, 201);
+    const ingestRun = await ingestRunResponse.json();
+    assert.equal(ingestRun.schema_version, "a3.a1_run_result_ingest.v1");
+    assert.equal(ingestRun.imported_run_count, 1);
+
+    const ingestGradeResponse = await fetch(`${url}/api/a3/import/a2-grade-result`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source: "api-ingest",
+        grade_result: {
+          case_id: "case-ingested-api",
+          scenario_id: "scenario-ingested-api",
+          passed: false,
+          score: 0.31,
+          primary_failure_class: "wrong_intent",
+          judge_results: [{ judge_mode: "deterministic", passed: false }]
+        }
+      })
+    });
+    assert.equal(ingestGradeResponse.status, 201);
+    const ingestGrade = await ingestGradeResponse.json();
+    assert.equal(ingestGrade.imported_grade_count, 1);
+    assert.equal(ingestGrade.a1_a2_join_ready, true);
+
+    const ingestedDashboard = await getJson(`${url}/api/a3/dashboard?source=api-ingest`);
+    assert.equal(ingestedDashboard.summary.failed, 1);
+    assert.equal(ingestedDashboard.cases[0].primary_failure_class, "wrong_intent");
+    assert.equal(ingestedDashboard.enterprise_readiness.a1_a2_compatibility_notes.a2.compatible, true);
 
     const runs = await getJson(`${url}/api/a3/runs?source=mock`);
     assert.equal(runs.schema_version, "a3.api_run_list.v1");
@@ -58,6 +116,13 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
+
+    const hostedReport = await fetch(`${url}${report.share_url_path}`);
+    assert.equal(hostedReport.status, 200);
+    assert.match(hostedReport.headers.get("content-type"), /text\/html/);
+    const hostedHtml = await hostedReport.text();
+    assert.match(hostedHtml, /A3 API smoke report/);
+    assert.match(hostedHtml, /Sealed Evidence/);
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);

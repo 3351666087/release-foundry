@@ -380,5 +380,9 @@
 - [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
 - [ ] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
-- [ ] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
-- [ ] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
+- [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
+- [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
+- [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
+- [x] Add self-host console contract artifact and document-contract tests.
+- [ ] Add idempotency keys and validation error shapes to A1/A2 import routes.
+- [ ] Add view audit event and expiry/revocation policy for hosted reports.

@@ -6,6 +6,7 @@ import {
   A3_DB_CONTRACT,
   createFixtureBackedA3Store
 } from "./a3_store.mjs";
+import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
@@ -36,12 +37,42 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, A3_DB_CONTRACT);
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
+        const body = await readJsonBody(request);
+        const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {
+          source: body.source || url.searchParams.get("source") || "api-ingest",
+          sourceLabel: body.source_label || body.sourceLabel,
+          organizationId: body.organization_id,
+          projectId: body.project_id
+        });
+        return sendJson(response, 201, receipt);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/import/a2-grade-result") {
+        const body = await readJsonBody(request);
+        const receipt = await store.importA2GradeResult(body.grade_result || body.gradeResult || body, {
+          source: body.source || url.searchParams.get("source") || "api-ingest",
+          sourceLabel: body.source_label || body.sourceLabel,
+          organizationId: body.organization_id,
+          projectId: body.project_id
+        });
+        return sendJson(response, 201, receipt);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/dashboard") {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url)));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {
         return sendJson(response, 200, await store.getSaasAdminConsole({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/enterprise/readiness") {
+        return sendJson(response, 200, await store.getEnterpriseReadiness({
           source: sourceFrom(url),
           organizationId: url.searchParams.get("organization_id") || undefined,
           projectId: url.searchParams.get("project_id") || undefined
@@ -103,6 +134,14 @@ export function createA3ApiHandler(options = {}) {
           : sendJson(response, 404, notFound("report", reportMatch[1]));
       }
 
+      const hostedReportMatch = url.pathname.match(/^\/reports\/([^/]+)$/);
+      if (request.method === "GET" && hostedReportMatch) {
+        const report = await store.getReport(decodeURIComponent(hostedReportMatch[1]));
+        return report
+          ? sendHtml(response, 200, renderShareableReportHtml(report))
+          : sendHtml(response, 404, `<h1>Report not found</h1><p>${escapeHtml(hostedReportMatch[1])}</p>`);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/reports") {
         return sendJson(response, 200, {
           schema_version: "a3.api_report_list.v1",
@@ -162,6 +201,15 @@ function sendJson(response, statusCode, payload) {
   response.end(body);
 }
 
+function sendHtml(response, statusCode, body) {
+  response.writeHead(statusCode, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*"
+  });
+  response.end(body);
+}
+
 function notFound(kind, id) {
   return {
     schema_version: "a3.api_error.v1",
@@ -169,6 +217,15 @@ function notFound(kind, id) {
     kind,
     id: String(id)
   };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

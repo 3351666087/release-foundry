@@ -471,3 +471,23 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /selectedAdminPlan/);
   assert.match(html, /clean-room shell/);
 });
+
+test("A3 dashboard wires enterprise readiness for self-host and audit review", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /a3_enterprise_readiness\.mjs/);
+  assert.match(html, /components\/enterprise-readiness-panel\.mjs/);
+  assert.match(html, /href="#enterprise-readiness"/);
+  assert.match(html, /id="enterprise-readiness"/);
+  assert.match(html, /id="enterprise-readiness-body"/);
+  assert.match(html, /Enterprise Readiness/);
+  assert.match(html, /buildEnterpriseReadinessReport/);
+  assert.match(html, /renderEnterpriseReadinessPanel/);
+  assert.match(html, /state\.enterpriseReadiness/);
+  assert.match(html, /enterprise_readiness/);
+  assert.match(html, /function refreshEnterpriseReadiness\(\)/);
+  assert.match(html, /function renderEnterpriseReadiness\(\)/);
+  assert.match(html, /renderEnterpriseReadiness\(\)/);
+  assert.match(html, /GET \/api\/a3\/enterprise\/readiness/);
+  assert.match(html, /self-host \/ audit/);
+});

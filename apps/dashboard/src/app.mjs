@@ -35,7 +35,9 @@ import {
 } from "./api-client.mjs";
 import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
 import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
+import { renderEnterpriseReadinessPanel } from "./components/enterprise-readiness-panel.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
+import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 
 const state = {
   runs: null,
@@ -51,6 +53,7 @@ const state = {
   frontendCodeCrawl: {},
   saasRuntime: {},
   saasAdmin: {},
+  enterpriseReadiness: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   cases: [],
@@ -2105,6 +2108,7 @@ function applyApiDashboardPayload(payload) {
   state.frontendMirror = payload.frontend_mirror || {};
   state.frontendCodeCrawl = payload.frontend_code_crawl || {};
   state.saasAdmin = payload.saas_admin_console || {};
+  state.enterpriseReadiness = payload.enterprise_readiness || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2125,6 +2129,9 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/dashboard",
         "GET /api/a3/runs",
         "GET /api/a3/cases/:caseId",
+        "POST /api/a3/import/a1-run-result",
+        "POST /api/a3/import/a2-grade-result",
+        "GET /api/a3/enterprise/readiness",
         "POST /api/a3/reports/share"
       ],
       tables: ["runs", "cases", "trace_events", "grade_results", "shareable_reports"],
@@ -2193,6 +2200,19 @@ function renderSaasAdmin() {
   }
 }
 
+function refreshEnterpriseReadiness() {
+  state.enterpriseReadiness = buildEnterpriseReadinessReport({
+    runFixture: state.runs,
+    gradeFixture: state.grades,
+    adminConsole: state.saasAdmin,
+    dbContract: state.saasRuntime?.db_contract
+  });
+}
+
+function renderEnterpriseReadiness() {
+  renderEnterpriseReadinessPanel($("enterprise-readiness-body"), state.enterpriseReadiness);
+}
+
 async function loadDataSource(source) {
   state.source = source;
   if (isA3ApiSource(source)) {
@@ -2249,6 +2269,7 @@ async function loadDataSource(source) {
     state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
     refreshLocalSaasAdmin();
   }
+  refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
   state.filteredCases = state.cases;
   state.selectedCaseId = state.cases[0]?.case_id || null;
@@ -2268,6 +2289,7 @@ async function loadDataSource(source) {
   renderConsoleStats();
   renderSaasRuntime();
   renderSaasAdmin();
+  renderEnterpriseReadiness();
   renderCoverageHealth();
   renderReleaseGate();
   renderReleaseWarRoom();
