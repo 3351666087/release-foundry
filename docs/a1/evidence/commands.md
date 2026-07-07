@@ -896,3 +896,100 @@ Results:
 - `git diff --check`: exit 0 with CRLF warnings only.
 - Secret scan matches are historical docs/synthetic test tokens only; no operational API key was printed or written.
 - Chrome/docs read-only calibration this round confirmed logged-in Usage labels and Python SDK overview product boundaries; exact usage counts remain private only.
+
+## A1 round10 quota gate schema, validator, TTL, and request binding final - 2026-07-07
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb --untracked-files=all
+git remote -v
+gh repo view --json nameWithOwner,url,defaultBranchRef
+gh pr list --state all --limit 20 --json number,title,state,headRefName,baseRefName,updatedAt,url
+Get-Content -Path docs/evidence/worklog.md -Tail 120
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 3 --output docs/evidence/private_refs/a1_python_api_calibration_round10_readonly_real.json
+npm run build --prefix packages/ts/ashr-clone
+node packages/ts/ashr-clone/dist/calibrate.js --execute --small-batch --max-retries 0 --limit 3 --output docs/evidence/private_refs/a1_ts_api_calibration_round10_readonly_real.json
+python -B -m services.runner.api_probe validate-gate --target-operation create-request --quota-gate-record docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json --quota-gate-ttl-seconds 0 --output docs/evidence/private_refs/a1_api_validate_gate_round10_quota_stop.json
+# first request-bound proof attempt failed because PowerShell Set-Content wrote UTF-8 BOM; rerun used UTF8Encoding(false)
+python -B -m services.runner.api_probe plan-batch --target-operation create-request --request-file docs/evidence/private_refs/a1_round10_gate_request_original.json --quota-record docs/evidence/private_refs/a1_python_api_calibration_round10_readonly_real.json --output docs/evidence/private_refs/a1_api_probe_batch_plan_round10_request_bound.json
+python -B -m services.runner.api_probe validate-gate --target-operation create-request --request-file docs/evidence/private_refs/a1_round10_gate_request_original.json --quota-gate-record docs/evidence/private_refs/a1_api_probe_batch_plan_round10_request_bound.json --output docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_ok.json
+python -B -m services.runner.api_probe validate-gate --target-operation create-request --request-file docs/evidence/private_refs/a1_round10_gate_request_changed.json --quota-gate-record docs/evidence/private_refs/a1_api_probe_batch_plan_round10_request_bound.json --output docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_mismatch.json
+python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py packages/sdk/ashr_clone/calibrate.py tests/a1/test_python_calibrator.py
+python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round10_safety.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import validate_public_evidence_index; index=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); print({'records': index['total_records'], 'quota_block_count': index['quota_block_count'], 'lint_issues': len(validate_public_evidence_index(index))})"
+git diff --check
+Select-String -Path docs/a1/evidence/commands.md,docs/evidence/worklog.md,docs/a1/schemas/api_probe_quota_gate.schema.json,packages/sdk/ashr_clone/calibrate.py,packages/ts/ashr-clone/src/calibrate.ts,packages/ts/ashr-clone/src/probe.ts,packages/ts/ashr-clone/test/calibrate.test.mjs,packages/ts/ashr-clone/test/probe.test.mjs,services/runner/api_probe.py,tests/a1/test_api_client.py,tests/a1/test_python_calibrator.py -Pattern 'tp_[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]+|ashr_live_[A-Za-z0-9_-]+' -AllMatches
+```
+
+Results:
+- Added quota gate schema at `docs/a1/schemas/api_probe_quota_gate.schema.json` with id `https://ashr.clone.local/schemas/api_probe_quota_gate.schema.json`.
+- Python probe validator entry point: `services.runner.api_probe validate-gate`; mutating execute calls the same validator before API key/client lookup.
+- Python/TS TTL default is `86400`; `--quota-gate-ttl-seconds 0` disables stale-age checks.
+- Target binding fields include `target_operation`, `created_at`, `target_binding.fingerprint`, `request_fingerprint`, `request_input_schema_fingerprint`, `request_input_schema_source`, `allow_media_generation`, `allow_non_text_inputs`, `max_request_variations`, `small_batch_size`, `batch_size`, and `modalities`.
+- Same-operation wrong request payload now fails with `target_binding_mismatch` before API key lookup.
+- Python and TS calibrators now enforce target `create-request`, TTL, modality binding, and request fingerprint binding.
+- Real Ashr API read-only calibration succeeded in both SDKs: Python and TS each ran 5 read steps, 0 mutating steps, estimated calls 7, status ok.
+- Private real API evidence paths: `docs/evidence/private_refs/a1_python_api_calibration_round10_readonly_real.json` and `docs/evidence/private_refs/a1_ts_api_calibration_round10_readonly_real.json`.
+- Response keys observed from real read-only calibration: `init` -> `features, notes, status, tenant, user`; `health-check` -> `db, message, status`; `list-agents` -> `_user, agents, status`; `list-datasets` -> `_user, datasets, next_cursor, status`; `list-requests` -> `_user, next_cursor, requests, status`.
+- Chrome read-only Usage check confirmed logged-in dashboard quota labels: `Images 0 of 100`, `Audio 0 of 200`, `Files 1 of 100`.
+- Chrome docs check confirmed Python SDK overview: Testing Platform, Observability, EvalRunner, RunBuilder, Agent, `client.trace()`, Span, Generation, VM Integration, and `pip install ashr-labs`.
+- Focused Python tests: 90 passed.
+- TypeScript package tests: 168 passed.
+- Full Python A1 suite: 189 passed.
+- Readiness smoke: ok, `docs/evidence/private_refs/a1_readiness_round10_safety.json`.
+- Public evidence linter: 326 records, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret scan matched historical docs wording and intentional synthetic test strings only; no operational API key was printed or written.
+- No mutating paid Ashr API call was run in this round; all official API calls were read-only.
+
+## A1 round11 TypeScript standalone plan-batch / validate-gate parity - 2026-07-07
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+pwd
+git rev-parse --show-toplevel
+git status -sb --untracked-files=all
+git remote -v
+gh repo view --json nameWithOwner,defaultBranchRef,url
+gh pr list --state all --limit 30 --json number,title,headRefName,baseRefName,state,author,updatedAt,url
+Get-Content -Path docs/evidence/worklog.md -Tail 220
+Get-Content -Path packages/ts/ashr-clone/src/probe.ts
+Get-Content -Path packages/ts/ashr-clone/test/probe.test.mjs
+npm run build --prefix packages/ts/ashr-clone
+npm test --prefix packages/ts/ashr-clone
+Get-ChildItem Env:ASHR_API_KEY | ForEach-Object { "ASHR_API_KEY=present(length=$($_.Value.Length))" }
+node packages/ts/ashr-clone/dist/probe.js list-agents --output docs/evidence/private_refs/a1_ts_api_list_agents_round11_dry_run.json
+node packages/ts/ashr-clone/dist/probe.js list-datasets --limit 1 --output docs/evidence/private_refs/a1_ts_api_list_datasets_round11_dry_run.json
+node packages/ts/ashr-clone/dist/probe.js list-requests --limit 1 --output docs/evidence/private_refs/a1_ts_api_list_requests_round11_dry_run.json
+node packages/ts/ashr-clone/dist/probe.js plan-batch --target-operation create-request --request-file docs/a1/api_calibration/media_interface_request.json --allow-media-generation --allow-non-text-inputs --max-request-variations 1 --small-batch-size 1 --batch-size 3 --output docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_media_noquota.json
+node packages/ts/ashr-clone/dist/probe.js list-agents --execute --output docs/evidence/private_refs/a1_ts_api_list_agents_round11_real_readonly.json
+node packages/ts/ashr-clone/dist/probe.js list-datasets --execute --limit 1 --output docs/evidence/private_refs/a1_ts_api_list_datasets_round11_real_readonly.json
+node packages/ts/ashr-clone/dist/probe.js list-requests --execute --limit 1 --output docs/evidence/private_refs/a1_ts_api_list_requests_round11_real_readonly.json
+node packages/ts/ashr-clone/dist/probe.js plan-batch --target-operation create-request --request-file docs/a1/api_calibration/tiny_generation_request.json --quota-record docs/evidence/private_refs/a1_ts_api_list_requests_round11_real_readonly.json --output docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json
+node packages/ts/ashr-clone/dist/probe.js validate-gate --target-operation create-request --request-file docs/a1/api_calibration/media_interface_request.json --quota-gate-record docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_media_noquota.json --output docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json
+node packages/ts/ashr-clone/dist/probe.js validate-gate --target-operation create-request --request-file docs/a1/api_calibration/media_interface_request.json --allow-media-generation --allow-non-text-inputs --max-request-variations 1 --small-batch-size 1 --batch-size 3 --quota-gate-record docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_media_noquota.json --output docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json
+node packages/ts/ashr-clone/dist/probe.js validate-gate --target-operation create-request --request-file docs/a1/api_calibration/tiny_generation_request.json --quota-gate-record docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json --output docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round11_safety.json
+python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import build_private_evidence_index, build_response_field_map, merge_evidence_indices, validate_public_evidence_index, write_private_evidence_index, write_response_field_map_markdown; existing=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); paths=[Path('docs/evidence/private_refs/a1_ts_api_list_agents_round11_real_readonly.json'),Path('docs/evidence/private_refs/a1_ts_api_list_datasets_round11_real_readonly.json'),Path('docs/evidence/private_refs/a1_ts_api_list_requests_round11_real_readonly.json'),Path('docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json'),Path('docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json'),Path('docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json'),Path('docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json')]; fresh=build_private_evidence_index(paths, label='a1-real-api-2026-07-07-round11-ts-probe-parity-fresh'); index=merge_evidence_indices(existing, fresh, label='a1-real-api-2026-07-07-round11-ts-probe-parity'); write_private_evidence_index('docs/a1/api_calibration/real_api_evidence_index.json', index); field_map=build_response_field_map(index); Path('docs/a1/api_calibration/real_api_response_field_map.json').write_text(json.dumps(field_map, indent=2, sort_keys=True)+'\n', encoding='utf-8'); write_response_field_map_markdown('docs/a1/api_calibration/real_api_response_field_map.md', field_map); print({'records': index['total_records'], 'status_counts': index['status_counts'], 'functions': len(field_map['functions']), 'quota_block_count': index['quota_block_count'], 'lint_issues': len(validate_public_evidence_index(index))})"
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.evidence import validate_public_evidence_index; index=json.loads(Path('docs/a1/api_calibration/real_api_evidence_index.json').read_text(encoding='utf-8')); print({'records': index['total_records'], 'quota_block_count': index['quota_block_count'], 'lint_issues': len(validate_public_evidence_index(index))})"
+git diff --check
+Select-String -Path docs/a1/api_calibration/real_api_evidence_index.json,docs/a1/api_calibration/real_api_response_field_map.json,docs/a1/api_calibration/real_api_response_field_map.md,docs/a1/evidence/commands.md,docs/a1/evidence/round11_growth_auditor.md,docs/a1/evidence/round11_reviewer_test_matrix.md,docs/a1/evidence/round11_ts_probe_parity_checklist.md,docs/evidence/worklog.md,packages/ts/ashr-clone/src/api-client.ts,packages/ts/ashr-clone/src/probe.ts,packages/ts/ashr-clone/test/probe.test.mjs -Pattern 'tp_[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]+|ashr_live_[A-Za-z0-9_-]+' -AllMatches | Select-Object Path,LineNumber,Line
+```
+
+Results:
+- TS probe now has standalone `plan-batch` and `validate-gate` parity with Python for local gate generation/validation.
+- TypeScript package tests: 172 passed.
+- Python A1 tests: 189 passed.
+- Readiness safety smoke: ok, output `docs/evidence/private_refs/a1_readiness_round11_safety.json`.
+- Real Ashr API read-only TS probes succeeded: `list-agents`, `list-datasets --limit 1`, and `list-requests --limit 1`, each status ok, attempts 1, status code 200.
+- Chrome read-only Usage page confirmed logged-in labels for Usage, Images, Audio, Files, and Upgrade; docs overview confirmed Python SDK / Testing Platform / Observability / EvalRunner / RunBuilder / Agent / `client.trace` / Span / Generation / VM Integration.
+- Public evidence index refreshed to 333 records, 16 response-field functions, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Secret scan matches were historical docs/pattern descriptions plus the intentional synthetic TS test token `tp_syntheticsecret`; no operational API key was printed or written.
+- Failed point preserved: validation of the media no-quota gate without matching media flags and `--batch-size 3` failed with `target_binding_mismatch`; rerun with matching arguments passed.
+- No mutating paid Ashr API call was executed; the request-bound gate from real read-only evidence remained blocked because no quota/reset go evidence was present.

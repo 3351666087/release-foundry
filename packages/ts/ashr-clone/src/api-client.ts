@@ -40,7 +40,7 @@ export interface AshrApiCallRecord {
   ended_at: string;
   duration_ms: number;
   attempts: number;
-  status: "planned" | "ok" | "error" | "timeout";
+  status: "planned" | "blocked" | "ok" | "error" | "timeout";
   status_code: number | null;
   request: ApiJsonRecord;
   response?: ApiJsonRecord | null;

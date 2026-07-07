@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,8 +23,13 @@ type CalibrationMode = "dry-run" | "small-batch";
 type CalibrationStepKind = "read" | "mutate";
 type CalibrationModality = "text" | "image" | "audio" | "file" | "video";
 type QuotaGateSummary = JsonRecord & { decision: string };
+type QuotaGateIssue = JsonRecord & { code: string; message: string };
+type QuotaGateValidation = JsonRecord & { valid: boolean; gate: QuotaGateSummary; issues: QuotaGateIssue[] };
 
 const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1";
+const API_PROBE_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1";
+const DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60;
+const CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request";
 
 type CalibrationStep = {
   id: string;
@@ -45,6 +51,7 @@ export interface CalibrationArgs {
   maxRetries: number;
   retryBackoffMs: number;
   quotaGateRecord?: string;
+  quotaGateTtlSeconds: number;
   allowQuotaOverride: boolean;
   quotaOverrideReason?: string;
   quotaGateSummary?: QuotaGateSummary;
@@ -163,6 +170,7 @@ export async function runCalibration(args: CalibrationArgs, env: Record<string, 
       execute_requires_small_batch: true,
       mutating_requires_include_mutating: true,
       mutating_execute_requires_quota_gate: true,
+      quota_gate_ttl_seconds: args.quotaGateTtlSeconds,
       quota_gate: args.quotaGateSummary ?? null,
       paid_media_requires_allow_paid_media: true,
       max_retries_for_execute: args.execute ? args.maxRetries : null,
@@ -191,6 +199,7 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
     timeoutSeconds: 30,
     maxRetries: 2,
     retryBackoffMs: 500,
+    quotaGateTtlSeconds: DEFAULT_QUOTA_GATE_TTL_SECONDS,
     allowQuotaOverride: false,
     limit: 2,
     modalities: [],
@@ -242,6 +251,9 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
       case "--quota-gate-record":
         args.quotaGateRecord = requireOptionValue(readValue(), name);
         break;
+      case "--quota-gate-ttl-seconds":
+        args.quotaGateTtlSeconds = nonNegativeInteger(readValue(), name);
+        break;
       case "--quota-override-reason":
         args.quotaOverrideReason = requireOptionValue(readValue(), name);
         break;
@@ -290,33 +302,106 @@ async function enforceMutatingQuotaGate(args: CalibrationArgs): Promise<QuotaGat
   }
 
   const quotaGateRecord = await readJsonObject(args.quotaGateRecord, "--quota-gate-record");
-  const quotaGate = extractPlanBatchQuotaGate(quotaGateRecord);
+  const validation = validateQuotaGateRecord(quotaGateRecord, {
+    targetOperation: CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+    ttlSeconds: args.quotaGateTtlSeconds,
+    expectedModalities: expectedCalibrationGateModalities(args),
+    expectedRequestFingerprints: requestFingerprintsForModalities(selectedCalibrationModalities(args)),
+  });
+  const quotaGate = validation.gate;
   if (quotaGate.decision === "go") {
-    validateQuotaGoGate(quotaGate);
-    return withQuotaOverride(quotaGate, false, null);
+    if (!validation.valid) {
+      throw new CalibrationUsageError(quotaGateValidationErrorMessage(validation));
+    }
+    return withQuotaOverride(withQuotaValidation(quotaGate, validation), false, null);
   }
   if (quotaGate.decision === "stop" || quotaGate.decision === "wait") {
     if (override) {
       requireQuotaOverrideReason(reason);
-      return withQuotaOverride(quotaGate, true, reason);
+      return withQuotaOverride(withQuotaValidation(quotaGate, validation), true, reason);
+    }
+    if (!validation.valid) {
+      throw new CalibrationUsageError(quotaGateValidationErrorMessage(validation));
     }
     throw new CalibrationUsageError(`mutating calibration execution blocked by quota gate decision=${quotaGate.decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason`);
   }
   throw new CalibrationUsageError(`--quota-gate-record has unsupported quota_stop_go.decision=${quotaGate.decision}`);
 }
 
-function extractPlanBatchQuotaGate(record: JsonRecord): QuotaGateSummary {
+function extractPlanBatchQuotaGate(record: JsonRecord): { plan: JsonRecord; gate: QuotaGateSummary } {
   const response = isRecord(record.response) ? record.response : undefined;
   const plan = response && isRecord(response.plan) ? response.plan : undefined;
   const hasPlanSchema = plan?.schema_version === API_PROBE_BATCH_PLAN_SCHEMA_VERSION;
-  if ((record.schema_version !== API_PROBE_BATCH_PLAN_SCHEMA_VERSION && !hasPlanSchema) || record.function !== "plan_batch") {
+  if (!plan || (record.schema_version !== API_PROBE_BATCH_PLAN_SCHEMA_VERSION && !hasPlanSchema) || record.function !== "plan_batch") {
     throw new CalibrationUsageError(`--quota-gate-record must be a plan-batch record with schema_version=${API_PROBE_BATCH_PLAN_SCHEMA_VERSION} and function=plan_batch`);
   }
   const gate = plan && isRecord(plan.quota_stop_go) ? plan.quota_stop_go : undefined;
   if (!gate || typeof gate.decision !== "string" || !["go", "stop", "wait"].includes(gate.decision)) {
     throw new CalibrationUsageError("--quota-gate-record must contain response.plan.quota_stop_go.decision of go, stop, or wait");
   }
-  return redactApiSensitive({ ...gate }) as QuotaGateSummary;
+  return { plan, gate: redactApiSensitive({ ...gate }) as QuotaGateSummary };
+}
+
+function validateQuotaGateRecord(
+  record: JsonRecord,
+  options: { targetOperation: string; ttlSeconds: number; expectedModalities: CalibrationModality[]; expectedRequestFingerprints: JsonRecord },
+): QuotaGateValidation {
+  if (!Number.isSafeInteger(options.ttlSeconds) || options.ttlSeconds < 0) {
+    throw new CalibrationUsageError("--quota-gate-ttl-seconds must be an integer >= 0");
+  }
+
+  const { plan, gate } = extractPlanBatchQuotaGate(record);
+  const issues: QuotaGateIssue[] = [];
+  const targetOperation = typeof plan.target_operation === "string" ? plan.target_operation : null;
+  if (targetOperation !== options.targetOperation) {
+    issues.push({
+      code: "target_operation_mismatch",
+      message: `quota gate target_operation=${JSON.stringify(targetOperation)} does not match requested operation=${JSON.stringify(options.targetOperation)}`,
+    });
+  }
+
+  const createdAt = typeof plan.created_at === "string" ? plan.created_at : null;
+  const createdAtMs = createdAt ? parseUtcTimestamp(createdAt) : null;
+  let ageSeconds: number | null = null;
+  if (createdAt !== null && createdAtMs === null) {
+    issues.push({ code: "invalid_created_at", message: "quota gate plan.created_at is not a valid ISO timestamp" });
+  } else if (createdAt === null && options.ttlSeconds > 0) {
+    issues.push({ code: "missing_created_at", message: "quota gate plan.created_at is required when TTL validation is enabled" });
+  }
+  if (createdAtMs !== null) {
+    ageSeconds = Math.max(0, Math.trunc((Date.now() - createdAtMs) / 1000));
+    if (options.ttlSeconds > 0 && ageSeconds > options.ttlSeconds) {
+      issues.push({
+        code: "stale_gate",
+        message: `quota gate is stale: age_seconds=${ageSeconds} exceeds ttl_seconds=${options.ttlSeconds}`,
+      });
+    }
+  }
+
+  if (gate.decision === "go") {
+    try {
+      validateQuotaGoGate(gate);
+    } catch (error) {
+      issues.push({
+        code: "go_without_quota_evidence",
+        message: formatErrorMessage(error),
+      });
+    }
+  }
+
+  const binding = quotaGatePlanBinding(plan, issues, options.expectedModalities, options.expectedRequestFingerprints);
+  return redactApiSensitive({
+    valid: issues.length === 0,
+    schema_version: API_PROBE_GATE_VALIDATION_SCHEMA_VERSION,
+    gate: { ...gate },
+    target_operation: targetOperation,
+    expected_target_operation: options.targetOperation,
+    created_at: createdAt,
+    age_seconds: ageSeconds,
+    ttl_seconds: options.ttlSeconds,
+    ...binding,
+    issues,
+  }) as QuotaGateValidation;
 }
 
 function validateQuotaGoGate(quotaGate: QuotaGateSummary): void {
@@ -349,6 +434,137 @@ function withQuotaOverride(quotaGate: QuotaGateSummary, used: boolean, reason: s
   }) as QuotaGateSummary;
 }
 
+function withQuotaValidation(quotaGate: QuotaGateSummary, validation: QuotaGateValidation): QuotaGateSummary {
+  return redactApiSensitive({
+    ...quotaGate,
+    validation: { ...validation, gate: { ...validation.gate } },
+  }) as QuotaGateSummary;
+}
+
+function quotaGateValidationErrorMessage(validation: QuotaGateValidation): string {
+  const messages = validation.issues
+    .map((issue) => (typeof issue.message === "string" ? issue.message : "unknown quota gate validation issue"))
+    .filter((message) => message.length > 0);
+  return `quota gate validation failed: ${messages.length > 0 ? messages.join("; ") : "unknown quota gate validation issue"}`;
+}
+
+function quotaGatePlanBinding(plan: JsonRecord, issues: QuotaGateIssue[], expectedModalities: CalibrationModality[], expectedRequestFingerprints: JsonRecord): JsonRecord {
+  const binding: JsonRecord = {};
+  const planModalities = planModalitiesBinding(plan, issues);
+  if (planModalities !== undefined) {
+    binding.modalities = planModalities;
+    binding.expected_modalities = expectedModalities;
+    if (!sameStringArray(planModalities, expectedModalities)) {
+      issues.push({
+        code: "modalities_mismatch",
+        message: `quota gate modalities=${JSON.stringify(planModalities)} do not match requested calibration modalities=${JSON.stringify(expectedModalities)}`,
+      });
+    }
+  }
+  if (plan.request_fingerprint !== undefined) {
+    Object.assign(binding, validateRequestFingerprintBinding(plan.request_fingerprint, expectedRequestFingerprints, issues));
+  }
+  return binding;
+}
+
+function validateRequestFingerprintBinding(value: unknown, expected: JsonRecord, issues: QuotaGateIssue[]): JsonRecord {
+  const expectedValues = new Set(Object.values(expected).filter((item): item is string => typeof item === "string"));
+  const binding: JsonRecord = {
+    request_fingerprint: value,
+    expected_request_fingerprints: expected,
+  };
+  if (typeof value === "string") {
+    if (expectedValues.size !== 1) {
+      issues.push({ code: "request_fingerprint_mismatch", message: "quota gate request_fingerprint must bind every selected calibrator modality when more than one request shape is selected" });
+    } else if (!expectedValues.has(value)) {
+      issues.push({ code: "request_fingerprint_mismatch", message: "quota gate request_fingerprint does not match the selected calibrator request shape" });
+    }
+    return binding;
+  }
+  if (Array.isArray(value)) {
+    if (!value.every((item) => typeof item === "string")) {
+      issues.push({ code: "invalid_request_fingerprint", message: "quota gate request_fingerprint array must contain only strings" });
+    } else if (!sameStringSet(value, [...expectedValues])) {
+      issues.push({ code: "request_fingerprint_mismatch", message: "quota gate request_fingerprint array does not match selected calibrator request shapes" });
+    }
+    return binding;
+  }
+  if (isRecord(value)) {
+    const normalized = Object.fromEntries(Object.entries(value).map(([key, item]) => [key, item]));
+    if (!Object.values(normalized).every((item) => typeof item === "string")) {
+      issues.push({ code: "invalid_request_fingerprint", message: "quota gate request_fingerprint map values must be strings" });
+    } else if (!sameStringRecord(normalized as Record<string, string>, expected as Record<string, string>)) {
+      issues.push({ code: "request_fingerprint_mismatch", message: "quota gate request_fingerprint map does not match selected calibrator request shapes" });
+    }
+    return binding;
+  }
+  issues.push({ code: "invalid_request_fingerprint", message: "quota gate request_fingerprint must be a string, array, or modality map when present" });
+  return binding;
+}
+
+function planModalitiesBinding(plan: JsonRecord, issues: QuotaGateIssue[]): CalibrationModality[] | undefined {
+  if (plan.modalities === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(plan.modalities)) {
+    issues.push({ code: "invalid_modalities", message: "quota gate response.plan.modalities must be an array when present" });
+    return undefined;
+  }
+  const modalities: CalibrationModality[] = [];
+  for (const [index, value] of plan.modalities.entries()) {
+    if (typeof value !== "string" || !isCalibrationModality(value)) {
+      issues.push({ code: "invalid_modalities", message: `quota gate response.plan.modalities[${index}] must be one of text,image,audio,file,video` });
+      continue;
+    }
+    modalities.push(value);
+  }
+  return Array.from(new Set(modalities)).sort((left, right) => modalityOrder(left) - modalityOrder(right));
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((value) => rightSet.has(value));
+}
+
+function sameStringRecord(left: Record<string, string>, right: Record<string, string>): boolean {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return sameStringArray(leftKeys, rightKeys) && leftKeys.every((key) => left[key] === right[key]);
+}
+
+function expectedCalibrationGateModalities(args: CalibrationArgs): CalibrationModality[] {
+  const selected = new Set(selectedCalibrationModalities(args));
+  selected.add("text");
+  return (["text", "image", "audio", "file", "video"] as CalibrationModality[]).filter((modality) => selected.has(modality));
+}
+
+function requestFingerprintsForModalities(modalities: CalibrationModality[]): JsonRecord {
+  return Object.fromEntries(modalities.map((modality) => [modality, calibrationRequestFingerprint(modality)]));
+}
+
+function calibrationRequestFingerprint(modality: CalibrationModality): string {
+  return createHash("sha256").update(JSON.stringify(canonicalValue(requestForModality(modality)))).digest("hex");
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalValue(item));
+  }
+  if (isRecord(value)) {
+    const sorted: JsonRecord = {};
+    for (const key of Object.keys(value).sort()) {
+      sorted[key] = canonicalValue(value[key]);
+    }
+    return sorted;
+  }
+  return value;
+}
+
 function selectedCalibrationModalities(args: CalibrationArgs): CalibrationModality[] {
   const defaults: CalibrationModality[] = ["text", "image", "audio", "file", "video"];
   const selected: CalibrationModality[] = args.modalities.length > 0 ? args.modalities : defaults;
@@ -358,11 +574,15 @@ function selectedCalibrationModalities(args: CalibrationArgs): CalibrationModali
 function parseModalities(value: string): CalibrationModality[] {
   return value.split(",").map((item) => {
     const modality = item.trim();
-    if (!["text", "image", "audio", "file", "video"].includes(modality)) {
+    if (!isCalibrationModality(modality)) {
       throw new CalibrationUsageError(`unsupported modality: ${modality}`);
     }
-    return modality as CalibrationModality;
+    return modality;
   });
+}
+
+function isCalibrationModality(value: string): value is CalibrationModality {
+  return ["text", "image", "audio", "file", "video"].includes(value);
 }
 
 function modalityOrder(modality: CalibrationModality): number {
@@ -629,6 +849,12 @@ function nonNegativeInteger(value: string | undefined, optionName: string): numb
   return parsed;
 }
 
+function parseUtcTimestamp(value: string): number | null {
+  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function summaryLine(manifest: CalibrationManifest, outputPath: string): string {
   return [
     `mode=${manifest.mode}`,
@@ -663,6 +889,7 @@ Options:
   --max-retries <count>     Retry count. Real execution requires 0.
   --retry-backoff-ms <ms>   Retry backoff. Default 500.
   --quota-gate-record <path> Plan-batch record required for mutating real execution.
+  --quota-gate-ttl-seconds <count> Maximum age for plan-batch gate evidence. Default ${DEFAULT_QUOTA_GATE_TTL_SECONDS}; 0 disables.
   --allow-quota-override    Allow mutating real execution without a go gate.
   --quota-override-reason <text>
   --limit <count>           List limit for read probes. Default 2, capped at 5.

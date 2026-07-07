@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -26,7 +28,10 @@ from .api_client import (
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
+PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
 PLAN_BATCH_QUOTA_GATE_DECISIONS = {"go", "stop", "wait"}
+CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request"
+DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
 MIN_QUOTA_OVERRIDE_REASON_CHARS = 12
 CALIBRATION_MODALITIES = AGENT_INPUT_PART_TYPES
 
@@ -50,6 +55,7 @@ class CalibrationArgs:
     modalities: tuple[str, ...] = ()
     print_record: bool = False
     quota_gate_record: str | None = None
+    quota_gate_ttl_seconds: int = DEFAULT_QUOTA_GATE_TTL_SECONDS
     allow_quota_override: bool = False
     quota_override_reason: str | None = None
 
@@ -357,11 +363,18 @@ def enforce_mutating_quota_gate(args: CalibrationArgs) -> JsonDict | None:
             }
         )
     record = load_json_object(args.quota_gate_record, "--quota-gate-record")
-    gate = extract_plan_batch_quota_gate(record, args.quota_gate_record)
+    validation = validate_quota_gate_record(
+        record,
+        args,
+        target_operation=CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+        ttl_seconds=args.quota_gate_ttl_seconds,
+    )
+    if not validation["valid"]:
+        raise CalibrationUsageError(quota_gate_validation_error_message(validation))
+    gate = validation["gate"]
     decision = gate["decision"]
-    summary = quota_gate_summary(record, gate, args.quota_gate_record)
+    summary = quota_gate_summary(record, gate, args.quota_gate_record, validation)
     if decision == "go":
-        validate_quota_go_gate(gate)
         summary["decision"] = "go"
         summary["override"] = {"used": False, "reason": None}
         return redact_sensitive(summary)
@@ -372,7 +385,7 @@ def enforce_mutating_quota_gate(args: CalibrationArgs) -> JsonDict | None:
     raise CalibrationUsageError(f"mutating real API calibration blocked by quota gate decision={decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason")
 
 
-def extract_plan_batch_quota_gate(record: Mapping[str, Any], path: str) -> JsonDict:
+def extract_plan_batch_quota_gate(record: Mapping[str, Any], path: str) -> tuple[JsonDict, JsonDict]:
     response = record.get("response") if isinstance(record.get("response"), Mapping) else {}
     plan = response.get("plan") if isinstance(response.get("plan"), Mapping) else {}
     record_schema = record.get("schema_version")
@@ -385,10 +398,60 @@ def extract_plan_batch_quota_gate(record: Mapping[str, Any], path: str) -> JsonD
     decision = gate.get("decision")
     if decision not in PLAN_BATCH_QUOTA_GATE_DECISIONS:
         raise CalibrationUsageError(f"{redact_sensitive(path)} has unsupported quota gate decision={redact_sensitive(str(decision))}")
-    return redact_sensitive(dict(gate))
+    return redact_sensitive(dict(plan)), redact_sensitive(dict(gate))
 
 
-def quota_gate_summary(record: Mapping[str, Any], gate: Mapping[str, Any], path: str) -> JsonDict:
+def validate_quota_gate_record(record: Mapping[str, Any], args: CalibrationArgs, *, target_operation: str, ttl_seconds: int, now: datetime | None = None) -> JsonDict:
+    if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or ttl_seconds < 0:
+        raise CalibrationUsageError("--quota-gate-ttl-seconds must be an integer >= 0")
+
+    plan, gate = extract_plan_batch_quota_gate(record, args.quota_gate_record or "--quota-gate-record")
+    issues: list[JsonDict] = []
+
+    plan_target = plan.get("target_operation")
+    if plan_target != target_operation:
+        issues.append({"code": "target_operation_mismatch", "message": f"quota gate target_operation={plan_target!r} does not match requested operation={target_operation!r}"})
+
+    created_at = plan.get("created_at")
+    created_dt: datetime | None = None
+    age_seconds: int | None = None
+    if isinstance(created_at, str):
+        created_dt = parse_utc_datetime(created_at)
+        if created_dt is None:
+            issues.append({"code": "invalid_created_at", "message": "quota gate plan.created_at is not a valid ISO timestamp"})
+    elif ttl_seconds:
+        issues.append({"code": "missing_created_at", "message": "quota gate plan.created_at is required when TTL validation is enabled"})
+
+    if created_dt is not None:
+        current = now or datetime.now(timezone.utc)
+        age_seconds = max(0, int((current - created_dt).total_seconds()))
+        if ttl_seconds and age_seconds > ttl_seconds:
+            issues.append({"code": "stale_gate", "message": f"quota gate is stale: age_seconds={age_seconds} exceeds ttl_seconds={ttl_seconds}"})
+
+    if gate.get("decision") == "go":
+        try:
+            validate_quota_go_gate(gate)
+        except CalibrationUsageError as exc:
+            issues.append({"code": "go_without_quota_evidence", "message": str(exc)})
+
+    binding = quota_gate_plan_binding(plan, args, issues)
+    return redact_sensitive(
+        {
+            "valid": not issues,
+            "schema_version": PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION,
+            "gate": gate,
+            "target_operation": plan_target,
+            "expected_target_operation": target_operation,
+            "created_at": created_at if isinstance(created_at, str) else None,
+            "age_seconds": age_seconds,
+            "ttl_seconds": ttl_seconds,
+            **binding,
+            "issues": issues,
+        }
+    )
+
+
+def quota_gate_summary(record: Mapping[str, Any], gate: Mapping[str, Any], path: str, validation: Mapping[str, Any]) -> JsonDict:
     quota = gate.get("quota") if isinstance(gate.get("quota"), Mapping) else {}
     return redact_sensitive(
         {
@@ -402,6 +465,7 @@ def quota_gate_summary(record: Mapping[str, Any], gate: Mapping[str, Any], path:
                 "schema_version": record.get("schema_version"),
                 "function": record.get("function"),
             },
+            "validation": validation,
             "quota": {
                 "blocked": quota.get("blocked") is True,
                 "quota_keys": sorted(str(key) for key in quota.keys()),
@@ -419,6 +483,140 @@ def validate_quota_go_gate(gate: Mapping[str, Any]) -> None:
     evidence_present = gate.get("quota_or_reset_evidence_present") is True or isinstance(gate.get("quota"), Mapping) or bool(header_keys)
     if gate.get("source") == "not-provided" or not evidence_present:
         raise CalibrationUsageError("quota gate decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override")
+
+
+def quota_gate_validation_error_message(validation: Mapping[str, Any]) -> str:
+    issues = validation.get("issues") if isinstance(validation.get("issues"), list) else []
+    messages = [
+        str(issue.get("message"))
+        for issue in issues
+        if isinstance(issue, Mapping) and isinstance(issue.get("message"), str) and issue.get("message")
+    ]
+    return f"quota gate validation failed: {'; '.join(messages) if messages else 'unknown quota gate validation issue'}"
+
+
+def quota_gate_plan_binding(plan: Mapping[str, Any], args: CalibrationArgs, issues: list[JsonDict]) -> JsonDict:
+    binding: JsonDict = {}
+    expected_modalities = expected_calibration_gate_modalities(args)
+    plan_modalities, modalities_source = extract_plan_modalities(plan, issues)
+    if plan_modalities is not None:
+        binding["modalities"] = list(plan_modalities)
+        binding["expected_modalities"] = list(expected_modalities)
+        binding["modalities_source"] = modalities_source
+        if plan_modalities != expected_modalities:
+            issues.append({"code": "modalities_mismatch", "message": f"quota gate modalities={list(plan_modalities)!r} do not match requested modalities={list(expected_modalities)!r}"})
+
+    if "request_fingerprint" in plan:
+        binding.update(validate_request_fingerprint_binding(plan.get("request_fingerprint"), args, issues))
+    return binding
+
+
+def extract_plan_modalities(plan: Mapping[str, Any], issues: list[JsonDict]) -> tuple[tuple[str, ...] | None, str | None]:
+    if "modalities" in plan:
+        return normalize_modality_binding(plan.get("modalities"), "response.plan.modalities", issues), "response.plan.modalities"
+
+    if "modality_sequence" in plan:
+        sequence = plan.get("modality_sequence")
+        if not isinstance(sequence, list):
+            issues.append({"code": "invalid_modalities_binding", "message": "quota gate response.plan.modality_sequence must be an array when present"})
+            return None, "response.plan.modality_sequence"
+        values: list[str] = []
+        for index, item in enumerate(sequence):
+            if not isinstance(item, Mapping) or not isinstance(item.get("modality"), str):
+                issues.append({"code": "invalid_modalities_binding", "message": f"quota gate response.plan.modality_sequence[{index}].modality must be a string"})
+                continue
+            values.append(str(item["modality"]))
+        return normalize_modalities(values), "response.plan.modality_sequence"
+
+    phases = plan.get("phases")
+    if phases is None:
+        return None, None
+    if not isinstance(phases, list):
+        issues.append({"code": "invalid_modalities_binding", "message": "quota gate response.plan.phases must be an array when modality binding is present"})
+        return None, "response.plan.phases"
+    values = []
+    saw_modalities = False
+    for index, phase in enumerate(phases):
+        if not isinstance(phase, Mapping):
+            issues.append({"code": "invalid_modalities_binding", "message": f"quota gate response.plan.phases[{index}] must be an object"})
+            continue
+        if "modalities" not in phase:
+            continue
+        saw_modalities = True
+        phase_modalities = phase.get("modalities")
+        if not isinstance(phase_modalities, list) or not all(isinstance(item, str) for item in phase_modalities):
+            issues.append({"code": "invalid_modalities_binding", "message": f"quota gate response.plan.phases[{index}].modalities must be an array of strings"})
+            continue
+        values.extend(str(item) for item in phase_modalities)
+    return (normalize_modalities(values), "response.plan.phases[].modalities") if saw_modalities else (None, None)
+
+
+def normalize_modality_binding(value: Any, path: str, issues: list[JsonDict]) -> tuple[str, ...] | None:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        issues.append({"code": "invalid_modalities_binding", "message": f"quota gate {path} must be an array of strings when present"})
+        return None
+    return normalize_modalities(str(item) for item in value)
+
+
+def normalize_modalities(values: Sequence[str] | Any) -> tuple[str, ...]:
+    unique = {str(value) for value in values if str(value)}
+    ordered = [modality for modality in CALIBRATION_MODALITIES if modality in unique]
+    ordered.extend(sorted(value for value in unique if value not in CALIBRATION_MODALITIES))
+    return tuple(ordered)
+
+
+def expected_calibration_gate_modalities(args: CalibrationArgs) -> tuple[str, ...]:
+    selected = set(selected_calibration_modalities(args))
+    selected.add("text")
+    return tuple(modality for modality in CALIBRATION_MODALITIES if modality in selected)
+
+
+def validate_request_fingerprint_binding(value: Any, args: CalibrationArgs, issues: list[JsonDict]) -> JsonDict:
+    expected = calibration_request_fingerprints(args)
+    binding: JsonDict = {"request_fingerprint": value, "expected_request_fingerprints": expected}
+    expected_values = set(expected.values())
+    if isinstance(value, str):
+        if len(expected_values) != 1:
+            issues.append({"code": "request_fingerprint_mismatch", "message": "quota gate request_fingerprint must bind every selected calibrator modality when more than one request shape is selected"})
+        elif value not in expected_values:
+            issues.append({"code": "request_fingerprint_mismatch", "message": "quota gate request_fingerprint does not match the selected calibrator request shape"})
+        return redact_sensitive(binding)
+    if isinstance(value, list):
+        if not all(isinstance(item, str) for item in value):
+            issues.append({"code": "invalid_request_fingerprint", "message": "quota gate request_fingerprint array must contain only strings"})
+        elif set(value) != expected_values:
+            issues.append({"code": "request_fingerprint_mismatch", "message": "quota gate request_fingerprint array does not match selected calibrator request shapes"})
+        return redact_sensitive(binding)
+    if isinstance(value, Mapping):
+        normalized = {str(key): item for key, item in value.items()}
+        if not all(isinstance(item, str) for item in normalized.values()):
+            issues.append({"code": "invalid_request_fingerprint", "message": "quota gate request_fingerprint map values must be strings"})
+        elif normalized != expected:
+            issues.append({"code": "request_fingerprint_mismatch", "message": "quota gate request_fingerprint map does not match selected calibrator request shapes"})
+        return redact_sensitive(binding)
+
+    issues.append({"code": "invalid_request_fingerprint", "message": "quota gate request_fingerprint must be a string, array, or modality map when present"})
+    return redact_sensitive(binding)
+
+
+def calibration_request_fingerprints(args: CalibrationArgs) -> JsonDict:
+    return {modality: calibration_request_fingerprint(modality) for modality in selected_calibration_modalities(args)}
+
+
+def calibration_request_fingerprint(modality: str) -> str:
+    payload = json.dumps(request_for_modality(modality), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def parse_utc_datetime(value: str) -> datetime | None:
+    try:
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def load_json_object(path: str, label: str) -> JsonDict:
@@ -461,6 +659,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser.add_argument("--modality", action="append", default=[], help="Comma-separated modality list: text,image,audio,file,video")
     parser.add_argument("--print-record", action="store_true")
     parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Must be a plan-batch record.")
+    parser.add_argument("--quota-gate-ttl-seconds", type=non_negative_int, default=DEFAULT_QUOTA_GATE_TTL_SECONDS, help=f"Maximum age for a plan-batch quota gate. Default {DEFAULT_QUOTA_GATE_TTL_SECONDS}; 0 disables.")
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     ns = parser.parse_args(argv)
@@ -479,6 +678,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         modalities=modalities,
         print_record=ns.print_record,
         quota_gate_record=ns.quota_gate_record,
+        quota_gate_ttl_seconds=ns.quota_gate_ttl_seconds,
         allow_quota_override=ns.allow_quota_override,
         quota_override_reason=ns.quota_override_reason,
     )
