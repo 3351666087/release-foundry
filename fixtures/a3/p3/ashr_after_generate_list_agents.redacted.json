@@ -1,0 +1,33 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 5864,
+  "ended_at": "2026-07-06T14:58:39Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "list_agents",
+  "output_path": "fixtures\\a3\\p3\\ashr_after_generate_list_agents.redacted.json",
+  "purpose": "List tenant agents for SDK parity calibration",
+  "request": {
+    "estimated_calls": 1,
+    "function": "list_agents",
+    "mutates": false,
+    "params": {}
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "agents": [],
+    "status": "ok"
+  },
+  "response_headers": {},
+  "started_at": "2026-07-06T14:58:33Z",
+  "status": "ok",
+  "status_code": 200
+}

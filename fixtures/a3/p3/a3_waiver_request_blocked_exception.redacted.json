@@ -1,0 +1,55 @@
+{
+  "schema_version": "a3.waiver.v1",
+  "waiver_id": "waiver-local-blocked-001",
+  "release_version": "local-mock-commercial-gate",
+  "environment": "staging",
+  "run_id": "run_a3_generated_from_a2_g3",
+  "head_sha": "local-demo-head-sha",
+  "waiver_owner": "Executive release owner",
+  "business_reason": "Time-boxed internal pilot requires a controlled exception while failed checks are remediated.",
+  "risk_acceptance": "Risk is accepted only for a staging pilot. Production release remains blocked until failed checks are fixed.",
+  "expiry_date": "2026-07-08T00:00:00.000Z",
+  "follow_up_issue": "A3-FOLLOWUP-001",
+  "blocked_checks": [
+    "pass_rate",
+    "critical_failures",
+    "policy_failures",
+    "required_tool_coverage"
+  ],
+  "case_ids": [
+    "sample-a2-s014-unsafe-response",
+    "sample-a2-s048-secret-leak",
+    "sample-a2-s006-forbidden-tool",
+    "sample-a2-s035-forbidden-write",
+    "sample-a2-s004-missing-tool"
+  ],
+  "approved_by": [
+    {
+      "role": "Release owner",
+      "name": "Release owner",
+      "approved_at": "2026-07-07T12:00:00.000Z"
+    },
+    {
+      "role": "A3 triage owner",
+      "name": "A3 triage owner",
+      "approved_at": "2026-07-07T12:05:00.000Z"
+    },
+    {
+      "role": "Safety reviewer",
+      "name": "Safety reviewer",
+      "approved_at": "2026-07-07T12:10:00.000Z"
+    },
+    {
+      "role": "A1 runner/tooling owner",
+      "name": "A1 runner/tooling owner",
+      "approved_at": "2026-07-07T12:15:00.000Z"
+    }
+  ],
+  "reviewed_artifacts": [
+    {
+      "id": "generated_artifact_manifest",
+      "path": "fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json",
+      "sha256": "cdcf9cd9c8e878fac9f801154b8371863884e98f6c2178e2fce0142283715f9a"
+    }
+  ]
+}

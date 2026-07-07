@@ -1,0 +1,57 @@
+{
+  "schema_version": "a3.generated_artifact_manifest.v1",
+  "generated_at": "runtime",
+  "source": "a3-local-mock",
+  "command_shape": "ashr gate --json",
+  "manifest_file": "fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json",
+  "manifest_self_hash": "excluded_to_avoid_self_reference",
+  "release": {
+    "run_id": "run_a3_generated_from_a2_g3",
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 100,
+    "blocks_merge": true,
+    "github_check_conclusion": "failure"
+  },
+  "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output.",
+  "generated_artifacts": [
+    {
+      "id": "json_report",
+      "path": "fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json",
+      "content_type": "application/json",
+      "sha256": "9fd0180910dbe7266e69a1c7dd3b3d5a57121f8bcb8eea67f17d30f3c9845c03",
+      "byte_size": 17557,
+      "required": true
+    },
+    {
+      "id": "markdown_report",
+      "path": "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+      "content_type": "text/markdown",
+      "sha256": "8920010652d959126b43a92acdef432495c00b3f1661cc394f8e8ed53ef2bc8a",
+      "byte_size": 2286,
+      "required": true
+    },
+    {
+      "id": "github_check_run",
+      "path": "fixtures/a3/p3/a3_gate_cli_github_check.redacted.json",
+      "content_type": "application/json",
+      "sha256": "138d2b1852fc3217200100e69f2e23cdaf57dcf94a925ca09ce0e29b745480d7",
+      "byte_size": 3691,
+      "required": true
+    },
+    {
+      "id": "pr_comment_markdown",
+      "path": "fixtures/a3/p3/a3_gate_cli_pr_comment.redacted.md",
+      "content_type": "text/markdown",
+      "sha256": "76ab80ab7325a50a22f2e42b7c1ddb145a18ffca77769fdd7afbb6f90b8e441f",
+      "byte_size": 1134,
+      "required": true
+    }
+  ],
+  "safety": {
+    "dry_run_compatible": true,
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "manifest_hashes_itself": false
+  }
+}

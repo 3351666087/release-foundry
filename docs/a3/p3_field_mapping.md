@@ -14,15 +14,15 @@ Status legend:
 | `run_id` | `run.id` | One submitted test run | Yes | verified | Seen in `fixtures/a3/p3/ashr_field_sample.redacted.json`. |
 | `dataset_id` | `run.dataset` or `dataset.id` | Dataset/eval grouping | Yes | verified | Seen in `list_runs` and `list_datasets`. |
 | `runner_id` | `run.runner` | Person/process that ran it | Nice | verified | Seen in `list_runs`. |
-| `run_status` / `status` | `run.result.status` | Run execution status | Yes | verified | Sample value shape: `completed`. A3 maps completed/no failures to `passed`. |
-| `total_cases` | `run.result.aggregate_metrics.total_tests` | Total tests/cases | Yes | verified | Seen in `aggregate_metrics`. |
-| `passed` | `run.result.aggregate_metrics.tests_passed` | Passed count | Yes | verified | Seen in `aggregate_metrics`. |
-| `failed` | `run.result.aggregate_metrics.tests_failed` | Failed count | Yes | verified | Seen in `aggregate_metrics`. |
+| `run_status` / `status` | `run.result.status` | Run execution status | Yes | verified | Confirmed values include `completed` and `failed`; A3 maps completed/no failures to `passed`. |
+| `total_cases` | `run.result.aggregate_metrics.total_tests`, `run.result.aggregate_metrics.total_cases`, or `run.result.total_cases` | Total tests/cases | Yes | verified | Both historical `tests[]` and current `cases[]` shapes expose totals. |
+| `passed` | `run.result.aggregate_metrics.tests_passed`, `run.result.aggregate_metrics.passed`, or `run.result.passed` | Passed count | Yes | verified | Confirmed in successful and failed run samples. |
+| `failed` | `run.result.aggregate_metrics.tests_failed`, `run.result.aggregate_metrics.failed`, or `run.result.failed` | Failed count | Yes | verified | Confirmed with a real failed run sample. |
 | `trace_completeness` | derived from `tests[].action_results` | Evidence coverage | Yes | derived | Real sample exposes actions, not this exact metric. |
 | `cases[]` | `run.result.tests[]` | Per-case display rows | Yes | verified | Seen in `list_runs`. |
 | `case_id` | `test.test_id` | Single test/case identity | Yes | verified | Seen in `list_runs`. |
 | `scenario_id` | `test.test_id` or dataset scenario key | Scenario identity | Yes | derived | Dataset sample has `dataset_source.runs`; run sample has `test_id`. |
-| `title` | dataset scenario `title` or `test.test_id` | Human label | Yes | verified | Dataset sample has `dataset_source.runs.*.title`; run sample needs join or fallback. |
+| `title` | dataset scenario `title` or `test.test_id` | Human label | Yes | verified | A3 now optionally joins dataset `dataset_source.runs.*.title` into mapped cases, with test/case ID fallback. |
 | `started_at` | `test.started_at` or `run.result.started_at` | Timing | Nice | verified | Seen at run and test levels. |
 | `ended_at` | `test.completed_at` or `run.result.completed_at` | Timing | Nice | verified | Seen at run and test levels. |
 | `latency_ms` | derived from timestamps | Duration | Nice | derived | Real sample uses timestamps. |
@@ -33,9 +33,10 @@ Status legend:
 | `actual.tool_calls` | `tool_calls[].actual` | Actual tool use | Yes | verified | Seen in `list_runs`. |
 | `expected.final_response_points` | `action_results[].expected_response` | Expected response | Yes | verified | Seen in `list_runs`. |
 | `actual.final_response` | `action_results[].actual_response` | Agent answer | Yes | verified | Seen in `list_runs`. |
-| `score` | `action_results[].semantic_similarity` and `aggregate_metrics.average_similarity_score` | Score | Yes | verified/derived | Platform exposes similarity; A3 normalizes 0-1 to 0-100. |
-| `passed` per case | derived from `match_status` and test status | Pass/fail | Yes | derived | Real sample has `match_status`; no separate per-case `passed` field was seen. |
-| `primary_failure_class` | derived from `match_status`, `argument_comparison`, and divergence fields | Failure cluster | Yes | derived | No native backend failure-class field seen in this sample. |
+| `score` | `case.grade.score`, `case.score`, or `action_results[].semantic_similarity` | Score | Yes | verified/derived | A3 now prefers explicit Ashr case grade score, falls back to case score, and uses semantic similarity only as a provisional action-results score. |
+| `score_source` | derived from chosen score field | Score provenance | Yes | derived | Exported as `ashr_case_grade_score`, `ashr_case_score`, `semantic_similarity_average`, or `pass_fail_default`. |
+| `passed` per case | `case.grade.passed` or derived from `match_status` and test status | Pass/fail | Yes | verified/derived | Current failed `result.cases[]` sample exposes `case.grade.passed=false`; older `tests[]` samples use derived action status. |
+| `primary_failure_class` | no native field observed; derived from `case.grade.metrics`, `match_status`, `argument_comparison`, and divergence fields | Failure cluster | Yes | derived | A real failed run was checked; no named `failure_class` field was present in that sample. |
 | `failure_summary` | `divergence_notes` or generated summary from mismatch | Triage text | Yes | verified/derived | Sample field exists; mapper falls back when null. |
 | `severity` | backend severity or derived class severity | Cluster severity | Nice | unknown | Need real graded sample. |
 | `judge_results[]` | A3 synthetic wrapper around Ashr action checks | Drilldown | Nice | derived | Mapper emits `p3_ashr_action_results_judge` for dashboard compatibility. |
@@ -43,6 +44,7 @@ Status legend:
 | `media_evidence.media_types[]` | `audio` / `file` / `image` / `video` action types | Media filtering and evidence badges | Yes | verified | Dataset sample includes `audio` and `file`; request config also mentions image/video generation flags. |
 | `media_evidence.action_tags` | `actions[].action_tags` or `case.metadata.action_tags` | Structured media metadata | Yes | verified | File action tags include file metadata such as format/style fields. |
 | `media_evidence.output_paths[]` | `actions[].output_path` | Linkable/generated media artifact path | Yes | verified | Present for file action in dataset sample; absent for sanitized audio case sample. |
+| `media_evidence.signed_url` | `actions[].signed_url` | Direct signed media/file URL | Optional | partially verified | Field name confirmed for file-like dataset actions; audio/image/video signed URL samples are not yet confirmed. |
 | `media_evidence.audio_tags` | `dataset_source.runs.*.audio_tags` or `case.metadata.audio_tags` | Audio profile evidence | Yes | verified | Seen with tone/accent/background-noise-like fields after redaction. |
 | `media_evidence.intent_tags` | `dataset_source.runs.*.intent_tags` or `case.metadata.intent_tags` | Scenario intent grouping | Nice | verified | Seen in dataset and run detail samples. |
 | `vm_stream` | `case.observations[].vm_stream` | Replay/browser evidence | Yes | verified | Run detail sample includes provider, session id, duration, logs, and synthetic metadata. |
@@ -62,6 +64,75 @@ Status legend:
 - `list_observability_traces()` failed because this account's `init().features.observability` is `false`.
 - Follow-up media calibration saw `audio`, `file`, `action_tags`, `output_path`, and `vm_stream` in sanitized dataset/run detail samples.
 - Real run detail can also use an A1-like `run.result.cases[]` shape instead of `run.result.tests[]`; A3 mapper now supports both.
+- A 2026-07-06 read-only failed-run probe confirmed:
+  - `run.result.status == "failed"`
+  - aggregate failed/passed counts
+  - `run.result.cases[].status == "failed"`
+  - `run.result.cases[].grade.label`
+  - `run.result.cases[].grade.passed`
+  - `run.result.cases[].grade.score`
+  - `run.result.cases[].grade.reason`
+  - `run.result.cases[].grade.metrics`
+- The same failed-run probe did not expose a named backend `failure_class`; A3 derived `bad_final_response` and `missing_required_tool` from grade metrics and expected/actual evidence.
+- A failed request detail confirmed `request.request_status == "failed"` and a failure object under `request.request._failure`; A3 treats this as request provenance, not as case-level grading.
+- The official A3 refund demo added stronger end-to-end evidence:
+  - dataset id `884`
+  - hosted run id `11925`
+  - `run.result.cases[]` with 5 cases
+  - aggregate 2 pass / 3 fail
+  - `cases[].expected`
+  - `cases[].grade.actual`
+  - `cases[].grade.score`
+  - `cases[].grade.passed`
+  - `cases[].grade.reason`
+  - expected/actual tool calls
+  - observations and VM-stream-like trace evidence
+  - dataset-derived media channels for audio, file, and image cases
+- The 2026-07-07 official-UI-compatible run added the strongest Results-shape evidence so far:
+  - hosted run id `11926`
+  - `run.result.tests[]` with 5 tests
+  - `tests[].action_results[]`
+  - aggregate 2 pass / 3 fail
+  - expected vs actual response fields
+  - expected vs actual tool-call comparison fields
+  - dataset-derived media channels for audio, file, and image cases
+  - `list_runs(dataset_id=884, summary_only=true)` includes `11926`
+  - no `vm_stream` field in this official `tests[]` result, so A3 reports 0 VM stream cases for this source
+- `services/report/p3_ashr_mapper.mjs` now supports official wrappers shaped like `response.dataset` and joins `dataset_source.runs` metadata into the mapped cases.
+
+## 2026-07-05 frontend/API continuation
+
+- New read-only API calibration saved:
+  - `fixtures/a3/p3/ashr_frontend_api_objects.redacted.json`
+  - `fixtures/a3/p3/ashr_run_trace_sample.redacted.json`
+  - `fixtures/a3/p3/ashr_media_url_sample.redacted.json`
+- `init`, `health_check`, `list_agents`, `list_datasets`, `get_dataset`, `list_runs`, `get_run`, `list_requests`, `get_request`, and signed-url dataset probes succeeded.
+- `list_observability_traces` still failed because observability is not enabled for this account.
+- `get_run` returned a direct run object whose `result` uses `cases[]`; the redacted run trace sample now records field presence for expected/actual, score, pass/fail, failure-like fields, and tool calls.
+- A dataset action field named `signed_url` was confirmed and redacted to `[REDACTED_URL]`.
+- A signed-media coverage audit saved `fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json`; it found 2 redacted `signed_url` keys, both nearest to `file` actions.
+- Direct authenticated frontend content extraction from the user's Edge/normal Chrome windows was blocked by the browser-control safety layer, so the first version of the frontend page docs marked UI labels as API/prior-observation-backed unless directly confirmed.
+
+## 2026-07-06 authenticated frontend confirmation
+
+- The user logged into an isolated Chrome profile launched with local CDP debugging.
+- Direct read-only UI observation confirmed top-level Lab pages:
+  - Datasets: `?tab=analysis`
+  - Agents: `?tab=agents`
+  - Folders: `?tab=folders`
+  - Analytics: `?tab=analytics`
+  - Usage: `?tab=usage`
+  - Trust: `?tab=trust`
+  - API Keys: `?tab=api-keys`
+  - Team: `?tab=team`
+- Datasets page confirmed search, filter, sort, group, pinned-only, and `New dataset` controls.
+- New Dataset confirmed an 8-step wizard: Basic Info, Agent, Inputs, Tools, Context, Test Config, Behaviors, Review.
+- Analytics confirmed product-level fields that A3 can derive locally: agents, datasets, graded runs, overall pass rate, run volume, pass-rate trend, runs by agent, and pass rate by agent.
+- Usage confirmed UI quota labels: Images, Audio, Files.
+- Trust confirmed a report-like public certificate concept with frozen metrics.
+- API Keys and Team were confirmed as admin pages, but they remain outside A3's MVP scope.
+
+The observed account had no UI-visible datasets/runs, so API samples remain the source of truth for populated run detail, case detail, expected-vs-actual, tool calls, score/pass-fail, failure-like fields, trace/timeline, and signed media fields.
 
 ## Object mapping by product concept
 
@@ -99,9 +170,10 @@ The mapper should emit:
 
 ## Remaining unknowns
 
-- Where, if anywhere, does real Ashr expose a native backend failure class separate from `match_status` and `llm_judgment`?
-- Does a failing real run include richer backend grading details than the successful sample?
+- Whether other Ashr accounts or newer runs expose a native backend failure class separate from `case.grade.metrics`, `match_status`, and local/A2-derived classes.
+- Current failed-run and official demo evidence include grade labels, pass/fail, score, reason, and metrics, but not a named `failure_class`.
 - Does the dashboard API expose eval/evaluation objects separately from datasets?
 - Are production observability traces linkable to testing runs when the feature is enabled?
-- Should A3 keep `semantic_similarity` as the score, or wait for a server-side grade field when available?
-- Direct signed media URLs for audio/image/video were not available in the sanitized sample; A3 records this as `known_gaps`.
+- What the official populated Results/run-detail frontend looks like after a fresh login and whether it shows run `11926` with the same fields.
+- Score-source policy is now decided: A3 prefers explicit Ashr grade fields and records `score_source`; `semantic_similarity` is only a provisional fallback for action-results samples without a stronger score.
+- Signed media URL field name is confirmed as `actions[].signed_url` for file-like dataset actions, but audio/image/video signed URL behavior and permission-safe rendering rules are still unknown.

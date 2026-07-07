@@ -1,0 +1,571 @@
+{
+  "detected_media_field_names": [
+    "get_dataset_signed_url_probe.dataset_source.runs.[REDACTED_RUN_KEY_4].actions[].output_path",
+    "get_dataset_signed_url_probe.dataset_source.runs.[REDACTED_RUN_KEY_4].audio_tags",
+    "get_request.request.agent.accepted_inputs.audio",
+    "get_request.request.agent.accepted_inputs.file",
+    "get_request.request.agent.accepted_inputs.image",
+    "get_request.request.agent.accepted_inputs.video",
+    "get_request.request.generation_options.generate_audio",
+    "get_request.request.generation_options.generate_files",
+    "get_request.request.generation_options.generate_images",
+    "get_request.request.generation_options.generate_videos",
+    "get_run.result.cases[].metadata.audio_tags",
+    "get_run.result.cases[].observations[].vm_stream",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2]",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.audio",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.file",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.file.file_format",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.file.file_size",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.file.has_images",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.image",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].action_tags.video",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].output_path",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].audio_tags",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_4].actions[].output_path",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_4].audio_tags",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_6].actions[].output_path",
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_6].audio_tags",
+    "list_requests.requests[].request.agent.accepted_inputs.audio",
+    "list_requests.requests[].request.agent.accepted_inputs.file",
+    "list_requests.requests[].request.agent.accepted_inputs.image",
+    "list_requests.requests[].request.agent.accepted_inputs.video",
+    "list_requests.requests[].request.generation_options.generate_audio",
+    "list_requests.requests[].request.generation_options.generate_files",
+    "list_requests.requests[].request.generation_options.generate_images",
+    "list_requests.requests[].request.generation_options.generate_videos"
+  ],
+  "detected_url_like_field_names": [
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY_2].actions[].signed_url"
+  ],
+  "generated_at": "2026-07-05T06:31:55Z",
+  "notes": [
+    "Any URL-like values are replaced with [REDACTED_URL]."
+  ],
+  "schema_version": "a3.p3.media_url_sample.v1",
+  "signed_url_probe_calls": {
+    "get_dataset_signed_url_probe": {
+      "error": null,
+      "ok": true,
+      "sample": {
+        "agent_id": null,
+        "created_at": "2026-07-04T07:26:18.121653+00:00",
+        "creator": "[REDACTED_ID_1]",
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "[REDACTED_RUN_KEY_4]": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED_TEXT:d784b094]",
+                  "name": "[REDACTED_TEXT:3b36df08]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED_TEXT:aee07bee]",
+                  "expected_response": {},
+                  "name": "[REDACTED_TEXT:eb65ef84]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED_TEXT:1e22fa4a]",
+                  "name": "[REDACTED_TEXT:f5fadfbe]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED_URL]",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "order_id": "[REDACTED_ID_7]"
+                        },
+                        "name": "[REDACTED_TEXT:3fd4955d]"
+                      }
+                    ]
+                  },
+                  "name": "[REDACTED_TEXT:69b7f7f6]",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "[REDACTED]",
+                "age": null,
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "language": null,
+                "pace": "[REDACTED]",
+                "tone": "[REDACTED]",
+                "volume": null
+              },
+              "description": "[REDACTED_TEXT:e130a136]",
+              "intent": "[REDACTED]",
+              "intent_tags": [
+                "[REDACTED_TAG_1]",
+                "[REDACTED_TAG_2]",
+                "[REDACTED_TAG_3]",
+                "[REDACTED_TAG_4]"
+              ],
+              "run_id": "[REDACTED_ID_6]",
+              "simulation": null,
+              "title": "[REDACTED_TEXT:bfd5f01e]"
+            }
+          },
+          "total_runs": 1
+        },
+        "description": "",
+        "id": "[REDACTED_ID_4]",
+        "name": "[REDACTED_TEXT:c8486439]",
+        "repo_id": null,
+        "request_id": "[REDACTED_ID_5]",
+        "tenant": "[REDACTED_ID_2]"
+      },
+      "shape": {
+        "agent_id": "NoneType",
+        "created_at": "str",
+        "creator": "int",
+        "dataset_source": {
+          "dataset_type": "str",
+          "runs": {
+            "[REDACTED_RUN_KEY_4]": {
+              "actions": {
+                "count": 4,
+                "item_shape": "dict",
+                "type": "list"
+              },
+              "audio_tags": {
+                "accent": "[REDACTED]",
+                "age": "NoneType",
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "language": "[REDACTED]",
+                "pace": "[REDACTED]",
+                "tone": "[REDACTED]",
+                "volume": "[REDACTED]"
+              },
+              "description": "str",
+              "intent": "[REDACTED]",
+              "intent_tags": {
+                "count": 4,
+                "item_shape": "str",
+                "type": "list"
+              },
+              "run_id": "str",
+              "simulation": "NoneType",
+              "title": "str"
+            }
+          },
+          "total_runs": "int"
+        },
+        "description": "str",
+        "id": "int",
+        "name": "str",
+        "repo_id": "NoneType",
+        "request_id": "int",
+        "tenant": "int"
+      }
+    },
+    "list_datasets_signed_url_probe": {
+      "error": null,
+      "ok": true,
+      "sample": {
+        "_user": {
+          "auth_method": "api_key",
+          "email": "[REDACTED]",
+          "is_owner": true,
+          "name": "[REDACTED_TEXT:9e56c4ce]",
+          "tenant_id": "[REDACTED_ID_2]",
+          "user_id": "[REDACTED_ID_1]"
+        },
+        "datasets": [
+          {
+            "agent_details": null,
+            "agent_id": null,
+            "created_at": "2026-07-04T07:26:18.121653+00:00",
+            "creator": "[REDACTED_ID_1]",
+            "creator_details": {
+              "id": "[REDACTED_ID_1]",
+              "name": "[REDACTED_TEXT:9e56c4ce]"
+            },
+            "dataset_source": {
+              "dataset_type": "multi_run_storyboard",
+              "runs": {
+                "[REDACTED_RUN_KEY_4]": {
+                  "actions": [
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:d784b094]",
+                      "name": "[REDACTED_TEXT:3b36df08]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:aee07bee]",
+                      "expected_response": {},
+                      "name": "[REDACTED_TEXT:eb65ef84]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:1e22fa4a]",
+                      "name": "[REDACTED_TEXT:f5fadfbe]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "agent",
+                      "content": "[REDACTED_URL]",
+                      "expected_response": {
+                        "tool_calls": [
+                          {
+                            "arguments": {
+                              "order_id": "[REDACTED_ID_7]"
+                            },
+                            "name": "[REDACTED_TEXT:3fd4955d]"
+                          }
+                        ]
+                      },
+                      "name": "[REDACTED_TEXT:69b7f7f6]",
+                      "output_path": null
+                    }
+                  ],
+                  "audio_tags": {
+                    "accent": "[REDACTED]",
+                    "age": null,
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "language": null,
+                    "pace": "[REDACTED]",
+                    "tone": "[REDACTED]",
+                    "volume": null
+                  },
+                  "description": "[REDACTED_TEXT:e130a136]",
+                  "intent": "[REDACTED]",
+                  "intent_tags": [
+                    "[REDACTED_TAG_1]",
+                    "[REDACTED_TAG_2]",
+                    "[REDACTED_TAG_3]",
+                    "[REDACTED_TAG_4]"
+                  ],
+                  "run_id": "[REDACTED_ID_6]",
+                  "simulation": null,
+                  "title": "[REDACTED_TEXT:bfd5f01e]"
+                }
+              },
+              "total_runs": 1
+            },
+            "dataset_type": "multi_run_storyboard",
+            "description": "",
+            "id": "[REDACTED_ID_4]",
+            "name": "[REDACTED_TEXT:c8486439]",
+            "repo_id": null,
+            "request_id": "[REDACTED_ID_5]",
+            "run_count": 1,
+            "tenant": "[REDACTED_ID_2]"
+          },
+          {
+            "agent_details": null,
+            "agent_id": null,
+            "created_at": "2026-06-25T17:14:37.929275+00:00",
+            "creator": "[REDACTED_ID_1]",
+            "creator_details": {
+              "id": "[REDACTED_ID_1]",
+              "name": "[REDACTED_TEXT:9e56c4ce]"
+            },
+            "dataset_source": {
+              "dataset_type": "multi_run_storyboard",
+              "runs": {
+                "[REDACTED_RUN_KEY_2]": {
+                  "actions": [
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:0970b5d9]",
+                      "name": "[REDACTED_TEXT:34aa3a08]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": {
+                        "audio": null,
+                        "file": {
+                          "content_description": null,
+                          "content_type": null,
+                          "document_style": "digital",
+                          "encoding": null,
+                          "file_format": "pdf",
+                          "file_size": null,
+                          "handwriting_style": null,
+                          "has_images": null,
+                          "has_tables": null,
+                          "language": null,
+                          "page_count": null,
+                          "sample_format": null,
+                          "scan_intensity": null
+                        },
+                        "image": null,
+                        "sensor": null,
+                        "video": null
+                      },
+                      "action_type": "file",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:d49ab5ed]",
+                      "name": "[REDACTED_TEXT:58de7162]",
+                      "output_path": "[REDACTED_PATH]",
+                      "signed_url": "[REDACTED_URL]"
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "audio",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:d5d4c35f]",
+                      "expected_response": {},
+                      "name": "[REDACTED_TEXT:eec45f64]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:9c8120b9]",
+                      "name": "[REDACTED_TEXT:d77a7cc7]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "audio",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:d454ba59]",
+                      "expected_response": {
+                        "tool_calls": [
+                          {
+                            "arguments": {
+                              "query": "[REDACTED_TEXT:750cd009]"
+                            },
+                            "name": "[REDACTED_TEXT:e0c26bf9]"
+                          }
+                        ]
+                      },
+                      "name": "[REDACTED_TEXT:a6565cd8]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "audio",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:0490232b]",
+                      "expected_response": {},
+                      "name": "[REDACTED_TEXT:cb72cd0e]",
+                      "output_path": null
+                    }
+                  ],
+                  "audio_tags": {
+                    "accent": "[REDACTED]",
+                    "age": null,
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "language": null,
+                    "pace": "[REDACTED]",
+                    "tone": "[REDACTED]",
+                    "volume": null
+                  },
+                  "description": "[REDACTED_TEXT:d6a0da86]",
+                  "intent": "[REDACTED]",
+                  "intent_tags": [
+                    "[REDACTED_TAG_1]",
+                    "[REDACTED_TAG_2]",
+                    "[REDACTED_TAG_3]"
+                  ],
+                  "run_id": "[REDACTED_ID_10]",
+                  "simulation": null,
+                  "title": "[REDACTED_TEXT:62fb486d]"
+                }
+              },
+              "total_runs": 1
+            },
+            "dataset_type": "multi_run_storyboard",
+            "description": "",
+            "id": "[REDACTED_ID_8]",
+            "name": "[REDACTED_TEXT:36daaa18]",
+            "repo_id": null,
+            "request_id": "[REDACTED_ID_9]",
+            "run_count": 1,
+            "tenant": "[REDACTED_ID_2]"
+          },
+          {
+            "agent_details": null,
+            "agent_id": null,
+            "created_at": "2026-06-25T17:03:00.647453+00:00",
+            "creator": "[REDACTED_ID_1]",
+            "creator_details": {
+              "id": "[REDACTED_ID_1]",
+              "name": "[REDACTED_TEXT:9e56c4ce]"
+            },
+            "dataset_source": {
+              "dataset_type": "multi_run_storyboard",
+              "runs": {
+                "[REDACTED_RUN_KEY_6]": {
+                  "actions": [
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:4e9612aa]",
+                      "name": "[REDACTED_TEXT:3909c3d9]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:9af62d58]",
+                      "expected_response": {},
+                      "name": "[REDACTED_TEXT:1cfaf009]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:cb053698]",
+                      "name": "[REDACTED_TEXT:b384e2fd]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:b176ae55]",
+                      "expected_response": {
+                        "tool_calls": [
+                          {
+                            "arguments": {
+                              "order_id": "[REDACTED_ID_14]"
+                            },
+                            "name": "[REDACTED_TEXT:3fd4955d]"
+                          }
+                        ]
+                      },
+                      "name": "[REDACTED_TEXT:7ac5f0d2]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "user",
+                      "content": "[REDACTED_TEXT:7be6d169]",
+                      "name": "[REDACTED_TEXT:ebfbbd38]",
+                      "output_path": null
+                    },
+                    {
+                      "action_tags": null,
+                      "action_type": "text",
+                      "actor": "agent",
+                      "content": "[REDACTED_TEXT:dbcf61b4]",
+                      "expected_response": {},
+                      "name": "[REDACTED_TEXT:838935f1]",
+                      "output_path": null
+                    }
+                  ],
+                  "audio_tags": {
+                    "accent": "[REDACTED]",
+                    "age": null,
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "language": null,
+                    "pace": "[REDACTED]",
+                    "tone": "[REDACTED]",
+                    "volume": null
+                  },
+                  "description": "[REDACTED_TEXT:e15a14fb]",
+                  "intent": "[REDACTED]",
+                  "intent_tags": [
+                    "[REDACTED_TAG_1]",
+                    "[REDACTED_TAG_2]",
+                    "[REDACTED_TAG_3]",
+                    "[REDACTED_TAG_4]"
+                  ],
+                  "run_id": "[REDACTED_ID_13]",
+                  "simulation": null,
+                  "title": "[REDACTED_TEXT:4f745f4c]"
+                }
+              },
+              "total_runs": 1
+            },
+            "dataset_type": "multi_run_storyboard",
+            "description": "",
+            "id": "[REDACTED_ID_11]",
+            "name": "[REDACTED_TEXT:21d69d15]",
+            "repo_id": null,
+            "request_id": "[REDACTED_ID_12]",
+            "run_count": 1,
+            "tenant": "[REDACTED_ID_2]"
+          }
+        ],
+        "next_cursor": 881,
+        "status": "ok"
+      },
+      "shape": {
+        "_user": {
+          "auth_method": "str",
+          "email": "str",
+          "is_owner": "bool",
+          "name": "str",
+          "tenant_id": "int",
+          "user_id": "int"
+        },
+        "datasets": {
+          "count": 3,
+          "item_shape": {
+            "agent_details": "NoneType",
+            "agent_id": "NoneType",
+            "created_at": "str",
+            "creator": "int",
+            "creator_details": {
+              "id": "int",
+              "name": "str"
+            },
+            "dataset_source": {
+              "dataset_type": "str",
+              "runs": {
+                "[REDACTED_RUN_KEY_4]": "dict"
+              },
+              "total_runs": "int"
+            },
+            "dataset_type": "str",
+            "description": "str",
+            "id": "int",
+            "name": "str",
+            "repo_id": "NoneType",
+            "request_id": "int",
+            "run_count": "int",
+            "tenant": "int"
+          },
+          "type": "list"
+        },
+        "next_cursor": "int",
+        "status": "str"
+      }
+    }
+  },
+  "source": "real_ashr_signed_url_probe_redacted"
+}

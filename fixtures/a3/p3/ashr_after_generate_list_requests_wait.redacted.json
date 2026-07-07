@@ -1,0 +1,460 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 5901,
+  "ended_at": "2026-07-06T15:01:44Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "list_requests",
+  "output_path": "fixtures\\a3\\p3\\ashr_after_generate_list_requests_wait.redacted.json",
+  "purpose": "List generation request shapes",
+  "request": {
+    "estimated_calls": 2,
+    "function": "list_requests",
+    "mutates": false,
+    "params": {
+      "limit": 10,
+      "tenant_id": 36
+    }
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "next_cursor": 577,
+    "requests": [
+      {
+        "actual_duration_s": 3,
+        "completed_at": "2026-07-04T07:33:15.103550+00:00",
+        "created_at": "2026-07-04T07:33:11.265060+00:00",
+        "estimated_duration_s": 75,
+        "id": 582,
+        "request": {
+          "_failure": {
+            "at": "2026-07-04T07:33:15.103550+00:00",
+            "error": "AttributeError: 'bool' object has no attribute 'get'"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": true,
+              "conversation": false,
+              "file": true,
+              "image": true,
+              "text": true,
+              "video": false
+            },
+            "description": "A dry-run-only media interface fixture for image, audio, and file calibration.",
+            "name": "A1 Mock Multimodal Support Agent",
+            "output_format": {
+              "type": "text"
+            },
+            "tools": [
+              {
+                "description": "Inspect a synthetic image or audio attachment.",
+                "name": "inspect_attachment",
+                "parameters": {
+                  "properties": {
+                    "attachment_type": {
+                      "enum": [
+                        "image",
+                        "audio",
+                        "file"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "attachment_type"
+                  ],
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "support operations",
+            "scenario_context": "Use synthetic non-sensitive media descriptions only.",
+            "use_case": "Dry-run image, audio, and file interface calibration only."
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false
+          },
+          "metadata": {
+            "dataset_name": "A1 Media Interface Dry Run",
+            "description": "Dry-run-only fixture to keep image/audio/file request interfaces visible without consuming quota."
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "focused"
+          }
+        },
+        "request_name": "A1 Media Interface Calibration",
+        "request_status": "failed",
+        "requestor_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "requestor_id": 52,
+        "requestor_tenant": 36
+      },
+      {
+        "actual_duration_s": 70,
+        "completed_at": "2026-07-04T07:26:34.683424+00:00",
+        "created_at": "2026-07-04T07:25:23.845739+00:00",
+        "estimated_duration_s": 38,
+        "id": 581,
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": false,
+              "conversation": false,
+              "file": false,
+              "image": false,
+              "text": true,
+              "video": false
+            },
+            "description": "A deterministic local mock agent used for tiny API calibration dry-runs.",
+            "name": "A1 Mock Support Agent",
+            "output_format": {
+              "type": "text"
+            },
+            "tools": [
+              {
+                "description": "Look up an order by ID.",
+                "name": "lookup_order",
+                "parameters": {
+                  "properties": {
+                    "order_id": {
+                      "description": "Synthetic order identifier.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "order_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "support operations",
+            "scenario_context": "Use tiny, non-sensitive mock order data only.",
+            "use_case": "Answer synthetic order-status questions for local calibration."
+          },
+          "generation_options": {
+            "generate_audio": false,
+            "generate_files": false,
+            "generate_images": false,
+            "generate_simulations": false,
+            "generate_videos": false
+          },
+          "metadata": {
+            "dataset_name": "A1 Tiny Calibration Dry Run",
+            "description": "Safe one-scenario request config for dry-run planning."
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "focused"
+          }
+        },
+        "request_name": "A1 Tiny Calibration Round 2",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "requestor_id": 52,
+        "requestor_tenant": 36
+      },
+      {
+        "actual_duration_s": 3,
+        "completed_at": "2026-06-26T04:20:11.065448+00:00",
+        "created_at": "2026-06-26T04:20:07.254018+00:00",
+        "estimated_duration_s": 75,
+        "id": 580,
+        "request": {
+          "_failure": {
+            "at": "2026-06-26T04:20:11.065448+00:00",
+            "error": "AttributeError: 'bool' object has no attribute 'get'"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": true,
+              "conversation": false,
+              "file": true,
+              "image": true,
+              "text": true,
+              "video": false
+            },
+            "description": "A support agent that can handle text plus generated audio, image, and file inputs.",
+            "name": "Multimodal Support Agent",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "You use a website simulation to find products and report the result.",
+            "tools": [
+              {
+                "description": "Search for a product.",
+                "name": "search_product",
+                "parameters": {
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ],
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "e-commerce",
+            "scenario_context": "A tiny product search web page.",
+            "use_case": "Customer support with generated audio, image, and file inputs."
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "Codex boundary audio image file",
+            "description": "Test whether free plan allows asset-backed multimodal generation."
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true,
+              "multi_input": false,
+              "multi_turn": false
+            },
+            "num_variations": 1,
+            "strategy": "focused"
+          }
+        },
+        "request_name": "Codex boundary - audio image file request 2026-06-26",
+        "request_status": "failed",
+        "requestor_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "requestor_id": 52,
+        "requestor_tenant": 36
+      },
+      {
+        "actual_duration_s": 389,
+        "completed_at": "2026-06-25T17:19:24.325019+00:00",
+        "created_at": "2026-06-25T17:12:54.884547+00:00",
+        "estimated_duration_s": 75,
+        "id": 579,
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": {
+                "enabled": true
+              },
+              "conversation": {
+                "enabled": false
+              },
+              "file": {
+                "enabled": true
+              },
+              "image": {
+                "enabled": true
+              },
+              "text": {
+                "enabled": true
+              },
+              "video": {
+                "enabled": false
+              }
+            },
+            "description": "A support agent that can handle text plus generated audio, image, and file inputs.",
+            "name": "Multimodal Support Agent",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "You use a website simulation to find products and report the result.",
+            "tools": [
+              {
+                "description": "Search for a product.",
+                "name": "search_product",
+                "parameters": {
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ],
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "e-commerce",
+            "scenario_context": "A tiny product search web page.",
+            "use_case": "Customer support with generated audio, image, and file inputs."
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "Codex boundary enabled multimodal",
+            "description": "Test whether free plan allows asset-backed multimodal generation."
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true,
+              "multi_input": false,
+              "multi_turn": false
+            },
+            "num_variations": 1,
+            "strategy": "focused"
+          }
+        },
+        "request_name": "Codex boundary - enabled multimodal request 2026-06-26",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "requestor_id": 52,
+        "requestor_tenant": 36
+      },
+      {
+        "actual_duration_s": 104,
+        "completed_at": "2026-06-25T17:03:34.550034+00:00",
+        "created_at": "2026-06-25T17:01:49.667643+00:00",
+        "estimated_duration_s": 38,
+        "id": 577,
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": false,
+              "conversation": false,
+              "file": false,
+              "image": false,
+              "text": true,
+              "video": false
+            },
+            "description": "A simple customer support agent for order status questions.",
+            "name": "Minimal Support Bot",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "You are a concise customer support agent. Use lookup_order when the user asks about an order.",
+            "tools": [
+              {
+                "description": "Look up the status of an order by order id.",
+                "name": "lookup_order",
+                "parameters": {
+                  "properties": {
+                    "order_id": {
+                      "description": "The order id from the user.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "order_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "e-commerce",
+            "scenario_context": "A lightweight online shop support workflow.",
+            "use_case": "Customer support for checking online order status."
+          },
+          "generation_options": {
+            "generate_audio": false,
+            "generate_files": false,
+            "generate_images": false,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "Codex proof minimal eval",
+            "description": "Minimal one-scenario text-only dataset request to test free-plan SDK flow."
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "focused"
+          }
+        },
+        "request_name": "Codex proof - minimal text agent eval 2026-06-26",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "requestor_id": 52,
+        "requestor_tenant": 36
+      }
+    ],
+    "status": "ok"
+  },
+  "response_headers": {},
+  "started_at": "2026-07-06T15:01:38Z",
+  "status": "ok",
+  "status_code": 200
+}
