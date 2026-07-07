@@ -24,24 +24,33 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function writePlanBatchGate(path, decision = "go") {
+function writePlanBatchGate(path, decision = "go", options = {}) {
+  const plan = {
+    schema_version: "ashr.clone.api_probe_batch_plan.v1",
+    target_operation: options.targetOperation ?? "create-request",
+    created_at: options.createdAt ?? new Date().toISOString(),
+    quota_stop_go: {
+      decision,
+      source: "unit-test",
+      quota_or_reset_evidence_present: true,
+      reset: { known: false, wait_hint_present: false, header_keys: ["x-ratelimit-remaining"] },
+      can_enter_small_batch: decision === "go",
+      can_enter_batch: decision === "go",
+    },
+  };
+  if (options.modalities !== undefined) {
+    plan.modalities = options.modalities;
+  }
+  if (options.requestFingerprint !== undefined) {
+    plan.request_fingerprint = options.requestFingerprint;
+  }
   writeFileSync(
     path,
     JSON.stringify({
       schema_version: "ashr.clone.api_probe_batch_plan.v1",
       function: "plan_batch",
       response: {
-        plan: {
-          schema_version: "ashr.clone.api_probe_batch_plan.v1",
-          quota_stop_go: {
-            decision,
-            source: "unit-test",
-            quota_or_reset_evidence_present: true,
-            reset: { known: false, wait_hint_present: false, header_keys: ["x-ratelimit-remaining"] },
-            can_enter_small_batch: decision === "go",
-            can_enter_batch: decision === "go",
-          },
-        },
+        plan,
       },
     }),
     "utf8",
@@ -142,7 +151,14 @@ test("calibrate CLI rejects go quota gate records without quota evidence", async
       JSON.stringify({
         schema_version: "ashr.clone.api_probe_batch_plan.v1",
         function: "plan_batch",
-        response: { plan: { schema_version: "ashr.clone.api_probe_batch_plan.v1", quota_stop_go: { decision: "go", source: "not-provided" } } },
+        response: {
+          plan: {
+            schema_version: "ashr.clone.api_probe_batch_plan.v1",
+            target_operation: "create-request",
+            created_at: new Date().toISOString(),
+            quota_stop_go: { decision: "go", source: "not-provided" },
+          },
+        },
       }),
       "utf8",
     );
@@ -152,6 +168,85 @@ test("calibrate CLI rejects go quota gate records without quota evidence", async
 
     assert.equal(code, 2);
     assert.match(capture.stderr, /requires reviewed quota\/reset evidence/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI rejects wrong target quota gate before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "wrong-target.json");
+  try {
+    writePlanBatchGate(gateFile, "go", { targetOperation: "create-run" });
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /target_operation/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI rejects stale quota gate before key lookup unless TTL is disabled", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "stale-gate.json");
+  try {
+    writePlanBatchGate(gateFile, "go", { createdAt: "2000-01-01T00:00:00Z" });
+
+    const staleCapture = captureStreams();
+    const staleCode = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, staleCapture.streams);
+
+    assert.equal(staleCode, 2);
+    assert.match(staleCapture.stderr, /stale/);
+    assert.doesNotMatch(staleCapture.stderr, new RegExp(ASHR_API_ENV_VAR));
+
+    const ttlDisabledCapture = captureStreams();
+    const ttlDisabledCode = await main(
+      ["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile, "--quota-gate-ttl-seconds", "0"],
+      {},
+      ttlDisabledCapture.streams,
+    );
+
+    assert.equal(ttlDisabledCode, 2);
+    assert.doesNotMatch(ttlDisabledCapture.stderr, /stale/);
+    assert.match(ttlDisabledCapture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI rejects modality-bound quota gate mismatch before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "wrong-modality.json");
+  try {
+    writePlanBatchGate(gateFile, "go", { modalities: ["image"] });
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /modalities/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI rejects request-fingerprint-bound quota gate mismatch before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const gateFile = join(temp, "wrong-fingerprint.json");
+  try {
+    writePlanBatchGate(gateFile, "go", { requestFingerprint: "not-the-text-calibrator-fingerprint" });
+
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--include-mutating", "--modality", "text", "--quota-gate-record", gateFile], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /request_fingerprint/);
     assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
   } finally {
     rmSync(temp, { recursive: true, force: true });

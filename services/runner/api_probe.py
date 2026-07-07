@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -40,6 +42,9 @@ API_OPERATIONS = [
     "create-run",
 ]
 API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
+API_PROBE_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
+API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v1"
+DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
 MODALITY_SEQUENCE_ORDER = ("text", "image", "audio", "file", "video", "conversation", "simulation")
 MEDIA_GENERATION_TO_MODALITY = {"audio": "audio", "files": "file", "images": "image", "videos": "video", "simulations": "simulation"}
 OPERATION_ESTIMATED_CALLS = {
@@ -61,7 +66,7 @@ OPERATION_ESTIMATED_CALLS = {
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Quota-safe Ashr API calibration probe.")
-    parser.add_argument("operation", choices=[*API_OPERATIONS, "plan-batch"])
+    parser.add_argument("operation", choices=[*API_OPERATIONS, "plan-batch", "validate-gate"])
     parser.add_argument("--target-operation", choices=API_OPERATIONS, default="create-request", help="Operation to batch-plan when operation=plan-batch.")
     parser.add_argument("--execute", action="store_true", help="Perform the real API call. Omit for dry-run planning.")
     parser.add_argument("--allow-mutate", action="store_true", help="Required with --execute for create-run and create-request.")
@@ -84,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, help="Target larger batch size for plan-batch output. Defaults to the request variation count when known.")
     parser.add_argument("--quota-record", help="Optional previous private API probe record JSON with quota or reset headers.")
     parser.add_argument("--quota-gate-record", help="Required for mutating --execute unless --allow-quota-override is used. Must be a plan-batch record with response.plan.quota_stop_go.")
+    parser.add_argument("--quota-gate-ttl-seconds", type=int, default=DEFAULT_QUOTA_GATE_TTL_SECONDS, help="Maximum age for a plan-batch gate. Use 0 to disable age checks.")
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     parser.add_argument("--poll-timeout", type=int, default=300)
@@ -102,6 +108,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("plan-batch is planning-only; omit --execute")
             record = run_operation(None, args, output=output, dry_run=True)
             print("{mode} {operation}: status={status} attempts={attempts} output={output}".format(mode="planned", operation=args.operation, status=record["status"], attempts=record["attempts"], output=output))
+            return 0
+        if args.operation == "validate-gate":
+            if args.execute:
+                raise ValueError("validate-gate is read-only; omit --execute")
+            record = run_operation(None, args, output=output, dry_run=True)
+            print("validated validate-gate: status={status} issues={issues} output={output}".format(status=record["status"], issues=len(record["response"]["validation"]["issues"]), output=output))
             return 0
         if args.execute and args.operation in MUTATING_OPERATIONS and not args.allow_mutate:
             raise ValueError(f"{args.operation} is mutating; rerun with --allow-mutate after reviewing the dry-run plan")
@@ -127,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
 def run_operation(client: AshrApiClient | None, args: argparse.Namespace, *, output: Path, dry_run: bool) -> dict[str, Any]:
     if args.operation == "plan-batch":
         return run_batch_plan(args, output=output)
+    if args.operation == "validate-gate":
+        return run_gate_validation(args, output=output)
     require(client, "client is required for API probe operations")
     if args.operation == "init":
         return client.init(output_path=output, dry_run=dry_run)
@@ -187,6 +201,7 @@ def run_operation(client: AshrApiClient | None, args: argparse.Namespace, *, out
                 target_operation="create-request",
                 output=output,
                 request=request,
+                request_input_schema=request_schema,
                 request_input_schema_source=preflight["request_input_schema_source"],
                 allow_media_generation=args.allow_media_generation,
                 allow_non_text_inputs=args.allow_non_text_inputs,
@@ -213,10 +228,14 @@ def run_batch_plan(args: argparse.Namespace, *, output: Path) -> dict[str, Any]:
         require(args.request_file, "--request-file is required for plan-batch --target-operation create-request")
         request = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
         request_schema_source = "file" if args.request_schema_file else "client_default"
+        request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if args.request_schema_file else None
+    else:
+        request_schema = None
     plan = build_api_probe_batch_plan(
         target_operation=args.target_operation,
         output=output,
         request=request,
+        request_input_schema=request_schema,
         request_input_schema_source=request_schema_source,
         allow_media_generation=getattr(args, "allow_media_generation", False),
         allow_non_text_inputs=getattr(args, "allow_non_text_inputs", False),
@@ -264,6 +283,7 @@ def build_api_probe_batch_plan(
     target_operation: str,
     output: Path | None = None,
     request: dict[str, Any] | None = None,
+    request_input_schema: dict[str, Any] | None = None,
     request_input_schema_source: str = "not_applicable",
     allow_media_generation: bool = False,
     allow_non_text_inputs: bool = False,
@@ -279,10 +299,23 @@ def build_api_probe_batch_plan(
     inferred_batch_size = _inferred_batch_size(preflight, small_count, batch_size)
     quota_stop_go = build_quota_stop_go(quota_record)
     modality_sequence = build_modality_sequence(preflight)
+    target_binding = build_target_binding(
+        target_operation=target_operation,
+        request=request,
+        request_input_schema=request_input_schema,
+        request_input_schema_source=request_input_schema_source,
+        allow_media_generation=allow_media_generation,
+        allow_non_text_inputs=allow_non_text_inputs,
+        max_request_variations=max_request_variations,
+        small_batch_size=small_count,
+        batch_size=inferred_batch_size,
+        modality_sequence=modality_sequence,
+    )
     plan = {
         "schema_version": API_PROBE_BATCH_PLAN_SCHEMA_VERSION,
         "target_operation": target_operation,
         "created_at": utc_now(),
+        "target_binding": target_binding,
         "output_path": str(output) if output is not None else None,
         "phase_order": ["dry-run", "small-batch", "batch"],
         "small_batch_size": small_count,
@@ -400,6 +433,55 @@ def build_modality_sequence(preflight: dict[str, Any] | None) -> list[dict[str, 
     return sequence
 
 
+def build_target_binding(
+    *,
+    target_operation: str,
+    request: dict[str, Any] | None,
+    request_input_schema: dict[str, Any] | None,
+    request_input_schema_source: str,
+    allow_media_generation: bool,
+    allow_non_text_inputs: bool,
+    max_request_variations: Any,
+    small_batch_size: int,
+    batch_size: int,
+    modality_sequence: list[dict[str, Any]],
+) -> dict[str, Any]:
+    modalities = [item["modality"] for item in modality_sequence]
+    request_fingerprint = _stable_sha256(request) if request is not None else None
+    request_schema_fingerprint = _stable_sha256(request_input_schema) if request_input_schema is not None else None
+    components = {
+        "target_operation": target_operation,
+        "request_fingerprint": request_fingerprint,
+        "request_input_schema_fingerprint": request_schema_fingerprint,
+        "request_input_schema_source": request_input_schema_source,
+        "allow_media_generation": bool(allow_media_generation),
+        "allow_non_text_inputs": bool(allow_non_text_inputs),
+        "max_request_variations": max_request_variations,
+        "small_batch_size": small_batch_size,
+        "batch_size": batch_size,
+        "modalities": modalities,
+    }
+    return redact_sensitive(
+        {
+            "schema_version": API_PROBE_TARGET_BINDING_SCHEMA_VERSION,
+            "target_operation": target_operation,
+            "binding_scope": "request-payload" if request is not None else "operation",
+            "request_fingerprint": request_fingerprint,
+            "request_input_schema_fingerprint": request_schema_fingerprint,
+            "request_input_schema_source": request_input_schema_source,
+            "allow_media_generation": bool(allow_media_generation),
+            "allow_non_text_inputs": bool(allow_non_text_inputs),
+            "max_request_variations": max_request_variations,
+            "small_batch_size": small_batch_size,
+            "batch_size": batch_size,
+            "modalities": modalities,
+            "fingerprint": _stable_sha256(components),
+            "fingerprint_fields": sorted(components.keys()),
+            "raw_request_not_recorded": True,
+        }
+    )
+
+
 def build_quota_stop_go(quota_record: dict[str, Any] | None) -> dict[str, Any]:
     quota = summarize_quota_error(quota_record) if quota_record else None
     headers = _quota_headers(quota_record)
@@ -476,6 +558,95 @@ def attach_quota_gate(record: dict[str, Any], quota_gate: dict[str, Any] | None,
     return record
 
 
+def run_gate_validation(args: argparse.Namespace, *, output: Path) -> dict[str, Any]:
+    require(args.quota_gate_record, "--quota-gate-record is required for validate-gate")
+    validation = validate_quota_gate_record(
+        load_optional_json(args.quota_gate_record),
+        target_operation=getattr(args, "target_operation", None),
+        ttl_seconds=getattr(args, "quota_gate_ttl_seconds", DEFAULT_QUOTA_GATE_TTL_SECONDS),
+        expected_binding=expected_quota_gate_binding(args, operation=getattr(args, "target_operation", None), require_binding=False),
+    )
+    now = utc_now()
+    record = redact_sensitive(
+        {
+            "schema_version": API_PROBE_GATE_VALIDATION_SCHEMA_VERSION,
+            "function": "validate_gate",
+            "dry_run": True,
+            "purpose": "Validate a plan-batch quota gate before mutating API execution",
+            "started_at": now,
+            "ended_at": now,
+            "duration_ms": 0,
+            "attempts": 0,
+            "status": "ok" if validation["valid"] else "error",
+            "status_code": None,
+            "request": {
+                "function": "validate_gate",
+                "params": {
+                    "quota_gate_record": str(args.quota_gate_record),
+                    "target_operation": getattr(args, "target_operation", None),
+                    "quota_gate_ttl_seconds": getattr(args, "quota_gate_ttl_seconds", DEFAULT_QUOTA_GATE_TTL_SECONDS),
+                    "request_file": str(getattr(args, "request_file", None)) if getattr(args, "request_file", None) else None,
+                    "request_schema_file": str(getattr(args, "request_schema_file", None)) if getattr(args, "request_schema_file", None) else None,
+                },
+                "estimated_calls": 0,
+                "mutates": False,
+            },
+            "response": {"validation": validation},
+            "response_headers": {},
+            "output_path": str(output),
+            "field_map_version": ASHR_API_FIELD_MAP_VERSION,
+        }
+    )
+    write_json(output, record)
+    if not validation["valid"]:
+        raise ValueError("quota gate validation failed: " + "; ".join(str(issue["message"]) for issue in validation["issues"]))
+    return record
+
+
+def _validate_target_binding(actual: Any, expected: dict[str, Any], issues: list[dict[str, Any]]) -> None:
+    if not isinstance(actual, dict):
+        issues.append({"code": "missing_target_binding", "message": "quota gate response.plan.target_binding is required for this mutating request"})
+        return
+    actual_fingerprint = actual.get("fingerprint")
+    expected_fingerprint = expected.get("fingerprint")
+    if actual.get("schema_version") != API_PROBE_TARGET_BINDING_SCHEMA_VERSION:
+        issues.append({"code": "invalid_target_binding_schema", "message": f"quota gate target_binding.schema_version must be {API_PROBE_TARGET_BINDING_SCHEMA_VERSION}"})
+    if not isinstance(actual_fingerprint, str) or not isinstance(expected_fingerprint, str) or actual_fingerprint != expected_fingerprint:
+        issues.append({"code": "target_binding_mismatch", "message": "quota gate target_binding.fingerprint does not match the current request payload and execution guardrails"})
+        return
+    for field in ("target_operation", "request_fingerprint", "request_input_schema_fingerprint", "request_input_schema_source", "allow_media_generation", "allow_non_text_inputs", "max_request_variations", "small_batch_size", "batch_size", "modalities"):
+        if actual.get(field) != expected.get(field):
+            issues.append({"code": "target_binding_field_mismatch", "message": f"quota gate target_binding.{field} does not match the current request"})
+            return
+
+
+def _target_binding_summary(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    fields = (
+        "schema_version",
+        "target_operation",
+        "binding_scope",
+        "fingerprint",
+        "request_fingerprint",
+        "request_input_schema_fingerprint",
+        "request_input_schema_source",
+        "allow_media_generation",
+        "allow_non_text_inputs",
+        "max_request_variations",
+        "small_batch_size",
+        "batch_size",
+        "modalities",
+        "raw_request_not_recorded",
+    )
+    return redact_sensitive({field: value.get(field) for field in fields if field in value})
+
+
+def _stable_sha256(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
     quota_gate_record = load_optional_json(getattr(args, "quota_gate_record", None))
     override = bool(getattr(args, "allow_quota_override", False))
@@ -486,19 +657,26 @@ def enforce_mutating_quota_gate(args: argparse.Namespace) -> dict[str, Any]:
                 raise ValueError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
             return {**build_quota_stop_go(None), "decision": "override", "override": {"used": True, "reason": reason}}
         raise ValueError(f"{args.operation} execution requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason")
-    quota_gate = extract_quota_gate(quota_gate_record)
+    validation = validate_quota_gate_record(
+        quota_gate_record,
+        target_operation=getattr(args, "operation", None),
+        ttl_seconds=getattr(args, "quota_gate_ttl_seconds", DEFAULT_QUOTA_GATE_TTL_SECONDS),
+        expected_binding=expected_quota_gate_binding(args, operation=getattr(args, "operation", None), require_binding=True),
+    )
+    quota_gate = validation["gate"]
     decision = quota_gate["decision"]
-    if decision == "go":
-        validate_quota_go_gate(quota_gate)
-        return {**quota_gate, "override": {"used": False, "reason": None}}
     if override:
         if len(reason) < 12:
             raise ValueError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
-        return {**quota_gate, "override": {"used": True, "reason": reason}}
+        return {**quota_gate, "validation": validation, "override": {"used": True, "reason": reason}}
+    if not validation["valid"]:
+        raise ValueError("quota gate validation failed: " + "; ".join(str(issue["message"]) for issue in validation["issues"]))
+    if decision == "go":
+        return {**quota_gate, "validation": validation, "override": {"used": False, "reason": None}}
     raise ValueError(f"{args.operation} execution blocked by quota gate decision={decision}; rerun after reset evidence or pass --allow-quota-override with --quota-override-reason")
 
 
-def extract_quota_gate(record: dict[str, Any] | None) -> dict[str, Any]:
+def extract_plan_batch_quota_gate(record: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(record, dict):
         raise ValueError("--quota-gate-record must contain a JSON object")
     response = record.get("response")
@@ -518,7 +696,12 @@ def extract_quota_gate(record: dict[str, Any] | None) -> dict[str, Any]:
     decision = gate.get("decision")
     if decision not in {"go", "stop", "wait"}:
         raise ValueError(f"--quota-gate-record has unsupported quota_stop_go.decision={redact_sensitive(str(decision))}")
-    return redact_sensitive(dict(gate))
+    return plan, redact_sensitive(dict(gate))
+
+
+def extract_quota_gate(record: dict[str, Any] | None) -> dict[str, Any]:
+    _plan, gate = extract_plan_batch_quota_gate(record)
+    return gate
 
 
 def validate_quota_go_gate(gate: dict[str, Any]) -> None:
@@ -527,6 +710,88 @@ def validate_quota_go_gate(gate: dict[str, Any]) -> None:
     evidence_present = gate.get("quota_or_reset_evidence_present") is True or bool(gate.get("quota")) or bool(header_keys)
     if gate.get("source") == "not-provided" or not evidence_present:
         raise ValueError("--quota-gate-record decision=go requires reviewed quota/reset evidence; rerun plan-batch with --quota-record or use an audited override")
+
+
+def validate_quota_gate_record(
+    record: dict[str, Any] | None,
+    *,
+    target_operation: str | None = None,
+    ttl_seconds: int = DEFAULT_QUOTA_GATE_TTL_SECONDS,
+    now: datetime | None = None,
+    expected_binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if isinstance(ttl_seconds, bool) or ttl_seconds < 0:
+        raise ValueError("--quota-gate-ttl-seconds must be an integer >= 0")
+    plan, gate = extract_plan_batch_quota_gate(record)
+    issues: list[dict[str, Any]] = []
+    plan_target = plan.get("target_operation")
+    if target_operation and plan_target != target_operation:
+        issues.append({"code": "target_operation_mismatch", "message": f"quota gate target_operation={plan_target!r} does not match requested operation={target_operation!r}"})
+    created_at = plan.get("created_at")
+    created_dt: datetime | None = None
+    age_seconds: int | None = None
+    if isinstance(created_at, str):
+        created_dt = _parse_utc_datetime(created_at)
+        if created_dt is None:
+            issues.append({"code": "invalid_created_at", "message": "quota gate plan.created_at is not a valid ISO timestamp"})
+    elif ttl_seconds:
+        issues.append({"code": "missing_created_at", "message": "quota gate plan.created_at is required when TTL validation is enabled"})
+    if created_dt is not None:
+        current = now or datetime.now(timezone.utc)
+        age_seconds = max(0, int((current - created_dt).total_seconds()))
+        if ttl_seconds and age_seconds > ttl_seconds:
+            issues.append({"code": "stale_gate", "message": f"quota gate is stale: age_seconds={age_seconds} exceeds ttl_seconds={ttl_seconds}"})
+    if gate.get("decision") == "go":
+        try:
+            validate_quota_go_gate(gate)
+        except ValueError as exc:
+            issues.append({"code": "go_without_quota_evidence", "message": str(exc)})
+    binding = _target_binding_summary(plan.get("target_binding"))
+    if expected_binding is not None:
+        _validate_target_binding(plan.get("target_binding"), expected_binding, issues)
+    return redact_sensitive(
+        {
+            "valid": not issues,
+            "schema_version": API_PROBE_GATE_VALIDATION_SCHEMA_VERSION,
+            "gate": gate,
+            "target_operation": plan_target,
+            "expected_target_operation": target_operation,
+            "created_at": created_at if isinstance(created_at, str) else None,
+            "age_seconds": age_seconds,
+            "ttl_seconds": ttl_seconds,
+            "target_binding": binding,
+            "expected_target_binding": _target_binding_summary(expected_binding),
+            "issues": issues,
+        }
+    )
+
+
+def expected_quota_gate_binding(args: argparse.Namespace, *, operation: str | None, require_binding: bool = False) -> dict[str, Any] | None:
+    if operation != "create-request":
+        return None
+    if not getattr(args, "request_file", None):
+        if require_binding:
+            raise ValueError("--request-file is required to validate a create-request quota gate target binding")
+        return None
+    request = json.loads(Path(args.request_file).read_text(encoding="utf-8"))
+    request_schema = json.loads(Path(args.request_schema_file).read_text(encoding="utf-8")) if getattr(args, "request_schema_file", None) else None
+    request_schema_source = "file" if request_schema is not None else "client_default"
+    preflight = summarize_generation_request(request)
+    modality_sequence = build_modality_sequence(preflight)
+    small_count = _positive_count(getattr(args, "small_batch_size", 1), "small_batch_size")
+    batch_size = _inferred_batch_size(preflight, small_count, getattr(args, "batch_size", None))
+    return build_target_binding(
+        target_operation=operation,
+        request=request,
+        request_input_schema=request_schema,
+        request_input_schema_source=request_schema_source,
+        allow_media_generation=getattr(args, "allow_media_generation", False),
+        allow_non_text_inputs=getattr(args, "allow_non_text_inputs", False),
+        max_request_variations=getattr(args, "max_request_variations", 1),
+        small_batch_size=small_count,
+        batch_size=batch_size,
+        modality_sequence=modality_sequence,
+    )
 
 
 def default_output_path(operation: str, *, dry_run: bool) -> Path:
@@ -547,6 +812,17 @@ def load_optional_json(path: str | None) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return payload
+
+
+def _parse_utc_datetime(value: str) -> datetime | None:
+    try:
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:

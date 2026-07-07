@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -7,9 +8,11 @@ import pytest
 
 from packages.sdk.ashr_clone.calibrate import (
     CALIBRATION_MANIFEST_SCHEMA_VERSION,
+    DEFAULT_QUOTA_GATE_TTL_SECONDS,
     PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
     CalibrationArgs,
     CalibrationUsageError,
+    calibration_request_fingerprint,
     parse_args,
     request_for_modality,
     run_calibration,
@@ -74,7 +77,19 @@ class FakeCalibrationClient:
         return record
 
 
-def write_plan_batch_gate(tmp_path: Path, *, decision: str = "go") -> Path:
+def gate_created_at_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def write_plan_batch_gate(
+    tmp_path: Path,
+    *,
+    decision: str = "go",
+    target_operation: str = "create-request",
+    created_at: str | None = None,
+    modalities: list[str] | None = None,
+    request_fingerprint=None,
+) -> Path:
     gate = {
         "decision": decision,
         "source": "quota-record",
@@ -85,12 +100,22 @@ def write_plan_batch_gate(tmp_path: Path, *, decision: str = "go") -> Path:
     }
     if decision != "go":
         gate["quota"] = {"blocked": True, "resource": "requests", "limit": 5, "used": 5, "requested": 1, "remaining": 0}
+    plan = {
+        "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+        "target_operation": target_operation,
+        "created_at": created_at or gate_created_at_now(),
+        "quota_stop_go": gate,
+    }
+    if modalities is not None:
+        plan["modalities"] = modalities
+    if request_fingerprint is not None:
+        plan["request_fingerprint"] = request_fingerprint
     record = {
         "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
         "function": "plan_batch",
         "dry_run": True,
         "status": "blocked" if decision == "stop" else "planned",
-        "response": {"plan": {"schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION, "quota_stop_go": gate}},
+        "response": {"plan": plan},
         "field_map_version": "a1-api-calibration-2026-07-04",
     }
     path = tmp_path / f"quota_gate_{decision}.json"
@@ -103,7 +128,17 @@ def test_parse_args_defaults_to_safe_dry_run():
 
     assert args.execute is False
     assert args.include_mutating is False
+    assert args.quota_gate_ttl_seconds == DEFAULT_QUOTA_GATE_TTL_SECONDS
     assert selected_calibration_modalities(args) == ("text", "image", "audio", "file", "video")
+
+
+def test_parse_args_accepts_zero_quota_gate_ttl_and_rejects_negative():
+    args = parse_args(["--quota-gate-ttl-seconds", "0"])
+
+    assert args.quota_gate_ttl_seconds == 0
+
+    with pytest.raises(SystemExit):
+        parse_args(["--quota-gate-ttl-seconds", "-1"])
 
 
 def test_parse_args_requires_small_batch_for_execute():
@@ -241,9 +276,73 @@ def test_run_calibration_rejects_go_quota_gate_without_evidence(tmp_path: Path):
     assert not output.exists()
 
 
+def test_run_calibration_rejects_stale_quota_gate_before_calls(tmp_path: Path):
+    output = tmp_path / "stale_gate.json"
+    gate = write_plan_batch_gate(tmp_path, created_at="2000-01-01T00:00:00Z")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="stale"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_allows_stale_quota_gate_when_ttl_disabled(tmp_path: Path):
+    output = tmp_path / "ttl_disabled.json"
+    gate = write_plan_batch_gate(tmp_path, created_at="2000-01-01T00:00:00Z")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), quota_gate_ttl_seconds=0)
+    manifest = run_calibration(args, env={}, client=client)
+
+    assert manifest["status"] == "ok"
+    assert manifest["guardrails"]["quota_gate"]["validation"]["ttl_seconds"] == 0
+    assert any(call[0] == "create_request" for call in client.calls)
+
+
+def test_run_calibration_rejects_wrong_target_quota_gate_before_calls(tmp_path: Path):
+    output = tmp_path / "wrong_target.json"
+    gate = write_plan_batch_gate(tmp_path, target_operation="create-run")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="target_operation"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_rejects_quota_gate_modality_mismatch_before_calls(tmp_path: Path):
+    output = tmp_path / "wrong_modalities.json"
+    gate = write_plan_batch_gate(tmp_path, modalities=["text"])
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, allow_paid_media=True, max_retries=0, modalities=("image",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="modalities"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_rejects_quota_gate_request_fingerprint_mismatch_before_calls(tmp_path: Path):
+    output = tmp_path / "wrong_fingerprint.json"
+    gate = write_plan_batch_gate(tmp_path, request_fingerprint="not-the-text-calibrator-fingerprint")
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+
+    with pytest.raises(CalibrationUsageError, match="request_fingerprint"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
 def test_run_calibration_small_batch_with_text_mutation(tmp_path: Path):
     output = tmp_path / "real.json"
-    gate = write_plan_batch_gate(tmp_path)
+    gate = write_plan_batch_gate(tmp_path, modalities=["text"], request_fingerprint=calibration_request_fingerprint("text"))
     args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient())
 
@@ -251,6 +350,8 @@ def test_run_calibration_small_batch_with_text_mutation(tmp_path: Path):
     assert manifest["summary"]["read_steps"] == 5
     assert manifest["summary"]["mutating_steps"] == 1
     assert manifest["summary"]["modalities"] == ["text"]
+    assert manifest["guardrails"]["quota_gate"]["validation"]["modalities"] == ["text"]
+    assert manifest["guardrails"]["quota_gate"]["validation"]["request_fingerprint"] == calibration_request_fingerprint("text")
     assert "tp_syntheticsecret" not in json.dumps(manifest)
 
 

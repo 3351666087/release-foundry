@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,7 +44,11 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function writePlanBatchGate(path, decision = "go") {
+function writePlanBatchGate(path, decision = "go", options = {}) {
+  const targetOperation = options.targetOperation ?? "create-run";
+  const createdAt = options.createdAt ?? new Date().toISOString();
+  const request = options.request ?? { agent: { accepted_inputs: { text: true } }, test_config: { num_variations: 1 } };
+  const targetBinding = targetOperation === "create-request" ? buildTestTargetBinding(targetOperation, request, options) : undefined;
   writeFileSync(
     path,
     JSON.stringify({
@@ -52,6 +57,11 @@ function writePlanBatchGate(path, decision = "go") {
       response: {
         plan: {
           schema_version: "ashr.clone.api_probe_batch_plan.v1",
+          target_operation: targetOperation,
+          created_at: createdAt,
+          ...(targetBinding ? { target_binding: targetBinding } : {}),
+          small_batch_size: options.smallBatchSize ?? 1,
+          batch_size: options.batchSize ?? inferBatchSize(request, options.smallBatchSize ?? 1),
           quota_stop_go: {
             decision,
             source: "unit-test",
@@ -60,11 +70,88 @@ function writePlanBatchGate(path, decision = "go") {
             can_enter_small_batch: decision === "go",
             can_enter_batch: decision === "go",
           },
+          phases: [
+            { phase: "dry-run", batch_size: 0, estimated_real_api_calls: 0 },
+            { phase: "small-batch", batch_size: 1, estimated_real_api_calls: 2 },
+          ],
         },
       },
     }),
     "utf8",
   );
+}
+
+function buildTestTargetBinding(targetOperation, request, options = {}) {
+  const smallBatchSize = options.smallBatchSize ?? 1;
+  const batchSize = options.batchSize ?? inferBatchSize(request, smallBatchSize);
+  const modalities = modalityOrder(request);
+  const components = {
+    target_operation: targetOperation,
+    request_fingerprint: stableSha256(request),
+    request_input_schema_fingerprint: options.requestInputSchema ? stableSha256(options.requestInputSchema) : null,
+    request_input_schema_source: options.requestInputSchema ? "file" : "client_default",
+    allow_media_generation: options.allowMediaGeneration ?? false,
+    allow_non_text_inputs: options.allowNonTextInputs ?? false,
+    max_request_variations: options.maxRequestVariations ?? 1,
+    small_batch_size: smallBatchSize,
+    batch_size: batchSize,
+    modalities,
+  };
+  return {
+    schema_version: "ashr.clone.api_probe_target_binding.v1",
+    target_operation: targetOperation,
+    binding_scope: "request-payload",
+    request_fingerprint: components.request_fingerprint,
+    request_input_schema_fingerprint: components.request_input_schema_fingerprint,
+    request_input_schema_source: components.request_input_schema_source,
+    allow_media_generation: components.allow_media_generation,
+    allow_non_text_inputs: components.allow_non_text_inputs,
+    max_request_variations: components.max_request_variations,
+    small_batch_size: smallBatchSize,
+    batch_size: batchSize,
+    modalities,
+    fingerprint: stableSha256(components),
+    fingerprint_fields: Object.keys(components).sort(),
+    raw_request_not_recorded: true,
+  };
+}
+
+function inferBatchSize(request, smallBatchSize) {
+  const variations = request?.test_config?.num_variations ?? request?.num_variations;
+  return Number.isSafeInteger(variations) ? Math.max(smallBatchSize, variations) : Math.max(smallBatchSize, 2);
+}
+
+function modalityOrder(request) {
+  const accepted = request?.agent?.accepted_inputs ?? {};
+  const generation = request?.generation_options ?? {};
+  const enabled = new Set();
+  for (const modality of ["text", "image", "audio", "file", "video", "conversation"]) {
+    const value = accepted[modality];
+    if (value === true || value?.enabled === true) {
+      enabled.add(modality);
+    }
+  }
+  if (generation.generate_images === true) enabled.add("image");
+  if (generation.generate_audio === true) enabled.add("audio");
+  if (generation.generate_files === true) enabled.add("file");
+  if (generation.generate_videos === true) enabled.add("video");
+  if (generation.generate_simulations === true) enabled.add("simulation");
+  if (enabled.size === 0) enabled.add("text");
+  return ["text", "image", "audio", "file", "video", "conversation", "simulation"].filter((modality) => enabled.has(modality));
+}
+
+function stableSha256(value) {
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonicalValue(value))).digest("hex")}`;
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])]));
+  }
+  return value;
 }
 
 test("probe CLI dry-run init writes JSON and does not call fetch", async () => {
@@ -369,6 +456,117 @@ test("probe CLI blocks stop quota gate before key lookup", async () => {
   }
 });
 
+test("probe CLI blocks stale quota gate before key lookup unless TTL is disabled", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "quota-stale.json");
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writePlanBatchGate(gateFile, "go", { createdAt: "2000-01-01T00:00:00Z" });
+
+    const staleCapture = captureStreams();
+    const staleCode = await main(
+      ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", join(temp, "stale.json")],
+      {},
+      staleCapture.streams,
+    );
+
+    assert.equal(staleCode, 2);
+    assert.match(staleCapture.stderr, /stale/);
+    assert.doesNotMatch(staleCapture.stderr, new RegExp(ASHR_API_ENV_VAR));
+
+    const ttlDisabledCapture = captureStreams();
+    const ttlDisabledCode = await main(
+      [
+        "create-run",
+        "--execute",
+        "--allow-mutate",
+        "--max-retries",
+        "0",
+        "--dataset-id",
+        "1",
+        "--result-file",
+        resultFile,
+        "--quota-gate-record",
+        gateFile,
+        "--quota-gate-ttl-seconds",
+        "0",
+        "--output",
+        join(temp, "ttl-disabled.json"),
+      ],
+      {},
+      ttlDisabledCapture.streams,
+    );
+
+    assert.equal(ttlDisabledCode, 2);
+    assert.match(ttlDisabledCapture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI blocks wrong quota gate target before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const resultFile = join(temp, "result.json");
+  const gateFile = join(temp, "quota-wrong-target.json");
+  try {
+    writeFileSync(resultFile, JSON.stringify({ status: "passed" }), "utf8");
+    writePlanBatchGate(gateFile, "go", { targetOperation: "create-request" });
+
+    const capture = captureStreams();
+    const code = await main(
+      ["create-run", "--execute", "--allow-mutate", "--max-retries", "0", "--dataset-id", "1", "--result-file", resultFile, "--quota-gate-record", gateFile, "--output", join(temp, "wrong-target.json")],
+      {},
+      capture.streams,
+    );
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /target_operation/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("probe CLI blocks same-operation wrong request binding before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
+  const requestFile = join(temp, "request.json");
+  const gateFile = join(temp, "quota-wrong-request.json");
+  try {
+    const originalRequest = { agent: { name: "original", accepted_inputs: { text: true } }, test_config: { num_variations: 1 } };
+    const changedRequest = { agent: { name: "changed", accepted_inputs: { text: true } }, test_config: { num_variations: 1 } };
+    writeFileSync(requestFile, JSON.stringify(changedRequest), "utf8");
+    writePlanBatchGate(gateFile, "go", { targetOperation: "create-request", request: originalRequest });
+
+    const capture = captureStreams();
+    const code = await main(
+      [
+        "create-request",
+        "--execute",
+        "--allow-mutate",
+        "--max-retries",
+        "0",
+        "--request-name",
+        "Wrong binding",
+        "--request-file",
+        requestFile,
+        "--quota-gate-record",
+        gateFile,
+        "--output",
+        join(temp, "wrong-binding.json"),
+      ],
+      {},
+      capture.streams,
+    );
+
+    assert.equal(code, 2);
+    assert.match(capture.stderr, /target_binding\.fingerprint/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("probe CLI persists audited quota override reason when evidence is emitted", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-probe-"));
   const resultFile = join(temp, "result.json");
@@ -430,7 +628,14 @@ test("probe CLI create-request execute preflight blocks unsafe media before tran
       }),
       "utf8",
     );
-    writePlanBatchGate(gateFile, "go");
+    writePlanBatchGate(gateFile, "go", {
+      targetOperation: "create-request",
+      request: {
+        agent: { accepted_inputs: { text: true } },
+        generation_options: { generate_images: true },
+        test_config: { num_variations: 1 },
+      },
+    });
     const capture = captureStreams();
     const output = join(temp, "media-blocked.json");
     const code = await main(

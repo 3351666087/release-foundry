@@ -2239,3 +2239,75 @@ Next top 20:
 18. Add enterprise quota ledger export.
 19. Add A2/A3 gate metadata contract request.
 20. Add hosted run lifecycle calibration matrix behind the same gate.
+
+## A1 round10 - quota gate schema, validator, TTL, request binding, and real read-only calibration final (2026-07-07)
+
+Goal slice:
+- Close Round10 Growth-Auditor P1s: gate records now have a JSON schema, a CLI validator, freshness TTL, target-operation binding, and request-payload fingerprint binding before paid mutation.
+- Bring Python probe, Python calibrator, TS probe, and TS calibrator into the same gate posture before real API key/client lookup.
+- Use real Ashr API read-only calibration and Chrome/dashboard/docs read-only checks without writing raw keys or mutating paid resources.
+
+Baseline / peer state:
+- Branch: `codex/a1-local-sdk-runner`, tracking `origin/codex/a1-local-sdk-runner`.
+- Start-of-round checks run: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb --untracked-files=all`, `gh repo view`, and `gh pr list --state all --limit 20`.
+- PR scan showed prior A1 PRs 1/4/6/7/9/10/11 merged, A2 PR 2 merged, and A3 PRs 3/5/8 merged; no open remote PR conflict observed for this branch.
+- Peer/subagent changes integrated: Python calibrator parity by Copernicus, TS calibrator parity by Boole, earlier TS probe worker change, docs/evidence worker draft, Growth-Auditor pre-audit.
+
+Implemented:
+- `services/runner/api_probe.py`: added `validate-gate`, `--quota-gate-ttl-seconds` default `86400`, `ashr.clone.api_probe_gate_validation.v1`, `ashr.clone.api_probe_target_binding.v1`, request/schema stable sha256 fingerprints, and target-binding mismatch rejection.
+- `docs/a1/schemas/api_probe_quota_gate.schema.json`: new public schema for plan-batch quota gates requiring `target_operation`, `created_at`, `target_binding`, and `quota_stop_go`.
+- `packages/sdk/ashr_clone/calibrate.py`: mutating calibrator gates now enforce target `create-request`, TTL, optional modality binding, and request fingerprint binding.
+- `packages/ts/ashr-clone/src/probe.ts`: TS mutating probe now checks target, TTL, numeric plan bindings, and request-payload target binding before key lookup.
+- `packages/ts/ashr-clone/src/calibrate.ts`: TS calibrator now enforces target, TTL, modality binding, and request fingerprint binding instead of only recording the fingerprint.
+- Tests added in `tests/a1/test_api_client.py`, `tests/a1/test_python_calibrator.py`, `packages/ts/ashr-clone/test/probe.test.mjs`, and `packages/ts/ashr-clone/test/calibrate.test.mjs` for stale gates, wrong target, same-operation wrong request payload, request fingerprint mismatch, and schema snapshot coverage.
+
+Private evidence:
+- Python real read-only calibration: `docs/evidence/private_refs/a1_python_api_calibration_round10_readonly_real.json`, status `ok`, mode `small-batch`, 5 read steps, 0 mutating steps, estimated calls 7.
+- TS real read-only calibration: `docs/evidence/private_refs/a1_ts_api_calibration_round10_readonly_real.json`, status `ok`, mode `small-batch`, 5 read steps, 0 mutating steps, estimated calls 7.
+- Response keys observed from both Python and TS real read-only calibration: `init` -> `features, notes, status, tenant, user`; `health-check` -> `db, message, status`; `list-agents` -> `_user, agents, status`; `list-datasets` -> `_user, datasets, next_cursor, status`; `list-requests` -> `_user, next_cursor, requests, status`.
+- Gate validation evidence: `docs/evidence/private_refs/a1_api_validate_gate_round10_quota_stop.json`, `docs/evidence/private_refs/a1_api_probe_batch_plan_round10_request_bound.json`, `docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_ok.json`, `docs/evidence/private_refs/a1_api_validate_gate_round10_request_bound_mismatch.json`.
+- Request-bound gate proof: same request validates with `issues=0`; changed request fails with `target_binding_mismatch`.
+- Failed point recorded and fixed: first synthetic private request files were written with UTF-8 BOM and rejected by JSON parsing; rerun used UTF-8 without BOM.
+
+Official product/docs evidence:
+- Chrome read-only dashboard check, logged-in state: `https://lab.ashr.io/?tab=usage` showed Usage period started June 22, 2026, `Images 0 of 100`, `Audio 0 of 200`, `Files 1 of 100`, plus Upgrade.
+- Chrome read-only dashboard navigation confirmed top-level buttons: Agents, Datasets, Folders, Analytics, Usage, Trust, API Keys, Team, Sign out.
+- Chrome docs read-only check: `https://ashr.io/docs/python-sdk/overview/` confirms Python SDK surfaces Testing Platform plus Observability, `EvalRunner`, `RunBuilder`, `Agent`, `client.trace()`, `Span`, `Generation`, VM Integration, `pip install ashr-labs`, dataset generation, run deploy, poll run, and aggregate metrics.
+- No Ashr API key was entered into Chrome or written to tracked files.
+
+Validation:
+- `python -B -m py_compile services/runner/api_probe.py tests/a1/test_api_client.py packages/sdk/ashr_clone/calibrate.py tests/a1/test_python_calibrator.py`: passed.
+- `python -B -m pytest tests/a1/test_api_client.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider`: 90 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 168 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 189 passed.
+- `python -B tests/integration/a1_readiness.py --skip-python --skip-ts --skip-calibration --summary-output docs/evidence/private_refs/a1_readiness_round10_safety.json`: ok, 2 steps.
+- Public evidence linter: 326 records, quota block count 41, lint issues 0.
+- `git diff --check`: exit 0 with CRLF warnings only.
+- Public touched-file secret scan matched historical docs wording and intentional synthetic test strings such as `tp_test_secret`, `tp_syntheticsecret`, `Bearer tp_secret`, and placeholder docs text only; no operational key material was found.
+
+Current known gaps:
+- Public evidence index was not merge-refreshed for the two round10 calibration manifests because the private records remain sufficient for this round and the tracked index stayed clean at 326 records.
+- TS probe still lacks standalone `plan-batch`/`validate-gate` CLI generation parity; TS execution-side validation is enforced, but Python owns the current gate generator.
+- Private output path enforcement remains convention-based for custom `--output`; next round should add an owned private-output guard or explicit escape flag.
+
+Next top 20:
+1. Add TS `plan-batch` and standalone `validate-gate` CLI parity.
+2. Extract a shared quota-gate validator fixture set for Python/TS probe/calibrator.
+3. Add private-output-dir enforcement for real API and gate validation records.
+4. Add public override audit manifest with redacted reason hashes.
+5. Add Usage import parser for Images/Audio/Files quota labels.
+6. Add quota ledger mapping for image/audio/file/video/text as equal first-class resources.
+7. Add request fingerprint schema docs for calibrator modality maps.
+8. Add response header quota/reset detector fixtures.
+9. Add real read-only calibration merge into public evidence index with manifest-level summarization.
+10. Add dry-run plan that estimates per-modality paid call cost before mutating calibration.
+11. Add small-batch mutating text calibration path gated by fresh request-bound quota evidence.
+12. Add official API error taxonomy snapshots from read-only and controlled failure records.
+13. Add CI check that rejects stale gate evidence in committed docs/examples.
+14. Add no-private-output custom path linter.
+15. Add TypeScript docs quickstart matching Python SDK docs.
+16. Add observability trace/replay field parity for `client.trace`, `Span`, and `Generation`.
+17. Add VM stream fixture fields from official VM Integration docs.
+18. Add A3-consumable gate readiness badge from quota-gate validator output.
+19. Add enterprise audit export for gate decisions, overrides, TTL, and request fingerprints.
+20. Add release checklist requiring real API read-only calibration plus request-bound gate validation before any mutating paid batch.
