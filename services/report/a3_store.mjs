@@ -8,6 +8,10 @@ import {
 } from "./report_builder.mjs";
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
+import {
+  buildSaasAdminConsole,
+  planSaasAdminAction
+} from "./a3_saas_admin.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -62,6 +66,10 @@ export const A3_DB_CONTRACT = {
   tenant_columns_required: ["organization_id", "project_id"],
   tables: [
     "organizations",
+    "users",
+    "team_members",
+    "roles",
+    "api_keys",
     "projects",
     "runs",
     "cases",
@@ -71,6 +79,7 @@ export const A3_DB_CONTRACT = {
     "failure_clusters",
     "media_evidence",
     "shareable_reports",
+    "trust_reports",
     "audit_events",
     "usage_ledger"
   ],
@@ -80,7 +89,9 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/runs/:runId",
     "GET /api/a3/cases/:caseId",
     "POST /api/a3/reports/share",
-    "GET /api/a3/reports/:reportId"
+    "GET /api/a3/reports/:reportId",
+    "GET /api/a3/admin/console",
+    "POST /api/a3/admin/actions/plan"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -213,6 +224,35 @@ export function createMemoryA3Store(seed = {}) {
         source: snapshot.source,
         case: item
       };
+    },
+
+    async getSaasAdminConsole(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      return buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+    },
+
+    async planSaasAdminAction(action, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const consoleState = buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      return planSaasAdminAction(action, {
+        releaseGate: {
+          decision: consoleState.trust.release_gate_decision,
+          decision_label: consoleState.trust.release_gate_label
+        },
+        usage: consoleState.usage,
+        cloudShell: consoleState.cloud_management,
+        organizationId: consoleState.organization.organization_id,
+        projectId: consoleState.project.project_id,
+        createdAt: options.createdAt
+      });
     },
 
     async createShareableReport(options = {}) {
@@ -362,6 +402,11 @@ function buildDashboardPayload(snapshot, storageMode) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
+    saas_admin_console: buildSaasAdminConsole(snapshot, {
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId
+    }),
     summary: snapshot.summary,
     cases: cases.map((item) => ({
       run_id: item.run_id,

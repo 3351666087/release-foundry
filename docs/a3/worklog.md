@@ -2600,3 +2600,43 @@ This is not yet a full SaaS app, but it changes the architecture direction in th
 - Add a real SQL adapter behind `a3_store.mjs` after A1 chooses Postgres/MySQL/SQLite migration tooling.
 - Add hosted report route rendering, not only hosted report payload creation.
 - Add import endpoints for A1 RunResult and A2 GradeResult so API data can be created without hand-loaded fixtures.
+
+## 2026-07-07 - SaaS Admin Console Shell
+
+### Goal
+
+Add the missing SaaS product-console areas the team lead called out: login, cloud/team management, usage, API keys, team, and trust. Keep it clean-room and safe: no real API-key creation, no real team invite, no real billing mutation, no real Trust publish, and no copied private frontend source.
+
+### Work completed
+
+- Added `services/report/a3_saas_admin.mjs`.
+  - Produces `a3.saas_admin_console.v1`.
+  - Covers Login, Organization/Project, Team, API Keys, Usage, Trust, Cloud Management, A1/A2 compatibility, and action plans.
+  - Every sensitive cloud action is explicitly marked `read_only`, `plan_only`, `mock_only`, or `disabled`.
+- Extended `services/report/a3_store.mjs`.
+  - Adds `getSaasAdminConsole(...)`.
+  - Adds `planSaasAdminAction(...)`.
+  - Adds `saas_admin_console` to `/api/a3/dashboard` payload.
+  - Extends DB contract with `users`, `team_members`, `roles`, `api_keys`, and `trust_reports`.
+- Extended `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/admin/console`.
+  - Adds `POST /api/a3/admin/actions/plan`.
+- Extended dashboard.
+  - New `SaaS Admin Console` panel.
+  - Shows Login, Team roster, Usage, API key metadata, Trust status, Cloud Action Plan, and A1/A2 compatibility counts.
+  - Uses API action planning in API-backed mode and local plan state in static mode.
+- Added `apps/dashboard/src/components/saas-admin-console.mjs`.
+- Added tests:
+  - `tests/a3/a3_saas_admin.test.mjs`
+  - Store/API/dashboard wiring coverage for admin console and action planning.
+
+### Safety boundary
+
+- No real Ashr API key was read, created, printed, saved, or revoked.
+- No real team invite, billing change, Trust publish, or OAuth login flow was executed.
+- API key rows are metadata-only with redacted prefixes.
+- The implementation uses clean-room product behavior already captured in redacted A3/P3 notes and fixtures.
+
+### Current interpretation
+
+A3 now looks more like a SaaS console instead of only a run/report dashboard. It still does not provide real auth/RBAC/API-key mutation, but it shows the exact product surfaces and guardrails needed before those become real hosted features.

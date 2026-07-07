@@ -16,6 +16,22 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.schema_version, "a3.api_dashboard_payload.v1");
     assert.equal(dashboard.summary.totalCases, 32);
     assert.equal(dashboard.storage.db_contract.mysql_compatible, true);
+    assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
+
+    const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
+    assert.equal(admin.login.user_identity, "[REDACTED]");
+    assert.equal(admin.api_keys.status, "metadata_only");
+    assert.equal(admin.cloud_management.real_mutations_enabled, false);
+
+    const actionResponse = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "invite_teammate" })
+    });
+    assert.equal(actionResponse.ok, true);
+    const actionPlan = await actionResponse.json();
+    assert.equal(actionPlan.mode, "plan_only");
+    assert.equal(actionPlan.writes_real_ashr_cloud, false);
 
     const runs = await getJson(`${url}/api/a3/runs?source=mock`);
     assert.equal(runs.schema_version, "a3.api_run_list.v1");

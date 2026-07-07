@@ -374,6 +374,10 @@
 - [x] Add a shareable hosted report payload with redaction, hashes, report metadata, and share URL path.
 - [x] Add dashboard component boundary for SaaS Runtime instead of keeping every new UI block inside the main app module.
 - [x] Add tests for A3 store, A3 API server, shareable report payloads, and dashboard API wiring.
+- [x] Add SaaS Admin Console shell for login, cloud/project management, usage, API key metadata, team, and trust.
+- [x] Add `GET /api/a3/admin/console` and `POST /api/a3/admin/actions/plan`.
+- [x] Keep SaaS admin actions safe: real login, API-key creation, team invites, billing mutations, and Trust publishing are disabled or plan-only.
+- [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
 - [ ] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
 - [ ] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.

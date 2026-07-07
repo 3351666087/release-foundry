@@ -450,3 +450,24 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /id="share-report-detail"/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });
+
+test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and trust", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /a3_saas_admin\.mjs/);
+  assert.match(html, /components\/saas-admin-console\.mjs/);
+  assert.match(html, /id="saas-admin"/);
+  assert.match(html, /id="saas-admin-body"/);
+  assert.match(html, /SaaS Admin Console/);
+  assert.match(html, /buildSaasAdminConsole/);
+  assert.match(html, /function refreshLocalSaasAdmin\(\)/);
+  assert.match(html, /function renderSaasAdmin\(\)/);
+  assert.match(html, /state\.saasAdmin/);
+  assert.match(html, /planA3AdminAction/);
+  assert.match(html, /data-admin-action-select/);
+  assert.match(html, /login, team, usage, API key, and trust state/);
+  assert.match(html, /saas_admin_console/);
+  assert.match(html, /selectedAdminAction/);
+  assert.match(html, /selectedAdminPlan/);
+  assert.match(html, /clean-room shell/);
+});

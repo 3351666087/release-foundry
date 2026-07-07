@@ -235,6 +235,20 @@ h1 {
   gap: 14px;
 }
 
+.wide-panel {
+  grid-column: span 2;
+}
+
+.admin-action-select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  min-height: 36px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
 .ops-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.2fr) minmax(260px, 0.9fr);
@@ -1092,6 +1106,10 @@ h1 {
   .argument-diff-row,
   .workflow {
     grid-template-columns: 1fr;
+  }
+
+  .wide-panel {
+    grid-column: span 1;
   }
 
   .actions {

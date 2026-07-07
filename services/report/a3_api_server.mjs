@@ -40,6 +40,24 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url)));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {
+        return sendJson(response, 200, await store.getSaasAdminConsole({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/plan") {
+        const body = await readJsonBody(request);
+        const plan = await store.planSaasAdminAction(body.action, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id
+        });
+        return sendJson(response, 200, plan);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {
         return sendJson(response, 200, {
           schema_version: "a3.api_run_list.v1",

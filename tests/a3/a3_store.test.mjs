@@ -30,6 +30,8 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(dashboard.storage.db_contract.schema_version, A3_DB_CONTRACT.schema_version);
   assert.equal(dashboard.summary.totalCases, 32);
   assert.equal(dashboard.cases.length, 32);
+  assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
+  assert.equal(dashboard.saas_admin_console.api_keys.status, "metadata_only");
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);
@@ -47,6 +49,14 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(report.status, "shareable");
   assert.match(report.share_url_path, /^\/reports\/a3r_/);
   assert.equal(report.sealed_evidence.secret_free, true);
+
+  const admin = await store.getSaasAdminConsole({ source: "mock" });
+  assert.equal(admin.team.members.length, 4);
+  assert.equal(admin.safety.real_team_invites_enabled, false);
+
+  const action = await store.planSaasAdminAction("rotate_api_key", { source: "mock" });
+  assert.equal(action.mode, "plan_only");
+  assert.equal(action.writes_real_ashr_cloud, false);
 });
 
 test("A3 file-backed store persists shareable report metadata without a real DB server", async () => {

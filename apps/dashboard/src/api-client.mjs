@@ -16,6 +16,35 @@ export async function fetchA3DashboardSnapshot(options = {}) {
   return response.json();
 }
 
+export async function fetchA3AdminConsole(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/admin/console?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API admin console load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function planA3AdminAction(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/admin/actions/plan?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      source,
+      action: options.action
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API admin action plan failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function createShareableA3Report(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

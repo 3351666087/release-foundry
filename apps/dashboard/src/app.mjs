@@ -30,9 +30,12 @@ import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapp
 import {
   createShareableA3Report,
   fetchA3DashboardSnapshot,
+  planA3AdminAction,
   isA3ApiSource
 } from "./api-client.mjs";
 import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
+import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
+import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 
 const state = {
   runs: null,
@@ -47,6 +50,9 @@ const state = {
   frontendMirror: {},
   frontendCodeCrawl: {},
   saasRuntime: {},
+  saasAdmin: {},
+  selectedAdminAction: "view_usage",
+  selectedAdminPlan: null,
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -412,7 +418,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} · ${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} ? ${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -994,7 +1000,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} · ${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} ? ${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -2098,6 +2104,8 @@ function applyApiDashboardPayload(payload) {
   state.frontendSummary = payload.frontend_summary || {};
   state.frontendMirror = payload.frontend_mirror || {};
   state.frontendCodeCrawl = payload.frontend_code_crawl || {};
+  state.saasAdmin = payload.saas_admin_console || {};
+  state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
     source: payload.source,
@@ -2131,6 +2139,58 @@ function resetSaasRuntime(mode = "static_fixture") {
 
 function renderSaasRuntime() {
   renderSaasRuntimePanel($("saas-runtime-body"), state.saasRuntime);
+}
+
+function refreshLocalSaasAdmin() {
+  state.saasAdmin = buildSaasAdminConsole({
+    source: state.source,
+    runFixture: state.runs,
+    gradeFixture: state.grades,
+    coverage: state.coverage,
+    requestProvenance: state.requestProvenance,
+    usageQuota: state.usageQuota,
+    usageQuotaApiProbe: state.usageQuotaApiProbe,
+    mediaSignedUrlCoverage: state.mediaSignedUrlCoverage,
+    authCheck: state.authCheck,
+    frontendSummary: state.frontendSummary
+  });
+  state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
+}
+
+function renderSaasAdmin() {
+  renderSaasAdminConsole($("saas-admin-body"), state.saasAdmin, {
+    selectedAction: state.selectedAdminAction,
+    selectedPlan: state.selectedAdminPlan
+  });
+  const select = document.querySelector("[data-admin-action-select]");
+  if (select) {
+    select.addEventListener("change", async () => {
+      state.selectedAdminAction = select.value;
+      if (isA3ApiSource(state.source)) {
+        try {
+          state.selectedAdminPlan = await planA3AdminAction({
+            source: state.source,
+            action: state.selectedAdminAction,
+            baseUrl: getA3ApiBaseUrl()
+          });
+        } catch (error) {
+          state.selectedAdminPlan = {
+            action: state.selectedAdminAction,
+            mode: "failed",
+            enabled: false,
+            area: "api",
+            risk: "unknown",
+            reason: error.message,
+            next_step: "Check the local A3 API server."
+          };
+          console.error(error);
+        }
+      } else {
+        state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
+      }
+      renderSaasAdmin();
+    });
+  }
 }
 
 async function loadDataSource(source) {
@@ -2187,6 +2247,7 @@ async function loadDataSource(source) {
     state.frontendMirror = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
     state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
     state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+    refreshLocalSaasAdmin();
   }
   state.cases = normalizeCases(state.runs, state.grades);
   state.filteredCases = state.cases;
@@ -2206,6 +2267,7 @@ async function loadDataSource(source) {
   renderSummary();
   renderConsoleStats();
   renderSaasRuntime();
+  renderSaasAdmin();
   renderCoverageHealth();
   renderReleaseGate();
   renderReleaseWarRoom();
