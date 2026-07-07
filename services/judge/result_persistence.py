@@ -262,6 +262,14 @@ def _record_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "endpoint",
         "status_code",
         "ok",
+        "source",
+        "operation",
+        "upload_id",
+        "batch_id",
+        "trace_batch_id",
+        "payload_sha256",
+        "trace_batch_sha256",
+        "raw_payload_included",
         "scenario_id",
         "case_id",
         "passed",
@@ -272,11 +280,27 @@ def _record_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "selected_count",
     )
     summary = {key: payload[key] for key in summary_keys if key in payload}
+    if isinstance(payload.get("payload_keys"), list):
+        summary["payload_keys"] = [str(item) for item in payload["payload_keys"]]
     result = payload.get("result")
     if isinstance(result, dict):
-        for key in ("schema_version", "scenario_id", "case_id", "passed", "score", "primary_failure_class", "decision"):
+        for key in (
+            "schema_version",
+            "scenario_id",
+            "case_id",
+            "passed",
+            "score",
+            "primary_failure_class",
+            "decision",
+            "upload_id",
+            "batch_id",
+            "payload_sha256",
+            "raw_payload_included",
+        ):
             if key in result and key not in summary:
                 summary[key] = result[key]
+        if isinstance(result.get("payload_keys"), list) and "payload_keys" not in summary:
+            summary["payload_keys"] = [str(item) for item in result["payload_keys"]]
     release_policy_audit = _release_policy_audit_summary(payload)
     if release_policy_audit:
         summary["release_policy_audit"] = release_policy_audit

@@ -120,13 +120,12 @@
         "requires_network": false
       },
       {
-        "endpoint_id": "result_persistence_manifest",
+        "endpoint_id": "result_persistence",
         "method": "POST",
         "path": "/internal/results/persist",
         "request_fields": [
-          "grade_report",
-          "release_gate",
-          "scenario_pack"
+          "a1_ingestion",
+          "response"
         ],
         "response_fields": [
           "records",
@@ -337,6 +336,9 @@
   "release_gate": {
     "report_id": "a2_release_gate",
     "decision": "block",
+    "a3_action": "block_release",
+    "blocks_merge": true,
+    "needs_human_review": true,
     "exit_code": 2,
     "risk_score": 100,
     "current_commercial_gate": "C2",
@@ -348,6 +350,15 @@
       "commercial_gate": 3,
       "evidence_gate": 2,
       "regression_maturity": 1
+    },
+    "pr_gate": {
+      "blocks_merge": true,
+      "failed_check_count": 7,
+      "warning_check_count": 3,
+      "audit_artifacts": [
+        "fixtures/a2/results/a2_release_gate_report.json",
+        "fixtures/a2/results/a2_result_persistence_manifest.json"
+      ]
     }
   },
   "a3_dashboard_contract": {

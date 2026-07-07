@@ -11,6 +11,7 @@ from services.judge.service_wrapper import (
     CASE_ENDPOINT,
     REGRESSION_REPLAY_ENDPOINT,
     RELEASE_POLICY_ENDPOINT,
+    RESULTS_PERSIST_ENDPOINT,
     RUN_ENDPOINT,
     SCENARIO_SELECT_ENDPOINT,
     handle_internal_request,
@@ -20,6 +21,7 @@ from services.judge.service_wrapper import (
     post_internal_judge_run,
     post_internal_regression_replay,
     post_internal_release_policy_evaluate,
+    post_internal_results_persist,
     post_internal_scenarios_select,
 )
 
@@ -123,6 +125,12 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["endpoint"], RELEASE_POLICY_ENDPOINT)
         self.assertEqual(response["result"]["schema_version"], "a2.release_gate.v1")
         self.assertIn(response["result"]["decision"], {"pass", "warn", "block"})
+        self.assertEqual(response["result"]["a3_release_gate_summary"]["schema_version"], "a2.a3_release_gate_summary.v1")
+        self.assertIn(
+            response["result"]["a3_release_gate_summary"]["action"],
+            {"approve_release", "needs_review", "block_release"},
+        )
+        self.assertIn("pr_gate", response["result"]["a3_release_gate_summary"])
         self.assertEqual(response["service_context"]["tenant_id"], "tenant_demo")
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
@@ -191,6 +199,8 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(policy_evaluation["decision"], "pass")
         self.assertEqual(policy_evaluation["waiver_summary"]["applied_count"], 1)
         self.assertEqual(policy_evaluation["waiver_summary"]["waived_blocking_count"], 1)
+        self.assertEqual(response["result"]["a3_release_gate_summary"]["action"], "block_release")
+        self.assertTrue(response["result"]["a3_release_gate_summary"]["blocks_merge"])
 
     def test_release_policy_endpoint_passes_branch_and_approvals(self):
         grade_results = [
@@ -278,6 +288,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(policy_evaluation["approval_summary"]["applied_count"], 1)
         self.assertEqual(policy_evaluation["applied_approvals"][0]["approval_id"], "approval-prod-main-exception")
         self.assertIn("waiver_applied", policy_evaluation["decision_evidence"]["approval_triggers"])
+        self.assertEqual(response["result"]["a3_release_gate_summary"]["action"], "block_release")
 
     def test_regression_replay_endpoint_returns_replay_report(self):
         response = post_internal_regression_replay(
@@ -335,6 +346,55 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(result["environment"], "prod")
         self.assertTrue(result["minimums_summary"]["minimums_ready"])
         self.assertEqual(result["a3_consumption_summary"]["scenario_count"], result["selected_count"])
+
+    def test_results_persist_endpoint_records_a1_ingestion_digest_without_raw_payload(self):
+        payload = {
+            "request_id": "svc-results-persist-a1",
+            "tenant_id": "tenant_enterprise",
+            "project_id": "project_enterprise",
+            "run_id": "run_a1_upload",
+            "created_at": "2026-07-07T00:00:00Z",
+            "a1_ingestion": {
+                "schema_version": "ashr.clone.saas_control_plane.v1",
+                "operation": "run-upload",
+                "upload_id": "upload_123",
+                "batch_id": "batch_456",
+                "trace_batch_id": "trace_batch_789",
+                "payload_sha256": "abc123",
+                "trace_batch_sha256": "def456",
+                "payload_keys": ["run_id", "case_results", "trace_events"],
+                "raw_payload_included": False,
+                "raw_payload": {
+                    "api_key": "fake_api_key_should_not_persist",
+                    "private_ref": "private://a1-raw-upload.json",
+                },
+            },
+        }
+
+        response = post_internal_results_persist(payload)
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], RESULTS_PERSIST_ENDPOINT)
+        result = response["result"]
+        self.assertEqual(result["schema_version"], "a2.judge_service.result_persistence_response.v1")
+        self.assertEqual(result["record_type_counts"], {"a1_ingestion_digest": 1})
+        record = result["records"][0]
+        self.assertEqual(record["record_type"], "a1_ingestion_digest")
+        self.assertEqual(record["tenant_id"], "tenant_enterprise")
+        self.assertEqual(record["project"], "project_enterprise")
+        self.assertEqual(record["run"], "run_a1_upload")
+        self.assertEqual(record["output_summary"]["upload_id"], "upload_123")
+        self.assertEqual(record["output_summary"]["batch_id"], "batch_456")
+        self.assertEqual(record["output_summary"]["trace_batch_id"], "trace_batch_789")
+        self.assertEqual(record["output_summary"]["payload_sha256"], "abc123")
+        self.assertEqual(record["output_summary"]["trace_batch_sha256"], "def456")
+        self.assertEqual(record["output_summary"]["payload_keys"], ["run_id", "case_results", "trace_events"])
+        self.assertFalse(record["output_summary"]["raw_payload_included"])
+
+        serialized = json.dumps(response, sort_keys=True)
+        self.assertNotIn("fake_api_key_should_not_persist", serialized)
+        self.assertNotIn("private://a1-raw-upload.json", serialized)
+        self.assertNotIn('"raw_payload"', serialized)
 
     def test_dispatcher_rejects_unknown_internal_route(self):
         response = handle_internal_request("/internal/judge/unknown", {}, method="POST")
@@ -428,6 +488,46 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["endpoint"], SCENARIO_SELECT_ENDPOINT)
         self.assertEqual(response["result"]["schema_version"], "a2.project_scenario_selection.v1")
         self.assertEqual(response["result"]["project"]["project_id"], "proj_enterprise_support")
+
+    def test_cli_exposes_results_persist_endpoint(self):
+        payload = {
+            "request_id": "cli-results-persist",
+            "tenant_id": "tenant_enterprise",
+            "project_id": "project_enterprise",
+            "run_id": "run_cli_upload",
+            "created_at": "2026-07-07T00:00:00Z",
+            "a1_ingestion": {
+                "schema_version": "ashr.clone.saas_control_plane.v1",
+                "operation": "sdk-submit",
+                "upload_id": "upload_cli",
+                "payload_sha256": "sha_cli",
+                "payload_keys": ["request", "result"],
+                "raw_payload_included": False,
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            input_path = Path(tmp_dir) / "payload.json"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/a2_judge_service.py"),
+                    RESULTS_PERSIST_ENDPOINT,
+                    "--input",
+                    str(input_path),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        response = json.loads(result.stdout)
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], RESULTS_PERSIST_ENDPOINT)
+        self.assertEqual(response["result"]["record_type_counts"], {"a1_ingestion_digest": 1})
+        self.assertEqual(response["result"]["records"][0]["output_summary"]["operation"], "sdk-submit")
 
 
 if __name__ == "__main__":
