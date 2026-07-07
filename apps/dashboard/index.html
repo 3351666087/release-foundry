@@ -1164,6 +1164,7 @@
           <a href="#release-gate">Release Gate</a>
           <a href="#war-room">War Room</a>
           <a href="#incident-replay">Incident Replay</a>
+          <a href="#reviewer-workflow">Reviewer Workflow</a>
           <a href="#pr-gate">PR Gate</a>
           <a href="#operations">Operations</a>
           <a href="#report-preview">Report</a>
@@ -1366,6 +1367,19 @@
             </div>
           </div>
 
+          <div class="panel" id="reviewer-workflow">
+            <div class="panel-header">
+              <h2>Reviewer Workflow</h2>
+              <span class="badge neutral" id="reviewer-workflow-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="reviewer-workflow-summary">Waiting for reviewer workflow evidence.</div>
+              <div class="health-grid" id="reviewer-workflow-metrics"></div>
+              <div class="matrix-list" id="reviewer-workflow-lanes"></div>
+              <div class="matrix-list" id="reviewer-workflow-items"></div>
+            </div>
+          </div>
+
           <div class="panel" id="pr-gate">
             <div class="panel-header">
               <h2>PR Gate & Audit</h2>
@@ -1553,6 +1567,7 @@
         summarizeOfficialFrontendMirror,
         summarizeOfficialParityRoadmap,
         summarizeIncidentReplayQueue,
+        summarizeReviewerWorkflowBoard,
         summarizeReleaseGate,
         summarizeReleaseWarRoom,
         summarizeReleaseWorkflow,
@@ -2200,6 +2215,98 @@
         return node;
       }
 
+      function renderReviewerWorkflowBoard() {
+        const board = summarizeReviewerWorkflowBoard(
+          state.runs,
+          state.grades,
+          state.coverage,
+          state.mediaSignedUrlCoverage
+        );
+        const status = $("reviewer-workflow-status");
+        status.className = `badge ${reviewerWorkflowStatusClass(board.board_state)}`;
+        status.textContent = board.board_label;
+        $("reviewer-workflow-summary").textContent = board.available
+          ? `${board.commercial_value} A1 trace ${board.a1_a2_calibration.a1_trace_ready_count}, A1 tool diffs ${board.a1_a2_calibration.a1_tool_diff_ready_count}, A2 judge evidence ${board.a1_a2_calibration.a2_judge_evidence_ready_count}.`
+          : "No reviewer workflow can be built until A1/A2 evidence is loaded.";
+        $("reviewer-workflow-metrics").replaceChildren(
+          healthTile(String(board.open_item_count), "open items"),
+          healthTile(String(board.blocked_item_count), "blocked"),
+          healthTile(String(board.needs_evidence_count), "needs evidence"),
+          healthTile(String(board.required_reviewer_count), "reviewers")
+        );
+        $("reviewer-workflow-lanes").replaceChildren(...(
+          board.lanes.length
+            ? board.lanes.map((lane) => reviewerWorkflowLaneRow(lane))
+            : [emptyMatrixRow("No reviewer lanes are available.")]
+        ));
+        $("reviewer-workflow-items").replaceChildren(...(
+          board.items.length
+            ? board.items.map((item) => reviewerWorkflowItemRow(item))
+            : [emptyMatrixRow("No reviewer workflow items are open.")]
+        ));
+      }
+
+      function reviewerWorkflowLaneRow(lane) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(lane.lane)}</strong>
+            <span class="badge ${reviewerWorkflowStatusClass(lane.status)}">${escapeHtml(lane.status)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(lane.item_count)} item(s)</span>
+            <span>${escapeHtml(lane.blocked_count)} blocked</span>
+            <span>${escapeHtml(lane.missing_evidence_count)} missing evidence</span>
+            <span>${escapeHtml(lane.approval_ready_count)} approval-ready</span>
+          </div>
+          <div class="muted">${escapeHtml(lane.next_action)}</div>
+        `;
+        return node;
+      }
+
+      function reviewerWorkflowItemRow(item) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(item.case_id)}</strong>
+            <span class="badge ${reviewerWorkflowStatusClass(item.review_state)}">${escapeHtml(item.review_state)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(item.owner_lane)}</span>
+            <span>${escapeHtml(item.primary_failure_class)}</span>
+            <span>${escapeHtml(item.severity)}</span>
+            <span>${escapeHtml(item.score)}</span>
+            <span>trace ${escapeHtml(item.evidence_counts.trace_events)}</span>
+            <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
+            <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
+          </div>
+          <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} · ${escapeHtml(item.next_action)}</div>
+        `;
+        node.addEventListener("click", () => {
+          state.selectedCaseId = item.case_id;
+          renderCaseList();
+          renderTriageQueue();
+          renderPrintReport();
+          renderDetail();
+        });
+        return node;
+      }
+
+      function reviewerWorkflowStatusClass(status) {
+        if (["ready", "approval_ready", "standby"].includes(status)) {
+          return "pass";
+        }
+        if (["needs_review", "needs_owner_review", "needs_evidence", "waiver_allowed"].includes(status)) {
+          return "warn";
+        }
+        if (["blocked", "waiver_blocked", "executive_exception_required"].includes(status)) {
+          return "fail";
+        }
+        return "neutral";
+      }
+
       function renderReleaseWorkflow() {
         const workflow = summarizeReleaseWorkflow(
           state.runs,
@@ -2418,17 +2525,18 @@
         const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
+        const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
         $("report-status").className = "badge info";
         $("report-status").textContent = `${summary.totalCases} cases`;
-        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
         $("report-center").replaceChildren(
-          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, PR workflow, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
+          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, reviewer workflow board, PR workflow, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
           reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class."),
-          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
+          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, reviewer workflow board, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
+          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, reviewer workflow, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
         );
       }
 
@@ -2450,6 +2558,7 @@
         const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
+        const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
@@ -2543,6 +2652,29 @@
               item.owner_lane,
               `${item.primary_failure_class} / ${item.severity} / trace ${item.trace_event_count} / diffs ${item.tool_diff_count} / judge ${item.judge_evidence_count}`
             ]), "No incident replay cases.")}
+          </div>
+          <div class="report-section">
+            <h4>Reviewer Workflow Board</h4>
+            <div class="muted">${escapeHtml(reviewerWorkflowBoard.commercial_value)}</div>
+            ${renderReportTable(["Signal", "Value"], [
+              ["Board state", reviewerWorkflowBoard.board_label],
+              ["Open items", reviewerWorkflowBoard.open_item_count],
+              ["Blocked items", reviewerWorkflowBoard.blocked_item_count],
+              ["Needs evidence", reviewerWorkflowBoard.needs_evidence_count],
+              ["Required reviewers", reviewerWorkflowBoard.required_reviewer_count],
+              ["A1 trace ready", reviewerWorkflowBoard.a1_a2_calibration.a1_trace_ready_count],
+              ["A2 judge ready", reviewerWorkflowBoard.a1_a2_calibration.a2_judge_evidence_ready_count]
+            ])}
+            ${renderReportTable(["Lane", "Status", "Next Action"], reviewerWorkflowBoard.lanes.map((lane) => [
+              `${lane.lane} (${lane.item_count} item(s))`,
+              lane.status,
+              lane.next_action
+            ]), "No reviewer workflow lanes.")}
+            ${renderReportTable(["Case", "Review State", "Missing Evidence"], reviewerWorkflowBoard.items.map((item) => [
+              `${item.case_id} / ${item.owner_lane}`,
+              item.review_state,
+              item.missing_artifacts.join(", ") || "none"
+            ]), "No reviewer workflow items.")}
           </div>
           <div class="report-section">
             <h4>Coverage Health</h4>
@@ -3104,6 +3236,7 @@
         renderReleaseGate();
         renderReleaseWarRoom();
         renderIncidentReplayQueue();
+        renderReviewerWorkflowBoard();
         renderReleaseWorkflow();
         renderReportCenter();
         renderTriageQueue();

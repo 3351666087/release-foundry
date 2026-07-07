@@ -22,6 +22,7 @@ import {
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeIncidentReplayQueue,
+  summarizeReviewerWorkflowBoard,
   summarizeReleaseGate,
   summarizeReleaseWarRoom,
   summarizeReleaseWorkflow,
@@ -236,6 +237,41 @@ test("A3 incident replay queue packages failed cases with A1 and A2 evidence", a
   assert.match(markdown, /## Incident Replay Queue/);
   assert.match(markdown, /Replay A1 trace events and tool-call diffs/);
   assert.match(markdown, /Read linked A2 judge evidence/);
+});
+
+test("A3 reviewer workflow board turns A1 and A2 evidence into owner review state", async () => {
+  const riskyRuns = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const riskyGrades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const mediaSignedUrlCoverage = await loadJson("../../fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json");
+
+  const board = summarizeReviewerWorkflowBoard(riskyRuns, riskyGrades, coverage, mediaSignedUrlCoverage);
+
+  assert.equal(board.schema_version, "a3.reviewer_workflow_board.v1");
+  assert.equal(board.available, true);
+  assert.equal(board.board_state, "blocked");
+  assert.ok(board.required_reviewer_count > 0);
+  assert.ok(board.open_item_count > 0);
+  assert.ok(board.blocked_item_count > 0);
+  assert.ok(board.waiver_blocked_count > 0);
+  assert.ok(board.a1_a2_calibration.a1_trace_ready_count > 0);
+  assert.ok(board.a1_a2_calibration.a1_tool_diff_ready_count > 0);
+  assert.ok(board.a1_a2_calibration.a2_judge_evidence_ready_count > 0);
+  assert.ok(board.lanes.some((lane) => lane.status === "blocked"));
+  assert.ok(board.items.some((item) => item.required_artifacts.includes("trace_timeline")));
+  assert.ok(board.items.some((item) => item.required_artifacts.includes("a2_judge_evidence")));
+  assert.ok(board.items.some((item) => item.evidence_counts.tool_diffs > 0));
+  assert.ok(board.review_steps.some((step) => /A1 trace/.test(step)));
+  assert.ok(board.review_steps.some((step) => /A2 judge/.test(step)));
+
+  const json = buildJsonReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage);
+  assert.equal(json.reviewer_workflow_board.schema_version, "a3.reviewer_workflow_board.v1");
+  assert.equal(json.reviewer_workflow_board.board_state, "blocked");
+
+  const markdown = buildMarkdownReport(riskyRuns, riskyGrades, coverage, {}, {}, {}, {}, mediaSignedUrlCoverage);
+  assert.match(markdown, /## Reviewer Workflow Board/);
+  assert.match(markdown, /A1 trace ready/);
+  assert.match(markdown, /A2 judge evidence ready/);
 });
 
 test("A3 report builder clusters failures by primary failure class", async () => {

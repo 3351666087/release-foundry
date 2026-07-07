@@ -266,6 +266,28 @@ test("A3 dashboard wires incident replay queue into console and reports", async 
   assert.match(html, /Incident Replay Queue<\/h4>/);
 });
 
+test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeReviewerWorkflowBoard/);
+  assert.match(html, /href="#reviewer-workflow"/);
+  assert.match(html, /id="reviewer-workflow"/);
+  assert.match(html, /Reviewer Workflow/);
+  assert.match(html, /id="reviewer-workflow-status"/);
+  assert.match(html, /id="reviewer-workflow-summary"/);
+  assert.match(html, /id="reviewer-workflow-metrics"/);
+  assert.match(html, /id="reviewer-workflow-lanes"/);
+  assert.match(html, /id="reviewer-workflow-items"/);
+  assert.match(html, /function renderReviewerWorkflowBoard\(\)/);
+  assert.match(html, /function reviewerWorkflowLaneRow\(lane\)/);
+  assert.match(html, /function reviewerWorkflowItemRow\(item\)/);
+  assert.match(html, /renderReviewerWorkflowBoard\(\)/);
+  assert.match(html, /reviewerWorkflowBoard\.board_label/);
+  assert.match(html, /Reviewer Workflow Board<\/h4>/);
+  assert.match(html, /A1 trace ready/);
+  assert.match(html, /A2 judge ready/);
+});
+
 test("A3 dashboard wires media readiness and safe cloud shell panels", async () => {
   const html = await loadDashboardHtml();
 

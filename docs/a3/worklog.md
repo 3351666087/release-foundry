@@ -2123,3 +2123,71 @@ Result:
 ### Current interpretation
 
 Incident Replay Queue is a commercial workflow, not a cosmetic list. It turns failed cases into ranked replay packets with owner lanes, trace readiness, tool-call divergence, A2 judge evidence, media metadata, and release-blocker state. This moves A3 closer to a platform that can stop risky releases and help reviewers reproduce failures before sign-off.
+
+## 2026-07-07 - Reviewer Workflow Board
+
+### Goal
+
+Convert incident replay evidence into an owned reviewer workflow board.
+
+### Work completed
+
+- Added `summarizeReviewerWorkflowBoard()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `reviewer_workflow_board`
+- Added Markdown report section:
+  - `Reviewer Workflow Board`
+- Added dashboard panel:
+  - `Reviewer Workflow`
+- Added print/PDF report section:
+  - `Reviewer Workflow Board`
+- Added reviewer lanes, review states, missing-artifact checks, waiver state, approval readiness, and next actions.
+- Kept the board calibrated to:
+  - A1 trace and observation readiness
+  - A1 tool-call diffs
+  - A2 judge evidence
+  - A2 coverage availability
+  - metadata-only media evidence
+- Added report-builder tests for the reviewer workflow board.
+- Added dashboard wiring tests for the Reviewer Workflow panel and print report.
+- Added implementation note:
+  - `docs/a3/p3_reviewer_workflow_board_growth_2026_07_07.md`
+- Included Growth-Auditor note:
+  - `docs/a3/p3_growth_auditor_reviewer_workflow_2026_07_07.md`
+- Browser-smoke verified Reviewer Workflow with `Blocked`, 3 open official-demo items, 6 reviewer lanes, and A1/A2 calibration counts.
+- Saved browser verification screenshot:
+  - `docs/screenshots/a3-dashboard-reviewer-workflow-board.png`
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+44 tests
+44 pass
+0 fail
+```
+
+Full command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+80 tests
+80 pass
+0 fail
+```
+
+### Current interpretation
+
+Reviewer Workflow Board is the next layer after Incident Replay Queue. Incident Replay says which failed cases must be replayed; Reviewer Workflow says who owns them, what evidence is missing, and whether waiver or approval can proceed. This makes A3 closer to a release-governance product while still staying local-only and safe.

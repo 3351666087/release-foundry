@@ -1131,6 +1131,189 @@ export function summarizeIncidentReplayQueue(runFixture = {}, gradeFixture = {},
   };
 }
 
+export function summarizeReviewerWorkflowBoard(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, options = {}) {
+  const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, options);
+  const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, options.thresholds ? { thresholds: options.thresholds } : {});
+  const incidentReplay = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 8 });
+  const requiredApprovers = releaseWorkflow.reviewer_workflow?.required_approvers || [];
+  const items = incidentReplay.queue.map((item) => buildReviewerWorkflowItem(item, releaseWorkflow));
+  const lanes = buildReviewerWorkflowLanes(items, requiredApprovers);
+  const blockerCount = items.filter((item) => item.review_state === "blocked").length;
+  const needsEvidenceCount = items.filter((item) => item.review_state === "needs_evidence").length;
+  const waiverBlockedCount = items.filter((item) => item.waiver_state === "executive_exception_required").length;
+  const approvalReadyCount = items.filter((item) => item.approval_ready).length;
+  const boardState = releaseWorkflow.available
+    ? blockerCount > 0 || releaseGate.pr_gate.blocks_merge
+      ? "blocked"
+      : needsEvidenceCount > 0 || items.length > 0 || releaseWorkflow.waiver_policy.required
+        ? "needs_review"
+        : "ready"
+    : "no_evidence";
+
+  return {
+    schema_version: "a3.reviewer_workflow_board.v1",
+    available: releaseWorkflow.available,
+    board_state: boardState,
+    board_label: boardState === "ready" ? "Ready" : boardState === "needs_review" ? "Needs review" : boardState === "blocked" ? "Blocked" : "No evidence",
+    release_version: releaseWorkflow.release_version,
+    environment: releaseWorkflow.environment,
+    github_check: {
+      name: releaseWorkflow.github_check.name,
+      conclusion: releaseWorkflow.github_check.conclusion,
+      blocks_merge: releaseWorkflow.github_check.blocks_merge
+    },
+    waiver_policy: {
+      required: releaseWorkflow.waiver_policy.required,
+      allowed: releaseWorkflow.waiver_policy.allowed,
+      exceptional_only: releaseWorkflow.waiver_policy.exceptional_only,
+      guidance: releaseWorkflow.waiver_policy.guidance
+    },
+    required_reviewer_count: requiredApprovers.length,
+    required_approvers: requiredApprovers,
+    open_item_count: items.filter((item) => item.review_state !== "closed").length,
+    blocked_item_count: blockerCount,
+    needs_evidence_count: needsEvidenceCount,
+    waiver_blocked_count: waiverBlockedCount,
+    approval_ready_count: approvalReadyCount,
+    lanes,
+    items,
+    a1_a2_calibration: {
+      a1_trace_ready_count: incidentReplay.trace_ready_count,
+      a1_tool_diff_ready_count: incidentReplay.tool_diff_ready_count,
+      a2_judge_evidence_ready_count: incidentReplay.judge_evidence_ready_count,
+      media_evidence_ready_count: incidentReplay.media_evidence_ready_count,
+      coverage_available: summarizeCoverage(coverageFixture).available
+    },
+    review_steps: [
+      "Start from A1 trace and observation evidence before changing release state.",
+      "Compare A1 expected vs actual tool calls for every tool-related failure.",
+      "Read A2 judge score, pass/fail, failure class, and remediation before assigning disposition.",
+      "Keep media evidence metadata-only until signed URL safety is proven.",
+      "Record owner lane and next action before waiver, approval, or merge."
+    ],
+    commercial_value: "Turns replay evidence into an owned reviewer board: who must review, what evidence is missing, and whether waiver or approval can proceed."
+  };
+}
+
+function buildReviewerWorkflowItem(item = {}, releaseWorkflow = {}) {
+  const requiredArtifacts = uniqueSorted([
+    "case_detail",
+    "expected_vs_actual",
+    "release_gate",
+    "a2_judge_evidence",
+    "trace_timeline",
+    item.tool_diff_count > 0 ? "tool_call_diff" : "",
+    item.media_evidence_count > 0 || item.vm_stream_count > 0 ? "media_metadata" : ""
+  ]);
+  const readyArtifacts = uniqueSorted([
+    "case_detail",
+    "expected_vs_actual",
+    "release_gate",
+    item.judge_evidence_count > 0 ? "a2_judge_evidence" : "",
+    item.trace_ready ? "trace_timeline" : "",
+    item.tool_diff_count > 0 ? "tool_call_diff" : "",
+    item.media_evidence_count > 0 || item.vm_stream_count > 0 ? "media_metadata" : ""
+  ]);
+  const missingArtifacts = requiredArtifacts.filter((artifact) => !readyArtifacts.includes(artifact));
+  const waiverState = releaseWorkflow.waiver_policy?.exceptional_only
+    ? "executive_exception_required"
+    : releaseWorkflow.waiver_policy?.allowed
+      ? "waiver_allowed"
+      : releaseWorkflow.waiver_policy?.required
+        ? "waiver_blocked"
+        : "not_required";
+  const reviewState = item.release_blocker || releaseWorkflow.github_check?.blocks_merge
+    ? "blocked"
+    : missingArtifacts.length > 0
+      ? "needs_evidence"
+      : releaseWorkflow.waiver_policy?.required
+        ? "needs_owner_review"
+        : "approval_ready";
+  const approvalReady = reviewState === "approval_ready" && missingArtifacts.length === 0;
+
+  return {
+    case_id: item.case_id,
+    run_id: item.run_id,
+    scenario_id: item.scenario_id,
+    owner_lane: item.owner_lane,
+    review_state: reviewState,
+    release_blocker: item.release_blocker,
+    score: item.score,
+    severity: item.severity,
+    primary_failure_class: item.primary_failure_class,
+    failure_summary: item.failure_summary,
+    required_artifacts: requiredArtifacts,
+    ready_artifacts: readyArtifacts,
+    missing_artifacts: missingArtifacts,
+    waiver_state: waiverState,
+    waiver_allowed: waiverState === "waiver_allowed",
+    approval_required: item.release_blocker || releaseWorkflow.waiver_policy?.required || releaseWorkflow.github_check?.blocks_merge,
+    approval_ready: approvalReady,
+    evidence_counts: {
+      trace_events: item.trace_event_count,
+      observations: item.observation_count,
+      tool_diffs: item.tool_diff_count,
+      judge_evidence: item.judge_evidence_count,
+      media_evidence: item.media_evidence_count + item.vm_stream_count
+    },
+    next_action: reviewerWorkflowNextAction(item, reviewState, missingArtifacts, waiverState)
+  };
+}
+
+function buildReviewerWorkflowLanes(items = [], requiredApprovers = []) {
+  const laneNames = uniqueSorted([
+    ...requiredApprovers,
+    ...items.map((item) => item.owner_lane)
+  ]);
+  return laneNames.map((lane) => {
+    const laneItems = items.filter((item) => item.owner_lane === lane);
+    const blockedItems = laneItems.filter((item) => item.review_state === "blocked");
+    const missingItems = laneItems.filter((item) => item.review_state === "needs_evidence");
+    const approvalReadyItems = laneItems.filter((item) => item.approval_ready);
+    const status = blockedItems.length
+      ? "blocked"
+      : missingItems.length
+        ? "needs_evidence"
+        : laneItems.length
+          ? "needs_review"
+          : "standby";
+    const nextAction = laneItems[0]?.next_action
+      || (lane === "Release owner"
+        ? "Confirm release gate outcome and collect reviewer sign-off."
+        : "Stand by for assigned incident replay or approval request.");
+
+    return {
+      lane,
+      owner: lane,
+      item_count: laneItems.length,
+      blocked_count: blockedItems.length,
+      missing_evidence_count: missingItems.length,
+      approval_ready_count: approvalReadyItems.length,
+      status,
+      next_action: nextAction
+    };
+  });
+}
+
+function reviewerWorkflowNextAction(item = {}, reviewState = "", missingArtifacts = [], waiverState = "") {
+  if (missingArtifacts.length > 0) {
+    return `Collect missing evidence: ${missingArtifacts.join(", ")}.`;
+  }
+  if (reviewState === "blocked") {
+    if (waiverState === "executive_exception_required") {
+      return "Replay the case and request executive exception only if the release cannot wait.";
+    }
+    return "Replay the case and fix the blocker before approval.";
+  }
+  if (reviewState === "needs_owner_review") {
+    return "Assign owner disposition and attach waiver follow-up evidence if risk is accepted.";
+  }
+  if (reviewState === "approval_ready") {
+    return "Ready for reviewer approval after release owner sign-off.";
+  }
+  return item.failure_summary || "Review case evidence and record disposition.";
+}
+
 function gateCheck(id, passed, observed, detail) {
   return { id, passed, observed, detail };
 }
@@ -2118,6 +2301,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
   const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture);
+  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2207,6 +2391,34 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("### Replay Cases", "");
     for (const item of incidentReplayQueue.queue) {
       lines.push(`- ${item.rank}. ${item.case_id}: ${item.primary_failure_class} / ${item.severity} / ${item.score} / ${item.owner_lane} - ${item.failure_summary}`);
+    }
+    lines.push("");
+  }
+
+  if (reviewerWorkflowBoard.available) {
+    lines.push(
+      "## Reviewer Workflow Board",
+      "",
+      `- Board state: ${reviewerWorkflowBoard.board_label}`,
+      `- Required reviewers: ${reviewerWorkflowBoard.required_reviewer_count}`,
+      `- Open items: ${reviewerWorkflowBoard.open_item_count}`,
+      `- Blocked items: ${reviewerWorkflowBoard.blocked_item_count}`,
+      `- Needs evidence: ${reviewerWorkflowBoard.needs_evidence_count}`,
+      `- Waiver blocked: ${reviewerWorkflowBoard.waiver_blocked_count}`,
+      `- Approval ready: ${reviewerWorkflowBoard.approval_ready_count}`,
+      `- A1 trace ready: ${reviewerWorkflowBoard.a1_a2_calibration.a1_trace_ready_count}`,
+      `- A1 tool-diff ready: ${reviewerWorkflowBoard.a1_a2_calibration.a1_tool_diff_ready_count}`,
+      `- A2 judge evidence ready: ${reviewerWorkflowBoard.a1_a2_calibration.a2_judge_evidence_ready_count}`,
+      `- Commercial value: ${reviewerWorkflowBoard.commercial_value}`,
+      ""
+    );
+    lines.push("### Reviewer Lanes", "");
+    for (const lane of reviewerWorkflowBoard.lanes) {
+      lines.push(`- ${lane.lane}: ${lane.status} / ${lane.item_count} item(s) - ${lane.next_action}`);
+    }
+    lines.push("", "### Reviewer Items", "");
+    for (const item of reviewerWorkflowBoard.items) {
+      lines.push(`- ${item.case_id}: ${item.review_state} / ${item.owner_lane} / missing ${item.missing_artifacts.join(", ") || "none"} - ${item.next_action}`);
     }
     lines.push("");
   }
@@ -2480,6 +2692,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),
     incident_replay_queue: summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture),
+    reviewer_workflow_board: summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     failure_clusters: clusterFailures(runFixture, gradeFixture),
     cases: normalizeCases(runFixture, gradeFixture).map((item) => ({
       run_id: item.run_id,

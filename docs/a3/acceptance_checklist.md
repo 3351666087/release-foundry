@@ -303,6 +303,16 @@
 - [x] Added dashboard-wiring tests for Incident Replay.
 - [x] Browser-smoke verified Incident Replay Queue with 3 queued official-demo failed cases and 6 replay steps.
 - [x] Saved Incident Replay Queue screenshot under `docs/screenshots/a3-dashboard-incident-replay-queue.png`.
+- [x] Added Reviewer Workflow Board summary schema `a3.reviewer_workflow_board.v1`.
+- [x] Added `reviewer_workflow_board` JSON export field.
+- [x] Added Reviewer Workflow Board Markdown and print/PDF report sections.
+- [x] Added Reviewer Workflow dashboard panel.
+- [x] Added reviewer lane, review state, missing-artifact, waiver-state, approval-readiness, and next-action fields.
+- [x] Calibrated Reviewer Workflow against A1 trace/tool-call evidence and A2 judge/coverage evidence.
+- [x] Added report-builder tests proving A1/A2 evidence drives reviewer workflow state.
+- [x] Added dashboard-wiring tests for Reviewer Workflow.
+- [x] Browser-smoke verified Reviewer Workflow with `Blocked`, 3 open official-demo items, 6 reviewer lanes, and A1/A2 calibration counts.
+- [x] Saved Reviewer Workflow screenshot under `docs/screenshots/a3-dashboard-reviewer-workflow-board.png`.
 
 ## Next Acceptance Targets
 
