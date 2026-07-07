@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -78,6 +78,8 @@ test("calibrate CLI dry-run writes a five-modality manifest without fetch", asyn
     assert.equal(manifest.schema_version, "ashr.clone.api_calibration_manifest.v1");
     assert.equal(manifest.summary.read_steps, 5);
     assert.equal(manifest.summary.mutating_steps, 0);
+    assert.equal(manifest.guardrails.output_policy.private_output_required, false);
+    assert.equal(manifest.guardrails.output_policy.sink, "nonprivate_file");
     assert.deepEqual(manifest.summary.modalities, []);
     assert.equal(manifest.env.auth_env_present.includes(ASHR_API_ENV_VAR), false);
     assert.equal(manifest.steps.every((step) => step.status === "planned"), true);
@@ -270,6 +272,52 @@ test("calibrate CLI blocks stop quota gate before key lookup", async () => {
   }
 });
 
+test("calibrate CLI protected output blocks before key lookup", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const output = join(temp, "manifest.json");
+  try {
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.equal(capture.stdout, "");
+    assert.match(capture.stderr, /docs\/evidence\/private_refs/);
+    assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI quota-gate protected output blocks before gate read", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
+  const output = join(temp, "manifest.json");
+  const missingGate = join(temp, "missing-gate.json");
+  try {
+    const capture = captureStreams();
+    const code = await main(["--execute", "--small-batch", "--include-mutating", "--modality", "text", "--max-retries", "0", "--quota-gate-record", missingGate, "--output", output], {}, capture.streams);
+
+    assert.equal(code, 2);
+    assert.equal(capture.stdout, "");
+    assert.match(capture.stderr, /docs\/evidence\/private_refs/);
+    assert.doesNotMatch(capture.stderr, /quota-gate-record/);
+    assert.equal(existsSync(output), false);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("calibrate CLI protected print-record is blocked before key lookup", async () => {
+  const output = join(process.cwd(), "..", "..", "..", "docs", "evidence", "private_refs", "ts_calibrate_print_record_block.json");
+  const capture = captureStreams();
+  const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--print-record"], {}, capture.streams);
+
+  assert.equal(code, 2);
+  assert.equal(capture.stdout, "");
+  assert.match(capture.stderr, /--print-record/);
+  assert.doesNotMatch(capture.stderr, new RegExp(ASHR_API_ENV_VAR));
+  assert.equal(existsSync(output), false);
+});
+
 test("calibrate CLI read-only small-batch records response keys without leaking key", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
@@ -297,7 +345,8 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
   };
   try {
     const capture = captureStreams();
-    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output], { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" }, capture.streams);
+    const syntheticApiKey = "test_synthetic_secret";
+    const code = await main(["--execute", "--small-batch", "--max-retries", "0", "--output", output, "--allow-nonprivate-output"], { [ASHR_API_ENV_VAR]: syntheticApiKey }, capture.streams);
     const manifest = readJson(output);
 
     assert.equal(code, 0);
@@ -307,9 +356,11 @@ test("calibrate CLI read-only small-batch records response keys without leaking 
     assert.equal(manifest.summary.read_steps, 5);
     assert.equal(manifest.summary.mutating_steps, 0);
     assert.equal(manifest.env.auth_env_present.includes(ASHR_API_ENV_VAR), true);
-    assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
+    assert.equal(manifest.guardrails.output_policy.private_output_required, true);
+    assert.equal(manifest.guardrails.output_policy.nonprivate_output_override_used, true);
+    assert.equal(JSON.stringify(manifest).includes(syntheticApiKey), false);
     assert.equal(seen.length, 6);
-    assert.equal(seen.every((item) => item.authorization === "Bearer tp_syntheticsecret"), true);
+    assert.equal(seen.every((item) => item.authorization === ["Bearer", syntheticApiKey].join(" ")), true);
     assert.ok(manifest.steps.some((step) => step.step_id === "list-datasets" && step.response_keys.includes("datasets")));
     assert.ok(manifest.steps.some((step) => step.step_id === "list-requests" && step.response_keys.includes("requests")));
   } finally {
@@ -361,8 +412,9 @@ test("calibrate CLI persists audited quota override reason in emitted evidence",
         reason,
         "--output",
         output,
+        "--allow-nonprivate-output",
       ],
-      { [ASHR_API_ENV_VAR]: "tp_syntheticsecret" },
+      { [ASHR_API_ENV_VAR]: "test_synthetic_secret" },
       capture.streams,
     );
     const manifest = readJson(output);
@@ -376,7 +428,7 @@ test("calibrate CLI persists audited quota override reason in emitted evidence",
     assert.equal(manifest.guardrails.quota_gate.override.reason, reason);
     assert.equal(stepRecord.request.preflight.quota_gate.override.used, true);
     assert.equal(stepRecord.request.preflight.quota_gate.override.reason, reason);
-    assert.equal(JSON.stringify(manifest).includes("tp_syntheticsecret"), false);
+    assert.equal(JSON.stringify(manifest).includes("test_synthetic_secret"), false);
   } finally {
     globalThis.fetch = originalFetch;
     rmSync(temp, { recursive: true, force: true });

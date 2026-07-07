@@ -780,7 +780,7 @@ def test_api_probe_validate_gate_cli_accepts_fresh_target_bound_gate(tmp_path, c
     output = tmp_path / "validation.json"
     gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-request")), encoding="utf-8")
 
-    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output)])
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
     record = json.loads(output.read_text(encoding="utf-8"))
 
@@ -810,7 +810,7 @@ def test_api_probe_validate_gate_cli_rejects_wrong_target(tmp_path, capsys):
     output = tmp_path / "validation.json"
     gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-run")), encoding="utf-8")
 
-    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output)])
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
     record = json.loads(output.read_text(encoding="utf-8"))
 
@@ -825,7 +825,7 @@ def test_api_probe_validate_gate_cli_rejects_stale_gate(tmp_path, capsys):
     output = tmp_path / "validation.json"
     gate_file.write_text(json.dumps(probe_plan_gate_payload("go", created_at="2026-01-01T00:00:00Z")), encoding="utf-8")
 
-    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--quota-gate-ttl-seconds", "1", "--output", str(output)])
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--quota-gate-ttl-seconds", "1", "--output", str(output), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
     record = json.loads(output.read_text(encoding="utf-8"))
 
@@ -843,13 +843,69 @@ def test_api_probe_validate_gate_cli_rejects_same_operation_wrong_request_bindin
     gate_file.write_text(json.dumps(probe_plan_gate_payload("go", request=original_request)), encoding="utf-8")
     request_file.write_text(json.dumps(changed_request), encoding="utf-8")
 
-    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--request-file", str(request_file), "--quota-gate-record", str(gate_file), "--output", str(output)])
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--request-file", str(request_file), "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
     record = json.loads(output.read_text(encoding="utf-8"))
 
     assert code == 2
     assert "target_binding.fingerprint" in captured.err
     assert record["response"]["validation"]["issues"][0]["code"] == "target_binding_mismatch"
+
+
+def test_api_probe_protected_output_requires_private_dir_before_key_lookup(tmp_path, capsys):
+    output = tmp_path / "real.json"
+
+    code = api_probe.main(["health-check", "--execute", "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "ASHR_API_KEY" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_validate_gate_protected_output_blocks_before_gate_read(tmp_path, capsys):
+    output = tmp_path / "validation.json"
+    missing_gate = tmp_path / "missing-gate.json"
+
+    code = api_probe.main(["validate-gate", "--quota-gate-record", str(missing_gate), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "quota-gate-record" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_quota_record_protected_output_blocks_before_record_read(tmp_path, capsys):
+    request_file = tmp_path / "request.json"
+    request_file.write_text(json.dumps({"agent": {"name": "Mock"}, "test_config": {"num_variations": 1}}), encoding="utf-8")
+    output = tmp_path / "plan.json"
+    missing_quota = tmp_path / "missing-quota.json"
+
+    code = api_probe.main(["plan-batch", "--request-file", str(request_file), "--quota-record", str(missing_quota), "--output", str(output)])
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "docs/evidence/private_refs" in captured.err
+    assert "quota-record" not in captured.err
+    assert not output.exists()
+
+
+def test_api_probe_output_policy_marks_synthetic_override(tmp_path, capsys):
+    gate_file = tmp_path / "gate.json"
+    output = tmp_path / "validation.json"
+    gate_file.write_text(json.dumps(probe_plan_gate_payload("go", target_operation="create-request")), encoding="utf-8")
+
+    code = api_probe.main(["validate-gate", "--target-operation", "create-request", "--quota-gate-record", str(gate_file), "--output", str(output), "--allow-nonprivate-output"])
+    capsys.readouterr()
+    record = json.loads(output.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert record["output_policy"]["private_output_required"] is True
+    assert record["output_policy"]["allow_nonprivate_output"] is True
+    assert record["output_policy"]["nonprivate_output_override_used"] is True
+    assert record["output_policy"]["sink"] == "nonprivate_file"
 
 
 def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
@@ -883,6 +939,9 @@ def test_api_probe_read_only_parity_operations_dry_run_without_key(tmp_path):
         assert record["attempts"] == 0
         assert record["request"]["function"] == expected_function
         assert record["request"]["mutates"] is False
+        assert record["output_policy"]["schema_version"] == "ashr.clone.output_policy.v1"
+        assert record["output_policy"]["private_output_required"] is False
+        assert record["output_policy"]["sink"] == "nonprivate_file"
 
 
 def test_api_probe_create_request_schema_file_marks_source_and_sends_schema(tmp_path):
@@ -1505,6 +1564,7 @@ def test_api_probe_cli_mutating_execute_allows_audited_quota_override(monkeypatc
             "manual paid calibration approved after external quota review",
             "--output",
             str(output_file),
+            "--allow-nonprivate-output",
         ]
     )
     captured = capsys.readouterr()
@@ -1552,6 +1612,7 @@ def test_api_probe_cli_execute_guardrails_block_before_client_call(monkeypatch, 
             "unit test reaches media preflight guardrail",
             "--output",
             str(tmp_path / "blocked.json"),
+            "--allow-nonprivate-output",
         ]
     )
     captured = capsys.readouterr()
@@ -1569,7 +1630,7 @@ def test_api_probe_cli_reports_timeout_without_traceback(monkeypatch, capsys, tm
 
     monkeypatch.setattr(api_probe, "run_operation", raise_timeout)
 
-    code = api_probe.main(["poll-run", "--execute", "--run-id", "123", "--output", str(tmp_path / "poll.json")])
+    code = api_probe.main(["poll-run", "--execute", "--run-id", "123", "--output", str(tmp_path / "poll.json"), "--allow-nonprivate-output"])
     captured = capsys.readouterr()
 
     assert code == 2

@@ -189,6 +189,8 @@ def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_pa
     assert manifest["dry_run"] is True
     assert manifest["summary"]["total_steps"] == 5
     assert manifest["summary"]["mutating_steps"] == 0
+    assert manifest["guardrails"]["output_policy"]["private_output_required"] is False
+    assert manifest["guardrails"]["output_policy"]["sink"] == "nonprivate_file"
     assert output.exists()
     for step in manifest["steps"]:
         assert Path(step["private_record_path"]).exists()
@@ -197,12 +199,14 @@ def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_pa
 def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path: Path):
     output = tmp_path / "read_only_real.json"
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, max_retries=0, output=str(output))
+    args = CalibrationArgs(execute=True, small_batch=True, max_retries=0, output=str(output), allow_nonprivate_output=True)
     manifest = run_calibration(args, env={}, client=client)
 
     assert manifest["status"] == "ok"
     assert manifest["summary"]["read_steps"] == 5
     assert manifest["summary"]["mutating_steps"] == 0
+    assert manifest["guardrails"]["output_policy"]["private_output_required"] is True
+    assert manifest["guardrails"]["output_policy"]["nonprivate_output_override_used"] is True
     assert all(call[0] != "create_request" for call in client.calls)
     assert manifest["guardrails"]["quota_gate"] is None
 
@@ -210,7 +214,7 @@ def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path:
 def test_run_calibration_mutating_execute_requires_quota_gate_before_calls(tmp_path: Path):
     output = tmp_path / "missing_gate.json"
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="quota-gate-record"):
         run_calibration(args, env={}, client=client)
@@ -235,7 +239,7 @@ def test_run_calibration_rejects_read_only_success_record_as_quota_gate(tmp_path
         encoding="utf-8",
     )
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(read_only_record))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(read_only_record), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="plan-batch quota gate record"):
         run_calibration(args, env={}, client=client)
@@ -248,7 +252,7 @@ def test_run_calibration_rejects_stop_quota_gate_before_calls(tmp_path: Path):
     output = tmp_path / "stop_gate.json"
     gate = write_plan_batch_gate(tmp_path, decision="stop")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="quota gate decision=stop"):
         run_calibration(args, env={}, client=client)
@@ -267,7 +271,7 @@ def test_run_calibration_rejects_go_quota_gate_without_evidence(tmp_path: Path):
     quota_gate.pop("reset", None)
     gate.write_text(json.dumps(payload), encoding="utf-8")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="requires reviewed quota/reset evidence"):
         run_calibration(args, env={}, client=client)
@@ -280,7 +284,7 @@ def test_run_calibration_rejects_stale_quota_gate_before_calls(tmp_path: Path):
     output = tmp_path / "stale_gate.json"
     gate = write_plan_batch_gate(tmp_path, created_at="2000-01-01T00:00:00Z")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="stale"):
         run_calibration(args, env={}, client=client)
@@ -293,7 +297,7 @@ def test_run_calibration_allows_stale_quota_gate_when_ttl_disabled(tmp_path: Pat
     output = tmp_path / "ttl_disabled.json"
     gate = write_plan_batch_gate(tmp_path, created_at="2000-01-01T00:00:00Z")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), quota_gate_ttl_seconds=0)
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), quota_gate_ttl_seconds=0, allow_nonprivate_output=True)
     manifest = run_calibration(args, env={}, client=client)
 
     assert manifest["status"] == "ok"
@@ -305,9 +309,48 @@ def test_run_calibration_rejects_wrong_target_quota_gate_before_calls(tmp_path: 
     output = tmp_path / "wrong_target.json"
     gate = write_plan_batch_gate(tmp_path, target_operation="create-run")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="target_operation"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_protected_output_requires_private_dir_before_calls(tmp_path: Path):
+    output = tmp_path / "read_only_real.json"
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, max_retries=0, output=str(output))
+
+    with pytest.raises(CalibrationUsageError, match="docs/evidence/private_refs"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_quota_gate_protected_output_blocks_before_gate_read(tmp_path: Path):
+    output = tmp_path / "manifest.json"
+    missing_gate = tmp_path / "missing-gate.json"
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(missing_gate))
+
+    with pytest.raises(CalibrationUsageError, match="docs/evidence/private_refs"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_protected_print_record_blocks_before_key_lookup(tmp_path: Path):
+    output = Path(__file__).resolve().parents[2] / "docs" / "evidence" / "private_refs" / "pytest_print_record_block.json"
+    if output.exists():
+        output.unlink()
+    client = FakeCalibrationClient()
+    args = parse_args(["--execute", "--small-batch", "--max-retries", "0", "--output", str(output), "--print-record"])
+
+    with pytest.raises(CalibrationUsageError, match="--print-record"):
         run_calibration(args, env={}, client=client)
 
     assert client.calls == []
@@ -318,7 +361,7 @@ def test_run_calibration_rejects_quota_gate_modality_mismatch_before_calls(tmp_p
     output = tmp_path / "wrong_modalities.json"
     gate = write_plan_batch_gate(tmp_path, modalities=["text"])
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, allow_paid_media=True, max_retries=0, modalities=("image",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, allow_paid_media=True, max_retries=0, modalities=("image",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="modalities"):
         run_calibration(args, env={}, client=client)
@@ -331,7 +374,7 @@ def test_run_calibration_rejects_quota_gate_request_fingerprint_mismatch_before_
     output = tmp_path / "wrong_fingerprint.json"
     gate = write_plan_batch_gate(tmp_path, request_fingerprint="not-the-text-calibrator-fingerprint")
     client = FakeCalibrationClient()
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="request_fingerprint"):
         run_calibration(args, env={}, client=client)
@@ -343,7 +386,7 @@ def test_run_calibration_rejects_quota_gate_request_fingerprint_mismatch_before_
 def test_run_calibration_small_batch_with_text_mutation(tmp_path: Path):
     output = tmp_path / "real.json"
     gate = write_plan_batch_gate(tmp_path, modalities=["text"], request_fingerprint=calibration_request_fingerprint("text"))
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient())
 
     assert manifest["status"] == "ok"
@@ -369,6 +412,7 @@ def test_run_calibration_persists_audited_quota_override_with_redaction(tmp_path
         quota_gate_record=str(gate),
         allow_quota_override=True,
         quota_override_reason=reason,
+        allow_nonprivate_output=True,
     )
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient())
 
@@ -390,7 +434,7 @@ def test_run_calibration_persists_audited_quota_override_with_redaction(tmp_path
 def test_run_calibration_captures_quota_block_without_raw_secret(tmp_path: Path):
     output = tmp_path / "quota.json"
     gate = write_plan_batch_gate(tmp_path)
-    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate))
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
     manifest = run_calibration(args, env={"ASHR_API_KEY": "tp_syntheticsecret"}, client=FakeCalibrationClient(quota_block=True))
 
     assert manifest["status"] == "partial"

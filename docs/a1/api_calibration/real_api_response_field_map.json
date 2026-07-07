@@ -188,7 +188,7 @@
     "list_requests": {
       "error_keys": [],
       "quota_block_count": 0,
-      "records": 35,
+      "records": 37,
       "response_keys": [
         "_user",
         "next_cursor",
@@ -198,7 +198,7 @@
       ],
       "response_summary_keys": [],
       "statuses": {
-        "ok": 32,
+        "ok": 34,
         "planned": 3
       },
       "top_count_keys": [
@@ -267,13 +267,13 @@
     "unknown": {
       "error_keys": [],
       "quota_block_count": 30,
-      "records": 109,
+      "records": 111,
       "response_keys": [],
       "response_summary_keys": [],
       "statuses": {
         "completed": 13,
         "failed": 1,
-        "ok": 33,
+        "ok": 35,
         "partial": 11,
         "passed": 11,
         "planned": 7
@@ -296,6 +296,6 @@
     }
   },
   "schema_version": "ashr.clone.response_field_map.v1",
-  "source_label": "a1-real-api-2026-07-07-round11-ts-probe-parity",
-  "source_total_records": 333
+  "source_label": "a1-real-api-2026-07-07-round12-private-output-guard",
+  "source_total_records": 337
 }

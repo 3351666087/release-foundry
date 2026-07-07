@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -30,6 +30,8 @@ const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 const API_PROBE_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1";
 const DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60;
 const CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request";
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const PRIVATE_EVIDENCE_DIR = resolve(REPO_ROOT, "docs/evidence/private_refs");
 
 type CalibrationStep = {
   id: string;
@@ -46,6 +48,7 @@ export interface CalibrationArgs {
   includeMutating: boolean;
   allowPaidMedia: boolean;
   output?: string;
+  allowNonprivateOutput: boolean;
   baseUrl?: string;
   timeoutSeconds: number;
   maxRetries: number;
@@ -96,8 +99,10 @@ export async function main(
       streams.stdout.write(usage());
       return 0;
     }
-    await validateCalibrationGuards(args);
     const outputPath = args.output ?? defaultOutputPath(args.execute);
+    enforcePrivateStdoutPolicy(args);
+    enforcePrivateOutputPath(args, outputPath);
+    await validateCalibrationGuards(args);
     const manifest = await runCalibration(args, env, outputPath);
     await writeJson(outputPath, manifest);
     if (args.printRecord) {
@@ -117,6 +122,7 @@ export async function main(
 }
 
 export async function runCalibration(args: CalibrationArgs, env: Record<string, string | undefined>, outputPath: string): Promise<CalibrationManifest> {
+  enforcePrivateOutputPath(args, outputPath);
   const startedAt = utcNow();
   const started = Date.now();
   const dryRun = !args.execute;
@@ -175,6 +181,7 @@ export async function runCalibration(args: CalibrationArgs, env: Record<string, 
       paid_media_requires_allow_paid_media: true,
       max_retries_for_execute: args.execute ? args.maxRetries : null,
       raw_records_private: true,
+      output_policy: outputPolicy(args, outputPath),
     },
     summary: {
       total_steps: stepResults.length,
@@ -196,6 +203,7 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
     smallBatch: false,
     includeMutating: false,
     allowPaidMedia: false,
+    allowNonprivateOutput: false,
     timeoutSeconds: 30,
     maxRetries: 2,
     retryBackoffMs: 500,
@@ -232,6 +240,9 @@ export function parseArgs(argv: readonly string[]): CalibrationArgs {
         break;
       case "--allow-quota-override":
         args.allowQuotaOverride = true;
+        break;
+      case "--allow-nonprivate-output":
+        args.allowNonprivateOutput = true;
         break;
       case "--output":
         args.output = requireOptionValue(readValue(), name);
@@ -787,7 +798,60 @@ function stepOutputPath(manifestPath: string, stepId: string, dryRun: boolean): 
 }
 
 function defaultOutputPath(execute: boolean): string {
-  return `docs/evidence/private_refs/a1_ts_api_calibration_manifest_${execute ? "real" : "dry_run"}.json`;
+  return resolve(PRIVATE_EVIDENCE_DIR, `a1_ts_api_calibration_manifest_${execute ? "real" : "dry_run"}.json`);
+}
+
+function enforcePrivateStdoutPolicy(args: CalibrationArgs): void {
+  if (args.printRecord && requiresPrivateOutput(args) && !args.allowNonprivateOutput) {
+    throw new CalibrationUsageError("--print-record is disabled for real API and gate evidence; use the JSON file under docs/evidence/private_refs or pass --allow-nonprivate-output only for synthetic tests");
+  }
+}
+
+function enforcePrivateOutputPath(args: CalibrationArgs, outputPath: string): void {
+  if (args.allowNonprivateOutput || !requiresPrivateOutput(args)) {
+    return;
+  }
+  if (isPrivateOutputPath(outputPath)) {
+    return;
+  }
+  throw new CalibrationUsageError("--output for real API and gate evidence must stay under docs/evidence/private_refs; pass --allow-nonprivate-output only for synthetic tests");
+}
+
+function outputPolicy(args: CalibrationArgs, outputPath: string): JsonRecord {
+  const required = requiresPrivateOutput(args);
+  const isPrivate = isPrivateOutputPath(outputPath);
+  return {
+    schema_version: "ashr.clone.output_policy.v1",
+    private_output_required: required,
+    allow_nonprivate_output: Boolean(args.allowNonprivateOutput),
+    nonprivate_output_override_used: Boolean(required && args.allowNonprivateOutput && !isPrivate),
+    output_is_private: isPrivate,
+    sink: isPrivate ? "private_file" : "nonprivate_file",
+    private_root: "docs/evidence/private_refs",
+    resolved_under_repo: repoRelativeOutputPath(outputPath),
+    full_record_stdout_blocked: Boolean(required && !args.allowNonprivateOutput),
+  };
+}
+
+function repoRelativeOutputPath(outputPath: string): string {
+  const target = resolveOutputPath(outputPath);
+  const pathFromRepo = relative(REPO_ROOT, target);
+  return pathFromRepo.startsWith("..") || isAbsolute(pathFromRepo) ? "<outside-repo>" : pathFromRepo.replaceAll("\\", "/");
+}
+
+function requiresPrivateOutput(args: CalibrationArgs): boolean {
+  return Boolean(args.execute || args.quotaGateRecord || args.allowQuotaOverride);
+}
+
+function isPrivateOutputPath(outputPath: string): boolean {
+  const root = resolve(PRIVATE_EVIDENCE_DIR);
+  const target = resolveOutputPath(outputPath);
+  const pathFromRoot = relative(root, target);
+  return pathFromRoot !== "" && !pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot);
+}
+
+function resolveOutputPath(outputPath: string): string {
+  return isAbsolute(outputPath) ? resolve(outputPath) : resolve(REPO_ROOT, outputPath);
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -884,6 +948,7 @@ Options:
   --include-mutating        Include create-request calibration steps.
   --allow-paid-media        Allow paid media generation request steps after cost review.
   --output <path>           Manifest output path.
+  --allow-nonprivate-output Allow protected real API/gate evidence outside docs/evidence/private_refs for synthetic tests only.
   --base-url <url>          Override Ashr API URL.
   --timeout <seconds>       Request timeout. Default 30.
   --max-retries <count>     Retry count. Real execution requires 0.

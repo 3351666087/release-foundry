@@ -13,14 +13,14 @@
     "keep_alive": 31,
     "list_agents": 32,
     "list_datasets": 38,
-    "list_requests": 39,
+    "list_requests": 41,
     "list_runs": 4,
     "plan_batch": 3,
     "poll_request": 1,
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-a2-real-api-2026-07-07-release-gate",
+  "label": "a1-a2-real-api-2026-07-07-output-policy-merged",
   "quota_block_count": 43,
   "records": [
     {
@@ -658,6 +658,33 @@
       "status_code": 200,
       "top_counts": {
         "requests": 2
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_api_list_requests_round12_real_readonly.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 1
       }
     },
     {
@@ -1746,7 +1773,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "datasets": 2
+        "datasets": 1
       }
     },
     {
@@ -1795,7 +1822,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "requests": 2
+        "requests": 1
       }
     },
     {
@@ -1955,6 +1982,21 @@
       "error_kind": null,
       "function": null,
       "path": "docs/evidence/private_refs/a1_python_api_calibration_manifest_round7_real_readonly.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_python_api_calibration_round12_readonly_real.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -3675,6 +3717,21 @@
       "top_counts": {}
     },
     {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_ts_api_calibration_round12_readonly_real.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
       "attempts": 0,
       "dry_run": true,
       "error_keys": [],
@@ -3756,6 +3813,33 @@
       "error_kind": null,
       "function": "list_requests",
       "path": "docs/evidence/private_refs/a1_ts_api_list_requests_round11_real_readonly.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "top_counts": {
+        "requests": 1
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "list_requests",
+      "path": "docs/evidence/private_refs/a1_ts_api_list_requests_round12_real_readonly.json",
       "request_keys": [
         "estimated_calls",
         "function",
@@ -8428,11 +8512,11 @@
     "completed": 13,
     "error": 27,
     "failed": 1,
-    "ok": 205,
+    "ok": 209,
     "partial": 13,
     "passed": 11,
     "planned": 53,
     "timeout": 1
   },
-  "total_records": 359
+  "total_records": 363
 }
