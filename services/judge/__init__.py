@@ -9,6 +9,7 @@ from .calibration import (
 )
 from .casebook import build_case_book_report
 from .coverage import build_coverage_report
+from .incident_regression import build_incident_regression_candidate_report
 from .readiness import build_commercial_readiness_report
 from .regression_replay import build_regression_replay_report
 from .result_persistence import build_result_record, build_result_persistence_manifest, write_jsonl
@@ -44,6 +45,7 @@ __all__ = [
     "build_case_book_report",
     "build_commercial_readiness_report",
     "build_coverage_report",
+    "build_incident_regression_candidate_report",
     "build_project_scenario_selection",
     "build_regression_replay_report",
     "build_result_record",

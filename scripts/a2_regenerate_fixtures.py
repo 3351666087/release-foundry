@@ -17,6 +17,7 @@ from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
+from services.judge.incident_regression import build_incident_regression_candidate_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.release_gate import build_release_gate_report  # noqa: E402
 from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
@@ -44,6 +45,8 @@ DEFAULT_SDK_PARITY = DEFAULT_RESULT_DIR / "a2_sdk_parity_report.json"
 DEFAULT_BATCH_PLAN = DEFAULT_RESULT_DIR / "a2_batch_plan_report.json"
 DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json"
 DEFAULT_REGRESSION_REPLAY = DEFAULT_RESULT_DIR / "a2_regression_replay_report.json"
+DEFAULT_INCIDENT_SUMMARY = Path("fixtures/a2/incidents/a2_prod_incident_summary.json")
+DEFAULT_INCIDENT_REGRESSION_CANDIDATES = DEFAULT_RESULT_DIR / "a2_incident_regression_candidates.json"
 DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 DEFAULT_RELEASE_GATE = DEFAULT_RESULT_DIR / "a2_release_gate_report.json"
 DEFAULT_SCENARIO_SELECTION_PROFILE = Path("fixtures/a2/config/a2_saas_project_selection_profile.json")
@@ -73,6 +76,8 @@ def main() -> int:
     parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
     parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
     parser.add_argument("--regression-replay", default=DEFAULT_REGRESSION_REPLAY.as_posix())
+    parser.add_argument("--incident-summary", default=DEFAULT_INCIDENT_SUMMARY.as_posix())
+    parser.add_argument("--incident-regression-candidates", default=DEFAULT_INCIDENT_REGRESSION_CANDIDATES.as_posix())
     parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     parser.add_argument("--release-gate", default=DEFAULT_RELEASE_GATE.as_posix())
     parser.add_argument("--scenario-selection-profile", default=DEFAULT_SCENARIO_SELECTION_PROFILE.as_posix())
@@ -101,6 +106,8 @@ def main() -> int:
         batch_plan_path=Path(args.batch_plan),
         semantic_harness_path=Path(args.semantic_harness),
         regression_replay_path=Path(args.regression_replay),
+        incident_summary_path=Path(args.incident_summary),
+        incident_regression_candidates_path=Path(args.incident_regression_candidates),
         evidence_readiness_path=Path(args.evidence_readiness),
         release_gate_path=Path(args.release_gate),
         scenario_selection_profile_path=Path(args.scenario_selection_profile),
@@ -134,6 +141,8 @@ def generate_outputs(
     batch_plan_path: Path,
     semantic_harness_path: Path,
     regression_replay_path: Path,
+    incident_summary_path: Path,
+    incident_regression_candidates_path: Path,
     evidence_readiness_path: Path,
     release_gate_path: Path,
     scenario_selection_profile_path: Path,
@@ -188,6 +197,10 @@ def generate_outputs(
         pack_path=pack_path,
     )
     outputs[regression_replay_path] = regression_replay
+    outputs[incident_regression_candidates_path] = build_incident_regression_candidate_report(
+        incident_summary_path,
+        pack_path=pack_path,
+    )
     sdk_parity = build_sdk_parity_report(pack_path=pack_path)
     outputs[sdk_parity_path] = sdk_parity
     semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)

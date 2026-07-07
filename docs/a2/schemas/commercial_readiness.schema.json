@@ -13,6 +13,7 @@
     "gate_status",
     "evidence_snapshot",
     "next_top_3",
+    "growth_auditor",
     "metadata"
   ],
   "properties": {
@@ -36,6 +37,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/next_move" }
     },
+    "growth_auditor": { "$ref": "#/$defs/growth_auditor" },
     "metadata": { "type": "object" }
   },
   "$defs": {
@@ -155,6 +157,58 @@
         "why_now": { "type": "string" },
         "scores": { "type": "object" },
         "smallest_delivery": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "growth_auditor": {
+      "type": "object",
+      "required": [
+        "auditor_id",
+        "audit_basis",
+        "money_direction",
+        "new_sellable_capabilities",
+        "toy_risks_to_upgrade",
+        "customer_payment_drivers",
+        "enterprise_readiness",
+        "current_evidence_strength",
+        "parallel_growth_points",
+        "parallelization"
+      ],
+      "properties": {
+        "auditor_id": { "type": "string" },
+        "audit_basis": { "type": "string" },
+        "money_direction": { "type": "object" },
+        "new_sellable_capabilities": { "$ref": "#/$defs/string_array" },
+        "toy_risks_to_upgrade": { "$ref": "#/$defs/string_array" },
+        "customer_payment_drivers": { "$ref": "#/$defs/string_array" },
+        "enterprise_readiness": { "type": "object" },
+        "current_evidence_strength": { "type": "object" },
+        "parallel_growth_points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/growth_point" },
+          "minItems": 20
+        },
+        "parallelization": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "growth_point": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "parallel_track",
+        "commercial_value",
+        "evidence_ref",
+        "required_artifact_type"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "parallel_track": { "type": "string" },
+        "commercial_value": { "type": "string" },
+        "evidence_ref": { "type": "string" },
+        "required_artifact_type": { "type": "string" }
       },
       "additionalProperties": true
     }

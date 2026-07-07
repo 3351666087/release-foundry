@@ -122,6 +122,21 @@
         "selected_count": { "type": ["integer", "null"], "minimum": 0 },
         "selection_id": { "type": ["string", "null"] },
         "family_counts": { "type": "object" },
+        "release_policy_audit": {
+          "type": "object",
+          "properties": {
+            "waiver_summary": { "type": "object" },
+            "applied_waivers": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
+            "waived_violations": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          },
+          "additionalProperties": true
+        },
         "result_schema_version": { "type": ["string", "null"] }
       },
       "additionalProperties": true
