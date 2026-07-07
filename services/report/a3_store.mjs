@@ -14,6 +14,9 @@ import {
   planSaasAdminAction
 } from "./a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "./a3_enterprise_readiness.mjs";
+import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
+import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
+import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -116,7 +119,10 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/reports/:reportId/view",
     "GET /api/a3/admin/console",
     "POST /api/a3/admin/actions/plan",
-    "GET /api/a3/enterprise/readiness"
+    "GET /api/a3/enterprise/readiness",
+    "GET /api/a3/db-migrations",
+    "GET /api/a3/usage/ledger",
+    "GET /api/a3/reports/:reportId/manifest"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -364,6 +370,25 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async getDbMigrationPlan(options = {}) {
+      return buildA3SqlMigrationPlan({
+        dialect: options.dialect || "postgres"
+      });
+    },
+
+    async getUsageLedger(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      return buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        periodStart: options.periodStart,
+        periodEnd: options.periodEnd
+      });
+    },
+
     async planSaasAdminAction(action, options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const consoleState = buildSaasAdminConsole(snapshot, {
@@ -402,6 +427,24 @@ export function createMemoryA3Store(seed = {}) {
 
     async getReport(reportId) {
       return reports.get(reportId) || null;
+    },
+
+    async getReportManifest(reportId, options = {}) {
+      const report = reports.get(reportId);
+      if (!report) {
+        return null;
+      }
+      const snapshot = selectSnapshot(snapshots, options.source || report.source);
+      return buildReportCenterManifest(report, {
+        usageLedger: buildA3UsageLedger(snapshot, {
+          reports: [...reports.values()],
+          auditEvents,
+          importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+          organizationId: options.organizationId || snapshot.organizationId,
+          projectId: options.projectId || snapshot.projectId
+        }),
+        migrationPlan: buildA3SqlMigrationPlan()
+      });
     },
 
     async getReportForView(reportId, options = {}) {
@@ -608,7 +651,8 @@ function buildDashboardPayload(snapshot, storageMode) {
     storage: {
       ...snapshot.storage,
       mode: storageMode || snapshot.storage?.mode || "memory",
-      db_contract: A3_DB_CONTRACT
+      db_contract: A3_DB_CONTRACT,
+      db_migrations: buildA3SqlMigrationPlan()
     },
     run_fixture: snapshot.runFixture,
     grade_fixture: snapshot.gradeFixture,
@@ -636,6 +680,7 @@ function buildDashboardPayload(snapshot, storageMode) {
       }),
       dbContract: A3_DB_CONTRACT
     }),
+    usage_ledger: buildA3UsageLedger(snapshot),
     summary: snapshot.summary,
     cases: cases.map((item) => ({
       run_id: item.run_id,

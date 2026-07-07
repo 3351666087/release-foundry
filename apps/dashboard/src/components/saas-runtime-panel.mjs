@@ -7,6 +7,8 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
   const apiSurfaces = Array.isArray(dbContract.api_surfaces) ? dbContract.api_surfaces : [];
   const tables = Array.isArray(dbContract.tables) ? dbContract.tables : [];
   const guardrails = Array.isArray(dbContract.guardrails) ? dbContract.guardrails : [];
+  const migrations = runtime.db_migrations || {};
+  const usageLedger = runtime.usage_ledger || {};
 
   target.replaceChildren(
     runtimeSummary(runtime),
@@ -14,10 +16,14 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
       ["Mode", runtime.mode || "static_fixture"],
       ["DB ready", runtime.db_ready ? "yes" : "planned"],
       ["Primary DB", dbContract.recommended_primary_db || "postgres"],
-      ["MySQL", dbContract.mysql_compatible ? "compatible" : "not planned"]
+      ["MySQL", dbContract.mysql_compatible ? "compatible" : "not planned"],
+      ["Migrations", String(migrations.migration_count || 0)],
+      ["Usage meters", String((usageLedger.meters || []).length)]
     ]),
     runtimeList("API surfaces", apiSurfaces),
     runtimeList("DB tables", tables.slice(0, 8)),
+    runtimeList("Migration batches", (migrations.statements || []).map((item) => `${item.id}: ${item.tables.join(", ")}`)),
+    runtimeList("Usage meters", (usageLedger.meters || []).map((item) => `${item.meter}: ${item.quantity}`)),
     runtimeList("Guardrails", guardrails)
   );
 }

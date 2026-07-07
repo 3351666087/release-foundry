@@ -431,6 +431,7 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
 
 test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", async () => {
   const html = await loadDashboardHtml();
+  const runtimeComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /api-client\.mjs/);
   assert.match(html, /components\/saas-runtime-panel\.mjs/);
@@ -444,6 +445,10 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /fetchA3DashboardSnapshot/);
   assert.match(html, /isA3ApiSource\(source\)/);
   assert.match(html, /renderSaasRuntime\(\)/);
+  assert.match(html, /db_migrations/);
+  assert.match(html, /usage_ledger/);
+  assert.match(runtimeComponent, /Migration batches/);
+  assert.match(runtimeComponent, /Usage meters/);
   assert.match(html, /data-share-report/);
   assert.match(html, /createShareableA3Report/);
   assert.match(html, /id="share-report-status"/);

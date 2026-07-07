@@ -54,6 +54,7 @@ const state = {
   saasRuntime: {},
   saasAdmin: {},
   enterpriseReadiness: {},
+  usageLedger: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   cases: [],
@@ -2109,12 +2110,14 @@ function applyApiDashboardPayload(payload) {
   state.frontendCodeCrawl = payload.frontend_code_crawl || {};
   state.saasAdmin = payload.saas_admin_console || {};
   state.enterpriseReadiness = payload.enterprise_readiness || {};
+  state.usageLedger = payload.usage_ledger || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
     source: payload.source,
     source_label: payload.source_label,
-    summary: payload.summary
+    summary: payload.summary,
+    usage_ledger: payload.usage_ledger
   };
 }
 
@@ -2140,7 +2143,12 @@ function resetSaasRuntime(mode = "static_fixture") {
         "API mode uses the same A1/A2 normalized fields.",
         "Hosted reports must pass export redaction before sharing."
       ]
-    }
+    },
+    db_migrations: {
+      migration_count: 0,
+      statements: []
+    },
+    usage_ledger: state.usageLedger || {}
   };
 }
 
@@ -2162,6 +2170,22 @@ function refreshLocalSaasAdmin() {
     frontendSummary: state.frontendSummary
   });
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
+}
+
+function refreshLocalUsageLedger() {
+  const summary = buildDashboardSummary(state.runs, state.grades);
+  state.usageLedger = {
+    schema_version: "a3.usage_ledger.v1",
+    status: "local_estimate",
+    billing_mutations_enabled: false,
+    meters: [
+      { meter: "runs", quantity: summary.totalRuns },
+      { meter: "cases", quantity: summary.totalCases },
+      { meter: "failed_cases", quantity: summary.failed },
+      { meter: "media_evidence_cases", quantity: summary.mediaEvidenceCases }
+    ]
+  };
+  state.saasRuntime.usage_ledger = state.usageLedger;
 }
 
 function renderSaasAdmin() {
@@ -2268,6 +2292,7 @@ async function loadDataSource(source) {
     state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
     state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
     refreshLocalSaasAdmin();
+    refreshLocalUsageLedger();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);

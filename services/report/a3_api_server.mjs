@@ -38,6 +38,20 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, A3_DB_CONTRACT);
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/db-migrations") {
+        return sendJson(response, 200, await store.getDbMigrationPlan({
+          dialect: url.searchParams.get("dialect") || "postgres"
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/usage/ledger") {
+        return sendJson(response, 200, await store.getUsageLedger({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
         const body = await readJsonBody(request);
         const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {
@@ -136,6 +150,16 @@ export function createA3ApiHandler(options = {}) {
         return report
           ? sendJson(response, 200, report)
           : sendJson(response, 404, notFound("report", reportMatch[1]));
+      }
+
+      const reportManifestMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/manifest$/);
+      if (request.method === "GET" && reportManifestMatch) {
+        const manifest = await store.getReportManifest(decodeURIComponent(reportManifestMatch[1]), {
+          source: sourceFrom(url)
+        });
+        return manifest
+          ? sendJson(response, 200, manifest)
+          : sendJson(response, 404, notFound("report", reportManifestMatch[1]));
       }
 
       const reportRevokeMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/revoke$/);

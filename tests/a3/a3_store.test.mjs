@@ -35,6 +35,8 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(dashboard.saas_admin_console.api_keys.status, "metadata_only");
   assert.equal(dashboard.enterprise_readiness.schema_version, "a3.enterprise_readiness.v1");
   assert.ok(dashboard.enterprise_readiness.enabled_capabilities.length > 0);
+  assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
+  assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);
@@ -64,6 +66,14 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
   assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
   assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+
+  const migrations = await store.getDbMigrationPlan();
+  assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");
+  assert.ok(migrations.statements.some((item) => item.tables.includes("usage_ledger")));
+
+  const ledger = await store.getUsageLedger({ source: "mock" });
+  assert.equal(ledger.schema_version, "a3.usage_ledger.v1");
+  assert.equal(ledger.meters.find((item) => item.meter === "cases").quantity, 32);
 });
 
 test("A3 store imports A1 run results and A2 grade results into an API-ingest source", async () => {
@@ -189,6 +199,11 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   });
   assert.equal(revoke.schema_version, "a3.report_revoke_receipt.v1");
   assert.equal(revoke.status, "revoked");
+
+  const manifest = await store.getReportManifest(report.report_id, { source: "mock" });
+  assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
+  assert.equal(manifest.release_packet.migration_count, 6);
+  assert.ok(manifest.artifacts.some((item) => item.id === "usage_ledger"));
 
   const revoked = await store.getReportForView(report.report_id, {
     viewer: "unit-test",

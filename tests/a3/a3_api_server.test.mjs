@@ -18,6 +18,20 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.storage.db_contract.mysql_compatible, true);
     assert.equal(dashboard.saas_admin_console.schema_version, "a3.saas_admin_console.v1");
     assert.equal(dashboard.enterprise_readiness.schema_version, "a3.enterprise_readiness.v1");
+    assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
+    assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
+
+    const migrations = await getJson(`${url}/api/a3/db-migrations`);
+    assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");
+    assert.ok(migrations.statements.some((item) => item.tables.includes("idempotency_keys")));
+
+    const mysqlMigrations = await getJson(`${url}/api/a3/db-migrations?dialect=mysql`);
+    assert.equal(mysqlMigrations.dialect, "mysql");
+    assert.match(mysqlMigrations.statements.map((item) => item.sql).join("\n"), /BIGINT AUTO_INCREMENT PRIMARY KEY/);
+
+    const usageLedger = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
+    assert.equal(usageLedger.schema_version, "a3.usage_ledger.v1");
+    assert.equal(usageLedger.billing_mutations_enabled, false);
 
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");
@@ -174,6 +188,11 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
+
+    const manifest = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/manifest?source=mock`);
+    assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
+    assert.equal(manifest.release_packet.hosted_report_ready, true);
+    assert.ok(manifest.artifacts.some((item) => item.id === "db_migration_plan"));
 
     const viewResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/view`, {
       method: "POST",

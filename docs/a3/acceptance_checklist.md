@@ -378,7 +378,7 @@
 - [x] Add `GET /api/a3/admin/console` and `POST /api/a3/admin/actions/plan`.
 - [x] Keep SaaS admin actions safe: real login, API-key creation, team invites, billing mutations, and Trust publishing are disabled or plan-only.
 - [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
-- [ ] Add CI export-firewall scans for generated docs and fixtures.
+- [x] Add CI export-firewall scans for generated docs and fixtures.
 - [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
 - [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
@@ -388,3 +388,6 @@
 - [x] Add view audit event and expiry/revocation policy for hosted reports.
 - [x] Add SQL adapter contract artifact for idempotency ledger, audit events, share/revoke/view tables, and usage ledger.
 - [x] Add API calibration evidence artifact for import validation/error shapes.
+- [x] Add SQL migration contract generator for Postgres, MySQL, and SQLite targets.
+- [x] Add read-only usage ledger meters for runs, cases, trace events, tool-call cases, judge results, hosted reports, report views, revocations, and API imports.
+- [x] Add report center manifest contract for hosted report artifacts, usage ledger evidence, and DB migration evidence.

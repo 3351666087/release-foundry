@@ -2722,6 +2722,86 @@ Create a docs-only Growth-Auditor artifact for the current A3 commercial SaaS ro
 - Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
 - Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
 
+## 2026-07-07 - SQL Usage Ledger Report Center Implementation
+
+### Goal
+
+Turn the SaaS growth plan into concrete A3-owned contracts so the dashboard can move from static fixture review toward API-backed, DB-ready, shareable-report workflows while staying compatible with A1 and A2.
+
+### Work completed
+
+- Added SQL migration planning in `services/report/a3_sql_migrations.mjs`.
+  - Covers organizations, projects, runs, cases, trace events, tool calls, grade results, idempotency keys, API import receipts, shareable reports, report view events, revocations, audit events, and usage ledger.
+  - Supports Postgres as the recommended production target.
+  - Adds MySQL and SQLite dialect targets for student/self-host deployment planning.
+- Added read-only usage metering in `services/report/a3_usage_ledger.mjs`.
+  - Counts A1/A2-derived runs, cases, failed cases, trace events, tool-call cases, judge results, media evidence cases, hosted reports, report views, report revocations, and API imports.
+  - Keeps billing mutations disabled.
+- Added report center manifest generation in `services/report/a3_report_center_manifest.mjs`.
+  - Links hosted report artifacts, usage ledger evidence, and DB migration evidence.
+  - Gives PR gate / audit bundle a single report packet shape.
+- Extended `services/report/a3_store.mjs` and `services/report/a3_api_server.mjs`.
+  - Adds `GET /api/a3/db-migrations`.
+  - Adds `GET /api/a3/usage/ledger`.
+  - Adds `GET /api/a3/reports/:reportId/manifest`.
+  - Includes DB migrations and usage ledger in dashboard payloads.
+- Extended `apps/dashboard/src/components/saas-runtime-panel.mjs` and `apps/dashboard/src/app.mjs`.
+  - Shows migration batches and usage meters in the SaaS Runtime panel.
+  - Keeps mock/raw A1/raw A2/P3 source compatibility.
+- Added CI-style export firewall scan.
+  - `tests/a3/export_firewall_generated_artifacts.test.mjs` scans generated A3 docs and fixtures for key/token/cookie/account-path leaks.
+  - `docs/a3/p3_export_firewall_ci_scan_2026_07_07.md` documents the scan policy.
+- Updated `docs/a3/acceptance_checklist.md`.
+  - Marks export-firewall scan, SQL migration contract, usage ledger, and report center manifest work complete.
+  - Keeps the real SQL adapter unchecked because no live database server has been selected or wired yet.
+
+### Verification
+
+Focused commands run:
+
+```text
+node --test tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_center_manifest_contract.test.mjs
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+```
+
+Focused result before final full-suite rerun:
+
+```text
+43 focused tests passed
+1 export-firewall scan passed
+```
+
+Final A3 suite result:
+
+```text
+124 tests
+124 pass
+0 fail
+```
+
+Secret/path scan result:
+
+```text
+Only intentional redaction-test strings and existing redaction policy examples were matched.
+No real key, cookie, token, account email, signed media URL, or local user artifact was added.
+```
+
+### Current interpretation
+
+A3 now has the shape of a SaaS product, not just a local HTML demo:
+
+- static -> API-backed: the same dashboard shape can be served by A3 API routes.
+- mock fixture -> real DB data: not fully implemented yet, but SQL migration contracts define the future tables.
+- HTML blob -> app components: dashboard logic is split across modules/components.
+- report export -> shareable hosted report: report links have lifecycle, revoke/view audit, and manifest contracts.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, billing, hosted auth, database, or external APIs in this implementation pass.
+- Did not copy official private frontend source; the UI remains a clean-room local implementation.
+- No real login, API-key creation, team invite, billing mutation, Trust publish, cloud delete, key reveal, token, cookie, account email, or signed URL was added.
+
 ## 2026-07-07 - Import Idempotency And Hosted Report Lifecycle
 
 ### Goal
@@ -2782,3 +2862,22 @@ This is an important SaaS hardening step:
 - No real Ashr API key, token, cookie, account data, or signed URL was printed or committed.
 - Validation errors do not echo request payloads.
 - Idempotency ledger stores a hashed key prefix and payload hash, not raw API keys or secrets.
+
+## 2026-07-07 - Growth auditor SQL usage and report center artifact
+
+### Goal
+
+Create a docs-only Growth-Auditor artifact for the next A3 commercial SaaS round focused on SQL migrations, usage ledger, billing/read-only quotas, report center manifest, CI export firewall, PR gate integration, hosted report lifecycle, and self-host deployment.
+
+### Work completed
+
+- Added `docs/a3/p3_growth_auditor_round_sql_usage_report_center_2026_07_07.md`.
+- Captured 32 concrete growth points tagged across code/test/API/UI/docs/evidence.
+- Mapped each growth point to money value, enterprise value, and risk reduction.
+- Kept the round documentation-only; no code, tests, fixtures, schemas, secrets, or runtime files were changed.
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
+- Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
