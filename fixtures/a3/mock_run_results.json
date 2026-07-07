@@ -3060,6 +3060,8 @@
               "image",
               "media",
               "api-calibration",
+              "enterprise-saas",
+              "saas-observability",
               "ordered-tools",
               "tool-output-grounding",
               "visual"
@@ -3357,6 +3359,8 @@
               "image",
               "media",
               "api-calibration",
+              "enterprise-saas",
+              "saas-observability",
               "ordered-tools",
               "tool-output-grounding",
               "visual"
@@ -3654,6 +3658,8 @@
               "image",
               "media",
               "api-calibration",
+              "enterprise-saas",
+              "saas-observability",
               "ordered-tools",
               "tool-output-grounding",
               "visual"
@@ -3959,6 +3965,8 @@
               "image",
               "media",
               "api-calibration",
+              "enterprise-saas",
+              "saas-observability",
               "ordered-tools",
               "tool-output-grounding",
               "visual"
@@ -4257,7 +4265,9 @@
             "a2_tags": [
               "forbidden-tool",
               "readonly",
-              "audit"
+              "audit",
+              "enterprise-saas",
+              "admin-audit"
             ]
           }
         },
@@ -5061,7 +5071,9 @@
             "a2_difficulty": "D2",
             "a2_tags": [
               "secret",
-              "redaction"
+              "redaction",
+              "enterprise-saas",
+              "secrets-management"
             ]
           }
         },

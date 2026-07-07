@@ -131,8 +131,7 @@ export function renderGateCliMarkdown(payload = {}) {
     "",
     "## PR Comment",
     "",
-    workflow.pr_comment_markdown?.trim() || "No PR comment available.",
-    ""
+    workflow.pr_comment_markdown?.trim() || "No PR comment available."
   ];
   return `${lines.join("\n")}\n`;
 }

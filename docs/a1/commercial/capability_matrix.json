@@ -221,10 +221,10 @@
           "status_code"
         ],
         "planned_count": 18,
-        "quota_block_count": 11,
-        "real_error_count": 13,
+        "quota_block_count": 13,
+        "real_error_count": 15,
         "real_ok_count": 2,
-        "records": 33,
+        "records": 35,
         "response_keys": [
           "_user",
           "plan",
@@ -235,7 +235,7 @@
           200
         ],
         "status_counts": {
-          "error": 13,
+          "error": 15,
           "ok": 2,
           "planned": 18
         }
@@ -1273,8 +1273,8 @@
         "planned_count": 5,
         "quota_block_count": 0,
         "real_error_count": 0,
-        "real_ok_count": 24,
-        "records": 29,
+        "real_ok_count": 28,
+        "records": 33,
         "response_keys": [
           "features",
           "notes",
@@ -1287,7 +1287,7 @@
           200
         ],
         "status_counts": {
-          "ok": 24,
+          "ok": 28,
           "planned": 5
         }
       },
@@ -1310,8 +1310,8 @@
         "planned_count": 4,
         "quota_block_count": 0,
         "real_error_count": 0,
-        "real_ok_count": 24,
-        "records": 28,
+        "real_ok_count": 28,
+        "records": 32,
         "response_keys": [
           "db",
           "message",
@@ -1322,7 +1322,7 @@
           200
         ],
         "status_counts": {
-          "ok": 24,
+          "ok": 28,
           "planned": 4
         }
       },
@@ -1345,8 +1345,8 @@
         "planned_count": 4,
         "quota_block_count": 0,
         "real_error_count": 0,
-        "real_ok_count": 25,
-        "records": 29,
+        "real_ok_count": 29,
+        "records": 33,
         "response_keys": [
           "_user",
           "agents",
@@ -1357,7 +1357,7 @@
           200
         ],
         "status_counts": {
-          "ok": 25,
+          "ok": 29,
           "planned": 4
         }
       },
@@ -1395,8 +1395,8 @@
         "planned_count": 5,
         "quota_block_count": 0,
         "real_error_count": 0,
-        "real_ok_count": 30,
-        "records": 35,
+        "real_ok_count": 34,
+        "records": 39,
         "response_keys": [
           "_user",
           "datasets",
@@ -1408,7 +1408,7 @@
           200
         ],
         "status_counts": {
-          "ok": 30,
+          "ok": 34,
           "planned": 5
         }
       },
@@ -1530,8 +1530,8 @@
         "planned_count": 3,
         "quota_block_count": 0,
         "real_error_count": 0,
-        "real_ok_count": 35,
-        "records": 38,
+        "real_ok_count": 39,
+        "records": 42,
         "response_keys": [
           "_user",
           "next_cursor",
@@ -1543,7 +1543,7 @@
           200
         ],
         "status_counts": {
-          "ok": 35,
+          "ok": 39,
           "planned": 3
         }
       },
@@ -2042,10 +2042,10 @@
     },
     "public_evidence": {
       "function_count": 15,
-      "label": "a1-real-api-2026-07-07-round15-saas-control-plane",
-      "quota_block_count": 41,
+      "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+      "quota_block_count": 43,
       "schema_version": "ashr.clone.evidence_index.v1",
-      "total_records": 342
+      "total_records": 368
     }
   },
   "summary": {

@@ -1224,10 +1224,10 @@
     "purpose": "Select a per-project A2 scenario pack for SaaS release evaluation without live API calls.",
     "does_not_read_private_evidence": true,
     "public_fixture_sources": [
-      "fixtures\\golden\\a2_g2_golden_cases.json",
-      "fixtures\\a2\\runs",
-      "fixtures\\a2\\results\\a2_regression_replay_report.json",
-      "fixtures\\a2\\results\\a2_incident_regression_candidates.json"
+      "fixtures/golden/a2_g2_golden_cases.json",
+      "fixtures/a2/runs",
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_incident_regression_candidates.json"
     ]
   }
 }

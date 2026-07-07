@@ -2337,8 +2337,7 @@ function buildReleasePrCommentMarkdown(gate, summary, options = {}) {
     "",
     ...(gate.top_risk_cases.length
       ? gate.top_risk_cases.map((item) => `- \`${item.case_id}\`: ${item.primary_failure_class} / ${item.severity} / ${item.score} - ${item.summary}`)
-      : ["- none"]),
-    ""
+      : ["- none"])
   ];
   return `${lines.join("\n")}\n`;
 }

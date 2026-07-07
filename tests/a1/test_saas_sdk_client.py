@@ -108,7 +108,7 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
         proc = subprocess.run(
             [sys.executable, "-B", "-m", "ashr_clone.saas_cli", *args],
             cwd=str(ROOT),
-            env={**os.environ, "PYTHONPATH": str(SDK_ROOT) + ";" + str(ROOT)},
+            env={**os.environ, "PYTHONPATH": os.pathsep.join([str(SDK_ROOT), str(ROOT)])},
             text=True,
             capture_output=True,
             check=False,
@@ -138,7 +138,7 @@ def test_sdk_saas_cli_rejects_private_input_paths_without_reading(tmp_path: Path
     proc = subprocess.run(
         [sys.executable, "-B", "-m", "ashr_clone.saas_cli", "--state-input", str(private_state), "state"],
         cwd=str(ROOT),
-        env={**os.environ, "PYTHONPATH": str(SDK_ROOT) + ";" + str(ROOT)},
+        env={**os.environ, "PYTHONPATH": os.pathsep.join([str(SDK_ROOT), str(ROOT)])},
         text=True,
         capture_output=True,
         check=False,

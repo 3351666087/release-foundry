@@ -3579,7 +3579,7 @@
       "judge_version": "a2.scenario_selection.v1",
       "policy_hash": "sha256:fc0c372e9a271fd6406683e7fe67b9cfdd3caac4346a60b6fe979d9a51329d73",
       "input_hash": "sha256:81b9c12a83f808a618d1e8dcae3095c65982cb5e7987489bfbc90c385285bb9c",
-      "output_hash": "sha256:97f2792cbfdccf134da01bd6aa3fd7ba3d54585c63953dbda473e0ed12e32730",
+      "output_hash": "sha256:73ec69dc3aefd45c86c630eaa9394711ff21f1862b9e53cecc2870b224ac2b26",
       "created_at": "2026-07-07T00:00:00Z",
       "selected": true,
       "selected_count": 12,

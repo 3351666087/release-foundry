@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from packages.sdk.ashr_clone.evidence_legacy import load_public_legacy_evidence_scan, scan_legacy_evidence_index
@@ -8,22 +9,24 @@ from packages.sdk.ashr_clone.evidence_legacy import load_public_legacy_evidence_
 def test_legacy_evidence_scan_reads_public_index_only_and_reports_round14_gaps():
     root = Path(__file__).resolve().parents[2]
     index_path = root / "docs" / "a1" / "api_calibration" / "real_api_evidence_index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    policy_counts = index["output_policy_counts"]
 
     scan = load_public_legacy_evidence_scan(index_path, sample_limit=3)
 
     assert scan["schema_version"] == "ashr.clone.legacy_evidence_scan.v1"
     assert scan["source_path"].endswith("docs/a1/api_calibration/real_api_evidence_index.json")
-    assert scan["scanned_records"] >= 337
-    assert scan["legacy_record_summary"]["missing_output_policy"] == 337
+    assert scan["scanned_records"] == index["total_records"]
+    assert scan["legacy_record_summary"]["missing_output_policy"] == policy_counts["missing"]
     assert scan["legacy_record_summary"]["real_missing_output_policy"] > 0
     assert scan["legacy_record_summary"]["quota_blocked_missing_output_policy"] == scan["blocking_unsafe_counts"]["quota_blocked_missing_output_policy"]
     assert len(scan["legacy_record_summary"]["samples"]) == 3
     assert all("docs/evidence/private_refs" in sample["path"] for sample in scan["legacy_record_summary"]["samples"])
-    assert scan["producer_class_coverage_gaps"]["records_without_output_policy"] >= 337
+    assert scan["producer_class_coverage_gaps"]["records_without_output_policy"] == policy_counts["missing"]
     assert "dry_run_plan" in scan["producer_class_coverage_gaps"]["missing_expected_record_classes"]
     assert "packages.sdk.ashr_clone.api_client" in scan["producer_class_coverage_gaps"]["missing_expected_producers"]
     assert scan["blocking_unsafe_counts"]["blocking_issue_count"] == 0
-    assert scan["blocking_unsafe_counts"]["quota_block_count"] == 41
+    assert scan["blocking_unsafe_counts"]["quota_block_count"] == index["quota_block_count"]
 
 
 def test_legacy_evidence_scan_summarizes_policy_coverage_and_blocking_unsafe_counts():
@@ -106,4 +109,3 @@ def test_legacy_evidence_scan_summarizes_policy_coverage_and_blocking_unsafe_cou
         "private_required_but_not_private": 1,
         "unsafe_real_nonprivate_output_override": 1,
     }
-
