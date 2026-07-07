@@ -174,6 +174,28 @@ test("A3 dashboard wires official frontend mirror into console and exports", asy
   assert.match(html, /officialMirror\.api_method_groups/);
 });
 
+test("A3 dashboard wires official code crawl parity into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeOfficialCodeCrawlParity/);
+  assert.match(html, /href="#official-code-crawl"/);
+  assert.match(html, /id="official-code-crawl"/);
+  assert.match(html, /Official Code Crawl/);
+  assert.match(html, /id="official-code-crawl-summary"/);
+  assert.match(html, /id="official-code-crawl-counts"/);
+  assert.match(html, /id="official-code-crawl-chunks"/);
+  assert.match(html, /id="official-code-crawl-targets"/);
+  assert.match(html, /function renderOfficialCodeCrawlParity\(\)/);
+  assert.match(html, /function codeCrawlChunkRow\(chunk\)/);
+  assert.match(html, /function codeCrawlTargetRow\(target\)/);
+  assert.match(html, /ashr_frontend_code_crawl_summary\.redacted\.json/);
+  assert.match(html, /state\.frontendCodeCrawl = await loadOptionalJson/);
+  assert.match(html, /state\.frontendMirror,\s*state\.frontendCodeCrawl/s);
+  assert.match(html, /renderOfficialCodeCrawlParity\(\)/);
+  assert.match(html, /officialCodeCrawl\.available/);
+  assert.match(html, /Official Code Crawl Parity<\/h4>/);
+});
+
 test("A3 dashboard wires official parity roadmap into console and reports", async () => {
   const html = await loadDashboardHtml();
 

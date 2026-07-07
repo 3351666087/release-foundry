@@ -313,6 +313,16 @@
 - [x] Added dashboard-wiring tests for Reviewer Workflow.
 - [x] Browser-smoke verified Reviewer Workflow with `Blocked`, 3 open official-demo items, 6 reviewer lanes, and A1/A2 calibration counts.
 - [x] Saved Reviewer Workflow screenshot under `docs/screenshots/a3-dashboard-reviewer-workflow-board.png`.
+- [x] Added Official Code Crawl Parity summary schema `a3.official_code_crawl_parity.v1`.
+- [x] Added redacted code-crawl fixture from official frontend mirror structure and keyword counts.
+- [x] Added `official_code_crawl_parity` JSON export field.
+- [x] Added Official Code Crawl Parity Markdown and print/PDF report sections.
+- [x] Added Official Code Crawl dashboard panel.
+- [x] Verified code-crawl parity preserves clean-room boundary and does not commit official source.
+- [x] Calibrated code-crawl parity targets against A1 run/trace/tool-call data and A2 score/failure/judge data.
+- [x] Added report-builder and dashboard-wiring tests for Official Code Crawl.
+- [x] Browser-smoke verified Official Code Crawl with 9 chunk rows, 6 parity target rows, and `source committed no`.
+- [x] Saved Official Code Crawl screenshot under `docs/screenshots/a3-dashboard-official-code-crawl-parity.png`.
 
 ## Next Acceptance Targets
 

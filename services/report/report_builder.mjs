@@ -714,6 +714,69 @@ export function summarizeOfficialFrontendMirror(mirrorFixture = {}) {
   };
 }
 
+export function summarizeOfficialCodeCrawlParity(codeCrawlFixture = {}) {
+  const chunkSignals = Array.isArray(codeCrawlFixture.chunk_signals) ? codeCrawlFixture.chunk_signals : [];
+  const parityTargets = Array.isArray(codeCrawlFixture.a3_parity_targets) ? codeCrawlFixture.a3_parity_targets : [];
+  const safety = objectOr(codeCrawlFixture.safety);
+  const scope = objectOr(codeCrawlFixture.crawl_scope);
+  const chunks = chunkSignals.map((item) => {
+    const signals = objectOr(item.signals);
+    const signalEntries = Object.entries(signals)
+      .filter(([, value]) => Number(value) > 0)
+      .sort((left, right) => Number(right[1]) - Number(left[1]));
+    return {
+      chunk: item.chunk || "unknown",
+      role: item.role || "unknown",
+      size_bytes: numberOrNull(item.size_bytes) ?? 0,
+      top_signals: signalEntries.slice(0, 5).map(([signal, count]) => ({ signal, count })),
+      signal_count: signalEntries.reduce((sum, [, count]) => sum + Number(count || 0), 0),
+      a3_status: classifyOfficialCodeCrawlDecision(item.a3_decision || ""),
+      a3_decision: item.a3_decision || "No A3 decision recorded."
+    };
+  });
+  const targets = parityTargets.map((item) => {
+    const status = classifyOfficialCodeCrawlDecision(item.a3_status || item.a3_decision || "");
+    return {
+      target: item.target || "unknown",
+      official_evidence: Array.isArray(item.official_evidence) ? item.official_evidence : [],
+      a3_status: status,
+      a3_dependency: item.a1_a2_dependency || "A1/A2 dependency not recorded."
+    };
+  });
+  const statusCounts = countOfficialMirrorStatuses([
+    ...chunks,
+    ...targets.map((item) => ({ a3_status: item.a3_status }))
+  ]);
+
+  return {
+    schema_version: "a3.official_code_crawl_parity.v1",
+    available: chunks.length > 0 || targets.length > 0,
+    source_archive: codeCrawlFixture.source_archive || "unknown",
+    clean_room_boundary: codeCrawlFixture.clean_room_boundary || "Clean-room summary only. Do not copy official source, styles, assets, cookies, tokens, or secrets.",
+    zip_file_count: numberOrNull(scope.zip_file_count) ?? 0,
+    lab_javascript_chunk_count: numberOrNull(scope.lab_javascript_chunk_count) ?? chunks.length,
+    lab_css_chunk_count: numberOrNull(scope.lab_css_chunk_count) ?? 0,
+    chunk_count: chunks.length,
+    parity_target_count: targets.length,
+    copy_now_count: statusCounts.copy,
+    partial_count: statusCounts.partial,
+    future_count: statusCounts.future,
+    out_of_scope_count: statusCounts.out_of_scope,
+    chunks,
+    parity_targets: targets,
+    next_build_order: Array.isArray(codeCrawlFixture.next_build_order) ? codeCrawlFixture.next_build_order : [],
+    safety: {
+      secret_values_saved: safety.secret_values_saved === true,
+      raw_cookies_saved: safety.raw_cookies_saved === true,
+      raw_tokens_saved: safety.raw_tokens_saved === true,
+      raw_signed_urls_saved: safety.raw_signed_urls_saved === true,
+      official_source_committed: safety.official_source_committed === true,
+      raw_source_excerpt_committed: objectOr(codeCrawlFixture.crawl_scope).raw_source_excerpt_committed === true
+    },
+    recommendation: "Use official code crawl signals to prioritize A3-owned release intelligence: results review, trace observability, media metadata, trust/audit, and read-only usage. Keep admin, keys, billing mutations, and source copying out of scope."
+  };
+}
+
 export function summarizeOfficialParityRoadmap(
   runFixture = {},
   gradeFixture = {},
@@ -1641,6 +1704,37 @@ function classifyOfficialMirrorDecision(decision = "") {
   return "unknown";
 }
 
+function classifyOfficialCodeCrawlDecision(decision = "") {
+  const text = String(decision).toLowerCase();
+  if (!text.trim()) {
+    return "unknown";
+  }
+  if (text.includes("copy_now") || text.includes("copy_results") || text.includes("copy_dataset")) {
+    return "copy";
+  }
+  if (
+    text.includes("partial")
+    || text.includes("metadata_only")
+    || text.includes("read_only")
+    || text.includes("copy_trace")
+    || text.includes("copy_trust")
+    || text.includes("copy_pass_rate")
+    || text.includes("local_report")
+  ) {
+    return "partial";
+  }
+  if (text.includes("future") || text.includes("next")) {
+    return "future";
+  }
+  if (text.includes("do_not_copy") || text.includes("out_of_scope") || text.includes("disabled")) {
+    return "out_of_scope";
+  }
+  if (text.includes("copy") || text.includes("use ")) {
+    return "partial";
+  }
+  return "unknown";
+}
+
 function countOfficialMirrorStatuses(items = []) {
   const counts = {
     copy: 0,
@@ -2286,7 +2380,7 @@ export function buildArgumentDiffs(expectedArgs = {}, actualArgs = {}) {
   });
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
@@ -2296,6 +2390,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const cloudConsoleShell = summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe);
   const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
   const officialFrontendMirror = summarizeOfficialFrontendMirror(frontendMirrorFixture);
+  const officialCodeCrawlParity = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
   const officialParityRoadmap = summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture);
   const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
@@ -2588,6 +2683,34 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("");
   }
 
+  if (officialCodeCrawlParity.available) {
+    lines.push(
+      "## Official Code Crawl Parity",
+      "",
+      `- Source archive: ${officialCodeCrawlParity.source_archive}`,
+      `- Clean-room boundary: ${officialCodeCrawlParity.clean_room_boundary}`,
+      `- Lab JS chunks observed: ${officialCodeCrawlParity.lab_javascript_chunk_count}`,
+      `- Parity targets: ${officialCodeCrawlParity.parity_target_count}`,
+      `- Copy-now targets: ${officialCodeCrawlParity.copy_now_count}`,
+      `- Partial targets: ${officialCodeCrawlParity.partial_count}`,
+      `- Out-of-scope targets: ${officialCodeCrawlParity.out_of_scope_count}`,
+      `- Official source committed: ${officialCodeCrawlParity.safety.official_source_committed ? "yes" : "no"}`,
+      `- Raw source excerpts committed: ${officialCodeCrawlParity.safety.raw_source_excerpt_committed ? "yes" : "no"}`,
+      `- Recommendation: ${officialCodeCrawlParity.recommendation}`,
+      ""
+    );
+    lines.push("### Code Crawl Chunks", "");
+    for (const chunk of officialCodeCrawlParity.chunks) {
+      const signals = chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "none";
+      lines.push(`- ${chunk.chunk}: ${chunk.a3_status} / ${chunk.role} / signals ${signals} - ${chunk.a3_decision}`);
+    }
+    lines.push("", "### A3 Parity Targets", "");
+    for (const target of officialCodeCrawlParity.parity_targets) {
+      lines.push(`- ${target.target}: ${target.a3_status} / evidence ${target.official_evidence.join(", ") || "none"} / ${target.a3_dependency}`);
+    }
+    lines.push("");
+  }
+
   if (officialParityRoadmap.available) {
     lines.push(
       "## Official Parity Roadmap",
@@ -2675,7 +2798,7 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
   return {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
@@ -2687,6 +2810,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     cloud_console_shell: summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe),
     official_ashr_gap: summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe),
     official_frontend_mirror: summarizeOfficialFrontendMirror(frontendMirrorFixture),
+    official_code_crawl_parity: summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture),
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture),
     release_gate: summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),

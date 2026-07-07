@@ -1160,6 +1160,7 @@
           <a href="#cloud-shell">Cloud Shell</a>
           <a href="#official-gap">Official Gap</a>
           <a href="#official-mirror">Frontend Mirror</a>
+          <a href="#official-code-crawl">Code Crawl</a>
           <a href="#official-roadmap">Parity Roadmap</a>
           <a href="#release-gate">Release Gate</a>
           <a href="#war-room">War Room</a>
@@ -1298,6 +1299,19 @@
               <div class="health-grid" id="official-mirror-counts"></div>
               <div class="gap-list" id="official-mirror-pages"></div>
               <div class="matrix-list" id="official-mirror-api"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-code-crawl">
+            <div class="panel-header">
+              <h2>Official Code Crawl</h2>
+              <span class="badge neutral">clean-room</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-code-crawl-summary">Waiting for official code crawl summary.</div>
+              <div class="health-grid" id="official-code-crawl-counts"></div>
+              <div class="matrix-list" id="official-code-crawl-chunks"></div>
+              <div class="matrix-list" id="official-code-crawl-targets"></div>
             </div>
           </div>
 
@@ -1564,6 +1578,7 @@
         summarizeCloudConsoleShell,
         summarizeMediaReadiness,
         summarizeOfficialAshrGap,
+        summarizeOfficialCodeCrawlParity,
         summarizeOfficialFrontendMirror,
         summarizeOfficialParityRoadmap,
         summarizeIncidentReplayQueue,
@@ -1587,6 +1602,7 @@
         authCheck: {},
         frontendSummary: {},
         frontendMirror: {},
+        frontendCodeCrawl: {},
         cases: [],
         filteredCases: [],
         selectedCaseId: null,
@@ -1709,6 +1725,7 @@
         renderCloudShell();
         renderOfficialGap();
         renderOfficialFrontendMirror();
+        renderOfficialCodeCrawlParity();
         renderOfficialParityRoadmap();
         renderRequestProvenance();
       }
@@ -1913,6 +1930,76 @@
             ? mirror.api_method_groups.map((group) => mirrorApiRow(group))
             : [emptyMatrixRow("No official API method summary is available.")]
         ));
+      }
+
+      function renderOfficialCodeCrawlParity() {
+        const crawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
+        $("official-code-crawl-summary").textContent = crawl.available
+          ? `${crawl.recommendation} ${crawl.lab_javascript_chunk_count} lab JS chunk(s), ${crawl.parity_target_count} parity target(s), source committed ${crawl.safety.official_source_committed ? "yes" : "no"}.`
+          : "No official code crawl summary is loaded.";
+        $("official-code-crawl-counts").replaceChildren(
+          healthTile(String(crawl.lab_javascript_chunk_count), "js chunks"),
+          healthTile(String(crawl.copy_now_count), "copy now"),
+          healthTile(String(crawl.partial_count), "partial"),
+          healthTile(String(crawl.out_of_scope_count), "do not copy")
+        );
+        $("official-code-crawl-chunks").replaceChildren(...(
+          crawl.chunks.length
+            ? crawl.chunks.map((chunk) => codeCrawlChunkRow(chunk))
+            : [emptyMatrixRow("No official code crawl chunks are available.")]
+        ));
+        $("official-code-crawl-targets").replaceChildren(...(
+          crawl.parity_targets.length
+            ? crawl.parity_targets.map((target) => codeCrawlTargetRow(target))
+            : [emptyMatrixRow("No official code crawl parity targets are available.")]
+        ));
+      }
+
+      function codeCrawlChunkRow(chunk) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(chunk.chunk)}</strong>
+            <span class="badge ${officialStatusClass(chunk.a3_status)}">${escapeHtml(chunk.a3_status)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(chunk.role)}</span>
+            <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
+            <span>${escapeHtml(chunk.size_bytes)} bytes</span>
+          </div>
+          <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} · ${escapeHtml(chunk.a3_decision)}</div>
+        `;
+        return node;
+      }
+
+      function codeCrawlTargetRow(target) {
+        const node = document.createElement("div");
+        node.className = "matrix-row";
+        node.innerHTML = `
+          <div class="matrix-head">
+            <strong>${escapeHtml(target.target)}</strong>
+            <span class="badge ${officialStatusClass(target.a3_status)}">${escapeHtml(target.a3_status)}</span>
+          </div>
+          <div class="case-meta">
+            <span>${escapeHtml(target.official_evidence.length)} official chunk(s)</span>
+          </div>
+          <div class="muted">${escapeHtml(target.a3_dependency)}</div>
+        `;
+        return node;
+      }
+
+      function officialStatusClass(status) {
+        if (status === "copy") {
+          return "pass";
+        }
+        if (status === "partial" || status === "future") {
+          return "warn";
+        }
+        if (status === "out_of_scope") {
+          return "neutral";
+        }
+        return "neutral";
       }
 
       function renderOfficialParityRoadmap() {
@@ -2524,6 +2611,7 @@
         const mediaReadiness = summarizeMediaReadiness(state.runs, state.grades, state.usageQuota, state.mediaSignedUrlCoverage);
         const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
+        const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
         const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
         const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
@@ -2531,12 +2619,12 @@
         const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
         $("report-status").className = "badge info";
         $("report-status").textContent = `${summary.totalCases} cases`;
-        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+        $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${reviewerWorkflowBoard.board_label} reviewer workflow, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
         $("report-center").replaceChildren(
-          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, reviewer workflow board, PR workflow, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
+          reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, reviewer workflow board, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
           reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class."),
-          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, reviewer workflow board, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, reviewer workflow, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
+          reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
+          reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
         );
       }
 
@@ -2556,6 +2644,7 @@
         const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialGap = summarizeOfficialAshrGap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
         const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
+        const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
         const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
         const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
         const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
@@ -2675,6 +2764,29 @@
               item.review_state,
               item.missing_artifacts.join(", ") || "none"
             ]), "No reviewer workflow items.")}
+          </div>
+          <div class="report-section">
+            <h4>Official Code Crawl Parity</h4>
+            <div class="muted">${escapeHtml(officialCodeCrawl.recommendation)}</div>
+            ${renderReportTable(["Signal", "Value"], [
+              ["Source archive", officialCodeCrawl.source_archive],
+              ["Lab JS chunks", officialCodeCrawl.lab_javascript_chunk_count],
+              ["Parity targets", officialCodeCrawl.parity_target_count],
+              ["Copy now", officialCodeCrawl.copy_now_count],
+              ["Partial", officialCodeCrawl.partial_count],
+              ["Do not copy", officialCodeCrawl.out_of_scope_count],
+              ["Official source committed", officialCodeCrawl.safety.official_source_committed ? "yes" : "no"]
+            ])}
+            ${renderReportTable(["Chunk", "A3 Status", "Top Signals"], officialCodeCrawl.chunks.slice(0, 6).map((chunk) => [
+              `${chunk.chunk} / ${chunk.role}`,
+              chunk.a3_status,
+              chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "none"
+            ]), "No code crawl chunks.")}
+            ${renderReportTable(["Target", "A3 Status", "A1/A2 Dependency"], officialCodeCrawl.parity_targets.map((target) => [
+              target.target,
+              target.a3_status,
+              target.a3_dependency
+            ]), "No code crawl parity targets.")}
           </div>
           <div class="report-section">
             <h4>Coverage Health</h4>
@@ -3141,7 +3253,8 @@
             state.mediaSignedUrlCoverage,
             state.authCheck,
             state.frontendSummary,
-            state.frontendMirror
+            state.frontendMirror,
+            state.frontendCodeCrawl
           ), null, 2), "application/json");
           return;
         }
@@ -3160,7 +3273,8 @@
           state.mediaSignedUrlCoverage,
           state.authCheck,
           state.frontendSummary,
-          state.frontendMirror
+          state.frontendMirror,
+          state.frontendCodeCrawl
         ), "text/markdown");
       }
 
@@ -3214,6 +3328,7 @@
           state.frontendSummary = {};
         }
         state.frontendMirror = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
+        state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
         state.coverage = await loadOptionalJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
         state.cases = normalizeCases(state.runs, state.grades);
         state.filteredCases = state.cases;

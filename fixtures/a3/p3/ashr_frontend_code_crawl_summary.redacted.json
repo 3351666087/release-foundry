@@ -1,0 +1,182 @@
+{
+  "schema_version": "a3.official_frontend_code_crawl.v1",
+  "source_archive": "Ashr_frontend_mirror_20260707_125507.zip",
+  "generated_from": "local zip entry names and keyword counts only",
+  "clean_room_boundary": "Do not copy official source code, styles, assets, cookies, tokens, signed URLs, account data, or proprietary implementation details.",
+  "crawl_scope": {
+    "zip_file_count": 418,
+    "lab_javascript_chunk_count": 15,
+    "lab_css_chunk_count": 8,
+    "official_source_committed": false,
+    "raw_source_excerpt_committed": false
+  },
+  "chunk_signals": [
+    {
+      "chunk": "CreateRequestModal-LwtjGDgm.js",
+      "role": "request_generation_and_results_review",
+      "size_bytes": 311966,
+      "signals": {
+        "results": 33,
+        "expected": 108,
+        "actual": 51,
+        "score": 57,
+        "tool_calls": 3,
+        "runs_history": 1,
+        "timeline": 7,
+        "audio": 55
+      },
+      "a3_decision": "copy_results_case_detail_expected_actual_score_tool_call_and_media_review_flow"
+    },
+    {
+      "chunk": "index-DSO2XOq6.js",
+      "role": "application_shell_and_api_client",
+      "size_bytes": 468722,
+      "signals": {
+        "list_runs": 1,
+        "get_run": 1,
+        "create_run": 1,
+        "trace": 137,
+        "observability": 40,
+        "errors": 34,
+        "requests": 273,
+        "team": 7,
+        "billing": 8,
+        "trust": 15
+      },
+      "a3_decision": "copy_read_only_shell_and_release_intelligence; do_not_copy_admin_or_mutation_flows"
+    },
+    {
+      "chunk": "ObservabilityPage-BmNyibq8.js",
+      "role": "trace_observability",
+      "size_bytes": 60484,
+      "signals": {
+        "trace": 33,
+        "latency": 10,
+        "errors": 1,
+        "tool_calls": 1,
+        "voice": 34,
+        "audio": 19,
+        "score": 12
+      },
+      "a3_decision": "copy_trace_latency_error_audio_metadata_concepts_into_incident_replay"
+    },
+    {
+      "chunk": "DatasetsPage-C6F1zCF4.js",
+      "role": "dataset_and_run_navigation",
+      "size_bytes": 17223,
+      "signals": {
+        "dataset": 32,
+        "request": 40,
+        "agent": 18,
+        "trace": 2
+      },
+      "a3_decision": "copy_dataset_run_navigation_as_local_run_list_and_case_detail"
+    },
+    {
+      "chunk": "AnalyticsPage-3IidZ_zD.js",
+      "role": "aggregate_quality_metrics",
+      "size_bytes": 9460,
+      "signals": {
+        "pass_rate": 4,
+        "results": 1,
+        "dataset": 10,
+        "agent": 24
+      },
+      "a3_decision": "copy_pass_rate_and_trend_concepts_using_local_fixture_data"
+    },
+    {
+      "chunk": "UsagePage-CoD18uzD.js",
+      "role": "usage_and_billing_shell",
+      "size_bytes": 5143,
+      "signals": {
+        "usage": 38,
+        "billing": 8,
+        "voice": 3,
+        "audio": 2
+      },
+      "a3_decision": "copy_read_only_usage_quota_shell; do_not_copy_checkout_or_billing_mutations"
+    },
+    {
+      "chunk": "TrustPage-DH1i4mLu.js",
+      "role": "trust_and_certificate",
+      "size_bytes": 4617,
+      "signals": {
+        "trust": 38,
+        "certificate": 9,
+        "results": 1
+      },
+      "a3_decision": "copy_trust_as_local_audit_bundle_and_verifier"
+    },
+    {
+      "chunk": "ApiKeysPage-DcsMtTi4.js",
+      "role": "api_key_admin",
+      "size_bytes": 9933,
+      "signals": {
+        "api_key": 15
+      },
+      "a3_decision": "do_not_copy_secret_creation_reveal_or_revoke"
+    },
+    {
+      "chunk": "TeamPage-zKnEHkxH.js",
+      "role": "team_admin",
+      "size_bytes": 11828,
+      "signals": {
+        "team": 23,
+        "usage": 21
+      },
+      "a3_decision": "do_not_copy_invites_or_account_admin_for_mvp"
+    }
+  ],
+  "a3_parity_targets": [
+    {
+      "target": "Results review",
+      "official_evidence": ["CreateRequestModal-LwtjGDgm.js", "index-DSO2XOq6.js"],
+      "a3_status": "copy_now",
+      "a1_a2_dependency": "A1 run/case/trace plus A2 score/pass/fail/failure class"
+    },
+    {
+      "target": "Trace observability",
+      "official_evidence": ["ObservabilityPage-BmNyibq8.js", "index-DSO2XOq6.js"],
+      "a3_status": "partial",
+      "a1_a2_dependency": "A1 trace/tool-call evidence and A2 judge remediation"
+    },
+    {
+      "target": "Media evidence",
+      "official_evidence": ["CreateRequestModal-LwtjGDgm.js", "ObservabilityPage-BmNyibq8.js", "UsagePage-CoD18uzD.js"],
+      "a3_status": "metadata_only",
+      "a1_a2_dependency": "A1 media evidence metadata and A2 media failure taxonomy"
+    },
+    {
+      "target": "Trust and audit",
+      "official_evidence": ["TrustPage-DH1i4mLu.js"],
+      "a3_status": "copy_as_local_report",
+      "a1_a2_dependency": "A1/A2 evidence packaged into A3 audit bundle"
+    },
+    {
+      "target": "Usage and billing",
+      "official_evidence": ["UsagePage-CoD18uzD.js", "index-DSO2XOq6.js"],
+      "a3_status": "read_only_shell",
+      "a1_a2_dependency": "A3 usage/quota calibration fixture only"
+    },
+    {
+      "target": "API keys and team admin",
+      "official_evidence": ["ApiKeysPage-DcsMtTi4.js", "TeamPage-zKnEHkxH.js"],
+      "a3_status": "out_of_scope",
+      "a1_a2_dependency": "None for MVP; secret/admin mutation flows stay disabled"
+    }
+  ],
+  "next_build_order": [
+    "Add Official Code Crawl Parity dashboard section.",
+    "Bind code-crawl parity into JSON and Markdown reports.",
+    "Use CreateRequestModal signals to polish case detail and expected-vs-actual copy.",
+    "Use ObservabilityPage signals to strengthen incident replay trace/latency/error lanes.",
+    "Keep API key, team, and billing mutation flows blocked behind safety copy only."
+  ],
+  "safety": {
+    "secret_values_saved": false,
+    "raw_cookies_saved": false,
+    "raw_tokens_saved": false,
+    "raw_signed_urls_saved": false,
+    "official_source_committed": false
+  }
+}

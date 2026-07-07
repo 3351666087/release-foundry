@@ -19,6 +19,7 @@ import {
   summarizeEvidenceReadiness,
   summarizeMediaReadiness,
   summarizeOfficialAshrGap,
+  summarizeOfficialCodeCrawlParity,
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeIncidentReplayQueue,
@@ -935,6 +936,46 @@ test("A3 report builder summarizes official frontend mirror clean-room parity", 
   assert.match(markdown, /## Official Frontend Mirror/);
   assert.match(markdown, /Pages observed: 11/);
   assert.match(markdown, /API evaluation_core: copy, 10 method\(s\)/);
+  assert.match(markdown, /Official source committed: no/);
+});
+
+test("A3 report builder summarizes official code crawl parity without source leakage", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const frontendCodeCrawl = await loadJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
+
+  const crawl = summarizeOfficialCodeCrawlParity(frontendCodeCrawl);
+
+  assert.equal(crawl.schema_version, "a3.official_code_crawl_parity.v1");
+  assert.equal(crawl.available, true);
+  assert.equal(crawl.chunk_count, 9);
+  assert.equal(crawl.parity_target_count, 6);
+  assert.equal(crawl.safety.official_source_committed, false);
+  assert.equal(crawl.safety.raw_source_excerpt_committed, false);
+  assert.ok(crawl.chunks.some((chunk) => (
+    chunk.chunk === "CreateRequestModal-LwtjGDgm.js"
+    && chunk.a3_status === "copy"
+    && chunk.top_signals.some((signal) => signal.signal === "expected")
+  )));
+  assert.ok(crawl.chunks.some((chunk) => (
+    chunk.chunk === "ObservabilityPage-BmNyibq8.js"
+    && chunk.a3_status === "partial"
+    && chunk.top_signals.some((signal) => signal.signal === "trace")
+  )));
+  assert.ok(crawl.parity_targets.some((target) => (
+    target.target === "API keys and team admin"
+    && target.a3_status === "out_of_scope"
+  )));
+  assert.ok(crawl.parity_targets.some((target) => /A1 run/.test(target.a3_dependency)));
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, frontendCodeCrawl);
+  assert.equal(json.official_code_crawl_parity.schema_version, "a3.official_code_crawl_parity.v1");
+  assert.equal(json.official_code_crawl_parity.safety.official_source_committed, false);
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, frontendCodeCrawl);
+  assert.match(markdown, /## Official Code Crawl Parity/);
+  assert.match(markdown, /CreateRequestModal-LwtjGDgm\.js: copy/);
+  assert.match(markdown, /API keys and team admin: out_of_scope/);
   assert.match(markdown, /Official source committed: no/);
 });
 

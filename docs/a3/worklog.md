@@ -2191,3 +2191,75 @@ Full result:
 ### Current interpretation
 
 Reviewer Workflow Board is the next layer after Incident Replay Queue. Incident Replay says which failed cases must be replayed; Reviewer Workflow says who owns them, what evidence is missing, and whether waiver or approval can proceed. This makes A3 closer to a release-governance product while still staying local-only and safe.
+
+## 2026-07-07 - Official Code Crawl Parity
+
+### Goal
+
+Use the official Ashr frontend mirror as clean-room product evidence and convert code-level page/module signals into A3 parity reporting.
+
+### Work completed
+
+- Added redacted code-crawl fixture:
+  - `fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json`
+- Added `summarizeOfficialCodeCrawlParity()` in `services/report/report_builder.mjs`.
+- Added JSON export field:
+  - `official_code_crawl_parity`
+- Added Markdown report section:
+  - `Official Code Crawl Parity`
+- Added dashboard panel:
+  - `Official Code Crawl`
+- Added print/PDF report section:
+  - `Official Code Crawl Parity`
+- Added report-builder tests proving the crawl summary does not commit official source and maps A3 copy/out-of-scope decisions.
+- Added dashboard-wiring tests for fixture loading, panel IDs, renderers, exports, and print report.
+- Added implementation note:
+  - `docs/a3/p3_official_code_crawl_parity_growth_2026_07_07.md`
+- Added clean-room explorer note:
+  - `docs/a3/p3_official_frontend_code_crawl_cleanroom_2026_07_07.md`
+- Added Growth-Auditor note:
+  - `docs/a3/p3_growth_auditor_code_crawl_parity_2026_07_07.md`
+- Browser-smoke verified Official Code Crawl with 9 chunk rows, 6 parity target rows, and `source committed no`.
+- Saved browser verification screenshot:
+  - `docs/screenshots/a3-dashboard-official-code-crawl-parity.png`
+
+### A1/A2 calibration
+
+- Results review maps back to A1 run/case/trace plus A2 score/pass/fail/failure class.
+- Trace observability maps back to A1 trace/tool-call evidence plus A2 judge remediation.
+- Media evidence maps back to A1 media metadata and A2 media failure taxonomy.
+- Trust/audit maps back to A1/A2 evidence packaged by A3 report, audit bundle, and verifier.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+46 tests
+46 pass
+0 fail
+```
+
+Full command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+82 tests
+82 pass
+0 fail
+```
+
+### Current interpretation
+
+Official Code Crawl Parity gives A3 a stronger product reference without copying official source. It shows which official frontend chunks imply results review, trace observability, media evidence, trust/audit, usage, API keys, and team admin. A3 should copy the release-intelligence workflow and keep admin, billing, and secret flows out of scope.
