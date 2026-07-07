@@ -2508,3 +2508,51 @@ Browser smoke:
 ### Current interpretation
 
 A3 is now less brittle. It no longer depends only on hand-shaped mock fixtures, and the dashboard is easier for the team to maintain because HTML, JS, and CSS have separate ownership boundaries.
+
+## 2026-07-07 - Raw A1/A2 Dashboard Sources
+
+### Goal
+
+Close the remaining UI gap from the A1/A2 compatibility work: the report builder could consume raw A1/A2 data, but the dashboard Data selector did not expose those raw sources.
+
+### Work completed
+
+- Added `Raw A1 RunResult` to the dashboard Data selector.
+- Added `Raw A2 Single Case` to the dashboard Data selector.
+- Wired `raw-a1` to `docs/a1/evidence/local_run_30.json`.
+- Wired `raw-a2` to:
+  - `fixtures/a2/runs/a2_s004_missing_tool.json`
+  - `fixtures/a2/results/a2_s004_missing_tool_grade.json`
+- Added source labels for raw A1 and raw A2.
+- Added `resetCalibrationState()` so switching from P3 samples to raw A1/A2 does not leave stale request/quota/auth data in state.
+- Added dashboard wiring tests for raw A1/A2 sources.
+- Added implementation note:
+  - `docs/a3/p3_raw_a1_a2_dashboard_sources_2026_07_07.md`
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+56 tests
+56 pass
+0 fail
+```
+
+Browser smoke:
+
+- `?source=raw-a1`: 1 run, 30 cases, 100% pass rate, Export Safety `passed`.
+- `?source=raw-a2`: 1 run, 1 case, 0% pass rate, Export Safety `passed`.
+- Browser error log was empty.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-raw-a2-source.png`
+
+### Current interpretation
+
+The A1/A2 compatibility work is now visible from the dashboard, not only proven in unit tests. This makes the A3 handoff easier to demo and easier for A1/A2 teammates to validate.

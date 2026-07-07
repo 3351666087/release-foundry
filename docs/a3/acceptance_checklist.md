@@ -355,6 +355,11 @@
 - [x] Strengthened direct A1 RunResult compatibility.
 - [x] Strengthened direct A2 single-run plus single-grade compatibility.
 - [x] Added focused tests for raw A1 and raw A2 compatibility.
+- [x] Added dashboard Data option for raw A1 RunResult.
+- [x] Added dashboard Data option for raw A2 single-case fixture.
+- [x] Added dashboard wiring tests for raw A1/A2 sources.
+- [x] Browser-smoke verified raw A1 and raw A2 dashboard sources.
+- [x] Saved raw A2 dashboard screenshot under `docs/screenshots/a3-dashboard-raw-a2-source.png`.
 
 ## Next Acceptance Targets
 

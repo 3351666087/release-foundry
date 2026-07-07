@@ -78,8 +78,23 @@ test("A3 dashboard wires official generated demo dataset 884 and run 11926 sourc
   assert.match(html, /ashr_after_generate_dataset_884\.redacted\.json/);
   assert.match(html, /ashr_after_generate_frontend_summary\.redacted\.json/);
   assert.match(html, /p3_official_demo_884_11926_dashboard_sample/);
-  assert.match(html, /allowedSources = new Set\(\["mock", "p3-media", "p3-official-demo"\]\)/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
   assert.match(html, /P3 official Ashr demo dataset 884 \/ run 11926/);
+});
+
+test("A3 dashboard wires raw A1 and raw A2 source options into the webapp", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /value="raw-a1"/);
+  assert.match(html, /Raw A1 RunResult/);
+  assert.match(html, /value="raw-a2"/);
+  assert.match(html, /Raw A2 Single Case/);
+  assert.match(html, /docs\/a1\/evidence\/local_run_30\.json/);
+  assert.match(html, /fixtures\/a2\/runs\/a2_s004_missing_tool\.json/);
+  assert.match(html, /fixtures\/a2\/results\/a2_s004_missing_tool_grade\.json/);
+  assert.match(html, /Raw A1 RunResult fixture/);
+  assert.match(html, /Raw A2 single-case fixture/);
+  assert.match(html, /function resetCalibrationState\(\)/);
 });
 
 test("A3 dashboard wires field-level argument diff rendering", async () => {

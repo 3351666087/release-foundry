@@ -1091,6 +1091,12 @@ function miniRow(label, value) {
 }
 
 function sourceLabel(source) {
+  if (source === "raw-a1") {
+    return "Raw A1 RunResult fixture";
+  }
+  if (source === "raw-a2") {
+    return "Raw A2 single-case fixture";
+  }
   if (source === "p3-media") {
     return "P3 redacted Ashr media sample";
   }
@@ -1101,6 +1107,12 @@ function sourceLabel(source) {
 }
 
 function workflowRequestLabel(source) {
+  if (source === "raw-a1") {
+    return "A1 raw run";
+  }
+  if (source === "raw-a2") {
+    return "A2 raw case";
+  }
   if (source === "p3-official-demo") {
     return "official run";
   }
@@ -1108,6 +1120,12 @@ function workflowRequestLabel(source) {
 }
 
 function workflowRequestDetail(source) {
+  if (source === "raw-a1") {
+    return "raw run result";
+  }
+  if (source === "raw-a2") {
+    return "single run + grade";
+  }
   if (source === "p3-official-demo") {
     return "official dataset/run";
   }
@@ -2063,15 +2081,18 @@ async function loadDataSource(source) {
     });
     state.runs = mapped.runFixture;
     state.grades = mapped.gradeFixture;
+  } else if (source === "raw-a1") {
+    state.runs = await loadJson("../../docs/a1/evidence/local_run_30.json");
+    state.grades = {};
+    resetCalibrationState();
+  } else if (source === "raw-a2") {
+    state.runs = await loadJson("../../fixtures/a2/runs/a2_s004_missing_tool.json");
+    state.grades = await loadJson("../../fixtures/a2/results/a2_s004_missing_tool_grade.json");
+    resetCalibrationState();
   } else {
     state.runs = await loadJson("../../fixtures/a3/mock_run_results.json");
     state.grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
-    state.requestProvenance = {};
-    state.usageQuota = {};
-    state.usageQuotaApiProbe = {};
-    state.mediaSignedUrlCoverage = {};
-    state.authCheck = {};
-    state.frontendSummary = {};
+    resetCalibrationState();
   }
   state.frontendMirror = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json");
   state.frontendCodeCrawl = await loadOptionalJson("../../fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json");
@@ -2110,9 +2131,18 @@ async function loadDataSource(source) {
   renderClusters();
 }
 
+function resetCalibrationState() {
+  state.requestProvenance = {};
+  state.usageQuota = {};
+  state.usageQuotaApiProbe = {};
+  state.mediaSignedUrlCoverage = {};
+  state.authCheck = {};
+  state.frontendSummary = {};
+}
+
 async function init() {
   const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
-  const allowedSources = new Set(["mock", "p3-media", "p3-official-demo"]);
+  const allowedSources = new Set(["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";
   await loadDataSource($("source-select").value);
 
