@@ -2424,3 +2424,87 @@ Browser smoke:
 ### Current interpretation
 
 Regression Factory is the next commercial layer after Incident Replay and Observability Replay. Incident Replay says what failed, Observability Replay says whether the evidence is replayable, and Regression Factory says whether the failure can become a repeatable regression candidate before the next release. This moves A3 closer to a paid release-intelligence workflow instead of a one-time demo dashboard.
+
+## 2026-07-07 - Export Redaction Firewall And Dashboard Webapp Split
+
+### Goal
+
+Improve A3 enterprise export safety, strengthen A1/A2 data compatibility, and migrate the dashboard away from a single oversized HTML file.
+
+### Work completed
+
+- Added shared export firewall module:
+  - `services/report/export_redaction_firewall.mjs`
+- Added `summarizeExportRedactionFirewall()` to `services/report/report_builder.mjs`.
+- Added `export_redaction_firewall` to JSON report exports.
+- Added `Export Redaction Firewall` to Markdown and print/PDF report output.
+- Added CSV cell scrubbing and formula-injection hardening.
+- Reused the shared firewall from the A3 Gate CLI.
+- Added dashboard `Export Safety` panel.
+- Split dashboard webapp files:
+  - `apps/dashboard/index.html`
+  - `apps/dashboard/src/app.mjs`
+  - `apps/dashboard/src/styles.css`
+- Reduced `index.html` from more than 3,000 lines to about 400 lines.
+- Strengthened A1/A2 input normalization in `report_builder.mjs`.
+- Added direct compatibility for:
+  - A1 RunResult root fixtures
+  - A1 loose case lists
+  - A1 `ashr.clone.run.v1` run fixture shape
+  - A2 single run fixtures
+  - A2 single local judge result fixtures
+  - Existing A3 aggregate run fixtures
+  - Existing A2 aggregate grade reports
+- Added implementation note:
+  - `docs/a3/p3_dashboard_webapp_migration_2026_07_07.md`
+- Added Export Redaction Firewall docs:
+  - `docs/a3/p3_growth_auditor_redaction_firewall_2026_07_07.md`
+  - `docs/a3/p3_redaction_firewall_evidence_map_2026_07_07.md`
+
+### A1/A2 calibration
+
+- A1 compatibility now maps agent output, expected output, tool calls, observations, trace events, and optional media evidence into A3 case fields.
+- A2 compatibility now maps single judge results and aggregate grade reports into pass/fail, score, failure class, severity, judge modes, and remediation evidence.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+55 tests
+55 pass
+0 fail
+```
+
+Full A3 command:
+
+```text
+node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/a3_github_integration.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/p3_ashr_mapper.test.mjs
+```
+
+Full result:
+
+```text
+91 tests
+91 pass
+0 fail
+```
+
+Browser smoke:
+
+- Served local dashboard at `http://127.0.0.1:4173/apps/dashboard/index.html`.
+- Confirmed split webapp loads `src/app.mjs` and `src/styles.css`.
+- Confirmed dashboard renders 32 cases, 6.3% pass rate, and Export Safety status `passed`.
+- Browser console error log was empty.
+- Saved screenshot:
+  - `docs/screenshots/a3-dashboard-webapp-export-safety.png`
+
+### Current interpretation
+
+A3 is now less brittle. It no longer depends only on hand-shaped mock fixtures, and the dashboard is easier for the team to maintain because HTML, JS, and CSS have separate ownership boundaries.

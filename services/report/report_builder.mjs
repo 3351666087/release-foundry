@@ -1,3 +1,9 @@
+import {
+  redactExport,
+  sanitizeCsvCellValue,
+  summarizeRedactionResults
+} from "./export_redaction_firewall.mjs";
+
 export function normalizeScore(score) {
   if (typeof score !== "number" || Number.isNaN(score)) {
     return 0;
@@ -57,8 +63,29 @@ export function canonicalPrimaryFailureClass(value, passed = false) {
 }
 
 export function getGradeByCase(gradeFixture = {}) {
-  const grades = Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results : [];
+  const grades = normalizeGradeResults(gradeFixture);
   return new Map(grades.map((grade) => [grade.case_id, grade]));
+}
+
+function normalizeGradeResults(gradeFixture = {}) {
+  if (Array.isArray(gradeFixture)) {
+    return gradeFixture.flatMap((item) => normalizeGradeResults(item));
+  }
+  if (Array.isArray(gradeFixture.grade_results)) {
+    return gradeFixture.grade_results;
+  }
+  if (isObject(gradeFixture.grade_result)) {
+    return [gradeFixture.grade_result];
+  }
+  if (gradeFixture.case_id && (
+    Array.isArray(gradeFixture.judge_results)
+    || "passed" in gradeFixture
+    || "score" in gradeFixture
+    || "primary_failure_class" in gradeFixture
+  )) {
+    return [gradeFixture];
+  }
+  return [];
 }
 
 function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed = false) {
@@ -94,11 +121,7 @@ function selectFailureAnalysis(grade = {}, primaryFailureClass = "none", passed 
 
 export function normalizeCases(runFixture = {}, gradeFixture = {}) {
   const gradeByCase = getGradeByCase(gradeFixture);
-  const runs = Array.isArray(runFixture.runs)
-    ? runFixture.runs
-    : runFixture.run_id
-      ? [runFixture]
-      : [];
+  const runs = normalizeRunInputs(runFixture);
 
   return runs.flatMap((run) => {
     const cases = Array.isArray(run.cases) ? run.cases : [];
@@ -115,13 +138,24 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       const failureSummary = caseResult.failure_summary
         || failureAnalysis?.summary
         || (passed ? "Passed." : "Failure requires triage.");
+      const expected = normalizeExpected(caseResult, grade);
+      const actual = normalizeActual(caseResult, grade);
+      const traceEvents = normalizeTraceEvents(caseResult);
+      const observations = Array.isArray(caseResult.observations) ? caseResult.observations : [];
+      const mediaEvidence = normalizeMediaEvidence(caseResult, actual);
 
       return {
         ...caseResult,
-        run_id: run.run_id,
-        dataset_id: run.dataset_id,
-        runner_id: run.runner_id,
+        run_id: run.run_id || caseResult.run_id || grade.run_id || "run-local",
+        dataset_id: run.dataset_id || caseResult.dataset_id || grade.dataset_id || "local-dataset",
+        runner_id: run.runner_id || caseResult.runner_id || "a1-local-runner",
         run_status: run.status,
+        expected,
+        actual,
+        trace_events: traceEvents,
+        observations,
+        trace_ready: traceEvents.length > 0 || observations.length > 0,
+        media_evidence: mediaEvidence,
         passed,
         score: normalizeScore(grade.score ?? caseResult.score),
         primary_failure_class: primaryFailureClass,
@@ -137,6 +171,176 @@ export function normalizeCases(runFixture = {}, gradeFixture = {}) {
       };
     });
   });
+}
+
+function normalizeRunInputs(runFixture = {}) {
+  if (Array.isArray(runFixture)) {
+    return runFixture.flatMap((item) => normalizeRunInputs(item));
+  }
+  if (Array.isArray(runFixture.runs)) {
+    return runFixture.runs;
+  }
+  if (runFixture.run_id && Array.isArray(runFixture.cases)) {
+    return [runFixture];
+  }
+  if (Array.isArray(runFixture.cases)) {
+    return [{
+      run_id: runFixture.run_id || runFixture.id || "run-local-cases",
+      dataset_id: runFixture.dataset_id || "local-cases",
+      runner_id: runFixture.runner_id || "a1-local-runner",
+      status: runFixture.status || "completed",
+      cases: runFixture.cases.map((item, index) => normalizeLooseCase(item, index))
+    }];
+  }
+  if (runFixture.schema === "ashr.clone.run.v1" && isObject(runFixture.run)) {
+    return [{
+      run_id: runFixture.run.run_id || runFixture.run.id || `run-${runFixture.name || "a1-fixture"}`,
+      dataset_id: runFixture.dataset_id || runFixture.name || "a1-run-fixture",
+      runner_id: runFixture.run.agent || "a1-local-runner",
+      status: runFixture.run.status || "completed",
+      started_at: runFixture.run.started_at,
+      ended_at: runFixture.run.finished_at,
+      cases: [normalizeA1RunFixtureCase(runFixture)]
+    }];
+  }
+  if (runFixture.case_id && (isObject(runFixture.run) || isObject(runFixture.expected))) {
+    return [{
+      run_id: runFixture.run_id || `run-${runFixture.case_id}`,
+      dataset_id: runFixture.dataset_id || "a2-single-case",
+      runner_id: runFixture.runner_id || "a2-local-runner",
+      status: "completed",
+      cases: [normalizeA2RunFixtureCase(runFixture)]
+    }];
+  }
+  return [];
+}
+
+function normalizeLooseCase(caseResult = {}, index = 0) {
+  return {
+    ...caseResult,
+    case_id: caseResult.case_id || caseResult.id || `case-${index + 1}`,
+    title: caseResult.title || caseResult.name || caseResult.prompt || `Case ${index + 1}`,
+    expected: caseResult.expected || {},
+    actual: caseResult.actual || caseResult.agent_output || {}
+  };
+}
+
+function normalizeA1RunFixtureCase(fixture = {}) {
+  const run = fixture.run || {};
+  return {
+    case_id: fixture.case_id || fixture.name || run.run_id || "a1-run-fixture-case",
+    scenario_id: fixture.scenario_id || fixture.name || "a1-run-fixture",
+    title: fixture.name || run.task || "A1 run fixture",
+    status: run.status || "completed",
+    started_at: run.started_at,
+    ended_at: run.finished_at,
+    expected: fixture.expected || {},
+    actual: fixture.replay?.actual || fixture.replay || {},
+    observations: Array.isArray(fixture.events) ? fixture.events : [],
+    trace_events: Array.isArray(fixture.events) ? fixture.events : [],
+    media_evidence: {
+      media_types: Array.isArray(fixture.vm_stream) && fixture.vm_stream.length > 0 ? ["vm_stream"] : [],
+      evidence_items: [],
+      vm_streams: Array.isArray(fixture.vm_stream) ? fixture.vm_stream : []
+    },
+    metadata: {
+      labels: fixture.labels || [],
+      source_schema: fixture.schema
+    }
+  };
+}
+
+function normalizeA2RunFixtureCase(fixture = {}) {
+  const run = fixture.run || {};
+  return {
+    case_id: fixture.case_id,
+    scenario_id: fixture.scenario_id,
+    title: fixture.title || fixture.userTask || fixture.case_id,
+    status: fixture.expected?.passed === false ? "failed" : "passed",
+    expected: {
+      ...objectOr(fixture.expected),
+      tool_calls: fixture.expected?.tool_calls || fixture.expected?.expectedToolCalls || []
+    },
+    actual: {
+      final_response: run.final_response || run.text || run.response || "",
+      text: run.final_response || run.text || run.response || "",
+      tool_calls: Array.isArray(run.tool_calls) ? run.tool_calls : []
+    },
+    trace_events: Array.isArray(run.trace_events) ? run.trace_events : [],
+    observations: Array.isArray(run.observations) ? run.observations : [],
+    metadata: {
+      source_schema: "a2.single_run_fixture"
+    }
+  };
+}
+
+function normalizeExpected(caseResult = {}, grade = {}) {
+  const expected = caseResult.expected || grade.expected || {};
+  return {
+    ...objectOr(expected),
+    text: firstText(expected.text, expected.expected_response, expected.expectedResponse, ""),
+    final_response: firstText(expected.final_response, expected.text, expected.expected_response, expected.expectedResponse, ""),
+    tool_calls: normalizeToolCallObjects(expected.tool_calls || expected.expectedToolCalls || expected.tools)
+  };
+}
+
+function normalizeActual(caseResult = {}, grade = {}) {
+  const actual = caseResult.actual || grade.actual || {};
+  const agentOutput = caseResult.agent_output || {};
+  const run = caseResult.run || {};
+  const text = firstText(actual.final_response, actual.text, actual.response, agentOutput.text, run.final_response, run.text, "");
+  const toolCalls = actual.tool_calls
+    || agentOutput.tool_calls
+    || run.tool_calls
+    || [];
+  return {
+    ...objectOr(actual),
+    text,
+    final_response: text,
+    tool_calls: normalizeToolCallObjects(toolCalls)
+  };
+}
+
+function normalizeTraceEvents(caseResult = {}) {
+  const direct = caseResult.trace_events || caseResult.events || [];
+  const observations = caseResult.observations || [];
+  const agentVmLogs = caseResult.agent_output?.vm_stream?.logs || [];
+  return [
+    ...(Array.isArray(direct) ? direct : []),
+    ...(Array.isArray(observations) && direct !== observations ? observations : []),
+    ...(Array.isArray(agentVmLogs) ? agentVmLogs : [])
+  ];
+}
+
+function normalizeMediaEvidence(caseResult = {}, actual = {}) {
+  const existing = caseResult.media_evidence || {};
+  const vmStreams = [
+    ...(Array.isArray(existing.vm_streams) ? existing.vm_streams : []),
+    ...(caseResult.agent_output?.vm_stream ? [caseResult.agent_output.vm_stream] : []),
+    ...(Array.isArray(caseResult.vm_stream) ? caseResult.vm_stream : [])
+  ];
+  const mediaTypes = [
+    ...(Array.isArray(existing.media_types) ? existing.media_types : []),
+    ...(vmStreams.length > 0 ? ["vm_stream"] : [])
+  ];
+  return {
+    ...existing,
+    media_types: uniqueValues(mediaTypes),
+    evidence_items: Array.isArray(existing.evidence_items) ? existing.evidence_items : [],
+    vm_streams: vmStreams
+  };
+}
+
+function normalizeToolCallObjects(toolCalls) {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+  return toolCalls.map((call) => ({
+    ...objectOr(call),
+    id: call.id || call.tool_call_id || null,
+    name: call.name || call.tool_name || call.tool || "unknown_tool",
+    arguments: call.arguments || call.args || call.parameters || {}
+  }));
 }
 
 export function getFilterOptions(cases = []) {
@@ -176,11 +380,7 @@ export function filterCases(cases = [], filters = {}) {
 }
 
 export function buildDashboardSummary(runFixture = {}, gradeFixture = {}) {
-  const runs = Array.isArray(runFixture.runs)
-    ? runFixture.runs
-    : runFixture.run_id
-      ? [runFixture]
-      : [];
+  const runs = normalizeRunInputs(runFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const totalCases = cases.length;
   const passed = cases.filter((item) => item.passed).length;
@@ -1636,6 +1836,96 @@ export function summarizeRegressionFactory(runFixture = {}, gradeFixture = {}, c
   };
 }
 
+export function summarizeExportRedactionFirewall(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, frontendCodeCrawlFixture = {}, options = {}) {
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const scanCases = cases.map((item) => ({
+    run_id: item.run_id,
+    case_id: item.case_id,
+    scenario_id: item.scenario_id,
+    title: item.title,
+    failure_summary: item.failure_summary,
+    expected: item.expected,
+    actual: item.actual,
+    tool_call_diffs: buildToolCallDiffs(item),
+    media_evidence: item.media_evidence || null,
+    judge_modes: item.judge_modes,
+    score: item.score,
+    passed: item.passed,
+    primary_failure_class: item.primary_failure_class
+  }));
+  const jsonResult = options.jsonResult || redactExport({
+    cases: scanCases,
+    coverage: coverageFixture,
+    media_signed_url_coverage: mediaSignedUrlFixture,
+    official_code_crawl: frontendCodeCrawlFixture
+  }, { surface: "json_report" });
+  const markdownResult = redactExport(scanCases.map((item) => [
+    item.case_id,
+    item.title,
+    item.failure_summary,
+    stableJson(item.expected),
+    stableJson(item.actual),
+    stableJson(item.media_evidence)
+  ].join(" | ")).join("\n"), { surface: "markdown_report" });
+  const printResult = redactExport({
+    summary: buildDashboardSummary(runFixture, gradeFixture),
+    cases: scanCases.map((item) => ({
+      case_id: item.case_id,
+      title: item.title,
+      failure_summary: item.failure_summary,
+      primary_failure_class: item.primary_failure_class,
+      score: item.score
+    }))
+  }, { surface: "print_report" });
+  const csvResult = scanCsvExportSurface(cases);
+  const summary = summarizeRedactionResults([
+    jsonResult,
+    markdownResult,
+    csvResult,
+    printResult
+  ]);
+
+  return {
+    schema_version: "a3.export_redaction_firewall.v1",
+    available: true,
+    policy_version: summary.policy.policy_version,
+    status: summary.status,
+    secret_free_exports: summary.secret_free_exports,
+    fail_closed_ready: summary.fail_closed_ready,
+    replacement_count: summary.replacement_count,
+    residual_finding_count: summary.residual_finding_count,
+    blocking_finding_count: summary.blocking_finding_count,
+    surface_count: summary.surfaces.length,
+    checked_surfaces: summary.surfaces,
+    categories: summary.categories,
+    patterns: summary.patterns,
+    export_surfaces: [
+      "json_report",
+      "csv_report",
+      "markdown_report",
+      "print_report",
+      "gate_cli_payload",
+      "github_check_payload",
+      "audit_bundle_index"
+    ],
+    a1_a2_calibration: {
+      a1_case_count: cases.length,
+      a1_trace_ready_count: cases.filter((item) => item.trace_ready || (item.trace_events || []).length > 0).length,
+      a1_tool_diff_case_count: cases.filter((item) => buildToolCallDiffs(item).length > 0).length,
+      a2_grade_count: Array.isArray(gradeFixture.grade_results) ? gradeFixture.grade_results.length : 0,
+      a2_failure_class_count: new Set(cases.map((item) => item.primary_failure_class).filter(Boolean)).size
+    },
+    guardrails: [
+      "Scrub API keys, bearer tokens, cookies, emails, prefixed tokens, signed media URLs, and local user-home paths before export.",
+      "Run CSV formula hardening on every cell before spreadsheet download.",
+      "Keep live signed media URLs out of JSON, Markdown, CSV, print, GitHub, and audit bundle outputs.",
+      "Treat residual blocking findings after redaction as export-blocking.",
+      "Use A1 trace/tool evidence and A2 judge/failure evidence only after the same export firewall pass."
+    ],
+    commercial_value: "Makes A3 reports safer to share in PRs, audits, and enterprise review packets by proving exports are scrubbed before they leave the dashboard or CLI."
+  };
+}
+
 function buildRegressionCandidate(replayItem = {}, caseItem = {}, observabilityItem = {}, coverage = {}, index = 0) {
   const traceReady = replayItem.trace_ready || observabilityItem.trace_ready === true;
   const judgeReady = replayItem.judge_evidence_count > 0 || observabilityItem.judge_evidence_count > 0;
@@ -2815,6 +3105,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture);
   const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const regressionFactory = summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const exportRedactionFirewall = summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -2993,6 +3284,24 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("", "### Regression Candidates", "");
     for (const item of regressionFactory.candidates) {
       lines.push(`- ${item.regression_id}: ${item.generator_state} / ${item.primary_failure_class} / ${item.coverage_status} / contracts ${item.required_contracts.join(", ")} - ${item.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (exportRedactionFirewall.available) {
+    lines.push(
+      "## Export Redaction Firewall",
+      "",
+      `- Status: ${exportRedactionFirewall.status}`,
+      `- Secret-free exports: ${exportRedactionFirewall.secret_free_exports ? "yes" : "no"}`,
+      `- Replacement count: ${exportRedactionFirewall.replacement_count}`,
+      `- Residual findings: ${exportRedactionFirewall.residual_finding_count}`,
+      `- Checked surfaces: ${exportRedactionFirewall.checked_surfaces.map((surface) => surface.surface).join(", ")}`,
+      `- Commercial value: ${exportRedactionFirewall.commercial_value}`,
+      ""
+    );
+    for (const surface of exportRedactionFirewall.checked_surfaces) {
+      lines.push(`- ${surface.surface}: ${surface.status}, ${surface.replacement_count} replacement(s), ${surface.residual_finding_count} residual finding(s)`);
     }
     lines.push("");
   }
@@ -3240,7 +3549,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push(`- ${item.case_id} / ${item.scenario_id}: ${item.passed ? "PASS" : "FAIL"} (${item.score}) - ${item.failure_summary}`);
   }
 
-  return `${lines.join("\n")}\n`;
+  return redactExport(`${lines.join("\n")}\n`, { surface: "markdown_report" }).value;
 }
 
 export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
@@ -3273,12 +3582,72 @@ export function buildCsvReport(runFixture = {}, gradeFixture = {}) {
     item.media_evidence?.vm_streams?.length || 0
   ]);
   return [header, ...rows]
-    .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
+    .map((row, rowIndex) => row.map((value, columnIndex) => csvCell(value, `rows[${rowIndex}][${columnIndex}]`)).join(","))
     .join("\n");
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
+function csvCell(value, path) {
+  const redacted = sanitizeCsvCellValue(value, { path, surface: "csv_report" });
+  return `"${String(redacted.value ?? "").replaceAll('"', '""')}"`;
+}
+
+function scanCsvExportSurface(cases = []) {
+  const fields = [
+    "run_id",
+    "case_id",
+    "scenario_id",
+    "title",
+    "status",
+    "score",
+    "severity",
+    "primary_failure_class",
+    "failure_summary",
+    "media_types",
+    "media_evidence_count",
+    "vm_stream_count"
+  ];
+  const findings = [];
+  cases.forEach((item, rowIndex) => {
+    const row = [
+      item.run_id,
+      item.case_id,
+      item.scenario_id,
+      item.title,
+      item.passed ? "passed" : "failed",
+      item.score,
+      item.severity,
+      item.primary_failure_class,
+      item.failure_summary,
+      (item.media_evidence?.media_types || []).join("|"),
+      item.media_evidence?.evidence_items?.length || 0,
+      item.media_evidence?.vm_streams?.length || 0
+    ];
+    row.forEach((value, columnIndex) => {
+      const redacted = sanitizeCsvCellValue(value, {
+        surface: "csv_report",
+        path: `rows[${rowIndex}].${fields[columnIndex]}`
+      });
+      findings.push(...redacted.findings.map((finding) => ({
+        ...finding,
+        surface: "csv_report"
+      })));
+    });
+  });
+  const residualFindings = [];
   return {
+    surface: "csv_report",
+    value: "[csv cells]",
+    findings,
+    residual_findings: residualFindings,
+    replacement_count: findings.length,
+    replacements: findings.length,
+    blocked: false,
+    status: findings.length > 0 ? "cleaned" : "passed"
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
+  const rawReport = {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
     coverage: summarizeCoverage(coverageFixture),
@@ -3317,6 +3686,13 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
       tool_call_diffs: buildToolCallDiffs(item),
       media_evidence: item.media_evidence || null
     }))
+  };
+  const redacted = redactExport(rawReport, { surface: "json_report" });
+  return {
+    ...redacted.value,
+    export_redaction_firewall: summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture, {
+      jsonResult: redacted
+    })
   };
 }
 

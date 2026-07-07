@@ -3,8 +3,24 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  return readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
+  const [html, app, styles] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
+  ]);
+  return [html, app, styles].join("\n");
 }
+
+test("A3 dashboard is split into a webapp shell, module, and stylesheet", async () => {
+  const html = await loadDashboardHtml();
+  const indexHtml = await readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
+
+  assert.match(indexHtml, /<link rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<script type="module" src="\.\/src\/app\.mjs"><\/script>/);
+  assert.doesNotMatch(indexHtml, /<style>/);
+  assert.doesNotMatch(indexHtml, /<script type="module">\s*import/);
+  assert.match(html, /from "\.\.\/\.\.\/\.\.\/services\/report\/report_builder\.mjs"/);
+});
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {
   const html = await loadDashboardHtml();
@@ -328,6 +344,26 @@ test("A3 dashboard wires regression factory into console and reports", async () 
   assert.match(html, /regressionFactory\.candidate_count/);
   assert.match(html, /Regression Factory<\/h4>/);
   assert.match(html, /Generated Suite Plan|Coverage gaps/);
+});
+
+test("A3 dashboard wires export redaction firewall into console and reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeExportRedactionFirewall/);
+  assert.match(html, /href="#export-redaction"/);
+  assert.match(html, /id="export-redaction"/);
+  assert.match(html, /Export Safety/);
+  assert.match(html, /id="export-redaction-status"/);
+  assert.match(html, /id="export-redaction-summary"/);
+  assert.match(html, /id="export-redaction-metrics"/);
+  assert.match(html, /id="export-redaction-surfaces"/);
+  assert.match(html, /id="export-redaction-guardrails"/);
+  assert.match(html, /function renderExportRedactionFirewall\(\)/);
+  assert.match(html, /function exportSurfaceRow\(surface\)/);
+  assert.match(html, /function exportFirewallStatusClass\(status\)/);
+  assert.match(html, /renderExportRedactionFirewall\(\)/);
+  assert.match(html, /exportRedactionFirewall\.status/);
+  assert.match(html, /Export Redaction Firewall<\/h4>/);
 });
 
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {

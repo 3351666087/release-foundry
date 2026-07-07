@@ -344,6 +344,17 @@
 - [x] Added report-builder and dashboard-wiring tests for Regression Factory.
 - [x] Browser-smoke verified Regression Factory after official-demo dashboard load.
 - [x] Saved Regression Factory screenshot under `docs/screenshots/a3-dashboard-regression-factory.png`.
+- [x] Added shared Export Redaction Firewall module for report and gate outputs.
+- [x] Added `export_redaction_firewall` JSON export field.
+- [x] Added Export Redaction Firewall Markdown and print/PDF report sections.
+- [x] Added Export Safety dashboard panel.
+- [x] Added CSV secret scrubbing and spreadsheet formula hardening.
+- [x] Reused the shared export firewall from the A3 Gate CLI.
+- [x] Split dashboard into `index.html`, `src/app.mjs`, and `src/styles.css`.
+- [x] Reduced dashboard HTML from more than 3,000 lines to about 400 lines.
+- [x] Strengthened direct A1 RunResult compatibility.
+- [x] Strengthened direct A2 single-run plus single-grade compatibility.
+- [x] Added focused tests for raw A1 and raw A2 compatibility.
 
 ## Next Acceptance Targets
 
@@ -352,3 +363,5 @@
 - [x] Add severity and score-band filters.
 - [x] Add judge-mode filter after A2 exposes more varied judge-mode cases.
 - [x] Expand from current 4 screenshots to 10 demo screenshots.
+- [ ] Add a dashboard data-source option that loads raw A1/A2 fixtures directly.
+- [ ] Add CI export-firewall scans for generated docs and fixtures.
