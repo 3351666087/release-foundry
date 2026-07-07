@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/saas_control_plane.schema.json",
+  "title": "A1 Enterprise SaaS Control Plane Contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "project_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ashr.clone.saas_control_plane.v1"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "key_id": {
+      "type": "string"
+    },
+    "upload_id": {
+      "type": "string"
+    },
+    "batch_id": {
+      "type": "string"
+    },
+    "secret_value_present": {
+      "const": false
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "status": {
+      "type": "string"
+    },
+    "quota": {
+      "type": "object"
+    },
+    "status_history": {
+      "type": "array"
+    },
+    "authenticated": {
+      "type": "boolean"
+    },
+    "required_scope": {
+      "type": "string"
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "api_key": {
+      "type": "object",
+      "properties": {
+        "secret_value_present": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "api_key_id": {
+      "type": "string"
+    },
+    "auth_key_id": {
+      "type": "string"
+    },
+    "secret_hash_present": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Local SaaS control-plane contract. API keys are authenticated by key_id plus required scope only; raw secrets and secret hashes are never returned by public responses."
+}

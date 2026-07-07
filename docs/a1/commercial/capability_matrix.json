@@ -1,0 +1,2065 @@
+{
+  "capabilities": [
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "agent_adapter",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "api_client",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "api_preflight",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "billing_create_checkout_session",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "billing_create_portal_session",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "billing_get_public_pricing",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "billing_get_status",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "capability_matrix",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_agent",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_api_key",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_dataset",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_feature_flag",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_folder",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_prompt_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_prompt_version",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [
+          "error_kind",
+          "message",
+          "response",
+          "response_headers",
+          "status_code"
+        ],
+        "planned_count": 18,
+        "quota_block_count": 11,
+        "real_error_count": 13,
+        "real_ok_count": 2,
+        "records": 33,
+        "response_keys": [
+          "_user",
+          "plan",
+          "request",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "error": 13,
+          "ok": 2,
+          "planned": 18
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": true,
+      "name": "create_request",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "mutating capability observed as dry-run plan, error, or quota block"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 1,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 1,
+        "records": 2,
+        "response_keys": [
+          "_user",
+          "plan",
+          "run",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 1,
+          "planned": 1
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": true,
+      "name": "create_run",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "mutating capability observed as dry-run plan, error, or quota block"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_skill_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_skill_version",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "create_user",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "dataset_adapter",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_agent",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_dataset",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_folder",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_pentest",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_prompt_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_request",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_run",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_skill_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_tenant_feature",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_tenant_llm_key",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "delete_ui_test",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "evaluate_run",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "evidence_index",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_account_balance",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_activity_dashboard",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_agent_datasets",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_agent_tool_performance",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [
+          "error_kind",
+          "message",
+          "response",
+          "response_headers",
+          "status_code"
+        ],
+        "planned_count": 0,
+        "quota_block_count": 0,
+        "real_error_count": 6,
+        "real_ok_count": 2,
+        "records": 8,
+        "response_keys": [
+          "_user",
+          "dataset",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "error": 6,
+          "ok": 2
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_dataset",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_download_link",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_folder_datasets",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_lightberry_scenario",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_notes",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_analytics",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_cost_analytics",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_error_patterns",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_errors",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_latency_distribution",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_time_series",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_tool_errors",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_tool_reliability",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_trace",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_observability_user_analytics",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_pax_prompt_model_scores",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_pentest",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_prompt_performance",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_prompt_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_prompt_version_runs",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [
+          "error_kind",
+          "failure_summary",
+          "message",
+          "response",
+          "response_headers",
+          "status_code"
+        ],
+        "planned_count": 0,
+        "quota_block_count": 0,
+        "real_error_count": 5,
+        "real_ok_count": 6,
+        "records": 11,
+        "response_keys": [
+          "_user",
+          "request",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "error": 5,
+          "ok": 6
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_request",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_request_failed",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [
+          "message",
+          "status_code"
+        ],
+        "planned_count": 1,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 2,
+        "records": 4,
+        "response_keys": [
+          "_user",
+          "plan",
+          "run",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 2,
+          "planned": 1,
+          "timeout": 1
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_run",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_scenario_stats",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_skill_performance",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_skill_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_skill_version_runs",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_tenant",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_tenant_llm_key_status",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_tool_runs",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_tools_by_agent",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_trust_certificate_status",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_ui_test",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_upload_link",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_usage",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_user",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_analytics_overview",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_call_insights",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_charts",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_session",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_session_audio_url",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_session_turns",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "get_voice_stage_payload",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 5,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 24,
+        "records": 29,
+        "response_keys": [
+          "features",
+          "notes",
+          "plan",
+          "status",
+          "tenant",
+          "user"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 24,
+          "planned": 5
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "init",
+      "real_read_verified": true,
+      "source_notes": [
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 4,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 24,
+        "records": 28,
+        "response_keys": [
+          "db",
+          "message",
+          "plan",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 24,
+          "planned": 4
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "keep_alive",
+      "real_read_verified": true,
+      "source_notes": [
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 4,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 25,
+        "records": 29,
+        "response_keys": [
+          "_user",
+          "agents",
+          "plan",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 25,
+          "planned": 4
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_agents",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_api_keys",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 5,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 30,
+        "records": 35,
+        "response_keys": [
+          "_user",
+          "datasets",
+          "next_cursor",
+          "plan",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 30,
+          "planned": 5
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_datasets",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_feature_flags",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_folder_memberships",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_folders",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_observability_traces",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_pentests",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_prompt_templates",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_prompt_versions",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 3,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 35,
+        "records": 38,
+        "response_keys": [
+          "_user",
+          "next_cursor",
+          "plan",
+          "requests",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 35,
+          "planned": 3
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_requests",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 1,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 4,
+        "records": 5,
+        "response_keys": [
+          "_user",
+          "plan",
+          "runs",
+          "status"
+        ],
+        "status_codes": [
+          200
+        ],
+        "status_counts": {
+          "ok": 4,
+          "planned": 1
+        }
+      },
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_runs",
+      "real_read_verified": true,
+      "source_notes": [
+        "frontend mirror names this API function",
+        "local SDK method present",
+        "real read evidence has public-safe ok record"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_scorer_requests",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_skill_templates",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_skill_versions",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_tenants",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_ui_tests",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_users",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_validators",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_voice_calls",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "list_voice_sessions",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "output_policy_guard",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 3,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 0,
+        "records": 3,
+        "response_keys": [
+          "plan"
+        ],
+        "status_codes": [],
+        "status_counts": {
+          "blocked": 2,
+          "planned": 1
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "plan_batch",
+      "real_read_verified": false,
+      "source_notes": [],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 1,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 0,
+        "records": 1,
+        "response_keys": [
+          "plan"
+        ],
+        "status_codes": [],
+        "status_counts": {
+          "planned": 1
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "poll_request",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK method present"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 2,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 0,
+        "records": 2,
+        "response_keys": [
+          "plan"
+        ],
+        "status_codes": [],
+        "status_counts": {
+          "planned": 2
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "poll_run",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK method present"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "response_field_map",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "revoke_api_key",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "local_runtime",
+      "evidence": {},
+      "frontend_mirrored": false,
+      "local_only": true,
+      "local_runtime": true,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "trace_fixture",
+      "real_read_verified": false,
+      "source_notes": [
+        "local SDK/runtime implementation"
+      ],
+      "test_covered": true
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_agent",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_dataset",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_feature_flag",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_folder",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_prompt_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_request_status",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_run_result",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_skill_template",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "update_user",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {
+        "error_keys": [],
+        "planned_count": 3,
+        "quota_block_count": 0,
+        "real_error_count": 0,
+        "real_ok_count": 0,
+        "records": 3,
+        "response_keys": [
+          "validation"
+        ],
+        "status_codes": [],
+        "status_counts": {
+          "error": 1,
+          "ok": 2
+        }
+      },
+      "frontend_mirrored": false,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
+      "name": "validate_gate",
+      "real_read_verified": false,
+      "source_notes": [],
+      "test_covered": false
+    }
+  ],
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "label": "a1-round15-commercial-capability-matrix",
+  "public_safe": true,
+  "schema_version": "ashr.clone.capability_matrix.v1",
+  "secret_policy": {
+    "input_sources": [
+      "public_evidence_index",
+      "frontend_mirror_index",
+      "local_runtime_symbols",
+      "tests_a1_static_coverage"
+    ],
+    "private_evidence_read": false,
+    "raw_private_payloads_included": false,
+    "tokens_included": false
+  },
+  "source_indexes": {
+    "frontend_mirror": {
+      "api_entrypoints": [
+        "https://api.ashr.io/testing-platform-api"
+      ],
+      "api_function_count": 106,
+      "public_safe_summary": true,
+      "raw_files_committed": false,
+      "schema_version": "ashr.clone.frontend_mirror_index.v1"
+    },
+    "public_evidence": {
+      "function_count": 15,
+      "label": "a1-real-api-2026-07-07-round15-saas-control-plane",
+      "quota_block_count": 41,
+      "schema_version": "ashr.clone.evidence_index.v1",
+      "total_records": 342
+    }
+  },
+  "summary": {
+    "axis_counts": {
+      "frontend_mirrored": 106,
+      "local_only": 9,
+      "mutating_planned_or_quota_blocked": 2,
+      "real_read_verified": 9,
+      "test_covered": 28
+    },
+    "categories": {
+      "api_function": 112,
+      "local_runtime": 9
+    },
+    "total_capabilities": 121
+  }
+}

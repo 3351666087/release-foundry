@@ -1,0 +1,190 @@
+{
+  "api_key_inventory": {
+    "enterprise_saas_surface": true,
+    "governance_rules": [
+      "never store or print full API key values",
+      "public artifacts may include prefix and hash-presence only",
+      "revocation state is auditable without exposing the sensitive value"
+    ],
+    "keys": [
+      {
+        "created_at": "2026-07-07T00:00:00Z",
+        "hash_presence": true,
+        "key_id": "key_local_synthetic_active",
+        "last_used_at": null,
+        "prefix": "ashr_local_***",
+        "revoked_at": null,
+        "scopes": [
+          "read:evidence",
+          "write:runs"
+        ],
+        "sensitive_value_present": false,
+        "status": "active"
+      },
+      {
+        "created_at": "2026-07-07T00:00:00Z",
+        "hash_presence": true,
+        "key_id": "key_local_synthetic_revoked",
+        "last_used_at": null,
+        "prefix": "ashr_local_***",
+        "revoked_at": "2026-07-07T00:10:00Z",
+        "scopes": [
+          "read:evidence"
+        ],
+        "sensitive_value_present": false,
+        "status": "revoked"
+      }
+    ],
+    "raw_sensitive_values_included": false,
+    "schema_version": "ashr.clone.api_key_inventory.v1",
+    "source": "local_synthetic_governance_contract"
+  },
+  "observability_summary": {
+    "a3_handoff_fields": [
+      "capability_domains",
+      "total_capabilities",
+      "error_patterns",
+      "tool_reliability",
+      "cost_analytics"
+    ],
+    "enterprise_saas_surface": true,
+    "metrics": {
+      "capability_domains": 2,
+      "cost_analytics": {
+        "source": "placeholder_public_safe_no_amounts"
+      },
+      "error_patterns": [],
+      "frontend_mirrored_capabilities": 106,
+      "latency_distribution": {
+        "source": "not_computed_in_public_artifact"
+      },
+      "median_capabilities_per_domain": 60.5,
+      "real_read_verified_capabilities": 9,
+      "test_covered_capabilities": 28,
+      "tool_reliability": [],
+      "total_capabilities": 121
+    },
+    "raw_trace_payloads_included": false,
+    "schema_version": "ashr.clone.observability_summary.v1",
+    "source": "capability_matrix_local_summary"
+  },
+  "product_posture": "enterprise_saas_control_plane_evidence_kit",
+  "readiness_badge": {
+    "buyer_safe_claims": [
+      "live read-only API shapes were sampled into private evidence",
+      "mutating and billing surfaces are classified before execution",
+      "public artifacts omit raw keys, private refs, tenant payloads, and exact usage amounts",
+      "enterprise SaaS control-plane surfaces are mapped across usage, billing, API keys, observability, and release gates"
+    ],
+    "enterprise_saas_surface": true,
+    "gate_current": true,
+    "mutation_blocked_or_quota_guarded": true,
+    "paid_mutation_executed_this_round": false,
+    "private_output_policy_current": true,
+    "read_only_current": true,
+    "schema_version": "ashr.clone.commercial_readiness_badge.v1",
+    "status": "enterprise_saas_read_only_verified_mutation_guarded"
+  },
+  "saas_control_plane_pillars": [
+    "tenant_project_isolation",
+    "usage_billing_governance",
+    "api_key_lifecycle_governance",
+    "observability_and_cost_analytics",
+    "release_gate_and_audit_evidence",
+    "frontend_official_surface_parity"
+  ],
+  "schema_version": "ashr.clone.commercial_control_plane.v1",
+  "source_labels": {
+    "capability_matrix": "ashr.clone.capability_matrix.v1",
+    "evidence_index": "a1-real-api-2026-07-07-round15-saas-control-plane",
+    "frontend_mirror": "ashr.clone.frontend_mirror_index.v1"
+  },
+  "usage_billing_snapshot": {
+    "checkout_or_portal_called": false,
+    "enterprise_saas_surface": true,
+    "plan": {
+      "billing_mode": "synthetic_local_no_charge",
+      "currency": "USD-placeholder",
+      "hard_block_mode_supported": true,
+      "overage_mode_supported": true,
+      "plan_id": "local-enterprise-synthetic"
+    },
+    "real_billing_called": false,
+    "schema_version": "ashr.clone.usage_billing_snapshot.v1",
+    "source": "frontend_static_plus_local_synthetic",
+    "usage_dimensions": [
+      {
+        "included_usage": null,
+        "label": "Audio",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "audio",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Files",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "files",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Graded scenarios",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "graded_scenarios",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Images",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "images",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Observations",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "observations",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Simulations",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "simulations",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Videos",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "videos",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      },
+      {
+        "included_usage": null,
+        "label": "Voice minutes",
+        "public_safe": true,
+        "remaining": null,
+        "resource_key": "voice_minutes",
+        "used": null,
+        "value_policy": "counts omitted from public artifact; private or tenant-specific usage must stay private"
+      }
+    ]
+  }
+}
