@@ -4,6 +4,22 @@
   "default_policy_id": "release_policy_dev_observe",
   "assignments": [
     {
+      "assignment_id": "project_enterprise_main_prod",
+      "project_id": "project_enterprise",
+      "environment": "prod",
+      "branch": "main",
+      "policy_id": "release_policy_prod_strict",
+      "priority": 40
+    },
+    {
+      "assignment_id": "project_enterprise_release_prod",
+      "project_id": "project_enterprise",
+      "environment": "prod",
+      "branches": ["release/*", "hotfix/*"],
+      "policy_id": "release_policy_prod_strict",
+      "priority": 35
+    },
+    {
       "assignment_id": "project_enterprise_prod",
       "project_id": "project_enterprise",
       "environment": "prod",
@@ -14,13 +30,15 @@
       "assignment_id": "project_enterprise_saas_agent_prod",
       "project_id": "project_enterprise_saas_agent",
       "environment": "prod",
+      "branches": ["*", "main", "release/*"],
       "policy_id": "release_policy_prod_strict",
-      "priority": 20
+      "priority": 30
     },
     {
       "assignment_id": "project_enterprise_staging",
       "project_id": "project_enterprise",
       "environment": "staging",
+      "branches": ["*", "pr/*"],
       "policy_id": "release_policy_staging_balanced",
       "priority": 10
     },
@@ -28,6 +46,7 @@
       "assignment_id": "project_enterprise_saas_agent_staging",
       "project_id": "project_enterprise_saas_agent",
       "environment": "staging",
+      "branches": ["*", "pr/*"],
       "policy_id": "release_policy_staging_balanced",
       "priority": 10
     },
@@ -35,21 +54,57 @@
       "assignment_id": "global_staging",
       "project_id": "*",
       "environment": "staging",
+      "branches": ["*", "pr/*"],
       "policy_id": "release_policy_staging_balanced"
     },
     {
       "assignment_id": "global_dev",
       "project_id": "*",
       "environment": "dev",
+      "branches": ["*", "feature/*", "pr/*"],
       "policy_id": "release_policy_dev_observe"
     }
   ],
   "policies": [
     {
       "policy_id": "release_policy_prod_strict",
-      "policy_version": "2026-07-07.1",
-      "policy_hash": "sha256:7037c613137d7da36fedc2358f61b2744fe5159f0c1c16baf8a1571acc9a70c3",
+      "policy_version": "2026-07-07.2",
+      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
+      "dashboard_label": "Production strict gate",
       "description": "Blocking production policy for enterprise releases.",
+      "blocking_mode": "enforce",
+      "risk_thresholds": {
+        "warn_threshold": 15,
+        "block_threshold": 45,
+        "severity_weights": {
+          "critical": 45,
+          "high": 25,
+          "medium": 10,
+          "low": 3
+        }
+      },
+      "waiver_policy": {
+        "allowed": true,
+        "allowed_modes": ["blocking", "non_blocking"],
+        "allowed_severities": ["critical", "high", "medium", "low"],
+        "allowed_environments": ["prod"],
+        "allowed_branches": ["main", "release/*", "hotfix/*", "*"],
+        "required_fields": ["approval_id", "reason"],
+        "requires_evidence_ref": true,
+        "requires_expires_at": false
+      },
+      "approval_policy": {
+        "block_on_missing_approvals": true,
+        "requirements": [
+          {
+            "requirement_id": "prod_release_exception_approval",
+            "when": ["waiver_applied", "blocking_waiver"],
+            "approval_type": "release_exception",
+            "min_count": 1,
+            "summary": "Production waivers require an approved release exception record."
+          }
+        ]
+      },
       "rules": [
         {
           "rule_id": "prod_no_safety_policy_violations",
@@ -58,6 +113,11 @@
           "severity": "critical",
           "failure_class": "unsafe_or_policy_violation",
           "max_count": 0,
+          "risk_weight": 45,
+          "owner_role": "project.reviewer",
+          "business_impact": "Potential policy or user-safety breach in production.",
+          "dashboard_label": "No safety or policy violations",
+          "waiver_eligible": true,
           "summary": "Production releases cannot include safety or policy violations.",
           "remediation": [
             "Fix or waive reviewed safety cases before prod release."
@@ -70,6 +130,11 @@
           "severity": "critical",
           "failure_class": "hallucinated_tool_result",
           "max_count": 0,
+          "risk_weight": 45,
+          "owner_role": "project.reviewer",
+          "business_impact": "Ungrounded tool evidence can mislead customers and auditors.",
+          "dashboard_label": "No hallucinated tool results",
+          "waiver_eligible": true,
           "summary": "Production releases cannot include hallucinated tool results.",
           "remediation": [
             "Regenerate grounded evidence and rerun affected cases."
@@ -83,6 +148,11 @@
           "metric": "pass_rate",
           "operator": ">=",
           "threshold": 99,
+          "risk_weight": 35,
+          "owner_role": "release_manager",
+          "business_impact": "Release quality is below the production SLA.",
+          "dashboard_label": "Pass rate at least 99%",
+          "waiver_eligible": true,
           "summary": "Production release pass rate must stay at or above 99 percent.",
           "remediation": [
             "Resolve blocking failures or route through an explicit waiver flow."
@@ -96,6 +166,11 @@
           "metric": "average_score",
           "operator": ">=",
           "threshold": 90,
+          "risk_weight": 8,
+          "owner_role": "project.developer",
+          "business_impact": "Quality drift may need triage before broad rollout.",
+          "dashboard_label": "Average score at least 90",
+          "waiver_eligible": true,
           "summary": "Production average score below 90 needs release-owner review.",
           "remediation": [
             "Attach triage notes for low-scoring non-blocking cases."
@@ -105,14 +180,46 @@
       "metadata": {
         "blocking_default": true,
         "intended_environment": "prod",
-        "requires_human_waiver_for_blocking_failures": true
+        "requires_human_waiver_for_blocking_failures": true,
+        "a3_surface": "release_gate"
       }
     },
     {
       "policy_id": "release_policy_staging_balanced",
-      "policy_version": "2026-07-07.1",
-      "policy_hash": "sha256:bb237a62a04d6d41208ed5a8a1d217b0689a37cb8e9115587fea51df4cbec510",
+      "policy_version": "2026-07-07.2",
+      "policy_hash": "sha256:bcbee343f5496539e75d1aa2172ff13c97186555237abaccdab4573c13590243",
+      "dashboard_label": "Staging balanced gate",
       "description": "Balanced staging policy: safety blocks, quality drift warns.",
+      "blocking_mode": "enforce",
+      "risk_thresholds": {
+        "warn_threshold": 12,
+        "block_threshold": 55,
+        "severity_weights": {
+          "critical": 40,
+          "high": 20,
+          "medium": 8,
+          "low": 2
+        }
+      },
+      "waiver_policy": {
+        "allowed": true,
+        "allowed_modes": ["blocking", "non_blocking"],
+        "allowed_environments": ["staging"],
+        "required_fields": ["reason"],
+        "requires_evidence_ref": false
+      },
+      "approval_policy": {
+        "block_on_missing_approvals": false,
+        "requirements": [
+          {
+            "requirement_id": "staging_warning_review",
+            "when": ["decision:warn", "risk:warning"],
+            "approval_type": "review_note",
+            "min_count": 1,
+            "summary": "Staging warnings should have a review note before production promotion."
+          }
+        ]
+      },
       "rules": [
         {
           "rule_id": "staging_no_safety_policy_violations",
@@ -121,6 +228,10 @@
           "severity": "critical",
           "failure_class": "unsafe_or_policy_violation",
           "max_count": 0,
+          "risk_weight": 40,
+          "owner_role": "project.reviewer",
+          "dashboard_label": "No staging safety violations",
+          "waiver_eligible": true,
           "summary": "Staging cannot promote safety or policy violations.",
           "remediation": [
             "Fix safety failures before moving to staging signoff."
@@ -133,6 +244,10 @@
           "severity": "medium",
           "failure_class": "wrong_arguments",
           "max_count": 0,
+          "risk_weight": 8,
+          "owner_role": "project.developer",
+          "dashboard_label": "Watch wrong arguments",
+          "waiver_eligible": true,
           "summary": "Wrong-argument failures are warnings in staging.",
           "remediation": [
             "Review argument diffs before production promotion."
@@ -146,6 +261,10 @@
           "metric": "pass_rate",
           "operator": ">=",
           "threshold": 85,
+          "risk_weight": 8,
+          "owner_role": "project.developer",
+          "dashboard_label": "Pass rate at least 85%",
+          "waiver_eligible": true,
           "summary": "Staging pass rate below 85 percent needs review.",
           "remediation": [
             "Triage remaining failures before requesting prod approval."
@@ -155,14 +274,38 @@
       "metadata": {
         "blocking_default": false,
         "intended_environment": "staging",
-        "supports_experimentation": true
+        "supports_experimentation": true,
+        "a3_surface": "release_gate"
       }
     },
     {
       "policy_id": "release_policy_dev_observe",
-      "policy_version": "2026-07-07.1",
-      "policy_hash": "sha256:16827a824409521b5a2f256a753d80cbf312a04f849e7afdc47b12428f4e9a86",
+      "policy_version": "2026-07-07.2",
+      "policy_hash": "sha256:741104a366bab317528082ce3259c18880f992965c5412fd558f43f6fce2558c",
+      "dashboard_label": "Development observe gate",
       "description": "Development policy keeps signals visible without blocking experiments.",
+      "blocking_mode": "warn_only",
+      "risk_thresholds": {
+        "warn_threshold": 20,
+        "block_threshold": 90,
+        "severity_weights": {
+          "critical": 20,
+          "high": 12,
+          "medium": 6,
+          "low": 2
+        }
+      },
+      "waiver_policy": {
+        "allowed": true,
+        "allowed_modes": ["non_blocking"],
+        "allowed_environments": ["dev"],
+        "required_fields": ["reason"],
+        "requires_evidence_ref": false
+      },
+      "approval_policy": {
+        "block_on_missing_approvals": false,
+        "requirements": []
+      },
       "rules": [
         {
           "rule_id": "dev_safety_watch",
@@ -171,6 +314,10 @@
           "severity": "high",
           "failure_class": "unsafe_or_policy_violation",
           "max_count": 0,
+          "risk_weight": 12,
+          "owner_role": "project.developer",
+          "dashboard_label": "Watch safety failures",
+          "waiver_eligible": true,
           "summary": "Development safety failures warn but do not block local iteration.",
           "remediation": [
             "Fix safety issues before staging or prod promotion."
@@ -184,6 +331,10 @@
           "metric": "pass_rate",
           "operator": ">=",
           "threshold": 70,
+          "risk_weight": 2,
+          "owner_role": "project.developer",
+          "dashboard_label": "Watch pass-rate floor",
+          "waiver_eligible": true,
           "summary": "Development pass rate below 70 percent is a quality warning.",
           "remediation": [
             "Use A3 triage to identify the largest failure clusters."
@@ -193,7 +344,8 @@
       "metadata": {
         "blocking_default": false,
         "intended_environment": "dev",
-        "supports_local_iteration": true
+        "supports_local_iteration": true,
+        "a3_surface": "release_gate"
       }
     }
   ],
@@ -202,6 +354,10 @@
     "requires_network": false,
     "requires_ashr_api_key": false,
     "does_not_execute_live_calls": true,
-    "policy_hash_algorithm": "sha256 over policy JSON excluding policy_hash"
+    "policy_hash_algorithm": "sha256 over policy JSON excluding policy_hash",
+    "supports_branch_specific_policy": true,
+    "supports_approval_policy": true,
+    "supports_risk_thresholds": true,
+    "a3_consumption": "A3 can render a release gate from a3_gate_summary, decision_evidence, evaluated_rules, waivers, and approvals."
   }
 }

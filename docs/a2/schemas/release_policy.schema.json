@@ -33,6 +33,8 @@
         "assignment_id": { "type": "string" },
         "project_id": { "type": "string" },
         "environment": { "type": "string" },
+        "branch": { "type": "string" },
+        "branches": { "$ref": "#/$defs/string_array" },
         "policy_id": { "type": "string" },
         "priority": { "type": "integer" }
       },
@@ -44,6 +46,10 @@
         "policy_id",
         "policy_version",
         "policy_hash",
+        "blocking_mode",
+        "risk_thresholds",
+        "waiver_policy",
+        "approval_policy",
         "rules",
         "metadata"
       ],
@@ -51,7 +57,12 @@
         "policy_id": { "type": "string" },
         "policy_version": { "type": "string" },
         "policy_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "dashboard_label": { "type": "string" },
         "description": { "type": "string" },
+        "blocking_mode": { "enum": ["enforce", "warn_only", "observe"] },
+        "risk_thresholds": { "$ref": "#/$defs/risk_thresholds" },
+        "waiver_policy": { "$ref": "#/$defs/waiver_policy" },
+        "approval_policy": { "$ref": "#/$defs/approval_policy" },
         "rules": {
           "type": "array",
           "items": { "$ref": "#/$defs/rule" }
@@ -79,6 +90,12 @@
         "failure_class": { "$ref": "#/$defs/failure_class" },
         "max_count": { "type": "integer", "minimum": 0 },
         "max_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "risk_weight": { "type": "number", "minimum": 0 },
+        "owner_role": { "type": "string" },
+        "business_impact": { "type": "string" },
+        "dashboard_label": { "type": "string" },
+        "waiver_eligible": { "type": "boolean" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" },
         "summary": { "type": "string" },
         "remediation": { "$ref": "#/$defs/string_array" }
       },
@@ -99,8 +116,75 @@
         "metric": { "type": "string" },
         "operator": { "enum": [">=", ">", "<=", "<", "==", "!="] },
         "threshold": { "type": "number" },
+        "risk_weight": { "type": "number", "minimum": 0 },
+        "owner_role": { "type": "string" },
+        "business_impact": { "type": "string" },
+        "dashboard_label": { "type": "string" },
+        "waiver_eligible": { "type": "boolean" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" },
         "summary": { "type": "string" },
         "remediation": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "risk_thresholds": {
+      "type": "object",
+      "required": ["warn_threshold", "block_threshold"],
+      "properties": {
+        "warn_threshold": { "type": "number", "minimum": 0, "maximum": 100 },
+        "block_threshold": { "type": "number", "minimum": 0, "maximum": 100 },
+        "severity_weights": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        }
+      },
+      "additionalProperties": true
+    },
+    "waiver_policy": {
+      "type": "object",
+      "required": ["allowed"],
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "allowed_modes": {
+          "type": "array",
+          "items": { "enum": ["blocking", "non_blocking"] }
+        },
+        "allowed_severities": { "$ref": "#/$defs/string_array" },
+        "allowed_environments": { "$ref": "#/$defs/string_array" },
+        "allowed_branches": { "$ref": "#/$defs/string_array" },
+        "required_fields": { "$ref": "#/$defs/string_array" },
+        "requires_approval_id": { "type": "boolean" },
+        "requires_evidence_ref": { "type": "boolean" },
+        "requires_expires_at": { "type": "boolean" },
+        "reviewer_roles": { "$ref": "#/$defs/string_array" },
+        "non_waivable_rule_ids": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "approval_policy": {
+      "type": "object",
+      "required": ["block_on_missing_approvals", "requirements"],
+      "properties": {
+        "block_on_missing_approvals": { "type": "boolean" },
+        "requirements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/approval_requirement" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "approval_requirement": {
+      "type": "object",
+      "required": ["requirement_id", "min_count", "summary"],
+      "properties": {
+        "requirement_id": { "type": "string" },
+        "when": { "$ref": "#/$defs/string_array" },
+        "approval_type": { "type": "string" },
+        "min_count": { "type": "integer", "minimum": 1 },
+        "roles": { "$ref": "#/$defs/string_array" },
+        "environments": { "$ref": "#/$defs/string_array" },
+        "branches": { "$ref": "#/$defs/string_array" },
+        "summary": { "type": "string" }
       },
       "additionalProperties": true
     },

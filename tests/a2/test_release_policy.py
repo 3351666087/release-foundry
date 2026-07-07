@@ -71,10 +71,15 @@ class A2ReleasePolicyTests(unittest.TestCase):
         self.assertIn(config["default_policy_id"], policy_ids)
         for assignment in config["assignments"]:
             self.assertIn(assignment["policy_id"], policy_ids)
+        self.assertTrue(any("branch" in item or "branches" in item for item in config["assignments"]))
         for policy in config["policies"]:
             with self.subTest(policy=policy["policy_id"]):
                 self.assertEqual(policy["policy_hash"], compute_policy_hash(policy))
                 self.assertTrue(policy["policy_version"])
+                self.assertIn(policy["blocking_mode"], {"enforce", "warn_only", "observe"})
+                self.assertIn("risk_thresholds", policy)
+                self.assertIn("waiver_policy", policy)
+                self.assertIn("approval_policy", policy)
 
     def test_project_environment_selection_prefers_exact_assignment(self):
         config = load_json(POLICY_FIXTURE)
@@ -88,6 +93,21 @@ class A2ReleasePolicyTests(unittest.TestCase):
         self.assertEqual(policy["policy_id"], "release_policy_prod_strict")
         self.assertEqual(selection["assignment_id"], "project_enterprise_prod")
         self.assertEqual(selection["match_scope"], "project_environment")
+
+    def test_branch_specific_selection_prefers_branch_assignment(self):
+        config = load_json(POLICY_FIXTURE)
+
+        policy, selection = select_release_policy(
+            config,
+            project_id="project_enterprise",
+            environment="prod",
+            branch="main",
+        )
+
+        self.assertEqual(policy["policy_id"], "release_policy_prod_strict")
+        self.assertEqual(selection["assignment_id"], "project_enterprise_main_prod")
+        self.assertEqual(selection["match_scope"], "project_environment_branch")
+        self.assertEqual(selection["branch_pattern"], "main")
 
     def test_prod_policy_blocks_failure_class_and_metric_thresholds(self):
         config = load_json(POLICY_FIXTURE)
@@ -110,6 +130,10 @@ class A2ReleasePolicyTests(unittest.TestCase):
         violation_ids = {item["rule_id"] for item in evaluation["violations"]}
         self.assertIn("prod_min_pass_rate", violation_ids)
         self.assertIn("prod_no_safety_policy_violations", violation_ids)
+        self.assertEqual(evaluation["a3_gate_summary"]["status"], "BLOCK")
+        self.assertIn("decision_evidence", evaluation)
+        self.assertIn("risk", evaluation)
+        self.assertIn("a3_release_gate_fields", evaluation["consumer_contract"])
 
     def test_staging_policy_can_warn_without_blocking(self):
         config = load_json(POLICY_FIXTURE)
@@ -269,6 +293,142 @@ class A2ReleasePolicyTests(unittest.TestCase):
         self.assertNotIn("secret_value", serialized)
         self.assertNotIn("raw_payload", serialized)
         self.assertNotIn("api_key", serialized)
+
+    def test_risk_threshold_can_block_accumulated_non_blocking_risk(self):
+        policy = {
+            "policy_id": "unit_risk_policy",
+            "policy_version": "unit",
+            "blocking_mode": "enforce",
+            "risk_thresholds": {"warn_threshold": 5, "block_threshold": 25},
+            "approval_policy": {"block_on_missing_approvals": False, "requirements": []},
+            "waiver_policy": {"allowed": True},
+            "rules": [
+                {
+                    "rule_id": "unit_quality_floor",
+                    "type": "metric_threshold",
+                    "mode": "non_blocking",
+                    "severity": "medium",
+                    "metric": "pass_rate",
+                    "operator": ">=",
+                    "threshold": 100,
+                    "risk_weight": 60,
+                }
+            ],
+        }
+
+        evaluation = evaluate_release_policy(
+            policy,
+            project_id="project_enterprise",
+            environment="staging",
+            grade_report=grade_report(
+                [case_row("pass", True, 100.0), case_row("quality-fail", False, 60.0, "wrong_arguments")]
+            ),
+        )
+
+        self.assertEqual(evaluation["risk"]["threshold_decision"], "block")
+        self.assertEqual(evaluation["decision"], "block")
+        self.assertIn("risk_threshold_block", {item["rule_id"] for item in evaluation["violations"]})
+
+    def test_missing_required_approval_blocks_when_policy_enforces_it(self):
+        policy = {
+            "policy_id": "unit_approval_policy",
+            "policy_version": "unit",
+            "blocking_mode": "enforce",
+            "risk_thresholds": {"warn_threshold": 25, "block_threshold": 75},
+            "waiver_policy": {"allowed": True},
+            "approval_policy": {
+                "block_on_missing_approvals": True,
+                "requirements": [
+                    {
+                        "requirement_id": "prod_release_manager_signoff",
+                        "when": ["prod_release"],
+                        "approval_type": "release_manager_signoff",
+                        "min_count": 1,
+                        "summary": "Production release requires release manager signoff.",
+                    }
+                ],
+            },
+            "rules": [
+                {
+                    "rule_id": "unit_min_pass_rate",
+                    "type": "metric_threshold",
+                    "mode": "blocking",
+                    "severity": "critical",
+                    "metric": "pass_rate",
+                    "operator": ">=",
+                    "threshold": 100,
+                }
+            ],
+        }
+        report = grade_report([case_row("pass", True, 100.0)])
+
+        missing = evaluate_release_policy(
+            policy,
+            project_id="project_enterprise",
+            environment="prod",
+            branch="main",
+            release_candidate_id="agent-v42",
+            grade_report=report,
+        )
+        approved = evaluate_release_policy(
+            policy,
+            project_id="project_enterprise",
+            environment="prod",
+            branch="main",
+            release_candidate_id="agent-v42",
+            grade_report=report,
+            approvals=[
+                {
+                    "approval_id": "approval-prod-signoff",
+                    "approval_type": "release_manager_signoff",
+                    "status": "approved",
+                    "environment": "prod",
+                    "branch": "main",
+                    "release_candidate_id": "agent-v42",
+                    "approver": "release-manager",
+                    "reason": "Reviewed release gate.",
+                    "evidence_ref": "docs/evidence/private_refs/prod-signoff.json",
+                }
+            ],
+        )
+
+        self.assertEqual(missing["decision"], "block")
+        self.assertEqual(missing["approval_summary"]["status"], "missing")
+        self.assertIn("approval_required::prod_release_manager_signoff", {item["rule_id"] for item in missing["violations"]})
+        self.assertEqual(approved["decision"], "pass")
+        self.assertEqual(approved["approval_summary"]["status"], "approved")
+
+    def test_warn_only_blocking_mode_demotes_blockers(self):
+        policy = {
+            "policy_id": "unit_warn_only_policy",
+            "policy_version": "unit",
+            "blocking_mode": "warn_only",
+            "risk_thresholds": {"warn_threshold": 80, "block_threshold": 100},
+            "approval_policy": {"block_on_missing_approvals": False, "requirements": []},
+            "waiver_policy": {"allowed": True},
+            "rules": [
+                {
+                    "rule_id": "unit_no_safety",
+                    "type": "failure_class_threshold",
+                    "mode": "blocking",
+                    "severity": "critical",
+                    "failure_class": "unsafe_or_policy_violation",
+                    "max_count": 0,
+                }
+            ],
+        }
+
+        evaluation = evaluate_release_policy(
+            policy,
+            project_id="project_unknown",
+            environment="dev",
+            grade_report=prod_report_with_one_safety_failure(),
+        )
+
+        self.assertEqual(evaluation["decision"], "warn")
+        self.assertEqual(evaluation["blocking_violation_count"], 0)
+        self.assertEqual(evaluation["non_blocking_violation_count"], 1)
+        self.assertEqual(evaluation["blocking_mode_summary"]["demoted_blocking_count"], 1)
 
 
 if __name__ == "__main__":

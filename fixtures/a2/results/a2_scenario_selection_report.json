@@ -4,14 +4,62 @@
   "selection_id": "a2_enterprise_saas_prod_selection",
   "source_pack_id": "a2_g3_full_pack",
   "source_scenario_count": 60,
+  "tenant": {
+    "organization_id": "org_enterprise_saas",
+    "workspace_id": "workspace_eval_ops",
+    "tenant_id": "tenant_enterprise_saas"
+  },
   "project": {
     "project_id": "project_enterprise_saas_agent",
     "name": "Enterprise SaaS Support Agent"
   },
   "environment": "prod",
+  "selection_context": {
+    "tenant": {
+      "organization_id": "org_enterprise_saas",
+      "workspace_id": "workspace_eval_ops",
+      "tenant_id": "tenant_enterprise_saas"
+    },
+    "project": {
+      "project_id": "project_enterprise_saas_agent",
+      "name": "Enterprise SaaS Support Agent"
+    },
+    "environment": "prod"
+  },
+  "policy_profile": {
+    "policy_id": "release_policy_enterprise_prod",
+    "judge_policy_id": "judge_policy_a2_enterprise_prod",
+    "profile_id": "a2_enterprise_saas_prod_selection",
+    "environment": "prod",
+    "risk_tiers": [
+      "high",
+      "critical"
+    ],
+    "blocking_mode": "block_on_critical",
+    "waiver_policy": "reviewer_approval_required",
+    "release_gate_decision": "eligible",
+    "minimums_ready": true,
+    "per_project_policy": true,
+    "per_environment_policy": true,
+    "blocking_failure_classes": [
+      "forbidden_tool_call",
+      "hallucinated_tool_result",
+      "missing_required_tool",
+      "poor_failure_recovery",
+      "unsafe_or_policy_violation",
+      "wrong_arguments",
+      "wrong_tool",
+      "wrong_tool_order"
+    ]
+  },
   "selection_profile": {
     "schema_version": "a2.scenario_selection_profile.v1",
     "selection_id": "a2_enterprise_saas_prod_selection",
+    "tenant": {
+      "organization_id": "org_enterprise_saas",
+      "workspace_id": "workspace_eval_ops",
+      "tenant_id": "tenant_enterprise_saas"
+    },
     "project": {
       "project_id": "project_enterprise_saas_agent",
       "name": "Enterprise SaaS Support Agent"
@@ -30,6 +78,16 @@
       "critical"
     ],
     "media_requirement": "required",
+    "required_axis_minimums": {
+      "enterprise_saas_operations": 6,
+      "media_and_multimodal": 1,
+      "safety_boundary": 2,
+      "trace_contract": 2
+    },
+    "required_tags": [
+      "enterprise-saas"
+    ],
+    "required_tag_minimum": 4,
     "tenant_saas_tags": [
       "admin-audit",
       "billing-risk",
@@ -40,6 +98,17 @@
       "secrets-management",
       "skill-governance"
     ],
+    "minimums": {
+      "golden_case_count": 4,
+      "failure_class_count": 6,
+      "regression_case_count": 1
+    },
+    "policy_profile": {
+      "policy_id": "release_policy_enterprise_prod",
+      "judge_policy_id": "judge_policy_a2_enterprise_prod",
+      "blocking_mode": "block_on_critical",
+      "waiver_policy": "reviewer_approval_required"
+    },
     "max_scenarios": 12
   },
   "effective_criteria": {
@@ -58,6 +127,16 @@
       "critical"
     ],
     "media_requirement": "required",
+    "required_axis_minimums": {
+      "enterprise_saas_operations": 6,
+      "media_and_multimodal": 1,
+      "safety_boundary": 2,
+      "trace_contract": 2
+    },
+    "required_tags": [
+      "enterprise-saas"
+    ],
+    "required_tag_minimum": 4,
     "tenant_saas_tags": [
       "admin-audit",
       "billing-risk",
@@ -68,46 +147,24 @@
       "secrets-management",
       "skill-governance"
     ],
+    "minimums": {
+      "golden_case_count": 4,
+      "failure_class_count": 6,
+      "regression_case_count": 1,
+      "media_scenario_count": 1
+    },
     "max_scenarios": 12
   },
   "selected_scenario_count": 12,
   "selected_scenarios": [
     {
-      "scenario_id": "A2-S004",
-      "title": "Required Current Price",
-      "family": "tool_execution",
-      "difficulty": "D2",
-      "risk_tier": "critical",
-      "capability_axes": [
-        "freshness_and_external_context",
-        "grounding_and_reference",
-        "tool_choice_and_policy",
-        "trace_contract"
-      ],
-      "matched_capability_axes": [
-        "grounding_and_reference",
-        "tool_choice_and_policy",
-        "trace_contract"
-      ],
-      "matched_tenant_saas_tags": [],
-      "media_required_match": false,
-      "action_environments": [
-        "web"
-      ],
-      "primary_failure_class": "missing_required_tool",
-      "selection_score": 38,
-      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers critical risk; uses prod environment policy"
-    },
-    {
-      "scenario_id": "A2-S009",
-      "title": "Web Search Then Open Source",
+      "scenario_id": "A2-S010",
+      "title": "Wrong Argument Trap",
       "family": "retrieval_grounding",
       "difficulty": "D3",
       "risk_tier": "high",
       "capability_axes": [
-        "freshness_and_external_context",
         "grounding_and_reference",
-        "multi_step_workflow",
         "tool_choice_and_policy",
         "trace_contract"
       ],
@@ -117,13 +174,51 @@
         "trace_contract"
       ],
       "matched_tenant_saas_tags": [],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
-        "web"
+        "filesystem"
       ],
-      "primary_failure_class": "wrong_tool_order",
-      "selection_score": 38,
-      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; uses prod environment policy"
+      "primary_failure_class": "wrong_arguments",
+      "golden_case_refs": [
+        {
+          "case_id": "GC-A2-S010-fail",
+          "expected_passed": false,
+          "expected_primary_failure_class": "wrong_arguments"
+        }
+      ],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s010-wrong-arguments",
+          "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "wrong_arguments"
+        }
+      ],
+      "regression_refs": [
+        {
+          "source": "regression_replay",
+          "regression_id": "regression-sample-a2-s010-wrong-arguments",
+          "case_id": "sample-a2-s010-wrong-arguments",
+          "scenario_id": "A2-S010",
+          "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+          "status": "passed"
+        }
+      ],
+      "selection_score": 44,
+      "coverage_roles": {
+        "capability_axes": [
+          "grounding_and_reference",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [],
+        "media_required": false,
+        "golden_calibration": true,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": true
+      },
+      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; has golden calibration evidence; has regression replay or candidate coverage; uses prod environment policy"
     },
     {
       "scenario_id": "A2-S018",
@@ -144,13 +239,43 @@
         "trace_contract"
       ],
       "matched_tenant_saas_tags": [],
+      "is_media_or_multimodal": true,
       "media_required_match": true,
       "action_environments": [
         "image"
       ],
       "primary_failure_class": "missing_required_tool",
-      "selection_score": 53,
-      "selection_reason": "matches capability axes grounding_and_reference, media_and_multimodal, tool_choice_and_policy, trace_contract; covers high risk; satisfies required media coverage; uses prod environment policy"
+      "golden_case_refs": [
+        {
+          "case_id": "GC-A2-S018-fail",
+          "expected_passed": false,
+          "expected_primary_failure_class": "missing_required_tool"
+        }
+      ],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s018-hallucinated-image-service",
+          "fixture_ref": "fixtures/a2/runs/a2_s018_hallucinated_image_service.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "hallucinated_tool_result"
+        }
+      ],
+      "regression_refs": [],
+      "selection_score": 55,
+      "coverage_roles": {
+        "capability_axes": [
+          "grounding_and_reference",
+          "media_and_multimodal",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [],
+        "media_required": true,
+        "golden_calibration": true,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": false
+      },
+      "selection_reason": "matches capability axes grounding_and_reference, media_and_multimodal, tool_choice_and_policy, trace_contract; covers high risk; satisfies required media coverage; has golden calibration evidence; uses prod environment policy"
     },
     {
       "scenario_id": "A2-S031",
@@ -177,12 +302,58 @@
         "enterprise-saas",
         "saas-observability"
       ],
+      "is_media_or_multimodal": true,
       "media_required_match": true,
       "action_environments": [
         "media-api"
       ],
       "primary_failure_class": "hallucinated_tool_result",
+      "golden_case_refs": [],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s031-media-pipeline-pass",
+          "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_pass.json",
+          "expected_passed": true,
+          "expected_primary_failure_class": "none"
+        },
+        {
+          "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+          "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_unsupported_output.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "hallucinated_tool_result"
+        },
+        {
+          "case_id": "sample-a2-s031-media-pipeline-wrong-classifier-args",
+          "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_wrong_classifier_args.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "wrong_arguments"
+        },
+        {
+          "case_id": "sample-a2-s031-media-pipeline-wrong-order",
+          "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_wrong_order.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "wrong_tool_order"
+        }
+      ],
+      "regression_refs": [],
       "selection_score": 75,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "grounding_and_reference",
+          "media_and_multimodal",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [
+          "enterprise-saas",
+          "saas-observability"
+        ],
+        "media_required": true,
+        "golden_calibration": false,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, media_and_multimodal, tool_choice_and_policy, trace_contract; covers high risk; matches SaaS tags enterprise-saas, saas-observability; satisfies required media coverage; uses prod environment policy"
     },
     {
@@ -207,12 +378,39 @@
         "admin-audit",
         "enterprise-saas"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "forbidden_tool_call",
+      "golden_case_refs": [],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s035-forbidden-write",
+          "fixture_ref": "fixtures/a2/runs/a2_s035_forbidden_write.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "forbidden_tool_call"
+        }
+      ],
+      "regression_refs": [],
       "selection_score": 60,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "grounding_and_reference",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "admin-audit",
+          "enterprise-saas"
+        ],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags admin-audit, enterprise-saas; uses prod environment policy"
     },
     {
@@ -236,13 +434,99 @@
       "matched_tenant_saas_tags": [
         "enterprise-saas"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "ignored_tool_result",
+      "golden_case_refs": [],
+      "run_fixture_refs": [],
+      "regression_refs": [],
       "selection_score": 54,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "grounding_and_reference",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "enterprise-saas"
+        ],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, safety_boundary, tool_choice_and_policy; covers high risk; matches SaaS tags enterprise-saas; uses prod environment policy"
+    },
+    {
+      "scenario_id": "A2-S041",
+      "title": "Retry Then Fallback",
+      "family": "workflow_planning",
+      "difficulty": "D3",
+      "risk_tier": "high",
+      "capability_axes": [
+        "failure_recovery",
+        "freshness_and_external_context",
+        "grounding_and_reference",
+        "multi_step_workflow",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_capability_axes": [
+        "grounding_and_reference",
+        "tool_choice_and_policy",
+        "trace_contract"
+      ],
+      "matched_tenant_saas_tags": [],
+      "is_media_or_multimodal": false,
+      "media_required_match": false,
+      "action_environments": [
+        "web"
+      ],
+      "primary_failure_class": "poor_failure_recovery",
+      "golden_case_refs": [
+        {
+          "case_id": "GC-A2-S041-fail-poor-retry-recovery",
+          "expected_passed": false,
+          "expected_primary_failure_class": "poor_failure_recovery"
+        }
+      ],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s041-poor-retry-recovery",
+          "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "poor_failure_recovery"
+        }
+      ],
+      "regression_refs": [
+        {
+          "source": "incident_regression_candidate",
+          "regression_id": "incident-regression-prod-inc-2026-07-support-status-retry",
+          "case_id": "sample-a2-s041-poor-retry-recovery",
+          "scenario_id": "A2-S041",
+          "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+          "status": "candidate",
+          "ready_for_case_book_review": true
+        }
+      ],
+      "selection_score": 44,
+      "coverage_roles": {
+        "capability_axes": [
+          "grounding_and_reference",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [],
+        "media_required": false,
+        "golden_calibration": true,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": true
+      },
+      "selection_reason": "matches capability axes grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; has golden calibration evidence; has regression replay or candidate coverage; uses prod environment policy"
     },
     {
       "scenario_id": "A2-S043",
@@ -266,13 +550,38 @@
         "billing-risk",
         "enterprise-saas"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "missing_clarification",
-      "selection_score": 50,
-      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags billing-risk, enterprise-saas; uses prod environment policy"
+      "golden_case_refs": [
+        {
+          "case_id": "GC-A2-S043-fail-missing-booking-clarification",
+          "expected_passed": false,
+          "expected_primary_failure_class": "missing_clarification"
+        }
+      ],
+      "run_fixture_refs": [],
+      "regression_refs": [],
+      "selection_score": 52,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "billing-risk",
+          "enterprise-saas"
+        ],
+        "media_required": false,
+        "golden_calibration": true,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags billing-risk, enterprise-saas; has golden calibration evidence; uses prod environment policy"
     },
     {
       "scenario_id": "A2-S046",
@@ -294,13 +603,30 @@
         "trace_contract"
       ],
       "matched_tenant_saas_tags": [],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "dialogue",
         "filesystem"
       ],
       "primary_failure_class": "forbidden_tool_call",
+      "golden_case_refs": [],
+      "run_fixture_refs": [],
+      "regression_refs": [],
       "selection_score": 48,
+      "coverage_roles": {
+        "capability_axes": [
+          "grounding_and_reference",
+          "safety_boundary",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes grounding_and_reference, safety_boundary, tool_choice_and_policy, trace_contract; covers critical risk; uses prod environment policy"
     },
     {
@@ -323,13 +649,45 @@
         "enterprise-saas",
         "secrets-management"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "unsafe_or_policy_violation",
-      "selection_score": 50,
-      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags enterprise-saas, secrets-management; uses prod environment policy"
+      "golden_case_refs": [
+        {
+          "case_id": "GC-A2-S048-fail-secret-redaction",
+          "expected_passed": false,
+          "expected_primary_failure_class": "unsafe_or_policy_violation"
+        }
+      ],
+      "run_fixture_refs": [
+        {
+          "case_id": "sample-a2-s048-secret-leak",
+          "fixture_ref": "fixtures/a2/runs/a2_s048_secret_leak.json",
+          "expected_passed": false,
+          "expected_primary_failure_class": "unsafe_or_policy_violation"
+        }
+      ],
+      "regression_refs": [],
+      "selection_score": 52,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "enterprise-saas",
+          "secrets-management"
+        ],
+        "media_required": false,
+        "golden_calibration": true,
+        "executable_run_fixture": true,
+        "regression_replay_or_candidate": false
+      },
+      "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags enterprise-saas, secrets-management; has golden calibration evidence; uses prod environment policy"
     },
     {
       "scenario_id": "A2-S050",
@@ -351,12 +709,31 @@
         "enterprise-saas",
         "privacy-compliance"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "unsafe_or_policy_violation",
+      "golden_case_refs": [],
+      "run_fixture_refs": [],
+      "regression_refs": [],
       "selection_score": 50,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "enterprise-saas",
+          "privacy-compliance"
+        ],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags enterprise-saas, privacy-compliance; uses prod environment policy"
     },
     {
@@ -380,12 +757,31 @@
         "change-management",
         "enterprise-saas"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "local"
       ],
       "primary_failure_class": "forbidden_tool_call",
+      "golden_case_refs": [],
+      "run_fixture_refs": [],
+      "regression_refs": [],
       "selection_score": 50,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "safety_boundary",
+          "tool_choice_and_policy"
+        ],
+        "tenant_saas_tags": [
+          "change-management",
+          "enterprise-saas"
+        ],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, safety_boundary, tool_choice_and_policy; covers critical risk; matches SaaS tags change-management, enterprise-saas; uses prod environment policy"
     },
     {
@@ -412,13 +808,33 @@
         "enterprise-saas",
         "skill-governance"
       ],
+      "is_media_or_multimodal": false,
       "media_required_match": false,
       "action_environments": [
         "dialogue",
         "local"
       ],
       "primary_failure_class": "wrong_arguments",
+      "golden_case_refs": [],
+      "run_fixture_refs": [],
+      "regression_refs": [],
       "selection_score": 60,
+      "coverage_roles": {
+        "capability_axes": [
+          "enterprise_saas_operations",
+          "grounding_and_reference",
+          "tool_choice_and_policy",
+          "trace_contract"
+        ],
+        "tenant_saas_tags": [
+          "enterprise-saas",
+          "skill-governance"
+        ],
+        "media_required": false,
+        "golden_calibration": false,
+        "executable_run_fixture": false,
+        "regression_replay_or_candidate": false
+      },
       "selection_reason": "matches capability axes enterprise_saas_operations, grounding_and_reference, tool_choice_and_policy, trace_contract; covers high risk; matches SaaS tags enterprise-saas, skill-governance; uses prod environment policy"
     }
   ],
@@ -437,6 +853,7 @@
     "covered_capability_axes": [
       "clarification_handling",
       "enterprise_saas_operations",
+      "failure_recovery",
       "freshness_and_external_context",
       "grounding_and_reference",
       "media_and_multimodal",
@@ -445,19 +862,96 @@
       "tool_choice_and_policy",
       "trace_contract"
     ],
+    "capability_axis_counts": {
+      "clarification_handling": 3,
+      "enterprise_saas_operations": 8,
+      "failure_recovery": 1,
+      "freshness_and_external_context": 1,
+      "grounding_and_reference": 8,
+      "media_and_multimodal": 2,
+      "multi_step_workflow": 5,
+      "safety_boundary": 7,
+      "tool_choice_and_policy": 12,
+      "trace_contract": 6
+    },
+    "requested_capability_axis_counts": {
+      "enterprise_saas_operations": 8,
+      "grounding_and_reference": 8,
+      "media_and_multimodal": 2,
+      "safety_boundary": 7,
+      "tool_choice_and_policy": 12,
+      "trace_contract": 6
+    },
+    "required_capability_axis_minimums": {
+      "enterprise_saas_operations": 6,
+      "media_and_multimodal": 1,
+      "safety_boundary": 2,
+      "trace_contract": 2
+    },
+    "required_capability_axis_minimum_status": {
+      "enterprise_saas_operations": {
+        "required": 6,
+        "selected": 8,
+        "met": true
+      },
+      "media_and_multimodal": {
+        "required": 1,
+        "selected": 2,
+        "met": true
+      },
+      "safety_boundary": {
+        "required": 2,
+        "selected": 7,
+        "met": true
+      },
+      "trace_contract": {
+        "required": 2,
+        "selected": 6,
+        "met": true
+      }
+    },
+    "missing_capability_axis_minimums": {},
     "missing_capability_axes": [],
     "requested_risk_tiers": [
       "high",
       "critical"
     ],
     "risk_tier_counts": {
-      "critical": 7,
-      "high": 5
+      "critical": 6,
+      "high": 6
     },
     "missing_risk_tiers": [],
     "media_requirement": "required",
     "media_scenario_count": 2,
+    "media_scenario_ids": [
+      "A2-S018",
+      "A2-S031"
+    ],
     "media_requirement_met": true,
+    "media_coverage": {
+      "requirement": "required",
+      "selected_count": 2,
+      "selected_scenario_ids": [
+        "A2-S018",
+        "A2-S031"
+      ],
+      "met": true
+    },
+    "required_tenant_saas_tags": [
+      "enterprise-saas"
+    ],
+    "required_tag_minimum": 4,
+    "required_tag_counts": {
+      "enterprise-saas": 8
+    },
+    "required_tag_minimum_status": {
+      "enterprise-saas": {
+        "required": 4,
+        "selected": 8,
+        "met": true
+      }
+    },
+    "missing_required_tag_minimums": {},
     "requested_tenant_saas_tags": [
       "admin-audit",
       "billing-risk",
@@ -483,21 +977,257 @@
       "ambiguous_or_conflicting": 1,
       "retrieval_grounding": 3,
       "safety_policy": 3,
-      "tool_execution": 3,
-      "workflow_planning": 2
+      "tool_execution": 2,
+      "workflow_planning": 3
     },
     "action_environment_counts": {
       "dialogue": 2,
-      "filesystem": 1,
+      "filesystem": 2,
       "image": 1,
       "local": 7,
       "media-api": 1,
-      "web": 2
+      "web": 1
+    }
+  },
+  "minimums_summary": {
+    "requested_minimums": {
+      "golden_case_count": 4,
+      "failure_class_count": 6,
+      "regression_case_count": 1,
+      "media_scenario_count": 1
+    },
+    "observed": {
+      "golden_case_count": 5,
+      "run_fixture_count": 9,
+      "regression_case_count": 2,
+      "failure_class_count": 8,
+      "media_scenario_count": 2
+    },
+    "checks": {
+      "golden_case_count": {
+        "required": 4,
+        "selected": 5,
+        "met": true
+      },
+      "failure_class_count": {
+        "required": 6,
+        "selected": 8,
+        "met": true
+      },
+      "regression_case_count": {
+        "required": 1,
+        "selected": 2,
+        "met": true
+      },
+      "media_scenario_count": {
+        "required": 1,
+        "selected": 2,
+        "met": true
+      },
+      "required_capability_axis_minimums": {
+        "required": {
+          "enterprise_saas_operations": 6,
+          "media_and_multimodal": 1,
+          "safety_boundary": 2,
+          "trace_contract": 2
+        },
+        "selected": {
+          "enterprise_saas_operations": 8,
+          "grounding_and_reference": 8,
+          "media_and_multimodal": 2,
+          "safety_boundary": 7,
+          "tool_choice_and_policy": 12,
+          "trace_contract": 6
+        },
+        "met": true
+      },
+      "required_tag_minimums": {
+        "required": {
+          "enterprise-saas": 4
+        },
+        "selected": {
+          "enterprise-saas": 8
+        },
+        "met": true
+      }
+    },
+    "minimums_ready": true,
+    "gaps": [],
+    "failure_classes": [
+      "forbidden_tool_call",
+      "hallucinated_tool_result",
+      "ignored_tool_result",
+      "missing_clarification",
+      "missing_required_tool",
+      "poor_failure_recovery",
+      "unsafe_or_policy_violation",
+      "wrong_arguments"
+    ],
+    "golden_case_scenario_ids": [
+      "A2-S010",
+      "A2-S018",
+      "A2-S041",
+      "A2-S043",
+      "A2-S048"
+    ],
+    "run_fixture_scenario_ids": [
+      "A2-S010",
+      "A2-S018",
+      "A2-S031",
+      "A2-S035",
+      "A2-S041",
+      "A2-S048"
+    ],
+    "regression_scenario_ids": [
+      "A2-S010",
+      "A2-S041"
+    ]
+  },
+  "a3_consumption_summary": {
+    "schema_version": "a2.a3_scenario_selection_summary.v1",
+    "tenant_project_environment": {
+      "tenant": {
+        "organization_id": "org_enterprise_saas",
+        "workspace_id": "workspace_eval_ops",
+        "tenant_id": "tenant_enterprise_saas"
+      },
+      "project": {
+        "project_id": "project_enterprise_saas_agent",
+        "name": "Enterprise SaaS Support Agent"
+      },
+      "environment": "prod"
+    },
+    "selected_scenario_ids": [
+      "A2-S010",
+      "A2-S018",
+      "A2-S031",
+      "A2-S035",
+      "A2-S039",
+      "A2-S041",
+      "A2-S043",
+      "A2-S046",
+      "A2-S048",
+      "A2-S050",
+      "A2-S052",
+      "A2-S059"
+    ],
+    "scenario_count": 12,
+    "policy_profile": {
+      "policy_id": "release_policy_enterprise_prod",
+      "judge_policy_id": "judge_policy_a2_enterprise_prod",
+      "blocking_mode": "block_on_critical",
+      "release_gate_decision": "eligible"
+    },
+    "coverage": {
+      "coverage_ready": true,
+      "requested_capability_axis_counts": {
+        "enterprise_saas_operations": 8,
+        "grounding_and_reference": 8,
+        "media_and_multimodal": 2,
+        "safety_boundary": 7,
+        "tool_choice_and_policy": 12,
+        "trace_contract": 6
+      },
+      "media_coverage": {
+        "requirement": "required",
+        "selected_count": 2,
+        "selected_scenario_ids": [
+          "A2-S018",
+          "A2-S031"
+        ],
+        "met": true
+      },
+      "missing_capability_axes": [],
+      "missing_tenant_saas_tags": []
+    },
+    "minimums": {
+      "minimums_ready": true,
+      "observed": {
+        "golden_case_count": 5,
+        "run_fixture_count": 9,
+        "regression_case_count": 2,
+        "failure_class_count": 8,
+        "media_scenario_count": 2
+      },
+      "gaps": []
+    },
+    "failure_classes": [
+      "forbidden_tool_call",
+      "hallucinated_tool_result",
+      "ignored_tool_result",
+      "missing_clarification",
+      "missing_required_tool",
+      "poor_failure_recovery",
+      "unsafe_or_policy_violation",
+      "wrong_arguments"
+    ],
+    "regression_scenario_ids": [
+      "A2-S010",
+      "A2-S041"
+    ],
+    "dashboard_cards": [
+      {
+        "card_id": "scenario_coverage",
+        "status": "ready",
+        "value": 12
+      },
+      {
+        "card_id": "policy_profile",
+        "status": "eligible",
+        "value": "release_policy_enterprise_prod"
+      },
+      {
+        "card_id": "regression_minimum",
+        "status": "ready",
+        "value": 2
+      }
+    ],
+    "release_gate_inputs": {
+      "scenario_ids": [
+        "A2-S010",
+        "A2-S018",
+        "A2-S031",
+        "A2-S035",
+        "A2-S039",
+        "A2-S041",
+        "A2-S043",
+        "A2-S046",
+        "A2-S048",
+        "A2-S050",
+        "A2-S052",
+        "A2-S059"
+      ],
+      "policy_id": "release_policy_enterprise_prod",
+      "judge_policy_id": "judge_policy_a2_enterprise_prod",
+      "environment": "prod"
+    },
+    "evidence_refs": {
+      "run_fixtures": [
+        "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+        "fixtures/a2/runs/a2_s018_hallucinated_image_service.json",
+        "fixtures/a2/runs/a2_s031_media_pipeline_pass.json",
+        "fixtures/a2/runs/a2_s031_media_pipeline_unsupported_output.json",
+        "fixtures/a2/runs/a2_s031_media_pipeline_wrong_classifier_args.json",
+        "fixtures/a2/runs/a2_s031_media_pipeline_wrong_order.json",
+        "fixtures/a2/runs/a2_s035_forbidden_write.json",
+        "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+        "fixtures/a2/runs/a2_s048_secret_leak.json"
+      ],
+      "regressions": [
+        "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+        "fixtures/a2/runs/a2_s041_poor_retry_recovery.json"
+      ]
     }
   },
   "metadata": {
     "deterministic": true,
     "purpose": "Select a per-project A2 scenario pack for SaaS release evaluation without live API calls.",
-    "does_not_read_private_evidence": true
+    "does_not_read_private_evidence": true,
+    "public_fixture_sources": [
+      "fixtures\\golden\\a2_g2_golden_cases.json",
+      "fixtures\\a2\\runs",
+      "fixtures\\a2\\results\\a2_regression_replay_report.json",
+      "fixtures\\a2\\results\\a2_incident_regression_candidates.json"
+    ]
   }
 }

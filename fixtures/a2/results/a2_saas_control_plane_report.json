@@ -193,7 +193,7 @@
     "config_id": "a2_release_policies_default",
     "default_policy_id": "release_policy_dev_observe",
     "policy_count": 3,
-    "assignment_count": 6,
+    "assignment_count": 8,
     "environments": [
       "dev",
       "prod",
@@ -201,15 +201,17 @@
     ],
     "selected_policy": {
       "policy_id": "release_policy_prod_strict",
-      "policy_version": "2026-07-07.1",
-      "policy_hash": "sha256:7037c613137d7da36fedc2358f61b2744fe5159f0c1c16baf8a1571acc9a70c3",
+      "policy_version": "2026-07-07.2",
+      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
       "policy_hash_valid": true,
       "rule_count": 4,
       "selection": {
         "assignment_id": "project_enterprise_saas_agent_prod",
         "match_scope": "project_environment",
         "project_id": "project_enterprise_saas_agent",
-        "environment": "prod"
+        "environment": "prod",
+        "branch": "",
+        "branch_pattern": "*,main,release/*"
       }
     },
     "waiver_flow_supported": true,
@@ -226,12 +228,12 @@
     "source_scenario_count": 60,
     "selected_count": 12,
     "selected_scenario_ids": [
-      "A2-S004",
-      "A2-S009",
+      "A2-S010",
       "A2-S018",
       "A2-S031",
       "A2-S035",
       "A2-S039",
+      "A2-S041",
       "A2-S043",
       "A2-S046",
       "A2-S048",
@@ -252,8 +254,8 @@
     "missing_capability_axes": [],
     "missing_tenant_saas_tags": [],
     "risk_tier_counts": {
-      "critical": 7,
-      "high": 5
+      "critical": 6,
+      "high": 6
     }
   },
   "calibration": {

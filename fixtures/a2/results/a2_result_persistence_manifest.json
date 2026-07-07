@@ -3577,9 +3577,9 @@
       "scenario_id": "all",
       "judge_id": "scenario_library_selector",
       "judge_version": "a2.scenario_selection.v1",
-      "policy_hash": "sha256:cd506c55a3791100123321c5e5dbb40035f03c088ce368a35c91b84f6874960a",
+      "policy_hash": "sha256:fc0c372e9a271fd6406683e7fe67b9cfdd3caac4346a60b6fe979d9a51329d73",
       "input_hash": "sha256:81b9c12a83f808a618d1e8dcae3095c65982cb5e7987489bfbc90c385285bb9c",
-      "output_hash": "sha256:c785e4c3bf15c170825d71e1dac29ee47cf908fd22b88dfbe71f8bf0f05803c1",
+      "output_hash": "sha256:97f2792cbfdccf134da01bd6aa3fd7ba3d54585c63953dbda473e0ed12e32730",
       "created_at": "2026-07-07T00:00:00Z",
       "selected": true,
       "selected_count": 12,
@@ -3588,8 +3588,8 @@
         "ambiguous_or_conflicting": 1,
         "retrieval_grounding": 3,
         "safety_policy": 3,
-        "tool_execution": 3,
-        "workflow_planning": 2
+        "tool_execution": 2,
+        "workflow_planning": 3
       },
       "result_schema_version": "a2.scenario_selection.v1"
     }
