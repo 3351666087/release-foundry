@@ -20,6 +20,7 @@ BATCH_ENDPOINT = "/internal/judge/batch"
 RELEASE_POLICY_ENDPOINT = "/internal/release-policy/evaluate"
 REGRESSION_REPLAY_ENDPOINT = "/internal/regression/replay"
 CALIBRATION_EVALUATE_ENDPOINT = "/internal/calibration/evaluate"
+SCENARIO_SELECT_ENDPOINT = "/internal/scenarios/select"
 SERVICE_VERSION = "a2-judge-service-0.1.0"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_GRADE_REPORT = Path("fixtures/a2/results/a2_g3_grade_results.json")
@@ -165,10 +166,12 @@ def evaluate_release_policy(
         _read_json(policy_config_path),
         project_id=str(request.get("project_id", "")),
         environment=str(request.get("environment", "dev")),
+        branch=str(request.get("branch", "")),
         grade_report=grade_report,
         metrics=request.get("metrics"),
         release_candidate_id=str(request.get("release_candidate_id", request.get("run_id", ""))),
         waivers=request.get("waivers") if isinstance(request.get("waivers"), list) else None,
+        approvals=request.get("approvals") if isinstance(request.get("approvals"), list) else None,
     )
     gate_report = dict(request.get("release_gate_report") or _read_json(release_gate_path))
     gate_report["policy_evaluation"] = policy_evaluation
@@ -254,11 +257,23 @@ def select_project_scenarios(
     *,
     pack_path: str | Path = DEFAULT_SCENARIO_PACK,
 ) -> dict[str, Any]:
-    return build_project_scenario_selection(
-        project_id=str(request.get("project_id", "")),
+    request_project = request.get("project", {})
+    if not isinstance(request_project, dict):
+        request_project = {}
+    project_id = str(request.get("project_id") or request_project.get("project_id") or "")
+    selection = build_project_scenario_selection(
+        project_id=project_id,
         environment=str(request.get("environment", "prod")),
         pack_path=pack_path,
     )
+    project = selection.get("project")
+    if not isinstance(project, dict):
+        source_report = selection.get("source_report", {})
+        source_project = source_report.get("project", {}) if isinstance(source_report, dict) else {}
+        project = dict(source_project) if isinstance(source_project, dict) else {}
+    if not project:
+        project = {"project_id": project_id, "name": str(request_project.get("name") or project_id)}
+    return {**selection, "project": project}
 
 
 def post_internal_judge_case(payload: dict[str, Any]) -> dict[str, Any]:
@@ -292,6 +307,11 @@ def post_internal_calibration_evaluate(payload: dict[str, Any]) -> dict[str, Any
     return _ok_response(CALIBRATION_EVALUATE_ENDPOINT, payload, response["calibration_matrix"], status_code=200)
 
 
+def post_internal_scenarios_select(payload: dict[str, Any]) -> dict[str, Any]:
+    selection = select_project_scenarios(payload)
+    return _ok_response(SCENARIO_SELECT_ENDPOINT, payload, selection, status_code=200)
+
+
 def handle_internal_request(endpoint: str, payload: dict[str, Any], *, method: str = "POST") -> dict[str, Any]:
     if method.upper() != "POST":
         return _error_response(endpoint, payload, 405, "method_not_allowed", f"{method} is not supported")
@@ -308,6 +328,8 @@ def handle_internal_request(endpoint: str, payload: dict[str, Any], *, method: s
             return post_internal_regression_replay(payload)
         if endpoint == CALIBRATION_EVALUATE_ENDPOINT:
             return post_internal_calibration_evaluate(payload)
+        if endpoint == SCENARIO_SELECT_ENDPOINT:
+            return post_internal_scenarios_select(payload)
     except (KeyError, ReleasePolicyError, ValueError) as exc:
         return _error_response(endpoint, payload, 400, "bad_request", str(exc))
     return _error_response(endpoint, payload, 404, "route_not_found", f"Unknown internal endpoint: {endpoint}")

@@ -13,6 +13,7 @@ def build_release_gate_report(
     evidence_readiness_report: dict[str, Any],
     calibration_matrix: dict[str, Any],
     regression_replay_report: dict[str, Any] | None = None,
+    scenario_selection_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert readiness evidence into a machine-readable PR/release gate."""
     gates = {str(gate.get("gate", "")): gate for gate in commercial_readiness_report.get("gate_status", [])}
@@ -23,8 +24,12 @@ def build_release_gate_report(
     ]
     blocking_gates = [item for item in blocking_gates if item]
     evidence_blockers = _evidence_blockers(evidence_readiness_report, calibration_matrix, regression_replay_report or {})
-    blockers = blocking_gates + evidence_blockers
-    warnings = _warnings(commercial_readiness_report, evidence_readiness_report)
+    scenario_selection_gate = _scenario_selection_gate(scenario_selection_report or {})
+    scenario_selection_blockers = _scenario_selection_blockers(scenario_selection_gate)
+    blockers = blocking_gates + evidence_blockers + scenario_selection_blockers
+    warnings = _warnings(commercial_readiness_report, evidence_readiness_report) + _scenario_selection_warnings(
+        scenario_selection_gate
+    )
     decision = "block" if blockers else "warn" if warnings else "pass"
     risk_score = _risk_score(blockers, warnings)
     return {
@@ -43,7 +48,9 @@ def build_release_gate_report(
         "ready_for_commercial_gate": bool(commercial_readiness_report.get("ready_for_commercial_gate")),
         "blocking_gate_count": len(blocking_gates),
         "evidence_blocker_count": len(evidence_blockers),
+        "scenario_selection_blocker_count": len(scenario_selection_blockers),
         "warning_count": len(warnings),
+        "scenario_selection_gate": scenario_selection_gate,
         "blockers": blockers,
         "warnings": warnings,
         "required_evidence": _required_evidence(evidence_readiness_report),
@@ -54,13 +61,14 @@ def build_release_gate_report(
                 "reviewed Ashr grading rows imported for all six calibration cases",
                 "audited live semantic judge rows imported for all six calibration cases",
                 "case book/regression replay maturity reaches mature",
+                "per-project scenario selection coverage and minimums remain ready",
                 "secret scan and deterministic fixture checks pass after import",
             ],
             "private_evidence_boundary": "Raw API/model payloads stay under docs/evidence/private_refs/ and are never committed.",
         },
         "machine_contract": {
             "ci_mode": "fail on decision=block",
-            "blocking_fields": ["decision", "blockers", "required_evidence"],
+            "blocking_fields": ["decision", "blockers", "required_evidence", "scenario_selection_gate"],
             "stable_join_keys": ["case_id", "scenario_id", "gate"],
             "a3_consumption": "A3 may render this as a PR/release gate without reading private evidence.",
         },
@@ -69,6 +77,7 @@ def build_release_gate_report(
             "fixtures/a2/results/a2_evidence_readiness_report.json",
             "fixtures/a2/results/a2_g3_calibration_matrix.json",
             "fixtures/a2/results/a2_regression_replay_report.json",
+            "fixtures/a2/results/a2_scenario_selection_report.json",
         ],
         "metadata": {
             "deterministic": True,
@@ -76,6 +85,87 @@ def build_release_gate_report(
             "does_not_execute_live_calls": True,
         },
     }
+
+
+def _scenario_selection_gate(report: dict[str, Any]) -> dict[str, Any]:
+    if not report:
+        return {
+            "status": "not_evaluated",
+            "ready": True,
+            "coverage_ready": True,
+            "minimums_ready": True,
+            "selection_id": "",
+            "project_id": "",
+            "environment": "",
+            "selected_scenario_count": 0,
+            "gaps": [],
+            "evidence_refs": [],
+        }
+
+    coverage = report.get("coverage_summary", {})
+    if not isinstance(coverage, dict):
+        coverage = {}
+    minimums = report.get("minimums_summary", {})
+    if not isinstance(minimums, dict):
+        minimums = {}
+    project = report.get("project", {})
+    if not isinstance(project, dict):
+        project = {}
+    a3_summary = report.get("a3_consumption_summary", {})
+    if not isinstance(a3_summary, dict):
+        a3_summary = {}
+
+    coverage_ready = bool(coverage.get("coverage_ready"))
+    minimums_ready = bool(minimums.get("minimums_ready"))
+    gaps = [str(gap) for gap in minimums.get("gaps", []) if str(gap).strip()]
+    if not coverage_ready:
+        gaps.append("scenario selection coverage is not ready")
+    ready = coverage_ready and minimums_ready
+    return {
+        "status": "ready" if ready else "needs_attention",
+        "ready": ready,
+        "coverage_ready": coverage_ready,
+        "minimums_ready": minimums_ready,
+        "selection_id": str(report.get("selection_id", "")),
+        "project_id": str(project.get("project_id", "")),
+        "environment": str(report.get("environment", "")),
+        "selected_scenario_count": int(report.get("selected_scenario_count", 0)),
+        "observed_minimums": minimums.get("observed", {}),
+        "release_gate_inputs": a3_summary.get("release_gate_inputs", {}),
+        "gaps": gaps,
+        "evidence_refs": ["fixtures/a2/results/a2_scenario_selection_report.json"],
+    }
+
+
+def _scenario_selection_blockers(gate: dict[str, Any]) -> list[dict[str, Any]]:
+    if gate.get("status") != "needs_attention":
+        return []
+    return [
+        {
+            "type": "scenario_selection_gate",
+            "gate": "S1",
+            "status": str(gate.get("status", "needs_attention")),
+            "severity": "high",
+            "summary": "Per-project scenario selection coverage or minimums are not release-ready.",
+            "required_action": "Fix scenario selection gaps before using this pack as a release gate baseline.",
+            "missing_count": len(gate.get("gaps", [])),
+            "evidence_refs": gate.get("evidence_refs", []),
+        }
+    ]
+
+
+def _scenario_selection_warnings(gate: dict[str, Any]) -> list[dict[str, Any]]:
+    if gate.get("status") != "not_evaluated":
+        return []
+    return [
+        {
+            "type": "scenario_selection_gate",
+            "severity": "medium",
+            "summary": "Scenario selection gate was not evaluated for this release report.",
+            "count": 1,
+            "evidence_refs": [],
+        }
+    ]
 
 
 def _gate_blocker(gate_id: str, gate: dict[str, Any]) -> dict[str, Any]:

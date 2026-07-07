@@ -1507,7 +1507,8 @@ class A2ContractTests(unittest.TestCase):
         evidence = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
         replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
-        report = build_release_gate_report(commercial, evidence, calibration, replay)
+        scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
+        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection)
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
         report_text = json.dumps(report)
 
@@ -1520,6 +1521,9 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(report["hard_gate_ids"], ["C0", "C1", "C2", "C3", "C4", "C5"])
         self.assertGreaterEqual(report["blocking_gate_count"], 3)
         self.assertGreaterEqual(report["evidence_blocker_count"], 3)
+        self.assertEqual(report["scenario_selection_gate"]["status"], "ready")
+        self.assertTrue(report["scenario_selection_gate"]["minimums_ready"])
+        self.assertEqual(report["scenario_selection_blocker_count"], 0)
         self.assertGreaterEqual(report["warning_count"], 2)
         self.assertTrue(any(warning["type"] == "api_probe_gate_validation" for warning in report["warnings"]))
         blocker_gates = {blocker.get("gate") for blocker in report["blockers"]}
@@ -1530,6 +1534,27 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(any(annotation["level"] == "failure" for annotation in report["pr_annotations"]))
         self.assertNotIn("Bearer ", report_text)
         self.assertNotRegex(report_text, re.compile(r"tp_[A-Za-z0-9_\\-]+"))
+
+    def test_release_gate_blocks_when_scenario_selection_minimums_are_not_ready(self):
+        commercial = json.loads((ROOT / "fixtures/a2/results/a2_commercial_readiness_report.json").read_text(encoding="utf-8"))
+        evidence = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
+        calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
+        replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
+        scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
+        scenario_selection["minimums_summary"] = {
+            **scenario_selection["minimums_summary"],
+            "minimums_ready": False,
+            "gaps": ["regression_case_count selected 0 below required 1."],
+        }
+
+        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection)
+        scenario_blockers = [item for item in report["blockers"] if item["type"] == "scenario_selection_gate"]
+
+        self.assertEqual(report["scenario_selection_gate"]["status"], "needs_attention")
+        self.assertEqual(report["scenario_selection_blocker_count"], 1)
+        self.assertEqual(len(scenario_blockers), 1)
+        self.assertEqual(scenario_blockers[0]["gate"], "S1")
+        self.assertIn("fixtures/a2/results/a2_scenario_selection_report.json", scenario_blockers[0]["evidence_refs"])
 
     def test_release_gate_cli_can_fail_on_block_for_ci(self):
         result = subprocess.run(

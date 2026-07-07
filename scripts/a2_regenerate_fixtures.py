@@ -245,19 +245,20 @@ def generate_outputs(
         evidence_readiness_report=evidence_readiness,
     )
     outputs[commercial_readiness_path] = commercial_readiness
-    release_gate = build_release_gate_report(
-        commercial_readiness,
-        evidence_readiness,
-        calibration_matrix,
-        regression_replay,
-    )
-    outputs[release_gate_path] = release_gate
     scenario_selection_profile = json.loads(scenario_selection_profile_path.read_text(encoding="utf-8"))
     scenario_selection = build_scenario_selection_report(
         scenario_selection_profile,
         pack_path=pack_path,
     )
     outputs[scenario_selection_path] = scenario_selection
+    release_gate = build_release_gate_report(
+        commercial_readiness,
+        evidence_readiness,
+        calibration_matrix,
+        regression_replay,
+        scenario_selection,
+    )
+    outputs[release_gate_path] = release_gate
     scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
     result_persistence_manifest = build_result_persistence_manifest(
         outputs[grade_report_path],

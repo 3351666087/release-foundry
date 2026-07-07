@@ -14,7 +14,9 @@
     "ready_for_commercial_gate",
     "blocking_gate_count",
     "evidence_blocker_count",
+    "scenario_selection_blocker_count",
     "warning_count",
+    "scenario_selection_gate",
     "blockers",
     "warnings",
     "required_evidence",
@@ -36,7 +38,9 @@
     "ready_for_commercial_gate": { "type": "boolean" },
     "blocking_gate_count": { "type": "integer", "minimum": 0 },
     "evidence_blocker_count": { "type": "integer", "minimum": 0 },
+    "scenario_selection_blocker_count": { "type": "integer", "minimum": 0 },
     "warning_count": { "type": "integer", "minimum": 0 },
+    "scenario_selection_gate": { "$ref": "#/$defs/scenario_selection_gate" },
     "blockers": {
       "type": "array",
       "items": { "$ref": "#/$defs/release_item" }
@@ -74,6 +78,36 @@
         "summary": { "type": "string" },
         "required_action": { "type": "string" },
         "missing_count": { "type": "integer", "minimum": 0 },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "scenario_selection_gate": {
+      "type": "object",
+      "required": [
+        "status",
+        "ready",
+        "coverage_ready",
+        "minimums_ready",
+        "selection_id",
+        "project_id",
+        "environment",
+        "selected_scenario_count",
+        "gaps",
+        "evidence_refs"
+      ],
+      "properties": {
+        "status": { "enum": ["ready", "needs_attention", "not_evaluated"] },
+        "ready": { "type": "boolean" },
+        "coverage_ready": { "type": "boolean" },
+        "minimums_ready": { "type": "boolean" },
+        "selection_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "environment": { "type": "string" },
+        "selected_scenario_count": { "type": "integer", "minimum": 0 },
+        "observed_minimums": { "type": "object" },
+        "release_gate_inputs": { "type": "object" },
+        "gaps": { "$ref": "#/$defs/string_array" },
         "evidence_refs": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true

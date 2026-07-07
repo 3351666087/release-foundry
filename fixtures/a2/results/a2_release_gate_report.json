@@ -21,7 +21,48 @@
   "ready_for_commercial_gate": false,
   "blocking_gate_count": 3,
   "evidence_blocker_count": 4,
+  "scenario_selection_blocker_count": 0,
   "warning_count": 3,
+  "scenario_selection_gate": {
+    "status": "ready",
+    "ready": true,
+    "coverage_ready": true,
+    "minimums_ready": true,
+    "selection_id": "a2_enterprise_saas_prod_selection",
+    "project_id": "project_enterprise_saas_agent",
+    "environment": "prod",
+    "selected_scenario_count": 12,
+    "observed_minimums": {
+      "golden_case_count": 5,
+      "run_fixture_count": 9,
+      "regression_case_count": 2,
+      "failure_class_count": 8,
+      "media_scenario_count": 2
+    },
+    "release_gate_inputs": {
+      "scenario_ids": [
+        "A2-S010",
+        "A2-S018",
+        "A2-S031",
+        "A2-S035",
+        "A2-S039",
+        "A2-S041",
+        "A2-S043",
+        "A2-S046",
+        "A2-S048",
+        "A2-S050",
+        "A2-S052",
+        "A2-S059"
+      ],
+      "policy_id": "release_policy_enterprise_prod",
+      "judge_policy_id": "judge_policy_a2_enterprise_prod",
+      "environment": "prod"
+    },
+    "gaps": [],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_scenario_selection_report.json"
+    ]
+  },
   "blockers": [
     {
       "type": "commercial_gate",
@@ -285,6 +326,7 @@
       "reviewed Ashr grading rows imported for all six calibration cases",
       "audited live semantic judge rows imported for all six calibration cases",
       "case book/regression replay maturity reaches mature",
+      "per-project scenario selection coverage and minimums remain ready",
       "secret scan and deterministic fixture checks pass after import"
     ],
     "private_evidence_boundary": "Raw API/model payloads stay under docs/evidence/private_refs/ and are never committed."
@@ -294,7 +336,8 @@
     "blocking_fields": [
       "decision",
       "blockers",
-      "required_evidence"
+      "required_evidence",
+      "scenario_selection_gate"
     ],
     "stable_join_keys": [
       "case_id",
@@ -307,7 +350,8 @@
     "fixtures/a2/results/a2_commercial_readiness_report.json",
     "fixtures/a2/results/a2_evidence_readiness_report.json",
     "fixtures/a2/results/a2_g3_calibration_matrix.json",
-    "fixtures/a2/results/a2_regression_replay_report.json"
+    "fixtures/a2/results/a2_regression_replay_report.json",
+    "fixtures/a2/results/a2_scenario_selection_report.json"
   ],
   "metadata": {
     "deterministic": true,

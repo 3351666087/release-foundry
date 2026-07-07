@@ -25,6 +25,7 @@ def main() -> int:
             "/internal/release-policy/evaluate",
             "/internal/regression/replay",
             "/internal/calibration/evaluate",
+            "/internal/scenarios/select",
         ],
     )
     parser.add_argument("--method", default="POST")

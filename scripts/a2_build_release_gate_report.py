@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--evidence-readiness", default="fixtures/a2/results/a2_evidence_readiness_report.json")
     parser.add_argument("--calibration-matrix", default="fixtures/a2/results/a2_g3_calibration_matrix.json")
     parser.add_argument("--regression-replay", default="fixtures/a2/results/a2_regression_replay_report.json")
+    parser.add_argument("--scenario-selection", default="fixtures/a2/results/a2_scenario_selection_report.json")
     parser.add_argument("--check", action="store_true", help="Compare generated report with the output path.")
     parser.add_argument("--fail-on-block", action="store_true", help="Return the report exit_code when decision is block or warn.")
     args = parser.parse_args()
@@ -34,6 +35,7 @@ def main() -> int:
         _read_json(Path(args.evidence_readiness)),
         _read_json(Path(args.calibration_matrix)),
         _read_json(Path(args.regression_replay)),
+        _read_json(Path(args.scenario_selection)),
     )
     text = json.dumps(report, indent=2) + "\n"
     output = Path(args.output)
