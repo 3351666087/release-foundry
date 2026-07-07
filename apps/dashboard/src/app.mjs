@@ -16,6 +16,8 @@ import {
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
+  summarizeProductConsoleExport,
+  summarizeSaasAdminExport,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
@@ -1272,6 +1274,8 @@ function renderReportCenter() {
   const usageQuota = summarizeUsageQuota(state.usageQuota, state.usageQuotaApiProbe);
   const mediaReadiness = summarizeMediaReadiness(state.runs, state.grades, state.usageQuota, state.mediaSignedUrlCoverage);
   const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
+  const productConsole = summarizeProductConsoleExport(state.productConsole);
+  const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
   const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
@@ -1286,11 +1290,11 @@ function renderReportCenter() {
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
-    reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
+    reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
-    reportTile("Markdown", "Human-readable release-gate and war-room report with incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
+    reportTile("Markdown", "Human-readable release-gate and war-room report with product console onboarding/audit state, SaaS admin guardrails, incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
     reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
   ];
   if (hostedReports.length) {
@@ -1410,6 +1414,8 @@ function renderPrintReport() {
   const usageQuota = summarizeUsageQuota(state.usageQuota, state.usageQuotaApiProbe);
   const mediaReadiness = summarizeMediaReadiness(state.runs, state.grades, state.usageQuota, state.mediaSignedUrlCoverage);
   const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
+  const productConsole = summarizeProductConsoleExport(state.productConsole);
+  const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
   const officialGap = summarizeOfficialAshrGap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
   const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
@@ -1477,6 +1483,43 @@ function renderPrintReport() {
         artifact.required ? "yes" : "no",
         `${artifact.path}: ${artifact.purpose}`
       ]))}
+    </div>
+    <div class="report-section">
+      <h4>Product Console / Onboarding / Audit</h4>
+      <div class="muted">${escapeHtml(productConsole.recommendation)}</div>
+      ${renderReportTable(["Signal", "Value"], [
+        ["Available", productConsole.available ? "yes" : "no"],
+        ["Onboarding", productConsole.available ? `${productConsole.onboarding.status} / ${productConsole.onboarding.completed_steps}/${productConsole.onboarding.total_steps} / ${productConsole.onboarding.completion_rate}%` : "missing"],
+        ["Project status", productConsole.available ? productConsole.project_console.status : "missing"],
+        ["Project evidence", productConsole.available ? `${productConsole.project_console.run_count} run(s), ${productConsole.project_console.case_count} case(s), ${productConsole.project_console.failed_case_count} failed, ${productConsole.project_console.report_count} report(s)` : "missing"],
+        ["Audit log", productConsole.available ? `${productConsole.audit_log.status}, ${productConsole.audit_log.event_count} event(s), redacted-only ${productConsole.audit_log.redacted_payload_only ? "yes" : "no"}` : "missing"],
+        ["Commercial readiness", productConsole.available ? `${productConsole.commercial_readiness.status} / ${productConsole.commercial_readiness.readiness_score}` : "missing"],
+        ["Money path", productConsole.available ? productConsole.commercial_readiness.strongest_money_path : "missing"]
+      ])}
+      ${renderReportTable(["Check", "Status", "Passed"], productConsole.available ? productConsole.commercial_readiness.checks.map((check) => [
+        check.id,
+        check.status,
+        check.passed ? "yes" : "no"
+      ]) : [], "No Product Console readiness checks.")}
+    </div>
+    <div class="report-section">
+      <h4>SaaS Admin / Login / Team / Trust</h4>
+      <div class="muted">${escapeHtml(saasAdmin.recommendation)}</div>
+      ${renderReportTable(["Signal", "Value"], [
+        ["Available", saasAdmin.available ? "yes" : "no"],
+        ["Login", saasAdmin.available ? `${saasAdmin.login.status}, ${saasAdmin.login.provider}, identity redacted ${saasAdmin.login.user_identity_redacted ? "yes" : "no"}` : "missing"],
+        ["Team", saasAdmin.available ? `${saasAdmin.team.status}, ${saasAdmin.team.member_count} member(s), invite ${saasAdmin.team.invite_mode}` : "missing"],
+        ["Usage", saasAdmin.available ? `${saasAdmin.usage.status}, plan ${saasAdmin.usage.plan_name}, quota mutation ${saasAdmin.usage.quota_mutations_enabled ? "enabled" : "disabled"}` : "missing"],
+        ["API keys", saasAdmin.available ? `${saasAdmin.api_keys.status}, ${saasAdmin.api_keys.key_count} metadata row(s), ${saasAdmin.api_keys.reveal_policy}` : "missing"],
+        ["Trust", saasAdmin.available ? `${saasAdmin.trust.status}, publish ${saasAdmin.trust.publish_enabled ? "enabled" : "disabled"}, public publish ${saasAdmin.trust.public_publish_enabled ? "enabled" : "disabled"}` : "missing"],
+        ["Cloud management", saasAdmin.available ? `${saasAdmin.cloud_management.status}, ${saasAdmin.cloud_management.resource_count} resource(s), real mutations ${saasAdmin.cloud_management.real_mutations_enabled ? "enabled" : "disabled"}` : "missing"],
+        ["A1/A2 compatibility", saasAdmin.available ? `A1 ${saasAdmin.a1_a2_compatibility.a1_run_result_ready ? "ready" : "missing"}, A2 ${saasAdmin.a1_a2_compatibility.a2_grade_result_ready ? "ready" : "missing"}` : "missing"]
+      ])}
+      ${renderReportTable(["Action", "Mode", "Real Cloud Write"], saasAdmin.available ? saasAdmin.action_plans.map((action) => [
+        action.action,
+        action.mode,
+        action.writes_real_ashr_cloud ? "yes" : "no"
+      ]) : [], "No SaaS admin action guardrails.")}
     </div>
     <div class="report-section">
       <h4>Release War Room</h4>
@@ -2088,7 +2131,9 @@ function exportReport(format) {
       state.authCheck,
       state.frontendSummary,
       state.frontendMirror,
-      state.frontendCodeCrawl
+      state.frontendCodeCrawl,
+      state.productConsole,
+      state.saasAdmin
     ), null, 2), "application/json");
     return;
   }
@@ -2108,7 +2153,9 @@ function exportReport(format) {
     state.authCheck,
     state.frontendSummary,
     state.frontendMirror,
-    state.frontendCodeCrawl
+    state.frontendCodeCrawl,
+    state.productConsole,
+    state.saasAdmin
   ), "text/markdown");
 }
 

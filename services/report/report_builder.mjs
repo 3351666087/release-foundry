@@ -3086,7 +3086,173 @@ export function buildArgumentDiffs(expectedArgs = {}, actualArgs = {}) {
   });
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
+export function summarizeProductConsoleExport(productConsoleFixture = {}) {
+  const available = productConsoleFixture?.schema_version === "a3.product_console.v1"
+    || Boolean(productConsoleFixture?.onboarding || productConsoleFixture?.project_console || productConsoleFixture?.audit_log);
+  if (!available) {
+    return {
+      schema_version: "a3.product_console_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach Product Console workflow state before claiming onboarding, project, or audit readiness."
+    };
+  }
+
+  const onboarding = productConsoleFixture.onboarding || {};
+  const project = productConsoleFixture.project_console || {};
+  const audit = productConsoleFixture.audit_log || {};
+  const readiness = productConsoleFixture.commercial_readiness || {};
+  return {
+    schema_version: "a3.product_console_export.v1",
+    available: true,
+    source: productConsoleFixture.source || "unknown",
+    tenant_scope: productConsoleFixture.tenant_scope || {},
+    onboarding: {
+      status: onboarding.status || "unknown",
+      completed_steps: onboarding.completed_steps || 0,
+      total_steps: onboarding.total_steps || 0,
+      completion_rate: onboarding.completion_rate || 0,
+      next_actions: (onboarding.next_actions || []).slice(0, 6)
+    },
+    project_console: {
+      project_id: project.project_id || "project-local",
+      status: project.status || "unknown",
+      run_count: project.summary?.run_count || 0,
+      case_count: project.summary?.case_count || 0,
+      failed_case_count: project.summary?.failed_case_count || 0,
+      report_count: project.report_snapshot?.report_count || 0,
+      primary_actions: (project.primary_actions || []).map((item) => ({
+        action: item.action,
+        enabled: item.enabled === true,
+        mode: item.mode || "unknown"
+      }))
+    },
+    audit_log: {
+      status: audit.status || "empty",
+      event_count: audit.event_count || 0,
+      redacted_payload_only: audit.redacted_payload_only === true,
+      missing_required_events: audit.missing_required_events || []
+    },
+    commercial_readiness: {
+      status: readiness.status || "unknown",
+      readiness_score: readiness.readiness_score || 0,
+      strongest_money_path: readiness.strongest_money_path || "unknown",
+      checks: (readiness.checks || []).map((item) => ({
+        id: item.id,
+        status: item.status,
+        passed: item.passed === true
+      })),
+      next_commercial_moves: readiness.next_commercial_moves || []
+    },
+    recommendation: "Use Product Console export as the onboarding/project/audit section of customer-facing release evidence."
+  };
+}
+
+export function summarizeSaasAdminExport(saasAdminFixture = {}) {
+  const available = saasAdminFixture?.schema_version === "a3.saas_admin_console.v1"
+    || Boolean(saasAdminFixture?.login || saasAdminFixture?.team || saasAdminFixture?.api_keys || saasAdminFixture?.trust || saasAdminFixture?.cloud_management);
+  if (!available) {
+    return {
+      schema_version: "a3.saas_admin_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach SaaS Admin Console state before claiming login, team, API-key, usage, trust, or cloud-management readiness."
+    };
+  }
+
+  const login = saasAdminFixture.login || {};
+  const team = saasAdminFixture.team || {};
+  const apiKeys = saasAdminFixture.api_keys || {};
+  const usage = saasAdminFixture.usage || {};
+  const trust = saasAdminFixture.trust || {};
+  const cloud = saasAdminFixture.cloud_management || {};
+  const compatibility = saasAdminFixture.a1_a2_compatibility || {};
+  const safety = saasAdminFixture.safety || {};
+  const actions = Array.isArray(saasAdminFixture.actions) ? saasAdminFixture.actions : [];
+
+  return {
+    schema_version: "a3.saas_admin_export.v1",
+    available: true,
+    source: saasAdminFixture.source || "unknown",
+    organization: {
+      plan: saasAdminFixture.organization?.plan || "unknown",
+      tenancy_mode: saasAdminFixture.organization?.tenancy_mode || "unknown",
+      data_region: saasAdminFixture.organization?.data_region || "unknown",
+      auth_boundary: saasAdminFixture.organization?.auth_boundary || "unknown"
+    },
+    login: {
+      status: login.status || "unknown",
+      provider: login.provider || "unknown",
+      session_storage: login.session_storage || "not_persisted",
+      user_identity_redacted: login.user_identity === "[REDACTED]" || login.session?.account_email === "[REDACTED]",
+      rbac_enforced_now: login.rbac_boundary?.enforced_now === true
+    },
+    team: {
+      status: team.status || "unknown",
+      invite_mode: team.invite_mode || "unknown",
+      member_count: Array.isArray(team.members) ? team.members.length : 0,
+      roles: Array.isArray(team.roles) ? team.roles : [],
+      self_approval_allowed: team.approval_policy?.self_approval_allowed === true
+    },
+    api_keys: {
+      status: apiKeys.status || "unknown",
+      create_mode: apiKeys.create_mode || "unknown",
+      reveal_policy: apiKeys.reveal_policy || "unknown",
+      key_count: Array.isArray(apiKeys.keys) ? apiKeys.keys.length : 0,
+      lifecycle_steps: (apiKeys.lifecycle || []).map((item) => ({
+        step: item.step,
+        status: item.status
+      }))
+    },
+    usage: {
+      status: usage.status || "unknown",
+      plan_name: usage.plan_snapshot?.plan_name || "unknown",
+      quota_mutations_enabled: usage.plan_snapshot?.quota_mutations_enabled === true,
+      channels: Array.isArray(usage.channels) ? usage.channels : [],
+      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : []
+    },
+    trust: {
+      status: trust.status || "unknown",
+      public_certificate_mode: trust.public_certificate_mode || "unknown",
+      publish_enabled: trust.publish_enabled === true,
+      public_publish_enabled: trust.trust_center?.public_publish_enabled === true,
+      release_gate_label: trust.release_gate_label || trust.release_gate_decision || "unknown"
+    },
+    cloud_management: {
+      status: cloud.status || "unknown",
+      resource_count: Array.isArray(cloud.resources) ? cloud.resources.length : 0,
+      real_mutations_enabled: cloud.real_mutations_enabled === true,
+      supported_readonly_surfaces: Array.isArray(cloud.supported_readonly_surfaces) ? cloud.supported_readonly_surfaces : [],
+      disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : []
+    },
+    a1_a2_compatibility: {
+      a1_run_result_ready: compatibility.a1_run_result_ready === true,
+      a2_grade_result_ready: compatibility.a2_grade_result_ready === true,
+      case_count: compatibility.case_count || 0,
+      trace_ready_count: compatibility.trace_ready_count || 0,
+      judge_ready_count: compatibility.judge_ready_count || 0
+    },
+    safety: {
+      real_login_enabled: safety.real_login_enabled === true,
+      real_team_invites_enabled: safety.real_team_invites_enabled === true,
+      real_api_key_secrets_enabled: safety.real_api_key_secrets_enabled === true,
+      real_billing_mutations_enabled: safety.real_billing_mutations_enabled === true,
+      real_trust_publish_enabled: safety.real_trust_publish_enabled === true,
+      secret_values_allowed: safety.secret_values_allowed === true,
+      mode: safety.mode || "unknown"
+    },
+    action_plans: actions.slice(0, 8).map((item) => ({
+      action: item.action,
+      area: item.area,
+      mode: item.mode,
+      enabled: item.enabled === true,
+      writes_real_ashr_cloud: item.writes_real_ashr_cloud === true
+    })),
+    recommendation: "Keep SaaS admin, key, team, billing, trust, and cloud workflows read-only or plan-only until hosted auth, RBAC, SQL persistence, and audit events are real."
+  };
+}
+
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const coverage = summarizeCoverage(coverageFixture);
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
@@ -3106,6 +3272,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const regressionFactory = summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
   const exportRedactionFirewall = summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, frontendCodeCrawlFixture);
+  const productConsole = summarizeProductConsoleExport(productConsoleFixture);
+  const saasAdmin = summarizeSaasAdminExport(saasAdminFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -3153,6 +3321,55 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       ""
     );
     lines.push("### PR Comment Template", "", releaseWorkflow.pr_comment_markdown.trim(), "");
+  }
+
+  if (productConsole.available) {
+    lines.push(
+      "## Product Console / Onboarding / Audit",
+      "",
+      `- Source: ${productConsole.source}`,
+      `- Onboarding: ${productConsole.onboarding.status} (${productConsole.onboarding.completed_steps}/${productConsole.onboarding.total_steps}, ${productConsole.onboarding.completion_rate}%)`,
+      `- Project status: ${productConsole.project_console.status}`,
+      `- Project evidence: ${productConsole.project_console.run_count} run(s), ${productConsole.project_console.case_count} case(s), ${productConsole.project_console.failed_case_count} failed case(s), ${productConsole.project_console.report_count} report(s)`,
+      `- Audit log: ${productConsole.audit_log.status}, ${productConsole.audit_log.event_count} event(s), redacted-only ${productConsole.audit_log.redacted_payload_only ? "yes" : "no"}`,
+      `- Commercial readiness: ${productConsole.commercial_readiness.status} / ${productConsole.commercial_readiness.readiness_score}`,
+      `- Strongest money path: ${productConsole.commercial_readiness.strongest_money_path}`,
+      ""
+    );
+    if (productConsole.onboarding.next_actions.length) {
+      lines.push("### Product Console Next Actions", "", ...productConsole.onboarding.next_actions.map((item) => `- ${item}`), "");
+    }
+    if (productConsole.commercial_readiness.checks.length) {
+      lines.push("### Product Console Readiness Checks", "");
+      for (const check of productConsole.commercial_readiness.checks) {
+        lines.push(`- ${check.id}: ${check.status}`);
+      }
+      lines.push("");
+    }
+  }
+
+  if (saasAdmin.available) {
+    lines.push(
+      "## SaaS Admin / Login / Team / Trust",
+      "",
+      `- Source: ${saasAdmin.source}`,
+      `- Login: ${saasAdmin.login.status}, ${saasAdmin.login.provider}, identity redacted ${saasAdmin.login.user_identity_redacted ? "yes" : "no"}`,
+      `- Team: ${saasAdmin.team.status}, ${saasAdmin.team.member_count} member(s), invite mode ${saasAdmin.team.invite_mode}`,
+      `- Usage: ${saasAdmin.usage.status}, plan ${saasAdmin.usage.plan_name}, quota mutation ${saasAdmin.usage.quota_mutations_enabled ? "enabled" : "disabled"}`,
+      `- API keys: ${saasAdmin.api_keys.status}, ${saasAdmin.api_keys.key_count} metadata row(s), reveal policy ${saasAdmin.api_keys.reveal_policy}`,
+      `- Trust: ${saasAdmin.trust.status}, publish ${saasAdmin.trust.publish_enabled ? "enabled" : "disabled"}, public publish ${saasAdmin.trust.public_publish_enabled ? "enabled" : "disabled"}`,
+      `- Cloud management: ${saasAdmin.cloud_management.status}, ${saasAdmin.cloud_management.resource_count} resource(s), real mutations ${saasAdmin.cloud_management.real_mutations_enabled ? "enabled" : "disabled"}`,
+      `- A1/A2 compatibility: A1 ${saasAdmin.a1_a2_compatibility.a1_run_result_ready ? "ready" : "missing"}, A2 ${saasAdmin.a1_a2_compatibility.a2_grade_result_ready ? "ready" : "missing"}`,
+      `- Safety mode: ${saasAdmin.safety.mode}, secret values allowed ${saasAdmin.safety.secret_values_allowed ? "yes" : "no"}`,
+      ""
+    );
+    if (saasAdmin.action_plans.length) {
+      lines.push("### SaaS Admin Action Guardrails", "");
+      for (const action of saasAdmin.action_plans) {
+        lines.push(`- ${action.action}: ${action.mode}, real cloud write ${action.writes_real_ashr_cloud ? "yes" : "no"}`);
+      }
+      lines.push("");
+    }
   }
 
   if (releaseWarRoom.available) {
@@ -3646,7 +3863,7 @@ function scanCsvExportSurface(cases = []) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}) {
   const rawReport = {
     schema_version: "a3.export_report.v1",
     summary: buildDashboardSummary(runFixture, gradeFixture),
@@ -3660,6 +3877,8 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     official_frontend_mirror: summarizeOfficialFrontendMirror(frontendMirrorFixture),
     official_code_crawl_parity: summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture),
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, mediaSignedUrlFixture, frontendMirrorFixture),
+    product_console: summarizeProductConsoleExport(productConsoleFixture),
+    saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
     release_gate: summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

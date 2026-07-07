@@ -498,6 +498,8 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   const productComponent = await readFile(new URL("../../apps/dashboard/src/components/product-console-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /a3_product_console\.mjs/);
+  assert.match(html, /summarizeProductConsoleExport/);
+  assert.match(html, /summarizeSaasAdminExport/);
   assert.match(html, /components\/product-console-panel\.mjs/);
   assert.match(html, /fetchA3ProductConsole/);
   assert.match(html, /href="#product-console"/);
@@ -505,6 +507,12 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(html, /id="product-console-body"/);
   assert.match(html, /function refreshLocalProductConsole\(\)/);
   assert.match(html, /function renderProductConsole\(\)/);
+  assert.match(html, /Product Console \/ Onboarding \/ Audit/);
+  assert.match(html, /SaaS Admin \/ Login \/ Team \/ Trust/);
+  assert.match(html, /state\.productConsole/);
+  assert.match(html, /state\.saasAdmin/);
+  assert.match(html, /product console workflow/);
+  assert.match(html, /SaaS admin guardrails/);
   assert.match(html, /product_console/);
   assert.match(html, /GET \/api\/a3\/product\/console/);
   assert.match(productComponent, /Onboarding Flow/);

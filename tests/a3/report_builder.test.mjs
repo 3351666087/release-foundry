@@ -23,6 +23,8 @@ import {
   summarizeOfficialFrontendMirror,
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
+  summarizeProductConsoleExport,
+  summarizeSaasAdminExport,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
@@ -33,6 +35,8 @@ import {
   summarizeRequestProvenance,
   summarizeUsageQuota
 } from "../../services/report/report_builder.mjs";
+import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
+import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
 async function loadJson(path) {
@@ -630,6 +634,71 @@ test("A3 export builders produce markdown, CSV, and JSON report shapes", async (
   assert.equal(json.failure_clusters.length, 12);
   assert.ok(Array.isArray(json.cases[0].tool_call_diffs));
   assert.equal(json.cases[0].score_source, "unknown");
+});
+
+test("A3 report exports include Product Console onboarding, project, and audit state", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const productConsole = buildA3ProductConsole({ source: "mock", runFixture: runs, gradeFixture: grades }, {
+    reportCenter: {
+      summary: { report_count: 1, manifest_ready_count: 1, total_view_count: 2 },
+      reports: [{ report_id: "a3r_export", status: "shareable" }]
+    },
+    auditEvents: [{ event_type: "report_share_link_viewed", report_id: "a3r_export", access_result: "allowed" }]
+  });
+
+  const summary = summarizeProductConsoleExport(productConsole);
+  assert.equal(summary.available, true);
+  assert.equal(summary.onboarding.total_steps, 10);
+  assert.ok(summary.project_console.case_count > 0);
+  assert.ok(summary.audit_log.event_count > 0);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, productConsole);
+  assert.equal(json.product_console.schema_version, "a3.product_console_export.v1");
+  assert.equal(json.product_console.available, true);
+  assert.equal(json.product_console.project_console.report_count, 1);
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, productConsole);
+  assert.match(markdown, /## Product Console \/ Onboarding \/ Audit/);
+  assert.match(markdown, /Commercial readiness:/);
+
+  const missing = summarizeProductConsoleExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Attach Product Console/);
+});
+
+test("A3 report exports include SaaS admin login, team, API-key, usage, trust, and cloud guardrails", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const saasAdmin = buildSaasAdminConsole({
+    runFixture: runs,
+    gradeFixture: grades,
+    source: "mock"
+  });
+
+  const summary = summarizeSaasAdminExport(saasAdmin);
+  assert.equal(summary.available, true);
+  assert.equal(summary.login.user_identity_redacted, true);
+  assert.equal(summary.team.member_count, 4);
+  assert.equal(summary.api_keys.status, "metadata_only");
+  assert.equal(summary.trust.public_publish_enabled, false);
+  assert.equal(summary.cloud_management.real_mutations_enabled, false);
+  assert.equal(summary.a1_a2_compatibility.a1_run_result_ready, true);
+  assert.equal(summary.a1_a2_compatibility.a2_grade_result_ready, true);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, saasAdmin);
+  assert.equal(json.saas_admin_console.schema_version, "a3.saas_admin_export.v1");
+  assert.equal(json.saas_admin_console.safety.secret_values_allowed, false);
+  assert.ok(json.saas_admin_console.action_plans.every((item) => item.writes_real_ashr_cloud === false));
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, saasAdmin);
+  assert.match(markdown, /## SaaS Admin \/ Login \/ Team \/ Trust/);
+  assert.match(markdown, /API keys:/);
+  assert.match(markdown, /real cloud write no/);
+
+  const missing = summarizeSaasAdminExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Attach SaaS Admin Console/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {

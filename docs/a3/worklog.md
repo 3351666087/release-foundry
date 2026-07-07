@@ -1,5 +1,75 @@
 # A3 Worklog
 
+## 2026-07-07 - Product Console And SaaS Admin Export Evidence
+
+### Goal
+
+Finish the current A3 commercial-SaaS round by making Product Console and SaaS Admin state part of the actual report/export evidence, not only dashboard UI. This directly supports the team lead's direction: static -> API-backed, HTML blob -> app components, mock fixture -> DB-ready data, report export -> shareable hosted report, and SaaS-style login/team/usage/API-key/trust/cloud-management surfaces.
+
+### Work completed
+
+- Extended `services/report/report_builder.mjs`.
+  - Added `summarizeProductConsoleExport()`.
+  - Added `summarizeSaasAdminExport()`.
+  - Added `product_console` to JSON report exports.
+  - Added `saas_admin_console` to JSON report exports.
+  - Added Product Console / Onboarding / Audit to Markdown reports.
+  - Added SaaS Admin / Login / Team / Trust to Markdown reports.
+- Extended `apps/dashboard/src/app.mjs`.
+  - Report Center summary now mentions Product Console workflow and SaaS Admin guardrails.
+  - JSON/Markdown export buttons now pass `state.productConsole` and `state.saasAdmin`.
+  - Print/PDF report preview now includes Product Console and SaaS Admin sections.
+- Extended tests.
+  - Added report-builder coverage for Product Console exports.
+  - Added report-builder coverage for SaaS Admin login/team/API-key/usage/trust/cloud export guardrails.
+  - Added dashboard wiring assertions that export/report code carries both states.
+- Added Growth-Auditor artifact.
+  - `docs/a3/p3_growth_auditor_product_console_export_2026_07_07.md`
+  - Documents artifact-entry, export/report growth, enterprise audit value, toy gaps, and 40 next Product Console growth points.
+
+### A1/A2 compatibility
+
+- Product Console export still derives project/case/readiness state from A1 run/case/trace/tool-call evidence and A2 grade/judge/pass-fail/failure evidence.
+- SaaS Admin export includes explicit A1/A2 compatibility fields so the console cannot pretend it is ready when run or grade evidence is missing.
+- No A1 runner logic or A2 judge semantics were changed.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+62 tests
+62 pass
+0 fail
+```
+
+Full A3 suite:
+
+```text
+$tests = rg --files tests/a3 -g "*.test.mjs"; node --test $tests
+```
+
+Full result:
+
+```text
+132 tests
+132 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not commit real API keys, cookies, tokens, account emails, signed URLs, or official private frontend source.
+- Did not perform real login, API-key creation, team invite, billing mutation, Trust publishing, or cloud mutation.
+- Kept all admin/cloud actions as local, read-only, metadata-only, disabled, or plan-only.
+
 ## 2026-07-07 - Product Console Onboarding Audit Project Workflow
 
 ### Goal
