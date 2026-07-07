@@ -17,6 +17,7 @@ RUN_DIR = ROOT / "fixtures/a2/runs"
 
 HASH_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 REQUIRED_RECORD_FIELDS = {
+    "tenant_id",
     "org",
     "project",
     "run",
@@ -70,6 +71,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
 
         self.assertEqual(schema["properties"]["schema_version"]["const"], manifest["schema_version"])
         self.assertEqual(manifest["record_count"], len(records))
+        self.assertEqual(manifest["tenant_id"], manifest["org"])
         self.assertEqual(
             manifest["record_type_counts"],
             {
@@ -83,6 +85,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
         for record in records:
             with self.subTest(record_type=record["record_type"], case=record["case"], judge=record["judge_id"]):
                 self.assertLessEqual(REQUIRED_RECORD_FIELDS, set(record))
+                self.assertEqual(record["tenant_id"], manifest["tenant_id"])
                 self.assertEqual(record["org"], manifest["org"])
                 self.assertEqual(record["project"], manifest["project"])
                 self.assertEqual(record["run"], manifest["run"])
@@ -140,6 +143,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
         record_text = json.dumps(record, sort_keys=True)
 
         self.assertRegex(record["input_hash"], HASH_RE)
+        self.assertEqual(record["tenant_id"], "org_demo")
         self.assertRegex(record["output_hash"], HASH_RE)
         self.assertRegex(record["evidence_ref_hash"], HASH_RE)
         self.assertNotIn("payload", record)

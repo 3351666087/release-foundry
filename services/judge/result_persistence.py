@@ -130,6 +130,7 @@ def build_result_persistence_manifest(
     return {
         "schema_version": SCHEMA_VERSION,
         "manifest_id": manifest_id,
+        "tenant_id": org,
         "org": org,
         "project": project,
         "run": run_id,
@@ -191,6 +192,7 @@ def build_result_record(
         "schema_version": RECORD_SCHEMA_VERSION,
         "record_type": kind,
         "kind": kind,
+        "tenant_id": org_id,
         "org": org_id,
         "project": project_id,
         "run": run_id,
@@ -292,6 +294,7 @@ def _base_record(
     record = {
         "schema_version": RECORD_SCHEMA_VERSION,
         "record_type": record_type,
+        "tenant_id": org,
         "org": org,
         "project": project,
         "run": run,

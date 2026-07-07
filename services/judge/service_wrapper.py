@@ -35,7 +35,8 @@ def judge_case(
         "schema_version": "a2.judge_service.case_response.v1",
         "endpoint": f"POST {CASE_ENDPOINT}",
         "service_version": SERVICE_VERSION,
-        "org_id": str(request.get("org_id", "")),
+        "tenant_id": _tenant_id(request),
+        "org_id": _org_id(request),
         "project_id": str(request.get("project_id", "")),
         "run_id": str(request.get("run_id", "")),
         "case_id": case_id,
@@ -66,7 +67,8 @@ def judge_batch(
         judge_case(
             {
                 **case,
-                "org_id": request.get("org_id", request.get("organization_id", case.get("org_id", ""))),
+                "tenant_id": request.get("tenant_id", case.get("tenant_id", "")),
+                "org_id": _org_id({**case, **request}),
                 "project_id": request.get("project_id", case.get("project_id", "")),
                 "run_id": request.get("run_id", case.get("run_id", "")),
             },
@@ -90,7 +92,8 @@ def judge_batch(
         "schema_version": "a2.judge_service.batch_response.v1",
         "endpoint": f"POST {BATCH_ENDPOINT}",
         "service_version": SERVICE_VERSION,
-        "org_id": str(request.get("org_id", request.get("organization_id", ""))),
+        "tenant_id": _tenant_id(request),
+        "org_id": _org_id(request),
         "project_id": str(request.get("project_id", "")),
         "run_id": str(request.get("run_id", "")),
         "scenario_pack_ref": Path(pack_path).as_posix(),
@@ -129,7 +132,8 @@ def evaluate_release_policy(
         "schema_version": "a2.judge_service.release_policy_response.v1",
         "endpoint": f"POST {RELEASE_POLICY_ENDPOINT}",
         "service_version": SERVICE_VERSION,
-        "org_id": str(request.get("org_id", request.get("organization_id", ""))),
+        "tenant_id": _tenant_id(request),
+        "org_id": _org_id(request),
         "project_id": str(request.get("project_id", "")),
         "run_id": str(request.get("run_id", "")),
         "environment": str(request.get("environment", "dev")),
@@ -191,7 +195,7 @@ def build_audit_record(
 ) -> dict[str, Any]:
     return build_result_record(
         response,
-        org_id=str(response.get("org_id", request.get("org_id", request.get("organization_id", "")))),
+        org_id=str(response.get("tenant_id") or response.get("org_id") or _tenant_id(request)),
         project_id=str(response.get("project_id", request.get("project_id", ""))),
         run_id=str(response.get("run_id", request.get("run_id", ""))),
         case_id=str(response.get("case_id", request.get("case_id", ""))),
@@ -238,11 +242,20 @@ def _error_response(
 
 def _service_context(payload: dict[str, Any]) -> dict[str, Any]:
     return {
-        "org_id": str(payload.get("org_id", payload.get("organization_id", ""))),
+        "tenant_id": _tenant_id(payload),
+        "org_id": _org_id(payload),
         "project_id": str(payload.get("project_id", "")),
         "run_id": str(payload.get("run_id", "")),
         "release_candidate_id": str(payload.get("release_candidate_id", "")),
     }
+
+
+def _tenant_id(payload: dict[str, Any]) -> str:
+    return str(payload.get("tenant_id") or payload.get("org_id") or payload.get("organization_id") or "")
+
+
+def _org_id(payload: dict[str, Any]) -> str:
+    return str(payload.get("org_id") or payload.get("organization_id") or payload.get("tenant_id") or "")
 
 
 def _service_metadata() -> dict[str, Any]:

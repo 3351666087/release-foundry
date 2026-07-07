@@ -24,6 +24,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         response = post_internal_judge_case(
             {
                 "request_id": "svc-case-smoke",
+                "tenant_id": "tenant_demo",
                 "project_id": "proj_demo",
                 "run_id": "run_demo",
                 "scenario_id": "A2-S001",
@@ -43,6 +44,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertTrue(response["result"]["passed"])
         self.assertEqual(response["result"]["primary_failure_class"], "none")
         self.assertEqual(len(response["result"]["judge_results"]), 5)
+        self.assertEqual(response["service_context"]["tenant_id"], "tenant_demo")
         self.assertEqual(response["service_context"]["project_id"], "proj_demo")
         self.assertEqual(response["service_context"]["run_id"], "run_demo")
 
@@ -53,6 +55,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         response = post_internal_judge_batch(
             {
                 "request_id": "svc-batch-smoke",
+                "tenant_id": "tenant_demo",
                 "project_id": "proj_demo",
                 "run_id": "run_batch_demo",
                 "dataset_id": "svc-dataset",
@@ -74,6 +77,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         response = post_internal_release_policy_evaluate(
             {
                 "request_id": "svc-release-smoke",
+                "tenant_id": "tenant_demo",
                 "project_id": "proj_demo",
                 "release_candidate_id": "agent-v42",
                 "policy_id": "strict-commercial",
@@ -84,6 +88,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["endpoint"], RELEASE_POLICY_ENDPOINT)
         self.assertEqual(response["result"]["schema_version"], "a2.release_gate.v1")
         self.assertIn(response["result"]["decision"], {"pass", "warn", "block"})
+        self.assertEqual(response["service_context"]["tenant_id"], "tenant_demo")
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
 

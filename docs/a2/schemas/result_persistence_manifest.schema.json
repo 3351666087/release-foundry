@@ -5,6 +5,7 @@
   "required": [
     "schema_version",
     "manifest_id",
+    "tenant_id",
     "org",
     "project",
     "run",
@@ -19,6 +20,7 @@
   "properties": {
     "schema_version": { "const": "a2.result_persistence_manifest.v1" },
     "manifest_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
     "org": { "type": "string" },
     "project": { "type": "string" },
     "run": { "type": "string" },
@@ -77,6 +79,7 @@
       "required": [
         "schema_version",
         "record_type",
+        "tenant_id",
         "org",
         "project",
         "run",
@@ -96,6 +99,7 @@
           "enum": ["judge_result", "release_gate", "scenario_selection"]
         },
         "org": { "type": "string" },
+        "tenant_id": { "type": "string" },
         "project": { "type": "string" },
         "run": { "type": "string" },
         "case": { "type": "string" },
