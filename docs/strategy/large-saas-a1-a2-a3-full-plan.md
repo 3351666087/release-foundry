@@ -2,8 +2,8 @@
 
 > 目标：把当前 `Ashr Codex Factory` 从 fixture-driven local factory / 高级原型，推进为 multi-tenant hosted large SaaS。
 >
-> 当前日期：2026-07-07
-> 适用对象：A1、A2、A3 三条研发线
+> 当前日期：2026-07-07  
+> 适用对象：A1、A2、A3 三条研发线  
 > 核心原则：A1 补生产平台能力，A2 补评测智能产品化，A3 补真实用户工作流。
 
 ---
