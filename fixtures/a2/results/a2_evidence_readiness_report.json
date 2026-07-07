@@ -98,15 +98,15 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a2-g3-real-api-20260707",
+    "label": "a1-a2-real-api-2026-07-07-main-sync-union",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 352,
+    "total_records": 363,
     "status_counts": {
-      "blocked": 1,
+      "blocked": 2,
       "completed": 13,
-      "error": 26,
+      "error": 27,
       "failed": 1,
-      "ok": 200,
+      "ok": 209,
       "partial": 13,
       "passed": 11,
       "planned": 53,
@@ -120,13 +120,14 @@
       "get_run": 4,
       "init": 33,
       "keep_alive": 31,
-      "list_agents": 31,
-      "list_datasets": 37,
-      "list_requests": 38,
+      "list_agents": 32,
+      "list_datasets": 38,
+      "list_requests": 41,
       "list_runs": 4,
-      "plan_batch": 2,
+      "plan_batch": 3,
       "poll_request": 1,
-      "poll_run": 2
+      "poll_run": 2,
+      "validate_gate": 3
     },
     "quota_block_count": 43,
     "real_ok_functions": [
@@ -146,10 +147,10 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 229,
+    "real_record_count": 236,
     "real_read_status_counts": {
       "error": 11,
-      "ok": 162,
+      "ok": 167,
       "timeout": 1
     },
     "real_create_request_status_counts": {
