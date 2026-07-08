@@ -262,13 +262,13 @@ OpenSearch = later full-text and trace search
 | Layer | Decision | Owner | Purpose |
 |---|---|---|---|
 | Runtime OS | macOS for local dev, Linux containers for service runtime | A1 | 保证本机可跑、容器可复现、云端可部署 |
-| Node.js | Node 24 LTS line | A3 primary, A1 SDK support | Next.js、TypeScript SDK、CLI、Playwright、dashboard |
+| Node.js | latest available Node toolchain | A3 primary, A1 SDK support | Next.js、TypeScript SDK、CLI、Playwright、dashboard |
 | Package manager | pnpm workspace | A3 primary | monorepo JS/TS dependency control |
 | TypeScript | strict mode, ESM first, Zod at boundaries | A3 primary, A1 SDK support | 前端、SDK、typed API client、integration scripts |
-| Python | Python 3.13 line | A2 primary | judge、semantic eval、calibration、model provider adapters |
+| Python | latest available CPython toolchain | A2 primary | judge、semantic eval、calibration、model provider adapters |
 | Python tooling | uv + pytest + ruff + mypy optional | A2 primary | 快速环境恢复、测试、静态检查 |
-| Go | Go 1.26 line | A1 primary | API gateway、ingestion、workers、webhooks、billing backend |
-| SQL | PostgreSQL 17+ dialect, PLpgSQL allowed | A1 primary, A2 policy review | tenant isolation、RLS、audit、usage rollup |
+| Go | latest available Go toolchain | A1 primary | API gateway、ingestion、workers、webhooks、billing backend |
+| SQL | latest available PostgreSQL dialect, PLpgSQL allowed | A1 primary, A2 policy review | tenant isolation、RLS、audit、usage rollup |
 | Containers | Docker Compose for local, Kubernetes-ready manifests later | A1 primary | Postgres、Redis/Valkey、MinIO、Temporal、OpenTelemetry |
 | Cache / Queue | Redis or Valkey | A1 primary | rate limit、short lock、local queue fallback |
 | Object Storage | MinIO locally, S3/R2 compatible contract | A1 primary | evidence、trace、report、bundle artifacts |
@@ -277,6 +277,17 @@ OpenSearch = later full-text and trace search
 | API contract | OpenAPI + generated clients | A1 primary, A3 client consumer | backend/frontend/SDK 拼接边界 |
 | Observability | OpenTelemetry + structured logs | A1 primary | trace_id、request_id、tenant_id 全链路追踪 |
 | CI | GitHub Actions | A1 primary | test matrix、bundle reseal check、contract drift check |
+
+版本策略：
+
+```text
+总线文件不写死 Node / Python / Go / PostgreSQL 的具体版本。
+默认使用当前可获得的最新开发环境。
+Codex 每轮启动时必须检测本机、CI、容器镜像和包管理器可用版本。
+如果新版本破坏兼容性，允许在具体 lockfile、CI matrix、container image 或 toolchain file 中临时 pin。
+任何 pin 都必须写明原因、影响范围和解除条件。
+版本选择不能成为降低商业目标、跳过测试或退回 mock 的理由。
+```
 
 本地开发必须能一条命令启动核心依赖：
 
