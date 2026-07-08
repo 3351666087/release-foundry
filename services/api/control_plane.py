@@ -43,8 +43,8 @@ API_KEY_SCOPE_ALIASES = {
     API_KEY_LEGACY_ADMIN_SCOPE: {API_KEY_ADMIN_SCOPE, API_KEY_READ_SCOPE},
     API_KEY_LEGACY_READ_SCOPE: {API_KEY_READ_SCOPE},
     "sdk:submit": {RUN_CREATE_SCOPE},
-    "runs:write": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE},
-    "write:runs": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE},
+    "runs:write": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE, "sdk:submit"},
+    "write:runs": {RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE, "sdk:submit"},
     "traces:write": {TRACE_INGEST_SCOPE},
     API_KEY_ADMIN_SCOPE: {API_KEY_READ_SCOPE},
     ADMIN_ALL_SCOPE: set(CONTROL_PLANE_SCOPES),
@@ -352,19 +352,21 @@ class SaaSControlPlaneService:
         self.cloud.get_project(tenant_id, project_id)
         if auth_key_id is not None:
             self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=AUDIT_READ_SCOPE)
-        events = [item for item in self.store.audit_log.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
+        ledger_events = [item for item in self.store.audit_log.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
+        chain = verify_audit_chain(ledger_events)
+        events = ledger_events
         if action is not None:
             events = [item for item in events if item.get("action") == str(action)]
         if target_id is not None:
             events = [item for item in events if item.get("target_id") == str(target_id)]
         if api_key_id is not None:
             events = [item for item in events if item.get("api_key_id") == str(api_key_id)]
-        events = sorted(events, key=lambda item: str(item.get("created_at") or ""))
+        events = _audit_events_in_chain_order(events)
         if limit is not None:
             if limit <= 0:
                 raise ValidationError("audit log limit must be positive")
             events = events[-int(limit) :]
-        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"action": action, "target_id": target_id, "api_key_id": api_key_id, "limit": limit}, "events": _jsonable(events)}
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"action": action, "target_id": target_id, "api_key_id": api_key_id, "limit": limit}, "events": _jsonable(events), "chain": chain}
 
     def evaluate_release_gate(self, tenant_id: str, project_id: str, run_id: str, *, policy: Mapping[str, Any] | None = None, auth_key_id: str | None = None, request_id: str | None = None, idempotency_key: str | None = None, timeout_seconds: float = 5.0) -> JsonDict:
         if auth_key_id is not None:
@@ -419,11 +421,15 @@ class SaaSControlPlaneService:
         event_id = _new_id("audit")
         before_payload = _jsonable(before or {})
         after_payload = _jsonable(after or {})
+        previous_event = _audit_chain_tail(self.store.audit_log.values(), str(tenant_id), str(project_id))
         record = {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
             "audit_event_id": event_id,
             "tenant_id": str(tenant_id),
             "project_id": str(project_id),
+            "chain_position": int(previous_event.get("chain_position", -1)) + 1 if previous_event else 0,
+            "previous_audit_event_id": previous_event.get("audit_event_id") if previous_event else None,
+            "previous_audit_event_sha256": previous_event.get("audit_event_sha256") if previous_event else None,
             "api_key_id": api_key_id,
             "action": str(action),
             "target_id": target_id,
@@ -433,6 +439,7 @@ class SaaSControlPlaneService:
             "request_id": request_id,
             "created_at": _utc_now(),
         }
+        record["audit_event_sha256"] = _audit_event_hash(record)
         self.store.audit_log[event_id] = record
         return _jsonable(record)
 
@@ -515,6 +522,53 @@ def _api_key_rate_key(tenant_id: str, project_id: str, key_id: str, operation: s
 def _idempotency_record_key(tenant_id: str, project_id: str, operation: str, idempotency_key: str) -> str:
     raw = f"{tenant_id}:{project_id}:{operation}:{idempotency_key}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _audit_event_hash(event: Mapping[str, Any]) -> str:
+    payload = {key: value for key, value in _jsonable(dict(event)).items() if key != "audit_event_sha256"}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _audit_events_in_chain_order(events: Iterable[Mapping[str, Any]]) -> list[JsonDict]:
+    normalized = [_jsonable(dict(event)) for event in events]
+    return sorted(normalized, key=lambda item: (int(item.get("chain_position", 0) or 0), str(item.get("created_at") or ""), str(item.get("audit_event_id") or "")))
+
+
+def _audit_chain_tail(events: Iterable[Mapping[str, Any]], tenant_id: str, project_id: str) -> JsonDict | None:
+    scoped = [event for event in events if event.get("tenant_id") == tenant_id and event.get("project_id") == project_id]
+    ordered = _audit_events_in_chain_order(scoped)
+    return ordered[-1] if ordered else None
+
+
+def verify_audit_chain(events: Iterable[Mapping[str, Any]]) -> JsonDict:
+    ordered = _audit_events_in_chain_order(events)
+    previous_hash: str | None = None
+    previous_id: str | None = None
+    failures: list[JsonDict] = []
+    for index, event in enumerate(ordered):
+        event_id = str(event.get("audit_event_id") or "")
+        expected_hash = _audit_event_hash(event)
+        if event.get("audit_event_sha256") != expected_hash:
+            failures.append({"audit_event_id": event_id, "reason": "event_hash_mismatch"})
+        if event.get("previous_audit_event_id") != previous_id:
+            failures.append({"audit_event_id": event_id, "reason": "previous_event_id_mismatch"})
+        if event.get("previous_audit_event_sha256") != previous_hash:
+            failures.append({"audit_event_id": event_id, "reason": "previous_event_hash_mismatch"})
+        chain_position_raw = event.get("chain_position")
+        chain_position = int(chain_position_raw) if chain_position_raw is not None else -1
+        if chain_position != index:
+            failures.append({"audit_event_id": event_id, "reason": "chain_position_mismatch"})
+        previous_hash = str(event.get("audit_event_sha256") or expected_hash)
+        previous_id = event_id
+    return {
+        "verified": not failures,
+        "event_count": len(ordered),
+        "head_audit_event_id": ordered[0].get("audit_event_id") if ordered else None,
+        "head_audit_event_sha256": ordered[0].get("audit_event_sha256") if ordered else None,
+        "tail_audit_event_id": ordered[-1].get("audit_event_id") if ordered else None,
+        "tail_audit_event_sha256": ordered[-1].get("audit_event_sha256") if ordered else None,
+        "failures": failures,
+    }
 
 
 def _public_api_key(record: Mapping[str, Any]) -> JsonDict:

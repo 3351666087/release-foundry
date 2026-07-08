@@ -288,6 +288,7 @@ def build_release_evidence_packet(
     release_gate_result: Mapping[str, Any] | None = None,
     webhook_delivery: Mapping[str, Any] | None = None,
     billing_rollup: Mapping[str, Any] | None = None,
+    audit_chain: Mapping[str, Any] | None = None,
     packet_id: str | None = None,
 ) -> JsonDict:
     """Build a public-safe release evidence packet for A1/A2/A3 handoff.
@@ -304,6 +305,7 @@ def build_release_evidence_packet(
     deliveries = _list_or_empty((webhook_delivery or {}).get("deliveries"))
     gate = _jsonable(dict(release_gate_result or {}))
     rollup = _jsonable(dict(billing_rollup or {}))
+    chain = _jsonable(dict(audit_chain or {}))
     evidence_items = []
     for artifact in artifacts:
         evidence_items.append(
@@ -342,6 +344,13 @@ def build_release_evidence_packet(
             "operation_totals": rollup.get("operation_totals", {}),
             "billable_units": rollup.get("billable_units", 0),
         },
+        "audit_chain": {
+            "verified": chain.get("verified") if chain else None,
+            "event_count": chain.get("event_count", 0),
+            "head_audit_event_sha256": chain.get("head_audit_event_sha256"),
+            "tail_audit_event_sha256": chain.get("tail_audit_event_sha256"),
+            "failure_count": len(chain.get("failures", [])) if isinstance(chain.get("failures"), list) else 0,
+        },
         "evidence_items": _jsonable(evidence_items),
         "raw_payload_included": False,
         "secret_value_present": False,
@@ -350,6 +359,72 @@ def build_release_evidence_packet(
     }
     payload["integrity"] = {"packet_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
     return _jsonable(payload)
+
+
+def verify_release_evidence_packet(packet: Mapping[str, Any]) -> JsonDict:
+    payload = _jsonable(dict(packet))
+    integrity = payload.get("integrity") if isinstance(payload.get("integrity"), Mapping) else {}
+    expected_hash = integrity.get("packet_sha256") if isinstance(integrity, Mapping) else None
+    unsigned = {key: value for key, value in payload.items() if key != "integrity"}
+    actual_hash = hashlib.sha256(json.dumps(unsigned, sort_keys=True).encode("utf-8")).hexdigest()
+    failures = []
+    if expected_hash != actual_hash:
+        failures.append({"reason": "packet_sha256_mismatch", "expected": expected_hash, "actual": actual_hash})
+    redaction = {
+        "raw_payload_included": bool(payload.get("raw_payload_included")),
+        "secret_value_present": bool(payload.get("secret_value_present")),
+    }
+    if redaction["raw_payload_included"]:
+        failures.append({"reason": "raw_payload_included"})
+    if redaction["secret_value_present"]:
+        failures.append({"reason": "secret_value_present"})
+    failures.extend(_find_suspicious_release_packet_fields(payload))
+    return {
+        "schema_version": "ashr.clone.release_evidence_packet_verification.v1",
+        "verified": not failures,
+        "packet_id": payload.get("packet_id"),
+        "packet_sha256": expected_hash,
+        "actual_packet_sha256": actual_hash,
+        "failures": failures,
+        "redaction": redaction,
+    }
+
+
+_SUSPICIOUS_RELEASE_PACKET_KEYS = {
+    "api_key",
+    "authorization",
+    "bearer",
+    "cookie",
+    "set_cookie",
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "client_secret",
+    "secret",
+    "raw_payload",
+    "payload",
+}
+
+
+def _find_suspicious_release_packet_fields(value: Any, *, path: str = "$") -> list[JsonDict]:
+    failures: list[JsonDict] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            key_text = str(key)
+            normalized_key = key_text.lower().replace("-", "_")
+            item_path = f"{path}.{key_text}"
+            if normalized_key in _SUSPICIOUS_RELEASE_PACKET_KEYS:
+                failures.append({"reason": "suspicious_field_present", "path": item_path})
+            failures.extend(_find_suspicious_release_packet_fields(item, path=item_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            failures.extend(_find_suspicious_release_packet_fields(item, path=f"{path}[{index}]"))
+    elif isinstance(value, str):
+        lowered = value.lower()
+        if lowered.startswith("bearer ") or "ashr_api_key=" in lowered:
+            failures.append({"reason": "suspicious_value_present", "path": path})
+    return failures
 
 
 def _list_or_empty(value: Any) -> list[Any]:

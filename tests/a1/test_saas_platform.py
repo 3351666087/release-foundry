@@ -14,6 +14,7 @@ from services.api.platform import (
     platform_sql_migration_text,
     release_gate_bridge_payload,
     usage_billing_rollup,
+    verify_release_evidence_packet,
 )
 from services.api.runtime import ValidationError
 
@@ -155,6 +156,7 @@ def test_release_evidence_packet_closes_run_gate_webhook_loop_without_raw_payloa
     registry.register_endpoint(tenant_id="tenant_packet", project_id="project_packet", url="https://example.invalid/webhook", events=["release_gate.evaluated"], webhook_id="webhook_packet")
     delivery = registry.deliver(tenant_id="tenant_packet", project_id="project_packet", event_type="release_gate.evaluated", payload={"run_id": "run_packet", "api_key": "tp_delivery_secret"})
     lifecycle = control.lifecycle_snapshot("tenant_packet", "project_packet", "run_packet")
+    audit = control.audit_snapshot("tenant_packet", "project_packet")
     rollup = usage_billing_rollup(list(control.store.usage_ledger.values()), tenant_id="tenant_packet", project_id="project_packet", billing_period="2026-07")
     packet = build_release_evidence_packet(
         tenant_id="tenant_packet",
@@ -165,6 +167,7 @@ def test_release_evidence_packet_closes_run_gate_webhook_loop_without_raw_payloa
         release_gate_result={"request_id": "req_packet", "grade_result": {"passed": True, "score": 1.0, "label": "release_gate_pass"}},
         webhook_delivery=delivery,
         billing_rollup=rollup,
+        audit_chain=audit["chain"],
         packet_id="packet_round20",
     )
 
@@ -175,8 +178,28 @@ def test_release_evidence_packet_closes_run_gate_webhook_loop_without_raw_payloa
     assert packet["usage"]["operation_totals"]["sdk.submit"] == 1
     assert packet["evidence_items"][0]["sha256"] == artifact["sha256"]
     assert packet["integrity"]["packet_sha256"]
+    assert packet["audit_chain"]["verified"] is True
+    assert packet["audit_chain"]["tail_audit_event_sha256"] == audit["chain"]["tail_audit_event_sha256"]
+    assert verify_release_evidence_packet(packet)["verified"] is True
     assert packet["raw_payload_included"] is False
     assert "tp_should_not_leak" not in text
     assert "tp_delivery_secret" not in text
     assert "private artifact payload" not in text
     assert "customer secret" not in text
+
+    tampered = json.loads(json.dumps(packet))
+    tampered["counts"]["uploads"] = 99
+    verification = verify_release_evidence_packet(tampered)
+    assert verification["verified"] is False
+    assert verification["failures"][0]["reason"] == "packet_sha256_mismatch"
+
+    redaction_failure = json.loads(json.dumps(packet))
+    redaction_failure["raw_payload_included"] = True
+    redaction_failure["secret_value_present"] = True
+    redaction_verification = verify_release_evidence_packet(redaction_failure)
+    assert {failure["reason"] for failure in redaction_verification["failures"]} >= {"raw_payload_included", "secret_value_present"}
+
+    leaked = json.loads(json.dumps(packet))
+    leaked["evidence_items"].append({"name": "bad", "api_key": "redacted-by-test"})
+    leaked_verification = verify_release_evidence_packet(leaked)
+    assert any(failure["reason"] == "suspicious_field_present" and failure["path"].endswith(".api_key") for failure in leaked_verification["failures"])

@@ -485,11 +485,12 @@ export class SaaSControlPlaneService {
     this.cloud.getProject(tenantId, projectId);
     if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: AUDIT_READ_SCOPE });
     const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 100)));
-    const events = Object.values(this.store.audit_log)
-      .filter((item) => item.tenant_id === tenantId && item.project_id === projectId)
+    const ledgerEvents = Object.values(this.store.audit_log)
+      .filter((item) => item.tenant_id === tenantId && item.project_id === projectId) as JsonRecord[];
+    const chain = verifyAuditHashChain(ledgerEvents);
+    const events = auditEventsInChainOrder(ledgerEvents
       .filter((item) => options.runId === undefined || item.target_id === options.runId || item.target_id === null)
-      .filter((item) => options.actionPrefix === undefined || String(item.action).startsWith(options.actionPrefix))
-      .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)))
+      .filter((item) => options.actionPrefix === undefined || String(item.action).startsWith(options.actionPrefix)))
       .slice(-limit)
       .map((item) => cloneJson(item) as JsonRecord);
     return {
@@ -501,6 +502,7 @@ export class SaaSControlPlaneService {
       limit,
       event_count: events.length,
       events,
+      chain,
       raw_payload_included: false,
       secret_value_present: false,
     };
@@ -544,6 +546,7 @@ export class SaaSControlPlaneService {
         artifacts_sha256: sha256(JSON.stringify(sortJson(artifacts))),
         audit_sha256: sha256(JSON.stringify(sortJson(audit.events))),
       },
+      audit_chain: audit.chain,
       usage_totals: usage.totals,
       redaction: { raw_payload_included: false, secret_value_present: false, secret_hash_included: false },
     };
@@ -639,11 +642,15 @@ export class SaaSControlPlaneService {
     const auditEventId = newId("audit");
     const before = options.before ?? {};
     const after = options.after ?? {};
+    const previousEvent = auditChainTail(Object.values(this.store.audit_log), tenantId, projectId);
     const record: JsonRecord = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
       audit_event_id: auditEventId,
       tenant_id: tenantId,
       project_id: projectId,
+      chain_position: previousEvent === null ? 0 : Number(previousEvent.chain_position ?? -1) + 1,
+      previous_audit_event_id: previousEvent?.audit_event_id ?? null,
+      previous_audit_event_sha256: previousEvent?.audit_event_sha256 ?? null,
       api_key_id: options.apiKeyId ?? null,
       action,
       target_id: options.targetId ?? null,
@@ -653,6 +660,7 @@ export class SaaSControlPlaneService {
       request_id: options.requestId ?? null,
       created_at: utcNow(),
     };
+    record.audit_event_sha256 = auditEventHash(record);
     this.store.audit_log[auditEventId] = record;
     return cloneJson(record) as JsonRecord;
   }
@@ -1323,6 +1331,114 @@ function idempotencyRecordKey(tenantId: string, projectId: string, operation: st
 
 function apiKeyRateKey(tenantId: string, projectId: string, keyId: string, operation: string, period: string): string {
   return sha256(`${tenantId}:${projectId}:${keyId}:${operation}:${period}`);
+}
+
+function auditEventHash(event: JsonRecord): string {
+  const payload = cloneJson(event) as JsonRecord;
+  delete payload.audit_event_sha256;
+  return sha256(JSON.stringify(sortJson(payload)));
+}
+
+function auditEventsInChainOrder(events: JsonRecord[]): JsonRecord[] {
+  return events
+    .map((event) => cloneJson(event) as JsonRecord)
+    .sort((left, right) => {
+      const position = Number(left.chain_position ?? 0) - Number(right.chain_position ?? 0);
+      if (position !== 0) return position;
+      const created = String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
+      if (created !== 0) return created;
+      return String(left.audit_event_id ?? "").localeCompare(String(right.audit_event_id ?? ""));
+    });
+}
+
+function auditChainTail(events: JsonRecord[], tenantId: string, projectId: string): JsonRecord | null {
+  const ordered = auditEventsInChainOrder(events.filter((event) => event.tenant_id === tenantId && event.project_id === projectId));
+  return ordered.length > 0 ? ordered[ordered.length - 1] : null;
+}
+
+export function verifyAuditHashChain(events: JsonRecord[]): JsonRecord {
+  const ordered = auditEventsInChainOrder(events);
+  let previousHash: string | null = null;
+  let previousId: string | null = null;
+  const failures: JsonRecord[] = [];
+  ordered.forEach((event, index) => {
+    const eventId = String(event.audit_event_id ?? "");
+    const expectedHash = auditEventHash(event);
+    if (event.audit_event_sha256 !== expectedHash) failures.push({ audit_event_id: eventId, reason: "event_hash_mismatch" });
+    if ((event.previous_audit_event_id ?? null) !== previousId) failures.push({ audit_event_id: eventId, reason: "previous_event_id_mismatch" });
+    if ((event.previous_audit_event_sha256 ?? null) !== previousHash) failures.push({ audit_event_id: eventId, reason: "previous_event_hash_mismatch" });
+    if (Number(event.chain_position ?? -1) !== index) failures.push({ audit_event_id: eventId, reason: "chain_position_mismatch" });
+    previousHash = String(event.audit_event_sha256 ?? expectedHash);
+    previousId = eventId;
+  });
+  return {
+    verified: failures.length === 0,
+    event_count: ordered.length,
+    head_audit_event_id: ordered[0]?.audit_event_id ?? null,
+    head_audit_event_sha256: ordered[0]?.audit_event_sha256 ?? null,
+    tail_audit_event_id: ordered[ordered.length - 1]?.audit_event_id ?? null,
+    tail_audit_event_sha256: ordered[ordered.length - 1]?.audit_event_sha256 ?? null,
+    failures,
+  };
+}
+
+export function verifyReleaseEvidencePacket(packet: JsonRecord): JsonRecord {
+  const payload = cloneJson(packet) as JsonRecord;
+  const integrity = isRecord(payload.integrity) ? payload.integrity : {};
+  const expectedHash = integrity.packet_sha256 ?? null;
+  delete payload.integrity;
+  const actualHash = sha256(JSON.stringify(sortJson(payload)));
+  const failures: JsonRecord[] = [];
+  if (expectedHash !== actualHash) failures.push({ reason: "packet_sha256_mismatch", expected: expectedHash, actual: actualHash });
+  const redaction = isRecord(packet.redaction) ? packet.redaction : {};
+  if (redaction.raw_payload_included === true) failures.push({ reason: "raw_payload_included" });
+  if (redaction.secret_value_present === true) failures.push({ reason: "secret_value_present" });
+  failures.push(...findSuspiciousReleasePacketFields(packet));
+  return {
+    schema_version: "ashr.clone.release_evidence_packet_verification.v1",
+    verified: failures.length === 0,
+    packet_sha256: expectedHash,
+    actual_packet_sha256: actualHash,
+    failures,
+  };
+}
+
+const SUSPICIOUS_RELEASE_PACKET_KEYS = new Set([
+  "api_key",
+  "authorization",
+  "bearer",
+  "cookie",
+  "set_cookie",
+  "password",
+  "token",
+  "access_token",
+  "refresh_token",
+  "client_secret",
+  "secret",
+  "raw_payload",
+  "payload",
+]);
+
+function findSuspiciousReleasePacketFields(value: unknown, path = "$" ): JsonRecord[] {
+  const failures: JsonRecord[] = [];
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => failures.push(...findSuspiciousReleasePacketFields(item, `${path}[${index}]`)));
+    return failures;
+  }
+  if (isRecord(value)) {
+    Object.entries(value).forEach(([key, item]) => {
+      const normalizedKey = key.toLowerCase().replace(/-/g, "_");
+      const itemPath = `${path}.${key}`;
+      if (SUSPICIOUS_RELEASE_PACKET_KEYS.has(normalizedKey)) failures.push({ reason: "suspicious_field_present", path: itemPath });
+      failures.push(...findSuspiciousReleasePacketFields(item, itemPath));
+    });
+    return failures;
+  }
+  if (typeof value === "string") {
+    const lowered = value.toLowerCase();
+    if (lowered.startsWith("bearer ") || lowered.includes("ashr_api_key=")) failures.push({ reason: "suspicious_value_present", path });
+  }
+  return failures;
 }
 
 function secretHash(secret: string): string {

@@ -12,6 +12,8 @@ import {
   SaaSIngestionClient,
   exportSaaSOpenApiSpec,
   runSaaSCli,
+  verifyAuditHashChain,
+  verifyReleaseEvidencePacket,
 } from "../dist/saas.js";
 
 function seededService() {
@@ -63,7 +65,27 @@ test("TS audit snapshot filters release gate events by run and action", () => {
   assert.equal(snapshot.event_count, 1);
   assert.equal(snapshot.events[0].action, "release_gate.evaluate");
   assert.equal(snapshot.events[0].request_id, "req-release");
+  assert.equal(snapshot.chain.verified, true);
+  assert.equal(snapshot.chain.tail_audit_event_sha256, snapshot.events[0].audit_event_sha256);
+  assert.equal(snapshot.chain.event_count > snapshot.event_count, true);
+  const uploadOnly = service.auditSnapshot("tenant_ts_release", "project_ts_release", { actionPrefix: "run.upload", limit: 1 });
+  assert.equal(uploadOnly.event_count, 1);
+  assert.equal(uploadOnly.events[0].action, "run.upload");
+  assert.equal(uploadOnly.chain.verified, true);
+  assert.equal(uploadOnly.chain.event_count > uploadOnly.event_count, true);
   assertPublicSafe(snapshot);
+});
+
+test("TS audit hash chain detects tampered audit events", () => {
+  const service = seededService();
+  service.evaluateReleaseGate("tenant_ts_release", "project_ts_release", "run_ts_release", { requestId: "req-chain" });
+  const snapshot = service.auditSnapshot("tenant_ts_release", "project_ts_release");
+  assert.equal(snapshot.chain.verified, true);
+  const tampered = snapshot.events.map((event) => ({ ...event }));
+  tampered[1].after_sha256 = "0".repeat(64);
+  const verification = verifyAuditHashChain(tampered);
+  assert.equal(verification.verified, false);
+  assert.equal(verification.failures.some((failure) => failure.reason === "event_hash_mismatch"), true);
 });
 
 test("TS release evidence packet summarizes counts hashes usage and redaction", () => {
@@ -77,8 +99,33 @@ test("TS release evidence packet summarizes counts hashes usage and redaction", 
   assert.equal(packet.usage_totals["trace.ingest"], 1);
   assert.match(packet.hashes.uploads_sha256, /^[a-f0-9]{64}$/);
   assert.match(packet.integrity.packet_sha256, /^[a-f0-9]{64}$/);
+  assert.equal(packet.audit_chain.verified, true);
+  assert.equal(verifyReleaseEvidencePacket(packet).verified, true);
   assert.equal(packet.redaction.raw_payload_included, false);
   assertPublicSafe(packet);
+});
+
+test("TS release evidence packet verifier rejects count tampering", () => {
+  const packet = seededService().buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const tampered = JSON.parse(JSON.stringify(packet));
+  tampered.counts.uploads = 99;
+  const verification = verifyReleaseEvidencePacket(tampered);
+  assert.equal(verification.verified, false);
+  assert.equal(verification.failures[0].reason, "packet_sha256_mismatch");
+
+  const redactionFailure = JSON.parse(JSON.stringify(packet));
+  redactionFailure.redaction.raw_payload_included = true;
+  redactionFailure.redaction.secret_value_present = true;
+  const redactionVerification = verifyReleaseEvidencePacket(redactionFailure);
+  assert.equal(redactionVerification.verified, false);
+  assert.equal(redactionVerification.failures.some((failure) => failure.reason === "raw_payload_included"), true);
+  assert.equal(redactionVerification.failures.some((failure) => failure.reason === "secret_value_present"), true);
+
+  const leaked = JSON.parse(JSON.stringify(packet));
+  leaked.debug_payload = { api_key: "redacted-by-test" };
+  const leakedVerification = verifyReleaseEvidencePacket(leaked);
+  assert.equal(leakedVerification.verified, false);
+  assert.equal(leakedVerification.failures.some((failure) => failure.reason === "suspicious_field_present" && String(failure.path).endsWith(".api_key")), true);
 });
 
 test("TS release evidence packet integrity changes when evidence changes", () => {

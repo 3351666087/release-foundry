@@ -87,6 +87,9 @@ def test_release_gate_endpoint_uses_deterministic_local_stub_and_audits_result(m
     assert [event["action"] for event in audit["events"]] == ["release_gate.evaluate"]
     assert audit["events"][0]["request_id"] == "req_gate"
     assert audit["events"][0]["idempotency_key"] == "idem_gate"
+    assert audit["events"][0]["audit_event_sha256"]
+    assert audit["chain"]["verified"] is True
+    assert audit["chain"]["tail_audit_event_sha256"] == audit["events"][0]["audit_event_sha256"]
 
 
 def test_release_gate_endpoint_can_use_registered_local_evaluator():

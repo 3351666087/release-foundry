@@ -3020,3 +3020,97 @@ Additional validation:
 Staging policy for commit:
 - Include A1 owned code/docs/tests and new public fixtures/evidence.
 - Exclude recon/**, tools/**, docs/evidence/private_refs/**, and any private key material.
+
+## A1 Round21 - Enterprise audit chain and release evidence verifier (2026-07-08)
+
+Round goal: continue A1 large-SaaS hardening by making the hosted control-plane audit log tamper-evident and making release evidence packets self-verifiable across Python and TypeScript.
+
+Baseline / peer changes:
+- Ran `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb`, `git rev-parse --show-toplevel`, `git branch --show-current`, `git remote -v`, and `gh pr list --state all --limit 20`.
+- Current branch: `codex/a1-local-sdk-runner`, aligned with `origin/codex/a1-local-sdk-runner` before this round's commit.
+- Peer change observed: `origin/codex/a3-dashboard-polish` advanced `8aea73a..9c742c9` with A3 GitHub check publisher work; no A1 owned-file conflict observed.
+- Long-lived untracked `recon/**` and `tools/**` remain unstaged and out of scope.
+- Official site calibration: opened https://ashr.io/ read-only. Public messaging still emphasizes SDKs, datasets/test timelines/explore/prompts, audio/image/file media classes, traces and replay; this supports continuing A1 SaaS SDK/API/runtime/evidence hardening. No Ashr API key was read from file or written to logs.
+
+20 A1 growth points covered or advanced:
+1. Tamper-evident audit event hash.
+2. Per-project audit hash chain pointers.
+3. Audit chain position and tail metadata.
+4. Full-ledger chain verification independent of filtered audit views.
+5. Python public audit snapshot chain result.
+6. TypeScript public audit snapshot chain result.
+7. Python tamper detection test.
+8. TypeScript tamper detection test.
+9. Release-gate endpoint audit chain assertion.
+10. Release evidence packet audit-chain summary.
+11. Release evidence packet integrity verifier.
+12. Python release packet tamper verification test.
+13. TypeScript release packet tamper verification test.
+14. Scope alias parity: `write:runs` / `runs:write` include SDK submit semantics.
+15. API export parity for release packet verifier.
+16. Public-safe evidence packet redaction verification.
+17. Filtered audit-log behavior preserved for action/target/API key queries.
+18. TS SaaS parity grew beyond the Python A1 count.
+19. Full A1 pytest gate re-run.
+20. Full TS package gate re-run.
+
+Implemented files:
+- `services/api/control_plane.py`: audit chain fields, chain verifier, ledger-wide audit snapshot verification, fixed Python `chain_position=0` verifier edge case, scope alias parity.
+- `services/api/platform.py`: release evidence packet audit-chain summary plus `verify_release_evidence_packet`.
+- `services/api/__init__.py`: exported `verify_release_evidence_packet`.
+- `packages/ts/ashr-clone/src/saas.ts`: TS audit chain, verifier, ledger-wide snapshot verification, release packet verifier.
+- `tests/a1/test_saas_control_plane.py`, `tests/a1/test_saas_release_gate_endpoint.py`, `tests/a1/test_saas_platform.py`: Python coverage.
+- `packages/ts/ashr-clone/test/saas-release-parity.test.mjs`: TS coverage.
+
+Commands / results:
+- `python -B -m py_compile services/api/control_plane.py services/api/platform.py services/api/__init__.py` passed.
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_saas_platform.py -q -p no:cacheprovider` -> 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 271 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only Windows LF-to-CRLF working-copy warnings.
+
+Failures / fixes:
+- Initial targeted pytest failed because filtered audit snapshots attempted to verify partial chains; fixed by verifying the complete project ledger while returning filtered events.
+- Python verifier then flagged the first event because `chain_position=0` was normalized through `or -1`; fixed with explicit `None` handling.
+
+Evidence paths:
+- Public worklog: `docs/evidence/worklog.md`.
+- No private API response payload was produced in this round; no key was read from desktop files or logged.
+
+Next A1 growth vectors:
+1. Add dedicated audit-chain verification endpoint and CLI command.
+2. Add release evidence packet verification endpoint and CLI command.
+3. Add persisted audit-chain snapshot fixture for A3 consumption.
+4. Add Postgres migration table for audit chain fields.
+5. Add tenant/project audit retention policy model.
+6. Add webhook delivery hash chain and retry ledger.
+7. Add signed artifact upload/download proof records.
+8. Add official API small-batch read/write calibration with quota gate evidence.
+9. Add media envelope release evidence counts for text/audio/file/image/video equally.
+10. Add TS quickstart for release evidence verification.
+11. Add Python SDK helper for release evidence verification.
+12. Add worker-side audit append for async queue lifecycle events.
+13. Add replay evidence bundle verifier.
+14. Add audit chain export/import roundtrip tests.
+15. Add dashboard DTO for audit-chain status without changing A3 implementation.
+16. Add control-plane OpenAPI schemas for verifier responses.
+17. Add CI release gate evidence fixture with pass/fail samples.
+18. Add customer-facing compliance note for tamper-evident audit trail.
+19. Add rate-limited official API calibration scheduler to prevent accidental repeated failures.
+20. Add stale/legacy unchained audit state compatibility verifier mode.
+
+Round21 Growth-Auditor follow-up:
+- Auditor approved scope but required stronger verifier-side redaction scanning and explicit filtered snapshot tests before commit.
+- Added recursive suspicious field/value scanning to Python and TS release evidence packet verifiers. The scanner fails verification on public-safe paths for keys such as `api_key`, `authorization`, `cookie`, `token`, `secret`, `raw_payload`, and bearer/ASHR_API_KEY-style values without returning secret values.
+- Added Python and TS tests proving filtered/limited audit snapshots still report full-ledger chain verification.
+- Added Python and TS tests proving verifier rejects redaction booleans and injected suspicious fields even when packet hash mismatch is already detected.
+
+Final Round21 validation:
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_saas_platform.py -q -p no:cacheprovider` -> 19 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 271 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only LF-to-CRLF working-copy warnings.
+
+Commit hygiene:
+- Stage only tracked Round21 A1 files plus this public worklog.
+- Keep `recon/**`, `tools/**`, and `docs/evidence/private_refs/**` unstaged.

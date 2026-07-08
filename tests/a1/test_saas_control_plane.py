@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, SaaSControlPlaneService
+from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, SaaSControlPlaneService, verify_audit_chain
 from services.api.runtime import QuotaExceededError, ValidationError
 
 
@@ -82,6 +82,34 @@ def test_saas_control_plane_sdk_submit_run_upload_trace_ingestion_and_lifecycle(
     assert quota["run.upload"] == 1
     assert quota["trace.ingest"] == 2
     assert quota["observation.write"] == 2
+
+
+def test_saas_control_plane_audit_log_is_hash_chained_and_tamper_evident():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    control.create_api_key(tenant["tenant_id"], project["project_id"], name="Writer", scopes=["write:runs", "trace:ingest"], key_id="key_chain")
+    submitted = control.sdk_submit_run(tenant["tenant_id"], project["project_id"], dataset_id=dataset["dataset_id"], agent_ref="mock", run_id="run_chain", api_key_id="key_chain")
+    control.upload_run_result(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], {"status": "completed"}, upload_id="upload_chain", api_key_id="key_chain")
+    control.ingest_trace(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], [{"observation_id": "obs_chain"}], batch_id="trace_chain", api_key_id="key_chain")
+
+    snapshot = control.audit_snapshot(tenant["tenant_id"], project["project_id"])
+    events = snapshot["events"]
+    assert snapshot["chain"]["verified"] is True
+    assert snapshot["chain"]["event_count"] == len(events)
+    filtered = control.audit_snapshot(tenant["tenant_id"], project["project_id"], action="run.upload", limit=1)
+    assert filtered["events"][0]["action"] == "run.upload"
+    assert filtered["chain"]["verified"] is True
+    assert filtered["chain"]["event_count"] == len(events)
+    assert events[0]["chain_position"] == 0
+    assert events[0]["previous_audit_event_sha256"] is None
+    for previous, current in zip(events, events[1:]):
+        assert current["previous_audit_event_id"] == previous["audit_event_id"]
+        assert current["previous_audit_event_sha256"] == previous["audit_event_sha256"]
+
+    tampered = [dict(event) for event in events]
+    tampered[1]["after_sha256"] = "0" * 64
+    verification = verify_audit_chain(tampered)
+    assert verification["verified"] is False
+    assert any(failure["reason"] == "event_hash_mismatch" for failure in verification["failures"])
 
 
 def test_saas_control_plane_quota_ledger_blocks_trace_ingestion_before_append():

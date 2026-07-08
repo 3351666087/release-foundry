@@ -47,6 +47,7 @@ from .platform import (
     platform_sql_migration_text,
     release_gate_bridge_payload,
     usage_billing_rollup,
+    verify_release_evidence_packet,
 )
 from .release_gate_bridge import (
     A2_RELEASE_GATE_CONTRACT,
@@ -79,6 +80,7 @@ __all__ = [
     "QueueRunRequest",
     "usage_billing_rollup",
     "build_release_evidence_packet",
+    "verify_release_evidence_packet",
     "release_gate_bridge_payload",
     "platform_sql_migration_text",
     "platform_schema_manifest",
