@@ -1,5 +1,72 @@
 # A3 Worklog
 
+## 2026-07-08 - Release Evidence Display In Dashboard And Reports
+
+### Goal
+
+Continue A3 against `docs/strategy/large-saas-a1-a2-a3-full-plan.md` after the group lead updated `main`. This round moves GitHub publish evidence, audit bundle verification, and signed archive verification out of hidden fixture/CLI evidence and into the customer-facing Dashboard, Report Center, JSON export, Markdown export, and print-ready report.
+
+### Work completed
+
+- Merged the latest `origin/main` into the A3 branch to preserve the group lead's conflict-resolution updates and refreshed SaaS strategy file.
+- Added `summarizeReleaseEvidenceSummary(...)` to `services/report/report_builder.mjs`.
+  - Summarizes GitHub Check publish receipt.
+  - Summarizes GitHub PR comment publish receipt.
+  - Summarizes required-check rollout plan.
+  - Summarizes audit bundle root-hash/artifact/custody verification.
+  - Summarizes signed audit archive root-hash/signature/entry verification.
+  - Only exposes whitelisted status, count, hash-prefix, and safety fields.
+- Added `release_evidence_summary` to JSON report exports.
+- Added `## Release Evidence Summary` to Markdown report exports.
+- Added Dashboard `Release Evidence` panel with:
+  - publish evidence status
+  - dry-run vs posted state
+  - required check plan state
+  - audit bundle verification state
+  - audit archive signature state
+  - safety summary for tokens, secrets, private keys, and real GitHub mutation.
+- Added Release Evidence to Report Center and print-ready report output.
+- Hardened dashboard wrapping for long release ids, check names, and verification badges so evidence rows do not force horizontal page overflow.
+- Wired local static dashboard sources to load existing redacted release evidence fixtures:
+  - `a3_github_check_publish_receipt_dry_run.redacted.json`
+  - `a3_github_pr_comment_publish_receipt_dry_run.redacted.json`
+  - `a3_github_required_check_plan.redacted.json`
+  - `a3_audit_bundle_verification_passed.redacted.json`
+  - `a3_audit_archive_verification_passed.redacted.json`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_round_release_evidence_display_2026_07_08.md`
+- Saved screenshot evidence:
+  - `docs/screenshots/a3-dashboard-release-evidence-2026-07-08.png`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, tool-call, SDK, and artifact semantics were not modified.
+- A2 judge, score, pass/fail, release policy, and failure taxonomy semantics were not modified.
+- The new release evidence summary is appended as a downstream A3 report/dashboard argument, preserving existing positional call compatibility.
+
+### Verification
+
+```text
+node --check services/report/report_builder.mjs
+node --check apps/dashboard/src/app.mjs
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")
+```
+
+Result:
+
+```text
+Focused: 70 pass, 0 fail
+Full A3 single-threaded: 167 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit API keys, tokens, cookies, emails, private keys, live signed URLs, or raw account values.
+- GitHub publish receipts are still dry-run evidence, so the UI labels them as `dry-run` and `posted false`.
+
 ## 2026-07-08 - Signed Audit Archive Manifest And Verifier
 
 ### Goal

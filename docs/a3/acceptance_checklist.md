@@ -27,6 +27,27 @@
 - [x] A1/A2 draft PR branches not merged.
 - [x] A3 mock fixtures cite A1/A2 PR source paths.
 
+## A3 Release Evidence / Audit Display
+
+- [x] Latest `origin/main` merged before this round's A3 changes.
+- [x] `services/report/report_builder.mjs` can summarize GitHub Check publish evidence.
+- [x] `services/report/report_builder.mjs` can summarize GitHub PR comment publish evidence.
+- [x] `services/report/report_builder.mjs` can summarize required-check rollout plan evidence.
+- [x] `services/report/report_builder.mjs` can summarize audit bundle verification evidence.
+- [x] `services/report/report_builder.mjs` can summarize signed audit archive verification evidence.
+- [x] JSON reports include `release_evidence_summary`.
+- [x] Markdown reports include `## Release Evidence Summary`.
+- [x] Dashboard includes a `Release Evidence` panel.
+- [x] Dashboard loads existing redacted release evidence fixtures for static sources.
+- [x] Report Center includes Release Evidence status.
+- [x] Print-ready report includes Release Evidence status.
+- [x] Dashboard wrapping hardened for long release ids, check names, and verification badges.
+- [x] Screenshot evidence saved under `docs/screenshots/a3-dashboard-release-evidence-2026-07-08.png`.
+- [x] Tests verify release evidence export does not include raw GitHub request details.
+- [x] Tests verify dashboard release evidence wiring.
+- [x] GitHub publish receipts remain clearly labeled as dry-run / not posted.
+- [x] No real Ashr, GitHub, billing, auth, or cloud mutation API was called in this display round.
+
 ## P3 Ashr Calibration
 
 - [x] Confirmed `.env.local` exists and is ignored.

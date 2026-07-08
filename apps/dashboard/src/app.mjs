@@ -24,6 +24,7 @@ import {
   summarizeIncidentReplayQueue,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseGate,
+  summarizeReleaseEvidenceSummary,
   summarizeReleaseWarRoom,
   summarizeReleaseWorkflow,
   summarizeRequestProvenance,
@@ -77,6 +78,7 @@ const state = {
   reportCenter: {},
   artifactRegistry: {},
   reviewWorkflow: {},
+  releaseEvidence: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
@@ -103,6 +105,16 @@ async function loadOptionalJson(path) {
     console.warn(error.message);
     return {};
   }
+}
+
+async function loadReleaseEvidenceFixtures() {
+  return {
+    githubCheckPublishReceipt: await loadOptionalJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    githubPrCommentPublishReceipt: await loadOptionalJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    githubRequiredCheckPlan: await loadOptionalJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json"),
+    auditBundleVerification: await loadOptionalJson("../../fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json"),
+    auditArchiveVerification: await loadOptionalJson("../../fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json")
+  };
 }
 
 function formatJson(value) {
@@ -1141,6 +1153,58 @@ function auditArtifactRow(artifact) {
   return node;
 }
 
+function releaseEvidenceStatusClass(summary) {
+  if (!summary.available) {
+    return "warn";
+  }
+  if (summary.overall_status === "verified") {
+    return "pass";
+  }
+  if (summary.overall_status === "planned" || summary.overall_status === "partial") {
+    return "warn";
+  }
+  return "fail";
+}
+
+function renderReleaseEvidenceSummary() {
+  const releaseEvidence = summarizeReleaseEvidenceSummary(state.releaseEvidence);
+  const status = $("release-evidence-status");
+  status.className = `badge ${releaseEvidenceStatusClass(releaseEvidence)}`;
+  status.textContent = releaseEvidence.overall_status;
+  $("release-evidence-summary").textContent = releaseEvidence.available
+    ? `${releaseEvidence.commercial_value} Safety: tokens ${releaseEvidence.safety.token_included ? "included" : "not included"}, real GitHub mutation ${releaseEvidence.safety.real_github_mutation_performed ? "yes" : "no"}.`
+    : releaseEvidence.recommendation;
+  $("release-evidence-metrics").replaceChildren(
+    healthTile(String(releaseEvidence.available_surface_count), "evidence surfaces"),
+    healthTile(releaseEvidence.github_check_publish.dry_run ? "dry-run" : releaseEvidence.github_check_publish.posted ? "posted" : "missing", "GitHub check"),
+    healthTile(releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing", "bundle hash"),
+    healthTile(releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing", "archive signature")
+  );
+  $("release-evidence-github").replaceChildren(
+    releaseEvidenceRow("Check run", `${releaseEvidence.github_check_publish.status} / ${releaseEvidence.github_check_publish.check_name}`, `${releaseEvidence.github_check_publish.repo}; dry-run ${releaseEvidence.github_check_publish.dry_run ? "yes" : "no"}; posted ${releaseEvidence.github_check_publish.posted ? "yes" : "no"}`),
+    releaseEvidenceRow("PR comment", `${releaseEvidence.github_pr_comment_publish.status} / PR ${releaseEvidence.github_pr_comment_publish.pull_number || "unknown"}`, `${releaseEvidence.github_pr_comment_publish.repo}; dry-run ${releaseEvidence.github_pr_comment_publish.dry_run ? "yes" : "no"}; posted ${releaseEvidence.github_pr_comment_publish.posted ? "yes" : "no"}`),
+    releaseEvidenceRow("Required check", `${releaseEvidence.github_required_check_plan.status} / ${releaseEvidence.github_required_check_plan.check_name}`, `${releaseEvidence.github_required_check_plan.repo}@${releaseEvidence.github_required_check_plan.branch}; maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}`)
+  );
+  $("release-evidence-verification").replaceChildren(
+    releaseEvidenceRow("Audit bundle", `${releaseEvidence.audit_bundle_verification.status} / hash ${releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing"}`, `${releaseEvidence.audit_bundle_verification.artifact_passed}/${releaseEvidence.audit_bundle_verification.artifact_total} artifacts, ${releaseEvidence.audit_bundle_verification.custody_passed}/${releaseEvidence.audit_bundle_verification.custody_total} custody events, root ${releaseEvidence.audit_bundle_verification.root_hash_prefix || "n/a"}`),
+    releaseEvidenceRow("Audit archive", `${releaseEvidence.audit_archive_verification.status} / signature ${releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing"}`, `${releaseEvidence.audit_archive_verification.entry_passed}/${releaseEvidence.audit_archive_verification.entry_total} entries, ${releaseEvidence.audit_archive_verification.signature_algorithm}, root ${releaseEvidence.audit_archive_verification.root_hash_prefix || "n/a"}`),
+    releaseEvidenceRow("Safety", releaseEvidence.safety.dry_run_only ? "dry-run only" : "live mutation seen", `secret values ${releaseEvidence.safety.contains_secret_values || releaseEvidence.safety.secret_values_allowed ? "present/allowed" : "blocked"}, raw private key ${releaseEvidence.safety.raw_private_key_stored ? "stored" : "not stored"}`)
+  );
+}
+
+function releaseEvidenceRow(title, value, detail) {
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>${escapeHtml(title)}</strong>
+      <span class="badge neutral">${escapeHtml(value)}</span>
+    </div>
+    <div class="muted">${escapeHtml(detail)}</div>
+  `;
+  return node;
+}
+
 function renderRequestProvenance() {
   const provenance = summarizeRequestProvenance(state.requestProvenance);
   const statusBadge = $("request-status");
@@ -1348,18 +1412,22 @@ function renderReportCenter() {
   const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
+  const releaseEvidence = summarizeReleaseEvidenceSummary(state.releaseEvidence);
   const reportCenter = state.reportCenter || {};
   const artifactRegistry = state.artifactRegistry || reportCenter.artifact_registry || {};
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence` : "no release evidence"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
     reportTile("Markdown", "Human-readable release-gate and war-room report with product console onboarding/audit state, SaaS admin guardrails, incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
     reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
   ];
+  if (releaseEvidence.available) {
+    tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}.`));
+  }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
     tiles.push(...hostedReports.map(hostedReportRow));
@@ -1551,6 +1619,7 @@ function renderPrintReport() {
   const productConsole = summarizeProductConsoleExport(state.productConsole);
   const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
   const artifactRegistry = summarizeArtifactRegistryExport(state.artifactRegistry);
+  const releaseEvidence = summarizeReleaseEvidenceSummary(state.releaseEvidence);
   const officialGap = summarizeOfficialAshrGap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
   const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
@@ -1680,6 +1749,20 @@ function renderPrintReport() {
         artifact.hash_status,
         artifact.billable_meter
       ]) : [], "No Artifact Registry entries.")}
+    </div>
+    <div class="report-section">
+      <h4>Release Evidence</h4>
+      <div class="muted">${escapeHtml(releaseEvidence.available ? releaseEvidence.commercial_value : releaseEvidence.recommendation)}</div>
+      ${renderReportTable(["Signal", "Value"], [
+        ["Available", releaseEvidence.available ? "yes" : "no"],
+        ["Overall status", releaseEvidence.overall_status],
+        ["GitHub check", releaseEvidence.available ? `${releaseEvidence.github_check_publish.status}, dry-run ${releaseEvidence.github_check_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_check_publish.posted ? "yes" : "no"}` : "missing"],
+        ["PR comment", releaseEvidence.available ? `${releaseEvidence.github_pr_comment_publish.status}, dry-run ${releaseEvidence.github_pr_comment_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_pr_comment_publish.posted ? "yes" : "no"}` : "missing"],
+        ["Required check", releaseEvidence.available ? `${releaseEvidence.github_required_check_plan.check_name}, maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}` : "missing"],
+        ["Audit bundle", releaseEvidence.available ? `${releaseEvidence.audit_bundle_verification.status}, hash ${releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing"}, artifacts ${releaseEvidence.audit_bundle_verification.artifact_passed}/${releaseEvidence.audit_bundle_verification.artifact_total}` : "missing"],
+        ["Audit archive", releaseEvidence.available ? `${releaseEvidence.audit_archive_verification.status}, signature ${releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing"}, entries ${releaseEvidence.audit_archive_verification.entry_passed}/${releaseEvidence.audit_archive_verification.entry_total}` : "missing"],
+        ["Safety", releaseEvidence.available ? `tokens ${releaseEvidence.safety.token_included ? "included" : "not included"}, real GitHub mutation ${releaseEvidence.safety.real_github_mutation_performed ? "yes" : "no"}, raw private key ${releaseEvidence.safety.raw_private_key_stored ? "stored" : "not stored"}` : "missing"]
+      ])}
     </div>
     <div class="report-section">
       <h4>Release War Room</h4>
@@ -2301,7 +2384,8 @@ function exportReport(format) {
         releaseGate: state.releaseGate
       },
       state.artifactRegistry,
-      state.reviewWorkflow
+      state.reviewWorkflow,
+      state.releaseEvidence
     ), null, 2), "application/json");
     return;
   }
@@ -2330,7 +2414,8 @@ function exportReport(format) {
       commercialReadiness: state.commercialReadiness,
       releaseGate: state.releaseGate
     },
-    state.artifactRegistry
+    state.artifactRegistry,
+    state.releaseEvidence
   ), "text/markdown");
 }
 
@@ -2414,6 +2499,7 @@ async function refreshReportEvidence() {
   renderReportCenter();
   renderProductConsole();
   renderReviewerWorkflowBoard();
+  renderReleaseEvidenceSummary();
   renderPrintReport();
 }
 
@@ -2453,6 +2539,7 @@ function applyApiDashboardPayload(payload) {
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.reviewWorkflow = payload.review_workflow || {};
+  state.releaseEvidence = payload.release_evidence || payload.release_evidence_summary || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2746,6 +2833,7 @@ async function loadDataSource(source) {
     state.regressionReplay = await loadOptionalJson("../../fixtures/a2/results/a2_regression_replay_report.json");
     state.commercialReadiness = await loadOptionalJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
     state.releaseGate = await loadOptionalJson("../../fixtures/a2/results/a2_release_gate_report.json");
+    state.releaseEvidence = await loadReleaseEvidenceFixtures();
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
@@ -2781,6 +2869,7 @@ async function loadDataSource(source) {
   renderRegressionFactory();
   renderReviewerWorkflowBoard();
   renderReleaseWorkflow();
+  renderReleaseEvidenceSummary();
   renderReportCenter();
   renderExportRedactionFirewall();
   renderTriageQueue();
@@ -2809,6 +2898,8 @@ function resetCalibrationState() {
   state.releaseGate = {};
   state.reportCenter = {};
   state.artifactRegistry = {};
+  state.reviewWorkflow = {};
+  state.releaseEvidence = {};
 }
 
 async function init() {

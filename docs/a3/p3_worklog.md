@@ -1,5 +1,44 @@
 # P3 Worklog
 
+## 2026-07-08 - Release evidence display for publish and verification records
+
+- Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the large-SaaS roadmap.
+- Merged the latest `origin/main` so the branch includes the group lead's refreshed strategy/conflict-resolution updates.
+- Added release evidence summary support in `services/report/report_builder.mjs`.
+- The summary converts existing redacted P3 evidence into customer-facing report fields:
+  - GitHub Check publish receipt.
+  - GitHub PR comment publish receipt.
+  - GitHub required-check plan.
+  - Audit bundle verification.
+  - Signed audit archive verification.
+- Added release evidence to:
+  - JSON report export as `release_evidence_summary`.
+  - Markdown report export as `## Release Evidence Summary`.
+  - Dashboard `Release Evidence` panel.
+  - Report Center summary/tile.
+  - Print-ready report preview.
+- Hardened dashboard wrapping for long release ids, check names, and verification badges.
+- Saved screenshot evidence:
+  - `docs/screenshots/a3-dashboard-release-evidence-2026-07-08.png`
+- Added tests:
+  - report builder summarizes release evidence and does not leak raw GitHub request details.
+  - dashboard wiring includes panel ids, fixture paths, renderer, state, and export wiring.
+- Verification:
+  - `node --check services/report/report_builder.mjs`
+  - `node --check apps/dashboard/src/app.mjs`
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs`
+  - `node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")`
+  - Result: focused 70 pass / 0 fail; full A3 single-threaded 167 pass / 0 fail.
+- Safety:
+  - Did not read or print `.env.local`.
+  - Did not call live Ashr APIs.
+  - Did not call live GitHub mutation APIs.
+  - Did not store secrets, tokens, cookies, emails, private keys, live signed URLs, or raw account values.
+- Remaining follow-up:
+  - API-backed dashboard snapshots do not yet serve release evidence from durable DB/API state.
+  - Hosted report pages should surface this same release evidence summary server-side.
+  - Real GitHub Check/PR comment publishing still requires explicit maintainer-approved live integration, not dry-run receipts.
+
 ## 2026-07-08 - Signed audit archive manifest and verifier
 
 - Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the large-SaaS roadmap.
