@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, SaaSControlPlaneService, verify_audit_chain
+from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, IdempotencyConflictError, SaaSControlPlaneService, verify_audit_chain
 from services.api.runtime import QuotaExceededError, ValidationError
 
 
@@ -141,6 +141,159 @@ def test_saas_control_plane_validates_api_key_scope_and_trace_payload():
         control.create_api_key(tenant["tenant_id"], project["project_id"], name="bad", scopes=[])
     with pytest.raises(ValidationError, match="at least one observation"):
         control.ingest_trace(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], [])
+
+
+def test_saas_control_plane_idempotency_keys_enforce_request_fingerprints_before_mutation():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    control.create_api_key(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Writer",
+        scopes=["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"],
+        key_id="key_idem",
+    )
+    for operation in ["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"]:
+        control.configure_api_key_rate_limit(tenant["tenant_id"], project["project_id"], key_id="key_idem", operation=operation, limit=20)
+
+    submitted = control.sdk_submit_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        agent_ref="mock",
+        run_id="run_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_submit",
+    )
+    replayed_submit = control.sdk_submit_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        agent_ref="mock",
+        run_id="run_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_submit",
+    )
+    assert replayed_submit["idempotent_replay"] is True
+    assert replayed_submit["run"]["run_id"] == submitted["run"]["run_id"]
+
+    uploaded = control.upload_run_result(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"run_id": "run_idem", "status": "completed", "cases": []},
+        upload_id="upload_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_upload",
+    )
+    assert control.upload_run_result(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"run_id": "run_idem", "status": "completed", "cases": []},
+        upload_id="upload_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_upload",
+    )["idempotent_replay"] is True
+
+    trace = control.ingest_trace(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        [{"observation_id": "obs_idem", "type": "agent_message"}],
+        batch_id="trace_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_trace",
+    )
+    assert control.ingest_trace(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        [{"observation_id": "obs_idem", "type": "agent_message"}],
+        batch_id="trace_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_trace",
+    )["idempotent_replay"] is True
+
+    artifact = control.create_artifact_manifest(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "report.json", "sha256": "a" * 64}]},
+        artifact_id="artifact_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_artifact",
+    )
+    assert control.create_artifact_manifest(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "report.json", "sha256": "a" * 64}]},
+        artifact_id="artifact_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_artifact",
+    )["idempotent_replay"] is True
+    assert artifact["artifact_id"] == "artifact_idem"
+    assert uploaded["upload_id"] == "upload_idem"
+    assert trace["batch_id"] == "trace_idem"
+    rate_after_replays = control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"]
+    assert {bucket["operation"]: bucket["used"] for bucket in rate_after_replays} == {"sdk:submit": 1, "run:upload": 1, "trace:ingest": 1, "artifact:upload": 1}
+
+    quota_before = control.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    rate_before = control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"]
+    audit_before = len(control.store.audit_log)
+    uploads_before = dict(control.store.uploads)
+    trace_batches_before = dict(control.store.trace_batches)
+    artifacts_before = dict(control.store.artifact_manifests)
+    runs_before = dict(control.cloud.store.runs)
+
+    with pytest.raises(IdempotencyConflictError, match="sdk.submit"):
+        control.sdk_submit_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            dataset_id=dataset["dataset_id"],
+            agent_ref="different",
+            run_id="run_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_submit",
+        )
+    with pytest.raises(IdempotencyConflictError, match="run.upload"):
+        control.upload_run_result(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem",
+            {"run_id": "run_idem", "status": "failed", "cases": []},
+            upload_id="upload_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_upload",
+        )
+    with pytest.raises(IdempotencyConflictError, match="trace.ingest"):
+        control.ingest_trace(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem",
+            [{"observation_id": "obs_idem_conflict", "type": "agent_message"}],
+            batch_id="trace_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_trace",
+        )
+    with pytest.raises(IdempotencyConflictError, match="artifact.manifest"):
+        control.create_artifact_manifest(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem_missing",
+            {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "other.json", "sha256": "b" * 64}]},
+            artifact_id="artifact_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_artifact",
+        )
+
+    assert control.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"] == quota_before
+    assert control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"] == rate_before
+    assert len(control.store.audit_log) == audit_before
+    assert control.store.uploads == uploads_before
+    assert control.store.trace_batches == trace_batches_before
+    assert control.store.artifact_manifests == artifacts_before
+    assert control.cloud.store.runs == runs_before
 
 
 def test_saas_control_plane_authenticate_by_key_id_scope_never_returns_raw_secret():

@@ -115,9 +115,44 @@ def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch
             "dataset_id": "dataset_http",
             "agent_ref": "mock",
             "run_id": "run_http",
+            "idempotency_key": "idem_http_submit",
         },
     )
     assert submitted["submission"]["status"] == "accepted"
+
+    replay_meta, replayed, _ = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_http/sdk-submit",
+        {
+            "tenant_id": "tenant_http",
+            "api_key_id": "key_http",
+            "dataset_id": "dataset_http",
+            "agent_ref": "mock",
+            "run_id": "run_http",
+            "idempotency_key": "idem_http_submit",
+        },
+    )
+    assert str(replay_meta["status"]).startswith("202 ")
+    assert replayed["submission"]["status"] == "accepted"
+    assert replayed["idempotent_replay"] is True
+
+    conflict_meta, conflict, _ = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_http/sdk-submit",
+        {
+            "tenant_id": "tenant_http",
+            "api_key_id": "key_http",
+            "dataset_id": "dataset_http",
+            "agent_ref": "changed",
+            "run_id": "run_http_changed",
+            "idempotency_key": "idem_http_submit",
+        },
+    )
+    assert str(conflict_meta["status"]).startswith("409 ")
+    assert conflict["error"]["code"] == "idempotency_conflict"
+    assert "run_http_changed" not in service.cloud.store.runs
 
     _, uploaded, uploaded_text = _invoke_wsgi(
         app,

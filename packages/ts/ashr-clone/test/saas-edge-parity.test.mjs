@@ -97,16 +97,25 @@ test("TS SaaS idempotent submit does not double consume usage", () => {
   const item = service();
   item.createApiKey("tenant_edge", "project_edge", { name: "all", scopes: [ADMIN_ALL_SCOPE], keyId: "key_all" });
   item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_idem", idempotencyKey: "idem" });
-  item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_other", idempotencyKey: "idem" });
+  const replay = item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_idem", idempotencyKey: "idem", requestId: "retry" });
+  assert.equal(replay.idempotent_replay, true);
+  assert.throws(
+    () => item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_other", idempotencyKey: "idem" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
   assert.equal(item.usageSnapshot("tenant_edge", "project_edge", { authKeyId: "key_all" }).totals["sdk.submit"], 1);
 });
 
 test("TS SaaS idempotent upload replays original upload id", () => {
   const item = withRun();
   const first = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" }, { uploadId: "u1", idempotencyKey: "u-idem" });
-  const second = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "failed" }, { uploadId: "u2", idempotencyKey: "u-idem" });
+  const second = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" }, { uploadId: "u1", idempotencyKey: "u-idem", requestId: "retry" });
   assert.equal(second.idempotent_replay, true);
   assert.equal(second.upload_id, first.upload_id);
+  assert.throws(
+    () => item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "failed" }, { uploadId: "u2", idempotencyKey: "u-idem" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
 });
 
 test("TS SaaS trace ingestion rejects empty observations", () => {

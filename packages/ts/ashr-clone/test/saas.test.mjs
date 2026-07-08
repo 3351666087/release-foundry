@@ -17,7 +17,7 @@ test("TS SaaS control plane covers key submit upload trace lifecycle idempotency
   assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
 
   const submitted = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit" });
-  const replay = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas_2", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit" });
+  const replay = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit", requestId: "retry-request" });
   assert.equal(submitted.run.run_id, "run_ts_saas");
   assert.equal(replay.idempotent_replay, true);
   assert.equal(replay.run.run_id, "run_ts_saas");
@@ -102,6 +102,58 @@ test("TS SaaS API key rate limit blocks before mutation and records snapshot", (
   assert.equal(snapshot.schema_version, CONTROL_PLANE_SCHEMA_VERSION);
   assert.equal(snapshot.rate_limits[0].used, 1);
   assert.equal(snapshot.rate_limits[0].remaining, 0);
+});
+
+test("TS SaaS idempotency keys reject request fingerprint conflicts before usage audit and mutation", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_idem_conflict", projectId: "project_ts_idem_conflict" });
+  service.cloud.createDataset("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", name: "Dataset", cases: [{ id: "case-1" }] });
+  service.createApiKey("tenant_ts_idem_conflict", "project_ts_idem_conflict", { name: "writer", scopes: ["sdk:submit", "run:upload", "trace:ingest", "artifact:write", "usage:read", "audit:read", "evidence:read"], keyId: "key_ts_idem_conflict" });
+  for (const operation of ["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"]) {
+    service.configureApiKeyRateLimit("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict", operation, limit: 20 });
+  }
+
+  service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit" });
+  const submitReplay = service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit", requestId: "retry-request" });
+  assert.equal(submitReplay.idempotent_replay, true);
+
+  service.uploadRunResult("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { status: "completed" }, { uploadId: "upload_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-upload" });
+  service.ingestTrace("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", [{ observation_id: "obs_ts_idem_conflict", type: "agent_message" }], { batchId: "trace_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-trace" });
+  service.createArtifactManifest("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json" }] }, { artifactId: "artifact_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-artifact" });
+
+  const before = service.lifecycleSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict");
+  const beforeUsage = { ...before.quota.used };
+  const beforeAuditCount = before.audit_log.length;
+  const beforeUploads = before.uploads.length;
+  const beforeTraceBatches = before.trace_batches.length;
+  const beforeArtifacts = service.listArtifactManifests("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { authKeyId: "key_ts_idem_conflict" }).length;
+  const beforeRateLimits = service.apiKeyRateLimitSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict" }).rate_limits;
+  assert.deepEqual(Object.fromEntries(beforeRateLimits.map((bucket) => [bucket.operation, bucket.used])), { "sdk:submit": 1, "run:upload": 1, "trace:ingest": 1, "artifact:upload": 1 });
+
+  assert.throws(
+    () => service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict_different", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.uploadRunResult("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { status: "failed" }, { uploadId: "upload_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-upload" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.ingestTrace("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", [{ observation_id: "obs_ts_idem_conflict_2", type: "tool_call" }], { batchId: "trace_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-trace" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.createArtifactManifest("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict_missing", { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "different.json" }] }, { artifactId: "artifact_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-artifact" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+
+  const after = service.lifecycleSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict");
+  assert.deepEqual(after.quota.used, beforeUsage);
+  assert.equal(after.audit_log.length, beforeAuditCount);
+  assert.equal(after.uploads.length, beforeUploads);
+  assert.equal(after.trace_batches.length, beforeTraceBatches);
+  assert.equal(service.listArtifactManifests("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { authKeyId: "key_ts_idem_conflict" }).length, beforeArtifacts);
+  assert.deepEqual(service.apiKeyRateLimitSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict" }).rate_limits, beforeRateLimits);
 });
 
 test("TS SaaS router maps local REST-ish ingestion and redacts errors", () => {
@@ -221,8 +273,18 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
     "tenant_ts_artifact",
     "project_ts_artifact",
     "run_ts_artifact",
-    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "different" }] },
-    { artifactId: "artifact_ts_again", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "tp_should_not_leak" }] },
+    { artifactId: "artifact_ts", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem", requestId: "artifact-retry" },
+  );
+  assert.throws(
+    () => service.createArtifactManifest(
+      "tenant_ts_artifact",
+      "project_ts_artifact",
+      "run_ts_artifact",
+      { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "different" }] },
+      { artifactId: "artifact_ts_again", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+    ),
+    /idempotency key conflict.*request fingerprint mismatch/,
   );
 
   assert.equal(manifest.artifact_id, "artifact_ts");

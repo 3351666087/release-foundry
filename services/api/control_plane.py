@@ -65,6 +65,13 @@ SAAS_QUOTA_LIMITS = {
 }
 
 
+class IdempotencyConflictError(ValidationError):
+    code = "idempotency_conflict"
+
+
+IDEMPOTENCY_FINGERPRINT_SCHEMA_VERSION = "ashr.clone.idempotency_fingerprint.v1"
+
+
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
@@ -175,7 +182,7 @@ class SaaSControlPlaneService:
             self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=API_KEY_READ_SCOPE)
         return [_public_api_key(record) for record in self.store.api_keys.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)]
 
-    def authenticate_api_key(self, tenant_id: str, project_id: str, *, key_id: str, scope: str) -> JsonDict:
+    def authenticate_api_key(self, tenant_id: str, project_id: str, *, key_id: str, scope: str, consume_rate: bool = True) -> JsonDict:
         """Authenticate a local API key by id and required scope.
 
         This sandbox contract intentionally never accepts or returns a raw secret;
@@ -188,7 +195,8 @@ class SaaSControlPlaneService:
             raise ValidationError(f"api key is not active: {key_id}")
         if not _scope_allows(record.get("scopes", []), required_scope):
             raise ValidationError(f"api key {key_id} missing required scope: {required_scope}")
-        self._consume_api_key_rate(record, required_scope)
+        if consume_rate:
+            self._consume_api_key_rate(record, required_scope)
         record["last_used_at"] = _utc_now()
         return {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
@@ -232,10 +240,18 @@ class SaaSControlPlaneService:
 
     def sdk_submit_run(self, tenant_id: str, project_id: str, *, dataset_id: str, agent_ref: str, run_id: str | None = None, metadata: Mapping[str, Any] | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
         if api_key_id is not None:
-            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope="sdk:submit")
-        idem = self._idempotency_lookup(tenant_id, project_id, "sdk.submit", idempotency_key)
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope="sdk:submit", consume_rate=False)
+        request_fingerprint = _request_fingerprint(
+            tenant_id,
+            project_id,
+            "sdk.submit",
+            {"dataset_id": dataset_id, "agent_ref": agent_ref, "run_id": run_id, "metadata": metadata or {}, "api_key_id": api_key_id},
+        )
+        idem = self._idempotency_lookup(tenant_id, project_id, "sdk.submit", idempotency_key, request_fingerprint=request_fingerprint)
         if idem is not None:
             return idem
+        if api_key_id is not None:
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), "sdk:submit")
         self.cloud.quota.check(tenant_id, project_id, "sdk.submit")
         run = self.cloud.create_queued_run(tenant_id, project_id, dataset_id=dataset_id, run_id=run_id, runner_id="sdk-submit", metadata={"submitted_by": "sdk", "agent_ref": agent_ref, **dict(metadata or {})})
         self._consume_usage(tenant_id, project_id, "sdk.submit", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, run_id=run["run_id"])
@@ -254,16 +270,19 @@ class SaaSControlPlaneService:
         }
         self.store.sdk_submissions[submission["submission_id"]] = submission
         response = _jsonable({"submission": submission, "run": run})
-        self._idempotency_store(tenant_id, project_id, "sdk.submit", idempotency_key, response)
+        self._idempotency_store(tenant_id, project_id, "sdk.submit", idempotency_key, response, request_fingerprint=request_fingerprint)
         self._append_audit(tenant_id, project_id, "sdk.submit", target_id=run["run_id"], api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"run_id": run["run_id"], "submission_id": submission["submission_id"]})
         return response
 
     def upload_run_result(self, tenant_id: str, project_id: str, run_id: str, result: Mapping[str, Any], *, upload_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
         if api_key_id is not None:
-            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=RUN_UPLOAD_SCOPE)
-        idem = self._idempotency_lookup(tenant_id, project_id, "run.upload", idempotency_key)
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=RUN_UPLOAD_SCOPE, consume_rate=False)
+        request_fingerprint = _request_fingerprint(tenant_id, project_id, "run.upload", {"run_id": run_id, "upload_id": upload_id, "result": result, "api_key_id": api_key_id})
+        idem = self._idempotency_lookup(tenant_id, project_id, "run.upload", idempotency_key, request_fingerprint=request_fingerprint)
         if idem is not None:
             return idem
+        if api_key_id is not None:
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), RUN_UPLOAD_SCOPE)
         run = self.cloud.get_run(tenant_id, project_id, run_id)
         self._consume_usage(tenant_id, project_id, "run.upload", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, run_id=run_id)
         upload_id = upload_id or _new_id("upload")
@@ -285,16 +304,19 @@ class SaaSControlPlaneService:
         }
         self.store.uploads[upload_id] = record
         response = _jsonable(record)
-        self._idempotency_store(tenant_id, project_id, "run.upload", idempotency_key, response)
+        self._idempotency_store(tenant_id, project_id, "run.upload", idempotency_key, response, request_fingerprint=request_fingerprint)
         self._append_audit(tenant_id, project_id, "run.upload", target_id=run_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"upload_id": upload_id, "payload_sha256": digest})
         return response
 
     def ingest_trace(self, tenant_id: str, project_id: str, run_id: str, observations: list[Mapping[str, Any]], *, batch_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
         if api_key_id is not None:
-            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=TRACE_INGEST_SCOPE)
-        idem = self._idempotency_lookup(tenant_id, project_id, "trace.ingest", idempotency_key)
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=TRACE_INGEST_SCOPE, consume_rate=False)
+        request_fingerprint = _request_fingerprint(tenant_id, project_id, "trace.ingest", {"run_id": run_id, "batch_id": batch_id, "observations": observations, "api_key_id": api_key_id})
+        idem = self._idempotency_lookup(tenant_id, project_id, "trace.ingest", idempotency_key, request_fingerprint=request_fingerprint)
         if idem is not None:
             return idem
+        if api_key_id is not None:
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), TRACE_INGEST_SCOPE)
         self.cloud.get_run(tenant_id, project_id, run_id)
         if not observations:
             raise ValidationError("trace ingestion requires at least one observation")
@@ -320,7 +342,7 @@ class SaaSControlPlaneService:
         }
         self.store.trace_batches[batch_id] = record
         response = _jsonable(record)
-        self._idempotency_store(tenant_id, project_id, "trace.ingest", idempotency_key, response)
+        self._idempotency_store(tenant_id, project_id, "trace.ingest", idempotency_key, response, request_fingerprint=request_fingerprint)
         self._append_audit(tenant_id, project_id, "trace.ingest", target_id=run_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"batch_id": batch_id, "batch_sha256": batch_sha256})
         return response
 
@@ -360,13 +382,15 @@ class SaaSControlPlaneService:
         return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "events": _jsonable(events), "totals": totals, "quota": self.cloud.quota_snapshot(tenant_id, project_id)}
 
     def create_artifact_manifest(self, tenant_id: str, project_id: str, run_id: str, manifest: Mapping[str, Any], *, artifact_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
-        self.cloud.get_run(tenant_id, project_id, run_id)
         if not api_key_id:
             raise ValidationError("artifact manifest upload requires api_key_id with artifact:upload scope")
-        self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope="artifact:upload")
-        idem = self._idempotency_lookup(tenant_id, project_id, "artifact.manifest", idempotency_key)
+        self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope="artifact:upload", consume_rate=False)
+        request_fingerprint = _request_fingerprint(tenant_id, project_id, "artifact.manifest", {"run_id": run_id, "artifact_id": artifact_id, "manifest": manifest, "api_key_id": api_key_id})
+        idem = self._idempotency_lookup(tenant_id, project_id, "artifact.manifest", idempotency_key, request_fingerprint=request_fingerprint)
         if idem is not None:
             return idem
+        self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), "artifact:upload")
+        self.cloud.get_run(tenant_id, project_id, run_id)
         usage = self._consume_usage(tenant_id, project_id, "artifact.manifest", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, run_id=run_id)
         manifest_payload = _jsonable(dict(manifest))
         artifact_id = artifact_id or _new_id("artifact")
@@ -389,7 +413,7 @@ class SaaSControlPlaneService:
         }
         self.store.artifact_manifests[artifact_id] = record
         response = _jsonable(record)
-        self._idempotency_store(tenant_id, project_id, "artifact.manifest", idempotency_key, response)
+        self._idempotency_store(tenant_id, project_id, "artifact.manifest", idempotency_key, response, request_fingerprint=request_fingerprint)
         self._append_audit(tenant_id, project_id, "artifact.manifest", target_id=run_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"artifact_id": artifact_id, "manifest_sha256": record["manifest_sha256"]})
         return response
 
@@ -574,19 +598,22 @@ class SaaSControlPlaneService:
             bucket["remaining"] = max(0, int(bucket.get("limit") or 0) - int(bucket.get("used") or 0))
             bucket["last_used_at"] = _utc_now()
 
-    def _idempotency_lookup(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None) -> JsonDict | None:
+    def _idempotency_lookup(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None, *, request_fingerprint: str | None = None) -> JsonDict | None:
         if not idempotency_key:
             return None
         key = _idempotency_record_key(tenant_id, project_id, operation, idempotency_key)
         record = self.store.idempotency_keys.get(key)
         if record is None:
             return None
+        stored_fingerprint = record.get("request_fingerprint_sha256")
+        if request_fingerprint is not None and stored_fingerprint != request_fingerprint:
+            raise IdempotencyConflictError(f"idempotency key conflict for {operation}: request fingerprint mismatch")
         response = _jsonable(record.get("response", {}))
         if isinstance(response, dict):
             response.setdefault("idempotent_replay", True)
         return response
 
-    def _idempotency_store(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None, response: Mapping[str, Any]) -> None:
+    def _idempotency_store(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None, response: Mapping[str, Any], *, request_fingerprint: str | None = None) -> None:
         if not idempotency_key:
             return
         key = _idempotency_record_key(tenant_id, project_id, operation, idempotency_key)
@@ -596,6 +623,8 @@ class SaaSControlPlaneService:
             "project_id": str(project_id),
             "operation": str(operation),
             "idempotency_key": str(idempotency_key),
+            "fingerprint_schema_version": IDEMPOTENCY_FINGERPRINT_SCHEMA_VERSION,
+            "request_fingerprint_sha256": request_fingerprint,
             "response": _jsonable(response),
             "created_at": _utc_now(),
         }
@@ -696,6 +725,17 @@ def _api_key_rate_key(tenant_id: str, project_id: str, key_id: str, operation: s
 def _idempotency_record_key(tenant_id: str, project_id: str, operation: str, idempotency_key: str) -> str:
     raw = f"{tenant_id}:{project_id}:{operation}:{idempotency_key}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _request_fingerprint(tenant_id: str, project_id: str, operation: str, payload: Mapping[str, Any]) -> str:
+    return _stable_sha256(
+        {
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "operation": str(operation),
+            "payload": _jsonable(dict(payload)),
+        }
+    )
 
 
 def _audit_event_hash(event: Mapping[str, Any]) -> str:
@@ -1142,7 +1182,7 @@ class SaaSControlPlaneRouter:
             raise ValidationError(f"unsupported route: {method} {path}")
         except Exception as exc:  # Public-safe local router envelope.
             code = getattr(exc, "code", "validation_error")
-            status_code = 404 if code == "not_found" else 400
+            status_code = 404 if code == "not_found" else 409 if code == "idempotency_conflict" else 400
             return {"status_code": status_code, "body": {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "error": {"code": code, "message": str(exc)}}}
 
 

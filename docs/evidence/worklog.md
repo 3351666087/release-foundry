@@ -3287,3 +3287,124 @@ Round23 Bus-Auditor follow-up closure:
   - `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
   - `git diff --check` passed; only Windows LF-to-CRLF warnings.
 - Staging caution: explicitly include `docs/a1/schemas/saas_release_evidence_verifier.schema.json`; keep `recon/` and `tools/` unstaged.
+
+## Round24 A1 SaaS Idempotency Fingerprint Enforcement - 2026-07-08
+
+Goal source:
+- Active large-SaaS goal remains ongoing and explicitly anchored to `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+- User emphasized A1-only ownership, aggressive TS parity, real Ashr API calibration via env-only key handling, equal importance of text/audio/file/image/video, and next growth into Go, SQL/PLpgSQL, Docker/YAML/Terraform/HCL, and Rust.
+
+Baseline / peer changes:
+- Commands: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `git branch --show-current`; `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner`, tracking `origin/codex/a1-local-sdk-runner`; PR #19 remains draft.
+- Worktree before integration contained only A1/TS idempotency edits plus long-lived untracked `recon/` and `tools/`.
+- Peer changes observed: PR #18 / `origin/codex/a3-audit-evidence-bundle` advanced with A3 signed audit archive / GitHub publish evidence bundle work. Impact for A1: request replay/idempotency must be trustworthy because A3 sealed archives depend on stable run/upload/trace/artifact evidence.
+- `origin/main` latest: `69025b5 Prefer latest development toolchains`; main carries broad A1/A2/A3 updates and touches A1/TS files. This round did not merge or stage main artifacts to avoid mixing peer work; full tests were used as the safety gate.
+
+Growth points considered / queued:
+1. Enforce request fingerprints for idempotency keys on SaaS writes.
+2. Return HTTP 409 for idempotency conflicts.
+3. Preserve idempotent replay for exact request retries while excluding request_id from fingerprint.
+4. Prove conflict happens before quota usage.
+5. Prove conflict happens before audit append.
+6. Prove conflict happens before upload/trace/artifact mutation.
+7. Persist fingerprint metadata across state round trips.
+8. Mirror Python and TypeScript behavior.
+9. Keep artifact manifest idempotency aligned with release evidence verifier needs.
+10. Use real Ashr read-only API probes to refresh response key evidence.
+11. Keep private API evidence out of commits.
+12. Add next-round Go runtime/client surface.
+13. Add next-round SQL/PLpgSQL schema and migrations for tenant/project/run/idempotency/usage/audit.
+14. Add next-round Dockerfile/compose worker + API dev service.
+15. Add next-round YAML CI gate for Python/TS/Go/schema/migration checks.
+16. Add next-round Terraform/HCL self-host scaffold.
+17. Add next-round Rust verifier/replay utility exploration if it buys performance or tamper-proof packaging.
+18. Keep text/audio/file/image/video at equal modality level in API/client/runtime plans.
+19. Add CI guard preventing `docs/evidence/private_refs/**`, `recon/**`, and `tools/**` staging.
+20. Expand official API calibration from read-only probes to quota-gated small-batch mutating probes when a valid quota gate exists.
+
+Chosen implementation slice:
+- Request fingerprint enforcement for A1 SaaS idempotency records, because stale replay under the same idempotency key could pollute billing, audits, run evidence, and A3 sealed archives.
+
+Subagent outputs:
+- Growth-Auditor: endorsed idempotency fingerprint enforcement as a money-grade SaaS primitive; required coverage for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`; conflicts must occur before quota/audit/mutation; no raw payloads or secrets in stored records.
+- Worker-Python-Idempotency: implemented Python service/HTTP/SDK tests and route mapping for `idempotency_conflict` -> 409.
+- Worker-TS-Idempotency: implemented TypeScript fingerprint storage/enforcement and tests for conflict-before-side-effects.
+- Main agent integration: tightened Python legacy-record behavior so a stored idempotency record without matching fingerprint now conflicts; added `fingerprint_schema_version`; updated older TS edge parity tests from unsafe old replay semantics to exact-payload replay plus changed-payload conflict.
+
+Implemented files:
+- `services/api/control_plane.py`
+  - Added `IdempotencyConflictError` and `IDEMPOTENCY_FINGERPRINT_SCHEMA_VERSION`.
+  - Added deterministic request fingerprints for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`.
+  - Stored `fingerprint_schema_version` and `request_fingerprint_sha256` with idempotency records.
+  - Replays exact same request with `idempotent_replay=true`; same key plus changed fingerprint raises `idempotency_conflict` before quota, audit, or mutation.
+  - WSGI router maps `idempotency_conflict` to HTTP 409.
+- `tests/a1/test_saas_control_plane.py`
+  - Added matrix coverage for replay/conflict across all four operations and side-effect counts.
+- `tests/a1/test_saas_sdk_client.py`
+  - Added SDK-level submit replay/conflict coverage.
+- `tests/a1/test_saas_control_plane_http.py`
+  - Added HTTP replay and 409 conflict coverage.
+- `packages/ts/ashr-clone/src/saas.ts`
+  - Mirrored request fingerprint storage/enforcement in TS SaaS control plane.
+- `packages/ts/ashr-clone/test/saas.test.mjs`
+  - Added TS conflict-before-usage/audit/mutation coverage for all four operations.
+- `packages/ts/ashr-clone/test/saas-edge-parity.test.mjs`
+  - Updated old idempotency tests to require exact-request replay and changed-request conflict.
+
+Real API / private evidence:
+- Env check: `ASHR_API_KEY` present by length only; no key value printed, read from desktop, written, or committed.
+- Dry-run/private planning evidence created before real calls:
+  - `docs/evidence/private_refs/a1_round24_create_request_multimodal_plan_20260708_175030.json` -> multimodal create-request batch plan blocked by quota gate decision `wait`; no mutation executed.
+  - `docs/evidence/private_refs/a1_round24_health_dry_run_20260708_175030.json` -> planned.
+  - `docs/evidence/private_refs/a1_round24_list_runs_dry_run_20260708_175030.json` -> planned.
+- Real read-only probes executed after env key availability, with no mutating calls:
+  - `docs/evidence/private_refs/a1_round24_health_real_20260708_180046.json` -> status `ok`, response keys `db,message,status`.
+  - `docs/evidence/private_refs/a1_round24_list_runs_real_20260708_180046.json` -> status `ok`, response keys `_user,runs,status`.
+  - `docs/evidence/private_refs/a1_round24_list_agents_real_20260708_180046.json` -> status `ok`, response keys `_user,agents,status`.
+  - `docs/evidence/private_refs/a1_round24_list_requests_real_20260708_180046.json` -> status `ok`, response keys `_user,next_cursor,requests,status`.
+- Private refs remain unstaged.
+
+Commands / results:
+- `python -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py` -> 28 passed in worker.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 275 passed.
+- `npm test --prefix packages/ts/ashr-clone` initially failed 2 old TS edge tests that expected same-key/different-request replay.
+- Updated TS edge tests to new fingerprint conflict semantics.
+- `npm test --prefix packages/ts/ashr-clone` -> 275 passed.
+
+Growth-Auditor follow-up closure:
+- Auditor verdict: sellability improved because idempotency is now a billing-safe ingestion contract for CI retries, SDK trust, usage metering, audit defensibility, and A3 evidence sealing.
+- P0 blockers: none.
+- P1 fixed before commit: API-key rate consumption was happening during auth before idempotency replay/conflict. Python and TS now authenticate write API keys with `consume_rate=false`, perform fingerprint lookup, and only consume API-key rate after a cache miss that proceeds toward mutation.
+- P1 fixed before commit: artifact manifest idempotency lookup previously happened after `get_run`, so changed same-key requests with nonexistent run IDs could return not_found instead of conflict. Python and TS now compute/lookup the artifact manifest fingerprint before run lookup.
+- Added tests proving exact replays and same-key conflicts preserve API-key rate buckets, and artifact manifest changed/nonexistent run IDs return idempotency conflict first.
+- Follow-up targeted validation:
+  - `python -B -m pytest tests/a1/test_saas_control_plane.py::test_saas_control_plane_idempotency_keys_enforce_request_fingerprints_before_mutation -q -p no:cacheprovider` -> 1 passed.
+  - `npm run build --prefix packages/ts/ashr-clone` -> passed.
+  - `node --test packages/ts/ashr-clone/test/saas.test.mjs` -> 9 passed.
+
+Failures / decisions:
+- Main branch contains relevant A1/TS changes, but merging/overwriting during this focused round would mix peer changes into PR #19. Decision: keep branch narrow, use full tests as compatibility gate, revisit main integration in the next baseline.
+- Mutating multimodal official API probe remains blocked until a valid quota gate says `go` or an auditable override is intentionally recorded.
+
+Next A1 growth vectors, aligned to strategy bus:
+1. Add Go SDK/client/runtime package covering health/list-runs/list-agents/list-requests and local SaaS ingestion DTOs.
+2. Add Go tests and fixture parity with Python/TS for AgentInput text/audio/file/image/video envelopes.
+3. Add Postgres SQL migrations for tenants/projects/datasets/runs/idempotency_keys/usage/audit/artifact_manifests.
+4. Add PLpgSQL helper functions for usage rollup, idempotency conflict checking, and audit-chain tail lookup.
+5. Add Dockerfile and docker-compose for API + worker + Postgres local self-host demo.
+6. Add YAML CI workflow for Python A1, TS, Go, schema validation, and migration lint.
+7. Add Terraform/HCL self-host skeleton for API/worker/Postgres/storage buckets.
+8. Add Rust verifier/replay command if it can provide fast tamper-proof evidence bundle verification.
+9. Add hosted API route group for canonical tenant/project/dataset/run lifecycle.
+10. Add queue lease/worker durability backed by Postgres rows.
+11. Add official API small-batch quota-gated mutating calibration once gate evidence is `go`.
+12. Add media parity probes and fixtures for audio/file/image/video at equal priority with text.
+13. Add private evidence index record for new real API response key maps.
+14. Add public redacted API field map schema update from real probes.
+15. Add A3-facing signed idempotency evidence summary in release packets.
+16. Add API key usage scopes for Go/CI/self-host workers.
+17. Add SaaS OpenAPI export examples for idempotency conflict responses.
+18. Add retry/backoff idempotency client behavior in Python/TS/Go.
+19. Add CI secret/staging guard for private refs and local recon directories.
+20. Add main-branch integration smoke comparing current PR against `origin/main` A1/A2/A3 fixture contracts.

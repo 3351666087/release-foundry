@@ -7,6 +7,7 @@ from typing import Mapping
 
 import pytest
 
+from services.api.control_plane import IdempotencyConflictError
 from services.api.platform import build_release_evidence_packet
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -135,6 +136,52 @@ def test_sdk_saas_client_exposes_audit_and_release_evidence_verification():
     stale_result = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=stale, auth_key_id="key_verify")
     assert stale_result["result"]["verified"] is False
     assert "usage_operation_totals_mismatch" in {failure["reason"] for failure in stale_result["result"]["failures"]}
+
+
+def test_sdk_saas_client_sdk_submit_idempotency_conflicts_on_changed_fingerprint():
+    client = SaaSIngestionClient()
+    client.bootstrap_project(
+        tenant_name="Tenant",
+        project_name="Project",
+        tenant_id="tenant_sdk_idem",
+        project_id="project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+    )
+    client.create_api_key("tenant_sdk_idem", "project_sdk_idem", name="Submitter", scopes=["sdk:submit"], key_id="key_sdk_idem")
+
+    submitted = client.sdk_submit(
+        "tenant_sdk_idem",
+        "project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+        agent_ref="mock",
+        run_id="run_sdk_idem",
+        api_key_id="key_sdk_idem",
+        idempotency_key="idem_sdk_submit",
+    )
+    replayed = client.sdk_submit(
+        "tenant_sdk_idem",
+        "project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+        agent_ref="mock",
+        run_id="run_sdk_idem",
+        api_key_id="key_sdk_idem",
+        idempotency_key="idem_sdk_submit",
+    )
+    quota_before = client.quota_snapshot("tenant_sdk_idem", "project_sdk_idem")["result"]["used"]
+
+    assert replayed["result"]["idempotent_replay"] is True
+    assert replayed["result"]["run"]["run_id"] == submitted["result"]["run"]["run_id"]
+    with pytest.raises(IdempotencyConflictError, match="sdk.submit"):
+        client.sdk_submit(
+            "tenant_sdk_idem",
+            "project_sdk_idem",
+            dataset_id="dataset_sdk_idem",
+            agent_ref="changed",
+            run_id="run_sdk_idem_changed",
+            api_key_id="key_sdk_idem",
+            idempotency_key="idem_sdk_submit",
+        )
+    assert client.quota_snapshot("tenant_sdk_idem", "project_sdk_idem")["result"]["used"] == quota_before
 
 
 def test_sdk_saas_client_rejects_raw_api_key_values():

@@ -180,7 +180,7 @@ export class SaaSControlPlaneService {
       .map((record) => publicApiKey(record));
   }
 
-  authenticateApiKey(tenantId: string, projectId: string, options: { keyId: string; scope: string }): JsonRecord {
+  authenticateApiKey(tenantId: string, projectId: string, options: { keyId: string; scope: string; consumeRate?: boolean }): JsonRecord {
     const record = this.apiKeyRecord(tenantId, projectId, options.keyId);
     const requiredScope = normalizeScope(options.scope);
     if (record.status !== "active") {
@@ -189,7 +189,7 @@ export class SaaSControlPlaneService {
     if (!scopeAllows(record.scopes, requiredScope)) {
       throw new ValidationError(`api key ${options.keyId} missing required scope: ${requiredScope}`);
     }
-    this.consumeApiKeyRate(record, requiredScope);
+    if (options.consumeRate !== false) this.consumeApiKeyRate(record, requiredScope);
     record.last_used_at = utcNow();
     return {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -269,10 +269,12 @@ export class SaaSControlPlaneService {
 
   sdkSubmitRun(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; idempotencyKey?: string; requestId?: string }): JsonRecord {
     if (options.apiKeyId !== undefined) {
-      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: "sdk:submit" });
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: "sdk:submit", consumeRate: false });
     }
-    const idem = this.idempotencyLookup(tenantId, projectId, "sdk.submit", options.idempotencyKey);
+    const requestFingerprint = requestFingerprintSha256({ dataset_id: options.datasetId, agent_ref: options.agentRef, run_id: options.runId ?? null, metadata: options.metadata ?? {}, api_key_id: options.apiKeyId ?? null });
+    const idem = this.idempotencyLookup(tenantId, projectId, "sdk.submit", options.idempotencyKey, requestFingerprint);
     if (idem !== null) return idem;
+    if (options.apiKeyId !== undefined) this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.apiKeyId), "sdk:submit");
     this.cloud.quota.check(tenantId, projectId, "sdk.submit");
     const run = this.cloud.createQueuedRun(tenantId, projectId, {
       datasetId: options.datasetId,
@@ -296,20 +298,22 @@ export class SaaSControlPlaneService {
     };
     this.store.sdk_submissions[String(submission.submission_id)] = submission;
     const response = cloneJson({ submission, run }) as JsonRecord;
-    this.idempotencyStore(tenantId, projectId, "sdk.submit", options.idempotencyKey, response);
+    this.idempotencyStore(tenantId, projectId, "sdk.submit", options.idempotencyKey, requestFingerprint, response);
     this.appendAudit(tenantId, projectId, "sdk.submit", { targetId: run.run_id, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: { run_id: run.run_id, submission_id: submission.submission_id } });
     return response;
   }
 
   uploadRunResult(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: { uploadId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
     if (options.apiKeyId !== undefined) {
-      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: RUN_UPLOAD_SCOPE });
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: RUN_UPLOAD_SCOPE, consumeRate: false });
     }
-    const idem = this.idempotencyLookup(tenantId, projectId, "run.upload", options.idempotencyKey);
+    const payload = jsonRecord(result);
+    const requestFingerprint = requestFingerprintSha256({ run_id: runId, result: payload, upload_id: options.uploadId ?? null, api_key_id: options.apiKeyId ?? null });
+    const idem = this.idempotencyLookup(tenantId, projectId, "run.upload", options.idempotencyKey, requestFingerprint);
     if (idem !== null) return idem;
+    if (options.apiKeyId !== undefined) this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.apiKeyId), RUN_UPLOAD_SCOPE);
     const run = this.cloud.getRun(tenantId, projectId, runId);
     this.consumeUsage(tenantId, projectId, "run.upload", { apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId });
-    const payload = jsonRecord(result);
     const digest = sha256(JSON.stringify(sortJson(payload)));
     const uploadId = options.uploadId ?? newId("upload");
     const record: JsonRecord = {
@@ -328,23 +332,25 @@ export class SaaSControlPlaneService {
     };
     this.store.uploads[uploadId] = record;
     const response = cloneJson(record) as JsonRecord;
-    this.idempotencyStore(tenantId, projectId, "run.upload", options.idempotencyKey, response);
+    this.idempotencyStore(tenantId, projectId, "run.upload", options.idempotencyKey, requestFingerprint, response);
     this.appendAudit(tenantId, projectId, "run.upload", { targetId: runId, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: { upload_id: uploadId, payload_sha256: digest } });
     return response;
   }
 
   ingestTrace(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: { batchId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
     if (options.apiKeyId !== undefined) {
-      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: TRACE_INGEST_SCOPE });
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: TRACE_INGEST_SCOPE, consumeRate: false });
     }
-    const idem = this.idempotencyLookup(tenantId, projectId, "trace.ingest", options.idempotencyKey);
+    const normalized = observations.map((item) => jsonRecord(item));
+    const requestFingerprint = requestFingerprintSha256({ run_id: runId, observations: normalized, batch_id: options.batchId ?? null, api_key_id: options.apiKeyId ?? null });
+    const idem = this.idempotencyLookup(tenantId, projectId, "trace.ingest", options.idempotencyKey, requestFingerprint);
     if (idem !== null) return idem;
+    if (options.apiKeyId !== undefined) this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.apiKeyId), TRACE_INGEST_SCOPE);
     this.cloud.getRun(tenantId, projectId, runId);
     if (observations.length === 0) {
       throw new ValidationError("trace ingestion requires at least one observation");
     }
     this.consumeUsage(tenantId, projectId, "trace.ingest", { units: observations.length, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId });
-    const normalized = observations.map((item) => jsonRecord(item));
     const batchSha = sha256(JSON.stringify(sortJson(normalized)));
     const appended = normalized.map((item) => this.cloud.appendObservation(tenantId, projectId, runId, item));
     const batchId = options.batchId ?? newId("tracebatch");
@@ -365,7 +371,7 @@ export class SaaSControlPlaneService {
     };
     this.store.trace_batches[batchId] = record;
     const response = cloneJson(record) as JsonRecord;
-    this.idempotencyStore(tenantId, projectId, "trace.ingest", options.idempotencyKey, response);
+    this.idempotencyStore(tenantId, projectId, "trace.ingest", options.idempotencyKey, requestFingerprint, response);
     this.appendAudit(tenantId, projectId, "trace.ingest", { targetId: runId, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: { batch_id: batchId, batch_sha256: batchSha } });
     return response;
   }
@@ -407,14 +413,16 @@ export class SaaSControlPlaneService {
   }
 
   createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
-    this.cloud.getRun(tenantId, projectId, runId);
     if (options.apiKeyId === undefined) throw new ValidationError("artifact manifest upload requires apiKeyId with artifact:upload scope");
-    this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
-    const cached = this.idempotencyLookup(tenantId, projectId, "artifact.manifest", options.idempotencyKey);
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: ARTIFACT_MANIFEST_SCOPE, consumeRate: false });
+    const manifestCopy = cloneJson(manifest) as JsonRecord;
+    const requestFingerprint = requestFingerprintSha256({ run_id: runId, manifest: manifestCopy, artifact_id: options.artifactId ?? null, api_key_id: options.apiKeyId });
+    const cached = this.idempotencyLookup(tenantId, projectId, "artifact.manifest", options.idempotencyKey, requestFingerprint);
     if (cached !== null) return { ...cached, idempotent_replay: true };
+    this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.apiKeyId), ARTIFACT_MANIFEST_SCOPE);
+    this.cloud.getRun(tenantId, projectId, runId);
     const usage = this.consumeUsage(tenantId, projectId, "artifact.manifest", { apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId });
     const artifactId = options.artifactId ?? newId("artifact");
-    const manifestCopy = cloneJson(manifest) as JsonRecord;
     const record: JsonRecord = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
       artifact_id: artifactId,
@@ -433,7 +441,7 @@ export class SaaSControlPlaneService {
     this.store.artifact_manifests[artifactId] = record;
     this.appendAudit(tenantId, projectId, "artifact.manifest", { targetId: runId, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: record });
     const response = cloneJson(record) as JsonRecord;
-    this.idempotencyStore(tenantId, projectId, "artifact.manifest", options.idempotencyKey, response);
+    this.idempotencyStore(tenantId, projectId, "artifact.manifest", options.idempotencyKey, requestFingerprint, response);
     return response;
   }
 
@@ -740,14 +748,17 @@ export class SaaSControlPlaneService {
     }
   }
 
-  private idempotencyLookup(tenantId: string, projectId: string, operation: string, idempotencyKey?: string): JsonRecord | null {
+  private idempotencyLookup(tenantId: string, projectId: string, operation: string, idempotencyKey: string | undefined, requestFingerprintSha256: string): JsonRecord | null {
     if (idempotencyKey === undefined) return null;
     const record = this.store.idempotency_keys[idempotencyRecordKey(tenantId, projectId, operation, idempotencyKey)];
     if (record === undefined || !isRecord(record.response)) return null;
+    if (record.request_fingerprint_sha256 !== requestFingerprintSha256) {
+      throw new ValidationError(`idempotency key conflict for ${operation}: request fingerprint mismatch`);
+    }
     return { ...cloneJson(record.response), idempotent_replay: true } as JsonRecord;
   }
 
-  private idempotencyStore(tenantId: string, projectId: string, operation: string, idempotencyKey: string | undefined, response: JsonRecord): void {
+  private idempotencyStore(tenantId: string, projectId: string, operation: string, idempotencyKey: string | undefined, requestFingerprintSha256: string, response: JsonRecord): void {
     if (idempotencyKey === undefined) return;
     this.store.idempotency_keys[idempotencyRecordKey(tenantId, projectId, operation, idempotencyKey)] = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -755,6 +766,7 @@ export class SaaSControlPlaneService {
       project_id: projectId,
       operation,
       idempotency_key: idempotencyKey,
+      request_fingerprint_sha256: requestFingerprintSha256,
       response: cloneJson(response),
       created_at: utcNow(),
     };
@@ -1608,6 +1620,10 @@ function secretHash(secret: string): string {
 
 function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function requestFingerprintSha256(request: JsonRecord): string {
+  return sha256(JSON.stringify(sortJson(request)));
 }
 
 function newId(prefix: string): string {
