@@ -2744,3 +2744,65 @@ Safety boundary:
 Current interpretation:
 
 A3 now has a concrete API and DB path for external CI/GitHub readback evidence. This is a useful SaaS step from static mock evidence toward release control-plane evidence, but production still needs a live GitHub App/CI worker, A1 verifier packet adapter, hosted auth/RBAC, and Postgres/RLS.
+
+## 2026-07-08 - Readback worker CLI and UI/report visibility
+
+Continued A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` by connecting the readback capture path to a worker-style CLI and customer-visible dashboard/report surfaces.
+
+Implemented:
+
+- Added safe CLI:
+  - `services/report/a3_readback_capture_cli.mjs`
+- Added CLI tests:
+  - `tests/a3/a3_readback_capture_cli.test.mjs`
+- Added dry-run default and explicit `--submit`.
+- Added `--output-receipt` for CI artifacts.
+- Sanitized nested Authorization, token, cookie, email, password, API-key, and secret-like fields.
+- Normalized readback resource kinds across GitHub/API/fixture naming.
+- Added dashboard payload field:
+  - `release_evidence_readbacks`
+- Added readback records and counts to:
+  - `release_evidence_summary`
+  - JSON report export
+  - Markdown report export
+  - dashboard Release Evidence panel
+  - Report Center summary/tile
+  - print-ready report
+- Added A1/A2 contract-alignment documentation:
+  - `docs/a3/p3_readback_a1_a2_contract_alignment_2026_07_08.md`
+- Added Growth-Auditor documentation:
+  - `docs/a3/p3_growth_auditor_readback_worker_round_2026_07_08.md`
+- Added implementation documentation:
+  - `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`
+
+Verification:
+
+```text
+node --check services/report/a3_readback_capture_cli.mjs
+node --check services/report/report_builder.mjs
+node --check services/report/a3_store.mjs
+node --check apps/dashboard/src/app.mjs
+node --test tests/a3/a3_readback_capture_cli.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+git diff --check
+```
+
+Result: 81 pass, 0 fail.
+
+A1/A2 calibration:
+
+- A1 RunResult, trace, observation, and tool-call semantics were not changed.
+- A2 GradeResult, score, pass/fail, judge, rubric, and failure taxonomy semantics were not changed.
+- Readback evidence is still downstream of A1/A2 and only proves external release-control state.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No billing, hosted auth, team, API-key, Trust, or cloud mutation.
+- No token, cookie, email, Authorization header, raw key, raw account value, or secret value committed.
+
+Current interpretation:
+
+This closes the gap between "A3 can store readback" and "A3 can be fed by a worker and show readback to users." Production still needs a live GitHub App/GitHub Actions worker, hosted auth/RBAC, and production Postgres/RLS before readback can enforce a real customer release gate.

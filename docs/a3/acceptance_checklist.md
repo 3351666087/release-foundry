@@ -494,5 +494,12 @@
 - [x] Persist latest readback authority rows in the SQLite-backed A3 store and reload captured readbacks from durable state.
 - [x] Add `release_evidence_readbacks` usage meter and `release_evidence_readback` artifact registry entries.
 - [x] Document readback capture API in `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`.
+- [x] Add safe readback capture CLI for CI/worker usage with dry-run default and explicit `--submit`.
+- [x] Add dashboard payload `release_evidence_readbacks` so API-backed UI can display captured readback records.
+- [x] Add readback records, status counts, and resource counts to Release Evidence JSON/Markdown exports.
+- [x] Add readback rows to dashboard Release Evidence panel and print/PDF-ready report.
+- [x] Add tests proving dashboard/report/store/API readback visibility does not leak tokens, emails, Authorization headers, or raw secret values.
+- [x] Document that readback evidence is downstream of A1/A2 and does not replace A1 RunResult or A2 GradeResult proof.
+- [x] Document readback worker and visibility round in `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

@@ -3678,6 +3678,90 @@ function summarizeGithubRequiredCheckProof(proof = {}) {
   };
 }
 
+function normalizeReleaseEvidenceReadbackResourceKind(value, schemaVersion = "") {
+  const kind = String(value || "").toLowerCase();
+  if (["check_run", "github_check"].includes(kind) || String(schemaVersion).includes("github_check")) {
+    return "github_check";
+  }
+  if (["pr_comment", "pull_request_comment"].includes(kind) || String(schemaVersion).includes("pr_comment")) {
+    return "pr_comment";
+  }
+  if (["required_check", "branch_protection"].includes(kind) || String(schemaVersion).includes("required_check")) {
+    return "required_check";
+  }
+  return kind || "unknown";
+}
+
+function summarizeReleaseEvidenceReadbackRecord(record = {}, index = 0) {
+  const schemaVersion = record.schema_version || "unknown";
+  const resourceKind = normalizeReleaseEvidenceReadbackResourceKind(record.resource_kind || record.resourceKind, schemaVersion);
+  const status = record.readback_status || record.enforcement_readback_status || record.status || "missing";
+  return {
+    readback_id: record.readback_id || record.proof_id || `readback_${index + 1}`,
+    provider: record.provider || "github",
+    resource_kind: resourceKind,
+    readback_status: status,
+    readback_confirmed: record.readback_confirmed === true || status === "readback_confirmed",
+    stale: record.stale === true || status === "stale",
+    missing: record.missing === true || status === "missing",
+    deleted: record.deleted === true || status === "deleted",
+    enforced: record.enforced === true,
+    check_name: record.check_name || record.expected?.check_name || record.matched_check?.context || "unknown",
+    external_id_alias: record.external_id_alias
+      || record.expected?.check_run_id_alias
+      || record.expected?.comment_id_alias
+      || record.matched_check?.context
+      || null,
+    payload_hash_prefix: hashPrefix(record.payload_hash),
+    captured_at: record.captured_at || record.checked_at || null,
+    sanitized_error_class: record.sanitized_error_class || null
+  };
+}
+
+function countReleaseEvidenceReadbackRecords(records = [], field) {
+  return records.reduce((counts, record) => {
+    const key = record[field] || "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function collectReleaseEvidenceReadbackRecords(fixture = {}, fallbacks = []) {
+  const containers = [
+    fixture.readback_records,
+    fixture.releaseEvidenceReadbacks,
+    fixture.release_evidence_readbacks,
+    fixture.readbacks
+  ];
+  for (const container of containers) {
+    if (Array.isArray(container)) {
+      return container;
+    }
+    if (isObject(container)) {
+      for (const key of ["records", "latest_records", "readbacks", "readback_records"]) {
+        if (Array.isArray(container[key])) {
+          return container[key];
+        }
+      }
+    }
+  }
+  return fallbacks.filter((item) => item && item.available !== false && item.readback_status !== "missing");
+}
+
+function summarizeReleaseEvidenceReadbackHistory(fixture = {}, fallbacks = []) {
+  const records = collectReleaseEvidenceReadbackRecords(fixture, fallbacks)
+    .map((record, index) => summarizeReleaseEvidenceReadbackRecord(record, index));
+  return {
+    schema_version: "a3.release_evidence_readback_history.v1",
+    available: records.length > 0,
+    readback_count: records.length,
+    status_counts: countReleaseEvidenceReadbackRecords(records, "readback_status"),
+    resource_counts: countReleaseEvidenceReadbackRecords(records, "resource_kind"),
+    latest_records: records.slice(-8),
+    a1_a2_boundary: "Readback confirms external publication state; it does not replace A1 RunResult execution evidence or A2 GradeResult judge semantics."
+  };
+}
+
 function summarizeAuditBundleVerification(verification = {}) {
   const artifacts = objectOr(verification.artifacts);
   const custody = objectOr(verification.chain_of_custody);
@@ -3732,10 +3816,26 @@ function summarizeAuditArchiveVerification(verification = {}) {
 export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   const fixture = isObject(releaseEvidenceFixture) ? releaseEvidenceFixture : {};
   if (fixture.schema_version === "a3.release_evidence_summary.v1") {
+    const githubCheckReadback = summarizeGithubCheckReadbackReceipt(fixture.github_check_readback || {});
+    const prCommentReadback = summarizeGithubPrCommentReadbackReceipt(fixture.pr_comment_readback || {});
+    const requiredCheckProof = summarizeGithubRequiredCheckProof(fixture.required_check_proof || {});
+    const history = summarizeReleaseEvidenceReadbackHistory(fixture, [
+      githubCheckReadback,
+      prCommentReadback,
+      requiredCheckProof
+    ]);
     return {
       ...fixture,
       schema_version: "a3.release_evidence_summary.v1",
-      available: fixture.available === true
+      available: fixture.available === true,
+      github_check_readback: fixture.github_check_readback || githubCheckReadback,
+      pr_comment_readback: fixture.pr_comment_readback || prCommentReadback,
+      required_check_proof: fixture.required_check_proof || requiredCheckProof,
+      readback_history: fixture.readback_history || history,
+      readback_records: fixture.readback_records || history.latest_records,
+      readback_record_count: fixture.readback_record_count ?? history.readback_count,
+      readback_status_counts: fixture.readback_status_counts || history.status_counts,
+      readback_resource_counts: fixture.readback_resource_counts || history.resource_counts
     };
   }
 
@@ -3745,6 +3845,11 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   const githubCheckReadback = summarizeGithubCheckReadbackReceipt(fixture.githubCheckReadback || fixture.github_check_readback || {});
   const prCommentReadback = summarizeGithubPrCommentReadbackReceipt(fixture.githubPrCommentReadback || fixture.pr_comment_readback || {});
   const requiredCheckProof = summarizeGithubRequiredCheckProof(fixture.githubRequiredCheckProof || fixture.required_check_proof || {});
+  const readbackHistory = summarizeReleaseEvidenceReadbackHistory(fixture, [
+    fixture.githubCheckReadback || fixture.github_check_readback || githubCheckReadback,
+    fixture.githubPrCommentReadback || fixture.pr_comment_readback || prCommentReadback,
+    fixture.githubRequiredCheckProof || fixture.required_check_proof || requiredCheckProof
+  ]);
   const auditBundle = summarizeAuditBundleVerification(fixture.auditBundleVerification || fixture.audit_bundle_verification || {});
   const auditArchive = summarizeAuditArchiveVerification(fixture.auditArchiveVerification || fixture.audit_archive_verification || {});
   const surfaces = [githubCheck, prComment, requiredCheck, auditBundle, auditArchive];
@@ -3779,6 +3884,11 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
     github_check_readback: githubCheckReadback,
     pr_comment_readback: prCommentReadback,
     required_check_proof: requiredCheckProof,
+    readback_history: readbackHistory,
+    readback_records: readbackHistory.latest_records,
+    readback_record_count: readbackHistory.readback_count,
+    readback_status_counts: readbackHistory.status_counts,
+    readback_resource_counts: readbackHistory.resource_counts,
     audit_bundle_verification: auditBundle,
     audit_archive_verification: auditArchive,
     safety,
@@ -3988,6 +4098,11 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- GitHub check publish: ${releaseEvidence.github_check_publish.status}, dry-run ${releaseEvidence.github_check_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_check_publish.posted ? "yes" : "no"}`,
       `- PR comment publish: ${releaseEvidence.github_pr_comment_publish.status}, dry-run ${releaseEvidence.github_pr_comment_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_pr_comment_publish.posted ? "yes" : "no"}`,
       `- Required check plan: ${releaseEvidence.github_required_check_plan.check_name}, maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}`,
+      `- GitHub check readback: ${releaseEvidence.github_check_readback.readback_status}, hash ${releaseEvidence.github_check_readback.payload_hash ? hashPrefix(releaseEvidence.github_check_readback.payload_hash) : "missing"}, head SHA match ${releaseEvidence.github_check_readback.head_sha_match === null ? "unknown" : releaseEvidence.github_check_readback.head_sha_match ? "yes" : "no"}`,
+      `- PR comment readback: ${releaseEvidence.pr_comment_readback.readback_status}, body hash match ${releaseEvidence.pr_comment_readback.body_hash_match === null ? "unknown" : releaseEvidence.pr_comment_readback.body_hash_match ? "yes" : "no"}`,
+      `- Required check readback: ${releaseEvidence.required_check_proof.readback_status}, enforced ${releaseEvidence.required_check_proof.enforced ? "yes" : "no"}, plan-only guard ${releaseEvidence.required_check_proof.plan_only_must_not_claim_enforcement ? "on" : "off"}`,
+      `- Readback records: ${releaseEvidence.readback_record_count || 0}, confirmed ${releaseEvidence.readback_status_counts?.readback_confirmed || 0}, stale ${releaseEvidence.readback_status_counts?.stale || 0}, missing ${releaseEvidence.readback_status_counts?.missing || 0}`,
+      `- A1/A2 boundary: ${releaseEvidence.readback_history?.a1_a2_boundary || "Readback is external publication proof, not runner or judge proof."}`,
       `- Audit bundle verification: ${releaseEvidence.audit_bundle_verification.status}, root hash passed ${releaseEvidence.audit_bundle_verification.root_hash_passed ? "yes" : "no"}, artifacts ${releaseEvidence.audit_bundle_verification.artifact_passed}/${releaseEvidence.audit_bundle_verification.artifact_total}`,
       `- Audit archive verification: ${releaseEvidence.audit_archive_verification.status}, root hash passed ${releaseEvidence.audit_archive_verification.root_hash_passed ? "yes" : "no"}, signature passed ${releaseEvidence.audit_archive_verification.signature_passed ? "yes" : "no"}, entries ${releaseEvidence.audit_archive_verification.entry_passed}/${releaseEvidence.audit_archive_verification.entry_total}`,
       `- Safety: tokens included ${releaseEvidence.safety.token_included ? "yes" : "no"}, secret values ${releaseEvidence.safety.contains_secret_values || releaseEvidence.safety.secret_values_allowed ? "present/allowed" : "blocked"}, raw private key stored ${releaseEvidence.safety.raw_private_key_stored ? "yes" : "no"}, real GitHub mutation ${releaseEvidence.safety.real_github_mutation_performed ? "yes" : "no"}`,

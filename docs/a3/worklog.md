@@ -4025,3 +4025,70 @@ Result:
 ### Current interpretation
 
 A3 now has an API/DB path for runtime readback evidence. The next production step is a maintainer-approved CI or GitHub App worker that performs live readback and submits sanitized receipts to this API.
+
+## 2026-07-08 - Readback Worker CLI And Dashboard Visibility
+
+### Goal
+
+Continue A3 along the commercial SaaS plan by making release evidence readback usable from a worker/CI command and visible in the dashboard, Report Center, JSON export, Markdown export, and print-ready report.
+
+### Work completed
+
+- Added `services/report/a3_readback_capture_cli.mjs`.
+- Added `tests/a3/a3_readback_capture_cli.test.mjs`.
+- CLI defaults to dry-run and only submits when `--submit` is provided.
+- CLI posts sanitized readback evidence to `POST /api/a3/releases/:releaseId/readbacks`.
+- CLI supports `--output-receipt` so CI can save a redacted artifact.
+- Normalized readback resource kinds:
+  - `check_run` / `github_check` -> `github_check`
+  - `pr_comment` / `pull_request_comment` -> `pr_comment`
+  - `required_check` / `branch_protection` -> `required_check`
+- Added `release_evidence_readbacks` to API-backed dashboard payloads.
+- Added readback history to `release_evidence_summary`.
+- Added Release Evidence readback rows to the dashboard panel.
+- Added readback summary to Report Center text.
+- Added readback fields to JSON, Markdown, and print/PDF-ready report exports.
+- Added A1/A2 contract-alignment doc:
+  - `docs/a3/p3_readback_a1_a2_contract_alignment_2026_07_08.md`
+- Added Growth-Auditor doc:
+  - `docs/a3/p3_growth_auditor_readback_worker_round_2026_07_08.md`
+- Added implementation summary:
+  - `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`
+
+### Verification
+
+```text
+node --check services/report/a3_readback_capture_cli.mjs
+node --check services/report/report_builder.mjs
+node --check services/report/a3_store.mjs
+node --check apps/dashboard/src/app.mjs
+node --test tests/a3/a3_readback_capture_cli.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+git diff --check
+```
+
+Result:
+
+```text
+81 tests
+81 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 runner, trace, observation, and tool-call contracts were not changed.
+- A2 judge, score, pass/fail, rubric, and failure taxonomy semantics were not changed.
+- A3 readback is explicitly documented as external release-control proof, not as A1 or A2 proof.
+- Dashboard/report copy now keeps "GitHub readback confirmed" separate from "A1 RunResult valid" and "A2 GradeResult passed".
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made.
+- No branch protection, billing, auth, API-key, team, Trust, or cloud mutation was made.
+- No token, cookie, email, Authorization header, raw key, account data, or secret value was committed.
+
+### Current interpretation
+
+A3 now has the local path needed for a future CI worker: collect a redacted GitHub readback receipt, submit it through the A3 API, persist it, and show it in customer-facing dashboard/report surfaces. The remaining commercial step is a maintainer-approved live GitHub App or GitHub Actions worker plus hosted auth/RBAC and production Postgres/RLS.

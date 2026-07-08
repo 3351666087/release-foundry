@@ -175,6 +175,17 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   });
   assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.readback_status, "stale");
   assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.body_hash_match, false);
+  assert.equal(releaseEvidenceAfterReadback.readback_records.length, 1);
+  assert.equal(releaseEvidenceAfterReadback.readback_records[0].resource_kind, "pr_comment");
+
+  const dashboardAfterReadback = await store.getDashboardSnapshot("mock");
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.schema_version, "a3.release_evidence_readback_dashboard.v1");
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.readback_count, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.status_counts.stale, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_summary.readback_record_count, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_summary.readback_records[0].resource_kind, "pr_comment");
+  assert.match(dashboardAfterReadback.release_evidence_summary.readback_history.a1_a2_boundary, /A1 RunResult/);
+  assert.doesNotMatch(JSON.stringify(dashboardAfterReadback.release_evidence_readbacks), /reviewer@example.com|Bearer|Authorization/);
 
   const crossTenantReleaseEvidence = await store.getReleaseEvidenceSummary("current", {
     source: "mock",

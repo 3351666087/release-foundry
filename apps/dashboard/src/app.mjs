@@ -79,6 +79,7 @@ const state = {
   artifactRegistry: {},
   reviewWorkflow: {},
   releaseEvidence: {},
+  releaseEvidenceReadbacks: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
@@ -108,10 +109,18 @@ async function loadOptionalJson(path) {
 }
 
 async function loadReleaseEvidenceFixtures() {
+  const githubCheckReadback = await loadOptionalJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+  const githubPrCommentReadback = await loadOptionalJson("../../fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json");
+  const githubRequiredCheckProof = await loadOptionalJson("../../fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json");
   return {
     githubCheckPublishReceipt: await loadOptionalJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
     githubPrCommentPublishReceipt: await loadOptionalJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
     githubRequiredCheckPlan: await loadOptionalJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json"),
+    githubCheckReadback,
+    githubPrCommentReadback,
+    githubRequiredCheckProof,
+    readback_records: [githubCheckReadback, githubPrCommentReadback, githubRequiredCheckProof]
+      .filter((item) => item && item.schema_version),
     auditBundleVerification: await loadOptionalJson("../../fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json"),
     auditArchiveVerification: await loadOptionalJson("../../fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json")
   };
@@ -1177,19 +1186,28 @@ function renderReleaseEvidenceSummary() {
   $("release-evidence-metrics").replaceChildren(
     healthTile(String(releaseEvidence.available_surface_count), "evidence surfaces"),
     healthTile(releaseEvidence.github_check_publish.dry_run ? "dry-run" : releaseEvidence.github_check_publish.posted ? "posted" : "missing", "GitHub check"),
+    healthTile(String(releaseEvidence.readback_record_count || 0), "readbacks"),
     healthTile(releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing", "bundle hash"),
     healthTile(releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing", "archive signature")
   );
   $("release-evidence-github").replaceChildren(
     releaseEvidenceRow("Check run", `${releaseEvidence.github_check_publish.status} / ${releaseEvidence.github_check_publish.check_name}`, `${releaseEvidence.github_check_publish.repo}; dry-run ${releaseEvidence.github_check_publish.dry_run ? "yes" : "no"}; posted ${releaseEvidence.github_check_publish.posted ? "yes" : "no"}`),
     releaseEvidenceRow("PR comment", `${releaseEvidence.github_pr_comment_publish.status} / PR ${releaseEvidence.github_pr_comment_publish.pull_number || "unknown"}`, `${releaseEvidence.github_pr_comment_publish.repo}; dry-run ${releaseEvidence.github_pr_comment_publish.dry_run ? "yes" : "no"}; posted ${releaseEvidence.github_pr_comment_publish.posted ? "yes" : "no"}`),
-    releaseEvidenceRow("Required check", `${releaseEvidence.github_required_check_plan.status} / ${releaseEvidence.github_required_check_plan.check_name}`, `${releaseEvidence.github_required_check_plan.repo}@${releaseEvidence.github_required_check_plan.branch}; maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}`)
+    releaseEvidenceRow("Required check", `${releaseEvidence.github_required_check_plan.status} / ${releaseEvidence.github_required_check_plan.check_name}`, `${releaseEvidence.github_required_check_plan.repo}@${releaseEvidence.github_required_check_plan.branch}; maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}`),
+    releaseEvidenceRow("Check readback", `${releaseEvidence.github_check_readback.readback_status} / ${releaseEvidence.github_check_readback.check_name}`, `confirmed ${releaseEvidence.github_check_readback.readback_confirmed ? "yes" : "no"}; head SHA match ${releaseEvidence.github_check_readback.head_sha_match === null ? "unknown" : releaseEvidence.github_check_readback.head_sha_match ? "yes" : "no"}; hash ${shortHash(releaseEvidence.github_check_readback.payload_hash)}`),
+    releaseEvidenceRow("PR comment readback", `${releaseEvidence.pr_comment_readback.readback_status} / PR ${releaseEvidence.pr_comment_readback.pull_number || "unknown"}`, `marker ${releaseEvidence.pr_comment_readback.marker_match === null ? "unknown" : releaseEvidence.pr_comment_readback.marker_match ? "match" : "mismatch"}; body hash ${releaseEvidence.pr_comment_readback.body_hash_match === null ? "unknown" : releaseEvidence.pr_comment_readback.body_hash_match ? "match" : "mismatch"}; hash ${shortHash(releaseEvidence.pr_comment_readback.payload_hash)}`),
+    releaseEvidenceRow("Required-check readback", `${releaseEvidence.required_check_proof.readback_status} / enforced ${releaseEvidence.required_check_proof.enforced ? "yes" : "no"}`, `plan-only guard ${releaseEvidence.required_check_proof.plan_only_must_not_claim_enforcement ? "on" : "off"}; checked ${releaseEvidence.required_check_proof.checked_count || 0}; hash ${shortHash(releaseEvidence.required_check_proof.payload_hash)}`)
   );
   $("release-evidence-verification").replaceChildren(
+    releaseEvidenceRow("Readback history", `${releaseEvidence.readback_record_count || 0} record(s)`, `confirmed ${releaseEvidence.readback_status_counts?.readback_confirmed || 0}, stale ${releaseEvidence.readback_status_counts?.stale || 0}, missing ${releaseEvidence.readback_status_counts?.missing || 0}. ${releaseEvidence.readback_history?.a1_a2_boundary || "Readback does not replace A1/A2 evidence."}`),
     releaseEvidenceRow("Audit bundle", `${releaseEvidence.audit_bundle_verification.status} / hash ${releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing"}`, `${releaseEvidence.audit_bundle_verification.artifact_passed}/${releaseEvidence.audit_bundle_verification.artifact_total} artifacts, ${releaseEvidence.audit_bundle_verification.custody_passed}/${releaseEvidence.audit_bundle_verification.custody_total} custody events, root ${releaseEvidence.audit_bundle_verification.root_hash_prefix || "n/a"}`),
     releaseEvidenceRow("Audit archive", `${releaseEvidence.audit_archive_verification.status} / signature ${releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing"}`, `${releaseEvidence.audit_archive_verification.entry_passed}/${releaseEvidence.audit_archive_verification.entry_total} entries, ${releaseEvidence.audit_archive_verification.signature_algorithm}, root ${releaseEvidence.audit_archive_verification.root_hash_prefix || "n/a"}`),
     releaseEvidenceRow("Safety", releaseEvidence.safety.dry_run_only ? "dry-run only" : "live mutation seen", `secret values ${releaseEvidence.safety.contains_secret_values || releaseEvidence.safety.secret_values_allowed ? "present/allowed" : "blocked"}, raw private key ${releaseEvidence.safety.raw_private_key_stored ? "stored" : "not stored"}`)
   );
+}
+
+function shortHash(value) {
+  return typeof value === "string" && value.length ? value.slice(0, 12) : "missing";
 }
 
 function releaseEvidenceRow(title, value, detail) {
@@ -1418,7 +1436,7 @@ function renderReportCenter() {
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence` : "no release evidence"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
@@ -1426,7 +1444,7 @@ function renderReportCenter() {
     reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
   ];
   if (releaseEvidence.available) {
-    tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}.`));
+    tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}, readbacks ${releaseEvidence.readback_record_count || 0} (${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed).`));
   }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
@@ -1759,6 +1777,11 @@ function renderPrintReport() {
         ["GitHub check", releaseEvidence.available ? `${releaseEvidence.github_check_publish.status}, dry-run ${releaseEvidence.github_check_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_check_publish.posted ? "yes" : "no"}` : "missing"],
         ["PR comment", releaseEvidence.available ? `${releaseEvidence.github_pr_comment_publish.status}, dry-run ${releaseEvidence.github_pr_comment_publish.dry_run ? "yes" : "no"}, posted ${releaseEvidence.github_pr_comment_publish.posted ? "yes" : "no"}` : "missing"],
         ["Required check", releaseEvidence.available ? `${releaseEvidence.github_required_check_plan.check_name}, maintainer approval ${releaseEvidence.github_required_check_plan.maintainer_approval_required ? "required" : "not required"}` : "missing"],
+        ["Check readback", releaseEvidence.available ? `${releaseEvidence.github_check_readback.readback_status}, head SHA match ${releaseEvidence.github_check_readback.head_sha_match === null ? "unknown" : releaseEvidence.github_check_readback.head_sha_match ? "yes" : "no"}` : "missing"],
+        ["PR comment readback", releaseEvidence.available ? `${releaseEvidence.pr_comment_readback.readback_status}, body hash match ${releaseEvidence.pr_comment_readback.body_hash_match === null ? "unknown" : releaseEvidence.pr_comment_readback.body_hash_match ? "yes" : "no"}` : "missing"],
+        ["Required-check readback", releaseEvidence.available ? `${releaseEvidence.required_check_proof.readback_status}, enforced ${releaseEvidence.required_check_proof.enforced ? "yes" : "no"}, plan-only guard ${releaseEvidence.required_check_proof.plan_only_must_not_claim_enforcement ? "on" : "off"}` : "missing"],
+        ["Readback records", releaseEvidence.available ? `${releaseEvidence.readback_record_count || 0} total, ${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed, ${releaseEvidence.readback_status_counts?.stale || 0} stale` : "missing"],
+        ["A1/A2 boundary", releaseEvidence.available ? releaseEvidence.readback_history?.a1_a2_boundary || "Readback does not replace A1/A2 evidence." : "missing"],
         ["Audit bundle", releaseEvidence.available ? `${releaseEvidence.audit_bundle_verification.status}, hash ${releaseEvidence.audit_bundle_verification.root_hash_passed ? "pass" : "missing"}, artifacts ${releaseEvidence.audit_bundle_verification.artifact_passed}/${releaseEvidence.audit_bundle_verification.artifact_total}` : "missing"],
         ["Audit archive", releaseEvidence.available ? `${releaseEvidence.audit_archive_verification.status}, signature ${releaseEvidence.audit_archive_verification.signature_passed ? "pass" : "missing"}, entries ${releaseEvidence.audit_archive_verification.entry_passed}/${releaseEvidence.audit_archive_verification.entry_total}` : "missing"],
         ["Safety", releaseEvidence.available ? `tokens ${releaseEvidence.safety.token_included ? "included" : "not included"}, real GitHub mutation ${releaseEvidence.safety.real_github_mutation_performed ? "yes" : "no"}, raw private key ${releaseEvidence.safety.raw_private_key_stored ? "stored" : "not stored"}` : "missing"]
@@ -2521,6 +2544,15 @@ function printReport() {
 }
 
 function applyApiDashboardPayload(payload) {
+  const releaseEvidenceReadbacks = payload.release_evidence_readbacks || {};
+  const baseReleaseEvidence = payload.release_evidence || payload.release_evidence_summary || {};
+  const readbackRecords = Array.isArray(releaseEvidenceReadbacks.latest_records)
+    ? releaseEvidenceReadbacks.latest_records
+    : Array.isArray(releaseEvidenceReadbacks.records)
+      ? releaseEvidenceReadbacks.records
+      : Array.isArray(releaseEvidenceReadbacks.readback_records)
+        ? releaseEvidenceReadbacks.readback_records
+        : [];
   state.runs = payload.run_fixture || {};
   state.grades = payload.grade_fixture || {};
   state.coverage = payload.coverage || {};
@@ -2539,7 +2571,15 @@ function applyApiDashboardPayload(payload) {
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.reviewWorkflow = payload.review_workflow || {};
-  state.releaseEvidence = payload.release_evidence || payload.release_evidence_summary || {};
+  state.releaseEvidenceReadbacks = releaseEvidenceReadbacks;
+  state.releaseEvidence = {
+    ...baseReleaseEvidence,
+    ...(readbackRecords.length ? { readback_records: readbackRecords } : {}),
+    readback_history: releaseEvidenceReadbacks.schema_version ? releaseEvidenceReadbacks : baseReleaseEvidence.readback_history,
+    readback_record_count: releaseEvidenceReadbacks.readback_count ?? baseReleaseEvidence.readback_record_count,
+    readback_status_counts: releaseEvidenceReadbacks.status_counts || baseReleaseEvidence.readback_status_counts,
+    readback_resource_counts: releaseEvidenceReadbacks.resource_counts || baseReleaseEvidence.readback_resource_counts
+  };
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2900,6 +2940,7 @@ function resetCalibrationState() {
   state.artifactRegistry = {};
   state.reviewWorkflow = {};
   state.releaseEvidence = {};
+  state.releaseEvidenceReadbacks = {};
 }
 
 async function init() {

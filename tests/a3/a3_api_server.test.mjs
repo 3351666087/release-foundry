@@ -99,6 +99,15 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_status, "readback_confirmed");
     assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_confirmed, true);
     assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.payload_hash, readbackReceipt.payload_hash);
+    assert.equal(releaseEvidenceAfterCapture.readback_records.length, 1);
+    assert.equal(releaseEvidenceAfterCapture.readback_records[0].resource_kind, "github_check");
+
+    const dashboardAfterCapture = await getJson(`${url}/api/a3/dashboard?source=mock`);
+    assert.equal(dashboardAfterCapture.release_evidence_readbacks.schema_version, "a3.release_evidence_readback_dashboard.v1");
+    assert.equal(dashboardAfterCapture.release_evidence_readbacks.readback_count, 1);
+    assert.equal(dashboardAfterCapture.release_evidence_summary.readback_status_counts.readback_confirmed, 1);
+    assert.equal(dashboardAfterCapture.release_evidence_summary.readback_records[0].resource_kind, "github_check");
+    assert.doesNotMatch(JSON.stringify(dashboardAfterCapture.release_evidence_readbacks), /should-not-leak|release-owner@example.com|Bearer/);
 
     const usageAfterReadback = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
     assert.equal(usageAfterReadback.meters.some((item) => item.meter === "release_evidence_readbacks" && item.quantity === 1), true);

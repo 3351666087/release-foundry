@@ -495,6 +495,7 @@ test("A3 dashboard wires release evidence publish and verification display", asy
 
   assert.match(html, /summarizeReleaseEvidenceSummary/);
   assert.match(html, /releaseEvidence: \{\}/);
+  assert.match(html, /releaseEvidenceReadbacks: \{\}/);
   assert.match(html, /id="release-evidence"/);
   assert.match(html, /id="release-evidence-status"/);
   assert.match(html, /id="release-evidence-metrics"/);
@@ -504,14 +505,25 @@ test("A3 dashboard wires release evidence publish and verification display", asy
   assert.match(html, /a3_github_check_publish_receipt_dry_run\.redacted\.json/);
   assert.match(html, /a3_github_pr_comment_publish_receipt_dry_run\.redacted\.json/);
   assert.match(html, /a3_github_required_check_plan\.redacted\.json/);
+  assert.match(html, /a3_github_check_readback_confirmed\.redacted\.json/);
+  assert.match(html, /a3_github_pr_comment_readback_confirmed\.redacted\.json/);
+  assert.match(html, /a3_github_required_check_proof_plan_only\.redacted\.json/);
   assert.match(html, /a3_audit_bundle_verification_passed\.redacted\.json/);
   assert.match(html, /a3_audit_archive_verification_passed\.redacted\.json/);
   assert.match(html, /function renderReleaseEvidenceSummary\(\)/);
+  assert.match(html, /function shortHash\(value\)/);
   assert.match(html, /function releaseEvidenceRow\(title, value, detail\)/);
   assert.match(html, /renderReleaseEvidenceSummary\(\)/);
   assert.match(html, /state\.releaseEvidence/);
+  assert.match(html, /state\.releaseEvidenceReadbacks/);
   assert.match(html, /release_evidence_summary/);
+  assert.match(html, /release_evidence_readbacks/);
   assert.match(html, /Release Evidence/);
+  assert.match(html, /Check readback/);
+  assert.match(html, /PR comment readback/);
+  assert.match(html, /Required-check readback/);
+  assert.match(html, /Readback history/);
+  assert.match(html, /A1\/A2 boundary/);
   assert.match(html, /archive signature/);
   assert.match(html, /real GitHub mutation/);
 });

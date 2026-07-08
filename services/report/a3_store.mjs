@@ -1280,6 +1280,21 @@ function normalizeSnapshot(snapshot = {}) {
 function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
   const releaseEvidenceSummary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
+  const releaseId = releaseEvidenceReleaseId(snapshot);
+  const releaseEvidenceReadbackHistory = buildReleaseEvidenceReadbackDashboardHistory(options.releaseEvidenceReadbacks || [], {
+    source: snapshot.source,
+    releaseId,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
+  const releaseEvidenceForDashboard = {
+    ...releaseEvidenceSummary,
+    readback_history: releaseEvidenceReadbackHistory,
+    readback_records: releaseEvidenceReadbackHistory.latest_records,
+    readback_record_count: releaseEvidenceReadbackHistory.readback_count,
+    readback_status_counts: releaseEvidenceReadbackHistory.status_counts,
+    readback_resource_counts: releaseEvidenceReadbackHistory.resource_counts
+  };
   const usageLedger = buildA3UsageLedger(snapshot, {
     reports: options.reports || [],
     auditEvents: options.auditEvents || [],
@@ -1332,12 +1347,13 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
-    release_evidence: releaseEvidenceSummary,
-    release_evidence_summary: releaseEvidenceSummary,
+    release_evidence: releaseEvidenceForDashboard,
+    release_evidence_summary: releaseEvidenceForDashboard,
+    release_evidence_readbacks: releaseEvidenceReadbackHistory,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
-      release_id: releaseEvidenceReleaseId(snapshot),
-      path: `/api/a3/releases/${encodeURIComponent(releaseEvidenceReleaseId(snapshot))}/evidence-summary?source=${encodeURIComponent(snapshot.source)}`,
+      release_id: releaseId,
+      path: `/api/a3/releases/${encodeURIComponent(releaseId)}/evidence-summary?source=${encodeURIComponent(snapshot.source)}`,
       api_backed: true,
       raw_fixture_exposed: false
     },
@@ -1654,6 +1670,49 @@ function latestReleaseEvidenceReadbacks(readbacks = [], options = {}) {
     pr_comment: byKind.pr_comment || null,
     required_check: byKind.required_check || null,
     records: filtered
+  };
+}
+
+function buildReleaseEvidenceReadbackDashboardHistory(readbacks = [], options = {}) {
+  const filtered = filterReleaseEvidenceReadbacks(readbacks, options);
+  const records = filtered.map((readback) => ({
+    schema_version: "a3.release_evidence_readback_dashboard_record.v1",
+    readback_id: readback.readback_id,
+    provider: readback.provider || "github",
+    resource_kind: normalizeReadbackResourceKind(readback.resource_kind),
+    readback_status: readback.readback_status || "missing",
+    readback_confirmed: readback.readback_confirmed === true,
+    stale: readback.stale === true,
+    missing: readback.missing === true,
+    deleted: readback.deleted === true,
+    enforced: readback.enforced === true,
+    check_name: readback.check_name || "unknown",
+    external_id_alias: readback.external_id_alias || null,
+    head_sha_alias: readback.head_sha_alias || null,
+    payload_hash_prefix: typeof readback.payload_hash === "string" ? readback.payload_hash.slice(0, 16) : null,
+    captured_at: readback.captured_at || null,
+    actor_hash: readback.actor_hash || "actor_[REDACTED_HASH]",
+    sanitized_error_class: readback.sanitized_error_class || null
+  }));
+  return {
+    schema_version: "a3.release_evidence_readback_dashboard.v1",
+    release_id: options.releaseId || "current",
+    source: options.source || "unknown",
+    tenant_scope: {
+      organization_id: options.organizationId || "org-local",
+      project_id: options.projectId || "project-local"
+    },
+    available: records.length > 0,
+    readback_count: records.length,
+    status_counts: countBy(records, "readback_status"),
+    resource_counts: countBy(records, "resource_kind"),
+    latest_records: records.slice(-8),
+    a1_a2_boundary: "Readback confirms external publication state; keep A1 RunResult and A2 GradeResult as separate source-of-truth evidence.",
+    safety: {
+      raw_payload_exposed: false,
+      raw_secret_values_allowed: false,
+      raw_actor_identity_exposed: false
+    }
   };
 }
 
