@@ -32,7 +32,16 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
     assert.equal(releaseEvidence.release_evidence_summary.available, true);
+    assert.equal(releaseEvidence.release_evidence_health.schema_version, "a3.release_evidence_health.v1");
+    assert.equal(releaseEvidence.next_action.action, "publish_github_check");
     assert.equal(releaseEvidence.safety.raw_request_body_exposed, false);
+
+    const crossTenantReleaseEvidence = await fetch(`${url}${dashboard.release_evidence_api.path}&organization_id=org-other`);
+    assert.equal(crossTenantReleaseEvidence.status, 404);
+    const crossTenantPayload = await crossTenantReleaseEvidence.json();
+    assert.equal(crossTenantPayload.error, "not_found");
+    assert.equal(crossTenantPayload.kind, "release_evidence");
+    assert.doesNotMatch(JSON.stringify(crossTenantPayload), /Release Evidence|github_check_publish|audit_bundle_verification/);
 
     const migrations = await getJson(`${url}/api/a3/db-migrations`);
     assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");
@@ -273,11 +282,42 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(report.share_url_path, /^\/r\/a3s_/);
     assert.match(report.internal_url_path, /^\/reports\/a3r_/);
 
+    const otherTenantShareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "A3 other tenant report",
+        organization_id: "org-other",
+        project_id: "project-other"
+      })
+    });
+    assert.equal(otherTenantShareResponse.status, 201);
+    const otherTenantReport = await otherTenantShareResponse.json();
+
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
     assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
     assert.equal(savedReport.share_link.token_hash, undefined);
     assert.match(savedReport.share_link.token_hash_prefix, /^[a-f0-9]{12}$/);
+
+    const crossTenantReport = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}?source=mock`);
+    assert.equal(crossTenantReport.status, 404);
+    const crossTenantManifest = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/manifest?source=mock`);
+    assert.equal(crossTenantManifest.status, 404);
+    const crossTenantView = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/view?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ viewer: "wrong-tenant" })
+    });
+    assert.equal(crossTenantView.status, 404);
+    const crossTenantRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/revoke?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "wrong-tenant" })
+    });
+    assert.equal(crossTenantRevoke.status, 404);
+    const scopedOtherTenantReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}?source=mock&organization_id=org-other&project_id=project-other`);
+    assert.equal(scopedOtherTenantReport.report_id, otherTenantReport.report_id);
 
     const manifest = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/manifest?source=mock`);
     assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
@@ -296,6 +336,9 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(reportCenter.summary.release_evidence_ready_count, 1);
     assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
     assert.ok(reportCenter.artifact_registry.entries.some((item) => item.report_id === report.report_id));
+
+    const reportList = await getJson(`${url}/api/a3/reports?source=mock`);
+    assert.deepEqual(reportList.reports.map((item) => item.report_id), [report.report_id]);
 
     const artifactRegistry = await getJson(`${url}/api/a3/artifacts/registry?source=mock`);
     assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
@@ -350,6 +393,27 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API server redacts unexpected internal error messages", async () => {
+  const store = {
+    storage_mode: "memory",
+    async getDashboardSnapshot() {
+      throw new Error(`Authorization: Bearer ${"x".repeat(24)} ASHR_API_KEY=secret_live_value owner@example.com`);
+    }
+  };
+  const { server, url } = await startA3ApiServer({ store });
+  try {
+    const response = await fetch(`${url}/api/a3/dashboard`);
+    assert.equal(response.status, 500);
+    const payload = await response.json();
+    assert.equal(payload.error, "internal_error");
+    assert.match(payload.message, /Bearer \[REDACTED\]/);
+    assert.match(payload.message, /ASHR_API_KEY=\[REDACTED\]/);
+    assert.doesNotMatch(JSON.stringify(payload), /secret_live_value|owner@example.com|x{24}/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -468,5 +468,10 @@
 - [x] Refresh stale committed Gate CLI/audit-bundle fixtures after latest `main` conflict-resolution artifact changes.
 - [x] Verify A3 Gate CLI after GitHub publish evidence sealing: 21 pass, 0 fail.
 - [x] Move release evidence summary from static display into A3 store/API/hosted-report/Report Center/SQLite paths.
+- [x] Add release evidence health, next-action, and sanitized diff helpers.
+- [x] Add local tenant-scope negative tests for release evidence API reads.
+- [x] Add local tenant-scope negative tests for report detail, manifest, view, revoke, and report-list routes.
+- [x] Verify SQLite report persistence stores report tenant scope instead of defaulting to `org-local`.
+- [x] Redact unexpected API internal-error messages before returning them to clients.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
-- [ ] Add tenant-scope negative tests for release evidence API after hosted auth/RBAC is available.
+- [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

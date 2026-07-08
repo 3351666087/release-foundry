@@ -10,6 +10,7 @@ import {
 } from "./report_builder.mjs";
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
+import { buildReleaseEvidenceHealth } from "./a3_release_evidence.mjs";
 import {
   buildSaasAdminActionRequest,
   buildSaasAdminConsole,
@@ -271,7 +272,7 @@ export function createMemoryA3Store(seed = {}) {
     async getDashboardSnapshot(source = "mock") {
       const snapshot = selectSnapshot(snapshots, source);
       return buildDashboardPayload(snapshot, this.storage_mode, {
-        reports: [...reports.values()],
+        reports: filterReportsForSnapshot([...reports.values()], snapshot),
         auditEvents,
         adminActionRequests,
         reviewWorkflowRecords,
@@ -435,12 +436,13 @@ export function createMemoryA3Store(seed = {}) {
 
     async getUsageLedger(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
       return buildA3UsageLedger(snapshot, {
-        reports: [...reports.values()],
+        reports: filterReportsForSnapshot([...reports.values()], scopedSnapshot),
         auditEvents,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         periodStart: options.periodStart,
         periodEnd: options.periodEnd
       });
@@ -616,7 +618,10 @@ export function createMemoryA3Store(seed = {}) {
     async getReleaseEvidenceSummary(releaseId = "current", options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
-      if (!releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)) {
+      if (
+        !releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)
+        || !snapshotMatchesTenantScope(snapshot, options)
+      ) {
         return null;
       }
       return buildReleaseEvidenceApiResponse(snapshot, {
@@ -644,24 +649,33 @@ export function createMemoryA3Store(seed = {}) {
       return report;
     },
 
-    async getReport(reportId) {
+    async getReport(reportId, options = {}) {
       const report = reports.get(reportId);
+      if (!report || !reportMatchesRequestScope(report, snapshots, options)) {
+        return null;
+      }
       return report ? sanitizeReportForRead(report) : null;
     },
 
     async getReportManifest(reportId, options = {}) {
       const report = reports.get(reportId);
-      if (!report) {
+      if (!report || !reportMatchesRequestScope(report, snapshots, options)) {
         return null;
       }
       const snapshot = selectSnapshot(snapshots, options.source || report.source);
+      const reportScope = reportTenantScope(report);
+      const scopedSnapshot = snapshotWithScope(snapshot, {
+        organizationId: options.organizationId || reportScope.organizationId,
+        projectId: options.projectId || reportScope.projectId
+      });
+      const scopedReports = filterReportsForSnapshot([...reports.values()], scopedSnapshot);
       return buildReportCenterManifest(report, {
         usageLedger: buildA3UsageLedger(snapshot, {
-          reports: [...reports.values()],
+          reports: scopedReports,
           auditEvents,
           importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
-          organizationId: options.organizationId || snapshot.organizationId,
-          projectId: options.projectId || snapshot.projectId
+          organizationId: scopedSnapshot.organizationId,
+          projectId: scopedSnapshot.projectId
         }),
         migrationPlan: buildA3SqlMigrationPlan()
       });
@@ -669,34 +683,36 @@ export function createMemoryA3Store(seed = {}) {
 
     async getReportCenter(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const scopedReports = filterReportsForSnapshot([...reports.values()], scopedSnapshot);
       const usageLedger = buildA3UsageLedger(snapshot, {
-        reports: [...reports.values()],
+        reports: scopedReports,
         auditEvents,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
       });
       const migrationPlan = buildA3SqlMigrationPlan();
-      const baseReportCenter = buildReportCenterIndex([...reports.values()], {
+      const baseReportCenter = buildReportCenterIndex(scopedReports, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         migrationPlan
       });
       const productConsole = buildA3ProductConsole(snapshot, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         reportCenter: baseReportCenter,
         auditEvents,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
       });
-      return buildReportCenterIndex([...reports.values()], {
+      return buildReportCenterIndex(scopedReports, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         migrationPlan,
         productConsole,
@@ -713,25 +729,27 @@ export function createMemoryA3Store(seed = {}) {
 
     async getArtifactRegistry(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const scopedReports = filterReportsForSnapshot([...reports.values()], scopedSnapshot);
       const usageLedger = buildA3UsageLedger(snapshot, {
-        reports: [...reports.values()],
+        reports: scopedReports,
         auditEvents,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
       });
       const migrationPlan = buildA3SqlMigrationPlan();
-      const reportCenter = buildReportCenterIndex([...reports.values()], {
+      const reportCenter = buildReportCenterIndex(scopedReports, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         migrationPlan
       });
       const productConsole = buildA3ProductConsole(snapshot, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         reportCenter,
         auditEvents,
@@ -747,8 +765,8 @@ export function createMemoryA3Store(seed = {}) {
       });
       return buildA3ArtifactRegistry({
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         reportCenter,
         usageLedger,
         migrationPlan,
@@ -759,24 +777,26 @@ export function createMemoryA3Store(seed = {}) {
 
     async getProductConsole(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const scopedReports = filterReportsForSnapshot([...reports.values()], scopedSnapshot);
       const usageLedger = buildA3UsageLedger(snapshot, {
-        reports: [...reports.values()],
+        reports: scopedReports,
         auditEvents,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
       });
-      const reportCenter = buildReportCenterIndex([...reports.values()], {
+      const reportCenter = buildReportCenterIndex(scopedReports, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         migrationPlan: buildA3SqlMigrationPlan()
       });
       return buildA3ProductConsole(snapshot, {
         source: snapshot.source,
-        organizationId: options.organizationId || snapshot.organizationId,
-        projectId: options.projectId || snapshot.projectId,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
         usageLedger,
         reportCenter,
         auditEvents,
@@ -786,15 +806,18 @@ export function createMemoryA3Store(seed = {}) {
 
     async getReportForView(reportId, options = {}) {
       const report = reports.get(reportId);
-      if (!report) {
+      if (!report || !reportMatchesRequestScope(report, snapshots, options)) {
         return null;
       }
       const now = options.viewedAt || new Date().toISOString();
       const status = reportLifecycleStatus(report, now);
       if (status === "shareable") {
+        const reportScope = reportTenantScope(report);
         const event = {
           event_id: `rve_${sha256(`${reportId}:${now}:${auditEvents.length}`).slice(0, 12)}`,
           report_id: reportId,
+          organization_id: reportScope.organizationId,
+          project_id: reportScope.projectId,
           event_type: "report_view",
           viewed_at: now,
           viewer: options.viewer || "anonymous",
@@ -887,10 +910,11 @@ export function createMemoryA3Store(seed = {}) {
 
     async revokeReport(reportId, options = {}) {
       const report = reports.get(reportId);
-      if (!report) {
+      if (!report || !reportMatchesRequestScope(report, snapshots, options)) {
         return null;
       }
       const revokedAt = options.revokedAt || new Date().toISOString();
+      const reportScope = reportTenantScope(report);
       const revoked = {
         ...report,
         status: "revoked",
@@ -907,6 +931,8 @@ export function createMemoryA3Store(seed = {}) {
       auditEvents.push({
         event_id: `rrv_${sha256(`${reportId}:${revokedAt}:${auditEvents.length}`).slice(0, 12)}`,
         report_id: reportId,
+        organization_id: reportScope.organizationId,
+        project_id: reportScope.projectId,
         event_type: "report_revoke",
         revoked_at: revokedAt,
         revoked_by: revoked.revoked_by,
@@ -916,6 +942,8 @@ export function createMemoryA3Store(seed = {}) {
       return {
         schema_version: "a3.report_revoke_receipt.v1",
         report_id: reportId,
+        organization_id: reportScope.organizationId,
+        project_id: reportScope.projectId,
         status: "revoked",
         revoked_at: revokedAt,
         revoked_by: revoked.revoked_by,
@@ -923,8 +951,10 @@ export function createMemoryA3Store(seed = {}) {
       };
     },
 
-    async listReports() {
-      return [...reports.values()].map((report) => ({
+    async listReports(options = {}) {
+      return [...reports.values()]
+        .filter((report) => reportMatchesRequestScope(report, snapshots, options))
+        .map((report) => ({
         report_id: report.report_id,
         title: report.title,
         status: reportLifecycleStatus(report),
@@ -1189,7 +1219,10 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
   const summary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
   const summaryHash = sha256(stableJson(summary));
   const reports = (options.reports || [])
-    .filter((report) => (report.source || snapshot.source) === snapshot.source)
+    .filter((report) => (
+      (report.source || snapshot.source) === snapshot.source
+      && reportMatchesSnapshotScope(report, snapshot)
+    ))
     .map((report) => ({
       report_id: report.report_id,
       status: reportLifecycleStatus(report),
@@ -1199,6 +1232,15 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
       sealed_payload_hash_present: Boolean(report.sealed_evidence?.payload_hash),
       raw_share_token_exposed: false
     }));
+  const primarySnapshot = reports.find((item) => item.summary_snapshot_id) || {};
+  const health = buildReleaseEvidenceHealth(summary, {
+    releaseId,
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId,
+    hostedReportSnapshotId: primarySnapshot.summary_snapshot_id,
+    shareableReportCount: reports.length
+  });
   return {
     schema_version: "a3.release_evidence_api_response.v1",
     release_id: releaseId,
@@ -1216,6 +1258,8 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
       immutable_hosted_snapshots: reports.some((item) => item.summary_snapshot_id)
     },
     release_evidence_summary: summary,
+    release_evidence_health: health,
+    next_action: health.next_action,
     hosted_report_snapshots: reports,
     safety: {
       raw_fixture_exposed: false,
@@ -1248,6 +1292,66 @@ function releaseEvidenceIdMatches(requestedId, canonicalReleaseId, snapshot = {}
     return true;
   }
   return extractRunRecords(snapshot.runFixture).some((run) => run.run_id === value);
+}
+
+function snapshotMatchesTenantScope(snapshot = {}, options = {}) {
+  if (options.organizationId && options.organizationId !== snapshot.organizationId) {
+    return false;
+  }
+  if (options.projectId && options.projectId !== snapshot.projectId) {
+    return false;
+  }
+  return true;
+}
+
+function reportMatchesSnapshotScope(report = {}, snapshot = {}) {
+  const reportScope = reportTenantScope(report);
+  return reportScope.organizationId === (snapshot.organizationId || "org-local")
+    && reportScope.projectId === (snapshot.projectId || "project-local");
+}
+
+function filterReportsForSnapshot(reports = [], snapshot = {}) {
+  return (Array.isArray(reports) ? reports : []).filter((report) => reportMatchesSnapshotScope(report, snapshot));
+}
+
+function reportMatchesRequestScope(report = {}, snapshots = new Map(), options = {}) {
+  const requestScope = resolveReportRequestScope(report, snapshots, options);
+  if (requestScope.source && normalizeSourceKey(report.source || "unknown") !== requestScope.source) {
+    return false;
+  }
+  const reportScope = reportTenantScope(report);
+  if (requestScope.organizationId && requestScope.organizationId !== reportScope.organizationId) {
+    return false;
+  }
+  if (requestScope.projectId && requestScope.projectId !== reportScope.projectId) {
+    return false;
+  }
+  return true;
+}
+
+function resolveReportRequestScope(report = {}, snapshots = new Map(), options = {}) {
+  const source = options.source ? normalizeSourceKey(options.source) : undefined;
+  const snapshot = source ? snapshots.get(source) : null;
+  return {
+    source,
+    organizationId: options.organizationId || snapshot?.organizationId,
+    projectId: options.projectId || snapshot?.projectId
+  };
+}
+
+function reportTenantScope(report = {}) {
+  return {
+    organizationId: report.tenant_scope?.organization_id || report.organization_id || "org-local",
+    projectId: report.tenant_scope?.project_id || report.project_id || "project-local"
+  };
+}
+
+function snapshotWithScope(snapshot = {}, options = {}) {
+  return {
+    ...snapshot,
+    organizationId: options.organizationId || snapshot.organizationId || "org-local",
+    projectId: options.projectId || snapshot.projectId || "project-local"
+  };
 }
 
 function attachAdminActionRequests(adminConsole = {}, requests = [], options = {}) {

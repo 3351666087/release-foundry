@@ -1,5 +1,89 @@
 # A3 Worklog
 
+## 2026-07-08 - Release Evidence Authority Guardrails
+
+### Goal
+
+Continue the A3 commercial-SaaS push after API-backed release evidence landed. This round makes the release evidence path more authoritative by adding health/next-action/diff helpers and tightening tenant/error safety around the API, Report Center, hosted snapshots, and SQLite persistence.
+
+### 26 Growth Points Considered
+
+1. Release evidence health object.
+2. Deterministic next-action engine.
+3. Evidence summary diff.
+4. Tenant-scoped release evidence API reads.
+5. Tenant-scoped hosted report snapshot listing.
+6. Tenant-scoped Report Center report aggregation.
+7. Tenant-scoped Artifact Registry report aggregation.
+8. Tenant-scoped Product Console report evidence.
+9. SQLite report tenant persistence.
+10. API internal error redaction.
+11. Immutable hosted snapshot proof.
+12. GitHub Check readback.
+13. PR comment readback.
+14. Required-check enforcement proof.
+15. Review identity binding.
+16. Redaction fail-closed external publish policy.
+17. Usage ledger summary-id linkage.
+18. Offline verifier packet.
+19. Webhook contract.
+20. Playwright visual evidence.
+21. API docs and v2 handoff.
+22. Billing/usage evidence.
+23. Enterprise retention/legal-hold evidence.
+24. War Room health integration.
+25. Backward compatibility guard.
+26. Postgres migration hardening.
+
+Implemented this round: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 21 as local A3-safe changes. Follow-up in the same round also added report-id scope guards for detail, manifest, view, revoke, and list routes.
+
+### Work completed
+
+- Added `services/report/a3_release_evidence.mjs`.
+  - `buildReleaseEvidenceHealth(...)`
+  - `computeReleaseEvidenceNextAction(...)`
+  - `diffReleaseEvidenceSummaries(...)`
+- Added `tests/a3/a3_release_evidence.test.mjs`.
+- Added release evidence health and next action into `GET /api/a3/releases/:releaseId/evidence-summary`.
+- Added tenant/project guard for release evidence API reads.
+- Added tenant/project filtering for hosted report snapshots in the release evidence API response.
+- Added scoped report filtering for Dashboard, Report Center, Artifact Registry, Product Console, and usage-ledger inputs.
+- Added tenant/project scope guards for report detail, manifest, view, revoke, and report-list reads.
+- Fixed SQLite report persistence to store `tenant_scope.organization_id` and `tenant_scope.project_id` instead of defaulting reports to `org-local`.
+- Added API internal-error redaction so unexpected errors cannot echo Bearer tokens, Ashr key assignments, cookies, or emails.
+- Added next-round authority handoff:
+  - `docs/a3/p3_release_evidence_authority_round_2026_07_08.md`
+
+### A1/A2 compatibility
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not modified.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not modified.
+- This round stays in A3's product/report/API/store boundary and packages downstream evidence only.
+
+### Verification
+
+```text
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/a3_store.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --test tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/report_center_index.test.mjs tests/a3/artifact_registry.test.mjs
+node --test tests/a3/a3_sqlite_store.test.mjs
+```
+
+Current focused result before full-suite closeout:
+
+```text
+release-evidence/API/store/report-center/SQLite focused: 20 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not write API keys, tokens, cookies, emails, private keys, live signed URLs, or account values.
+- Added API error redaction for unexpected internal exceptions.
+
 ## 2026-07-08 - API-backed release evidence summary
 
 ### Goal

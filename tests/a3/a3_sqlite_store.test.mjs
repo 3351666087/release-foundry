@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   createSqliteA3Store
@@ -91,7 +92,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     const report = await store.createShareableReport({
       source: "api-ingest",
       title: "SQLite-backed A3 report",
-      shareToken: "sqlite-share-token"
+      shareToken: "sqlite-share-token",
+      organizationId: "org-enterprise",
+      projectId: "project-enterprise"
     });
     assert.equal(report.status, "shareable");
     assert.equal(report.share_url_path, "/r/sqlite-share-token");
@@ -144,6 +147,15 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.ok(inspection.operational_tables.audit_events >= 2);
     assert.ok(inspection.operational_tables.usage_ledger > 0);
     assert.equal(inspection.safety.state_payload_secret_scan.raw_share_token_hint_found, false);
+
+    const sqlCheck = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const row = sqlCheck.prepare("SELECT organization_id, project_id FROM shareable_reports WHERE id = ?").get(report.report_id);
+      assert.equal(row.organization_id, "org-enterprise");
+      assert.equal(row.project_id, "project-enterprise");
+    } finally {
+      sqlCheck.close();
+    }
 
     store.close();
     store = await createSqliteA3Store({ dbPath });

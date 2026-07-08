@@ -330,8 +330,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
 function persistReports(db, state, updatedAt) {
   for (const report of state.reports || []) {
-    const organizationId = report.organization_id || "org-local";
-    const projectId = report.project_id || "project-local";
+    const organizationId = report.tenant_scope?.organization_id || report.organization_id || "org-local";
+    const projectId = report.tenant_scope?.project_id || report.project_id || "project-local";
     db.prepare(`
 INSERT INTO shareable_reports (id, organization_id, project_id, source, status, payload_hash, expires_at, revoked_at, payload, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

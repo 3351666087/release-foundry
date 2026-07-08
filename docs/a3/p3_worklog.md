@@ -2480,3 +2480,50 @@ Safety boundary:
 Remaining production gap:
 
 Branch protection still needs maintainer approval before `Ashr++ Release Gate` is truly required.
+
+## 2026-07-08 - Release evidence authority guardrails
+
+Continued the A3 commercial SaaS path defined in `docs/strategy/large-saas-a1-a2-a3-full-plan.md` by making release evidence less like a static report field and more like a tenant-scoped authority object.
+
+Added:
+
+- `services/report/a3_release_evidence.mjs`
+- release evidence health, deterministic next action, and sanitized diff helpers
+- `release_evidence_health` and `next_action` in `GET /api/a3/releases/:releaseId/evidence-summary`
+- tenant/project guards for release evidence API reads
+- source/organization/project filtering for release evidence hosted-report snapshots
+- tenant/project filtering for Dashboard, Report Center, Artifact Registry, Product Console, and usage-ledger report inputs
+- report-id scope guards for report detail, manifest, view, revoke, and report-list routes
+- SQLite report tenant persistence using `tenant_scope.organization_id` and `tenant_scope.project_id`
+- API internal-error redaction for Bearer tokens, Ashr key assignments, cookies, and emails
+- tests for release evidence health/diff, cross-tenant denial, SQLite tenant persistence, and error redaction
+- authority handoff in `docs/a3/p3_release_evidence_authority_round_2026_07_08.md`
+
+Verification:
+
+```text
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/a3_store.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --test tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/report_center_index.test.mjs tests/a3/artifact_registry.test.mjs tests/a3/a3_sqlite_store.test.mjs
+```
+
+Result: 20 pass, 0 fail.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
+- A3 still consumes A1/A2 outputs downstream through existing dashboard/report/store contracts.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub, billing, auth, team, API-key, Trust, or cloud mutation API call.
+- No API key, token, cookie, account email, raw share token, live signed URL, or private key committed.
+
+Current interpretation:
+
+A3 now has a stronger SaaS-style evidence boundary. Release evidence and hosted reports are no longer only visible UI/report data; they also carry health, next-action, tenant scope, and denial behavior that future auth/RBAC/database work can attach to.
