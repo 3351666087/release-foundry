@@ -222,7 +222,10 @@
 - [x] Saved redacted audit bundle verification fixture under `fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json`.
 - [x] Added verifier tests in `tests/a3/a3_gate_cli.test.mjs`.
 - [x] Documented audit bundle verifier growth in `docs/a3/p3_audit_bundle_verifier_growth_2026_07_07.md`.
-- [ ] Turn the PR Gate payload into a live GitHub required check.
+- [x] Add live-capable GitHub Check Run publisher and CLI with dry-run default and sanitized receipts.
+- [x] Update GitHub Actions example to publish the Ashr++ Release Gate check using a runtime `GITHUB_TOKEN`.
+- [x] Save redacted dry-run publish receipt under `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`.
+- [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
 - [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
 - [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
 - [ ] Add file hashes for generated PDF and screenshot export artifacts.

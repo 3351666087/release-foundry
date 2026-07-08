@@ -3496,3 +3496,48 @@ Result: passed after aligning waiver validation context with the original releas
 ### Current interpretation
 
 A3 now has durable review workflow records, but not final production-grade signature verification. The next true enterprise step is real reviewer identity binding through SSO/OIDC/GitHub plus cryptographic signature verification before approvals can affect a live required check.
+
+## 2026-07-08 - Live-capable GitHub Check publisher
+
+### Goal
+
+Move the A3 PR Gate closer to a real customer merge workflow by turning the existing GitHub Check payload into a live-capable Check Run publisher.
+
+### Work completed
+
+- Added `publishGitHubCheckRun(...)` in `services/report/a3_github_integration.mjs`.
+- Added `services/report/a3_github_publish_cli.mjs`.
+- Kept publisher dry-run by default.
+- Added explicit live mode through CLI `--live` or `dryRun: false`.
+- Added runtime-token handling through `GITHUB_TOKEN`, `GH_TOKEN`, or `--token-env`.
+- Updated `docs/a3/p3_github_action_workflow_example.yml` with a `Publish Ashr++ GitHub Check` step.
+- Saved redacted dry-run receipt:
+  - `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`
+- Added documentation:
+  - `docs/a3/p3_live_github_check_publisher_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result:
+
+```text
+13 tests
+13 pass
+0 fail
+```
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made in this pass.
+- No GitHub token, API key, cookie, email, raw signed URL, or Authorization header was committed.
+- Branch protection was not changed; making `Ashr++ Release Gate` a required check still requires maintainer approval in GitHub settings.
+
+### Current interpretation
+
+A3 can now publish a GitHub Check Run when CI explicitly opts in, which is much closer to a commercial PR gate. It is still not the full "required check" story until branch protection is configured and evidenced.

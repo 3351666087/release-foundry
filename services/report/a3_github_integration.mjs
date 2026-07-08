@@ -1,5 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://api.github.com";
 const DEFAULT_MARKER_PREFIX = "ashr-plus-plus:release-gate";
+const DEFAULT_GITHUB_API_VERSION = "2022-11-28";
 
 export function buildGitHubCheckRunRequest(gatePayload = {}, options = {}) {
   const repo = normalizeRepo(options.repo);
@@ -119,11 +120,78 @@ export function buildGitHubActionWorkflowExample(options = {}) {
     "        with:",
     "          name: ashr-release-gate",
     "          path: artifacts/",
+    "      - name: Publish Ashr++ GitHub Check",
+    "        env:",
+    "          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "        run: |",
+    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --head-sha \${{ github.event.pull_request.head.sha }} --details-url \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --live --json`,
     "      - name: Enforce local gate result",
     "        run: |",
     "          node -e \"const fs=require('fs'); const gate=JSON.parse(fs.readFileSync('artifacts/ashr-gate.json','utf8')); process.exit(gate.exit_code_hint || 0);\"",
     ""
   ].join("\n");
+}
+
+export async function publishGitHubCheckRun(gatePayload = {}, options = {}) {
+  const request = buildGitHubCheckRunRequest(gatePayload, options);
+  const dryRun = options.dryRun !== false;
+  const receiptBase = {
+    schema_version: "a3.github_check_publish_receipt.v1",
+    mode: request.mode,
+    dry_run: dryRun,
+    posted: false,
+    request: redactCheckRunRequestForReceipt(request),
+    safety: {
+      token_included: false,
+      token_source: options.token ? "provided_runtime_option" : options.tokenEnvName ? "environment_variable" : "not_required_for_dry_run",
+      response_body_sanitized: true,
+      secret_values_allowed: false
+    }
+  };
+  if (dryRun) {
+    return {
+      ...receiptBase,
+      status: "planned",
+      http_status: null,
+      github_request_id: null,
+      check_run: null,
+      redacted_summary: "Dry run only; no GitHub API request was sent."
+    };
+  }
+
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required to publish a GitHub check run.");
+  }
+
+  const response = await fetchImpl(request.url, {
+    method: request.method,
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "user-agent": "ashr-plus-plus-a3-release-gate",
+      "x-github-api-version": options.githubApiVersion || DEFAULT_GITHUB_API_VERSION
+    },
+    body: JSON.stringify(request.body)
+  });
+  const responseJson = await safeResponseJson(response);
+  return {
+    ...receiptBase,
+    dry_run: false,
+    posted: Boolean(response.ok),
+    status: response.ok ? "posted" : "failed",
+    http_status: response.status,
+    github_request_id: response.headers?.get?.("x-github-request-id") || null,
+    check_run: sanitizeCheckRunResponse(responseJson),
+    redacted_summary: response.ok
+      ? "GitHub Check Run was published with sanitized receipt fields only."
+      : sanitizeErrorMessage(responseJson?.message || response.statusText || "GitHub Check Run publish failed.")
+  };
 }
 
 function normalizeAnnotations(annotations = []) {
@@ -136,6 +204,70 @@ function normalizeAnnotations(annotations = []) {
     message: String(item.message || "Review Ashr++ gate evidence.").slice(0, 64000),
     raw_details: item.raw_details || ""
   }));
+}
+
+function redactCheckRunRequestForReceipt(request = {}) {
+  return {
+    schema_version: request.schema_version,
+    mode: request.mode,
+    method: request.method,
+    url: request.url,
+    repo: request.repo,
+    requires_token_scope: request.requires_token_scope,
+    body: request.body,
+    safety: {
+      ...request.safety,
+      token_included: false,
+      secret_values_allowed: false
+    }
+  };
+}
+
+function runtimeToken(options = {}) {
+  if (options.token) {
+    return String(options.token);
+  }
+  if (options.tokenEnvName) {
+    return process.env[options.tokenEnvName];
+  }
+  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+}
+
+async function safeResponseJson(response) {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text.slice(0, 500) };
+  }
+}
+
+function sanitizeCheckRunResponse(value = {}) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return {
+    id: value.id ?? null,
+    name: value.name || null,
+    status: value.status || null,
+    conclusion: value.conclusion || null,
+    html_url: value.html_url || null,
+    details_url: value.details_url || null,
+    head_sha: value.head_sha || null,
+    started_at: value.started_at || null,
+    completed_at: value.completed_at || null
+  };
+}
+
+function sanitizeErrorMessage(message = "") {
+  return String(message)
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [REDACTED]")
+    .replace(/gh[pousr]_[A-Za-z0-9_]+/g, "[REDACTED_GITHUB_TOKEN]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]")
+    .slice(0, 500);
 }
 
 function findExistingGateComment(comments = [], marker = "") {

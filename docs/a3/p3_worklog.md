@@ -2274,3 +2274,37 @@ Safety boundary:
 Remaining production gap:
 
 Real cryptographic signature verification and SSO/OIDC/GitHub reviewer identity binding are still not implemented.
+
+## 2026-07-08 - Live-capable GitHub Check publisher
+
+Continued A3 commercial PR Gate work by adding a live-capable GitHub Check Run publisher while keeping existing dry-run contracts intact.
+
+Added:
+
+- `publishGitHubCheckRun(...)` in `services/report/a3_github_integration.mjs`
+- `services/report/a3_github_publish_cli.mjs`
+- default dry-run receipt generation
+- explicit `--live` mode for CI
+- runtime-token support through environment variables
+- updated GitHub Actions workflow example
+- redacted dry-run publish receipt fixture
+- documentation in `docs/a3/p3_live_github_check_publisher_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result: 13 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+The publisher can create/update a GitHub Check Run when CI explicitly opts in, but repository branch protection still needs maintainer-approved configuration before `Ashr++ Release Gate` is truly a required check.
