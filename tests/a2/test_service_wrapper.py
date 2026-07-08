@@ -14,6 +14,7 @@ from services.judge.service_wrapper import (
     RESULTS_PERSIST_ENDPOINT,
     RUN_ENDPOINT,
     SCENARIO_SELECT_ENDPOINT,
+    SERVICE_VERSION,
     handle_internal_request,
     post_internal_calibration_evaluate,
     post_internal_judge_batch,
@@ -27,9 +28,53 @@ from services.judge.service_wrapper import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+OPENAPI_CONTRACT = ROOT / "docs/a2/openapi/a2_judge_service.openapi.json"
 
 
 class A2JudgeServiceWrapperTests(unittest.TestCase):
+    def test_openapi_contract_tracks_service_wrapper_routes(self):
+        contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+        expected_routes = {
+            CASE_ENDPOINT: "post_internal_judge_case",
+            RUN_ENDPOINT: "post_internal_judge_run",
+            BATCH_ENDPOINT: "post_internal_judge_batch",
+            RELEASE_POLICY_ENDPOINT: "post_internal_release_policy_evaluate",
+            REGRESSION_REPLAY_ENDPOINT: "post_internal_regression_replay",
+            CALIBRATION_EVALUATE_ENDPOINT: "post_internal_calibration_evaluate",
+            SCENARIO_SELECT_ENDPOINT: "post_internal_scenarios_select",
+            RESULTS_PERSIST_ENDPOINT: "post_internal_results_persist",
+        }
+
+        self.assertEqual(contract["openapi"], "3.1.0")
+        self.assertEqual(contract["info"]["version"], SERVICE_VERSION)
+        self.assertEqual(set(contract["paths"]), set(expected_routes))
+        for endpoint, operation_id in expected_routes.items():
+            with self.subTest(endpoint=endpoint):
+                operation = contract["paths"][endpoint]["post"]
+                self.assertEqual(operation["operationId"], operation_id)
+                self.assertEqual(
+                    operation["x-a2"]["implementation"],
+                    f"services.judge.service_wrapper.{operation_id}",
+                )
+                self.assertEqual(operation["x-a2"]["service_version"], SERVICE_VERSION)
+                self.assertTrue(operation["x-a2"]["pure_function_only"])
+                self.assertFalse(operation["x-a2"]["requires_network"])
+                self.assertFalse(operation["x-a2"]["requires_ashr_api_key"])
+                self.assertEqual(
+                    operation["responses"]["200"]["$ref"],
+                    "#/components/responses/InternalServiceEnvelope",
+                )
+
+        boundary = contract["x-a2-boundary"]
+        self.assertEqual(boundary["implementation_language"], "Python")
+        self.assertFalse(boundary["hosted_server_in_scope"])
+        self.assertFalse(boundary["sql_in_scope"])
+        self.assertFalse(boundary["typescript_runtime_in_scope"])
+        serialized = json.dumps(contract, sort_keys=True)
+        self.assertNotIn("docs/evidence/private_refs", serialized)
+        self.assertNotIn("Bearer ", serialized)
+        self.assertNotIn("ashr_live_", serialized)
+
     def test_case_endpoint_grades_single_case_without_external_api(self):
         response = post_internal_judge_case(
             {
