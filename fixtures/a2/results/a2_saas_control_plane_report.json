@@ -120,13 +120,12 @@
         "requires_network": false
       },
       {
-        "endpoint_id": "result_persistence_manifest",
+        "endpoint_id": "result_persistence",
         "method": "POST",
         "path": "/internal/results/persist",
         "request_fields": [
-          "grade_report",
-          "release_gate",
-          "scenario_pack"
+          "a1_ingestion",
+          "response"
         ],
         "response_fields": [
           "records",
@@ -202,9 +201,9 @@
     "selected_policy": {
       "policy_id": "release_policy_prod_strict",
       "policy_version": "2026-07-07.2",
-      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
+      "policy_hash": "sha256:f9aaa946c0f1c91c5660813ead9f97f562f7cb33cc5af4de7c83a5fb07b3e090",
       "policy_hash_valid": true,
-      "rule_count": 4,
+      "rule_count": 8,
       "selection": {
         "assignment_id": "project_enterprise_saas_agent_prod",
         "match_scope": "project_environment",
@@ -337,6 +336,9 @@
   "release_gate": {
     "report_id": "a2_release_gate",
     "decision": "block",
+    "a3_action": "block_release",
+    "blocks_merge": true,
+    "needs_human_review": true,
     "exit_code": 2,
     "risk_score": 100,
     "current_commercial_gate": "C2",
@@ -348,6 +350,15 @@
       "commercial_gate": 3,
       "evidence_gate": 2,
       "regression_maturity": 1
+    },
+    "pr_gate": {
+      "blocks_merge": true,
+      "failed_check_count": 7,
+      "warning_check_count": 3,
+      "audit_artifacts": [
+        "fixtures/a2/results/a2_release_gate_report.json",
+        "fixtures/a2/results/a2_result_persistence_manifest.json"
+      ]
     }
   },
   "a3_dashboard_contract": {

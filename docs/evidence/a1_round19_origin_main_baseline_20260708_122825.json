@@ -1,0 +1,23 @@
+{
+  "commit": "f55c8baabdba8c9c4e8d412588dd98f630c9d1a5",
+  "duration_seconds": 19.619,
+  "ended_at": "2026-07-08T04:28:45.460280+00:00",
+  "passed": true,
+  "ref": "origin/main",
+  "repo_root": "C:\\Users\\33516\\Documents\\Ashr",
+  "returncode": 0,
+  "schema_version": "ashr.a1.origin_main_baseline.v1",
+  "started_at": "2026-07-08T04:28:25.841323+00:00",
+  "stderr_tail": "",
+  "stdout_tail": "........................................................................ [ 31%]\n........................................................................ [ 62%]\n........................................................................ [ 93%]\n..............                                                           [100%]\n230 passed in 16.41s\n",
+  "test_command": [
+    "D:\\conda\\python.exe",
+    "-B",
+    "-m",
+    "pytest",
+    "tests/a1",
+    "-q",
+    "-p",
+    "no:cacheprovider"
+  ]
+}

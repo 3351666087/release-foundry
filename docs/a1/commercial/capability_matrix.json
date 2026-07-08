@@ -96,7 +96,7 @@
       "source_notes": [
         "frontend mirror names this API function"
       ],
-      "test_covered": false
+      "test_covered": true
     },
     {
       "category": "local_runtime",
@@ -1152,7 +1152,7 @@
       "source_notes": [
         "frontend mirror names this API function"
       ],
-      "test_covered": false
+      "test_covered": true
     },
     {
       "category": "api_function",
@@ -2054,7 +2054,7 @@
       "local_only": 9,
       "mutating_planned_or_quota_blocked": 2,
       "real_read_verified": 9,
-      "test_covered": 28
+      "test_covered": 30
     },
     "categories": {
       "api_function": 112,

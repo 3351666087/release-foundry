@@ -96,7 +96,7 @@
       "properties": {
         "schema_version": { "const": "a2.result_persistence_record.v1" },
         "record_type": {
-          "enum": ["judge_result", "release_gate", "scenario_selection"]
+          "enum": ["judge_result", "release_gate", "scenario_selection", "a1_ingestion_digest"]
         },
         "org": { "type": "string" },
         "tenant_id": { "type": "string" },
@@ -137,7 +137,14 @@
           },
           "additionalProperties": true
         },
-        "result_schema_version": { "type": ["string", "null"] }
+        "result_schema_version": { "type": ["string", "null"] },
+        "upload_id": { "type": "string" },
+        "batch_id": { "type": "string" },
+        "trace_batch_id": { "type": "string" },
+        "payload_sha256": { "type": "string" },
+        "trace_batch_sha256": { "type": "string" },
+        "payload_keys": { "$ref": "#/$defs/string_array" },
+        "raw_payload_included": { "type": "boolean" }
       },
       "additionalProperties": true
     }

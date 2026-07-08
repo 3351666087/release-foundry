@@ -1,0 +1,1753 @@
+{
+  "$id": "https://ashr.clone.local/schemas/a1/worker_data_model.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "schema_version": {
+      "const": "ashr.clone.worker_data_model.v1"
+    },
+    "tables": {
+      "additionalProperties": {
+        "type": "object"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "tables"
+  ],
+  "schema_version": "ashr.clone.worker_data_model.v1",
+  "tables": {
+    "api_keys": {
+      "$id": "https://ashr.clone.local/schemas/a1/api_keys.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Hashed API key records for scoped SDK/API access; public exports never include raw secrets.",
+      "properties": {
+        "api_key_id": {
+          "description": "api_key_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "expires_at": {
+          "description": "expires_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "last_used_at": {
+          "description": "last_used_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "name": {
+          "description": "name",
+          "type": "string"
+        },
+        "prefix": {
+          "description": "prefix",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "scopes": {
+          "default": "[]",
+          "description": "scopes",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "secret_hash": {
+          "description": "secret_hash",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "api_key_id",
+        "name",
+        "prefix",
+        "secret_hash",
+        "scopes",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS api_keys row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "api_key_id"
+      ],
+      "x-retention": null
+    },
+    "artifacts": {
+      "$id": "https://ashr.clone.local/schemas/a1/artifacts.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Files and generated assets produced by workers, reports, screenshots, and exports.",
+      "properties": {
+        "artifact_id": {
+          "description": "artifact_id",
+          "type": "string"
+        },
+        "case_result_id": {
+          "description": "case_result_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "description": "kind",
+          "enum": [
+            "log",
+            "screenshot",
+            "report",
+            "dataset",
+            "export",
+            "other"
+          ],
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "mime_type": {
+          "description": "mime_type",
+          "type": "string"
+        },
+        "name": {
+          "description": "name",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "Evaluation or worker run identifier",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "size_bytes",
+          "type": "integer"
+        },
+        "storage_uri": {
+          "description": "storage_uri",
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "artifact_id",
+        "kind",
+        "name",
+        "storage_uri",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS artifacts row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "artifact_id"
+      ],
+      "x-retention": null
+    },
+    "audit_log": {
+      "$id": "https://ashr.clone.local/schemas/a1/audit_log.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Append-only administrative and API activity log for tenant-scoped forensic review.",
+      "properties": {
+        "action": {
+          "description": "action",
+          "type": "string"
+        },
+        "actor_id": {
+          "description": "actor_id",
+          "type": "string"
+        },
+        "actor_type": {
+          "description": "actor_type",
+          "enum": [
+            "user",
+            "api_key",
+            "system",
+            "worker"
+          ],
+          "type": "string"
+        },
+        "audit_log_id": {
+          "description": "audit_log_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "ip_hash": {
+          "description": "ip_hash",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "occurred_at": {
+          "default": "now()",
+          "description": "occurred_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "target_id": {
+          "description": "target_id",
+          "type": "string"
+        },
+        "target_type": {
+          "description": "target_type",
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "user_agent": {
+          "description": "user_agent",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "audit_log_id",
+        "actor_type",
+        "action",
+        "occurred_at",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS audit_log row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "audit_log_id"
+      ],
+      "x-retention": "append-only; retain 400d minimum for commercial audit readiness"
+    },
+    "billing_accounts": {
+      "$id": "https://ashr.clone.local/schemas/a1/billing_accounts.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Commercial billing profile linked to organization with plan, currency, tax, and invoice metadata.",
+      "properties": {
+        "billing_account_id": {
+          "description": "billing_account_id",
+          "type": "string"
+        },
+        "billing_email": {
+          "description": "billing_email",
+          "type": "string",
+          "x-pii": true
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "currency": {
+          "default": "USD",
+          "description": "currency",
+          "type": "string"
+        },
+        "external_customer_ref": {
+          "description": "external_customer_ref",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "plan": {
+          "description": "plan",
+          "enum": [
+            "free",
+            "team",
+            "enterprise",
+            "custom"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "past_due",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "billing_account_id",
+        "plan",
+        "currency",
+        "status",
+        "billing_email",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS billing_accounts row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "billing_account_id"
+      ],
+      "x-retention": null
+    },
+    "case_results": {
+      "$id": "https://ashr.clone.local/schemas/a1/case_results.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Per-case result rows for pass/fail/error rollups, clustering, replay, and evidence lookup.",
+      "properties": {
+        "assertions": {
+          "default": "[]",
+          "description": "assertions",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "case_id": {
+          "description": "case_id",
+          "type": "string"
+        },
+        "case_result_id": {
+          "description": "case_result_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "duration_ms": {
+          "description": "duration_ms",
+          "type": "integer"
+        },
+        "error": {
+          "description": "error",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "Evaluation or worker run identifier",
+          "type": "string"
+        },
+        "score": {
+          "description": "score",
+          "type": "string"
+        },
+        "status": {
+          "description": "status",
+          "enum": [
+            "passed",
+            "failed",
+            "errored",
+            "timed_out",
+            "skipped"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "case_result_id",
+        "case_id",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS case_results row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "case_result_id"
+      ],
+      "x-retention": null
+    },
+    "datasets": {
+      "$id": "https://ashr.clone.local/schemas/a1/datasets.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Immutable or versioned benchmark case collection used by queued and completed runs.",
+      "properties": {
+        "case_count": {
+          "default": "0",
+          "description": "case_count",
+          "type": "integer"
+        },
+        "content_hash": {
+          "description": "content_hash",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "dataset_id": {
+          "description": "Dataset identifier",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "name",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "storage_uri": {
+          "description": "storage_uri",
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "default": "v1",
+          "description": "version",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "dataset_id",
+        "name",
+        "version",
+        "case_count",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS datasets row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "dataset_id"
+      ],
+      "x-retention": null
+    },
+    "environments": {
+      "$id": "https://ashr.clone.local/schemas/a1/environments.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Named deploy/runtime context for a project, e.g. dev, staging, production, or private eval workers.",
+      "properties": {
+        "config": {
+          "default": "{}",
+          "description": "config",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "environment_id": {
+          "description": "Environment identifier such as dev/staging/prod",
+          "type": "string"
+        },
+        "kind": {
+          "description": "kind",
+          "enum": [
+            "dev",
+            "staging",
+            "prod",
+            "sandbox",
+            "custom"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "name",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "disabled"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id",
+        "name",
+        "kind",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS environments row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "environment_id"
+      ],
+      "x-retention": null
+    },
+    "evidence_bundles": {
+      "$id": "https://ashr.clone.local/schemas/a1/evidence_bundles.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Curated immutable evidence bundle linking runs, case results, trace events, and artifacts for audits or release gates.",
+      "properties": {
+        "artifact_ids": {
+          "default": "[]",
+          "description": "artifact_ids",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "case_result_ids": {
+          "default": "[]",
+          "description": "case_result_ids",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "evidence_bundle_id": {
+          "description": "evidence_bundle_id",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "name",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "run_ids": {
+          "default": "[]",
+          "description": "run_ids",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "sealed_at": {
+          "description": "sealed_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "default": "draft",
+          "description": "status",
+          "enum": [
+            "draft",
+            "sealed",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "trace_event_ids": {
+          "default": "[]",
+          "description": "trace_event_ids",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "evidence_bundle_id",
+        "name",
+        "status",
+        "run_ids",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS evidence_bundles row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "evidence_bundle_id"
+      ],
+      "x-retention": null
+    },
+    "integrations": {
+      "$id": "https://ashr.clone.local/schemas/a1/integrations.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Project integrations such as GitHub, Slack, storage, CI, model providers, or internal webhooks.",
+      "properties": {
+        "config": {
+          "default": "{}",
+          "description": "config",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "display_name": {
+          "description": "display_name",
+          "type": "string"
+        },
+        "integration_id": {
+          "description": "integration_id",
+          "type": "string"
+        },
+        "last_synced_at": {
+          "description": "last_synced_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "provider": {
+          "description": "provider",
+          "type": "string"
+        },
+        "secret_ref": {
+          "description": "secret_ref",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "disabled",
+            "error"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "integration_id",
+        "provider",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS integrations row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "integration_id"
+      ],
+      "x-retention": null
+    },
+    "organizations": {
+      "$id": "https://ashr.clone.local/schemas/a1/organizations.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Commercial SaaS tenant root for account ownership, data isolation, quota, and billing grouping.",
+      "properties": {
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "display_name": {
+          "description": "display_name",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "slug": {
+          "description": "slug",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "suspended",
+            "deleted"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "slug",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS organizations row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id"
+      ],
+      "x-retention": null
+    },
+    "projects": {
+      "$id": "https://ashr.clone.local/schemas/a1/projects.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Product or evaluation project containing datasets, environments, runs, artifacts, and integrations.",
+      "properties": {
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "display_name": {
+          "description": "display_name",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "slug": {
+          "description": "slug",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "archived"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "slug",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS projects row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "project_id"
+      ],
+      "x-retention": null
+    },
+    "quota_policies": {
+      "$id": "https://ashr.clone.local/schemas/a1/quota_policies.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Tenant/workspace/project quota definitions and soft/hard limit policy.",
+      "properties": {
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "enforcement": {
+          "default": "hard",
+          "description": "enforcement",
+          "enum": [
+            "soft",
+            "hard"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "description": "limit",
+          "type": "integer"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "operation": {
+          "description": "operation",
+          "type": "string"
+        },
+        "period": {
+          "default": "month",
+          "description": "period",
+          "enum": [
+            "minute",
+            "hour",
+            "day",
+            "month",
+            "lifetime"
+          ],
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "quota_policy_id": {
+          "description": "quota_policy_id",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "disabled"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "quota_policy_id",
+        "workspace_id",
+        "project_id",
+        "operation",
+        "limit",
+        "period",
+        "enforcement",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS quota_policies row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "quota_policy_id"
+      ],
+      "x-retention": null
+    },
+    "runs": {
+      "$id": "https://ashr.clone.local/schemas/a1/runs.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Worker/evaluation execution envelope with lifecycle, agent, dataset, and environment references.",
+      "properties": {
+        "agent_ref": {
+          "description": "agent_ref",
+          "type": "string"
+        },
+        "attempt": {
+          "default": "0",
+          "description": "attempt",
+          "type": "integer"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "dataset_id": {
+          "description": "Dataset identifier",
+          "type": "string"
+        },
+        "dead_letter_reason": {
+          "description": "dead_letter_reason",
+          "type": "string"
+        },
+        "environment_id": {
+          "description": "Environment identifier such as dev/staging/prod",
+          "type": "string"
+        },
+        "finished_at": {
+          "description": "finished_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "last_error": {
+          "description": "last_error",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "lease_expires_at": {
+          "description": "lease_expires_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "lease_heartbeat_at": {
+          "description": "lease_heartbeat_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "lease_owner_id": {
+          "description": "lease_owner_id",
+          "type": "string"
+        },
+        "lease_reclaim_count": {
+          "default": "0",
+          "description": "lease_reclaim_count",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "default": "3",
+          "description": "max_attempts",
+          "type": "integer"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "Evaluation or worker run identifier",
+          "type": "string"
+        },
+        "runner_id": {
+          "description": "runner_id",
+          "type": "string"
+        },
+        "started_at": {
+          "description": "started_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "default": "queued",
+          "description": "status",
+          "enum": [
+            "queued",
+            "running",
+            "completed",
+            "failed",
+            "cancelled",
+            "expired",
+            "dead_lettered"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "default": "{}",
+          "description": "summary",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id",
+        "dataset_id",
+        "run_id",
+        "agent_ref",
+        "status",
+        "attempt",
+        "max_attempts",
+        "lease_reclaim_count",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS runs row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "run_id"
+      ],
+      "x-retention": null
+    },
+    "trace_events": {
+      "$id": "https://ashr.clone.local/schemas/a1/trace_events.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Append-only timeline of worker, tool, model, browser, and evaluator events for replay/debug.",
+      "properties": {
+        "case_result_id": {
+          "description": "case_result_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "event_time": {
+          "default": "now()",
+          "description": "event_time",
+          "format": "date-time",
+          "type": "string"
+        },
+        "event_type": {
+          "description": "event_type",
+          "type": "string"
+        },
+        "payload": {
+          "default": "{}",
+          "description": "payload",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "redaction_state": {
+          "default": "redacted",
+          "description": "redaction_state",
+          "enum": [
+            "raw_local",
+            "redacted",
+            "public"
+          ],
+          "type": "string"
+        },
+        "run_id": {
+          "description": "Evaluation or worker run identifier",
+          "type": "string"
+        },
+        "sequence": {
+          "description": "sequence",
+          "type": "integer"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "trace_event_id": {
+          "description": "trace_event_id",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "run_id",
+        "trace_event_id",
+        "sequence",
+        "event_type",
+        "event_time",
+        "payload",
+        "redaction_state",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS trace_events row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "trace_event_id"
+      ],
+      "x-retention": "hot 30d, archive 400d unless evidence bundle pins event ids"
+    },
+    "usage_ledger": {
+      "$id": "https://ashr.clone.local/schemas/a1/usage_ledger.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Append-only metering ledger for billable and quota-tracked SaaS operations.",
+      "properties": {
+        "billing_account_id": {
+          "description": "billing_account_id",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "description": "idempotency_key",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "occurred_at": {
+          "default": "now()",
+          "description": "occurred_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "operation": {
+          "description": "operation",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "source_id": {
+          "description": "source_id",
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "unit_type": {
+          "default": "event",
+          "description": "unit_type",
+          "type": "string"
+        },
+        "units": {
+          "default": "1",
+          "description": "units",
+          "type": "integer"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "usage_ledger_id": {
+          "description": "usage_ledger_id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "usage_ledger_id",
+        "operation",
+        "units",
+        "unit_type",
+        "occurred_at",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS usage_ledger row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "usage_ledger_id"
+      ],
+      "x-retention": "append-only; compact monthly into billing exports after 24 months"
+    },
+    "webhooks": {
+      "$id": "https://ashr.clone.local/schemas/a1/webhooks.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Outbound webhook endpoints and delivery policy for run, evidence, and billing events.",
+      "properties": {
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "event_types": {
+          "default": "[]",
+          "description": "event_types",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "project_id": {
+          "description": "Project identifier within workspace",
+          "type": "string"
+        },
+        "retry_policy": {
+          "default": "{}",
+          "description": "retry_policy",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "secret_hash": {
+          "description": "secret_hash",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "disabled"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "url": {
+          "description": "url",
+          "type": "string",
+          "x-pii": true
+        },
+        "webhook_id": {
+          "description": "webhook_id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "webhook_id",
+        "url",
+        "event_types",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS webhooks row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "webhook_id"
+      ],
+      "x-retention": null
+    },
+    "workspaces": {
+      "$id": "https://ashr.clone.local/schemas/a1/workspaces.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Collaboration boundary below organization; projects inherit tenant and workspace scope.",
+      "properties": {
+        "created_at": {
+          "default": "now()",
+          "description": "UTC creation timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "display_name": {
+          "description": "display_name",
+          "type": "string"
+        },
+        "metadata": {
+          "default": "{}",
+          "description": "metadata",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "slug": {
+          "description": "slug",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "description": "status",
+          "enum": [
+            "active",
+            "archived"
+          ],
+          "type": "string"
+        },
+        "tenant_id": {
+          "description": "Organization/tenant boundary identifier",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "description": "UTC last update timestamp",
+          "format": "date-time",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace identifier within tenant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "workspace_id",
+        "slug",
+        "display_name",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "A1 SaaS workspaces row",
+      "type": "object",
+      "x-primary-key": [
+        "tenant_id",
+        "workspace_id"
+      ],
+      "x-retention": null
+    }
+  },
+  "title": "A1 Worker Commercial SaaS DB-shaped Data Model",
+  "type": "object",
+  "x-table-order": [
+    "organizations",
+    "workspaces",
+    "projects",
+    "environments",
+    "datasets",
+    "runs",
+    "case_results",
+    "trace_events",
+    "artifacts",
+    "evidence_bundles",
+    "api_keys",
+    "webhooks",
+    "usage_ledger",
+    "quota_policies",
+    "billing_accounts",
+    "integrations",
+    "audit_log"
+  ]
+}

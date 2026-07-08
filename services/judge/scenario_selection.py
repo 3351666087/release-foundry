@@ -187,10 +187,10 @@ def build_scenario_selection_report(
             "purpose": "Select a per-project A2 scenario pack for SaaS release evaluation without live API calls.",
             "does_not_read_private_evidence": True,
             "public_fixture_sources": [
-                _portable_path(golden_path),
-                _portable_path(run_dir),
-                _portable_path(regression_report_path),
-                _portable_path(incident_regression_path),
+                _posix_path(golden_path),
+                _posix_path(run_dir),
+                _posix_path(regression_report_path),
+                _posix_path(incident_regression_path),
             ],
         },
     }
@@ -198,10 +198,6 @@ def build_scenario_selection_report(
 
 def load_selection_config(path: str | Path = DEFAULT_SELECTION_CONFIG) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def _portable_path(path: str | Path) -> str:
-    return Path(path).as_posix()
 
 
 def build_project_scenario_selection(
@@ -963,6 +959,10 @@ def _load_json_object(path: str | Path) -> dict[str, Any]:
         return {}
     payload = json.loads(resolved.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _posix_path(path: str | Path) -> str:
+    return Path(path).as_posix()
 
 
 def _tenant_context(profile: dict[str, Any]) -> dict[str, str]:

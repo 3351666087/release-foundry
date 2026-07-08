@@ -15,8 +15,10 @@
     "blocking_gate_count",
     "evidence_blocker_count",
     "scenario_selection_blocker_count",
+    "a1_output_policy_blocker_count",
     "warning_count",
     "scenario_selection_gate",
+    "a1_output_policy_gate",
     "blockers",
     "warnings",
     "required_evidence",
@@ -39,8 +41,10 @@
     "blocking_gate_count": { "type": "integer", "minimum": 0 },
     "evidence_blocker_count": { "type": "integer", "minimum": 0 },
     "scenario_selection_blocker_count": { "type": "integer", "minimum": 0 },
+    "a1_output_policy_blocker_count": { "type": "integer", "minimum": 0 },
     "warning_count": { "type": "integer", "minimum": 0 },
     "scenario_selection_gate": { "$ref": "#/$defs/scenario_selection_gate" },
+    "a1_output_policy_gate": { "$ref": "#/$defs/a1_output_policy_gate" },
     "blockers": {
       "type": "array",
       "items": { "$ref": "#/$defs/release_item" }
@@ -108,6 +112,40 @@
         "observed_minimums": { "type": "object" },
         "release_gate_inputs": { "type": "object" },
         "gaps": { "$ref": "#/$defs/string_array" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "a1_output_policy_gate": {
+      "type": "object",
+      "required": [
+        "status",
+        "ready",
+        "source_schema_version",
+        "label",
+        "index_path",
+        "total_records",
+        "dangerous_counts",
+        "safe_counts",
+        "evidence_refs"
+      ],
+      "properties": {
+        "status": { "enum": ["ready", "blocked", "not_evaluated"] },
+        "ready": { "type": "boolean" },
+        "source_schema_version": { "type": "string" },
+        "label": { "type": "string" },
+        "index_path": { "type": "string" },
+        "total_records": { "type": "integer", "minimum": 0 },
+        "dangerous_counts": {
+          "type": "object",
+          "required": ["unsafe_real_nonprivate_override", "private_required_but_not_private"],
+          "properties": {
+            "unsafe_real_nonprivate_override": { "type": "integer", "minimum": 0 },
+            "private_required_but_not_private": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": true
+        },
+        "safe_counts": { "type": "object" },
         "evidence_refs": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true

@@ -57,6 +57,29 @@ test("AgentInput helpers keep text and media parts typed", () => {
   assert.equal(media.parts[2].type, "video");
 });
 
+test("AgentInput media envelopes accept Python SDK aliases", () => {
+  const media = coerceAgentInput({
+    parts: [
+      { type: "text", content: "review every attachment" },
+      { type: "image", source: "fixtures/chart.png", mimeType: "image/png" },
+      { type: "audio", uri: "https://example.invalid/audio.wav", mimeType: "audio/wav" },
+      { type: "file", source: "fixtures/spec.pdf", fileName: "spec.pdf", mime_type: "application/pdf" },
+      { type: "video", url: "https://example.invalid/clip.mp4", filename: "clip.mp4", mimeType: "video/mp4" },
+    ],
+  });
+
+  assert.equal(media.text, "review every attachment");
+  assert.equal(media.parts[0].text, "review every attachment");
+  assert.equal(media.parts[1].path, "fixtures/chart.png");
+  assert.equal(media.parts[1].mime_type, "image/png");
+  assert.equal(media.parts[2].url, "https://example.invalid/audio.wav");
+  assert.equal(media.parts[2].mime_type, "audio/wav");
+  assert.equal(media.parts[3].path, "fixtures/spec.pdf");
+  assert.equal(media.parts[3].name, "spec.pdf");
+  assert.equal(media.parts[4].name, "clip.mp4");
+  assert.equal(media.parts[4].mime_type, "video/mp4");
+});
+
 test("CloudApiService submits a run, polls it, and writes a fixture without fetch", () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = () => {

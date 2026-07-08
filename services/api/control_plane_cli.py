@@ -67,6 +67,56 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("--observations-file")
     _add_ingestion_auth_args(trace)
 
+    job_enqueue = subparsers.add_parser("job-enqueue", help="Enqueue a durable local worker job with retry/dead-letter metadata.")
+    _add_project_args(job_enqueue)
+    job_enqueue.add_argument("--job-type", required=True)
+    job_enqueue.add_argument("--target-id")
+    job_enqueue.add_argument("--payload-json")
+    job_enqueue.add_argument("--payload-file")
+    job_enqueue.add_argument("--job-id")
+    job_enqueue.add_argument("--priority", type=int, default=100)
+    job_enqueue.add_argument("--max-attempts", type=int, default=3)
+    _add_ingestion_auth_args(job_enqueue)
+
+    job_lease = subparsers.add_parser("job-lease", help="Lease the next available worker job.")
+    _add_project_args(job_lease)
+    job_lease.add_argument("--lease-owner-id", required=True)
+    job_lease.add_argument("--lease-seconds", type=float, default=300.0)
+    job_lease.add_argument("--job-type")
+    job_lease.add_argument("--api-key-id")
+    job_lease.add_argument("--request-id")
+
+    job_heartbeat = subparsers.add_parser("job-heartbeat", help="Extend a worker job lease.")
+    _add_job_args(job_heartbeat)
+    job_heartbeat.add_argument("--lease-owner-id", required=True)
+    job_heartbeat.add_argument("--lease-seconds", type=float, default=300.0)
+    job_heartbeat.add_argument("--api-key-id")
+    job_heartbeat.add_argument("--request-id")
+
+    job_complete = subparsers.add_parser("job-complete", help="Mark a leased worker job completed.")
+    _add_job_args(job_complete)
+    job_complete.add_argument("--lease-owner-id", required=True)
+    job_complete.add_argument("--result-json")
+    job_complete.add_argument("--result-file")
+    job_complete.add_argument("--api-key-id")
+    job_complete.add_argument("--request-id")
+
+    job_fail = subparsers.add_parser("job-fail", help="Fail a leased worker job and retry or dead-letter it.")
+    _add_job_args(job_fail)
+    job_fail.add_argument("--lease-owner-id", required=True)
+    job_fail.add_argument("--error-json")
+    job_fail.add_argument("--error-file")
+    job_fail.add_argument("--retry-after-seconds", type=float)
+    job_fail.add_argument("--api-key-id")
+    job_fail.add_argument("--request-id")
+
+    job_list = subparsers.add_parser("job-list", help="List public-safe worker jobs for a project.")
+    _add_project_args(job_list)
+    job_list.add_argument("--status")
+    job_list.add_argument("--job-type")
+    job_list.add_argument("--limit", type=int)
+    job_list.add_argument("--auth-key-id")
+
     lifecycle = subparsers.add_parser("lifecycle-snapshot", help="Read tenant/project/run lifecycle state.")
     _add_run_args(lifecycle)
 
@@ -102,6 +152,11 @@ def _add_project_args(parser: argparse.ArgumentParser) -> None:
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
     _add_project_args(parser)
     parser.add_argument("--run-id", required=True)
+
+
+def _add_job_args(parser: argparse.ArgumentParser) -> None:
+    _add_project_args(parser)
+    parser.add_argument("--job-id", required=True)
 
 
 def _add_ingestion_auth_args(parser: argparse.ArgumentParser) -> None:
@@ -169,6 +224,70 @@ def run_command(args: argparse.Namespace) -> JsonDict:
             api_key_id=args.api_key_id,
             idempotency_key=args.idempotency_key,
             request_id=args.request_id,
+        )
+    elif command == "job-enqueue":
+        result = service.enqueue_worker_job(
+            args.tenant_id,
+            args.project_id,
+            job_type=args.job_type,
+            target_id=args.target_id,
+            payload=_load_object_arg(args.payload_json, args.payload_file, default={}),
+            job_id=args.job_id,
+            priority=args.priority,
+            max_attempts=args.max_attempts,
+            api_key_id=args.api_key_id,
+            idempotency_key=args.idempotency_key,
+            request_id=args.request_id,
+        )
+    elif command == "job-lease":
+        result = service.lease_worker_job(
+            args.tenant_id,
+            args.project_id,
+            lease_owner_id=args.lease_owner_id,
+            lease_seconds=args.lease_seconds,
+            job_type=args.job_type,
+            api_key_id=args.api_key_id,
+            request_id=args.request_id,
+        )
+    elif command == "job-heartbeat":
+        result = service.heartbeat_worker_job(
+            args.tenant_id,
+            args.project_id,
+            args.job_id,
+            lease_owner_id=args.lease_owner_id,
+            lease_seconds=args.lease_seconds,
+            api_key_id=args.api_key_id,
+            request_id=args.request_id,
+        )
+    elif command == "job-complete":
+        result = service.complete_worker_job(
+            args.tenant_id,
+            args.project_id,
+            args.job_id,
+            _load_object_arg(args.result_json, args.result_file, default={}),
+            lease_owner_id=args.lease_owner_id,
+            api_key_id=args.api_key_id,
+            request_id=args.request_id,
+        )
+    elif command == "job-fail":
+        result = service.fail_worker_job(
+            args.tenant_id,
+            args.project_id,
+            args.job_id,
+            _load_object_arg(args.error_json, args.error_file, default={}),
+            lease_owner_id=args.lease_owner_id,
+            retry_after_seconds=args.retry_after_seconds,
+            api_key_id=args.api_key_id,
+            request_id=args.request_id,
+        )
+    elif command == "job-list":
+        result = service.list_worker_jobs(
+            args.tenant_id,
+            args.project_id,
+            status=args.status,
+            job_type=args.job_type,
+            limit=args.limit,
+            auth_key_id=args.auth_key_id,
         )
     elif command == "lifecycle-snapshot":
         result = service.lifecycle_snapshot(args.tenant_id, args.project_id, args.run_id)
