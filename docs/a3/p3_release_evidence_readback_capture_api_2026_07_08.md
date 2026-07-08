@@ -121,4 +121,3 @@ node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_store.test.mjs tests/a3/
 ```
 
 Result at document time: 21 pass, 0 fail.
-
