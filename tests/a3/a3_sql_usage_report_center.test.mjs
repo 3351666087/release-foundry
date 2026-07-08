@@ -27,7 +27,9 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
     "report_view_events",
     "report_revocations",
     "audit_events",
-    "usage_ledger"
+    "usage_ledger",
+    "artifact_registry_entries",
+    "artifact_lifecycle_events"
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
@@ -37,6 +39,9 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
   assert.match(sql, /token_hash TEXT PRIMARY KEY/);
   assert.match(sql, /access_result TEXT NOT NULL DEFAULT 'allowed'/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_usage_meter/);
+  assert.match(sql, /manifest_join_key TEXT NOT NULL/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_artifact_registry_project_state/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact/);
 });
 
 test("A3 SQL migration plan documents Postgres, MySQL, and SQLite dialect targets", () => {

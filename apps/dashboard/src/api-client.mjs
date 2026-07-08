@@ -56,6 +56,26 @@ export async function fetchA3ProductConsole(options = {}) {
   return response.json();
 }
 
+export async function fetchA3ArtifactRegistry(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/artifacts/registry?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API artifact registry load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3ReviewWorkflow(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/review/workflow?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API review workflow load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -92,6 +112,51 @@ export async function createShareableA3Report(options = {}) {
   });
   if (!response.ok) {
     throw new Error(`A3 API share report failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function submitA3AdminAction(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/admin/actions/submit?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      source,
+      action: options.action,
+      reason: options.reason || "dashboard_admin_request",
+      actor_hash: options.actorHash || "dashboard_[REDACTED_HASH]",
+      target: options.target || {}
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API admin action submit failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function revokeShareableA3Report(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const reportId = options.reportId;
+  if (!reportId) {
+    throw new Error("A3 API revoke report requires reportId");
+  }
+  const response = await fetch(`${baseUrl}/api/a3/reports/${encodeURIComponent(reportId)}/revoke?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      reason: options.reason || "dashboard_revoke",
+      revoked_by: options.revokedBy || "a3-dashboard"
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API revoke report failed: ${response.status}`);
   }
   return response.json();
 }

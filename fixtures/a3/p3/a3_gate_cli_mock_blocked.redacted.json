@@ -421,8 +421,8 @@
         "path": "fixtures/a3/mock_grade_results.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "8b2a22eee2e1219f4175b4684f9f1e7764784f94fcedb5a05f9d4691da0669b6",
-        "byte_size": 348942
+        "sha256": "35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086",
+        "byte_size": 338646
       },
       {
         "id": "coverage",
@@ -437,24 +437,24 @@
         "path": "fixtures/a3/release_gate_thresholds.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "64a245a6dfc2e59a3cc97eefc05668c7e106a582ef720d317822ddf66dc91143",
-        "byte_size": 438
+        "sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "byte_size": 425
       },
       {
         "id": "waiver",
         "path": "fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "ca8706d89dd5722bffddfa5bffea455f35514f9d088bd685d27326dd8f57aa95",
-        "byte_size": 1798
+        "sha256": "c4cb4fd461d557a79ec6d5f45b15626c991b8d68741e43c86880630d21e0230b",
+        "byte_size": 1743
       },
       {
         "id": "approval",
         "path": "fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "92d25d130d7771b36fa28cda6e866d550742298444dee00bdd3e14986365fddf",
-        "byte_size": 1862
+        "sha256": "b970f83ea3bdc1b54db4ac1d4b16ac301451619eb8dd07b8c7d3d3698e6264f3",
+        "byte_size": 1805
       }
     ]
   },

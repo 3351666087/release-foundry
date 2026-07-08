@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import { startA3ApiServer } from "../../services/report/a3_api_server.mjs";
 import { createFixtureBackedA3Store } from "../../services/report/a3_store.mjs";
+
+async function loadJson(path) {
+  return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+}
 
 test("A3 API server exposes dashboard, run, case, and shareable report routes", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
@@ -54,9 +59,70 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(actionPlan.mode, "plan_only");
     assert.equal(actionPlan.writes_real_ashr_cloud, false);
 
+    const ownerEmail = ["owner", "example.com"].join("@");
+    const teammateEmail = ["teammate", "example.com"].join("@");
+    const actionSubmitResponse = await fetch(`${url}/api/a3/admin/actions/submit?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "invite_teammate",
+        actor: ownerEmail,
+        target: {
+          email: teammateEmail,
+          role: "reviewer"
+        }
+      })
+    });
+    assert.equal(actionSubmitResponse.status, 202);
+    const actionReceipt = await actionSubmitResponse.json();
+    assert.equal(actionReceipt.schema_version, "a3.saas_admin_action_receipt.v1");
+    assert.equal(actionReceipt.status, "recorded_plan_only");
+    assert.equal(actionReceipt.real_cloud_mutation_performed, false);
+    assert.equal(actionReceipt.secret_values_included, false);
+
+    const actionRequests = await getJson(`${url}/api/a3/admin/actions?source=mock`);
+    assert.equal(actionRequests.schema_version, "a3.saas_admin_action_request_list.v1");
+    assert.equal(actionRequests.summary.request_count, 1);
+    assert.equal(actionRequests.requests[0].action, "invite_teammate");
+    assert.doesNotMatch(JSON.stringify(actionRequests), new RegExp(`${ownerEmail}|${teammateEmail}`));
+
     const readiness = await getJson(`${url}/api/a3/enterprise/readiness?source=mock`);
     assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
     assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+
+    const waiver = await loadJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+    const approval = await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+    const waiverResponse = await fetch(`${url}/api/a3/review/waivers?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        waiver,
+        generated_at: "2026-07-07T12:00:00.000Z"
+      })
+    });
+    assert.equal(waiverResponse.status, 202);
+    const waiverReceipt = await waiverResponse.json();
+    assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
+    assert.equal(waiverReceipt.accepted, true);
+
+    const approvalResponse = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        approval,
+        waiver,
+        generated_at: "2026-07-07T12:00:00.000Z"
+      })
+    });
+    assert.equal(approvalResponse.status, 202);
+    const approvalReceipt = await approvalResponse.json();
+    assert.equal(approvalReceipt.status, "valid_exception_approval");
+    assert.equal(approvalReceipt.accepted, true);
+
+    const reviewWorkflow = await getJson(`${url}/api/a3/review/workflow?source=mock`);
+    assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
+    assert.equal(reviewWorkflow.record_count, 2);
+    assert.equal(reviewWorkflow.durable_storage_ready, true);
 
     const productConsole = await getJson(`${url}/api/a3/product/console?source=mock`);
     assert.equal(productConsole.schema_version, "a3.product_console.v1");
@@ -218,6 +284,14 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(reportCenter.reports[0].report_id, report.report_id);
     assert.equal(reportCenter.control_plane.sql_contract_ready, true);
     assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+    assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
+    assert.ok(reportCenter.artifact_registry.entries.some((item) => item.report_id === report.report_id));
+
+    const artifactRegistry = await getJson(`${url}/api/a3/artifacts/registry?source=mock`);
+    assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
+    assert.equal(artifactRegistry.summary.report_artifact_count, 4);
+    assert.ok(artifactRegistry.packet_presets.some((item) => item.preset_id === "pr_review_packet"));
+    assert.equal(artifactRegistry.safety.raw_share_tokens_stored, false);
 
     const viewResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/view`, {
       method: "POST",

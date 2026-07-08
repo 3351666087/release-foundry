@@ -1,4 +1,5 @@
 import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
+import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
 
 export const A3_REPORT_CENTER_INDEX_SCHEMA_VERSION = "a3.report_center_index.v1";
 
@@ -12,6 +13,23 @@ export function buildReportCenterIndex(reports = [], options = {}) {
     now
   }));
   const statusCounts = countBy(items, "status");
+  const productConsole = options.productConsole || {};
+  const saasAdmin = options.saasAdmin || {};
+  const artifactRegistry = buildA3ArtifactRegistry({
+    source: options.source || "unknown",
+    reportCenter: {
+      source: options.source || "unknown",
+      tenant_scope: {
+        organization_id: options.organizationId || "org-local",
+        project_id: options.projectId || "project-local"
+      },
+      reports: items
+    },
+    usageLedger,
+    migrationPlan,
+    productConsole,
+    saasAdmin
+  });
 
   return {
     schema_version: A3_REPORT_CENTER_INDEX_SCHEMA_VERSION,
@@ -29,7 +47,10 @@ export function buildReportCenterIndex(reports = [], options = {}) {
       blocked_count: statusCounts.blocked || 0,
       total_view_count: items.reduce((sum, item) => sum + item.view_count, 0),
       manifest_ready_count: items.filter((item) => item.manifest.completeness_score >= 80).length,
-      firewall_pass_count: items.filter((item) => item.redaction.status === "passed").length
+      firewall_pass_count: items.filter((item) => item.redaction.status === "passed").length,
+      artifact_registry_count: artifactRegistry.summary.artifact_count,
+      artifact_ready_count: artifactRegistry.summary.ready_count,
+      artifact_billable_meter_count: artifactRegistry.summary.billable_meter_count
     },
     control_plane: {
       usage_meter_count: Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0,
@@ -39,6 +60,7 @@ export function buildReportCenterIndex(reports = [], options = {}) {
       live_cloud_mutations_enabled: false
     },
     reports: items,
+    artifact_registry: artifactRegistry,
     next_actions: buildNextActions(items, usageLedger, migrationPlan)
   };
 }

@@ -53,6 +53,7 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
     cloudManagementBlock(admin.cloud_management || {}),
     workflowBlock("Product Console Map", admin.product_console_map || [], "page", "a3_decision", "purpose"),
     actionPlanBlock(actions, selectedAction, selectedPlan),
+    actionRequestBlock(admin.action_request_summary || {}, admin.action_requests || []),
     compatibilityBlock(admin.a1_a2_compatibility || {})
   );
 }
@@ -277,6 +278,48 @@ function actionPlanBlock(actions, selectedAction, selectedPlan) {
     <div class="muted">${escapeHtml(selectedPlan.next_step || "")}</div>
   `;
   block.appendChild(plan);
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button subtle";
+  button.dataset.adminActionSubmit = "true";
+  button.textContent = selectedPlan.enabled ? "Record Request" : "Record Guardrail";
+  block.appendChild(button);
+  return block;
+}
+
+function actionRequestBlock(summary, requests) {
+  const block = sectionBlock("Admin Action Requests", [
+    row("Recorded", String(summary.request_count || requests.length || 0)),
+    row("Pending", String(summary.pending_count || 0)),
+    row("Blocked", String(summary.blocked_count || 0)),
+    row("Real writes", summary.real_cloud_mutations_performed ? "yes" : "no")
+  ]);
+  const latest = Array.isArray(requests) ? requests.slice(-4).reverse() : [];
+  if (!latest.length) {
+    const empty = document.createElement("div");
+    empty.className = "matrix-row";
+    empty.innerHTML = `<div class="muted">No admin requests recorded yet. Use Record Request to create a safe audit event.</div>`;
+    block.appendChild(empty);
+    return block;
+  }
+  for (const request of latest) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(request.action)}</strong>
+        <span class="badge ${badgeClass(request.status)}">${escapeHtml(request.status)}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(request.request_id)}</span>
+        <span>${escapeHtml(request.area)}</span>
+        <span>${request.real_cloud_mutation_performed ? "real write" : "no real cloud write"}</span>
+      </div>
+      <div class="muted">${escapeHtml(request.next_step || "")}</div>
+    `;
+    block.appendChild(node);
+  }
   return block;
 }
 
@@ -293,10 +336,10 @@ function badgeClass(value) {
   if (["available", "enabled", "copy_now", "read_only", "contract_ready", "approve_release"].includes(value)) {
     return "pass";
   }
-  if (["blocked", "disabled", "plan_only", "missing", "block_release"].includes(value)) {
+  if (["blocked", "disabled", "plan_only", "missing", "block_release", "recorded_plan_only", "blocked_requires_backend", "blocked_real_cloud_mutation"].includes(value)) {
     return "warn";
   }
-  if (["preview", "preview_only", "planned"].includes(value)) {
+  if (["preview", "preview_only", "planned", "recorded_read_only"].includes(value)) {
     return "info";
   }
   return "neutral";

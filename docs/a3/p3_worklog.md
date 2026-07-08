@@ -2215,3 +2215,130 @@ Result:
 ### API calibration note
 
 No live Ashr API call was made in this pass. The work uses existing redacted P3 Ashr fixtures and local A1/A2-derived fixtures. No API key, token, cookie, email, raw signed media URL, or official source file was saved.
+## 2026-07-08 - SaaS Admin action request workflow
+
+Continued A3 Product Console / SaaS growth after the group lead updated `main` during merge-conflict cleanup. Fetched `origin/main`, confirmed the current A3 branch is already based on the latest main, and kept this pass additive inside A3-owned files.
+
+Added a safe request/audit layer for SaaS Admin actions:
+
+- `POST /api/a3/admin/actions/submit`
+- `GET /api/a3/admin/actions`
+- `a3.saas_admin_action_request.v1`
+- `a3.saas_admin_action_receipt.v1`
+- SQL table contract: `saas_admin_action_requests`
+- SQLite persistence for admin action request rows
+- Dashboard `Record Request` / `Record Guardrail` control
+- Report export summary for recorded admin requests
+
+No real Ashr login, team invite, billing, API-key, Trust publish, or cloud mutation was performed. No `.env.local`, API key, token, cookie, account email, raw share token, or live signed URL was read or committed.
+
+Verification passed:
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result: 79 pass, 0 fail.
+
+## 2026-07-08 - Durable reviewer waiver and approval records
+
+Continued A3 enterprise release sign-off work by adding a durable review workflow layer above the existing file-backed waiver/approval validation.
+
+Added:
+
+- `services/report/a3_review_workflow.mjs`
+- `a3.review_workflow_record.v1`
+- `a3.review_workflow_index.v1`
+- `a3.review_workflow_receipt.v1`
+- `POST /api/a3/review/waivers`
+- `POST /api/a3/review/approvals`
+- `GET /api/a3/review/workflow`
+- SQL table contract: `review_workflow_records`
+- SQLite persistence for waiver/approval workflow records
+- Dashboard durable review records under Reviewer Workflow
+- JSON export field: `review_workflow`
+- Documentation: `docs/a3/p3_review_workflow_durable_storage_2026_07_08.md`
+
+The new durable records reuse the existing Gate CLI validators rather than changing release-gate semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live cloud mutation.
+- No raw cryptographic signatures stored.
+- No API key, token, cookie, account email, raw share token, or live signed URL committed.
+
+Remaining production gap:
+
+Real cryptographic signature verification and SSO/OIDC/GitHub reviewer identity binding are still not implemented.
+
+## 2026-07-08 - Live-capable GitHub Check publisher
+
+Continued A3 commercial PR Gate work by adding a live-capable GitHub Check Run publisher while keeping existing dry-run contracts intact.
+
+Added:
+
+- `publishGitHubCheckRun(...)` in `services/report/a3_github_integration.mjs`
+- `services/report/a3_github_publish_cli.mjs`
+- default dry-run receipt generation
+- explicit `--live` mode for CI
+- runtime-token support through environment variables
+- updated GitHub Actions workflow example
+- redacted dry-run publish receipt fixture
+- documentation in `docs/a3/p3_live_github_check_publisher_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result: 13 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+The publisher can create/update a GitHub Check Run when CI explicitly opts in, but repository branch protection still needs maintainer-approved configuration before `Ashr++ Release Gate` is truly a required check.
+
+## 2026-07-08 - PR comment publisher and required-check plan
+
+Continued A3 PR Gate work by adding human-readable PR comment publishing and a branch-protection required-check plan.
+
+Added:
+
+- `publishPrCommentUpsert(...)`
+- `buildBranchProtectionRequiredCheckPlan(...)`
+- CLI flags `--pr-comment` and `--pull-number`
+- GitHub Actions `Publish Ashr++ PR Comment` example step
+- redacted dry-run PR comment receipt fixture
+- redacted required-check plan fixture
+- documentation in `docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result: 21 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+Branch protection still needs maintainer approval before `Ashr++ Release Gate` is truly required.

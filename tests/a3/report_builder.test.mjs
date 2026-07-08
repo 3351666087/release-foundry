@@ -15,6 +15,7 @@ import {
   getFilterOptions,
   normalizeCases,
   summarizeCommercialReadiness,
+  summarizeArtifactRegistryExport,
   summarizeCoverage,
   summarizeCloudConsoleShell,
   summarizeEvidenceReadiness,
@@ -26,6 +27,7 @@ import {
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
   summarizeProductConsoleExport,
+  summarizeReviewWorkflowExport,
   summarizeSaasAdminExport,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
@@ -38,6 +40,7 @@ import {
   summarizeUsageQuota
 } from "../../services/report/report_builder.mjs";
 import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
+import { buildA3ArtifactRegistry } from "../../services/report/a3_artifact_registry.mjs";
 import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
 
@@ -701,6 +704,98 @@ test("A3 report exports include SaaS admin login, team, API-key, usage, trust, a
   const missing = summarizeSaasAdminExport({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /Attach SaaS Admin Console/);
+});
+
+test("A3 report exports include Artifact Registry evidence catalog", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const artifactRegistry = buildA3ArtifactRegistry({
+    source: "mock",
+    reportCenter: {
+      source: "mock",
+      reports: [{
+        report_id: "a3r_export",
+        source: "mock",
+        status: "shareable",
+        share_link: { scope: "private_link", token_hash_prefix: "abc123def456" },
+        redaction: { status: "passed", blocked: false },
+        sealed_evidence: { payload_hash_present: true, secret_free: true },
+        manifest: { missing: [], redaction_status: "passed" }
+      }]
+    },
+    usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "runs", quantity: 1 }] },
+    migrationPlan: { schema_version: "a3.sql_migration_plan.v1", status: "contract_ready", migration_count: 7 },
+    productConsole: { schema_version: "a3.product_console.v1" },
+    saasAdmin: { schema_version: "a3.saas_admin_console.v1" }
+  });
+
+  const summary = summarizeArtifactRegistryExport(artifactRegistry);
+  assert.equal(summary.available, true);
+  assert.ok(summary.artifact_count >= 8);
+  assert.equal(summary.safety.raw_secret_values_allowed, false);
+  assert.equal(summary.safety.raw_share_tokens_stored, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, artifactRegistry);
+  assert.equal(json.artifact_registry.schema_version, "a3.artifact_registry_export.v1");
+  assert.equal(json.artifact_registry.available, true);
+  assert.ok(json.artifact_registry.top_artifacts.some((item) => item.artifact_type === "hosted_report"));
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, artifactRegistry);
+  assert.match(markdown, /## Artifact Registry/);
+  assert.match(markdown, /Artifact Packet Presets/);
+
+  const missing = summarizeArtifactRegistryExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Attach Artifact Registry/);
+});
+
+test("A3 report exports include durable review workflow records", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const reviewWorkflow = {
+    schema_version: "a3.review_workflow_index.v1",
+    source: "mock",
+    record_count: 2,
+    waiver_count: 1,
+    approval_count: 1,
+    accepted_count: 2,
+    durable_storage_ready: true,
+    real_cloud_mutations_performed: false,
+    records: [{
+      record_id: "rwr_waiver_unit",
+      record_type: "waiver",
+      status: "valid_exceptional_waiver",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "a".repeat(64),
+      review_hash: "b".repeat(64),
+      signature: { status: "hash_sealed_unsigned_record" }
+    }, {
+      record_id: "rwr_approval_unit",
+      record_type: "approval",
+      status: "valid_exception_approval",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "c".repeat(64),
+      review_hash: "d".repeat(64),
+      signature: { status: "hash_sealed_signer_record" }
+    }]
+  };
+
+  const summary = summarizeReviewWorkflowExport(reviewWorkflow);
+  assert.equal(summary.available, true);
+  assert.equal(summary.record_count, 2);
+  assert.equal(summary.durable_storage_ready, true);
+  assert.equal(summary.real_cloud_mutations_performed, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, reviewWorkflow);
+  assert.equal(json.review_workflow.schema_version, "a3.review_workflow_export.v1");
+  assert.equal(json.review_workflow.accepted_count, 2);
+  assert.equal(json.review_workflow.latest_records[1].signature_status, "hash_sealed_signer_record");
+
+  const missing = summarizeReviewWorkflowExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Review Workflow API/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {
