@@ -416,3 +416,9 @@
 - [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.
 - [x] Add dashboard Report Center revoke controls for active API-backed hosted reports.
 - [x] Verify SQLite-backed A3 store can persist A1/A2 imports, hosted report lifecycle, audit events, and usage ledger rows.
+- [x] Add safe SaaS Admin action request workflow for login/team/usage/API-key/trust/cloud-management operations.
+- [x] Add `POST /api/a3/admin/actions/submit` and `GET /api/a3/admin/actions`.
+- [x] Persist `saas_admin_action_requests` in the SQL migration contract and SQLite-backed A3 store.
+- [x] Add dashboard Record Request / Record Guardrail controls without enabling real Ashr cloud mutations.
+- [x] Include SaaS Admin action request summary in JSON/Markdown/print-ready exports.
+- [x] Confirm SaaS Admin action requests preserve A1/A2 compatibility and do not store secrets, emails, tokens, cookies, or real API keys.

@@ -7,6 +7,7 @@ import {
 } from "./report_builder.mjs";
 
 export const A3_SAAS_ADMIN_SCHEMA_VERSION = "a3.saas_admin_console.v1";
+export const A3_SAAS_ADMIN_ACTION_REQUEST_SCHEMA_VERSION = "a3.saas_admin_action_request.v1";
 
 export const A3_SAAS_ADMIN_ACTIONS = [
   "login_with_oauth",
@@ -226,6 +227,80 @@ export function planSaasAdminAction(action, context = {}) {
     frontend_session_observed: Boolean(cloudShell.frontend_session_observed),
     created_at: context.createdAt || "runtime"
   };
+}
+
+export function buildSaasAdminActionRequest(action, context = {}) {
+  const plan = context.plan || planSaasAdminAction(action, context);
+  const status = classifyActionRequestStatus(plan);
+  return {
+    schema_version: A3_SAAS_ADMIN_ACTION_REQUEST_SCHEMA_VERSION,
+    request_id: context.requestId || `aar_${String(plan.action || action || "unknown").replaceAll(/[^a-z0-9_]+/gi, "_")}`,
+    action: plan.action || action,
+    area: plan.area || "unknown",
+    mode: plan.mode || "unknown",
+    status,
+    organization_id: plan.organization_id || context.organizationId || "org-local",
+    project_id: plan.project_id || context.projectId || "project-local",
+    actor_hash: context.actorHash || "actor_[REDACTED_HASH]",
+    requested_at: context.requestedAt || plan.created_at || "runtime",
+    real_cloud_mutation_performed: false,
+    writes_real_ashr_cloud: plan.writes_real_ashr_cloud === true,
+    secret_values_included: false,
+    requires_hosted_auth: actionRequiresHostedAuth(plan),
+    requires_reviewer_approval: actionRequiresReviewerApproval(plan),
+    reason: plan.reason || "No action reason supplied.",
+    next_step: plan.next_step || "Review the action plan before enabling this workflow.",
+    plan,
+    safety: {
+      no_real_ashr_write: true,
+      raw_api_key_values_allowed: false,
+      raw_email_values_allowed: false,
+      raw_token_values_allowed: false,
+      redacted_identity_only: true
+    }
+  };
+}
+
+export function summarizeSaasAdminActionRequests(requests = []) {
+  const items = Array.isArray(requests) ? requests : [];
+  const pending = items.filter((item) => item.status === "recorded_plan_only" || item.status === "blocked_requires_backend").length;
+  const readOnly = items.filter((item) => item.status === "recorded_read_only").length;
+  const blocked = items.filter((item) => item.status === "blocked_real_cloud_mutation" || item.status === "blocked_requires_backend").length;
+  return {
+    schema_version: "a3.saas_admin_action_request_summary.v1",
+    request_count: items.length,
+    pending_count: pending,
+    read_only_count: readOnly,
+    blocked_count: blocked,
+    latest_request_id: items[items.length - 1]?.request_id || null,
+    real_cloud_mutations_performed: false,
+    secret_values_included: false
+  };
+}
+
+function classifyActionRequestStatus(plan = {}) {
+  if (plan.writes_real_ashr_cloud) {
+    return "blocked_real_cloud_mutation";
+  }
+  if (plan.mode === "plan_only" || plan.enabled === false) {
+    return "recorded_plan_only";
+  }
+  if (plan.mode === "mock_only") {
+    return "blocked_requires_backend";
+  }
+  return "recorded_read_only";
+}
+
+function actionRequiresHostedAuth(plan = {}) {
+  return ["login", "team", "api_keys", "usage", "trust", "cloud_management"].includes(plan.area)
+    && !["read_only", "read_only_calibrated", "read_only_local", "local_export", "contract_ready"].includes(plan.mode);
+}
+
+function actionRequiresReviewerApproval(plan = {}) {
+  return plan.area === "trust"
+    || plan.action === "publish_trust_report"
+    || plan.action === "download_audit_bundle"
+    || plan.risk === "high";
 }
 
 function buildLoginState(authCheck = {}, frontendSummary = {}, cloudShell = {}) {

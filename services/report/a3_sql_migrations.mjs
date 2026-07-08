@@ -15,6 +15,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
+      "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -276,7 +277,22 @@ CREATE TABLE IF NOT EXISTS artifact_lifecycle_events (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact ON artifact_lifecycle_events(project_id, artifact_id, created_at);`)
+CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact ON artifact_lifecycle_events(project_id, artifact_id, created_at);`),
+    statement("008_saas_admin_action_requests", ["saas_admin_action_requests"], `
+CREATE TABLE IF NOT EXISTS saas_admin_action_requests (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  area TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  actor_hash TEXT,
+  request_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saas_admin_action_requests_project ON saas_admin_action_requests(project_id, area, status, created_at);`)
   ];
 }
 

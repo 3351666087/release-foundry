@@ -106,6 +106,28 @@ export async function createShareableA3Report(options = {}) {
   return response.json();
 }
 
+export async function submitA3AdminAction(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/admin/actions/submit?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      source,
+      action: options.action,
+      reason: options.reason || "dashboard_admin_request",
+      actor_hash: options.actorHash || "dashboard_[REDACTED_HASH]",
+      target: options.target || {}
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API admin action submit failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function revokeShareableA3Report(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

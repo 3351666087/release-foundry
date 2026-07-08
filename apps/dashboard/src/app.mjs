@@ -32,11 +32,13 @@ import {
 import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapper.mjs?v=a3-polish";
 import {
   createShareableA3Report,
+  fetchA3AdminConsole,
   fetchA3ArtifactRegistry,
   fetchA3DashboardSnapshot,
   fetchA3ProductConsole,
   fetchA3ReportCenter,
   planA3AdminAction,
+  submitA3AdminAction,
   revokeShareableA3Report,
   isA3ApiSource
 } from "./api-client.mjs";
@@ -75,6 +77,7 @@ const state = {
   artifactRegistry: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
+  selectedAdminReceipt: null,
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -1596,6 +1599,7 @@ function renderPrintReport() {
         ["API keys", saasAdmin.available ? `${saasAdmin.api_keys.status}, ${saasAdmin.api_keys.key_count} metadata row(s), ${saasAdmin.api_keys.reveal_policy}` : "missing"],
         ["Trust", saasAdmin.available ? `${saasAdmin.trust.status}, publish ${saasAdmin.trust.publish_enabled ? "enabled" : "disabled"}, public publish ${saasAdmin.trust.public_publish_enabled ? "enabled" : "disabled"}` : "missing"],
         ["Cloud management", saasAdmin.available ? `${saasAdmin.cloud_management.status}, ${saasAdmin.cloud_management.resource_count} resource(s), real mutations ${saasAdmin.cloud_management.real_mutations_enabled ? "enabled" : "disabled"}` : "missing"],
+        ["Action requests", saasAdmin.available ? `${saasAdmin.action_requests?.request_count || 0} recorded, ${saasAdmin.action_requests?.pending_count || 0} pending, real cloud writes ${saasAdmin.action_requests?.real_cloud_mutations_performed ? "yes" : "no"}` : "missing"],
         ["A1/A2 compatibility", saasAdmin.available ? `A1 ${saasAdmin.a1_a2_compatibility.a1_run_result_ready ? "ready" : "missing"}, A2 ${saasAdmin.a1_a2_compatibility.a2_grade_result_ready ? "ready" : "missing"}` : "missing"]
       ])}
       ${renderReportTable(["Action", "Mode", "Real Cloud Write"], saasAdmin.available ? saasAdmin.action_plans.map((action) => [
@@ -1603,6 +1607,11 @@ function renderPrintReport() {
         action.mode,
         action.writes_real_ashr_cloud ? "yes" : "no"
       ]) : [], "No SaaS admin action guardrails.")}
+      ${renderReportTable(["Request", "Action", "Status"], saasAdmin.available ? (saasAdmin.action_requests?.latest || []).map((request) => [
+        request.request_id,
+        request.action,
+        request.status
+      ]) : [], "No SaaS admin action requests recorded yet.")}
     </div>
     <div class="report-section">
       <h4>Artifact Registry</h4>
@@ -2353,6 +2362,18 @@ async function refreshReportEvidence() {
   renderPrintReport();
 }
 
+async function refreshAdminEvidence() {
+  state.saasAdmin = await fetchA3AdminConsole({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || state.selectedAdminPlan;
+  refreshEnterpriseReadiness();
+  await refreshReportEvidence();
+  renderSaasAdmin();
+  renderEnterpriseReadiness();
+}
+
 function printReport() {
   renderPrintReport();
   window.print();
@@ -2402,12 +2423,14 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/enterprise/readiness",
         "GET /api/a3/admin/console",
         "POST /api/a3/admin/actions/plan",
+        "POST /api/a3/admin/actions/submit",
+        "GET /api/a3/admin/actions",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",
         "GET /api/a3/artifacts/registry"
       ],
-      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "trust_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
@@ -2468,6 +2491,7 @@ function renderSaasAdmin() {
   if (select) {
     select.addEventListener("change", async () => {
       state.selectedAdminAction = select.value;
+      state.selectedAdminReceipt = null;
       if (isA3ApiSource(state.source)) {
         try {
           state.selectedAdminPlan = await planA3AdminAction({
@@ -2492,6 +2516,71 @@ function renderSaasAdmin() {
       }
       renderSaasAdmin();
     });
+  }
+  const submitButton = document.querySelector("[data-admin-action-submit]");
+  if (submitButton) {
+    submitButton.addEventListener("click", submitAdminActionRequest);
+  }
+}
+
+async function submitAdminActionRequest() {
+  const action = state.selectedAdminAction;
+  const plan = state.selectedAdminPlan || {};
+  if (!isA3ApiSource(state.source)) {
+    state.selectedAdminReceipt = {
+      schema_version: "a3.saas_admin_action_receipt.v1",
+      request_id: "static_fixture_preview",
+      action,
+      status: "api_required",
+      next_step: "Switch Data to API-backed Mock before recording a durable admin action request."
+    };
+    state.saasAdmin = {
+      ...state.saasAdmin,
+      action_requests: [
+        ...(state.saasAdmin.action_requests || []),
+        {
+          request_id: "static_fixture_preview",
+          action,
+          area: plan.area || "unknown",
+          mode: plan.mode || "preview",
+          status: "api_required",
+          real_cloud_mutation_performed: false,
+          next_step: state.selectedAdminReceipt.next_step
+        }
+      ],
+      action_request_summary: {
+        ...(state.saasAdmin.action_request_summary || {}),
+        request_count: ((state.saasAdmin.action_request_summary || {}).request_count || 0) + 1,
+        real_cloud_mutations_performed: false
+      }
+    };
+    renderSaasAdmin();
+    renderPrintReport();
+    return;
+  }
+
+  try {
+    state.selectedAdminReceipt = await submitA3AdminAction({
+      source: state.source,
+      action,
+      baseUrl: getA3ApiBaseUrl(),
+      reason: "dashboard_admin_request",
+      target: {
+        mode: plan.mode,
+        area: plan.area
+      }
+    });
+    await refreshAdminEvidence();
+  } catch (error) {
+    state.selectedAdminReceipt = {
+      schema_version: "a3.saas_admin_action_receipt.v1",
+      request_id: "submit_failed",
+      action,
+      status: "failed",
+      next_step: error.message
+    };
+    console.error(error);
+    renderSaasAdmin();
   }
 }
 

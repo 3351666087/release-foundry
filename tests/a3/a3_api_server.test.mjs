@@ -54,6 +54,33 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(actionPlan.mode, "plan_only");
     assert.equal(actionPlan.writes_real_ashr_cloud, false);
 
+    const ownerEmail = ["owner", "example.com"].join("@");
+    const teammateEmail = ["teammate", "example.com"].join("@");
+    const actionSubmitResponse = await fetch(`${url}/api/a3/admin/actions/submit?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "invite_teammate",
+        actor: ownerEmail,
+        target: {
+          email: teammateEmail,
+          role: "reviewer"
+        }
+      })
+    });
+    assert.equal(actionSubmitResponse.status, 202);
+    const actionReceipt = await actionSubmitResponse.json();
+    assert.equal(actionReceipt.schema_version, "a3.saas_admin_action_receipt.v1");
+    assert.equal(actionReceipt.status, "recorded_plan_only");
+    assert.equal(actionReceipt.real_cloud_mutation_performed, false);
+    assert.equal(actionReceipt.secret_values_included, false);
+
+    const actionRequests = await getJson(`${url}/api/a3/admin/actions?source=mock`);
+    assert.equal(actionRequests.schema_version, "a3.saas_admin_action_request_list.v1");
+    assert.equal(actionRequests.summary.request_count, 1);
+    assert.equal(actionRequests.requests[0].action, "invite_teammate");
+    assert.doesNotMatch(JSON.stringify(actionRequests), new RegExp(`${ownerEmail}|${teammateEmail}`));
+
     const readiness = await getJson(`${url}/api/a3/enterprise/readiness?source=mock`);
     assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
     assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);

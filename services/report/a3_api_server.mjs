@@ -106,6 +106,29 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, plan);
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/submit") {
+        const body = await readJsonBody(request);
+        const receipt = await store.submitSaasAdminAction(body.action, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          reason: body.reason,
+          target: body.target,
+          requestedAt: body.requested_at || body.requestedAt
+        });
+        return sendJson(response, 202, receipt);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/admin/actions") {
+        return sendJson(response, 200, await store.listSaasAdminActionRequests({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {
         return sendJson(response, 200, {
           schema_version: "a3.api_run_list.v1",

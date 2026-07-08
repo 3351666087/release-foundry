@@ -103,6 +103,14 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     });
     assert.equal(revoke.status, "revoked");
 
+    const adminAction = await store.submitSaasAdminAction("publish_trust_report", {
+      source: "api-ingest",
+      actor: ["trust-admin", "example.com"].join("@"),
+      reason: "Request trust preview without public publishing."
+    });
+    assert.equal(adminAction.schema_version, "a3.saas_admin_action_receipt.v1");
+    assert.equal(adminAction.real_cloud_mutation_performed, false);
+
     inspection = store.inspectSqliteState();
     assert.equal(inspection.operational_tables.dashboard_snapshots, 2);
     assert.equal(inspection.operational_tables.idempotency_keys, 1);
@@ -111,6 +119,7 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.report_share_links, 1);
     assert.equal(inspection.operational_tables.report_view_events, 1);
     assert.equal(inspection.operational_tables.report_revocations, 1);
+    assert.equal(inspection.operational_tables.saas_admin_action_requests, 1);
     assert.ok(inspection.operational_tables.audit_events >= 2);
     assert.ok(inspection.operational_tables.usage_ledger > 0);
     assert.equal(inspection.safety.state_payload_secret_scan.raw_share_token_hint_found, false);
@@ -122,6 +131,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
     assert.equal(savedReport.share_link.token_hash, undefined);
     assert.match(savedReport.share_link.token_hash_prefix, /^[a-f0-9]{12}$/);
+    const savedAdminActions = await store.listSaasAdminActionRequests({ source: "api-ingest" });
+    assert.equal(savedAdminActions.summary.request_count, 1);
+    assert.doesNotMatch(JSON.stringify(savedAdminActions), new RegExp(["trust-admin", "example.com"].join("@")));
   } finally {
     if (store?.close) {
       store.close();

@@ -2215,3 +2215,29 @@ Result:
 ### API calibration note
 
 No live Ashr API call was made in this pass. The work uses existing redacted P3 Ashr fixtures and local A1/A2-derived fixtures. No API key, token, cookie, email, raw signed media URL, or official source file was saved.
+## 2026-07-08 - SaaS Admin action request workflow
+
+Continued A3 Product Console / SaaS growth after the group lead updated `main` during merge-conflict cleanup. Fetched `origin/main`, confirmed the current A3 branch is already based on the latest main, and kept this pass additive inside A3-owned files.
+
+Added a safe request/audit layer for SaaS Admin actions:
+
+- `POST /api/a3/admin/actions/submit`
+- `GET /api/a3/admin/actions`
+- `a3.saas_admin_action_request.v1`
+- `a3.saas_admin_action_receipt.v1`
+- SQL table contract: `saas_admin_action_requests`
+- SQLite persistence for admin action request rows
+- Dashboard `Record Request` / `Record Guardrail` control
+- Report export summary for recorded admin requests
+
+No real Ashr login, team invite, billing, API-key, Trust publish, or cloud mutation was performed. No `.env.local`, API key, token, cookie, account email, raw share token, or live signed URL was read or committed.
+
+Verification passed:
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result: 79 pass, 0 fail.

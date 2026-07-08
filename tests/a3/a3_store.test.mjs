@@ -74,6 +74,29 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(action.mode, "plan_only");
   assert.equal(action.writes_real_ashr_cloud, false);
 
+  const adminRequest = await store.submitSaasAdminAction("rotate_api_key", {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    reason: "Rotate old key without exposing secret value.",
+    target: {
+      key_prefix: "ashr_ci_[REDACTED]",
+      email: ["reviewer", "example.com"].join("@"),
+      token: ["Bearer", "should-not-persist"].join(" ")
+    }
+  });
+  assert.equal(adminRequest.schema_version, "a3.saas_admin_action_receipt.v1");
+  assert.equal(adminRequest.status, "recorded_plan_only");
+  assert.equal(adminRequest.real_cloud_mutation_performed, false);
+  assert.equal(adminRequest.secret_values_included, false);
+
+  const adminRequests = await store.listSaasAdminActionRequests({ source: "mock" });
+  assert.equal(adminRequests.schema_version, "a3.saas_admin_action_request_list.v1");
+  assert.equal(adminRequests.summary.request_count, 1);
+  assert.equal(adminRequests.requests[0].action, "rotate_api_key");
+  assert.equal(adminRequests.requests[0].target.email, undefined);
+  assert.equal(adminRequests.requests[0].target.token, undefined);
+  assert.doesNotMatch(JSON.stringify(adminRequests), new RegExp(`${["reviewer", "example.com"].join("@")}|should-not-persist`));
+
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
   assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
   assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);

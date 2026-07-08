@@ -3390,3 +3390,60 @@ Result: passed.
 ### Current interpretation
 
 A3 now has a concrete local SQL-backed store target. This is still not production Postgres or a hosted multi-tenant SaaS, but it turns the previous SQL contract into executable storage evidence and makes the hosted report lifecycle feel more like a real SaaS control plane.
+
+## 2026-07-08 - SaaS admin action request workflow
+
+### Goal
+
+Respond to the SaaS growth request for login, cloud/project management, usage, API keys, team, and trust workflows without introducing unsafe real Ashr mutations.
+
+The group lead also changed `main` and several files while resolving merge conflicts. This round first fetched `origin/main` and confirmed the A3 branch is already based on the current main, then kept changes additive inside A3-owned areas.
+
+### Work completed
+
+- Added `a3.saas_admin_action_request.v1` and `a3.saas_admin_action_receipt.v1`.
+- Added safe admin action request recording for login/team/usage/API-key/trust/cloud-management operations.
+- Added API routes:
+  - `POST /api/a3/admin/actions/submit`
+  - `GET /api/a3/admin/actions`
+- Added `saas_admin_action_requests` to the SQL migration contract.
+- Persisted SaaS admin action requests in the SQLite-backed A3 store.
+- Added dashboard `Record Request` / `Record Guardrail` control in the SaaS Admin Console.
+- Added request summary and latest requests to SaaS Admin report exports.
+- Preserved A1/A2 compatibility: A3 still only consumes A1 run/trace/tool-call evidence and A2 score/pass/fail/failure-class evidence.
+
+### Verification
+
+```text
+node --check services/report/a3_store.mjs
+node --check services/report/a3_saas_admin.mjs
+node --check services/report/a3_api_server.mjs
+node --check apps/dashboard/src/app.mjs
+```
+
+Result: passed.
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result:
+
+```text
+79 tests
+79 pass
+0 fail
+```
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team invite, API-key, Trust publish, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, or live signed URL was committed.
+
+### Current interpretation
+
+A3 now has a safer SaaS admin workflow: dangerous console actions can be represented as request records and audit events instead of fake-working buttons. This keeps the student MVP honest while moving it closer to enterprise product behavior.

@@ -3388,6 +3388,8 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
   const compatibility = saasAdminFixture.a1_a2_compatibility || {};
   const safety = saasAdminFixture.safety || {};
   const actions = Array.isArray(saasAdminFixture.actions) ? saasAdminFixture.actions : [];
+  const actionRequests = Array.isArray(saasAdminFixture.action_requests) ? saasAdminFixture.action_requests : [];
+  const actionRequestSummary = saasAdminFixture.action_request_summary || {};
 
   return {
     schema_version: "a3.saas_admin_export.v1",
@@ -3467,6 +3469,22 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       enabled: item.enabled === true,
       writes_real_ashr_cloud: item.writes_real_ashr_cloud === true
     })),
+    action_requests: {
+      request_count: actionRequestSummary.request_count || actionRequests.length,
+      pending_count: actionRequestSummary.pending_count || 0,
+      blocked_count: actionRequestSummary.blocked_count || 0,
+      real_cloud_mutations_performed: actionRequestSummary.real_cloud_mutations_performed === true,
+      secret_values_included: actionRequestSummary.secret_values_included === true,
+      latest: actionRequests.slice(-3).map((item) => ({
+        request_id: item.request_id,
+        action: item.action,
+        area: item.area,
+        mode: item.mode,
+        status: item.status,
+        real_cloud_mutation_performed: item.real_cloud_mutation_performed === true,
+        secret_values_included: item.secret_values_included === true
+      }))
+    },
     recommendation: "Keep SaaS admin, key, team, billing, trust, and cloud workflows read-only or plan-only until hosted auth, RBAC, SQL persistence, and audit events are real."
   };
 }

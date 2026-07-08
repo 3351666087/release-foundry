@@ -500,7 +500,10 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /function renderSaasAdmin\(\)/);
   assert.match(html, /state\.saasAdmin/);
   assert.match(html, /planA3AdminAction/);
+  assert.match(html, /submitA3AdminAction/);
   assert.match(html, /data-admin-action-select/);
+  assert.match(html, /data-admin-action-submit/);
+  assert.match(html, /function submitAdminActionRequest\(\)/);
   assert.match(html, /login, team, usage, API key, and trust state/);
   assert.match(adminComponent, /RBAC Matrix/);
   assert.match(adminComponent, /Invite Workflow/);
@@ -508,11 +511,17 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(adminComponent, /Trust Center/);
   assert.match(adminComponent, /Cloud Management/);
   assert.match(adminComponent, /Product Console Map/);
+  assert.match(adminComponent, /Admin Action Requests/);
+  assert.match(adminComponent, /Record Request|Record Guardrail/);
   assert.match(adminModel, /quota_mutations_enabled/);
+  assert.match(adminModel, /buildSaasAdminActionRequest/);
   assert.match(html, /state\.saasRuntime\.usage_ledger/);
   assert.match(html, /saas_admin_console/);
   assert.match(html, /selectedAdminAction/);
   assert.match(html, /selectedAdminPlan/);
+  assert.match(html, /selectedAdminReceipt/);
+  assert.match(html, /POST \/api\/a3\/admin\/actions\/submit/);
+  assert.match(html, /GET \/api\/a3\/admin\/actions/);
   assert.match(html, /clean-room shell/);
 });
 

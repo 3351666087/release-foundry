@@ -76,6 +76,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitSaasAdminAction(action, options = {}) {
+      const result = await store.submitSaasAdminAction(action, options);
+      await persist();
+      return result;
+    },
+
     async persist() {
       await persist();
     },
@@ -106,6 +112,7 @@ export function inspectSqliteA3Store(db) {
       report_revocations: countRows(db, "report_revocations"),
       idempotency_keys: countRows(db, "idempotency_keys"),
       api_import_receipts: countRows(db, "api_import_receipts"),
+      saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       audit_events: countRows(db, "audit_events"),
       usage_ledger: countRows(db, "usage_ledger")
     },
@@ -159,6 +166,7 @@ async function persistSqliteState(db, store) {
     await persistSnapshots(db, store, state, updatedAt);
     persistReports(db, state, updatedAt);
     persistIdempotencyReceipts(db, state, updatedAt);
+    persistSaasAdminActionRequests(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
@@ -184,6 +192,7 @@ function clearOperationalRows(db) {
     "audit_events",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
+    "saas_admin_action_requests",
     "api_import_receipts",
     "idempotency_keys",
     "report_share_links",
@@ -351,6 +360,27 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       receipt.imported_grade_count || 0,
       receipt.dashboard_case_count || 0,
       updatedAt
+    );
+  }
+}
+
+function persistSaasAdminActionRequests(db, state, updatedAt) {
+  for (const request of state.adminActionRequests || []) {
+    db.prepare(`
+INSERT INTO saas_admin_action_requests (id, organization_id, project_id, action, area, mode, status, actor_hash, request_hash, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      request.request_id,
+      request.organization_id || "org-local",
+      request.project_id || "project-local",
+      request.action || "unknown",
+      request.area || "unknown",
+      request.mode || "unknown",
+      request.status || "unknown",
+      request.actor_hash || request.requested_by_hash || null,
+      request.request_hash || sha256(JSON.stringify(request)),
+      JSON.stringify(request),
+      request.requested_at || updatedAt
     );
   }
 }
