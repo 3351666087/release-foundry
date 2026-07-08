@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable, Mapping
 from urllib.parse import parse_qs
 from uuid import uuid4
 
-from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _utc_now
+from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _lease_expired, _lease_expires_at, _utc_now
 from .release_gate_bridge import LocalReleaseGateBridgeClient, evaluate_lifecycle_with_release_gate
 from .platform import verify_release_evidence_packet as _verify_release_evidence_packet
 
@@ -21,6 +21,8 @@ RUN_UPLOAD_SCOPE = "run:upload"
 TRACE_INGEST_SCOPE = "trace:ingest"
 USAGE_READ_SCOPE = "usage:read"
 AUDIT_READ_SCOPE = "audit:read"
+WORKER_JOB_WRITE_SCOPE = "worker_job:write"
+WORKER_JOB_READ_SCOPE = "worker_job:read"
 ADMIN_ALL_SCOPE = "admin:all"
 CONTROL_PLANE_SCOPES = {
     "project:read",
@@ -39,6 +41,8 @@ CONTROL_PLANE_SCOPES = {
     API_KEY_ADMIN_SCOPE,
     USAGE_READ_SCOPE,
     AUDIT_READ_SCOPE,
+    WORKER_JOB_READ_SCOPE,
+    WORKER_JOB_WRITE_SCOPE,
     ADMIN_ALL_SCOPE,
 }
 API_KEY_SCOPE_ALIASES = {
@@ -51,6 +55,10 @@ API_KEY_SCOPE_ALIASES = {
     "artifact:write": {"artifact:upload"},
     "artifacts:write": {"artifact:upload"},
     "artifact:read": {"evidence:read"},
+    "worker:read": {WORKER_JOB_READ_SCOPE},
+    "worker:write": {WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE},
+    "queue:read": {WORKER_JOB_READ_SCOPE},
+    "queue:write": {WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE},
     API_KEY_ADMIN_SCOPE: {API_KEY_READ_SCOPE},
     ADMIN_ALL_SCOPE: set(CONTROL_PLANE_SCOPES),
 }
@@ -60,9 +68,15 @@ SAAS_QUOTA_LIMITS = {
     "sdk.submit": 10_000,
     "trace.ingest": 100_000,
     "artifact.manifest": 10_000,
+    "worker.job.enqueue": 100_000,
+    "worker.job.lease": 100_000,
+    "worker.job.complete": 100_000,
+    "worker.job.fail": 100_000,
     "audit_chain.verify": 10_000,
     "release_evidence.verify": 10_000,
 }
+
+TERMINAL_WORKER_JOB_STATUSES = {"completed", "dead_lettered", "cancelled"}
 
 
 class IdempotencyConflictError(ValidationError):
@@ -87,6 +101,7 @@ class SaaSControlPlaneStore:
     usage_ledger: dict[str, JsonDict] = field(default_factory=dict)
     idempotency_keys: dict[str, JsonDict] = field(default_factory=dict)
     artifact_manifests: dict[str, JsonDict] = field(default_factory=dict)
+    worker_jobs: dict[str, JsonDict] = field(default_factory=dict)
 
 
 class SaaSControlPlaneService:
@@ -536,6 +551,198 @@ class SaaSControlPlaneService:
         self._append_audit(tenant_id, project_id, "release_evidence.verify", target_id=resolved_run_id, api_key_id=auth_key_id, request_id=request_id, after={"verified": response["verified"], "packet_sha256": response.get("packet_sha256"), "actual_packet_sha256": response.get("actual_packet_sha256"), "usage_event_id": usage["usage_event_id"]})
         return _jsonable(response)
 
+    def enqueue_worker_job(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        job_type: str,
+        target_id: str | None = None,
+        payload: Mapping[str, Any] | None = None,
+        job_id: str | None = None,
+        priority: int = 100,
+        max_attempts: int = 3,
+        api_key_id: str | None = None,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=WORKER_JOB_WRITE_SCOPE, consume_rate=False)
+        normalized_payload = _jsonable(dict(payload or {}))
+        request_fingerprint = _request_fingerprint(
+            tenant_id,
+            project_id,
+            "worker.job.enqueue",
+            {"job_type": job_type, "target_id": target_id, "payload": normalized_payload, "job_id": job_id, "priority": priority, "max_attempts": max_attempts, "api_key_id": api_key_id},
+        )
+        idem = self._idempotency_lookup(tenant_id, project_id, "worker.job.enqueue", idempotency_key, request_fingerprint=request_fingerprint)
+        if idem is not None:
+            return idem
+        if api_key_id is not None:
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), "worker:write")
+        self.cloud.get_project(tenant_id, project_id)
+        self.cloud.quota.check(tenant_id, project_id, "worker.job.enqueue")
+        job_id = job_id or _new_id("job")
+        if str(job_id) in self.store.worker_jobs:
+            raise ValidationError(f"worker job already exists: {job_id}")
+        attempts_limit = _normalize_positive_int(max_attempts, "max_attempts")
+        now = _utc_now()
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "job_id": str(job_id),
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "job_type": str(job_type),
+            "target_id": target_id,
+            "payload_sha256": _stable_sha256(normalized_payload),
+            "raw_payload_included": False,
+            "status": "queued",
+            "priority": int(priority),
+            "attempts": 0,
+            "max_attempts": attempts_limit,
+            "lease_owner_id": None,
+            "lease_expires_at": None,
+            "available_at": now,
+            "last_error": None,
+            "result_sha256": None,
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.store.worker_jobs[record["job_id"]] = record
+        self._consume_usage(tenant_id, project_id, "worker.job.enqueue", api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, run_id=target_id)
+        response = _jsonable(record)
+        self._idempotency_store(tenant_id, project_id, "worker.job.enqueue", idempotency_key, response, request_fingerprint=request_fingerprint)
+        self._append_audit(tenant_id, project_id, "worker.job.enqueue", target_id=record["job_id"], api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id, after={"job_id": record["job_id"], "job_type": record["job_type"], "target_id": target_id})
+        return response
+
+    def lease_worker_job(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        lease_owner_id: str,
+        lease_seconds: float = 300.0,
+        job_type: str | None = None,
+        api_key_id: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=WORKER_JOB_WRITE_SCOPE, consume_rate=False)
+        if not str(lease_owner_id).strip():
+            raise ValidationError("lease_owner_id is required")
+        if api_key_id is not None:
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, api_key_id), "worker:write")
+        self.cloud.get_project(tenant_id, project_id)
+        self.cloud.quota.check(tenant_id, project_id, "worker.job.lease")
+        now = _utc_now()
+        candidates = [
+            job
+            for job in self.store.worker_jobs.values()
+            if job.get("tenant_id") == str(tenant_id)
+            and job.get("project_id") == str(project_id)
+            and job.get("status") in {"queued", "leased", "retrying"}
+            and (job_type is None or job.get("job_type") == str(job_type))
+            and _job_available_for_lease(job, now=now)
+        ]
+        candidates.sort(key=lambda item: (int(item.get("priority", 100) or 100), str(item.get("available_at") or ""), str(item.get("created_at") or ""), str(item.get("job_id") or "")))
+        if not candidates:
+            return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "status": "empty", "tenant_id": tenant_id, "project_id": project_id, "job": None, "leased": False, "created_at": now}
+        job = candidates[0]
+        before = _jsonable(job)
+        job["status"] = "leased"
+        job["attempts"] = int(job.get("attempts") or 0) + 1
+        job["lease_owner_id"] = str(lease_owner_id)
+        job["lease_expires_at"] = _lease_expires_at(now, lease_seconds)
+        job["updated_at"] = now
+        self._consume_usage(tenant_id, project_id, "worker.job.lease", api_key_id=api_key_id, request_id=request_id, run_id=job.get("target_id"))
+        self._append_audit(tenant_id, project_id, "worker.job.lease", target_id=str(job.get("job_id")), api_key_id=api_key_id, request_id=request_id, before=before, after={"job_id": job.get("job_id"), "attempts": job.get("attempts"), "lease_owner_id": lease_owner_id, "lease_expires_at": job.get("lease_expires_at")})
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "status": "leased", "tenant_id": tenant_id, "project_id": project_id, "leased": True, "job": _jsonable(job)}
+
+    def heartbeat_worker_job(self, tenant_id: str, project_id: str, job_id: str, *, lease_owner_id: str, lease_seconds: float = 300.0, api_key_id: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=WORKER_JOB_WRITE_SCOPE, consume_rate=False)
+        job = self._worker_job_record(tenant_id, project_id, job_id)
+        _require_worker_job_lease(job, lease_owner_id)
+        before = _jsonable(job)
+        now = _utc_now()
+        job["lease_expires_at"] = _lease_expires_at(now, lease_seconds)
+        job["updated_at"] = now
+        self._append_audit(tenant_id, project_id, "worker.job.heartbeat", target_id=str(job_id), api_key_id=api_key_id, request_id=request_id, before=before, after={"lease_expires_at": job.get("lease_expires_at"), "lease_owner_id": lease_owner_id})
+        return _jsonable(job)
+
+    def complete_worker_job(self, tenant_id: str, project_id: str, job_id: str, result: Mapping[str, Any] | None = None, *, lease_owner_id: str, api_key_id: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=WORKER_JOB_WRITE_SCOPE, consume_rate=False)
+        job = self._worker_job_record(tenant_id, project_id, job_id)
+        _require_worker_job_lease(job, lease_owner_id)
+        before = _jsonable(job)
+        now = _utc_now()
+        job["status"] = "completed"
+        job["lease_owner_id"] = None
+        job["lease_expires_at"] = None
+        job["result_sha256"] = _stable_sha256(dict(result or {}))
+        job["updated_at"] = now
+        job["completed_at"] = now
+        self._consume_usage(tenant_id, project_id, "worker.job.complete", api_key_id=api_key_id, request_id=request_id, run_id=job.get("target_id"))
+        self._append_audit(tenant_id, project_id, "worker.job.complete", target_id=str(job_id), api_key_id=api_key_id, request_id=request_id, before=before, after={"job_id": job_id, "status": job.get("status"), "result_sha256": job.get("result_sha256")})
+        return _jsonable(job)
+
+    def fail_worker_job(self, tenant_id: str, project_id: str, job_id: str, error: Mapping[str, Any] | None = None, *, lease_owner_id: str, retry_after_seconds: float | None = None, api_key_id: str | None = None, request_id: str | None = None) -> JsonDict:
+        if api_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=api_key_id, scope=WORKER_JOB_WRITE_SCOPE, consume_rate=False)
+        job = self._worker_job_record(tenant_id, project_id, job_id)
+        _require_worker_job_lease(job, lease_owner_id)
+        before = _jsonable(job)
+        now = _utc_now()
+        attempts = int(job.get("attempts") or 0)
+        max_attempts = int(job.get("max_attempts") or 1)
+        normalized_error = _jsonable(dict(error or {}))
+        job["last_error"] = {"sha256": _stable_sha256(normalized_error), "type": str(normalized_error.get("type") or "worker_error"), "message": str(normalized_error.get("message") or "redacted"), "raw_payload_included": False, "failed_at": now}
+        job["lease_owner_id"] = None
+        job["lease_expires_at"] = None
+        if attempts >= max_attempts:
+            job["status"] = "dead_lettered"
+            job["dead_lettered_at"] = now
+            job["available_at"] = None
+        else:
+            job["status"] = "retrying"
+            retry_seconds = _retry_after_seconds(attempts, retry_after_seconds=retry_after_seconds)
+            job["available_at"] = now if retry_seconds == 0 else _lease_expires_at(now, retry_seconds)
+        job["updated_at"] = now
+        self._consume_usage(tenant_id, project_id, "worker.job.fail", api_key_id=api_key_id, request_id=request_id, run_id=job.get("target_id"))
+        self._append_audit(tenant_id, project_id, "worker.job.fail", target_id=str(job_id), api_key_id=api_key_id, request_id=request_id, before=before, after={"job_id": job_id, "status": job.get("status"), "attempts": attempts, "last_error_sha256": job["last_error"]["sha256"]})
+        return _jsonable(job)
+
+    def list_worker_jobs(self, tenant_id: str, project_id: str, *, status: str | None = None, job_type: str | None = None, limit: int | None = None, auth_key_id: str | None = None) -> JsonDict:
+        self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=WORKER_JOB_READ_SCOPE)
+        jobs = [job for job in self.store.worker_jobs.values() if job.get("tenant_id") == str(tenant_id) and job.get("project_id") == str(project_id)]
+        if status is not None:
+            jobs = [job for job in jobs if job.get("status") == str(status)]
+        if job_type is not None:
+            jobs = [job for job in jobs if job.get("job_type") == str(job_type)]
+        jobs = sorted((_jsonable(job) for job in jobs), key=lambda item: (int(item.get("priority", 100) or 100), str(item.get("created_at") or ""), str(item.get("job_id") or "")))
+        if limit is not None:
+            jobs = jobs[: _normalize_positive_int(limit, "limit")]
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"status": status, "job_type": job_type, "limit": limit}, "jobs": jobs, "count": len(jobs)}
+
+    def _worker_job_record(self, tenant_id: str, project_id: str, job_id: str) -> JsonDict:
+        job = self.store.worker_jobs.get(str(job_id))
+        if not job or job.get("tenant_id") != str(tenant_id) or job.get("project_id") != str(project_id):
+            raise NotFoundError("worker job not found for project")
+        if job.get("status") in TERMINAL_WORKER_JOB_STATUSES:
+            return job
+        if job.get("status") == "leased" and _lease_expired(job.get("lease_expires_at")):
+            job["status"] = "retrying"
+            job["lease_owner_id"] = None
+            job["lease_expires_at"] = None
+            job["available_at"] = _utc_now()
+            job["updated_at"] = job["available_at"]
+        return job
+
 
     def _consume_usage(self, tenant_id: str, project_id: str, operation: str, *, units: int = 1, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, run_id: str | None = None) -> JsonDict:
         self.cloud.quota.consume(tenant_id, project_id, operation, units=units)
@@ -654,6 +861,47 @@ def _scope_allows(granted_scopes: Any, required_scope: str) -> bool:
         if scope.endswith(":*") and required_scope.startswith(f"{scope[:-2]}:"):
             return True
     return False
+
+
+def _normalize_positive_int(value: Any, name: str) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{name} must be a positive integer") from exc
+    if parsed < 1:
+        raise ValidationError(f"{name} must be a positive integer")
+    return parsed
+
+
+def _job_available_for_lease(job: Mapping[str, Any], *, now: str) -> bool:
+    status = job.get("status")
+    if status == "queued":
+        available_at = job.get("available_at")
+        return available_at in {None, ""} or _lease_expired(available_at, now=now)
+    if status == "retrying":
+        available_at = job.get("available_at")
+        return available_at in {None, ""} or _lease_expired(available_at, now=now)
+    if status == "leased":
+        return _lease_expired(job.get("lease_expires_at"), now=now)
+    return False
+
+
+def _require_worker_job_lease(job: Mapping[str, Any], lease_owner_id: str) -> None:
+    if job.get("status") != "leased":
+        raise ValidationError("worker job is not leased")
+    if job.get("lease_owner_id") != str(lease_owner_id):
+        raise ValidationError("worker job lease owner mismatch")
+    if _lease_expired(job.get("lease_expires_at")):
+        raise ValidationError("worker job lease expired")
+
+
+def _retry_after_seconds(attempts: int, *, retry_after_seconds: float | None = None) -> float:
+    if retry_after_seconds is not None:
+        seconds = float(retry_after_seconds)
+        if seconds < 0:
+            raise ValidationError("retry_after_seconds must be non-negative")
+        return seconds
+    return float(min(3600, 2 ** max(0, int(attempts) - 1)))
 
 
 def _stable_sha256(value: Any) -> str:
@@ -1203,6 +1451,7 @@ def snapshot_control_plane(service: SaaSControlPlaneService) -> JsonDict:
             "usage_ledger": _jsonable(service.store.usage_ledger),
             "idempotency_keys": _jsonable(service.store.idempotency_keys),
             "artifact_manifests": _jsonable(service.store.artifact_manifests),
+            "worker_jobs": _jsonable(service.store.worker_jobs),
         },
     }
     payload["integrity"] = {"payload_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
@@ -1237,6 +1486,7 @@ def control_plane_from_state(payload: Mapping[str, Any]) -> SaaSControlPlaneServ
         usage_ledger=dict(control_payload.get("usage_ledger") or {}),
         idempotency_keys=dict(control_payload.get("idempotency_keys") or {}),
         artifact_manifests=dict(control_payload.get("artifact_manifests") or {}),
+        worker_jobs=dict(control_payload.get("worker_jobs") or {}),
     )
     return SaaSControlPlaneService(cloud, store=store)
 

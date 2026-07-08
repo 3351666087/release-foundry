@@ -42,6 +42,38 @@ test("TS SaaS control plane covers key submit upload trace lifecycle idempotency
   assert.equal(restored.lifecycleSnapshot("tenant_ts_saas", "project_ts_saas", "run_ts_saas").trace_batches[0].batch_id, "trace_ts_saas");
 });
 
+test("TS SaaS ingestion client accepts Python SDK option aliases", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_alias", projectId: "project_ts_alias" });
+  service.cloud.createDataset("tenant_ts_alias", "project_ts_alias", { datasetId: "dataset_ts_alias", name: "Dataset", cases: [{ id: "case-1" }] });
+  const client = new SaaSIngestionClient({ service });
+
+  const key = client.createApiKey("tenant_ts_alias", "project_ts_alias", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest", "usage:read"], key_id: "key_ts_alias", reveal_secret: true });
+  assert.equal(key.result.key_id, "key_ts_alias");
+  assert.equal(key.result.secret_value_present, true);
+  assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
+
+  const submitted = client.sdkSubmit("tenant_ts_alias", "project_ts_alias", { dataset_id: "dataset_ts_alias", agent_ref: "mock", run_id: "run_ts_alias", api_key_id: "key_ts_alias", idempotency_key: "idem-submit" });
+  assert.equal(submitted.result.run.run_id, "run_ts_alias");
+
+  const upload = client.uploadRun("tenant_ts_alias", "project_ts_alias", "run_ts_alias", { status: "completed", api_key: "tp_should_not_leak" }, { upload_id: "upload_ts_alias", api_key_id: "key_ts_alias", request_id: "req-upload" });
+  assert.equal(upload.result.upload_id, "upload_ts_alias");
+  assert.equal(JSON.stringify(upload).includes("tp_should_not_leak"), false);
+
+  const trace = client.ingestTrace("tenant_ts_alias", "project_ts_alias", "run_ts_alias", [{ observation_id: "obs_ts_alias" }], { batch_id: "trace_ts_alias", api_key_id: "key_ts_alias" });
+  assert.deepEqual(trace.result.observation_ids, ["obs_ts_alias"]);
+
+  const quota = client.quotaSnapshot("tenant_ts_alias", "project_ts_alias", { auth_key_id: "key_ts_alias" });
+  assert.equal(quota.operation, "quota_snapshot");
+  assert.equal(quota.result.totals["sdk.submit"], 1);
+  assert.equal(quota.result.quota.used["run.upload"], 1);
+
+  assert.throws(
+    () => client.sdkSubmit("tenant_ts_alias", "project_ts_alias", { dataset_id: "dataset_ts_alias", agent_ref: "mock", api_key: "tp_raw" }),
+    /raw API key values are not accepted/,
+  );
+});
+
 test("TS SaaS API key one-time secret verify and public redaction parity", () => {
   const service = new SaaSControlPlaneService();
   service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_secret", projectId: "project_ts_secret" });
@@ -233,22 +265,26 @@ test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
     const spec = await client.openApi();
     assert.equal(spec.openapi, "3.0.3");
 
-    const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest"], keyId: "key_ts_http" });
+    const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest", "usage:read"], keyId: "key_ts_http" });
     assert.equal(key.result.key_id, "key_ts_http");
     assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
 
-    const submitted = await client.sdkSubmitHttp("tenant_ts_http", "project_ts_http", { datasetId: "dataset_ts_http", agentRef: "mock", runId: "run_ts_http", apiKeyId: "key_ts_http" });
+    const submitted = await client.sdkSubmitHttp("tenant_ts_http", "project_ts_http", { dataset_id: "dataset_ts_http", agent_ref: "mock", run_id: "run_ts_http", api_key_id: "key_ts_http" });
     assert.equal(submitted.result.run.run_id, "run_ts_http");
 
-    const upload = await client.uploadRunHttp("tenant_ts_http", "project_ts_http", "run_ts_http", { status: "completed", api_key: "tp_should_not_leak" }, { uploadId: "upload_ts_http", apiKeyId: "key_ts_http" });
+    const upload = await client.uploadRunHttp("tenant_ts_http", "project_ts_http", "run_ts_http", { status: "completed", api_key: "tp_should_not_leak" }, { upload_id: "upload_ts_http", api_key_id: "key_ts_http" });
     assert.equal(upload.result.upload_id, "upload_ts_http");
     assert.equal(JSON.stringify(upload).includes("tp_should_not_leak"), false);
 
-    const trace = await client.ingestTraceHttp("tenant_ts_http", "project_ts_http", "run_ts_http", [{ observation_id: "obs_ts_http" }], { batchId: "trace_ts_http", apiKeyId: "key_ts_http" });
+    const trace = await client.ingestTraceHttp("tenant_ts_http", "project_ts_http", "run_ts_http", [{ observation_id: "obs_ts_http" }], { batch_id: "trace_ts_http", api_key_id: "key_ts_http" });
     assert.deepEqual(trace.result.observation_ids, ["obs_ts_http"]);
 
     const lifecycle = await client.lifecycleHttp("tenant_ts_http", "project_ts_http", "run_ts_http");
     assert.equal(lifecycle.result.quota.used["trace.ingest"], 1);
+
+    const quota = await client.quotaSnapshotHttp("tenant_ts_http", "project_ts_http", { auth_key_id: "key_ts_http" });
+    assert.equal(quota.operation, "quota_snapshot");
+    assert.equal(quota.result.totals["trace.ingest"], 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -297,6 +333,54 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   assert.equal(listed.length, 1);
   const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact", { authKeyId: "key_ts_artifact" });
   assert.equal(usage.totals["artifact.manifest"], 1);
+});
+
+test("TS SaaS worker jobs lease retry dead-letter and redact payloads", () => {
+  const client = new SaaSIngestionClient();
+  client.bootstrapProject({ tenantName: "Worker Tenant", projectName: "Worker Project", tenantId: "tenant_ts_worker", projectId: "project_ts_worker", datasetId: "dataset_ts_worker" });
+  client.sdkSubmit("tenant_ts_worker", "project_ts_worker", { dataset_id: "dataset_ts_worker", agent_ref: "mock", run_id: "run_ts_worker" });
+
+  const enqueued = client.enqueueWorkerJob("tenant_ts_worker", "project_ts_worker", {
+    job_type: "run.replay",
+    target_id: "run_ts_worker",
+    job_id: "job_ts_worker",
+    priority: 3,
+    max_attempts: 2,
+    idempotency_key: "idem-ts-worker",
+    payload: { run_id: "run_ts_worker", secret: "must-not-leak" },
+  });
+  const replay = client.enqueueWorkerJob("tenant_ts_worker", "project_ts_worker", {
+    job_type: "run.replay",
+    target_id: "run_ts_worker",
+    job_id: "job_ts_worker",
+    priority: 3,
+    max_attempts: 2,
+    idempotency_key: "idem-ts-worker",
+    payload: { run_id: "run_ts_worker", secret: "must-not-leak" },
+  });
+  assert.equal(enqueued.result.raw_payload_included, false);
+  assert.equal(JSON.stringify(enqueued).includes("must-not-leak"), false);
+  assert.equal(replay.result.idempotent_replay, true);
+
+  const leased = client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-a", lease_seconds: 30, job_type: "run.replay" });
+  assert.equal(leased.result.leased, true);
+  assert.equal(leased.result.job.attempts, 1);
+  assert.throws(() => client.completeWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { ok: true }, { lease_owner_id: "worker-b" }), /lease owner mismatch/);
+
+  const failed = client.failWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { type: "TransientError", message: "redacted", raw: "not stored" }, { lease_owner_id: "worker-a", retry_after_seconds: 0 });
+  assert.equal(failed.result.status, "retrying");
+  assert.equal(failed.result.last_error.raw_payload_included, false);
+  const leasedAgain = client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-b", lease_seconds: 30 });
+  assert.equal(leasedAgain.result.job.attempts, 2);
+  const dead = client.failWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { type: "PermanentError" }, { lease_owner_id: "worker-b" });
+  assert.equal(dead.result.status, "dead_lettered");
+  assert.equal(client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-c" }).result.status, "empty");
+
+  const listed = client.listWorkerJobs("tenant_ts_worker", "project_ts_worker", { status: "dead_lettered" });
+  assert.equal(listed.result.count, 1);
+  assert.equal(listed.result.jobs[0].job_id, "job_ts_worker");
+  const used = client.service.cloud.quotaSnapshot("tenant_ts_worker", "project_ts_worker").used;
+  assert.equal(used["worker.job.fail"], 2);
 });
 
 test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () => {

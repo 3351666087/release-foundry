@@ -3519,3 +3519,93 @@ Known gaps / next top 20:
 18. Add worker job lease persistence backed by Postgres schema.
 19. Add tenant/org/user auth model bindings into Python/TS services.
 20. Add main-branch integration smoke before next PR update.
+
+## A1 round 2026-07-08 - SaaS worker queue + TS/Go parity surge
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 20` -> PR #19 open draft for this branch; A3 PR #18 open draft; prior A1 PRs merged.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` failed once with GitHub 443 connection timeout; `gh` repo/PR calls succeeded. No remote merge performed this round.
+- Initial tracked tree was clean at HEAD `809a899`; untracked `recon/` and `tools/` observed and intentionally left unstaged.
+
+20 growth points considered this round:
+1. Control-plane worker job queue with lease/retry/dead-letter.
+2. CloudApi run-level retry/dead-letter.
+3. TS SaaS worker job local SDK parity.
+4. TS SaaS Python-style option aliases.
+5. TS five-modality alias normalization.
+6. Go hosted HTTP parity methods.
+7. Go typed/redacted API errors.
+8. Go retry/backoff/idempotency safety.
+9. Go media-safe envelope validation.
+10. Worker data model schema regeneration for retry/dead-letter fields.
+11. CLI state-file worker job lifecycle.
+12. Queue audit log/usage ledger events.
+13. Public-safe worker payload hashing without raw payload storage.
+14. Dead-letter evidence doc.
+15. SQL/deploy static validation re-run.
+16. Rust verifier validation re-run.
+17. Terraform validation re-run.
+18. A1 full pytest gate.
+19. TS full package gate.
+20. Go package + integration gates.
+
+Implemented files:
+- `services/api/control_plane.py`: added `worker_jobs` store, scopes, quota operations, enqueue/lease/heartbeat/complete/fail/list methods, lease expiry reclaim, retry/dead-letter handling, audit events, usage events, idempotent enqueue, snapshot/restore support.
+- `services/api/control_plane_cli.py`: added `job-enqueue`, `job-lease`, `job-heartbeat`, `job-complete`, `job-fail`, and `job-list` commands.
+- `tests/a1/test_saas_control_plane.py`: added service-level worker job lease/retry/dead-letter and expired lease reclaim coverage.
+- `tests/a1/test_saas_control_plane_cli.py`: added persisted CLI worker job lifecycle and public-safe state coverage.
+- `services/api/runtime.py`, `services/api/queue_worker.py`, `services/api/data_model.py`, `services/api/__init__.py`, `tests/a1/test_cloud_api.py`, and `docs/a1/schemas/worker_data_model.*`: Worker-Runtime added run-level retry/dead-letter lifecycle, queue replay retry handling, schema regeneration, and tests.
+- `docs/a1/docs/evidence/worker_runtime_queue_retry_dead_letter_2026_07_08.md`: public evidence for runtime retry/dead-letter behavior.
+- `packages/ts/ashr-clone/src/index.ts`, `packages/ts/ashr-clone/src/saas.ts`, `packages/ts/ashr-clone/test/runtime.test.mjs`, `packages/ts/ashr-clone/test/saas.test.mjs`: TS media alias parity, snake_case SaaS option aliases, quota snapshot, worker job local SDK parity, and tests.
+- `packages/go/ashrclone/api_error.go`, `hosted.go`, `media_safe.go`, plus updates to `client.go`, `idempotency.go`, `types.go`, tests, and `tests/integration/go/ashrclone_integration_test.go`: Go hosted API parity, typed/redacted errors, retry/backoff, and media-safe envelope validation.
+
+Subagent outputs:
+- Growth-Auditor: no edits; flagged money-grade gaps: persistent backend, HTTP/OpenAPI server, tenant isolation, API key lifecycle, distributed quota, object storage, webhook worker, immutable audit. Highest ROI next: FastAPI/OpenAPI shell, Postgres repository adapter, storage adapter, Redis quota/idempotency, API-key lifecycle, OpenAPI/SDK parity tests, commercial readiness gate, webhook worker.
+- Worker-TS: landed TS aliases/media/quota parity and verified `npm test` -> 277 passed before main added worker-job TS parity.
+- Worker-Runtime: landed CloudApi retry/dead-letter runtime and schema/test/evidence; verified focused Python tests -> 51 passed for selected suite.
+- Worker-Go/Polyglot: landed hosted Go methods, typed errors, retry/backoff, media safety; verified Go package and Go integration tests.
+
+Commands / results:
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_control_plane_cli.py -q -p no:cacheprovider` -> initially failed 3 worker-job lease visibility tests; fixed `available_at <= now` semantics; then 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 280 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> initially 277 passed; after main TS worker-job parity, 278 passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `cargo test` in repo root -> failed because no root `Cargo.toml`; rerun in `packages/rust/ashr-runtime-verify` -> 3 passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> 4 passed, 1 skipped.
+- `node --test tests/integration/deploy_runtime_scaffold.test.mjs` -> 5 passed.
+- `terraform fmt -check -recursive`; `terraform init -backend=false`; `terraform validate` in `infra/terraform/self-host` -> passed.
+
+Real API / private evidence:
+- No desktop key files read. No raw key values logged or committed.
+- No new official Ashr API call in this code-heavy round; Growth-Auditor still requires next round to prioritize API/OpenAPI calibration using env-only key and private refs.
+- `recon/`, `tools/`, `.secrets/`, and `docs/evidence/private_refs/**` intentionally left unstaged.
+
+Peer changes / impact:
+- A3 PR #18 is open draft and updated after this branch; no remote fetch update succeeded in this network window, so peer code was not merged locally.
+- Current main integration risk remains: before final PR merge, fetch must be retried and origin/main compared.
+
+Known gaps / next top 20:
+1. Retry `git fetch` and compare origin/main once GitHub network is stable.
+2. Add real HTTP/FastAPI or ASGI wrapper for A1 SaaS routes with OpenAPI.
+3. Wire Postgres repository adapter behind control plane for tenants/projects/runs/API keys/audit/usage/jobs.
+4. Add Redis/distributed quota/idempotency adapter.
+5. Add object storage adapter and signed upload intent/complete/verify flow.
+6. Add webhook delivery worker with retry/dead-letter/HMAC metadata.
+7. Add TS HTTP/router/CLI parity for worker jobs, beyond local SDK parity.
+8. Add Go worker job hosted methods once A1 HTTP route exists.
+9. Add official API read-only calibration batch using env-only key and private evidence.
+10. Add official paid small-batch calibration plan with quota/error/cost recording.
+11. Add OpenAPI-generated Python/TS/Go parity contract snapshots.
+12. Add migration live test through compose Postgres when Docker is available.
+13. Add CI YAML for Python/TS/Go/Rust/Terraform/SQL gates.
+14. Add secret scan gate for staged diffs.
+15. Add tenant isolation concurrency tests for worker jobs and trace ingestion.
+16. Add API-key rotation/expiration/last-used metadata.
+17. Add billing-period usage export and reconciliation fixtures.
+18. Add enterprise audit export with signed evidence bundle index.
+19. Add Rust evidence bundle verification command.
+20. Add A1 commercial readiness report consumed by A3.

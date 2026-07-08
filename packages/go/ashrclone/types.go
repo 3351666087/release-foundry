@@ -109,6 +109,15 @@ func (input AgentInput) Validate() error {
 		if _, ok := supportedModalities[part.Type]; !ok {
 			return fmt.Errorf("agent input part %d has unsupported modality %q", index, part.Type)
 		}
+		if part.Type != ModalityText && part.URL == "" && part.Path == "" {
+			return fmt.Errorf("agent input part %d with modality %q must use url or path media reference", index, part.Type)
+		}
+		if err := ValidateMediaSafeEnvelope(part.Metadata); err != nil {
+			return fmt.Errorf("agent input part %d metadata: %w", index, err)
+		}
+	}
+	if err := ValidateMediaSafeEnvelope(input.Metadata); err != nil {
+		return fmt.Errorf("agent input metadata: %w", err)
 	}
 	return nil
 }

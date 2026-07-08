@@ -2,6 +2,7 @@ package ashrclone
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -44,5 +45,24 @@ func TestRedactSensitiveRemovesEnvKeyValues(t *testing.T) {
 	}
 	if strings.Count(string(payload), Redacted) != 2 {
 		t.Fatalf("expected redaction markers, got %s", payload)
+	}
+}
+
+func TestMediaSafeEnvelopeRejectsInlineBytesAndAllowsReferences(t *testing.T) {
+	if err := ValidateMediaSafeEnvelope(JSONMap{"artifact": JSONMap{"url": "https://example.invalid/image.png", "mime_type": "image/png"}}); err != nil {
+		t.Fatalf("reference envelope rejected: %v", err)
+	}
+	unsafe := JSONMap{"artifact": JSONMap{"data_url": "data:image/png;base64,iVBORw0KGgo="}}
+	err := ValidateMediaSafeEnvelope(unsafe)
+	var mediaErr MediaSafetyError
+	if !errors.As(err, &mediaErr) {
+		t.Fatalf("expected MediaSafetyError, got %T %v", err, err)
+	}
+}
+
+func TestAgentInputRequiresMediaReferences(t *testing.T) {
+	input := AgentInputFromParts([]AgentInputPart{{Type: ModalityImage, MIMEType: "image/png"}}, nil)
+	if err := input.Validate(); err == nil || !strings.Contains(err.Error(), "url or path") {
+		t.Fatalf("expected media reference validation error, got %v", err)
 	}
 }

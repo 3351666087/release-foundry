@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,12 +13,15 @@ import (
 	"time"
 )
 
-const DefaultBaseURL = "https://api.ashr.local/v1/"
+const DefaultBaseURL = "https://api.ashr.io/testing-platform-api"
 
 type Client struct {
-	BaseURL    string
-	APIKey     string
-	HTTPClient *http.Client
+	BaseURL      string
+	APIKey       string
+	HTTPClient   *http.Client
+	MaxRetries   int
+	RetryBackoff time.Duration
+	RetrySleeper func(context.Context, time.Duration) error
 }
 
 type ClientOption func(*Client)
@@ -39,8 +42,28 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
+func WithRetry(maxRetries int, backoff time.Duration) ClientOption {
+	return func(client *Client) {
+		if maxRetries < 0 {
+			maxRetries = 0
+		}
+		client.MaxRetries = maxRetries
+		if backoff >= 0 {
+			client.RetryBackoff = backoff
+		}
+	}
+}
+
+func WithRetrySleeper(sleeper func(context.Context, time.Duration) error) ClientOption {
+	return func(client *Client) {
+		if sleeper != nil {
+			client.RetrySleeper = sleeper
+		}
+	}
+}
+
 func NewClient(options ...ClientOption) *Client {
-	client := &Client{BaseURL: normalizeBaseURL(DefaultBaseURL), HTTPClient: &http.Client{Timeout: 30 * time.Second}}
+	client := &Client{BaseURL: normalizeBaseURL(DefaultBaseURL), HTTPClient: &http.Client{Timeout: 30 * time.Second}, MaxRetries: 2, RetryBackoff: 500 * time.Millisecond, RetrySleeper: sleepContext}
 	for _, option := range options {
 		option(client)
 	}
@@ -70,6 +93,14 @@ func (client *Client) RedactedConfig() JSONMap {
 }
 
 func (client *Client) Post(ctx context.Context, path string, requestBody any, responseBody any, options IdempotencyOptions) error {
+	return client.DoJSON(ctx, http.MethodPost, path, requestBody, responseBody, options)
+}
+
+func (client *Client) Get(ctx context.Context, path string, requestBody any, responseBody any, options IdempotencyOptions) error {
+	return client.DoJSON(ctx, http.MethodGet, path, requestBody, responseBody, options)
+}
+
+func (client *Client) DoJSON(ctx context.Context, method, path string, requestBody any, responseBody any, options IdempotencyOptions) error {
 	payload, err := json.Marshal(requestBody)
 	if err != nil {
 		return err
@@ -78,42 +109,107 @@ func (client *Client) Post(ctx context.Context, path string, requestBody any, re
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return err
+	if method == "" {
+		method = http.MethodPost
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	if client.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+client.APIKey)
+	maxRetries := client.MaxRetries
+	if !options.AllowRetryWithoutIdempotency && maxRetries > 0 && requestMutates(method) && options.Key == "" {
+		return RetrySafetyError{Method: method, Path: path}
 	}
-	if options.Key != "" {
-		req.Header.Set("Idempotency-Key", options.Key)
-	}
-	if options.RequestID != "" {
-		req.Header.Set("X-Request-ID", options.RequestID)
-	}
-
 	httpClient := client.HTTPClient
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		if client.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+client.APIKey)
+		}
+		if options.Key != "" {
+			req.Header.Set("Idempotency-Key", options.Key)
+		}
+		if options.RequestID != "" {
+			req.Header.Set("X-Request-ID", options.RequestID)
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			if !isRetryableTransportError(err) || attempt >= maxRetries {
+				return err
+			}
+		} else {
+			body, readErr := readAndClose(resp)
+			if readErr != nil {
+				return readErr
+			}
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				apiErr := NewAPIError(resp.StatusCode, body, resp.Header)
+				lastErr = apiErr
+				if !apiErr.Retryable() || attempt >= maxRetries {
+					return apiErr
+				}
+			} else {
+				if responseBody == nil || len(body) == 0 {
+					return nil
+				}
+				return json.Unmarshal(body, responseBody)
+			}
+		}
+		if err := client.sleep(ctx, attempt); err != nil {
+			return err
+		}
 	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return errors.New("ashr API request failed without a response")
+}
+
+func readAndClose(resp *http.Response) ([]byte, error) {
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	return io.ReadAll(resp.Body)
+}
+
+func requestMutates(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	default:
+		return true
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("ashr API returned status %d: %s", resp.StatusCode, string(body))
-	}
-	if responseBody == nil || len(body) == 0 {
+}
+
+func isRetryableTransportError(err error) bool {
+	return err != nil
+}
+
+func (client *Client) sleep(ctx context.Context, attempt int) error {
+	if client.RetryBackoff <= 0 {
 		return nil
 	}
-	return json.Unmarshal(body, responseBody)
+	delay := client.RetryBackoff * time.Duration(1<<attempt)
+	sleeper := client.RetrySleeper
+	if sleeper == nil {
+		sleeper = sleepContext
+	}
+	return sleeper(ctx, delay)
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func normalizeBaseURL(baseURL string) string {

@@ -1203,6 +1203,11 @@
           "description": "agent_ref",
           "type": "string"
         },
+        "attempt": {
+          "default": "0",
+          "description": "attempt",
+          "type": "integer"
+        },
         "created_at": {
           "default": "now()",
           "description": "UTC creation timestamp",
@@ -1213,6 +1218,10 @@
           "description": "Dataset identifier",
           "type": "string"
         },
+        "dead_letter_reason": {
+          "description": "dead_letter_reason",
+          "type": "string"
+        },
         "environment_id": {
           "description": "Environment identifier such as dev/staging/prod",
           "type": "string"
@@ -1221,6 +1230,41 @@
           "description": "finished_at",
           "format": "date-time",
           "type": "string"
+        },
+        "last_error": {
+          "description": "last_error",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "lease_expires_at": {
+          "description": "lease_expires_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "lease_heartbeat_at": {
+          "description": "lease_heartbeat_at",
+          "format": "date-time",
+          "type": "string"
+        },
+        "lease_owner_id": {
+          "description": "lease_owner_id",
+          "type": "string"
+        },
+        "lease_reclaim_count": {
+          "default": "0",
+          "description": "lease_reclaim_count",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "default": "3",
+          "description": "max_attempts",
+          "type": "integer"
         },
         "metadata": {
           "default": "{}",
@@ -1260,7 +1304,8 @@
             "completed",
             "failed",
             "cancelled",
-            "expired"
+            "expired",
+            "dead_lettered"
           ],
           "type": "string"
         },
@@ -1300,6 +1345,9 @@
         "run_id",
         "agent_ref",
         "status",
+        "attempt",
+        "max_attempts",
+        "lease_reclaim_count",
         "created_at",
         "updated_at"
       ],

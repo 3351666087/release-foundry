@@ -418,6 +418,86 @@ def test_saas_control_plane_revoked_key_cannot_auth_or_consume_quota():
     assert "run_revoked_blocked" not in control.cloud.store.runs
 
 
+def test_saas_control_plane_worker_job_lease_retry_dead_letter_and_redaction():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    tenant_id = tenant["tenant_id"]
+    project_id = project["project_id"]
+    submitted = control.sdk_submit_run(tenant_id, project_id, dataset_id=dataset["dataset_id"], agent_ref="mock", run_id="run_worker_job")
+
+    enqueued = control.enqueue_worker_job(
+        tenant_id,
+        project_id,
+        job_type="run.replay",
+        target_id=submitted["run"]["run_id"],
+        payload={"run_id": submitted["run"]["run_id"], "secret": "must-not-be-stored"},
+        job_id="job_replay_1",
+        priority=5,
+        max_attempts=2,
+        idempotency_key="idem_job_1",
+    )
+    replay = control.enqueue_worker_job(
+        tenant_id,
+        project_id,
+        job_type="run.replay",
+        target_id=submitted["run"]["run_id"],
+        payload={"run_id": submitted["run"]["run_id"], "secret": "must-not-be-stored"},
+        job_id="job_replay_1",
+        priority=5,
+        max_attempts=2,
+        idempotency_key="idem_job_1",
+    )
+    assert replay["idempotent_replay"] is True
+    assert enqueued["raw_payload_included"] is False
+    assert "secret" not in json.dumps(enqueued, sort_keys=True)
+
+    leased = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-a", lease_seconds=30, job_type="run.replay")
+    assert leased["leased"] is True
+    assert leased["job"]["attempts"] == 1
+    assert leased["job"]["lease_owner_id"] == "worker-a"
+    with pytest.raises(ValidationError, match="lease owner mismatch"):
+        control.complete_worker_job(tenant_id, project_id, "job_replay_1", {"ok": True}, lease_owner_id="worker-b")
+
+    failed = control.fail_worker_job(
+        tenant_id,
+        project_id,
+        "job_replay_1",
+        {"type": "TransientError", "message": "redacted network failure", "raw": "not stored"},
+        lease_owner_id="worker-a",
+        retry_after_seconds=0,
+    )
+    assert failed["status"] == "retrying"
+    assert failed["last_error"]["raw_payload_included"] is False
+
+    leased_again = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-b", lease_seconds=30)
+    assert leased_again["job"]["attempts"] == 2
+    dead = control.fail_worker_job(tenant_id, project_id, "job_replay_1", {"type": "PermanentError"}, lease_owner_id="worker-b")
+    assert dead["status"] == "dead_lettered"
+    assert control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-c")["status"] == "empty"
+
+    listed = control.list_worker_jobs(tenant_id, project_id, status="dead_lettered")
+    assert listed["count"] == 1
+    assert listed["jobs"][0]["job_id"] == "job_replay_1"
+    assert control.cloud.quota_snapshot(tenant_id, project_id)["used"]["worker.job.fail"] == 2
+    audit = control.audit_snapshot(tenant_id, project_id)
+    assert {event["action"] for event in audit["events"]} >= {"worker.job.enqueue", "worker.job.lease", "worker.job.fail"}
+
+
+def test_saas_control_plane_worker_job_can_be_released_after_expired_lease():
+    control, tenant, project, _dataset = _control_plane_with_dataset()
+    tenant_id = tenant["tenant_id"]
+    project_id = project["project_id"]
+    control.enqueue_worker_job(tenant_id, project_id, job_type="trace.compact", job_id="job_expiring", max_attempts=2)
+
+    leased = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-old", lease_seconds=1)
+    assert leased["job"]["lease_owner_id"] == "worker-old"
+    control.store.worker_jobs["job_expiring"]["lease_expires_at"] = "2000-01-01T00:00:00.000Z"
+
+    leased_again = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-new", lease_seconds=1)
+    assert leased_again["leased"] is True
+    assert leased_again["job"]["lease_owner_id"] == "worker-new"
+    assert leased_again["job"]["attempts"] == 2
+
+
 def test_saas_control_plane_router_covers_key_sdk_upload_trace_lifecycle_and_redaction():
     from services.api.control_plane import SaaSControlPlaneRouter
 

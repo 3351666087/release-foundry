@@ -15,6 +15,10 @@ export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "sdk.submit": 10000,
   "trace.ingest": 100000,
   "artifact.manifest": 10000,
+  "worker.job.enqueue": 100000,
+  "worker.job.lease": 100000,
+  "worker.job.complete": 100000,
+  "worker.job.fail": 100000,
   "audit_chain.verify": 10000,
   "release_evidence.verify": 10000,
 };
@@ -28,6 +32,8 @@ export const ARTIFACT_MANIFEST_SCOPE = "artifact:upload";
 export const ADMIN_ALL_SCOPE = "admin:all";
 export const USAGE_READ_SCOPE = "usage:read";
 export const AUDIT_READ_SCOPE = "audit:read";
+export const WORKER_JOB_READ_SCOPE = "worker_job:read";
+export const WORKER_JOB_WRITE_SCOPE = "worker_job:write";
 
 const SCOPE_ALIASES: Record<string, string[]> = {
   "key:admin": [API_KEY_ADMIN_SCOPE, API_KEY_READ_SCOPE],
@@ -38,6 +44,10 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "traces:write": [TRACE_INGEST_SCOPE],
   "artifact:write": [ARTIFACT_MANIFEST_SCOPE],
   "artifacts:write": [ARTIFACT_MANIFEST_SCOPE],
+  "worker:read": [WORKER_JOB_READ_SCOPE],
+  "worker:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
+  "queue:read": [WORKER_JOB_READ_SCOPE],
+  "queue:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
   [API_KEY_ADMIN_SCOPE]: [API_KEY_READ_SCOPE],
   [ADMIN_ALL_SCOPE]: ["*"],
 };
@@ -52,6 +62,7 @@ export interface SaaSControlPlaneStore {
   usage_ledger: Record<string, JsonRecord>;
   idempotency_keys: Record<string, JsonRecord>;
   artifact_manifests: Record<string, JsonRecord>;
+  worker_jobs: Record<string, JsonRecord>;
 }
 
 export interface SaaSControlPlaneState extends JsonRecord {
@@ -75,6 +86,35 @@ export type SaaSFetchLike = (input: string | URL, init?: {
   body?: string;
 }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>;
 
+type SaaSClientOptions = JsonRecord & {
+  apiKey?: string;
+  api_key?: string;
+  apiKeyId?: string;
+  api_key_id?: string;
+  authKeyId?: string;
+  auth_key_id?: string;
+  keyId?: string;
+  key_id?: string;
+  runId?: string;
+  run_id?: string;
+  datasetId?: string;
+  dataset_id?: string;
+  agentRef?: string;
+  agent_ref?: string;
+  uploadId?: string;
+  upload_id?: string;
+  batchId?: string;
+  batch_id?: string;
+  idempotencyKey?: string;
+  idempotency_key?: string;
+  requestId?: string;
+  request_id?: string;
+  revealSecret?: boolean;
+  reveal_secret?: boolean;
+  actionPrefix?: string;
+  action_prefix?: string;
+};
+
 export interface SaaSHttpTransportOptions {
   baseUrl: string;
   fetch?: SaaSFetchLike;
@@ -96,6 +136,7 @@ export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore>
     usage_ledger: { ...(seed.usage_ledger ?? {}) },
     idempotency_keys: { ...(seed.idempotency_keys ?? {}) },
     artifact_manifests: { ...(seed.artifact_manifests ?? {}) },
+    worker_jobs: { ...(seed.worker_jobs ?? {}) },
   };
 }
 
@@ -616,6 +657,123 @@ export class SaaSControlPlaneService {
     };
   }
 
+  enqueueWorkerJob(tenantId: string, projectId: string, options: { jobType: string; targetId?: string; payload?: JsonRecord; jobId?: string; priority?: number; maxAttempts?: number; apiKeyId?: string; idempotencyKey?: string; requestId?: string }): JsonRecord {
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: WORKER_JOB_WRITE_SCOPE, consumeRate: false });
+    this.cloud.getProject(tenantId, projectId);
+    const payload = sortJson(options.payload ?? {}) as JsonRecord;
+    const fingerprint = requestFingerprintSha256({ tenant_id: tenantId, project_id: projectId, operation: "worker.job.enqueue", job_type: options.jobType, target_id: options.targetId ?? null, payload, job_id: options.jobId ?? null, priority: options.priority ?? 100, max_attempts: options.maxAttempts ?? 3, api_key_id: options.apiKeyId ?? null });
+    const replay = this.idempotencyLookup(tenantId, projectId, "worker.job.enqueue", options.idempotencyKey, fingerprint);
+    if (replay !== null) return replay;
+    if (options.apiKeyId !== undefined) this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.apiKeyId), "worker:write");
+    this.cloud.quota.check(tenantId, projectId, "worker.job.enqueue");
+    const jobId = options.jobId ?? newId("job");
+    if (this.store.worker_jobs[jobId] !== undefined) throw new ValidationError(`worker job already exists: ${jobId}`);
+    const maxAttempts = positiveInt(options.maxAttempts ?? 3, "max_attempts");
+    const now = utcNow();
+    const record: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      job_id: jobId,
+      tenant_id: tenantId,
+      project_id: projectId,
+      job_type: String(options.jobType),
+      target_id: options.targetId ?? null,
+      payload_sha256: sha256(JSON.stringify(payload)),
+      raw_payload_included: false,
+      status: "queued",
+      priority: Number(options.priority ?? 100),
+      attempts: 0,
+      max_attempts: maxAttempts,
+      lease_owner_id: null,
+      lease_expires_at: null,
+      available_at: now,
+      last_error: null,
+      result_sha256: null,
+      idempotency_key: options.idempotencyKey ?? null,
+      request_id: options.requestId ?? null,
+      created_at: now,
+      updated_at: now,
+    };
+    this.store.worker_jobs[jobId] = record;
+    this.consumeUsage(tenantId, projectId, "worker.job.enqueue", { apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId: options.targetId });
+    const response = cloneJson(record) as JsonRecord;
+    this.idempotencyStore(tenantId, projectId, "worker.job.enqueue", options.idempotencyKey, fingerprint, response);
+    this.appendAudit(tenantId, projectId, "worker.job.enqueue", { targetId: jobId, apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, after: { job_id: jobId, job_type: record.job_type, target_id: options.targetId ?? null } });
+    return response;
+  }
+
+  leaseWorkerJob(tenantId: string, projectId: string, options: { leaseOwnerId: string; leaseSeconds?: number; jobType?: string; apiKeyId?: string; requestId?: string }): JsonRecord {
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: WORKER_JOB_WRITE_SCOPE, consumeRate: false });
+    if (options.leaseOwnerId.trim() === "") throw new ValidationError("lease_owner_id is required");
+    this.cloud.getProject(tenantId, projectId);
+    const now = utcNow();
+    const candidates = Object.values(this.store.worker_jobs).filter((job) => job.tenant_id === tenantId && job.project_id === projectId && ["queued", "leased", "retrying"].includes(String(job.status)) && (options.jobType === undefined || job.job_type === options.jobType) && jobAvailableForLease(job, now));
+    candidates.sort((a, b) => Number(a.priority ?? 100) - Number(b.priority ?? 100) || String(a.available_at ?? "").localeCompare(String(b.available_at ?? "")) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.job_id ?? "").localeCompare(String(b.job_id ?? "")));
+    if (candidates.length === 0) return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, status: "empty", tenant_id: tenantId, project_id: projectId, job: null, leased: false, created_at: now };
+    const job = candidates[0];
+    const before = cloneJson(job) as JsonRecord;
+    job.status = "leased";
+    job.attempts = Number(job.attempts ?? 0) + 1;
+    job.lease_owner_id = options.leaseOwnerId;
+    job.lease_expires_at = leaseExpiresAt(now, options.leaseSeconds ?? 300);
+    job.updated_at = now;
+    this.consumeUsage(tenantId, projectId, "worker.job.lease", { apiKeyId: options.apiKeyId, requestId: options.requestId, runId: typeof job.target_id === "string" ? job.target_id : undefined });
+    this.appendAudit(tenantId, projectId, "worker.job.lease", { targetId: String(job.job_id), apiKeyId: options.apiKeyId, requestId: options.requestId, before, after: { job_id: job.job_id, attempts: job.attempts, lease_owner_id: options.leaseOwnerId, lease_expires_at: job.lease_expires_at } });
+    return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, status: "leased", tenant_id: tenantId, project_id: projectId, leased: true, job: cloneJson(job) as JsonRecord };
+  }
+
+  completeWorkerJob(tenantId: string, projectId: string, jobId: string, result: JsonRecord = {}, options: { leaseOwnerId: string; apiKeyId?: string; requestId?: string }): JsonRecord {
+    const job = this.workerJobRecord(tenantId, projectId, jobId);
+    requireWorkerJobLease(job, options.leaseOwnerId);
+    const before = cloneJson(job) as JsonRecord;
+    const now = utcNow();
+    job.status = "completed";
+    job.lease_owner_id = null;
+    job.lease_expires_at = null;
+    job.result_sha256 = sha256(JSON.stringify(sortJson(result)));
+    job.updated_at = now;
+    job.completed_at = now;
+    this.consumeUsage(tenantId, projectId, "worker.job.complete", { apiKeyId: options.apiKeyId, requestId: options.requestId, runId: typeof job.target_id === "string" ? job.target_id : undefined });
+    this.appendAudit(tenantId, projectId, "worker.job.complete", { targetId: jobId, apiKeyId: options.apiKeyId, requestId: options.requestId, before, after: { job_id: jobId, status: job.status, result_sha256: job.result_sha256 } });
+    return cloneJson(job) as JsonRecord;
+  }
+
+  failWorkerJob(tenantId: string, projectId: string, jobId: string, error: JsonRecord = {}, options: { leaseOwnerId: string; retryAfterSeconds?: number; apiKeyId?: string; requestId?: string }): JsonRecord {
+    const job = this.workerJobRecord(tenantId, projectId, jobId);
+    requireWorkerJobLease(job, options.leaseOwnerId);
+    const before = cloneJson(job) as JsonRecord;
+    const now = utcNow();
+    const attempts = Number(job.attempts ?? 0);
+    const maxAttempts = Number(job.max_attempts ?? 1);
+    const normalizedError = sortJson(error) as JsonRecord;
+    job.last_error = { sha256: sha256(JSON.stringify(normalizedError)), type: String(normalizedError.type ?? "worker_error"), message: String(normalizedError.message ?? "redacted"), raw_payload_included: false, failed_at: now };
+    job.lease_owner_id = null;
+    job.lease_expires_at = null;
+    if (attempts >= maxAttempts) {
+      job.status = "dead_lettered";
+      job.dead_lettered_at = now;
+      job.available_at = null;
+    } else {
+      job.status = "retrying";
+      const retryAfter = options.retryAfterSeconds ?? Math.min(3600, 2 ** Math.max(0, attempts - 1));
+      job.available_at = retryAfter === 0 ? now : leaseExpiresAt(now, retryAfter);
+    }
+    job.updated_at = now;
+    this.consumeUsage(tenantId, projectId, "worker.job.fail", { apiKeyId: options.apiKeyId, requestId: options.requestId, runId: typeof job.target_id === "string" ? job.target_id : undefined });
+    this.appendAudit(tenantId, projectId, "worker.job.fail", { targetId: jobId, apiKeyId: options.apiKeyId, requestId: options.requestId, before, after: { job_id: jobId, status: job.status, attempts, last_error_sha256: (job.last_error as JsonRecord).sha256 } });
+    return cloneJson(job) as JsonRecord;
+  }
+
+  listWorkerJobs(tenantId: string, projectId: string, options: { status?: string; jobType?: string; limit?: number; authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: WORKER_JOB_READ_SCOPE });
+    let jobs = Object.values(this.store.worker_jobs).filter((job) => job.tenant_id === tenantId && job.project_id === projectId);
+    if (options.status !== undefined) jobs = jobs.filter((job) => job.status === options.status);
+    if (options.jobType !== undefined) jobs = jobs.filter((job) => job.job_type === options.jobType);
+    jobs = jobs.map((job) => cloneJson(job) as JsonRecord).sort((a, b) => Number(a.priority ?? 100) - Number(b.priority ?? 100) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.job_id ?? "").localeCompare(String(b.job_id ?? "")));
+    if (options.limit !== undefined) jobs = jobs.slice(0, positiveInt(options.limit, "limit"));
+    return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, filters: { status: options.status ?? null, job_type: options.jobType ?? null, limit: options.limit ?? null }, jobs, count: jobs.length };
+  }
+
   snapshotState(): SaaSControlPlaneState {
     const payload = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -661,6 +819,7 @@ export class SaaSControlPlaneService {
         usage_ledger: stateBucket(control, "usage_ledger"),
         idempotency_keys: stateBucket(control, "idempotency_keys"),
         artifact_manifests: stateBucket(control, "artifact_manifests"),
+        worker_jobs: stateBucket(control, "worker_jobs"),
       },
     });
   }
@@ -677,6 +836,19 @@ export class SaaSControlPlaneService {
       throw new NotFoundError("api key not found for project");
     }
     return record;
+  }
+
+  private workerJobRecord(tenantId: string, projectId: string, jobId: string): JsonRecord {
+    const job = this.store.worker_jobs[jobId];
+    if (job === undefined || job.tenant_id !== tenantId || job.project_id !== projectId) throw new NotFoundError("worker job not found for project");
+    if (job.status === "leased" && leaseExpired(job.lease_expires_at)) {
+      job.status = "retrying";
+      job.lease_owner_id = null;
+      job.lease_expires_at = null;
+      job.available_at = utcNow();
+      job.updated_at = job.available_at;
+    }
+    return job;
   }
 
   private consumeUsage(tenantId: string, projectId: string, operation: string, options: { units?: number; apiKeyId?: string; idempotencyKey?: string; requestId?: string; runId?: string } = {}): JsonRecord {
@@ -823,6 +995,9 @@ export class SaaSControlPlaneRouter {
           return { status_code: 202, body: this.service.sdkSubmitRun(tenantId, projectId, { datasetId: String(body.dataset_id ?? ""), agentRef: String(body.agent_ref ?? ""), runId: optionalString(body.run_id), metadata: isRecord(body.metadata) ? body.metadata : undefined, apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
         }
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "usage") {
+          return { status_code: 200, body: this.service.usageSnapshot(tenantId, projectId, { authKeyId }) };
+        }
+        if (upperMethod === "GET" && parts.length === 4 && parts[3] === "quota") {
           return { status_code: 200, body: this.service.usageSnapshot(tenantId, projectId, { authKeyId }) };
         }
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "audit-log") {
@@ -1035,54 +1210,71 @@ export class SaaSIngestionClient {
     return envelope("bootstrap_project", result);
   }
 
-  createApiKey(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, options));
-  }
-
-  verifyApiKeySecret(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): JsonRecord {
-    return envelope("verify_api_key_secret", this.service.verifyApiKeySecret(tenantId, projectId, options));
-  }
-
-  configureApiKeyRateLimit(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): JsonRecord {
-    return envelope("configure_api_key_rate_limit", this.service.configureApiKeyRateLimit(tenantId, projectId, options));
-  }
-
-  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: { keyId?: string } = {}): JsonRecord {
-    return envelope("api_key_rate_limit_snapshot", this.service.apiKeyRateLimitSnapshot(tenantId, projectId, options));
-  }
-
-  listApiKeys(tenantId: string, projectId: string, options: { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("list_api_keys", { api_keys: this.service.listApiKeys(tenantId, projectId, options) });
-  }
-
-  revokeApiKey(tenantId: string, projectId: string, keyId: string, options: { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("revoke_api_key", this.service.revokeApiKey(tenantId, projectId, keyId, options));
-  }
-
-  sdkSubmit(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string }): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("sdk_submit", this.service.sdkSubmitRun(tenantId, projectId, {
-      datasetId: options.datasetId,
-      agentRef: options.agentRef,
-      runId: options.runId,
-      metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) },
-      apiKeyId: options.apiKeyId,
-      idempotencyKey: options.idempotencyKey,
-      requestId: options.requestId,
+  createApiKey(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string } ): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, {
+      name: String(options.name),
+      scopes: arrayOfStrings(options.scopes),
+      keyId: clientString(options, "keyId", "key_id"),
+      authKeyId: clientString(options, "authKeyId", "auth_key_id"),
+      revealSecret: clientBool(options, "revealSecret", "reveal_secret"),
     }));
   }
 
-  uploadRun(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: { uploadId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("upload_run", this.service.uploadRunResult(tenantId, projectId, runId, result, options));
+  verifyApiKeySecret(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; secret: string; scope?: string }): JsonRecord {
+    return envelope("verify_api_key_secret", this.service.verifyApiKeySecret(tenantId, projectId, {
+      keyId: clientRequiredString(options, "keyId", "key_id"),
+      secret: String(options.secret),
+      scope: clientString(options, "scope"),
+    }));
   }
 
-  ingestTrace(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: { batchId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
-    rejectRawApiKey(options.apiKey);
-    return envelope("ingest_trace", this.service.ingestTrace(tenantId, projectId, runId, observations, options));
+  configureApiKeyRateLimit(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; operation: string; limit: number; period?: string; authKeyId?: string; auth_key_id?: string }): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("configure_api_key_rate_limit", this.service.configureApiKeyRateLimit(tenantId, projectId, {
+      keyId: clientRequiredString(options, "keyId", "key_id"),
+      operation: String(options.operation),
+      limit: Number(options.limit),
+      period: clientString(options, "period"),
+      authKeyId: clientString(options, "authKeyId", "auth_key_id"),
+    }));
+  }
+
+  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string } = {}): JsonRecord {
+    return envelope("api_key_rate_limit_snapshot", this.service.apiKeyRateLimitSnapshot(tenantId, projectId, { keyId: clientString(options, "keyId", "key_id") }));
+  }
+
+  listApiKeys(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("list_api_keys", { api_keys: this.service.listApiKeys(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }) });
+  }
+
+  revokeApiKey(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("revoke_api_key", this.service.revokeApiKey(tenantId, projectId, keyId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  sdkSubmit(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("sdk_submit", this.service.sdkSubmitRun(tenantId, projectId, {
+      datasetId: clientRequiredString(options, "datasetId", "dataset_id"),
+      agentRef: clientRequiredString(options, "agentRef", "agent_ref"),
+      runId: clientString(options, "runId", "run_id"),
+      metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) },
+      apiKeyId: clientString(options, "apiKeyId", "api_key_id"),
+      idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"),
+      requestId: clientString(options, "requestId", "request_id"),
+    }));
+  }
+
+  uploadRun(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: SaaSClientOptions & { uploadId?: string; upload_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("upload_run", this.service.uploadRunResult(tenantId, projectId, runId, result, clientUploadOptions(options)));
+  }
+
+  ingestTrace(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("ingest_trace", this.service.ingestTrace(tenantId, projectId, runId, observations, clientTraceOptions(options)));
   }
 
   lifecycle(tenantId: string, projectId: string, runId: string): JsonRecord {
@@ -1093,8 +1285,17 @@ export class SaaSIngestionClient {
     return envelope("usage", this.service.usageSnapshot(tenantId, projectId, options));
   }
 
-  auditLog(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): JsonRecord {
-    return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, options));
+  quotaSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
+    return envelope("quota_snapshot", this.service.usageSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  auditLog(tenantId: string, projectId: string, options: SaaSClientOptions & { runId?: string; run_id?: string; actionPrefix?: string; action_prefix?: string; authKeyId?: string; auth_key_id?: string; limit?: number } = {}): JsonRecord {
+    return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, {
+      runId: clientString(options, "runId", "run_id"),
+      actionPrefix: clientString(options, "actionPrefix", "action_prefix"),
+      authKeyId: clientString(options, "authKeyId", "auth_key_id"),
+      limit: options.limit === undefined ? undefined : Number(options.limit),
+    }));
   }
 
   verifyAuditChain(tenantId: string, projectId: string, options: { authKeyId?: string; requestId?: string } = {}): JsonRecord {
@@ -1121,14 +1322,46 @@ export class SaaSIngestionClient {
     return envelope("artifact_manifests", { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, options) });
   }
 
-  async createApiKeyHttp(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<JsonRecord> {
-    rejectRawApiKey(options.apiKey);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: options.name, scopes: options.scopes, key_id: options.keyId, auth_key_id: options.authKeyId, reveal_secret: options.revealSecret });
+  enqueueWorkerJob(tenantId: string, projectId: string, options: SaaSClientOptions & { jobType?: string; job_type?: string; targetId?: string; target_id?: string; payload?: JsonRecord; jobId?: string; job_id?: string; priority?: number; maxAttempts?: number; max_attempts?: number; apiKeyId?: string; api_key_id?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): JsonRecord {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    return envelope("worker_job_enqueue", this.service.enqueueWorkerJob(tenantId, projectId, {
+      jobType: clientRequiredString(options, "jobType", "job_type"),
+      targetId: clientString(options, "targetId", "target_id"),
+      payload: options.payload,
+      jobId: clientString(options, "jobId", "job_id"),
+      priority: options.priority === undefined ? undefined : Number(options.priority),
+      maxAttempts: options.maxAttempts === undefined && options.max_attempts === undefined ? undefined : Number(options.maxAttempts ?? options.max_attempts),
+      apiKeyId: clientString(options, "apiKeyId", "api_key_id"),
+      idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"),
+      requestId: clientString(options, "requestId", "request_id"),
+    }));
+  }
+
+  leaseWorkerJob(tenantId: string, projectId: string, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; leaseSeconds?: number; lease_seconds?: number; jobType?: string; job_type?: string; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): JsonRecord {
+    return envelope("worker_job_lease", this.service.leaseWorkerJob(tenantId, projectId, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), leaseSeconds: Number(options.leaseSeconds ?? options.lease_seconds ?? 300), jobType: clientString(options, "jobType", "job_type"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
+  }
+
+  completeWorkerJob(tenantId: string, projectId: string, jobId: string, result: JsonRecord = {}, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): JsonRecord {
+    return envelope("worker_job_complete", this.service.completeWorkerJob(tenantId, projectId, jobId, result, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
+  }
+
+  failWorkerJob(tenantId: string, projectId: string, jobId: string, error: JsonRecord = {}, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; retryAfterSeconds?: number; retry_after_seconds?: number; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): JsonRecord {
+    return envelope("worker_job_fail", this.service.failWorkerJob(tenantId, projectId, jobId, error, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), retryAfterSeconds: options.retryAfterSeconds === undefined && options.retry_after_seconds === undefined ? undefined : Number(options.retryAfterSeconds ?? options.retry_after_seconds), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
+  }
+
+  listWorkerJobs(tenantId: string, projectId: string, options: SaaSClientOptions & { status?: string; jobType?: string; job_type?: string; limit?: number; authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
+    return envelope("worker_jobs", this.service.listWorkerJobs(tenantId, projectId, { status: clientString(options, "status"), jobType: clientString(options, "jobType", "job_type"), limit: options.limit === undefined ? undefined : Number(options.limit), authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  async createApiKeyHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: String(options.name), scopes: arrayOfStrings(options.scopes), key_id: clientString(options, "keyId", "key_id"), auth_key_id: clientString(options, "authKeyId", "auth_key_id"), reveal_secret: clientBool(options, "revealSecret", "reveal_secret") });
     return envelope("create_api_key", body);
   }
 
-  async listApiKeysHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+  async listApiKeysHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
     return envelope("list_api_keys", body);
   }
 
@@ -1147,21 +1380,23 @@ export class SaaSIngestionClient {
     return envelope("api_key_rate_limit_snapshot", body);
   }
 
-  async sdkSubmitHttp(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string }): Promise<JsonRecord> {
-    rejectRawApiKey(options.apiKey);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: options.datasetId, agent_ref: options.agentRef, run_id: options.runId, metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+  async sdkSubmitHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: clientRequiredString(options, "datasetId", "dataset_id"), agent_ref: clientRequiredString(options, "agentRef", "agent_ref"), run_id: clientString(options, "runId", "run_id"), metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") });
     return envelope("sdk_submit", body);
   }
 
-  async uploadRunHttp(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: { uploadId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
-    rejectRawApiKey(options.apiKey);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: options.uploadId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+  async uploadRunHttp(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: SaaSClientOptions & { uploadId?: string; upload_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const upload = clientUploadOptions(options);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: upload.uploadId, api_key_id: upload.apiKeyId, idempotency_key: upload.idempotencyKey, request_id: upload.requestId });
     return envelope("upload_run", body);
   }
 
-  async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: { batchId?: string; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
-    rejectRawApiKey(options.apiKey);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: options.batchId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+  async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const trace = clientTraceOptions(options);
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId });
     return envelope("ingest_trace", body);
   }
 
@@ -1173,6 +1408,11 @@ export class SaaSIngestionClient {
   async usageHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
     return envelope("usage", body);
+  }
+
+  async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    return envelope("quota_snapshot", body);
   }
 
   async auditLogHttp(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): Promise<JsonRecord> {
@@ -1400,7 +1640,25 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileUR
 
 function envelope(operation: string, result: JsonRecord): JsonRecord { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
 function rejectRawApiKey(value: unknown): void { if (value !== undefined && value !== null && String(value).trim() !== "") throw new SecretInputError("raw API key values are not accepted by the local SaaS client; pass apiKeyId/keyId handles only"); }
+function clientString(options: JsonRecord, ...keys: string[]): string | undefined { for (const key of keys) { const value = options[key]; if (typeof value === "string" && value.trim() !== "") return value; } return undefined; }
+function clientRequiredString(options: JsonRecord, ...keys: string[]): string { const value = clientString(options, ...keys); if (value === undefined) throw new ValidationError(`missing required option: ${keys.join("/")}`); return value; }
+function clientBool(options: JsonRecord, ...keys: string[]): boolean { for (const key of keys) { if (options[key] !== undefined) return Boolean(options[key]); } return false; }
+function clientUploadOptions(options: SaaSClientOptions): { uploadId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { uploadId: clientString(options, "uploadId", "upload_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
+function clientTraceOptions(options: SaaSClientOptions): { batchId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { batchId: clientString(options, "batchId", "batch_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
 function assertPublicControlPlanePath(inputPath: string): void { const normalized = resolve(inputPath).replaceAll("\\", "/").toLowerCase(); for (const part of [".secrets", "private_refs"]) { if (normalized.includes("/" + part + "/") || normalized.endsWith("/" + part)) throw new SecretInputError("refusing to read or write control-plane state under " + part); } }
+function positiveInt(value: number, name: string): number { if (!Number.isInteger(value) || value < 1) throw new ValidationError(`${name} must be a positive integer`); return value; }
+function leaseExpiresAt(now: string, seconds: number): string { if (!Number.isFinite(seconds) || seconds <= 0) throw new ValidationError("lease_seconds must be positive"); return new Date(Date.parse(now) + seconds * 1000).toISOString().replace(".000Z", ".000Z"); }
+function leaseExpired(value: unknown, now = utcNow()): boolean { if (typeof value !== "string" || value.trim() === "") return false; return Date.parse(value) <= Date.parse(now); }
+function jobAvailableForLease(job: JsonRecord, now: string): boolean {
+  if (job.status === "queued" || job.status === "retrying") return job.available_at === null || job.available_at === undefined || job.available_at === "" || leaseExpired(job.available_at, now);
+  if (job.status === "leased") return leaseExpired(job.lease_expires_at, now);
+  return false;
+}
+function requireWorkerJobLease(job: JsonRecord, leaseOwnerId: string): void {
+  if (job.status !== "leased") throw new ValidationError("worker job is not leased");
+  if (job.lease_owner_id !== leaseOwnerId) throw new ValidationError("worker job lease owner mismatch");
+  if (leaseExpired(job.lease_expires_at)) throw new ValidationError("worker job lease expired");
+}
 
 function pathTenantParameters(extraPathName?: string): JsonRecord[] {
   const params: JsonRecord[] = [

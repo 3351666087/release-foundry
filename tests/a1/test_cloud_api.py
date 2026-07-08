@@ -477,6 +477,106 @@ def test_cloud_queue_worker_replays_persisted_queued_run_and_writes_fixture(tmp_
     assert fixture["metadata"]["ashr_api_used"] is False
 
 
+def test_cloud_api_retry_run_requeues_failed_run_until_max_attempts_then_dead_letters():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Retry Budget Dataset",
+        cases=[{"id": "echo", "prompt": "hello"}],
+        dataset_id="dataset_retry_budget",
+    )
+    service.create_queued_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        run_id="run_retry_budget",
+        max_attempts=2,
+    )
+
+    service.mark_run_running(tenant["tenant_id"], project["project_id"], "run_retry_budget", lease_owner_id="worker-a")
+    first_failure = service.fail_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_retry_budget",
+        error={"type": "SyntheticFailure", "message": "first attempt failed"},
+        lease_owner_id="worker-a",
+    )
+    retry = service.retry_run(tenant["tenant_id"], project["project_id"], "run_retry_budget", reason="test retry")
+    service.mark_run_running(tenant["tenant_id"], project["project_id"], "run_retry_budget", lease_owner_id="worker-b")
+    service.fail_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_retry_budget",
+        error={"type": "SyntheticFailure", "message": "second attempt failed"},
+        lease_owner_id="worker-b",
+    )
+    dead_lettered = service.retry_run(tenant["tenant_id"], project["project_id"], "run_retry_budget", reason="test retry")
+
+    assert first_failure["attempt"] == 1
+    assert retry["status"] == "queued"
+    assert retry["attempt"] == 1
+    assert dead_lettered["status"] == "dead_lettered"
+    assert dead_lettered["attempt"] == 2
+    assert dead_lettered["max_attempts"] == 2
+    assert dead_lettered["dead_letter_reason"] == "max attempts exhausted"
+    assert dead_lettered["last_error"]["type"] == "SyntheticFailure"
+    assert [item["status"] for item in dead_lettered["status_history"]] == ["queued", "running", "failed", "queued", "running", "failed", "dead_lettered"]
+
+
+def test_cloud_queue_worker_replays_failed_run_then_dead_letters_after_retry_budget():
+    service, tenant, project = _service_with_project()
+    dataset = service.create_dataset(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Worker Retry Budget Dataset",
+        cases=[{"id": "echo", "prompt": "hello", "expected": {"text": "Echo: hello"}}],
+        dataset_id="dataset_worker_retry_budget",
+    )
+    service.quota.configure(tenant["tenant_id"], project["project_id"], {"observation.write": 1})
+
+    with CloudQueueWorker(service, queue_workers=1) as worker:
+        queued = worker.enqueue_agent_run(
+            QueueRunRequest(
+                tenant_id=tenant["tenant_id"],
+                project_id=project["project_id"],
+                dataset_id=dataset["dataset_id"],
+                agent=RespondingMockAgent,
+                runner_id="a1-worker-retry-budget-test",
+                timeout_seconds=5,
+                run_id="run_worker_retry_budget",
+                max_attempts=2,
+            )
+        )
+        first_failure = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=10, require_terminal=True)["run"]
+        replayed = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent=RespondingMockAgent,
+            statuses=("failed",),
+            max_runs=1,
+            timeout_seconds=5,
+        )
+        second_failure = worker.wait_for_run(tenant["tenant_id"], project["project_id"], queued["run_id"], timeout_seconds=10, require_terminal=True)["run"]
+        dead_lettered = worker.replay_incomplete_runs(
+            tenant["tenant_id"],
+            project["project_id"],
+            agent=RespondingMockAgent,
+            statuses=("failed",),
+            max_runs=1,
+            timeout_seconds=5,
+        )[0]
+
+    assert first_failure["status"] == "failed"
+    assert first_failure["attempt"] == 1
+    assert [run["run_id"] for run in replayed] == ["run_worker_retry_budget"]
+    assert second_failure["status"] == "failed"
+    assert second_failure["attempt"] == 2
+    assert dead_lettered["status"] == "dead_lettered"
+    assert dead_lettered["dead_letter_reason"] == "max attempts exhausted"
+    assert service.poll_run(tenant["tenant_id"], project["project_id"], queued["run_id"])["status"] == "dead_lettered"
+
+
 
 
 def test_cloud_api_rejects_permanent_queue_lease():
