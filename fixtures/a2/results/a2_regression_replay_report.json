@@ -14,13 +14,42 @@
     "ready": false,
     "target_replay_case_count": 3,
     "current_replay_case_count": 1,
+    "missing_replay_case_count": 2,
     "failed_replay_case_count": 0,
     "case_book_maturity_ready": false,
     "reviewed_evidence_target_count": 3,
     "reviewed_external_evidence_count": 0,
+    "missing_reviewed_evidence_count": 3,
+    "missing_reviewed_replay_cases": 3,
     "gaps": [
       "Replay 2 more reviewed case-book regression(s) before marking C5 mature.",
       "Keep the case-book maturity gate open until reviewed external evidence supports the regression set."
+    ]
+  },
+  "release_gate_summary": {
+    "schema_version": "a2.regression_replay.release_gate_summary.v1",
+    "gate": "C5",
+    "status": "seed",
+    "release_gate_status": "blocked",
+    "blocks_release": true,
+    "action": "promote_more_regressions",
+    "required_action": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+    "blocking_count": 3,
+    "current_replay_case_count": 1,
+    "target_replay_case_count": 3,
+    "missing_replay_case_count": 2,
+    "failed_replay_case_count": 0,
+    "reviewed_external_evidence_count": 0,
+    "reviewed_evidence_target_count": 3,
+    "missing_reviewed_evidence_count": 3,
+    "case_book_maturity_ready": false,
+    "gaps": [
+      "Replay 2 more reviewed case-book regression(s) before marking C5 mature.",
+      "Keep the case-book maturity gate open until reviewed external evidence supports the regression set."
+    ],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_case_book.json"
     ]
   },
   "cases": [

@@ -402,6 +402,11 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(semantic_collection_schema["required"]), set(semantic_collection))
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
+        self.assertIn("release_gate_summary", regression_replay_schema["required"])
+        self.assertEqual(
+            regression_replay_schema["properties"]["release_gate_summary"]["$ref"],
+            "#/$defs/release_gate_summary",
+        )
         self.assertLessEqual(set(incident_regression_schema["required"]), set(incident_regression))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
@@ -546,6 +551,8 @@ class A2ContractTests(unittest.TestCase):
         for replay_case in regression_replay["cases"]:
             with self.subTest(regression_replay_case=replay_case["case_id"]):
                 self.assertLessEqual(replay_case_required, set(replay_case))
+        replay_gate_required = set(regression_replay_schema["$defs"]["release_gate_summary"]["required"])
+        self.assertLessEqual(replay_gate_required, set(regression_replay["release_gate_summary"]))
 
         incident_candidate_required = set(incident_regression_schema["$defs"]["candidate"]["required"])
         for candidate in incident_regression["candidates"]:
@@ -804,11 +811,21 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(report["maturity_gate"]["ready"])
         self.assertEqual(report["maturity_gate"]["target_replay_case_count"], 3)
         self.assertEqual(report["maturity_gate"]["current_replay_case_count"], 1)
+        self.assertEqual(report["maturity_gate"]["missing_replay_case_count"], 2)
         self.assertEqual(report["maturity_gate"]["failed_replay_case_count"], 0)
         self.assertFalse(report["maturity_gate"]["case_book_maturity_ready"])
         self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertEqual(report["maturity_gate"]["missing_reviewed_evidence_count"], 3)
+        self.assertEqual(report["maturity_gate"]["missing_reviewed_replay_cases"], 3)
         self.assertIn("Replay 2 more", report["maturity_gate"]["gaps"][0])
         self.assertIn("case-book maturity gate open", report["maturity_gate"]["gaps"][1])
+        self.assertEqual(report["release_gate_summary"]["schema_version"], "a2.regression_replay.release_gate_summary.v1")
+        self.assertEqual(report["release_gate_summary"]["gate"], "C5")
+        self.assertEqual(report["release_gate_summary"]["release_gate_status"], "blocked")
+        self.assertTrue(report["release_gate_summary"]["blocks_release"])
+        self.assertEqual(report["release_gate_summary"]["action"], "promote_more_regressions")
+        self.assertEqual(report["release_gate_summary"]["blocking_count"], 3)
+        self.assertIn("a2_regression_replay_report.json", report["release_gate_summary"]["evidence_refs"][0])
         self.assertEqual(report["replay_case_count"], 1)
         replay = report["cases"][0]
         self.assertEqual(replay["case_id"], "sample-a2-s010-wrong-arguments")
@@ -929,6 +946,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(offline_replay["replay_ready"])
         self.assertEqual(offline_replay["maturity_status"], "seed")
         self.assertFalse(offline_replay["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(offline_replay["release_gate_summary"]["action"], "attach_reviewed_evidence")
+        self.assertEqual(offline_replay["release_gate_summary"]["blocking_count"], 3)
 
         reviewed_matrix = matrix_with_three_disagreements(reviewed=True)
         reviewed_case_book = build_case_book_report(reviewed_matrix)
@@ -952,6 +971,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(reviewed_replay["maturity_status"], "mature")
         self.assertTrue(reviewed_replay["maturity_gate"]["case_book_maturity_ready"])
         self.assertEqual(reviewed_replay["maturity_gate"]["gaps"], [])
+        self.assertEqual(reviewed_replay["release_gate_summary"]["action"], "ready")
+        self.assertFalse(reviewed_replay["release_gate_summary"]["blocks_release"])
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C5"]["status"], "met")
 
@@ -1531,6 +1552,12 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(any(warning["type"] == "api_probe_gate_validation" for warning in report["warnings"]))
         blocker_gates = {blocker.get("gate") for blocker in report["blockers"]}
         self.assertLessEqual({"C3", "C4", "C5"}, blocker_gates)
+        c5_blocker = next(
+            blocker for blocker in report["blockers"] if blocker.get("type") == "regression_maturity"
+        )
+        self.assertEqual(c5_blocker["missing_count"], 3)
+        self.assertIn("Promote more reviewed", c5_blocker["required_action"])
+        self.assertIn("fixtures/a2/results/a2_case_book.json", c5_blocker["evidence_refs"])
         self.assertIn("fixtures/a2/results/a2_evidence_readiness_report.json", report["evidence_refs"])
         self.assertIn("A2 owner", report["review_workflow"]["required_reviewers"])
         self.assertEqual(report["machine_contract"]["ci_mode"], "fail on decision=block")

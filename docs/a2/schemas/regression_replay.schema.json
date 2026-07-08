@@ -13,6 +13,8 @@
     "failed_count",
     "replay_ready",
     "maturity_status",
+    "maturity_gate",
+    "release_gate_summary",
     "cases",
     "metadata"
   ],
@@ -28,6 +30,7 @@
     "replay_ready": { "type": "boolean" },
     "maturity_status": { "type": "string" },
     "maturity_gate": { "type": "object" },
+    "release_gate_summary": { "$ref": "#/$defs/release_gate_summary" },
     "cases": {
       "type": "array",
       "items": { "$ref": "#/$defs/replay_case" }
@@ -67,6 +70,56 @@
         }
       },
       "additionalProperties": true
+    },
+    "release_gate_summary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "gate",
+        "status",
+        "release_gate_status",
+        "blocks_release",
+        "action",
+        "required_action",
+        "blocking_count",
+        "current_replay_case_count",
+        "target_replay_case_count",
+        "missing_replay_case_count",
+        "failed_replay_case_count",
+        "reviewed_external_evidence_count",
+        "reviewed_evidence_target_count",
+        "missing_reviewed_evidence_count",
+        "case_book_maturity_ready",
+        "gaps",
+        "evidence_refs"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.regression_replay.release_gate_summary.v1" },
+        "gate": { "const": "C5" },
+        "status": { "type": "string" },
+        "release_gate_status": { "type": "string" },
+        "blocks_release": { "type": "boolean" },
+        "action": { "type": "string" },
+        "required_action": { "type": "string" },
+        "blocking_count": { "type": "integer", "minimum": 0 },
+        "current_replay_case_count": { "type": "integer", "minimum": 0 },
+        "target_replay_case_count": { "type": "integer", "minimum": 0 },
+        "missing_replay_case_count": { "type": "integer", "minimum": 0 },
+        "failed_replay_case_count": { "type": "integer", "minimum": 0 },
+        "reviewed_external_evidence_count": { "type": "integer", "minimum": 0 },
+        "reviewed_evidence_target_count": { "type": "integer", "minimum": 0 },
+        "missing_reviewed_evidence_count": { "type": "integer", "minimum": 0 },
+        "case_book_maturity_ready": { "type": "boolean" },
+        "gaps": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

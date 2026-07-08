@@ -68,7 +68,7 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "8013d318ad77412031f1307ceff63fbe64409b641da532f2703c5703301b4bc5",
+      "sha256": "1b82ad16df0ed4208cdee4b8e3bab27cedb51ce20b9795cccd3cb42ee2f516c3",
       "byte_size": 2006,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -79,8 +79,8 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "138d2b1852fc3217200100e69f2e23cdaf57dcf94a925ca09ce0e29b745480d7",
-      "byte_size": 3691,
+      "sha256": "b211850411e1afec0cda78accfb7c6fb2a6b878a610908687a367165efb85a3b",
+      "byte_size": 3550,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -90,8 +90,8 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "39eb9d3b1531576efdbe5a518d6bb2b9a574c6405f1efdf98a6cda31bc782dad",
-      "byte_size": 20514,
+      "sha256": "c8252dcf6d335319a3dbc156435a73fc896483ad285c6d234d356a5de471cd6e",
+      "byte_size": 20373,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -304,5 +304,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "ec4584b3db97c3e603f5ef33e28abdddbd138b7cf40394cd57ba00af53cb6211"
+  "bundle_root_hash": "c43d091d6cb3430a469f8b8910bbc41e9420feb0b5b434ebe8657ae76551ad8f"
 }
