@@ -232,7 +232,10 @@
 - [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
 - [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
 - [ ] Add file hashes for generated PDF and screenshot export artifacts.
-- [ ] Add signed immutable audit bundle archive and archive/zip verifier.
+- [x] Add signed immutable audit archive manifest and archive verifier.
+- [x] Save redacted signed archive manifest and verification fixtures under `fixtures/a3/p3`.
+- [x] Add archive manifest signature, root-hash, entry-hash, missing-entry, and CLI tests.
+- [ ] Add binary zip/tar packaging around the signed archive manifest.
 
 ## P3 Trace / Tool-Call Diff
 

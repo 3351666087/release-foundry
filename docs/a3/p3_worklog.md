@@ -1,5 +1,37 @@
 # P3 Worklog
 
+## 2026-07-08 - Signed audit archive manifest and verifier
+
+- Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the large-SaaS roadmap.
+- Added signed audit archive manifest support in `services/report/a3_audit_archive.mjs`.
+- Added archive-level verification for:
+  - archive root hash
+  - Ed25519 signature
+  - bundle index entry hash
+  - generated artifact entry hashes
+  - missing-entry detection
+  - safe workspace-relative paths
+- Saved redacted archive fixtures:
+  - `fixtures/a3/p3/a3_audit_archive_manifest.redacted.json`
+  - `fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json`
+- Added archive tests in `tests/a3/a3_audit_archive.test.mjs`.
+- Updated export-firewall scan coverage so the new archive manifest and verification fixture are checked for secrets and local account paths.
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_round_audit_archive_2026_07_08.md`
+- Verification:
+  - `node --check services/report/a3_audit_archive.mjs`
+  - `node --test tests/a3/a3_audit_archive.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/export_firewall_generated_artifacts.test.mjs`
+  - `node --test (rg --files tests/a3 -g "*.test.mjs")`
+  - Result: focused 27 pass / 0 fail; full A3 165 pass / 0 fail.
+- Safety:
+  - Did not read or print `.env.local`.
+  - Did not call live Ashr APIs.
+  - Did not store private signing keys.
+  - Did not commit secrets, tokens, cookies, emails, local absolute paths, or live signed URLs.
+- Remaining follow-up:
+  - Binary zip/tar packaging around the signed archive manifest is still future work.
+  - Dashboard/report display of GitHub publish evidence and archive/bundle verification remains the next high-value A3 UI round.
+
 ## 2026-07-08 - GitHub publish evidence audit bundle sealing
 
 - Synced remote state and confirmed the group lead had refreshed `origin/main` after merge-conflict resolution.

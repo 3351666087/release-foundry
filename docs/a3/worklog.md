@@ -1,5 +1,63 @@
 # A3 Worklog
 
+## 2026-07-08 - Signed Audit Archive Manifest And Verifier
+
+### Goal
+
+Continue A3 against `docs/strategy/large-saas-a1-a2-a3-full-plan.md`, specifically the large-SaaS requirements for reports/evidence sharing, enterprise audit, self-host retention, and release workflow evidence. This round closes the next audit gap after the bundle index: A3 can now create and verify a signed, immutable, zip-compatible audit archive manifest.
+
+### Work completed
+
+- Added `services/report/a3_audit_archive.mjs`.
+  - Produces `a3.audit_archive_manifest.v1`.
+  - Verifies `a3.audit_archive_verification.v1`.
+  - Seals the audit bundle index plus bundle artifacts into an archive-level manifest.
+  - Records archive entry `sha256`, byte size, content type, role, creator, and workspace-relative path.
+  - Adds Ed25519 detached signature metadata with public key only.
+  - Does not persist private keys.
+  - Keeps binary zip/tar packaging as a follow-up item, while making the manifest zip-compatible.
+- Added redacted fixtures:
+  - `fixtures/a3/p3/a3_audit_archive_manifest.redacted.json`
+  - `fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json`
+- Added tests:
+  - archive manifest creation
+  - signature/root-hash verification
+  - tamper detection
+  - missing entry detection
+  - CLI build/verify flow
+  - export-firewall coverage for new archive fixtures
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_round_audit_archive_2026_07_08.md`
+  - Maps the next money-grade A3 work back to the large SaaS plan.
+
+### A1/A2 compatibility
+
+- A1 run, trace, tool-call, and artifact semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
+- The archive layer sits downstream of A3 release evidence and verifies already-generated files.
+
+### Verification
+
+```text
+node --check services/report/a3_audit_archive.mjs
+node --test tests/a3/a3_audit_archive.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/export_firewall_generated_artifacts.test.mjs
+node --test (rg --files tests/a3 -g "*.test.mjs")
+```
+
+Result:
+
+```text
+Focused: 27 pass, 0 fail
+Full A3: 165 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit private signing keys, API keys, tokens, cookies, emails, live signed URLs, or local absolute paths.
+- This round adds signed archive manifest verification, not physical binary zip/tar packaging yet.
+
 ## 2026-07-08 - GitHub Publish Evidence Audit Bundle Sealing
 
 ### Goal
