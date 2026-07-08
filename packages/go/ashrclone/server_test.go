@@ -97,6 +97,101 @@ func TestHTTPHandlerWorkerJobLifecycle(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
+		"tenant_name": "Tenant", "project_name": "Runs", "tenant_id": "tenant_runs", "project_id": "project_runs", "dataset_id": "dataset_runs", "dataset_name": "Dataset",
+	})
+
+	client := NewClient(WithBaseURL(server.URL), WithRetry(0, 0))
+	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_runs", "project_runs", SubmitRunOptions{DatasetID: "dataset_runs", AgentRef: "agent:runs", RunID: "run_routes", IdempotencyKey: "idem_run_routes"}); err != nil {
+		t.Fatal(err)
+	}
+
+	upload, err := client.UploadRunHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", JSONMap{"score": 0.97, "status": "passed"}, UploadRunOptions{UploadID: "upload_routes", IdempotencyKey: "idem_upload_routes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if upload.Operation != "upload_run" || upload.Result["upload_id"] != "upload_routes" || upload.Result["raw_payload_included"] != false || upload.Result["result_sha256"] == "" {
+		t.Fatalf("unexpected upload response: %#v", upload)
+	}
+
+	trace, err := client.IngestTraceHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", []JSONMap{{"span_id": "span_1", "latency_ms": 12}, {"span_id": "span_2", "status": "ok"}}, IngestTraceOptions{BatchID: "trace_routes", IdempotencyKey: "idem_trace_routes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trace.Operation != "ingest_trace" || trace.Result["batch_id"] != "trace_routes" || trace.Result["observation_count"].(float64) != 2 || trace.Result["observations_sha256"] == "" {
+		t.Fatalf("unexpected trace response: %#v", trace)
+	}
+
+	manifest, err := client.CreateArtifactManifestHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", JSONMap{"artifacts": []any{JSONMap{"path": "reports/run.json", "sha256": "abc123"}}}, ArtifactManifestOptions{ArtifactID: "artifact_routes", IdempotencyKey: "idem_artifact_routes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Operation != "artifact_manifest" || manifest.Result["artifact_id"] != "artifact_routes" || manifest.Result["manifest_sha256"] == "" {
+		t.Fatalf("unexpected artifact response: %#v", manifest)
+	}
+
+	listed, err := client.ListArtifactManifestsHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", AuthKeyOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listed.Operation != "artifact_manifests" || listed.Result["count"].(float64) != 1 {
+		t.Fatalf("unexpected artifact list response: %#v", listed)
+	}
+}
+
+func TestHTTPHandlerRunRoutesRejectInlineMedia(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
+		"tenant_name": "Tenant", "project_name": "Safe", "tenant_id": "tenant_safe", "project_id": "project_safe", "dataset_id": "dataset_safe", "dataset_name": "Dataset",
+	})
+	client := NewClient(WithBaseURL(server.URL), WithRetry(0, 0))
+	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_safe", "project_safe", SubmitRunOptions{DatasetID: "dataset_safe", AgentRef: "agent:safe", RunID: "run_safe", IdempotencyKey: "idem_safe"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := client.UploadRunHTTP(context.Background(), "tenant_safe", "project_safe", "run_safe", JSONMap{"data_url": "data:image/png;base64,AAAA"}, UploadRunOptions{IdempotencyKey: "idem_unsafe"})
+	if err == nil {
+		t.Fatal("expected inline media rejection")
+	}
+}
+
+func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/openapi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Routes []string `json:"routes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"POST /v1/projects/{project_id}/runs/{run_id}/upload":             false,
+		"POST /v1/projects/{project_id}/runs/{run_id}/trace-events":       false,
+		"POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": false,
+		"GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests":  false,
+	}
+	for _, route := range body.Routes {
+		if _, ok := want[route]; ok {
+			want[route] = true
+		}
+	}
+	for route, found := range want {
+		if !found {
+			t.Fatalf("manifest missing %s in %#v", route, body.Routes)
+		}
+	}
+}
+
 func TestHTTPHandlerJSONErrorEnvelope(t *testing.T) {
 	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
 	defer server.Close()

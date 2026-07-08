@@ -10,9 +10,11 @@ from packages.sdk.ashr_clone.calibrate import (
     CALIBRATION_MANIFEST_SCHEMA_VERSION,
     DEFAULT_QUOTA_GATE_TTL_SECONDS,
     FIELD_PARITY_PLAN_SCHEMA_VERSION,
+    API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION,
     PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
     CalibrationArgs,
     CalibrationUsageError,
+    build_api_calibration_readiness_packet,
     build_field_parity_plan,
     calibration_request_fingerprint,
     calibration_target_binding,
@@ -538,3 +540,41 @@ def test_run_calibration_captures_quota_block_without_raw_secret(tmp_path: Path)
     assert manifest["summary"]["quota_block_count"] == 1
     assert manifest["errors"][0]["quota"]["remaining"] == 0
     assert ("tp_" + "syntheticsecret") not in json.dumps(manifest)
+
+def test_api_calibration_readiness_packet_builder_is_public_safe():
+    packet = build_api_calibration_readiness_packet()
+    safety = packet["public_safety"]
+    gap_ids = {gap["id"] for gap in packet["gaps"]}
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert packet["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+    assert safety["raw_key_material_present"] is False
+    assert safety["auth_header_present"] is False
+    assert safety["contains_raw_payload_response"] is False
+    assert safety["contains_private_evidence_contents"] is False
+    assert safety["private_evidence_references_only"] is True
+    assert packet["observed_surface"]["read_only_missing_from_field_map"] == []
+    assert "mutating_create_request_quota_gate" in gap_ids
+    assert "hosted_surface_not_commercially_complete" in gap_ids
+    assert "Bearer " not in payload
+    assert "tp_syntheticsecret" not in payload
+
+
+def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_private_refs_public():
+    root = Path(__file__).resolve().parents[2]
+    schema = json.loads((root / "docs" / "a1" / "schemas" / "api_calibration_readiness_packet.schema.json").read_text(encoding="utf-8"))
+    packet = json.loads((root / "docs" / "a1" / "api_calibration" / "official_api_readiness_packet.json").read_text(encoding="utf-8"))
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert schema["properties"]["schema_version"]["const"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+    for field in schema["required"]:
+        assert field in packet
+    for field in schema["properties"]["public_safety"]["required"]:
+        assert field in packet["public_safety"]
+    assert packet["public_safety"]["raw_key_material_present"] is False
+    assert packet["public_safety"]["auth_header_present"] is False
+    assert packet["public_safety"]["private_evidence_root"] == "docs/evidence/private_refs"
+    assert "docs/evidence/private_refs" in payload
+    assert "response_headers" not in payload
+    assert "authorization" not in payload.lower()
+    assert "bearer " not in payload.lower()

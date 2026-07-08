@@ -73,6 +73,55 @@ type Run struct {
 	Metadata  JSONMap `json:"metadata,omitempty"`
 }
 
+type RunUpload struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	UploadID           string    `json:"upload_id"`
+	ResultSHA256       string    `json:"result_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type TraceBatch struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	BatchID            string    `json:"batch_id"`
+	ObservationCount   int       `json:"observation_count"`
+	ObservationsSHA256 string    `json:"observations_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type ArtifactManifest struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	ArtifactID         string    `json:"artifact_id"`
+	ManifestSHA256     string    `json:"manifest_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type ArtifactManifestList struct {
+	SchemaVersion string             `json:"schema_version"`
+	TenantID      string             `json:"tenant_id"`
+	ProjectID     string             `json:"project_id"`
+	RunID         string             `json:"run_id"`
+	Manifests     []ArtifactManifest `json:"manifests"`
+	Count         int                `json:"count"`
+}
+
 const (
 	WorkerJobStatusQueued       = "queued"
 	WorkerJobStatusLeased       = "leased"

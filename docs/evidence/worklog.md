@@ -3909,3 +3909,115 @@ Auditor next direction:
 Resource cleanup:
 - Growth-Auditor and the six execution/review subagents were closed after their outputs were integrated.
 - One repeated `close_agent` call returned `not found` because the target had already been closed; no work remained attached to it.
+
+## Worker-Evidence-Calib A1 round - 2026-07-08
+
+Scope:
+- Ownership respected: edits limited to `docs/a1`, `docs/evidence/worklog.md`, `tests/a1`, and `packages/sdk` calibration code.
+- Existing untracked `recon/` and `tools/` were not touched.
+- Private evidence remains under ignored `docs/evidence/private_refs/` and was not staged or printed.
+
+Public-safe readiness packet:
+- Added `docs/a1/api_calibration/official_api_readiness_packet.json` as the round packet for official API calibration readiness.
+- Added `docs/a1/schemas/api_calibration_readiness_packet.schema.json` and tests in `tests/a1/test_python_calibrator.py`.
+- Packet records public-safe fields only: observed function names/counts, status counts, guardrail commands, private evidence root, and gap IDs. It asserts no raw key material, auth header, raw payload response, or private evidence contents.
+
+Official API calibration gaps summarized:
+- Read-only field map is currently ready for the existing calibrator read steps: `read_only_missing_from_field_map=[]`.
+- Mutating `create_request` remains blocked for real execution until a fresh quota/reset-reviewed plan-batch gate with target binding approves tiny text mutation.
+- Image/audio/file/video paid media probes remain unproven and should wait until text mutation evidence is reviewed, then run one modality per round with `--allow-paid-media`.
+- Hosted commercial surface remains unproven for API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, and webhooks.
+
+Purposeful read-only official API calibration:
+- Environment check: `ASHR_API_KEY` was present; `ASHR_LABS_API_KEY` was absent. No raw key was printed or logged.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+- Result summary only: status `ok`; total steps `5`; read steps `5`; mutating steps `0`; estimated calls `7`; errors `0`; quota blocks `0`.
+- Private manifest: `docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+
+Verification:
+- `python -B -m pytest tests/a1/test_python_calibrator.py` -> 30 passed.
+
+## A1 round 2026-07-08 - Go route expansion, TS hosted smoke, API readiness packet
+
+Startup / peer state:
+- Re-ran baseline: repo `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, PR #20 open draft, `origin/main` at `3738f70`.
+- Worktree initially had only untracked `recon/` and `tools/` after the previous A1 push.
+- During this round a non-A1 local commit `4fb555f A3: redesign dashboard and hosted report frontend visuals` appeared on the current branch. It was saved as `backup/a3-dashboard-local-4fb555f`; current branch was reset back to `origin/codex/a1-local-sdk-runner` while preserving worktree edits. A3 files `apps/dashboard/src/styles.css` and `services/report/a3_shareable_report.mjs` remain unstaged and are not part of A1 staging.
+
+20 growth points attacked:
+1. Expand Go HTTP server beyond submit/workers into run upload.
+2. Add Go trace ingestion route for observations across safe media envelope.
+3. Add Go artifact manifest create/list routes.
+4. Store Go run/upload/trace/artifact evidence as stable hashes/counts, not raw payloads.
+5. Extend Go route manifest with health/openapi aliases and new run-family routes.
+6. Add Go tests for upload, trace, artifact manifest, and unsafe media rejection.
+7. Introduce Go `ControlPlaneBackend` interface so HTTP server is not locked to `MemoryService`.
+8. Add Go backend selection config from env with memory default.
+9. Add explicit Postgres backend skeleton and tests that fail honestly until repository methods are implemented.
+10. Update `cmd/ashr-api` to use backend selection and close hooks.
+11. Add TypeScript SDK smoke against a real compiled Go server binary.
+12. Cover TS hosted calls for bootstrap, sdk submit, upload, trace ingest, artifact manifests, and worker lifecycle.
+13. Add route parity snapshot for Go/Python/TS hosted surfaces.
+14. Add parser-driven tests preventing silent drift between Go route manifest, Python routes, and TS OpenAPI routes.
+15. Add official API readiness packet builder and public-safe packet/schema.
+16. Run another real read-only official API calibration via env-only key.
+17. Record private evidence path without staging or printing raw key material.
+18. Keep A3 dashboard/report changes isolated from A1 commit staging.
+19. Re-run Python A1, TS full package, Go package, and Go integration tests.
+20. Preserve known gaps for Go Postgres durability, auth/quota/audit/release evidence, Docker daemon, and paid mutating calibration.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/types.go`, `service.go`, `server.go`, `server_test.go`: run upload, trace ingestion, artifact manifests, media-safe hashing, route manifest expansion, and route tests.
+- `packages/go/ashrclone/backend.go`, `backend_test.go`, `postgres.go`, `postgres_test.go`, `go.mod`, `go.sum`: backend selector, env config, explicit Postgres repository skeleton, and tests.
+- `packages/go/ashrclone/cmd/ashr-api/main.go`: env-selected backend entrypoint with close hook.
+- `packages/ts/ashr-clone/test/go-server.test.mjs`: TS client smoke against a real compiled Go server binary.
+- `tests/a1/test_go_python_route_contract_evidence.py` and `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`: parser-backed public-safe route parity evidence.
+- `packages/sdk/ashr_clone/calibrate.py`, `tests/a1/test_python_calibrator.py`, `docs/a1/api_calibration/official_api_readiness_packet.json`, `docs/a1/schemas/api_calibration_readiness_packet.schema.json`: official API readiness packet and tests.
+
+Subagent results:
+- Worker-Go-Postgres and Worker-TS-GoSmoke were interrupted by account concurrency limits; their intended work was continued in the main rollout.
+- Worker-Go-Routes completed Go run upload/trace/artifact route expansion and package tests.
+- Reviewer-Contract completed parser-driven Go/Python/TS route contract tests and public route parity snapshot.
+- Worker-Evidence-Calib completed official API readiness packet work and read-only official API calibration.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> build passed; 282 tests passed, including `TS SaaS client drives the real Go HTTP server vertical slice`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 301 passed.
+- Note: one earlier `go test ./...` from repo root failed because the repository root is not a Go module; it was rerun from the correct Go module directories and passed.
+
+Real API / private evidence:
+- `ASHR_API_KEY` was present in env; `ASHR_LABS_API_KEY` absent. No raw key was read into code, prompt, public docs, or logs.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+- Public summary: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`.
+- Private evidence remains under ignored `docs/evidence/private_refs/` and must not be staged.
+
+Known gaps / next 20:
+1. Implement actual Postgres repository methods for bootstrap/project/dataset/run/worker/job/upload/trace/artifact.
+2. Add restart durability tests against Postgres once `A1_POSTGRES_TEST_DSN` exists.
+3. Add Go API-key lifecycle routes and middleware.
+4. Add Go scope enforcement per mutating route.
+5. Add Go quota-before-mutation enforcement for submit/upload/trace/artifact/worker.
+6. Add Go audit hash-chain append/verify.
+7. Add Go release gate and release evidence packet/verify routes.
+8. Add Go lifecycle and usage snapshot routes.
+9. Add Go worker daemon loop with durable lease heartbeat/retry/dead-letter.
+10. Add Python SDK smoke for new Go upload/trace/artifact routes, matching TS coverage.
+11. Convert route manifest to generated OpenAPI or a shared manifest consumed by Python/TS tests.
+12. Repair Docker daemon pipe and add API + worker + DB Compose smoke.
+13. Add SQL/PLpgSQL atomic usage consume/refund helpers and tests.
+14. Add Rust evidence verifier over route/evidence packets.
+15. Add Terraform/HCL self-host skeleton and validate command.
+16. Add official text mutation plan-batch with reviewed quota/reset gate.
+17. Then run one paid text mutation calibration; only then consider audio/file/image/video paid probes one at a time.
+18. Expand official API readiness packet to include API keys, usage, traces, artifacts, webhooks once safely probed.
+19. Add public-safe commercial readiness packet tying Go server, TS/Python SDKs, official API evidence, and route parity.
+20. Keep A3 dashboard/report commits isolated from A1 branch history unless deliberately merged by owner.
+
+Growth-Auditor closeout for commit 28faa9e:
+- Verdict: conditional pass, strong local hosted-runtime round, not production-complete.
+- Commercial value: TS SDK now drives a real Go binary; Go runtime covers submit/upload/trace/artifact/worker lifecycle; backend seam exists for durability; evidence hygiene remains public-safe.
+- Risks captured: Postgres backend is selectable but explicitly unimplemented, so it must not be marketed as durable support; health now exposes `backend_ready`/`backend_mode` to avoid over-signaling readiness; official API mutation and hosted commercial parity remain incomplete.
+- Immediate follow-up: durable backend truth, starting with Postgres schema/repository/idempotency ledger, then persisted runs/uploads/traces/artifacts, auth/quota/audit, and Docker/Compose smoke after daemon repair.
+- Hygiene: duplicate untracked TS integration smoke was removed; A3 dashboard/report changes remain unstaged and isolated on backup branch `backup/a3-dashboard-local-4fb555f`.

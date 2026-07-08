@@ -29,6 +29,7 @@ from .api_client import (
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
 FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
+API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION = "ashr.clone.api_calibration_readiness_packet.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
 API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v1"
@@ -259,6 +260,126 @@ def build_field_parity_plan(args: CalibrationArgs | None = None, *, field_map_pa
             "steps": parity_steps,
         }
     )
+
+
+def build_api_calibration_readiness_packet(
+    args: CalibrationArgs | None = None,
+    *,
+    field_map_path: str | Path = FIELD_MAP_PATH,
+    evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+) -> JsonDict:
+    plan_args = args or CalibrationArgs(modalities=("text",))
+    field_map = load_json_object(str(field_map_path), "--field-map")
+    functions = field_map.get("functions") if isinstance(field_map.get("functions"), Mapping) else {}
+    evidence_index: JsonDict = {}
+    if evidence_index_path is not None and Path(evidence_index_path).exists():
+        evidence_index = load_json_object(str(evidence_index_path), "--evidence-index")
+    plan = build_field_parity_plan(plan_args, field_map_path=field_map_path)
+    observed_functions = sorted(functions)
+    read_only_steps = [step for step in plan.get("steps", []) if isinstance(step, Mapping) and step.get("kind") == "read"]
+    read_only_missing = sorted(str(step.get("function")) for step in read_only_steps if not step.get("observed_response_keys"))
+    return redact_sensitive(
+        {
+            "schema_version": API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_field_map": _repo_relative_output_path(field_map_path),
+            "source_evidence_index": _repo_relative_output_path(evidence_index_path) if evidence_index_path else None,
+            "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
+            "public_safety": {
+                "raw_key_material_present": False,
+                "auth_header_present": False,
+                "contains_raw_payload_response": False,
+                "contains_private_evidence_contents": False,
+                "private_evidence_root": "docs/evidence/private_refs",
+                "private_evidence_references_only": True,
+            },
+            "official_api_contract": plan.get("official_api_contract", {}),
+            "execution_guardrails": {
+                "default_mode": "dry-run",
+                "real_read_only_requires": ["--execute", "--small-batch", "--max-retries 0", "private output path"],
+                "real_mutating_requires": ["--include-mutating", "explicit --modality", "fresh quota gate", "private output path"],
+                "paid_media_requires": "--allow-paid-media",
+                "full_record_stdout_blocked_for_real_or_gate": True,
+            },
+            "observed_surface": {
+                "function_count": len(observed_functions),
+                "functions": observed_functions,
+                "read_only_manifest_step_count": len(read_only_steps),
+                "read_only_missing_from_field_map": read_only_missing,
+                "private_record_count": evidence_index.get("total_records"),
+                "status_counts": evidence_index.get("status_counts", {}),
+                "quota_block_count": evidence_index.get("quota_block_count", 0),
+            },
+            "readiness": {
+                "public_packet_ready": True,
+                "read_only_small_batch_ready": not read_only_missing,
+                "mutating_small_batch_ready": False,
+                "reason_mutating_not_ready": "requires a fresh reviewed plan-batch quota gate and explicit modality before any real create-request call",
+            },
+            "gaps": official_api_calibration_gaps(functions, read_only_missing),
+            "commands": {
+                "generate_public_packet": "python -B -c \"from pathlib import Path; import json; from packages.sdk.ashr_clone.calibrate import build_api_calibration_readiness_packet; Path('docs/a1/api_calibration/official_api_readiness_packet.json').write_text(json.dumps(build_api_calibration_readiness_packet(), indent=2, sort_keys=True) + '\\n', encoding='utf-8')\"",
+                "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json",
+                "mutating_text_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json",
+            },
+        }
+    )
+
+
+def official_api_calibration_gaps(observed_functions: Mapping[str, Any], read_only_missing: Sequence[str]) -> list[JsonDict]:
+    gaps: list[JsonDict] = []
+    if read_only_missing:
+        gaps.append(
+            {
+                "id": "read_only_field_map_missing",
+                "severity": "high",
+                "summary": "Read-only calibration steps exist without observed response fields in the public field map.",
+                "blocked_by": ["official API key", "read-only small-batch execution", "private evidence output"],
+                "functions": sorted(read_only_missing),
+            }
+        )
+    for function in ("create_run", "get_run", "list_runs"):
+        if function not in observed_functions:
+            gaps.append(
+                {
+                    "id": f"{function}_limited_or_missing",
+                    "severity": "medium",
+                    "summary": f"{function} coverage is absent from the latest field map and needs a read-only or gated lifecycle follow-up.",
+                    "blocked_by": ["safe target identifiers", "private evidence output"],
+                    "functions": [function],
+                }
+            )
+    create_request = observed_functions.get("create_request") if isinstance(observed_functions.get("create_request"), Mapping) else {}
+    quota_blocks = create_request.get("quota_block_count", 0) if isinstance(create_request, Mapping) else 0
+    gaps.append(
+        {
+            "id": "mutating_create_request_quota_gate",
+            "severity": "high",
+            "summary": "Real create-request calibration remains blocked until a fresh quota/reset-reviewed plan-batch gate approves the tiny text mutation.",
+            "blocked_by": ["reviewed quota/reset evidence", "fresh target binding", "explicit --modality text"],
+            "functions": ["create_request"],
+            "observed_quota_block_count": quota_blocks,
+        }
+    )
+    gaps.append(
+        {
+            "id": "media_modalities_unproven",
+            "severity": "medium",
+            "summary": "Image, audio, file, and video request envelopes are public-planned but should wait for reviewed text mutation evidence before paid media probes.",
+            "blocked_by": ["text small-batch result", "--allow-paid-media acknowledgement", "one modality per round"],
+            "modalities": ["image", "audio", "file", "video"],
+        }
+    )
+    gaps.append(
+        {
+            "id": "hosted_surface_not_commercially_complete",
+            "severity": "medium",
+            "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity.",
+            "blocked_by": ["official docs or observed endpoints", "safe read-only probes", "local control-plane implementation parity"],
+            "functions": ["api_keys", "usage", "trace_events", "artifacts", "release_evidence", "webhooks"],
+        }
+    )
+    return gaps
 
 
 def field_parity_step(step: CalibrationStep, observed_functions: Mapping[str, Any]) -> JsonDict:

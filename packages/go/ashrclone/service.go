@@ -11,25 +11,31 @@ import (
 )
 
 type MemoryService struct {
-	mu         sync.Mutex
-	tenants    map[string]Tenant
-	projects   map[string]Project
-	datasets   map[string]Dataset
-	runs       map[string]Run
-	workerJobs map[string]WorkerJob
-	idem       map[string]idemRecord
-	nextID     int
+	mu                sync.Mutex
+	tenants           map[string]Tenant
+	projects          map[string]Project
+	datasets          map[string]Dataset
+	runs              map[string]Run
+	runUploads        map[string]RunUpload
+	traceBatches      map[string]TraceBatch
+	artifactManifests map[string]ArtifactManifest
+	workerJobs        map[string]WorkerJob
+	idem              map[string]idemRecord
+	nextID            int
 }
 
 func NewMemoryService() *MemoryService {
 	return &MemoryService{
-		tenants:    map[string]Tenant{},
-		projects:   map[string]Project{},
-		datasets:   map[string]Dataset{},
-		runs:       map[string]Run{},
-		workerJobs: map[string]WorkerJob{},
-		idem:       map[string]idemRecord{},
-		nextID:     1,
+		tenants:           map[string]Tenant{},
+		projects:          map[string]Project{},
+		datasets:          map[string]Dataset{},
+		runs:              map[string]Run{},
+		runUploads:        map[string]RunUpload{},
+		traceBatches:      map[string]TraceBatch{},
+		artifactManifests: map[string]ArtifactManifest{},
+		workerJobs:        map[string]WorkerJob{},
+		idem:              map[string]idemRecord{},
+		nextID:            1,
 	}
 }
 
@@ -111,6 +117,130 @@ func (service *MemoryService) SubmitRun(tenantID, projectID, datasetID, agentRef
 	response := Envelope[Run]{Operation: "sdk_submit", Status: "ok", Result: run}
 	service.storeIdempotencyLocked("sdk_submit", tenantID, projectID, options.Key, request, response)
 	return response, nil
+}
+
+func (service *MemoryService) UploadRun(tenantID, projectID, runID string, result JSONMap, options UploadRunOptions) (Envelope[RunUpload], error) {
+	if err := ValidateMediaSafeEnvelope(result); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "result": result, "upload_id": options.UploadID}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := service.idempotentReplay("upload_run", tenantID, projectID, options.IdempotencyKey, request); err != nil || ok {
+			if err != nil {
+				return Envelope[RunUpload]{}, err
+			}
+			response := replay.(Envelope[RunUpload])
+			response.IdempotentReplay = true
+			return response, nil
+		}
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	run, ok := service.runs[runKey(tenantID, projectID, runID)]
+	if !ok {
+		return Envelope[RunUpload]{}, NotFoundError{Resource: "run"}
+	}
+	uploadID := options.UploadID
+	if uploadID == "" {
+		uploadID = service.id("upload", runID)
+	}
+	now := time.Now().UTC()
+	upload := RunUpload{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, UploadID: uploadID, ResultSHA256: mustFingerprint(result), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	service.runUploads[runUploadKey(tenantID, projectID, runID, uploadID)] = upload
+	run.Status = "uploaded"
+	service.runs[runKey(tenantID, projectID, runID)] = run
+	response := Envelope[RunUpload]{Operation: "upload_run", Status: "ok", Result: upload}
+	service.storeIdempotencyLocked("upload_run", tenantID, projectID, options.IdempotencyKey, request, response)
+	return response, nil
+}
+
+func (service *MemoryService) IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error) {
+	if err := ValidateMediaSafeEnvelope(observations); err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "observations": observations, "batch_id": options.BatchID}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := service.idempotentReplay("ingest_trace", tenantID, projectID, options.IdempotencyKey, request); err != nil || ok {
+			if err != nil {
+				return Envelope[TraceBatch]{}, err
+			}
+			response := replay.(Envelope[TraceBatch])
+			response.IdempotentReplay = true
+			return response, nil
+		}
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
+		return Envelope[TraceBatch]{}, NotFoundError{Resource: "run"}
+	}
+	batchID := options.BatchID
+	if batchID == "" {
+		batchID = service.id("trace_batch", runID)
+	}
+	now := time.Now().UTC()
+	batch := TraceBatch{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, BatchID: batchID, ObservationCount: len(observations), ObservationsSHA256: mustFingerprint(observations), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	service.traceBatches[traceBatchKey(tenantID, projectID, runID, batchID)] = batch
+	response := Envelope[TraceBatch]{Operation: "ingest_trace", Status: "ok", Result: batch}
+	service.storeIdempotencyLocked("ingest_trace", tenantID, projectID, options.IdempotencyKey, request, response)
+	return response, nil
+}
+
+func (service *MemoryService) CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error) {
+	if err := ValidateMediaSafeEnvelope(manifest); err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "manifest": manifest, "artifact_id": options.ArtifactID}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := service.idempotentReplay("artifact_manifest", tenantID, projectID, options.IdempotencyKey, request); err != nil || ok {
+			if err != nil {
+				return Envelope[ArtifactManifest]{}, err
+			}
+			response := replay.(Envelope[ArtifactManifest])
+			response.IdempotentReplay = true
+			return response, nil
+		}
+	}
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
+		return Envelope[ArtifactManifest]{}, NotFoundError{Resource: "run"}
+	}
+	artifactID := options.ArtifactID
+	if artifactID == "" {
+		artifactID = service.id("artifact", runID)
+	}
+	now := time.Now().UTC()
+	record := ArtifactManifest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, ArtifactID: artifactID, ManifestSHA256: mustFingerprint(manifest), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	service.artifactManifests[artifactManifestKey(tenantID, projectID, runID, artifactID)] = record
+	response := Envelope[ArtifactManifest]{Operation: "artifact_manifest", Status: "ok", Result: record}
+	service.storeIdempotencyLocked("artifact_manifest", tenantID, projectID, options.IdempotencyKey, request, response)
+	return response, nil
+}
+
+func (service *MemoryService) ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
+		return Envelope[ArtifactManifestList]{}, NotFoundError{Resource: "run"}
+	}
+	manifests := []ArtifactManifest{}
+	for _, manifest := range service.artifactManifests {
+		if manifest.TenantID == tenantID && manifest.ProjectID == projectID && manifest.RunID == runID {
+			manifests = append(manifests, manifest)
+		}
+	}
+	sort.Slice(manifests, func(i, j int) bool {
+		if !manifests[i].CreatedAt.Equal(manifests[j].CreatedAt) {
+			return manifests[i].CreatedAt.Before(manifests[j].CreatedAt)
+		}
+		return manifests[i].ArtifactID < manifests[j].ArtifactID
+	})
+	result := ArtifactManifestList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Manifests: manifests, Count: len(manifests)}
+	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
 }
 
 type EnqueueWorkerJobOptions struct {
@@ -436,6 +566,15 @@ func datasetKey(tenantID, projectID, datasetID string) string {
 }
 func runKey(tenantID, projectID, runID string) string {
 	return tenantID + "/" + projectID + "/" + runID
+}
+func runUploadKey(tenantID, projectID, runID, uploadID string) string {
+	return runKey(tenantID, projectID, runID) + "/" + uploadID
+}
+func traceBatchKey(tenantID, projectID, runID, batchID string) string {
+	return runKey(tenantID, projectID, runID) + "/" + batchID
+}
+func artifactManifestKey(tenantID, projectID, runID, artifactID string) string {
+	return runKey(tenantID, projectID, runID) + "/" + artifactID
 }
 
 func (service *MemoryService) workerJobRecordLocked(tenantID, projectID, jobID string, now time.Time) (WorkerJob, error) {

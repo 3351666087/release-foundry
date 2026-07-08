@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import { CloudApiService, NotFoundError, ValidationError } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -1265,6 +1265,18 @@ export class SaaSIngestionClient {
     return envelope("bootstrap_project", result);
   }
 
+  async bootstrapProjectHttp(options: { tenantName?: string; tenant_name?: string; projectName?: string; project_name?: string; tenantId?: string; tenant_id?: string; projectId?: string; project_id?: string; datasetId?: string; dataset_id?: string; datasetName?: string; dataset_name?: string; cases?: JsonRecord[] }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", "/v1/bootstrap", {
+      tenant_name: clientRequiredString(options, "tenantName", "tenant_name"),
+      project_name: clientRequiredString(options, "projectName", "project_name"),
+      tenant_id: clientString(options, "tenantId", "tenant_id"),
+      project_id: clientString(options, "projectId", "project_id"),
+      dataset_id: clientString(options, "datasetId", "dataset_id"),
+      dataset_name: clientString(options, "datasetName", "dataset_name"),
+      cases: options.cases,
+    });
+    return envelope("bootstrap_project", body);
+  }
   createApiKey(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string } ): JsonRecord {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, {

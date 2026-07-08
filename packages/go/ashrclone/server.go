@@ -9,28 +9,56 @@ import (
 )
 
 type HTTPServer struct {
-	service *MemoryService
+	service     ControlPlaneBackend
+	backendName string
 }
 
-func NewHTTPServer(service *MemoryService) http.Handler {
+type ControlPlaneBackend interface {
+	BootstrapProject(tenantName, projectName string, dataset Dataset, tenantID, projectID string) (Envelope[BootstrapResult], error)
+	SubmitRun(tenantID, projectID, datasetID, agentRef, runID string, metadata JSONMap, options IdempotencyOptions) (Envelope[Run], error)
+	EnqueueWorkerJob(tenantID, projectID, jobType, targetID string, payload JSONMap, options EnqueueWorkerJobOptions) (Envelope[WorkerJob], error)
+	LeaseWorkerJob(tenantID, projectID, leaseOwnerID string, options LeaseWorkerJobOptions) (Envelope[WorkerLeaseResult], error)
+	HeartbeatWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, leaseSeconds int) (Envelope[WorkerJob], error)
+	CompleteWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, result JSONMap, options CompleteWorkerJobOptions) (Envelope[WorkerJob], error)
+	FailWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, failure JSONMap, options FailWorkerJobOptions) (Envelope[WorkerJob], error)
+	ListWorkerJobs(tenantID, projectID string, options ListWorkerJobsOptions) (Envelope[WorkerJobList], error)
+	UploadRun(tenantID, projectID, runID string, result JSONMap, options UploadRunOptions) (Envelope[RunUpload], error)
+	IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error)
+	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
+	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
+}
+
+type HTTPServerOptions struct {
+	BackendName string
+}
+
+func NewHTTPServer(service ControlPlaneBackend) http.Handler {
+	return NewHTTPServerWithOptions(service, HTTPServerOptions{})
+}
+
+func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOptions) http.Handler {
 	if service == nil {
 		service = NewMemoryService()
 	}
-	return &HTTPServer{service: service}
+	backendName := strings.TrimSpace(options.BackendName)
+	if backendName == "" {
+		backendName = "memory_service_v0"
+	}
+	return &HTTPServer{service: service, backendName: backendName}
 }
 
-func NewHTTPHandler(service *MemoryService) http.Handler {
+func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
 	return NewHTTPServer(service)
 }
 
 func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.Method == http.MethodGet && (request.URL.Path == "/health" || request.URL.Path == "/healthz" || request.URL.Path == "/v1/healthz") {
-		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "local_only": true, "ashr_api_used": false})
+		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "backend_ready": server.backendName == "memory_service_v0", "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
 		return
 	}
 	if request.Method == http.MethodGet && (request.URL.Path == "/openapi.json" || request.URL.Path == "/v1/openapi.json") {
-		writeJSON(writer, http.StatusOK, GoRouteManifest())
+		writeJSON(writer, http.StatusOK, GoRouteManifest(server.backendName))
 		return
 	}
 	if request.URL.Path == "/bootstrap" || request.URL.Path == "/v1/bootstrap" {
@@ -63,6 +91,10 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		server.handleListWorkerJobs(writer, request, projectID)
 		return
 	}
+	if len(parts) >= 3 && parts[0] == "runs" {
+		server.handleRunRoutes(writer, request, projectID, parts[1], parts[2:])
+		return
+	}
 	body, ok := readJSONBody(writer, request)
 	if !ok {
 		return
@@ -75,6 +107,42 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 	if len(parts) >= 1 && parts[0] == "worker-jobs" {
 		server.handleWorkerJobs(writer, request, stringValue(body, "tenant_id"), projectID, parts[1:], body)
 		return
+	}
+	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *http.Request, projectID, runID string, parts []string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))
+	if len(parts) == 1 {
+		switch parts[0] {
+		case "upload":
+			if request.Method == http.MethodPost {
+				result, err := server.service.UploadRun(tenantID, projectID, runID, mapValue(body, "result"), UploadRunOptions{UploadID: stringValue(body, "upload_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
+		case "trace-events":
+			if request.Method == http.MethodPost {
+				result, err := server.service.IngestTrace(tenantID, projectID, runID, observationsFromAny(body["observations"]), IngestTraceOptions{BatchID: stringValue(body, "batch_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
+		case "artifact-manifests":
+			if request.Method == http.MethodPost {
+				result, err := server.service.CreateArtifactManifest(tenantID, projectID, runID, mapValue(body, "manifest"), ArtifactManifestOptions{ArtifactID: stringValue(body, "artifact_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
+			if request.Method == http.MethodGet {
+				result, err := server.service.ListArtifactManifests(tenantID, projectID, runID)
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
+		}
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
 }
@@ -129,10 +197,20 @@ func (server *HTTPServer) handleListWorkerJobs(writer http.ResponseWriter, reque
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
-func GoRouteManifest() JSONMap {
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": "memory_service_v0", "raw_payloads_included": false}
+func backendMode(backendName string) string {
+	if backendName == "memory_service_v0" {
+		return "local_memory"
+	}
+	return "skeleton_not_ready"
 }
 
+func GoRouteManifest(backendName ...string) JSONMap {
+	backingStore := "memory_service_v0"
+	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
+		backingStore = strings.TrimSpace(backendName[0])
+	}
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
+}
 func readJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap, bool) {
 	if request.Method == http.MethodGet || request.Body == nil {
 		return JSONMap{}, true
@@ -201,6 +279,17 @@ func pathParts(path string) []string {
 	return parts
 }
 
+func observationsFromAny(value any) []JSONMap {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	observations := make([]JSONMap, 0, len(items))
+	for _, item := range items {
+		observations = append(observations, jsonMapFromAny(item))
+	}
+	return observations
+}
 func datasetFromRequest(body JSONMap) Dataset {
 	dataset := datasetFromJSON(body["dataset"])
 	if dataset.DatasetID == "" {
