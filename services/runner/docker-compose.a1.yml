@@ -1,0 +1,46 @@
+name: ashr-a1-go-api-smoke
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ashr
+      POSTGRES_USER: ashr
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - a1-postgres-smoke:/var/lib/postgresql/data
+
+  api:
+    image: golang:1.22-bookworm
+    working_dir: /workspace/packages/go/ashrclone
+    command: ["sh", "-lc", "go run ./cmd/ashr-api"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASHR_GO_API_ADDR: 0.0.0.0:8787
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgres://ashr@postgres:5432/ashr?sslmode=disable
+      ASHR_A1_SMOKE_MODE: local_self_host
+    ports:
+      - "127.0.0.1:18787:8787"
+    volumes:
+      - ../../:/workspace:ro
+      - a1-go-mod-cache:/go/pkg/mod
+      - a1-go-build-cache:/root/.cache/go-build
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  a1-postgres-smoke:
+  a1-go-mod-cache:
+  a1-go-build-cache:

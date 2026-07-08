@@ -9,8 +9,9 @@ import (
 )
 
 type HTTPServer struct {
-	service     ControlPlaneBackend
-	backendName string
+	service      ControlPlaneBackend
+	backendName  string
+	backendReady bool
 }
 
 type ControlPlaneBackend interface {
@@ -29,11 +30,12 @@ type ControlPlaneBackend interface {
 }
 
 type HTTPServerOptions struct {
-	BackendName string
+	BackendName  string
+	BackendReady bool
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
-	return NewHTTPServerWithOptions(service, HTTPServerOptions{})
+	return NewHTTPServerWithOptions(service, HTTPServerOptions{BackendName: "memory_service_v0", BackendReady: true})
 }
 
 func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOptions) http.Handler {
@@ -44,7 +46,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 	if backendName == "" {
 		backendName = "memory_service_v0"
 	}
-	return &HTTPServer{service: service, backendName: backendName}
+	return &HTTPServer{service: service, backendName: backendName, backendReady: options.BackendReady}
 }
 
 func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
@@ -54,7 +56,7 @@ func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
 func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.Method == http.MethodGet && (request.URL.Path == "/health" || request.URL.Path == "/healthz" || request.URL.Path == "/v1/healthz") {
-		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "backend_ready": server.backendName == "memory_service_v0", "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
+		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "backend_ready": server.backendReady, "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
 		return
 	}
 	if request.Method == http.MethodGet && (request.URL.Path == "/openapi.json" || request.URL.Path == "/v1/openapi.json") {
@@ -201,7 +203,7 @@ func backendMode(backendName string) string {
 	if backendName == "memory_service_v0" {
 		return "local_memory"
 	}
-	return "skeleton_not_ready"
+	return "postgres"
 }
 
 func GoRouteManifest(backendName ...string) JSONMap {
