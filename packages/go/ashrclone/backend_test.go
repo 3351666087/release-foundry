@@ -39,6 +39,26 @@ func TestBackendConfigFromEnvLookup(t *testing.T) {
 	}
 }
 
+func TestNewBackendPostgresExposesMigrationHook(t *testing.T) {
+	selection, err := NewBackend(BackendConfig{Kind: "postgres", PostgresDSN: "postgres://example.test/ashr?sslmode=disable"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if selection.Close != nil {
+			_ = selection.Close()
+		}
+	}()
+	if selection.Name != "postgres_repository_v0" {
+		t.Fatalf("backend name = %q", selection.Name)
+	}
+	if selection.Ready {
+		t.Fatalf("postgres backend should not be ready before migration")
+	}
+	if selection.Migrate == nil {
+		t.Fatalf("postgres backend should expose migration hook")
+	}
+}
 func TestNewBackendPostgresRequiresDSN(t *testing.T) {
 	_, err := NewBackend(BackendConfig{Kind: "postgres"})
 	if err == nil {

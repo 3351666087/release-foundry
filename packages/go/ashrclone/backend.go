@@ -1,6 +1,7 @@
 package ashrclone
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -19,7 +20,9 @@ type BackendConfig struct {
 type BackendSelection struct {
 	Backend ControlPlaneBackend
 	Name    string
+	Ready   bool
 	Close   func() error
+	Migrate func(context.Context) error
 }
 
 func BackendConfigFromEnv() BackendConfig {
@@ -34,7 +37,7 @@ func NewBackend(config BackendConfig) (BackendSelection, error) {
 	kind := normalizeBackendKind(config.Kind)
 	switch kind {
 	case BackendKindMemory:
-		return BackendSelection{Backend: NewMemoryService(), Name: "memory_service_v0"}, nil
+		return BackendSelection{Backend: NewMemoryService(), Name: "memory_service_v0", Ready: true}, nil
 	case BackendKindPostgres:
 		dsn := strings.TrimSpace(config.PostgresDSN)
 		if dsn == "" {
@@ -44,7 +47,7 @@ func NewBackend(config BackendConfig) (BackendSelection, error) {
 		if err != nil {
 			return BackendSelection{}, err
 		}
-		return BackendSelection{Backend: repository, Name: "postgres_repository_v0", Close: repository.Close}, nil
+		return BackendSelection{Backend: repository, Name: "postgres_repository_v0", Close: repository.Close, Migrate: repository.Migrate}, nil
 	default:
 		return BackendSelection{}, fmt.Errorf("unsupported backend %q", config.Kind)
 	}

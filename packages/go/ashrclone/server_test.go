@@ -30,6 +30,23 @@ func TestHTTPHandlerHealth(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerHealthReportsExplicitBackendReadiness(t *testing.T) {
+	server := httptest.NewServer(NewHTTPServerWithOptions(NewMemoryService(), HTTPServerOptions{BackendName: "postgres_repository_v0", BackendReady: false}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body JSONMap
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["backend"] != "postgres_repository_v0" || body["backend_ready"] != false || body["backend_mode"] != "postgres" {
+		t.Fatalf("unexpected backend health fields: %#v", body)
+	}
+}
 func TestHTTPHandlerBootstrapAndSubmit(t *testing.T) {
 	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
 	defer server.Close()
