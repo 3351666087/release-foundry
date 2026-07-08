@@ -3408,3 +3408,114 @@ Next A1 growth vectors, aligned to strategy bus:
 18. Add retry/backoff idempotency client behavior in Python/TS/Go.
 19. Add CI secret/staging guard for private refs and local recon directories.
 20. Add main-branch integration smoke comparing current PR against `origin/main` A1/A2/A3 fixture contracts.
+
+## Round25 A1 Large SaaS Polyglot Runtime and Infra Foundation - 2026-07-08
+
+Goal source:
+- User inserted a hard direction that Go, SQL/PLpgSQL, Dockerfile/YAML/Terraform/HCL, and Rust must be added quickly, with Go especially important, and still under the large-SaaS strategy bus.
+- Strategy sections used: A1-1 real multi-tenant data model, A1-4 worker/job system, A1-5 artifact/trace storage, A1-7 usage/quota, and A1-8 infrastructure/deploy.
+
+Baseline / peer changes:
+- Commands: `git status -sb`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `gh pr view 19 --json ...`.
+- Current branch: `codex/a1-local-sdk-runner`; PR #19 draft updated by commit `9890ce2` from Round24.
+- Peer change observed: `origin/codex/a3-audit-evidence-bundle` advanced `bf187fc..daf825a`; no peer files were staged.
+- Worktree start: only untracked `recon/` and `tools/` after Round24 commit.
+
+Environment/toolchain actions:
+- Initial probe showed `go`, `rustc`, `cargo`, `docker`, and `terraform` unavailable; Python 3.12.7, Node v24.14.0, npm 11.9.0 available.
+- Installed user-level tools with Scoop, no admin prompt:
+  - `scoop install go terraform rustup`.
+  - `go version` -> `go version go1.26.5 windows/amd64`.
+  - `terraform version` -> `Terraform v1.15.7 on windows_amd64`.
+  - `rustup default stable`; `rustc --version` -> `rustc 1.96.1`; `cargo --version` -> `cargo 1.96.1`.
+- Docker CLI/daemon remains unavailable in this environment; Docker artifacts were statically validated instead of executed.
+
+Growth points pursued:
+1. Add Go SDK/runtime module.
+2. Add Go typed DTOs for tenant/project/dataset/run.
+3. Add Go AgentInput with equal text/audio/file/image/video modalities.
+4. Add Go idempotency replay/conflict helper.
+5. Add Go HTTP client with env-only API key loading and redacted config.
+6. Add Go in-memory SaaS service tests.
+7. Add Go integration module.
+8. Add Postgres schema migration for large SaaS metadata.
+9. Add idempotency fingerprint unique constraints in SQL.
+10. Add PLpgSQL idempotency conflict helper.
+11. Add PLpgSQL usage rollup helper.
+12. Add PLpgSQL audit-chain tail helper.
+13. Add SQL static validation tests.
+14. Add Dockerfile for Python runtime.
+15. Add docker-compose self-host YAML for API/worker/Postgres/Redis/object-store placeholder.
+16. Add Terraform/HCL self-host skeleton.
+17. Add `.terraform.lock.hcl` from real `terraform init` for reproducible provider pinning.
+18. Add Rust runtime verifier/replay-plan utility.
+19. Add deploy scaffold static tests.
+20. Fix release gate bridge idempotent cache response stability discovered by full A1 gate.
+
+Subagent outputs:
+- Worker-Go: created `packages/go/ashrclone` with DTOs, modality model, idempotency, redaction, HTTP client, memory service, and Go tests; created `tests/integration/go` module.
+- Worker-Infra-SQL: created `services/api/migrations/001_a1_large_saas_foundation.sql` and `tests/integration/test_a1_large_saas_migration.py`.
+- Worker-Deploy-Rust: created `infra/docker`, `infra/terraform/self-host`, `packages/rust/ashr-runtime-verify`, `tests/integration/deploy_runtime_scaffold.test.mjs`, and `docs/a1/self_host_runtime_scaffold.md`.
+- Main integration: installed missing toolchains, ran real Go/Rust/Terraform validation, split fake secret test literals to avoid staged secret-scan false positives, and fixed `ReleaseGateBridgeResult.created_at` to be stable across cached idempotent replays.
+
+Implemented files:
+- `packages/go/ashrclone/*`: first Go SDK/runtime package with typed SaaS DTOs, five-modality `AgentInput`, idempotency fingerprinting, redaction, HTTP client, memory service, and tests.
+- `tests/integration/go/*`: Go integration test module consuming the local Go package.
+- `services/api/migrations/001_a1_large_saas_foundation.sql`: Postgres/PLpgSQL foundation for organizations, workspaces, projects, environments, datasets, runs, case results, trace events, observations, artifacts, evidence bundles, API keys, webhooks, usage ledger, quota policies, jobs, idempotency keys, and audit log.
+- `tests/integration/test_a1_large_saas_migration.py`: static migration checks for tables, scopes, functions, constraints, and indexes.
+- `infra/docker/Dockerfile.python-runtime` and `infra/docker/docker-compose.self-host.yml`: self-host runtime scaffold for API, worker, Postgres, Redis, and object-store placeholder.
+- `infra/terraform/self-host/*`: provider-neutral Terraform skeleton and generated lock file.
+- `packages/rust/ashr-runtime-verify/*`: dependency-free Rust verifier with `verify` and `replay-plan` commands.
+- `tests/integration/deploy_runtime_scaffold.test.mjs`: static deploy/Rust/Terraform/compose checks.
+- `docs/a1/self_host_runtime_scaffold.md`: operator note for static validation and local/self-host posture.
+- `services/api/release_gate_bridge.py`: fixed cached release-gate bridge replay to preserve `created_at` instead of generating a fresh timestamp on each `to_dict()`.
+
+Commands / results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `cargo test` in `packages/rust/ashr-runtime-verify` -> 3 passed.
+- `terraform fmt -check -recursive`; `terraform init -backend=false`; `terraform validate` in `infra/terraform/self-host` -> passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider` -> 3 passed.
+- `node --test tests/integration/deploy_runtime_scaffold.test.mjs` -> 5 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` initially failed one release-gate bridge idempotent cache test due `created_at` drift; fixed in `services/api/release_gate_bridge.py`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` after fix -> 275 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 275 passed.
+
+Growth-Auditor follow-up closure:
+- Auditor verdict: strong strategic lift toward large-SaaS / polyglot platform, but initially blocked commit on runtime realism and DB evidence.
+- P0 fixed before commit: compose worker previously ran `replay-queued --help`. `infra/docker/docker-compose.self-host.yml` now runs a bounded real `python -m services.api.cli replay-queued` command with state input/output, mock agent, tenant/project/dataset IDs, summary/fixture/run outputs, max-runs, queue-workers, max-workers, and timeout. Static deploy test now asserts worker args exist and `--help` is absent.
+- P1 fixed before commit: Postgres composite FKs with `ON DELETE SET NULL` now use column-specific nulling for nullable child columns only, avoiding attempts to null `organization_id` / `project_id`.
+- P1 fixed before commit: child FKs from trace events, observations, artifacts, and evidence bundles now reference `(organization_id, project_id, id)` scoped keys instead of global IDs. Static migration tests reject global child references and require scoped FK names.
+- P1 evidence upgrade before commit: installed user-level PostgreSQL with Scoop, started it on local port `55432`, applied the migration to a disposable DB, executed idempotency/usage/audit helper smoke, reapplied the migration, added optional live pytest `tests/integration/test_a1_large_saas_migration_live.py`, ran it with `A1_POSTGRES_TEST_DSN` and `A1_PSQL_BIN`, then stopped Postgres.
+- P1 fixed before commit after live/static recheck: `jobs_environment_scope_fk` and audit/idempotency references were also converted to column-specific `ON DELETE SET NULL (...)` semantics, and static tests now ensure every `ON DELETE SET NULL` includes a target column list.
+- Follow-up validation:
+  - `python -B -m services.api.cli replay-queued --help` used to confirm real worker arguments.
+  - `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` without DSN -> 4 passed, 1 skipped.
+  - `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` with local Postgres DSN -> 1 passed.
+  - Local Postgres stopped with `pg_ctl ... stop`.
+
+Real API / private evidence:
+- No new real Ashr API call in this round; this round focused on requested language/runtime/infra expansion and local toolchain setup.
+- No desktop key files read. No secret values written. Private refs remain unstaged.
+
+Known gaps / next top 20:
+1. Add live Postgres migration smoke using the compose database when Docker is available.
+2. Add Docker daemon/install path or alternative local Postgres service for DB execution tests.
+3. Add Go hosted API methods for health/list-runs/list-agents/list-requests using official API field maps.
+4. Add Go CLI quickstart and fixture generation.
+5. Add Go retry/backoff and idempotency-key helpers matching Python/TS.
+6. Add SQL migrations for webhook deliveries and artifact object pointers beyond the foundation schema.
+7. Add migration down/rollback strategy.
+8. Add Terraform provider adapters for one real target after choosing cloud/self-host substrate.
+9. Add Kubernetes YAML after Docker compose stabilizes.
+10. Add Rust verifier JSON parser or schema validation once dependencies are allowed/pinned.
+11. Add Rust release evidence bundle hash verification.
+12. Add Go/Python/TS/Rust cross-runtime fingerprint golden fixtures.
+13. Add CI workflow YAML running Python, TS, Go, SQL static, Terraform validate, and Rust tests.
+14. Add secret/staging guard for private refs, recon, tools, and generated local Terraform directories.
+15. Add official API read-only probes through Go client.
+16. Add quota-gated small-batch mutating official API calibration when gate says `go`.
+17. Add object storage signed URL API skeleton.
+18. Add worker job lease persistence backed by Postgres schema.
+19. Add tenant/org/user auth model bindings into Python/TS services.
+20. Add main-branch integration smoke before next PR update.
