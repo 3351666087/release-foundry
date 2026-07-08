@@ -12,7 +12,8 @@
     "ashr-clone-cloud": "./dist/cloud-cli.js",
     "ashr-clone-dataset-adapter": "./dist/dataset-adapter-cli.js",
     "ashr-clone-probe": "./dist/probe.js",
-    "ashr-clone-runner": "./dist/runner-cli.js"
+    "ashr-clone-runner": "./dist/runner-cli.js",
+    "ashr-clone-saas": "./dist/saas.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

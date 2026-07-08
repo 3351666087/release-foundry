@@ -14,6 +14,9 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
+      "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
+      "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
+      "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -241,7 +244,74 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
   period_start ${types.timestamp} NOT NULL,
   period_end ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_usage_meter ON usage_ledger(organization_id, project_id, meter, period_start);`)
+CREATE INDEX IF NOT EXISTS idx_usage_meter ON usage_ledger(organization_id, project_id, meter, period_start);`),
+    statement("007_artifact_registry", ["artifact_registry_entries", "artifact_lifecycle_events"], `
+CREATE TABLE IF NOT EXISTS artifact_registry_entries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  report_id TEXT,
+  artifact_type TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  manifest_join_key TEXT NOT NULL,
+  lifecycle_state TEXT NOT NULL,
+  hash_status TEXT NOT NULL,
+  redaction_status TEXT NOT NULL,
+  retention_class TEXT NOT NULL,
+  share_scope TEXT NOT NULL,
+  billable_meter TEXT,
+  customer_value TEXT NOT NULL,
+  missing_controls ${types.json} NOT NULL,
+  raw_secret_values_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_share_token_stored BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_registry_project_state ON artifact_registry_entries(project_id, lifecycle_state, artifact_type);
+CREATE INDEX IF NOT EXISTS idx_artifact_registry_report ON artifact_registry_entries(project_id, report_id);
+CREATE TABLE IF NOT EXISTS artifact_lifecycle_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  artifact_id TEXT NOT NULL REFERENCES artifact_registry_entries(id),
+  event_type TEXT NOT NULL,
+  actor_hash TEXT,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact ON artifact_lifecycle_events(project_id, artifact_id, created_at);`),
+    statement("008_saas_admin_action_requests", ["saas_admin_action_requests"], `
+CREATE TABLE IF NOT EXISTS saas_admin_action_requests (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  area TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  actor_hash TEXT,
+  request_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saas_admin_action_requests_project ON saas_admin_action_requests(project_id, area, status, created_at);`),
+    statement("009_review_workflow_records", ["review_workflow_records"], `
+CREATE TABLE IF NOT EXISTS review_workflow_records (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  record_type TEXT NOT NULL,
+  run_id TEXT,
+  release_version TEXT,
+  environment TEXT,
+  status TEXT NOT NULL,
+  accepted BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  review_hash TEXT NOT NULL,
+  signature_status TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`)
   ];
 }
 

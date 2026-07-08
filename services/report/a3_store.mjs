@@ -10,8 +10,10 @@ import {
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
 import {
+  buildSaasAdminActionRequest,
   buildSaasAdminConsole,
-  planSaasAdminAction
+  planSaasAdminAction,
+  summarizeSaasAdminActionRequests
 } from "./a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "./a3_enterprise_readiness.mjs";
 import { buildReportCenterIndex } from "./a3_report_center.mjs";
@@ -19,6 +21,11 @@ import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
+import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
+import {
+  buildReviewWorkflowIndex,
+  buildReviewWorkflowRecord
+} from "./a3_review_workflow.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -103,6 +110,10 @@ export const A3_DB_CONTRACT = {
     "report_view_events",
     "report_revocations",
     "trust_reports",
+    "artifact_registry_entries",
+    "artifact_lifecycle_events",
+    "saas_admin_action_requests",
+    "review_workflow_records",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -123,12 +134,18 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/reports/:reportId/view",
     "GET /api/a3/admin/console",
     "POST /api/a3/admin/actions/plan",
+    "POST /api/a3/admin/actions/submit",
+    "GET /api/a3/admin/actions",
+    "POST /api/a3/review/waivers",
+    "POST /api/a3/review/approvals",
+    "GET /api/a3/review/workflow",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
     "GET /api/a3/reports/center",
-    "GET /api/a3/reports/:reportId/manifest"
+    "GET /api/a3/reports/:reportId/manifest",
+    "GET /api/a3/artifacts/registry"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -196,6 +213,8 @@ export function createMemoryA3Store(seed = {}) {
   const shareLinks = new Map();
   const idempotencyReceipts = new Map();
   const auditEvents = [];
+  const adminActionRequests = [];
+  const reviewWorkflowRecords = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -219,6 +238,12 @@ export function createMemoryA3Store(seed = {}) {
   for (const event of seed.auditEvents || []) {
     auditEvents.push(event);
   }
+  for (const request of seed.adminActionRequests || []) {
+    adminActionRequests.push(request);
+  }
+  for (const record of seed.reviewWorkflowRecords || []) {
+    reviewWorkflowRecords.push(record);
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -236,6 +261,8 @@ export function createMemoryA3Store(seed = {}) {
       return buildDashboardPayload(snapshot, this.storage_mode, {
         reports: [...reports.values()],
         auditEvents,
+        adminActionRequests,
+        reviewWorkflowRecords,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
       });
     },
@@ -360,8 +387,11 @@ export function createMemoryA3Store(seed = {}) {
 
     async getSaasAdminConsole(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
-      return buildSaasAdminConsole(snapshot, {
+      return attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
         source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      }), adminActionRequests, {
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId
       });
@@ -369,8 +399,11 @@ export function createMemoryA3Store(seed = {}) {
 
     async getEnterpriseReadiness(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
-      const adminConsole = buildSaasAdminConsole(snapshot, {
+      const adminConsole = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
         source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      }), adminActionRequests, {
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId
       });
@@ -421,6 +454,153 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async submitSaasAdminAction(action, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const plannedAt = options.requestedAt || options.createdAt || new Date().toISOString();
+      const plan = await this.planSaasAdminAction(action, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        createdAt: plannedAt
+      });
+      const actorHash = options.actor
+        ? sha256(String(options.actor)).slice(0, 16)
+        : options.actorHash || "actor_[REDACTED_HASH]";
+      const requestHash = sha256(stableJson({
+        action: plan.action,
+        source: snapshot.source,
+        organization_id: plan.organization_id,
+        project_id: plan.project_id,
+        actor_hash: actorHash,
+        requested_at: plannedAt,
+        reason: options.reason || plan.reason || ""
+      }));
+      const request = buildSaasAdminActionRequest(plan.action, {
+        plan,
+        requestId: `aar_${requestHash.slice(0, 12)}`,
+        actorHash,
+        requestedAt: plannedAt,
+        organizationId: plan.organization_id,
+        projectId: plan.project_id
+      });
+      const storedRequest = sanitizeAdminActionRequest({
+        ...request,
+        source: snapshot.source,
+        request_hash: requestHash,
+        requested_by_hash: actorHash,
+        reason: options.reason || request.reason,
+        target: sanitizeAdminActionTarget(options.target)
+      });
+      adminActionRequests.push(storedRequest);
+      auditEvents.push({
+        event_id: `aar_evt_${sha256(`${storedRequest.request_id}:${auditEvents.length}`).slice(0, 12)}`,
+        organization_id: storedRequest.organization_id,
+        project_id: storedRequest.project_id,
+        event_type: "saas_admin_action_requested",
+        subject_id: storedRequest.request_id,
+        payload: {
+          schema_version: storedRequest.schema_version,
+          request_id: storedRequest.request_id,
+          action: storedRequest.action,
+          area: storedRequest.area,
+          mode: storedRequest.mode,
+          status: storedRequest.status,
+          real_cloud_mutation_performed: false,
+          secret_values_included: false
+        },
+        created_at: storedRequest.requested_at,
+        redacted: true
+      });
+      return {
+        schema_version: "a3.saas_admin_action_receipt.v1",
+        request_id: storedRequest.request_id,
+        action: storedRequest.action,
+        area: storedRequest.area,
+        mode: storedRequest.mode,
+        status: storedRequest.status,
+        organization_id: storedRequest.organization_id,
+        project_id: storedRequest.project_id,
+        request_hash: storedRequest.request_hash,
+        real_cloud_mutation_performed: false,
+        secret_values_included: false,
+        audit_event_recorded: true,
+        safety: storedRequest.safety,
+        next_step: storedRequest.next_step
+      };
+    },
+
+    async listSaasAdminActionRequests(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const organizationId = options.organizationId || snapshot.organizationId;
+      const projectId = options.projectId || snapshot.projectId;
+      const requests = filterAdminActionRequests(adminActionRequests, { organizationId, projectId });
+      return {
+        schema_version: "a3.saas_admin_action_request_list.v1",
+        source: snapshot.source,
+        organization_id: organizationId,
+        project_id: projectId,
+        summary: summarizeSaasAdminActionRequests(requests),
+        requests
+      };
+    },
+
+    async submitReviewWaiver(waiver, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const record = sanitizeReviewWorkflowRecord({
+        ...buildReviewWorkflowRecord("waiver", waiver, snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        requestedAt: options.requestedAt,
+        generatedAt: options.generatedAt,
+        releaseVersion: options.releaseVersion,
+        environment: options.environment,
+        headSha: options.headSha
+        }),
+        payload: waiver
+      });
+      reviewWorkflowRecords.push(record);
+      auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
+      return reviewWorkflowReceipt(record);
+    },
+
+    async submitReviewApproval(approval, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const waiverRecord = options.waiver
+        ? { payload: options.waiver }
+        : [...reviewWorkflowRecords].reverse().find((item) => item.record_type === "waiver" && item.subject?.waiver_id === approval?.waiver_id);
+      const record = sanitizeReviewWorkflowRecord({
+        ...buildReviewWorkflowRecord("approval", approval, snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        requestedAt: options.requestedAt,
+        generatedAt: options.generatedAt,
+        releaseVersion: options.releaseVersion,
+        environment: options.environment,
+        headSha: options.headSha,
+        waiver: options.waiver || waiverRecord?.payload || {}
+        }),
+        payload: approval
+      });
+      reviewWorkflowRecords.push(record);
+      auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
+      return reviewWorkflowReceipt(record);
+    },
+
+    async getReviewWorkflow(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      return buildReviewWorkflowIndex(filterReviewWorkflowRecords(reviewWorkflowRecords, {
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      }), {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        durableStorageReady: true
+      });
+    },
+
     async createShareableReport(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const report = buildShareableReportPayload(snapshot, {
@@ -464,18 +644,91 @@ export function createMemoryA3Store(seed = {}) {
 
     async getReportCenter(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const usageLedger = buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      const migrationPlan = buildA3SqlMigrationPlan();
+      const baseReportCenter = buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        migrationPlan
+      });
+      const productConsole = buildA3ProductConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        reportCenter: baseReportCenter,
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
       return buildReportCenterIndex([...reports.values()], {
         source: snapshot.source,
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId,
-        usageLedger: buildA3UsageLedger(snapshot, {
-          reports: [...reports.values()],
-          auditEvents,
-          importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        usageLedger,
+        migrationPlan,
+        productConsole,
+        saasAdmin: attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+          source: snapshot.source,
           organizationId: options.organizationId || snapshot.organizationId,
           projectId: options.projectId || snapshot.projectId
-        }),
-        migrationPlan: buildA3SqlMigrationPlan()
+        }), adminActionRequests, {
+          organizationId: options.organizationId || snapshot.organizationId,
+          projectId: options.projectId || snapshot.projectId
+        })
+      });
+    },
+
+    async getArtifactRegistry(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const usageLedger = buildA3UsageLedger(snapshot, {
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      const migrationPlan = buildA3SqlMigrationPlan();
+      const reportCenter = buildReportCenterIndex([...reports.values()], {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        migrationPlan
+      });
+      const productConsole = buildA3ProductConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        usageLedger,
+        reportCenter,
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+      });
+      const saasAdmin = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      }), adminActionRequests, {
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      return buildA3ArtifactRegistry({
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        reportCenter,
+        usageLedger,
+        migrationPlan,
+        productConsole,
+        saasAdmin
       });
     },
 
@@ -669,7 +922,9 @@ export function createMemoryA3Store(seed = {}) {
         reports: [...reports.values()],
         shareLinks: [...shareLinks.values()],
         idempotencyReceipts: [...idempotencyReceipts.entries()].map(([key, value]) => ({ key, ...value })),
-        auditEvents
+        auditEvents,
+        adminActionRequests,
+        reviewWorkflowRecords
       };
     }
   };
@@ -747,6 +1002,21 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async submitSaasAdminAction(action, options = {}) {
+      const result = await store.submitSaasAdminAction(action, options);
+      await persist();
+      return result;
+    },
+    async submitReviewWaiver(waiver, options = {}) {
+      const result = await store.submitReviewWaiver(waiver, options);
+      await persist();
+      return result;
+    },
+    async submitReviewApproval(approval, options = {}) {
+      const result = await store.submitReviewApproval(approval, options);
+      await persist();
+      return result;
+    },
     async persist() {
       await persist();
     }
@@ -808,6 +1078,14 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     auditEvents: options.auditEvents || [],
     importReceipts: options.importReceipts || []
   });
+  const saasAdmin = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  }), options.adminActionRequests || [], {
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -829,23 +1107,34 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
-    saas_admin_console: buildSaasAdminConsole(snapshot, {
-      source: snapshot.source,
-      organizationId: snapshot.organizationId,
-      projectId: snapshot.projectId
-    }),
+    saas_admin_console: saasAdmin,
     enterprise_readiness: buildEnterpriseReadinessReport({
       runFixture: snapshot.runFixture,
       gradeFixture: snapshot.gradeFixture,
-      adminConsole: buildSaasAdminConsole(snapshot, {
-        source: snapshot.source,
-        organizationId: snapshot.organizationId,
-        projectId: snapshot.projectId
-      }),
+      adminConsole: saasAdmin,
       dbContract: A3_DB_CONTRACT
     }),
     usage_ledger: usageLedger,
     report_center: reportCenter,
+    artifact_registry: buildA3ArtifactRegistry({
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId,
+      reportCenter,
+      usageLedger,
+      migrationPlan,
+      productConsole,
+      saasAdmin
+    }),
+    review_workflow: buildReviewWorkflowIndex(filterReviewWorkflowRecords(options.reviewWorkflowRecords || [], {
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId
+    }), {
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId,
+      durableStorageReady: true
+    }),
     product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({
@@ -856,6 +1145,164 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       score: item.score,
       primary_failure_class: item.primary_failure_class
     }))
+  };
+}
+
+function attachAdminActionRequests(adminConsole = {}, requests = [], options = {}) {
+  const filteredRequests = filterAdminActionRequests(requests, options);
+  return {
+    ...adminConsole,
+    action_requests: filteredRequests.slice(-8),
+    action_request_summary: summarizeSaasAdminActionRequests(filteredRequests)
+  };
+}
+
+function filterAdminActionRequests(requests = [], options = {}) {
+  const organizationId = options.organizationId || "org-local";
+  const projectId = options.projectId || "project-local";
+  return (Array.isArray(requests) ? requests : []).filter((item) => (
+    (item.organization_id || "org-local") === organizationId
+    && (item.project_id || "project-local") === projectId
+  ));
+}
+
+function sanitizeAdminActionRequest(request = {}) {
+  return {
+    schema_version: request.schema_version || "a3.saas_admin_action_request.v1",
+    request_id: request.request_id,
+    source: request.source || "unknown",
+    action: request.action || "unknown",
+    area: request.area || "unknown",
+    mode: request.mode || "unknown",
+    status: request.status || "unknown",
+    organization_id: request.organization_id || "org-local",
+    project_id: request.project_id || "project-local",
+    actor_hash: request.actor_hash || request.requested_by_hash || "actor_[REDACTED_HASH]",
+    requested_by_hash: request.requested_by_hash || request.actor_hash || "actor_[REDACTED_HASH]",
+    requested_at: request.requested_at || new Date().toISOString(),
+    request_hash: request.request_hash || sha256(stableJson(request)),
+    reason: redactPotentialSecret(request.reason || ""),
+    next_step: redactPotentialSecret(request.next_step || ""),
+    requires_hosted_auth: request.requires_hosted_auth === true,
+    requires_reviewer_approval: request.requires_reviewer_approval === true,
+    real_cloud_mutation_performed: false,
+    writes_real_ashr_cloud: request.writes_real_ashr_cloud === true,
+    secret_values_included: false,
+    target: sanitizeAdminActionTarget(request.target),
+    safety: {
+      ...(request.safety || {}),
+      no_real_ashr_write: true,
+      raw_api_key_values_allowed: false,
+      raw_email_values_allowed: false,
+      raw_token_values_allowed: false,
+      redacted_identity_only: true
+    },
+    plan: {
+      action: request.plan?.action || request.action || "unknown",
+      area: request.plan?.area || request.area || "unknown",
+      mode: request.plan?.mode || request.mode || "unknown",
+      enabled: request.plan?.enabled === true,
+      risk: request.plan?.risk || "unknown",
+      writes_real_ashr_cloud: request.plan?.writes_real_ashr_cloud === true,
+      secret_values_included: false
+    }
+  };
+}
+
+function sanitizeAdminActionTarget(target = {}) {
+  if (!target || typeof target !== "object" || Array.isArray(target)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(target)
+    .filter(([key]) => !/secret|token|cookie|email|password|key_value/i.test(key))
+    .map(([key, value]) => [key, redactPotentialSecret(value)]));
+}
+
+function redactPotentialSecret(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value === "object") {
+    return JSON.parse(JSON.stringify(value, (key, item) => (
+      /secret|token|cookie|email|password|key_value/i.test(key) ? "[REDACTED]" : item
+    )));
+  }
+  return String(value)
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._-]{12,}/g, "$1[REDACTED]")
+    .replace(/\b(sk-|ghp_|github_pat_|ashr_)[A-Za-z0-9._-]{12,}/gi, "[REDACTED_SECRET]");
+}
+
+function filterReviewWorkflowRecords(records = [], options = {}) {
+  const organizationId = options.organizationId || "org-local";
+  const projectId = options.projectId || "project-local";
+  return (Array.isArray(records) ? records : []).filter((item) => (
+    (item.organization_id || "org-local") === organizationId
+    && (item.project_id || "project-local") === projectId
+  ));
+}
+
+function sanitizeReviewWorkflowRecord(record = {}) {
+  return {
+    ...record,
+    payload: redactPotentialSecret(record.payload || {}),
+    review: redactPotentialSecret(record.review || {}),
+    subject: redactPotentialSecret(record.subject || {}),
+    safety: {
+      ...(record.safety || {}),
+      secret_values_included: false,
+      raw_signature_stored: false,
+      raw_identity_values_redacted: true,
+      real_cloud_mutation_performed: false
+    },
+    signature: {
+      ...(record.signature || {}),
+      raw_signature_stored: false
+    }
+  };
+}
+
+function reviewWorkflowAuditEvent(record = {}, index = 0) {
+  return {
+    event_id: `rwr_evt_${sha256(`${record.record_id || "missing"}:${index}`).slice(0, 12)}`,
+    organization_id: record.organization_id || "org-local",
+    project_id: record.project_id || "project-local",
+    event_type: "review_workflow_record_submitted",
+    subject_id: record.record_id,
+    payload: {
+      schema_version: record.schema_version,
+      record_id: record.record_id,
+      record_type: record.record_type,
+      status: record.status,
+      accepted: record.accepted === true,
+      payload_hash: record.payload_hash,
+      review_hash: record.review_hash,
+      raw_signature_stored: false
+    },
+    created_at: record.created_at || new Date().toISOString(),
+    redacted: true
+  };
+}
+
+function reviewWorkflowReceipt(record = {}) {
+  return {
+    schema_version: "a3.review_workflow_receipt.v1",
+    record_id: record.record_id,
+    record_type: record.record_type,
+    status: record.status,
+    accepted: record.accepted === true,
+    automatic_unblock: record.automatic_unblock === true,
+    organization_id: record.organization_id,
+    project_id: record.project_id,
+    run_id: record.run_id,
+    release_version: record.release_version,
+    environment: record.environment,
+    payload_hash: record.payload_hash,
+    review_hash: record.review_hash,
+    signature: record.signature,
+    durable_storage_ready: true,
+    real_cloud_mutation_performed: false,
+    secret_values_included: false
   };
 }
 

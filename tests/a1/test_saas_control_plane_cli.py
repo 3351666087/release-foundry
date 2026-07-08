@@ -204,6 +204,139 @@ def test_control_plane_cli_api_key_outputs_are_redacted_and_persisted(tmp_path: 
     assert "ashr_local_key_cli" not in combined
 
 
+def test_control_plane_cli_worker_job_lifecycle_is_persisted_and_public_safe(tmp_path: Path):
+    state = tmp_path / "jobs_state.json"
+    _cli(
+        "--state-output",
+        str(state),
+        "bootstrap",
+        "--tenant-name",
+        "Jobs Tenant",
+        "--project-name",
+        "Jobs Project",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+    )
+
+    enqueued = _cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "job-enqueue",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--job-type",
+        "run.replay",
+        "--target-id",
+        "run_cli_jobs",
+        "--job-id",
+        "job_cli_1",
+        "--priority",
+        "7",
+        "--max-attempts",
+        "2",
+        "--payload-json",
+        '{"run_id":"run_cli_jobs","secret":"must-not-leak"}',
+    )
+    assert enqueued["result"]["status"] == "queued"
+    assert enqueued["result"]["raw_payload_included"] is False
+    assert "must-not-leak" not in json.dumps(enqueued, sort_keys=True)
+
+    leased = _cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "job-lease",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--lease-owner-id",
+        "worker-cli",
+        "--lease-seconds",
+        "30",
+    )
+    assert leased["result"]["leased"] is True
+    assert leased["result"]["job"]["attempts"] == 1
+
+    failed = _cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "job-fail",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--job-id",
+        "job_cli_1",
+        "--lease-owner-id",
+        "worker-cli",
+        "--retry-after-seconds",
+        "0",
+        "--error-json",
+        '{"type":"TransientError","message":"redacted"}',
+    )
+    assert failed["result"]["status"] == "retrying"
+
+    _cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "job-lease",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--lease-owner-id",
+        "worker-cli-2",
+        "--lease-seconds",
+        "30",
+    )
+    completed = _cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "job-complete",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--job-id",
+        "job_cli_1",
+        "--lease-owner-id",
+        "worker-cli-2",
+        "--result-json",
+        '{"ok":true}',
+    )
+    assert completed["result"]["status"] == "completed"
+
+    listed = _cli(
+        "--state-input",
+        str(state),
+        "job-list",
+        "--tenant-id",
+        "tenant_jobs_cli",
+        "--project-id",
+        "project_jobs_cli",
+        "--status",
+        "completed",
+    )
+    assert listed["result"]["count"] == 1
+    full_state = json.loads(state.read_text(encoding="utf-8"))
+    assert full_state["control_plane"]["worker_jobs"]["job_cli_1"]["raw_payload_included"] is False
+    assert "must-not-leak" not in json.dumps(full_state, sort_keys=True)
+
+
 def test_control_plane_cli_rejects_private_input_paths_without_reading(tmp_path: Path):
     private_dir = tmp_path / "docs" / "evidence" / "private_refs"
     private_dir.mkdir(parents=True)

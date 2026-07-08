@@ -21,6 +21,8 @@ DEFAULT_QUOTA_LIMITS: dict[str, int] = {
 }
 
 DEFAULT_QUEUE_LEASE_SECONDS = 300.0
+DEFAULT_QUEUE_MAX_ATTEMPTS = 3
+TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled", "dead_lettered"}
 
 
 class CloudApiError(RuntimeError):
@@ -326,6 +328,7 @@ class CloudApiService:
         dataset_id: str,
         runner_id: str = "a1-local-queue-worker",
         run_id: str | None = None,
+        max_attempts: int = DEFAULT_QUEUE_MAX_ATTEMPTS,
         metadata: Mapping[str, Any] | None = None,
     ) -> JsonDict:
         dataset = self.get_dataset(tenant_id, project_id, dataset_id)
@@ -337,6 +340,7 @@ class CloudApiService:
                 raise ValidationError(f"run already exists: {run_id}")
             self.quota.consume(dataset["tenant_id"], dataset["project_id"], "run.submit")
             now = _utc_now()
+            normalized_max_attempts = _normalize_max_attempts(max_attempts)
             result = {
                 "schema_version": "ashr.clone.run_result.v1",
                 "run_id": run_id,
@@ -369,6 +373,10 @@ class CloudApiService:
                 "lease_expires_at": None,
                 "lease_heartbeat_at": None,
                 "lease_reclaim_count": 0,
+                "attempt": 0,
+                "max_attempts": normalized_max_attempts,
+                "last_error": None,
+                "dead_letter_reason": None,
                 "status_history": [{"status": "queued", "at": now}],
                 "metadata": _jsonable(dict(metadata or {})),
             }
@@ -389,6 +397,8 @@ class CloudApiService:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
                 return _copy(run)
+            if run.get("status") == "dead_lettered":
+                return _copy(run)
             if run.get("status") not in {"queued", "submitted", "running"}:
                 raise ValidationError(f"run cannot transition to running from {run.get('status')}")
             now = _utc_now()
@@ -401,6 +411,12 @@ class CloudApiService:
             )
             run["status"] = "running"
             run["result_status"] = "running"
+            if run.get("status_history") and isinstance(run.get("status_history"), list):
+                last_status = run["status_history"][-1].get("status") if isinstance(run["status_history"][-1], Mapping) else None
+            else:
+                last_status = None
+            if last_status != "running":
+                run["attempt"] = int(run.get("attempt") or 0) + 1
             run["updated_at"] = now
             if isinstance(run.get("result"), dict):
                 run["result"]["status"] = "running"
@@ -478,6 +494,8 @@ class CloudApiService:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
                 return _copy(run)
+            if run.get("status") == "dead_lettered":
+                return _copy(run)
             if run.get("status") not in {"queued", "running", "submitted"}:
                 raise ValidationError(f"run cannot complete from {run.get('status')}")
             if run.get("lease_owner_id") is not None and lease_owner_id is None:
@@ -498,6 +516,9 @@ class CloudApiService:
             run["total_cases"] = int(result_payload.get("total_cases") or len(result_payload.get("cases") or []))
             run["observations"] = observations
             run["result"] = result_payload
+            if next_status == "failed":
+                error = result_payload.get("error") if isinstance(result_payload.get("error"), Mapping) else None
+                run["last_error"] = _jsonable(dict(error)) if error is not None else {"type": "RunFailed", "message": "run result status failed"}
             run["updated_at"] = now
             self._clear_run_lease(run)
             _append_status_history(run, run["status"], now)
@@ -516,6 +537,8 @@ class CloudApiService:
         with self._lock:
             run = self._get_run_record(tenant_id, project_id, run_id)
             if run.get("status") == "cancelled":
+                return _copy(run)
+            if run.get("status") == "dead_lettered":
                 return _copy(run)
             if run.get("lease_owner_id") is not None and lease_owner_id is None:
                 raise ValidationError("run lease owner is required for leased run")
@@ -543,14 +566,64 @@ class CloudApiService:
                 "metadata": {"local_only": True, "ashr_api_used": False, "queued": True},
             }
             run["error"] = error_payload
+            run["last_error"] = error_payload
             self._clear_run_lease(run)
             _append_status_history(run, "failed", now)
+            return _copy(run)
+
+    def retry_run(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        *,
+        reason: str = "retry scheduled",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") != "failed":
+                raise ValidationError(f"run cannot be retried from {run.get('status')}")
+            if not _run_has_retry_capacity(run):
+                return self.dead_letter_run(tenant_id, project_id, run_id, reason="max attempts exhausted")
+            now = _utc_now()
+            run["status"] = "queued"
+            run["result_status"] = "queued"
+            run["updated_at"] = now
+            self._clear_run_lease(run)
+            if isinstance(run.get("metadata"), dict):
+                run["metadata"].update(_jsonable(dict(metadata or {})))
+                run["metadata"]["retry_reason"] = str(reason)
+            else:
+                run["metadata"] = {"retry_reason": str(reason), **_jsonable(dict(metadata or {}))}
+            if isinstance(run.get("result"), dict):
+                run["result"]["status"] = "queued"
+            _append_status_history(run, "queued", now)
+            return _copy(run)
+
+    def dead_letter_run(self, tenant_id: str, project_id: str, run_id: str, *, reason: str = "max attempts exhausted") -> JsonDict:
+        with self._lock:
+            run = self._get_run_record(tenant_id, project_id, run_id)
+            if run.get("status") == "dead_lettered":
+                return _copy(run)
+            if run.get("status") in {"completed", "cancelled"}:
+                raise ValidationError(f"run cannot be dead-lettered from {run.get('status')}")
+            now = _utc_now()
+            run["status"] = "dead_lettered"
+            run["result_status"] = "dead_lettered"
+            run["updated_at"] = now
+            run["dead_letter_reason"] = str(reason)
+            self._clear_run_lease(run)
+            if isinstance(run.get("result"), dict):
+                run["result"]["status"] = "dead_lettered"
+                run["result"]["dead_letter_reason"] = str(reason)
+            _append_status_history(run, "dead_lettered", now)
             return _copy(run)
 
     def cancel_run(self, tenant_id: str, project_id: str, run_id: str, *, reason: str = "cancelled") -> JsonDict:
         with self._lock:
             run = self._get_run_record(tenant_id, project_id, run_id)
-            if run.get("status") in {"completed", "failed"}:
+            if run.get("status") in {"completed", "failed", "dead_lettered"}:
                 raise ValidationError(f"run cannot be cancelled from {run.get('status')}")
             now = _utc_now()
             run["status"] = "cancelled"
@@ -703,11 +776,24 @@ def _extract_observations(run_result: Mapping[str, Any]) -> list[JsonDict]:
 
 def _cloud_run_status(run_result: Mapping[str, Any]) -> str:
     status = str(run_result.get("status") or "").lower()
-    if status in {"queued", "running", "completed", "failed", "cancelled"}:
+    if status in {"queued", "running", "completed", "failed", "cancelled", "dead_lettered"}:
         return status
     if run_result.get("ended_at") and isinstance(run_result.get("cases"), list):
         return "completed"
     return "submitted"
+
+
+def _normalize_max_attempts(max_attempts: int) -> int:
+    parsed = int(max_attempts)
+    if parsed < 1:
+        raise ValidationError("max_attempts must be positive")
+    return parsed
+
+
+def _run_has_retry_capacity(run: Mapping[str, Any]) -> bool:
+    attempt = int(run.get("attempt") or 0)
+    max_attempts = _normalize_max_attempts(int(run.get("max_attempts") or DEFAULT_QUEUE_MAX_ATTEMPTS))
+    return attempt < max_attempts
 
 
 def _append_status_history(run: JsonDict, status: str, at: str) -> None:
