@@ -9,6 +9,7 @@ from services.api.control_plane import (
     create_control_plane_wsgi_app,
     serve_control_plane_http,
 )
+from services.api.platform import build_release_evidence_packet
 
 
 def _invoke_wsgi(app, method: str, path: str, body: dict | None = None, query: str = ""):
@@ -32,7 +33,7 @@ def _invoke_wsgi(app, method: str, path: str, body: dict | None = None, query: s
 
 
 def test_control_plane_wsgi_serves_healthz_and_openapi_without_secret_env(monkeypatch):
-    monkeypatch.setenv("ASHR_API_KEY", "ashr_should_not_leak_http_adapter")
+    monkeypatch.setenv("ASHR_API_KEY", "redacted-http-adapter-marker")
     app = create_control_plane_wsgi_app()
 
     health_meta, health, health_text = _invoke_wsgi(app, "GET", "/healthz")
@@ -50,12 +51,16 @@ def test_control_plane_wsgi_serves_healthz_and_openapi_without_secret_env(monkey
     assert openapi["openapi"] == "3.0.3"
     assert "/v1/bootstrap" in openapi["paths"]
     assert "/v1/projects/{project_id}/runs/{run_id}/trace-events" in openapi["paths"]
-    assert "ashr_should_not_leak_http_adapter" not in health_text + openapi_text
+    assert "/v1/projects/{project_id}/audit-chain/verify" in openapi["paths"]
+    assert "post" in openapi["paths"]["/v1/projects/{project_id}/audit-chain/verify"]
+    assert "/v1/projects/{project_id}/runs/{run_id}/release-evidence" in openapi["paths"]
+    assert "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify" in openapi["paths"]
+    assert "redacted-http-adapter-marker" not in health_text + openapi_text
     assert "ASHR_API_KEY" not in health_text + openapi_text
 
 
 def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch):
-    monkeypatch.setenv("ASHR_API_KEY", "ashr_should_not_leak_router_flow")
+    monkeypatch.setenv("ASHR_API_KEY", "redacted-router-flow-marker")
     service = SaaSControlPlaneService()
     app = create_control_plane_wsgi_app(service=service)
 
@@ -86,7 +91,7 @@ def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch
         {
             "tenant_id": "tenant_http",
             "name": "HTTP key",
-            "scopes": ["sdk:submit", "runs:write", "trace:ingest"],
+            "scopes": ["sdk:submit", "runs:write", "trace:ingest", "audit:read", "evidence:read"],
             "key_id": "key_http",
         },
     )
@@ -145,7 +150,34 @@ def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch
     assert lifecycle["quota"]["used"]["sdk.submit"] == 1
     assert lifecycle["quota"]["used"]["run.upload"] == 1
     assert lifecycle["quota"]["used"]["trace.ingest"] == 1
-    assert "ashr_should_not_leak_router_flow" not in key_text + listed_text + uploaded_text + lifecycle_text
+
+    _, audit, audit_text = _invoke_wsgi(app, "POST", "/v1/projects/project_http/audit-chain/verify", {"tenant_id": "tenant_http", "api_key_id": "key_http"})
+    assert audit["verification"]["verified"] is True
+    assert audit["event_count"] >= 3
+
+    _, built_packet, built_packet_text = _invoke_wsgi(app, "GET", "/v1/projects/project_http/runs/run_http/release-evidence", query="tenant_id=tenant_http&api_key_id=key_http")
+    assert built_packet["run_id"] == "run_http"
+    assert built_packet["integrity"]["packet_sha256"]
+
+    packet = build_release_evidence_packet(
+        tenant_id="tenant_http",
+        project_id="project_http",
+        run_id="run_http",
+        lifecycle=lifecycle,
+        audit_chain=audit["verification"],
+        packet_id="packet_http",
+    )
+    _, packet_verification, packet_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_http/runs/run_http/release-evidence/verify",
+        {"tenant_id": "tenant_http", "api_key_id": "key_http", "packet": packet},
+    )
+    assert packet_verification["verified"] is True
+    assert packet_verification["packet_id"] == "packet_http"
+    assert packet_verification["source"] == "submitted_packet"
+    assert "secret_hash_sha256" not in audit_text + built_packet_text + packet_text
+    assert "redacted-router-flow-marker" not in key_text + listed_text + uploaded_text + lifecycle_text + audit_text + built_packet_text + packet_text
 
 
 def test_control_plane_wsgi_rejects_invalid_json_with_public_error():

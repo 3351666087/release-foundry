@@ -150,7 +150,23 @@ test("TS router exposes release gate audit log and release evidence routes", () 
   const evidence = router.handle("GET", "/v1/projects/project_ts_release/runs/run_ts_release/release-evidence", tenant);
   assert.equal(evidence.status_code, 200);
   assert.equal(evidence.body.counts.artifacts, 1);
+  const auditVerify = router.handle("POST", "/v1/projects/project_ts_release/audit-chain/verify", tenant);
+  assert.equal(auditVerify.status_code, 200);
+  assert.equal(auditVerify.body.verified, true);
+  assert.equal(auditVerify.body.event_count >= audit.body.chain.event_count, true);
+  const evidenceVerify = router.handle("POST", "/v1/projects/project_ts_release/runs/run_ts_release/release-evidence/verify", tenant);
+  assert.equal(evidenceVerify.status_code, 200);
+  assert.equal(evidenceVerify.body.verified, true);
+  assert.equal(evidenceVerify.body.run_id, "run_ts_release");
+  const tamperedPacket = JSON.parse(JSON.stringify(evidence.body));
+  tamperedPacket.counts.uploads = 99;
+  const submittedVerify = router.handle("POST", "/v1/projects/project_ts_release/runs/run_ts_release/release-evidence/verify", { ...tenant, packet: tamperedPacket });
+  assert.equal(submittedVerify.status_code, 200);
+  assert.equal(submittedVerify.body.verified, false);
+  assert.equal(submittedVerify.body.source, "submitted_packet");
   assertPublicSafe(evidence);
+  assertPublicSafe(auditVerify);
+  assertPublicSafe(evidenceVerify);
 });
 
 test("TS router release gate validates tenant and run boundaries", () => {
@@ -166,7 +182,9 @@ test("TS OpenAPI advertises release and audit parity routes", () => {
   const spec = exportSaaSOpenApiSpec({ serverUrl: "http://127.0.0.1" });
   assert.equal(spec.paths["/v1/projects/{project_id}/runs/{run_id}/release-gate"].post.operationId, "evaluateReleaseGate");
   assert.equal(spec.paths["/v1/projects/{project_id}/runs/{run_id}/release-evidence"].get.operationId, "buildReleaseEvidencePacket");
+  assert.equal(spec.paths["/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify"].post.operationId, "verifyReleaseEvidencePacket");
   assert.equal(spec.paths["/v1/projects/{project_id}/audit-log"].get.operationId, "auditSnapshot");
+  assert.equal(spec.paths["/v1/projects/{project_id}/audit-chain/verify"].post.operationId, "verifyAuditChain");
   assertPublicSafe(spec);
 });
 
@@ -174,11 +192,17 @@ test("TS client local wrappers envelope release gate audit and evidence operatio
   const client = new SaaSIngestionClient({ service: seededService() });
   const gate = client.evaluateReleaseGate("tenant_ts_release", "project_ts_release", "run_ts_release");
   const audit = client.auditLog("tenant_ts_release", "project_ts_release", { actionPrefix: "release_gate" });
+  const auditVerify = client.verifyAuditChain("tenant_ts_release", "project_ts_release");
   const evidence = client.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const evidenceVerify = client.verifyReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
   assert.equal(gate.operation, "release_gate");
   assert.equal(audit.operation, "audit_log");
+  assert.equal(auditVerify.operation, "audit_chain_verify");
   assert.equal(evidence.operation, "release_evidence");
+  assert.equal(evidenceVerify.operation, "release_evidence_verify");
   assert.equal(evidence.result.counts.artifacts, 1);
+  assert.equal(auditVerify.result.verified, true);
+  assert.equal(evidenceVerify.result.verified, true);
 });
 
 test("TS client HTTP wrappers call hosted release endpoints", async () => {
@@ -203,10 +227,19 @@ test("TS client HTTP wrappers call hosted release endpoints", async () => {
     const client = SaaSIngestionClient.forBaseUrl(`http://127.0.0.1:${address.port}`);
     const gate = await client.evaluateReleaseGateHttp("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
     const audit = await client.auditLogHttp("tenant_ts_release", "project_ts_release", { runId: "run_ts_release", actionPrefix: "release_gate", authKeyId: "key_ts_release" });
+    const auditVerify = await client.verifyAuditChainHttp("tenant_ts_release", "project_ts_release", { authKeyId: "key_ts_release" });
     const evidence = await client.buildReleaseEvidencePacketHttp("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
+    const evidenceVerify = await client.verifyReleaseEvidencePacketHttp("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
+    const tamperedPacket = JSON.parse(JSON.stringify(evidence.result));
+    tamperedPacket.counts.uploads = 99;
+    const submittedVerify = await client.verifyReleaseEvidencePacketHttp("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release", packet: tamperedPacket });
     assert.equal(gate.result.decision, "pass");
     assert.equal(audit.result.event_count >= 1, true);
+    assert.equal(auditVerify.result.verified, true);
     assert.equal(evidence.result.release_gate.decision, "pass");
+    assert.equal(evidenceVerify.result.verified, true);
+    assert.equal(submittedVerify.result.verified, false);
+    assert.equal(submittedVerify.result.source, "submitted_packet");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -218,6 +251,8 @@ test("TS SaaS CLI package exposes bin and help mentions release commands", async
   assert.equal(help.operation, "help");
   assert.equal(help.usage.includes("release-gate"), true);
   assert.equal(help.usage.includes("release-evidence"), true);
+  assert.equal(help.usage.includes("audit-chain-verify"), true);
+  assert.equal(help.usage.includes("release-evidence-verify"), true);
   assert.equal(help.usage.includes("audit-log"), true);
 });
 
@@ -257,12 +292,27 @@ test("TS SaaS CLI emits audit log and release evidence from state", async () => 
     service.evaluateReleaseGate("tenant_ts_release", "project_ts_release", "run_ts_release", { requestId: "req-audit" });
     await writeFile(statePath, `${JSON.stringify(service.snapshotState(), null, 2)}\n`, "utf8");
     const audit = runSaasCli(["--state-input", statePath, "audit-log", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--action-prefix", "release_gate"]);
+    const auditVerify = runSaasCli(["--state-input", statePath, "audit-chain-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release"]);
     const evidence = runSaasCli(["--state-input", statePath, "release-evidence", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release"]);
+    const evidenceVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release"]);
+    const packetPath = join(tempDir, "packet.json");
+    const tamperedPacket = JSON.parse(JSON.stringify(evidence.result));
+    tamperedPacket.counts.uploads = 99;
+    await writeFile(packetPath, `${JSON.stringify(tamperedPacket)}\n`, "utf8");
+    const submittedVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--packet-file", packetPath]);
     assert.equal(audit.operation, "audit_log");
     assert.equal(audit.result.events.some((event) => event.request_id === "req-audit"), true);
+    assert.equal(auditVerify.operation, "audit_chain_verify");
+    assert.equal(auditVerify.result.verified, true);
     assert.equal(evidence.operation, "release_evidence");
     assert.match(evidence.result.integrity.packet_sha256, /^[a-f0-9]{64}$/);
+    assert.equal(evidenceVerify.operation, "release_evidence_verify");
+    assert.equal(evidenceVerify.result.verified, true);
+    assert.equal(submittedVerify.result.verified, false);
+    assert.equal(submittedVerify.result.source, "submitted_packet");
     assertPublicSafe(evidence);
+    assertPublicSafe(auditVerify);
+    assertPublicSafe(evidenceVerify);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

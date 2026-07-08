@@ -92,6 +92,24 @@ def build_parser() -> argparse.ArgumentParser:
     quota = subparsers.add_parser("quota", help="Read tenant/project quota snapshot.")
     _add_project_args(quota)
 
+    audit_verify = subparsers.add_parser("audit-chain-verify", help="Verify the local hosted audit event hash chain.")
+    _add_project_args(audit_verify)
+    audit_verify.add_argument("--auth-key-id")
+    audit_verify.add_argument("--action")
+    audit_verify.add_argument("--target-id")
+    audit_verify.add_argument("--audit-api-key-id")
+    audit_verify.add_argument("--limit", type=int)
+
+    release_verify = subparsers.add_parser("release-evidence-verify", help="Verify a release evidence packet JSON file.")
+    _add_run_args(release_verify)
+    release_verify.add_argument("--packet-json")
+    release_verify.add_argument("--packet-file")
+    release_verify.add_argument("--auth-key-id")
+
+    release_evidence = subparsers.add_parser("release-evidence", help="Build a public-safe release evidence packet from local control-plane state.")
+    _add_run_args(release_evidence)
+    release_evidence.add_argument("--auth-key-id")
+
     state = subparsers.add_parser("state", help="Read a public-safe summary of local client state.")
     state.add_argument("--include-full", action="store_true")
 
@@ -166,6 +184,13 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.lifecycle_snapshot(args.tenant_id, args.project_id, args.run_id)
     elif command == "quota":
         envelope = client.quota_snapshot(args.tenant_id, args.project_id)
+    elif command == "audit-chain-verify":
+        envelope = client.verify_audit_chain(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id, action=args.action, target_id=args.target_id, api_key_id=args.audit_api_key_id, limit=args.limit)
+    elif command == "release-evidence":
+        envelope = client.build_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
+    elif command == "release-evidence-verify":
+        packet = _load_object_arg(args.packet_json, args.packet_file, default=None) if (args.packet_json or args.packet_file) else None
+        envelope = client.verify_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, packet=packet, auth_key_id=args.auth_key_id)
     elif command == "state":
         snapshot = client.snapshot_state()
         envelope = {

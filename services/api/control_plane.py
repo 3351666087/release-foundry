@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _utc_now
 from .release_gate_bridge import LocalReleaseGateBridgeClient, evaluate_lifecycle_with_release_gate
+from .platform import verify_release_evidence_packet as _verify_release_evidence_packet
 
 CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1"
 API_KEY_ADMIN_SCOPE = "api_key:write"
@@ -396,6 +397,46 @@ class SaaSControlPlaneService:
         )
         return _jsonable({**result, "schema_version": CONTROL_PLANE_SCHEMA_VERSION, "local_only": True, "ashr_api_used": False})
 
+    def verify_audit_chain_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, action: str | None = None, target_id: str | None = None, api_key_id: str | None = None, limit: int | None = None) -> JsonDict:
+        audit = self.audit_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=action, target_id=target_id, api_key_id=api_key_id, limit=limit)
+        return {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "filters": audit.get("filters", {}),
+            "verification": audit.get("chain", {}),
+            "event_count": len(audit.get("events", [])) if isinstance(audit.get("events"), list) else 0,
+            "local_only": True,
+            "ashr_api_used": False,
+        }
+
+    def verify_release_evidence_packet(self, tenant_id: str, project_id: str, packet: Mapping[str, Any], *, run_id: str | None = None, auth_key_id: str | None = None) -> JsonDict:
+        self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope="evidence:read")
+        verification = _verify_release_evidence_packet(packet)
+        failures = list(verification.get("failures", [])) if isinstance(verification.get("failures"), list) else []
+        if str(packet.get("tenant_id") or "") != str(tenant_id):
+            failures.append({"reason": "tenant_id_mismatch", "expected": str(tenant_id), "actual": packet.get("tenant_id")})
+        if str(packet.get("project_id") or "") != str(project_id):
+            failures.append({"reason": "project_id_mismatch", "expected": str(project_id), "actual": packet.get("project_id")})
+        if run_id is not None and str(packet.get("run_id") or "") != str(run_id):
+            failures.append({"reason": "run_id_mismatch", "expected": str(run_id), "actual": packet.get("run_id")})
+        return _jsonable(
+            {
+                **verification,
+                "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+                "verification_schema_version": verification.get("schema_version"),
+                "verified": not failures,
+                "tenant_id": tenant_id,
+                "project_id": project_id,
+                "run_id": run_id or packet.get("run_id"),
+                "failures": failures,
+                "local_only": True,
+                "ashr_api_used": False,
+            }
+        )
+
 
     def _consume_usage(self, tenant_id: str, project_id: str, operation: str, *, units: int = 1, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, run_id: str | None = None) -> JsonDict:
         self.cloud.quota.consume(tenant_id, project_id, operation, units=units)
@@ -701,6 +742,15 @@ def control_plane_openapi_document() -> JsonDict:
             "/v1/projects/{project_id}/audit-log": {
                 "get": {"summary": "Query public-safe audit events for API-key, rate-limit, ingestion, and release-gate actions", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
             },
+            "/v1/projects/{project_id}/audit-chain/verify": {
+                "post": {"summary": "Verify the public-safe audit event hash chain", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/release-evidence": {
+                "get": {"summary": "Build a public-safe release evidence packet", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": {
+                "post": {"summary": "Verify a submitted or current release evidence packet without raw payloads or secrets", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
             "/v1/projects/{project_id}/sdk-submit": {
                 "post": {"summary": "Submit a run through the SDK control-plane surface", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
             },
@@ -895,6 +945,9 @@ class SaaSControlPlaneRouter:
                 if method == "GET" and len(parts) == 4 and parts[3] == "audit-log":
                     limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
                     return {"status_code": 200, "body": self.service.audit_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=body.get("action"), target_id=body.get("target_id"), api_key_id=body.get("audit_api_key_id"), limit=limit)}
+                if method == "POST" and len(parts) == 5 and parts[3] == "audit-chain" and parts[4] == "verify":
+                    limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
+                    return {"status_code": 200, "body": self.service.verify_audit_chain_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=body.get("action"), target_id=body.get("target_id"), api_key_id=body.get("audit_api_key_id"), limit=limit)}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                 if len(parts) >= 6 and parts[3] == "runs":
@@ -911,6 +964,36 @@ class SaaSControlPlaneRouter:
                         policy = body.get("policy") if isinstance(body.get("policy"), Mapping) else None
                         timeout_seconds = float(body.get("timeout_seconds") or 5.0)
                         return {"status_code": 200, "body": self.service.evaluate_release_gate(tenant_id, project_id, run_id, policy=policy, auth_key_id=auth_key_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"), timeout_seconds=timeout_seconds)}
+                    if method == "GET" and len(parts) == 6 and parts[5] == "release-evidence":
+                        from .platform import build_release_evidence_packet, usage_billing_rollup
+
+                        packet = build_release_evidence_packet(
+                            tenant_id=tenant_id,
+                            project_id=project_id,
+                            run_id=run_id,
+                            lifecycle=self.service.lifecycle_snapshot(tenant_id, project_id, run_id),
+                            billing_rollup=usage_billing_rollup(list(self.service.store.usage_ledger.values()), tenant_id=tenant_id, project_id=project_id, billing_period="local"),
+                            audit_chain=self.service.audit_snapshot(tenant_id, project_id, target_id=run_id).get("chain", {}),
+                        )
+                        return {"status_code": 200, "body": packet}
+                    if method == "POST" and len(parts) == 7 and parts[5] == "release-evidence" and parts[6] == "verify":
+                        packet = body.get("packet") if isinstance(body.get("packet"), Mapping) else None
+                        if packet is None:
+                            from .platform import build_release_evidence_packet, usage_billing_rollup
+
+                            packet = build_release_evidence_packet(
+                                tenant_id=tenant_id,
+                                project_id=project_id,
+                                run_id=run_id,
+                                lifecycle=self.service.lifecycle_snapshot(tenant_id, project_id, run_id),
+                                billing_rollup=usage_billing_rollup(list(self.service.store.usage_ledger.values()), tenant_id=tenant_id, project_id=project_id, billing_period="local"),
+                                audit_chain=self.service.audit_snapshot(tenant_id, project_id, target_id=run_id).get("chain", {}),
+                            )
+                            source = "current_snapshot"
+                        else:
+                            source = "submitted_packet"
+                        verification = self.service.verify_release_evidence_packet(tenant_id, project_id, packet, run_id=run_id, auth_key_id=auth_key_id)
+                        return {"status_code": 200, "body": {**verification, "source": source}}
             raise ValidationError(f"unsupported route: {method} {path}")
         except Exception as exc:  # Public-safe local router envelope.
             code = getattr(exc, "code", "validation_error")

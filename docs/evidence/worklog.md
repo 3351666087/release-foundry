@@ -3114,3 +3114,96 @@ Final Round21 validation:
 Commit hygiene:
 - Stage only tracked Round21 A1 files plus this public worklog.
 - Keep `recon/**`, `tools/**`, and `docs/evidence/private_refs/**` unstaged.
+
+## A1 Round22 - Hosted verifier API/SDK/CLI parity (2026-07-08)
+
+Round goal: continue large-SaaS A1 by turning Round21 helper-level audit/release verification into hosted, SDK, CLI, and OpenAPI surfaces that can be used by CI, enterprise audit, and A3 release workflows.
+
+Baseline / peer changes:
+- Ran `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb`, `git branch --show-current`, `gh repo view --json nameWithOwner,defaultBranchRef,url`, and `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner`, aligned with origin before this round's changes.
+- Peer change observed: `origin/codex/a3-dashboard-polish` advanced `9c742c9..c4646e2`. Read-only impact: A3 dashboard/admin/check publishing work; no A1 owned-file conflict observed.
+- Long-lived untracked `recon/**` and `tools/**` remain unstaged and out of scope.
+- Public official context checked via Ashr public search/open context. Public product posture still emphasizes SDKs, runs, datasets, traces/replay, VM streams, media modalities, and usage/quota; this round maps those into enterprise audit/release verification surfaces. No desktop key file was read and no API key was written to repo/logs.
+
+20 A1 growth points advanced:
+1. Hosted audit-chain verification endpoint.
+2. Hosted release-evidence verification endpoint.
+3. Run-scoped release-evidence verification route.
+4. Submitted-packet verification path to avoid rebuild masking tamper.
+5. Current-snapshot verification fallback with explicit source.
+6. Python SDK `verify_audit_chain` wrapper.
+7. Python SDK `build_release_evidence_packet` wrapper.
+8. Python SDK run-scoped `verify_release_evidence_packet` wrapper.
+9. Python CLI `audit-chain-verify`.
+10. Python CLI `release-evidence`.
+11. Python CLI run-scoped `release-evidence-verify`.
+12. Python private path guard for packet file inputs.
+13. Python WSGI/OpenAPI tests for hosted verifier surfaces.
+14. TS service `verifyAuditChain` hosted parity.
+15. TS service submitted-packet `verifyReleaseEvidencePacket` parity.
+16. TS router endpoints for audit-chain and release-evidence verification.
+17. TS client local and HTTP wrappers.
+18. TS CLI `audit-chain-verify` and `release-evidence-verify`.
+19. TS submitted tamper tests for router, HTTP client, and CLI packet file.
+20. Cross-language release verifier parity stayed green after full gates.
+
+Implemented files:
+- `services/api/control_plane.py`: verify service methods, OpenAPI paths, WSGI route handlers, run-scoped submitted/current packet verification.
+- `packages/sdk/ashr_clone/saas.py`: SDK wrappers and payload-aware hosted operation paths.
+- `packages/sdk/ashr_clone/saas_cli.py`: audit/release verifier CLI commands and packet input behavior.
+- `tests/a1/test_saas_control_plane_http.py`, `tests/a1/test_saas_sdk_client.py`: hosted/SDK/CLI tests.
+- `packages/ts/ashr-clone/src/saas.ts`: TS service/router/OpenAPI/client/CLI verifier parity and packet input helper.
+- `packages/ts/ashr-clone/test/saas-release-parity.test.mjs`: TS router/OpenAPI/client/CLI submitted/current verifier tests.
+
+Commands / results:
+- `python -B -m py_compile services/api/control_plane.py packages/sdk/ashr_clone/saas.py packages/sdk/ashr_clone/saas_cli.py` passed.
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_saas_release_gate_endpoint.py -q -p no:cacheprovider` -> 16 passed.
+- `npm run build --prefix packages/ts/ashr-clone` passed.
+- `node --test packages/ts/ashr-clone/test/saas-release-parity.test.mjs` -> 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only Windows LF-to-CRLF working-copy warnings.
+
+Failures / fixes:
+- Initial Python targeted run failed because OpenAPI and router retained project-level release-evidence verify path; fixed to `/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify`.
+- TS initial worker implementation verified rebuilt snapshots only; fixed by adding submitted packet support and tamper tests for router, HTTP client, and CLI packet file.
+
+Evidence paths:
+- Public worklog: `docs/evidence/worklog.md`.
+- No private official API response payload was produced in this round; no key was read from desktop files or logged.
+
+Next A1 growth vectors:
+1. Add verifier response schemas to `docs/a1/schemas` and OpenAPI examples.
+2. Add signed audit-chain export bundles.
+3. Add release evidence diff for old-vs-new run comparison.
+4. Bind usage ledger hashes into release packet verification.
+5. Bind webhook delivery retry ledger into release packet verification.
+6. Add idempotency ledger section and verifier.
+7. Add durable sqlite/postgres persistence for audit chain and verifier state.
+8. Add Docker/self-host smoke for API + verifier CLI.
+9. Add GitHub Action example invoking verifier CLI.
+10. Add official API small-batch calibration gated by quota evidence.
+11. Add text/audio/file/image/video equal-modality evidence packet counts.
+12. Add A3 dashboard DTO fixture for verifier status.
+13. Add A2 gate contract adapter consuming verifier output.
+14. Add audit-chain legacy migration/repair mode.
+15. Add retention/export controls per tenant/project.
+16. Add admin key scope for verifier-only read access.
+17. Add OpenAI-style adapter evidence upload path into packet verifier.
+18. Add production replay incident evidence packet.
+19. Add per-run artifact signed URL proof records.
+20. Add CI guard preventing `recon/**`, `tools/**`, or private refs staging.
+
+Round22 Growth-Auditor follow-up:
+- Auditor verdict: this round improves sellability because hosted audit-chain verification and release-evidence verification are buyer-facing trust/compliance/release-governance surfaces.
+- Must-fix 1 addressed: Python audit-chain verify route/OpenAPI now uses POST, matching TS route/client/OpenAPI semantics.
+- Must-fix 2 addressed: Python hosted SDK remains POST-based and now aligns with POST audit-chain verify; no GET/POST drift remains for verifier action endpoints.
+- Must-fix 3 addressed: Python WSGI/OpenAPI now exposes `GET /v1/projects/{project_id}/runs/{run_id}/release-evidence`, matching TS build route.
+- Must-fix 4 addressed operationally: `recon/**` and `tools/**` remain unstaged and out of commit scope.
+
+Final post-audit validation:
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_saas_release_gate_endpoint.py -q -p no:cacheprovider` -> 16 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only LF-to-CRLF working-copy warnings.
