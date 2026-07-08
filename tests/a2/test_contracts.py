@@ -21,6 +21,7 @@ from services.judge.evidence_readiness import build_evidence_readiness_report
 from services.judge.incident_regression import build_incident_regression_candidate_report
 from services.judge.readiness import build_commercial_readiness_report
 from services.judge.release_gate import build_release_gate_report
+from services.judge.regression_promotion import build_regression_promotion_queue_report
 from services.judge.regression_replay import build_regression_replay_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.scenario_selection import build_scenario_selection_report
@@ -28,6 +29,7 @@ from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLAS
 from services.judge.sdk_parity import build_sdk_parity_report
 from services.judge.semantic_collection import build_semantic_judge_collection_packet
 from services.judge.semantic_harness import build_semantic_harness_report
+from services.judge.unblock_checklist import build_release_unblock_checklist
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -322,8 +324,10 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         incident_regression_schema = json.loads((schema_dir / "incident_regression_candidates.schema.json").read_text(encoding="utf-8"))
+        regression_promotion_schema = json.loads((schema_dir / "regression_promotion_queue.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         release_gate_schema = json.loads((schema_dir / "release_gate.schema.json").read_text(encoding="utf-8"))
+        unblock_checklist_schema = json.loads((schema_dir / "release_unblock_checklist.schema.json").read_text(encoding="utf-8"))
         scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
@@ -340,8 +344,10 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         incident_regression = json.loads((ROOT / "fixtures/a2/results/a2_incident_regression_candidates.json").read_text(encoding="utf-8"))
+        regression_promotion = json.loads((ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        unblock_checklist = json.loads((ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
@@ -373,12 +379,20 @@ class A2ContractTests(unittest.TestCase):
             incident_regression["schema_version"],
         )
         self.assertEqual(
+            regression_promotion_schema["properties"]["schema_version"]["const"],
+            regression_promotion["schema_version"],
+        )
+        self.assertEqual(
             evidence_readiness_schema["properties"]["schema_version"]["const"],
             evidence_readiness["schema_version"],
         )
         self.assertEqual(
             release_gate_schema["properties"]["schema_version"]["const"],
             release_gate["schema_version"],
+        )
+        self.assertEqual(
+            unblock_checklist_schema["properties"]["schema_version"]["const"],
+            unblock_checklist["schema_version"],
         )
         self.assertEqual(
             scenario_selection_schema["properties"]["schema_version"]["const"],
@@ -402,9 +416,16 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(semantic_collection_schema["required"]), set(semantic_collection))
         self.assertLessEqual(set(semantic_harness_schema["required"]), set(semantic_harness))
         self.assertLessEqual(set(regression_replay_schema["required"]), set(regression_replay))
+        self.assertIn("release_gate_summary", regression_replay_schema["required"])
+        self.assertEqual(
+            regression_replay_schema["properties"]["release_gate_summary"]["$ref"],
+            "#/$defs/release_gate_summary",
+        )
         self.assertLessEqual(set(incident_regression_schema["required"]), set(incident_regression))
+        self.assertLessEqual(set(regression_promotion_schema["required"]), set(regression_promotion))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
+        self.assertLessEqual(set(unblock_checklist_schema["required"]), set(unblock_checklist))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
@@ -546,11 +567,17 @@ class A2ContractTests(unittest.TestCase):
         for replay_case in regression_replay["cases"]:
             with self.subTest(regression_replay_case=replay_case["case_id"]):
                 self.assertLessEqual(replay_case_required, set(replay_case))
+        replay_gate_required = set(regression_replay_schema["$defs"]["release_gate_summary"]["required"])
+        self.assertLessEqual(replay_gate_required, set(regression_replay["release_gate_summary"]))
 
         incident_candidate_required = set(incident_regression_schema["$defs"]["candidate"]["required"])
         for candidate in incident_regression["candidates"]:
             with self.subTest(incident_regression_candidate=candidate["case_id"]):
                 self.assertLessEqual(incident_candidate_required, set(candidate))
+        promotion_item_required = set(regression_promotion_schema["$defs"]["promotion_item"]["required"])
+        for item in regression_promotion["promotion_items"]:
+            with self.subTest(regression_promotion_item=item["case_id"]):
+                self.assertLessEqual(promotion_item_required, set(item))
 
         evidence_case_required = set(evidence_readiness_schema["$defs"]["calibration_case"]["required"])
         for evidence_case in evidence_readiness["calibration_cases"]:
@@ -561,6 +588,14 @@ class A2ContractTests(unittest.TestCase):
         for blocker in release_gate["blockers"]:
             with self.subTest(release_gate_blocker=blocker["type"]):
                 self.assertLessEqual(release_blocker_required, set(blocker))
+
+        unblock_gate_required = set(unblock_checklist_schema["$defs"]["gate_item"]["required"])
+        unblock_action_required = set(unblock_checklist_schema["$defs"]["action_item"]["required"])
+        for gate_item in unblock_checklist["gate_items"]:
+            with self.subTest(unblock_gate=gate_item["gate"]):
+                self.assertLessEqual(unblock_gate_required, set(gate_item))
+                for action in gate_item["required_actions"]:
+                    self.assertLessEqual(unblock_action_required, set(action))
 
         selected_scenario_required = set(scenario_selection_schema["$defs"]["selected_scenario"]["required"])
         for selected_scenario in scenario_selection["selected_scenarios"]:
@@ -804,11 +839,21 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(report["maturity_gate"]["ready"])
         self.assertEqual(report["maturity_gate"]["target_replay_case_count"], 3)
         self.assertEqual(report["maturity_gate"]["current_replay_case_count"], 1)
+        self.assertEqual(report["maturity_gate"]["missing_replay_case_count"], 2)
         self.assertEqual(report["maturity_gate"]["failed_replay_case_count"], 0)
         self.assertFalse(report["maturity_gate"]["case_book_maturity_ready"])
         self.assertEqual(report["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertEqual(report["maturity_gate"]["missing_reviewed_evidence_count"], 3)
+        self.assertEqual(report["maturity_gate"]["missing_reviewed_replay_cases"], 3)
         self.assertIn("Replay 2 more", report["maturity_gate"]["gaps"][0])
         self.assertIn("case-book maturity gate open", report["maturity_gate"]["gaps"][1])
+        self.assertEqual(report["release_gate_summary"]["schema_version"], "a2.regression_replay.release_gate_summary.v1")
+        self.assertEqual(report["release_gate_summary"]["gate"], "C5")
+        self.assertEqual(report["release_gate_summary"]["release_gate_status"], "blocked")
+        self.assertTrue(report["release_gate_summary"]["blocks_release"])
+        self.assertEqual(report["release_gate_summary"]["action"], "promote_more_regressions")
+        self.assertEqual(report["release_gate_summary"]["blocking_count"], 3)
+        self.assertIn("a2_regression_replay_report.json", report["release_gate_summary"]["evidence_refs"][0])
         self.assertEqual(report["replay_case_count"], 1)
         replay = report["cases"][0]
         self.assertEqual(replay["case_id"], "sample-a2-s010-wrong-arguments")
@@ -844,6 +889,92 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(candidate["expected"]["primary_failure_class"], "poor_failure_recovery")
         self.assertEqual(candidate["local_judge"]["primary_failure_class"], "poor_failure_recovery")
         self.assertIn("needs_reviewed_ashr_or_audited_semantic_evidence", candidate["promotion_blockers"])
+        self.assertNotIn("Bearer ", report_text)
+        self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
+        self.assertNotRegex(report_text, re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"))
+
+    def test_regression_promotion_queue_tracks_incident_candidate_to_c5(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        regression_replay = build_regression_replay_report(
+            calibration_matrix,
+            case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        incident_candidates = build_incident_regression_candidate_report(
+            ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        report = build_regression_promotion_queue_report(case_book, incident_candidates, regression_replay)
+        expected_report = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8")
+        )
+        report_text = json.dumps(report)
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.regression_promotion_queue.v1")
+        self.assertEqual(report["queue_status"], "candidate_review_required")
+        self.assertEqual(report["promotion_candidate_count"], 1)
+        self.assertEqual(report["ready_for_owner_review_count"], 1)
+        self.assertEqual(report["evidence_blocked_count"], 1)
+        self.assertEqual(report["missing_replay_case_count"], 2)
+        self.assertTrue(report["release_gate_summary"]["blocks_release"])
+        self.assertEqual(report["release_gate_summary"]["candidate_supply_status"], "has_candidates")
+        self.assertIn("Review queued incident candidates", report["release_gate_summary"]["required_action"])
+        item = report["promotion_items"][0]
+        self.assertEqual(item["case_id"], "sample-a2-s041-poor-retry-recovery")
+        self.assertEqual(item["queue_status"], "ready_for_owner_review")
+        self.assertTrue(item["can_promote_to_case_book"])
+        self.assertFalse(item["can_promote_to_mature_replay"])
+        self.assertIn("A2 evidence reviewer", item["required_reviews"])
+        self.assertIn("audited_semantic_judge", item["required_evidence_sources"])
+        self.assertNotIn("Bearer ", report_text)
+        self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
+
+    def test_release_unblock_checklist_tracks_c3_c4_c5_owner_actions(self):
+        release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        evidence_readiness = json.loads(
+            (ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8")
+        )
+        regression_replay = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8")
+        )
+        promotion_queue = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8")
+        )
+        report = build_release_unblock_checklist(
+            release_gate,
+            evidence_readiness,
+            regression_replay,
+            promotion_queue,
+        )
+        expected_report = json.loads(
+            (ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8")
+        )
+        report_text = json.dumps(report)
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.release_unblock_checklist.v1")
+        self.assertEqual(report["overall_status"], "blocked")
+        self.assertEqual(report["blocked_gate_count"], 3)
+        self.assertTrue(report["metadata"]["public_safe"])
+        self.assertTrue(report["metadata"]["does_not_execute_live_calls"])
+        gates = {item["gate"]: item for item in report["gate_items"]}
+        self.assertEqual(set(gates), {"C3", "C4", "C5"})
+        self.assertEqual(gates["C3"]["owner_role"], "A2 evidence reviewer")
+        self.assertEqual(gates["C3"]["required_actions"][0]["required_evidence_source"], "reviewed_ashr_grading")
+        self.assertEqual(gates["C4"]["owner_role"], "A2 semantic judge reviewer")
+        self.assertEqual(gates["C4"]["required_actions"][0]["required_evidence_source"], "audited_semantic_judge")
+        self.assertEqual(gates["C5"]["owner_role"], "A2 case-book owner")
+        self.assertEqual(gates["C5"]["required_actions"][0]["required_evidence_source"], "reviewed_regression_replay")
+        self.assertEqual(
+            report["a3_consumption_summary"]["evidence_refs"],
+            ["fixtures/a2/results/a2_release_unblock_checklist.json"],
+        )
         self.assertNotIn("Bearer ", report_text)
         self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
         self.assertNotRegex(report_text, re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"))
@@ -929,6 +1060,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(offline_replay["replay_ready"])
         self.assertEqual(offline_replay["maturity_status"], "seed")
         self.assertFalse(offline_replay["maturity_gate"]["case_book_maturity_ready"])
+        self.assertEqual(offline_replay["release_gate_summary"]["action"], "attach_reviewed_evidence")
+        self.assertEqual(offline_replay["release_gate_summary"]["blocking_count"], 3)
 
         reviewed_matrix = matrix_with_three_disagreements(reviewed=True)
         reviewed_case_book = build_case_book_report(reviewed_matrix)
@@ -952,6 +1085,8 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(reviewed_replay["maturity_status"], "mature")
         self.assertTrue(reviewed_replay["maturity_gate"]["case_book_maturity_ready"])
         self.assertEqual(reviewed_replay["maturity_gate"]["gaps"], [])
+        self.assertEqual(reviewed_replay["release_gate_summary"]["action"], "ready")
+        self.assertFalse(reviewed_replay["release_gate_summary"]["blocks_release"])
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C5"]["status"], "met")
 
@@ -1531,6 +1666,12 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(any(warning["type"] == "api_probe_gate_validation" for warning in report["warnings"]))
         blocker_gates = {blocker.get("gate") for blocker in report["blockers"]}
         self.assertLessEqual({"C3", "C4", "C5"}, blocker_gates)
+        c5_blocker = next(
+            blocker for blocker in report["blockers"] if blocker.get("type") == "regression_maturity"
+        )
+        self.assertEqual(c5_blocker["missing_count"], 3)
+        self.assertIn("Promote more reviewed", c5_blocker["required_action"])
+        self.assertIn("fixtures/a2/results/a2_case_book.json", c5_blocker["evidence_refs"])
         self.assertIn("fixtures/a2/results/a2_evidence_readiness_report.json", report["evidence_refs"])
         self.assertIn("A2 owner", report["review_workflow"]["required_reviewers"])
         self.assertEqual(report["machine_contract"]["ci_mode"], "fail on decision=block")

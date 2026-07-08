@@ -110,3 +110,33 @@ This mirror supports the A2 sections in `docs/strategy/large-saas-a1-a2-a3-full-
 6. Extend result persistence with request/run/validator/usage/trust/team public-safe summary fields.
 7. Add observability and voice-quality failure classes or taxonomy metadata.
 8. Add server-side grading drift tracking between A2 local judge and reviewed Ashr grading evidence.
+
+## 2026-07-08 Mirror Triage Addendum
+
+The zip is a browser mirror and bundled frontend artifact, not a reusable source tree. It contains static pages, hashed JS/CSS chunks, public docs, Google sign-in assets, and mirror reports. The mirror report lists `api.ashr.io` as a blocked host, so API behavior must still come from reviewed private evidence or controlled live probes, not from this zip.
+
+Observed Lab navigation and chunk names confirm these SaaS surfaces:
+
+| Surface | Observed client methods or chunks | A2 use |
+|---|---|---|
+| Datasets / analysis | `listDatasets`, `getDataset`, `createRequest`, `getRequest`, `deleteRequest`, `RequestDetailDrawer` | Scenario setup, request lifecycle states, failed request to regression conversion. |
+| Agents | `listAgents`, `getAgentDatasets`, `updateAgent`, `listRuns`, `addDatasetToFolder`, `createRequest` | Agent config drift, accepted input/tool schema hashing, per-agent scenario selection. |
+| Folders | `listFolders`, `createFolder`, `updateFolder`, `deleteFolder`, `addDatasetToFolder`, `removeDatasetFromFolder` | Project/dataset organization metadata; A2 should persist folder refs only as public-safe summaries. |
+| Analytics | `listAgents`, `listDatasets`, `listRuns`, pass-rate/run-volume charts | A3 consumption target for A2 aggregate grade and persistence outputs. |
+| Usage / billing | `getUsage`, `billingGetStatus`, `billingCreatePortalSession` | Release policy metrics for quota block, overage warning, and mutating batch safety. |
+| Trust | `getTrustStatus`, `previewTrust`, `publishTrust`, `unpublishTrust` | Trust publishability gate; public claims require complete evidence and clean release policy. |
+| API Keys | `listApiKeys`, `createApiKey`, `revokeApiKey` | Safety/admin boundary scenarios; public output must never include key values. |
+| Team | `listUsers`, `createUser`, request/dataset listing | Public-safe attribution only; no emails, names, tenant ids, or account payloads in fixtures. |
+| Observability | `listObservabilityTraces`, `getObservabilityTrace`, `listVoiceSessions`, `getVoice*` methods | Trace/voice evidence gates; missing feature-gated evidence should be classified honestly. |
+
+## A2 Implementation Boundary
+
+A2 should not grow into a full SaaS infrastructure owner. The useful implementation depth is:
+
+- Python: deep implementation for judge, scenario selection, release policy, calibration import, result persistence, fixture generation, and unittest coverage.
+- YAML/JSON Schema/OpenAPI: enough public contracts for A1/A3 to call or consume A2 outputs safely.
+- TypeScript: compatibility smoke tests and schema parity only when A3/TS consumers are touched.
+- SQL: avoid unless A1 formally introduces a DB contract that A2 must validate.
+- Frontend: do not copy or rebuild Ashr UI; use the mirror only to derive scenario, rubric, gate, and persistence semantics.
+
+This keeps A2 focused on Evaluation intelligence / policy / calibration while still supporting a large SaaS direction.

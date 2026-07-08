@@ -181,10 +181,11 @@
       "status": "seed",
       "severity": "medium",
       "summary": "Regression replay is not mature enough to unblock release.",
-      "required_action": "Promote more reviewed disagreement or incident cases into replayable regressions.",
-      "missing_count": 0,
+      "required_action": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+      "missing_count": 3,
       "evidence_refs": [
-        "fixtures/a2/results/a2_regression_replay_report.json"
+        "fixtures/a2/results/a2_regression_replay_report.json",
+        "fixtures/a2/results/a2_case_book.json"
       ]
     }
   ],
@@ -307,9 +308,10 @@
     {
       "level": "failure",
       "title": "C5 blocks release",
-      "message": "Promote more reviewed disagreement or incident cases into replayable regressions.",
+      "message": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
       "evidence_refs": [
-        "fixtures/a2/results/a2_regression_replay_report.json"
+        "fixtures/a2/results/a2_regression_replay_report.json",
+        "fixtures/a2/results/a2_case_book.json"
       ]
     },
     {

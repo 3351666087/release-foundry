@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from services.judge.service_wrapper import (
+    A1_RELEASE_GATE_CONTRACT,
     BATCH_ENDPOINT,
     CALIBRATION_EVALUATE_ENDPOINT,
     CASE_ENDPOINT,
@@ -14,6 +15,7 @@ from services.judge.service_wrapper import (
     RESULTS_PERSIST_ENDPOINT,
     RUN_ENDPOINT,
     SCENARIO_SELECT_ENDPOINT,
+    SERVICE_VERSION,
     handle_internal_request,
     post_internal_calibration_evaluate,
     post_internal_judge_batch,
@@ -27,9 +29,105 @@ from services.judge.service_wrapper import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+OPENAPI_CONTRACT = ROOT / "docs/a2/openapi/a2_judge_service.openapi.json"
 
 
 class A2JudgeServiceWrapperTests(unittest.TestCase):
+    def test_openapi_contract_tracks_service_wrapper_routes(self):
+        contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+        expected_routes = {
+            CASE_ENDPOINT: "post_internal_judge_case",
+            RUN_ENDPOINT: "post_internal_judge_run",
+            BATCH_ENDPOINT: "post_internal_judge_batch",
+            RELEASE_POLICY_ENDPOINT: "post_internal_release_policy_evaluate",
+            REGRESSION_REPLAY_ENDPOINT: "post_internal_regression_replay",
+            CALIBRATION_EVALUATE_ENDPOINT: "post_internal_calibration_evaluate",
+            SCENARIO_SELECT_ENDPOINT: "post_internal_scenarios_select",
+            RESULTS_PERSIST_ENDPOINT: "post_internal_results_persist",
+        }
+        expected_response_refs = {
+            endpoint: "#/components/responses/InternalServiceEnvelope" for endpoint in expected_routes
+        }
+        expected_response_refs[REGRESSION_REPLAY_ENDPOINT] = (
+            "#/components/responses/RegressionReplayServiceEnvelope"
+        )
+
+        self.assertEqual(contract["openapi"], "3.1.0")
+        self.assertEqual(contract["info"]["version"], SERVICE_VERSION)
+        self.assertEqual(set(contract["paths"]), set(expected_routes))
+        for endpoint, operation_id in expected_routes.items():
+            with self.subTest(endpoint=endpoint):
+                operation = contract["paths"][endpoint]["post"]
+                self.assertEqual(operation["operationId"], operation_id)
+                self.assertEqual(
+                    operation["x-a2"]["implementation"],
+                    f"services.judge.service_wrapper.{operation_id}",
+                )
+                self.assertEqual(operation["x-a2"]["service_version"], SERVICE_VERSION)
+                self.assertTrue(operation["x-a2"]["pure_function_only"])
+                self.assertFalse(operation["x-a2"]["requires_network"])
+                self.assertFalse(operation["x-a2"]["requires_ashr_api_key"])
+                self.assertEqual(
+                    operation["responses"]["200"]["$ref"],
+                    expected_response_refs[endpoint],
+                )
+
+        boundary = contract["x-a2-boundary"]
+        self.assertEqual(boundary["implementation_language"], "Python")
+        self.assertFalse(boundary["hosted_server_in_scope"])
+        self.assertFalse(boundary["sql_in_scope"])
+        self.assertFalse(boundary["typescript_runtime_in_scope"])
+        envelope = contract["components"]["schemas"]["InternalServiceEnvelope"]
+        self.assertEqual(
+            envelope["properties"]["grade_result"]["$ref"],
+            "#/components/schemas/A1ReleaseGateBridgeGradeResult",
+        )
+        bridge_grade = contract["components"]["schemas"]["A1ReleaseGateBridgeGradeResult"]
+        self.assertEqual(
+            bridge_grade["properties"]["schema_version"]["const"],
+            "a2.a1_release_gate_bridge_grade_result.v1",
+        )
+        for field in ("scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"):
+            self.assertIn(field, bridge_grade["required"])
+        serialized = json.dumps(contract, sort_keys=True)
+        self.assertNotIn("docs/evidence/private_refs", serialized)
+        self.assertNotIn("Bearer ", serialized)
+        self.assertNotIn("ashr_live_", serialized)
+
+    def test_openapi_contract_covers_regression_replay_release_gate_summary(self):
+        contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+        response_ref = contract["paths"][REGRESSION_REPLAY_ENDPOINT]["post"]["responses"]["200"]["$ref"]
+        replay_envelope = contract["components"]["schemas"]["RegressionReplayServiceEnvelope"]
+        replay_report = contract["components"]["schemas"]["RegressionReplayReport"]
+        release_summary = contract["components"]["schemas"]["RegressionReplayReleaseGateSummary"]
+
+        self.assertEqual(response_ref, "#/components/responses/RegressionReplayServiceEnvelope")
+        self.assertEqual(
+            replay_envelope["allOf"][1]["properties"]["result"]["$ref"],
+            "#/components/schemas/RegressionReplayReport",
+        )
+        self.assertIn("release_gate_summary", replay_report["required"])
+        self.assertEqual(
+            replay_report["properties"]["release_gate_summary"]["$ref"],
+            "#/components/schemas/RegressionReplayReleaseGateSummary",
+        )
+        self.assertEqual(
+            release_summary["properties"]["schema_version"]["const"],
+            "a2.regression_replay.release_gate_summary.v1",
+        )
+        self.assertEqual(release_summary["properties"]["gate"]["const"], "C5")
+        for field in (
+            "blocks_release",
+            "action",
+            "required_action",
+            "blocking_count",
+            "current_replay_case_count",
+            "target_replay_case_count",
+            "gaps",
+            "evidence_refs",
+        ):
+            self.assertIn(field, release_summary["required"])
+
     def test_case_endpoint_grades_single_case_without_external_api(self):
         response = post_internal_judge_case(
             {
@@ -134,6 +232,79 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["service_context"]["tenant_id"], "tenant_demo")
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
+
+    def test_release_policy_endpoint_accepts_a1_release_gate_bridge_contract(self):
+        payload = {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "request_id": "req-a1-bridge",
+            "idempotency_key": "idem-a1-bridge",
+            "tenant_id": "tenant_bridge",
+            "project_id": "project_bridge",
+            "run_id": "run_bridge",
+            "target_contract": A1_RELEASE_GATE_CONTRACT,
+            "decision_hint": "pass",
+            "policy": {
+                "minimum_uploads": 1,
+                "minimum_trace_batches": 1,
+                "api_key": "secret_should_not_persist",
+            },
+            "inputs": {
+                "run_status": "completed",
+                "upload_count": 1,
+                "trace_batch_count": 1,
+                "authorization": "redacted credential secret_should_not_persist",
+            },
+            "raw_payload_included": False,
+        }
+
+        response = post_internal_release_policy_evaluate(payload)
+        dispatched = handle_internal_request(RELEASE_POLICY_ENDPOINT, payload)
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response, dispatched)
+        self.assertEqual(response["endpoint"], RELEASE_POLICY_ENDPOINT)
+        self.assertEqual(response["request_id"], "req-a1-bridge")
+        result = response["result"]
+        self.assertEqual(response["grade_result"], result)
+        self.assertEqual(result["schema_version"], "a2.a1_release_gate_bridge_grade_result.v1")
+        self.assertEqual(result["scenario_id"], "run_bridge")
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["score"], 1.0)
+        self.assertEqual(result["label"], "release_gate_pass")
+        self.assertEqual(result["expected"]["target_contract"], A1_RELEASE_GATE_CONTRACT)
+        self.assertEqual(result["expected"]["minimum_uploads"], 1)
+        self.assertEqual(result["expected"]["minimum_trace_batches"], 1)
+        self.assertEqual(result["actual"]["upload_count"], 1)
+        self.assertEqual(result["actual"]["trace_batch_count"], 1)
+        self.assertFalse(result["actual"]["raw_payload_included"])
+        self.assertTrue(result["metrics"]["a1_bridge_compatible"])
+        serialized = json.dumps(response, sort_keys=True)
+        self.assertNotIn("secret_should_not_persist", serialized)
+        self.assertNotIn("Bearer", serialized)
+        for field in ("scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"):
+            self.assertIn(field, result)
+
+    def test_release_policy_endpoint_marks_a1_bridge_review_when_lifecycle_counts_miss_policy(self):
+        response = post_internal_release_policy_evaluate(
+            {
+                "request_id": "req-a1-bridge-review",
+                "tenant_id": "tenant_bridge",
+                "project_id": "project_bridge",
+                "run_id": "run_bridge_review",
+                "target_contract": A1_RELEASE_GATE_CONTRACT,
+                "decision_hint": "review",
+                "policy": {"minimum_uploads": 1, "minimum_trace_batches": 1},
+                "inputs": {"run_status": "running", "upload_count": 1, "trace_batch_count": 0},
+                "raw_payload_included": False,
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        result = response["result"]
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["label"], "release_gate_review")
+        self.assertEqual(result["actual"]["trace_batch_count"], 0)
 
     def test_release_policy_endpoint_applies_a1_output_policy_gate(self):
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
@@ -334,6 +505,15 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["result"]["schema_version"], "a2.regression_replay.v1")
         self.assertIn("replay_ready", response["result"])
         self.assertIn("maturity_gate", response["result"])
+        summary = response["result"]["release_gate_summary"]
+        self.assertEqual(summary["schema_version"], "a2.regression_replay.release_gate_summary.v1")
+        self.assertEqual(summary["gate"], "C5")
+        self.assertIn(
+            summary["action"],
+            {"fix_failed_replays", "promote_more_regressions", "attach_reviewed_evidence", "ready"},
+        )
+        self.assertIn("blocks_release", summary)
+        self.assertIn("evidence_refs", summary)
 
     def test_calibration_evaluate_endpoint_returns_public_matrix(self):
         response = post_internal_calibration_evaluate(

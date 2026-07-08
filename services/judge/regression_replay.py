@@ -27,6 +27,7 @@ def build_regression_replay_report(
     failed_cases = [case for case in cases if case.get("replay_status") != "passed"]
     case_book_maturity = case_book_report.get("maturity_gate", {})
     maturity_gate = _maturity_gate(cases, failed_cases, case_book_maturity)
+    replay_ready = bool(cases) and not failed_cases
     return {
         "schema_version": "a2.regression_replay.v1",
         "replay_id": "a2_case_book_regression_replay",
@@ -36,9 +37,10 @@ def build_regression_replay_report(
         "replay_case_count": len(cases),
         "passed_count": len(cases) - len(failed_cases),
         "failed_count": len(failed_cases),
-        "replay_ready": bool(cases) and not failed_cases,
+        "replay_ready": replay_ready,
         "maturity_status": maturity_gate["status"],
         "maturity_gate": maturity_gate,
+        "release_gate_summary": _release_gate_summary(replay_ready, maturity_gate),
         "cases": cases,
         "metadata": {
             "deterministic": True,
@@ -59,18 +61,91 @@ def _maturity_gate(
     current_count = len(cases)
     case_book_ready = bool(case_book_maturity.get("ready"))
     reviewed_count = int(case_book_maturity.get("reviewed_external_evidence_count", 0))
+    reviewed_target = int(case_book_maturity.get("reviewed_evidence_target_count", MATURE_REPLAY_CASE_TARGET))
+    missing_replay_case_count = max(0, MATURE_REPLAY_CASE_TARGET - current_count)
+    missing_reviewed_evidence_count = max(0, reviewed_target - reviewed_count)
     ready = current_count >= MATURE_REPLAY_CASE_TARGET and not failed_cases and case_book_ready
     return {
         "status": "mature" if ready else "seed",
         "ready": ready,
         "target_replay_case_count": MATURE_REPLAY_CASE_TARGET,
         "current_replay_case_count": current_count,
+        "missing_replay_case_count": missing_replay_case_count,
         "failed_replay_case_count": len(failed_cases),
         "case_book_maturity_ready": case_book_ready,
-        "reviewed_evidence_target_count": int(case_book_maturity.get("reviewed_evidence_target_count", MATURE_REPLAY_CASE_TARGET)),
+        "reviewed_evidence_target_count": reviewed_target,
         "reviewed_external_evidence_count": reviewed_count,
+        "missing_reviewed_evidence_count": missing_reviewed_evidence_count,
+        "missing_reviewed_replay_cases": max(missing_replay_case_count, missing_reviewed_evidence_count),
         "gaps": _maturity_gaps(current_count, failed_cases, case_book_ready),
     }
+
+
+def _release_gate_summary(replay_ready: bool, maturity_gate: dict[str, Any]) -> dict[str, Any]:
+    failed_count = int(maturity_gate.get("failed_replay_case_count", 0))
+    current_count = int(maturity_gate.get("current_replay_case_count", 0))
+    target_count = int(maturity_gate.get("target_replay_case_count", MATURE_REPLAY_CASE_TARGET))
+    missing_replay_count = int(maturity_gate.get("missing_replay_case_count", 0))
+    reviewed_count = int(maturity_gate.get("reviewed_external_evidence_count", 0))
+    reviewed_target = int(maturity_gate.get("reviewed_evidence_target_count", MATURE_REPLAY_CASE_TARGET))
+    missing_reviewed_count = int(maturity_gate.get("missing_reviewed_evidence_count", 0))
+    case_book_ready = bool(maturity_gate.get("case_book_maturity_ready"))
+    blocks_release = not (replay_ready and bool(maturity_gate.get("ready")))
+    action, required_action = _release_gate_action(
+        failed_count=failed_count,
+        current_count=current_count,
+        target_count=target_count,
+        missing_replay_count=missing_replay_count,
+        missing_reviewed_count=missing_reviewed_count,
+        case_book_ready=case_book_ready,
+    )
+    return {
+        "schema_version": "a2.regression_replay.release_gate_summary.v1",
+        "gate": "C5",
+        "status": str(maturity_gate.get("status", "seed")),
+        "release_gate_status": "blocked" if blocks_release else "ready",
+        "blocks_release": blocks_release,
+        "action": action,
+        "required_action": required_action,
+        "blocking_count": max(failed_count, missing_replay_count, missing_reviewed_count),
+        "current_replay_case_count": current_count,
+        "target_replay_case_count": target_count,
+        "missing_replay_case_count": missing_replay_count,
+        "failed_replay_case_count": failed_count,
+        "reviewed_external_evidence_count": reviewed_count,
+        "reviewed_evidence_target_count": reviewed_target,
+        "missing_reviewed_evidence_count": missing_reviewed_count,
+        "case_book_maturity_ready": case_book_ready,
+        "gaps": [str(gap) for gap in maturity_gate.get("gaps", [])],
+        "evidence_refs": [
+            "fixtures/a2/results/a2_regression_replay_report.json",
+            "fixtures/a2/results/a2_case_book.json",
+        ],
+    }
+
+
+def _release_gate_action(
+    *,
+    failed_count: int,
+    current_count: int,
+    target_count: int,
+    missing_replay_count: int,
+    missing_reviewed_count: int,
+    case_book_ready: bool,
+) -> tuple[str, str]:
+    if failed_count:
+        return "fix_failed_replays", "Fix failed C5 replay cases before release."
+    if current_count < target_count:
+        return (
+            "promote_more_regressions",
+            "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+        )
+    if missing_reviewed_count or not case_book_ready:
+        return (
+            "attach_reviewed_evidence",
+            "Attach reviewed Ashr grading or audited semantic evidence to C5 regression cases.",
+        )
+    return "ready", "No C5 regression replay action required."
 
 
 def _maturity_gaps(current_count: int, failed_cases: list[dict[str, Any]], case_book_ready: bool) -> list[str]:

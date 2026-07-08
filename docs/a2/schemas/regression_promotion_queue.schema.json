@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2RegressionPromotionQueue",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "queue_id",
+    "source_case_book",
+    "source_incident_candidates",
+    "source_regression_replay",
+    "target_mature_replay_case_count",
+    "current_replay_case_count",
+    "missing_replay_case_count",
+    "promotion_candidate_count",
+    "ready_for_owner_review_count",
+    "evidence_blocked_count",
+    "queue_status",
+    "release_gate_summary",
+    "promotion_items",
+    "next_actions",
+    "evidence_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.regression_promotion_queue.v1" },
+    "queue_id": { "type": "string" },
+    "source_case_book": { "type": "string" },
+    "source_incident_candidates": { "type": "string" },
+    "source_regression_replay": { "type": "string" },
+    "target_mature_replay_case_count": { "type": "integer", "minimum": 0 },
+    "current_replay_case_count": { "type": "integer", "minimum": 0 },
+    "missing_replay_case_count": { "type": "integer", "minimum": 0 },
+    "promotion_candidate_count": { "type": "integer", "minimum": 0 },
+    "ready_for_owner_review_count": { "type": "integer", "minimum": 0 },
+    "evidence_blocked_count": { "type": "integer", "minimum": 0 },
+    "queue_status": { "type": "string" },
+    "release_gate_summary": { "$ref": "#/$defs/release_gate_summary" },
+    "promotion_items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/promotion_item" }
+    },
+    "next_actions": { "$ref": "#/$defs/string_array" },
+    "evidence_refs": { "$ref": "#/$defs/string_array" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "release_gate_summary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "gate",
+        "blocks_release",
+        "upstream_replay_status",
+        "candidate_supply_status",
+        "missing_replay_case_count",
+        "promotion_candidate_count",
+        "required_action",
+        "evidence_refs"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.regression_promotion.release_gate_summary.v1" },
+        "gate": { "const": "C5" },
+        "blocks_release": { "type": "boolean" },
+        "upstream_replay_status": { "type": "string" },
+        "candidate_supply_status": { "type": "string" },
+        "missing_replay_case_count": { "type": "integer", "minimum": 0 },
+        "promotion_candidate_count": { "type": "integer", "minimum": 0 },
+        "required_action": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "promotion_item": {
+      "type": "object",
+      "required": [
+        "promotion_id",
+        "queue_status",
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "source",
+        "incident_id",
+        "severity",
+        "primary_failure_class",
+        "public_safe",
+        "ready_for_case_book_review",
+        "already_in_case_book",
+        "already_in_regression_replay",
+        "can_promote_to_case_book",
+        "can_promote_to_mature_replay",
+        "promotion_blockers",
+        "required_reviews",
+        "required_evidence_sources",
+        "reviewer_note",
+        "evidence_refs"
+      ],
+      "properties": {
+        "promotion_id": { "type": "string" },
+        "queue_status": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "source": { "type": "string" },
+        "incident_id": { "type": "string" },
+        "severity": { "type": "string" },
+        "primary_failure_class": { "type": "string" },
+        "public_safe": { "type": "boolean" },
+        "ready_for_case_book_review": { "type": "boolean" },
+        "already_in_case_book": { "type": "boolean" },
+        "already_in_regression_replay": { "type": "boolean" },
+        "can_promote_to_case_book": { "type": "boolean" },
+        "can_promote_to_mature_replay": { "type": "boolean" },
+        "promotion_blockers": { "$ref": "#/$defs/string_array" },
+        "required_reviews": { "$ref": "#/$defs/string_array" },
+        "required_evidence_sources": { "$ref": "#/$defs/string_array" },
+        "reviewer_note": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

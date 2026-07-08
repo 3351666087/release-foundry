@@ -357,6 +357,12 @@ def _evidence_blockers(
 
     maturity = str(regression_replay_report.get("maturity_status", "missing"))
     if maturity != "mature":
+        replay_gate = regression_replay_report.get("release_gate_summary", {})
+        if not isinstance(replay_gate, dict):
+            replay_gate = {}
+        replay_refs = replay_gate.get("evidence_refs")
+        if not isinstance(replay_refs, list):
+            replay_refs = ["fixtures/a2/results/a2_regression_replay_report.json"]
         blockers.append(
             {
                 "type": "regression_maturity",
@@ -364,9 +370,17 @@ def _evidence_blockers(
                 "status": maturity,
                 "severity": "medium",
                 "summary": "Regression replay is not mature enough to unblock release.",
-                "required_action": "Promote more reviewed disagreement or incident cases into replayable regressions.",
-                "missing_count": int(regression_replay_report.get("maturity_gate", {}).get("missing_reviewed_replay_cases", 0)),
-                "evidence_refs": ["fixtures/a2/results/a2_regression_replay_report.json"],
+                "required_action": str(
+                    replay_gate.get("required_action")
+                    or "Promote more reviewed disagreement or incident cases into replayable regressions."
+                ),
+                "missing_count": int(
+                    replay_gate.get(
+                        "blocking_count",
+                        regression_replay_report.get("maturity_gate", {}).get("missing_reviewed_replay_cases", 0),
+                    )
+                ),
+                "evidence_refs": replay_refs,
             }
         )
     return blockers

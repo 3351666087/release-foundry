@@ -24,6 +24,7 @@ CALIBRATION_EVALUATE_ENDPOINT = "/internal/calibration/evaluate"
 SCENARIO_SELECT_ENDPOINT = "/internal/scenarios/select"
 RESULTS_PERSIST_ENDPOINT = "/internal/results/persist"
 SERVICE_VERSION = "a2-judge-service-0.1.0"
+A1_RELEASE_GATE_CONTRACT = "A2.release_gate.evaluate"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_GRADE_REPORT = Path("fixtures/a2/results/a2_g3_grade_results.json")
 DEFAULT_RELEASE_GATE_REPORT = Path("fixtures/a2/results/a2_release_gate_report.json")
@@ -198,6 +199,49 @@ def evaluate_release_policy(
     }
 
 
+def evaluate_a1_release_gate_bridge(request: dict[str, Any]) -> dict[str, Any]:
+    """Return the GradeResult-like shape expected by A1's local release-gate bridge."""
+    if str(request.get("target_contract", "")) != A1_RELEASE_GATE_CONTRACT:
+        raise ValueError(f"release gate bridge request must target {A1_RELEASE_GATE_CONTRACT}")
+    policy = request.get("policy") if isinstance(request.get("policy"), dict) else {}
+    inputs = request.get("inputs") if isinstance(request.get("inputs"), dict) else {}
+    minimum_uploads = _public_int(policy.get("minimum_uploads"), 1)
+    minimum_trace_batches = _public_int(policy.get("minimum_trace_batches"), 1)
+    upload_count = _public_int(inputs.get("upload_count"), 0)
+    trace_batch_count = _public_int(inputs.get("trace_batch_count"), 0)
+    decision_hint = str(request.get("decision_hint", "")).strip().lower()
+    passed = decision_hint == "pass" and upload_count >= minimum_uploads and trace_batch_count >= minimum_trace_batches
+    return {
+        "schema_version": "a2.a1_release_gate_bridge_grade_result.v1",
+        "scenario_id": str(request.get("run_id") or request.get("scenario_id") or ""),
+        "passed": passed,
+        "score": 1.0 if passed else 0.0,
+        "label": "release_gate_pass" if passed else "release_gate_review",
+        "reason": (
+            "A2 accepted the A1 lifecycle release-gate bridge payload."
+            if passed
+            else "A2 requires release review because lifecycle counts do not satisfy policy minimums."
+        ),
+        "expected": {
+            "target_contract": A1_RELEASE_GATE_CONTRACT,
+            "minimum_uploads": minimum_uploads,
+            "minimum_trace_batches": minimum_trace_batches,
+        },
+        "actual": {
+            "run_status": str(inputs.get("run_status", "")),
+            "upload_count": upload_count,
+            "trace_batch_count": trace_batch_count,
+            "decision_hint": decision_hint or "review",
+            "raw_payload_included": request.get("raw_payload_included") is True,
+        },
+        "metrics": {
+            "target_contract": A1_RELEASE_GATE_CONTRACT,
+            "a1_bridge_compatible": True,
+            "raw_payload_included": request.get("raw_payload_included") is True,
+        },
+    }
+
+
 def replay_regressions(
     request: dict[str, Any],
     *,
@@ -346,6 +390,11 @@ def post_internal_judge_run(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def post_internal_release_policy_evaluate(payload: dict[str, Any]) -> dict[str, Any]:
+    if str(payload.get("target_contract", "")) == A1_RELEASE_GATE_CONTRACT:
+        result = evaluate_a1_release_gate_bridge(payload)
+        response = _ok_response(RELEASE_POLICY_ENDPOINT, payload, result, status_code=200)
+        response["grade_result"] = result
+        return response
     response = evaluate_release_policy(payload)
     result = response["release_gate"]
     return _ok_response(RELEASE_POLICY_ENDPOINT, payload, result, status_code=200)
@@ -577,6 +626,15 @@ def _service_metadata() -> dict[str, Any]:
 
 def _read_json(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _public_int(value: Any, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _run_cases(request: dict[str, Any]) -> list[dict[str, Any]]:

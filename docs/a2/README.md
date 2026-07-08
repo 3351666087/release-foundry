@@ -101,6 +101,8 @@ The main-branch SaaS plan moves A2 from a local judge library toward an internal
 
 The service wrapper is intentionally not a hosted web server. A1 can mount it behind API/worker infrastructure later; A3 can consume the stable JSON reports immediately.
 
+The mount contract is captured in `docs/a2/openapi/a2_judge_service.openapi.json`. It is an OpenAPI JSON boundary for A1/A3 integration, not a commitment that A2 owns HTTP hosting, SQL persistence, or a TypeScript runtime.
+
 CLI examples:
 
 ```bash

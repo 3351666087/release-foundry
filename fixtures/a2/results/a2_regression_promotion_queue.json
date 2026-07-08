@@ -1,0 +1,83 @@
+{
+  "schema_version": "a2.regression_promotion_queue.v1",
+  "queue_id": "a2_regression_promotion_queue",
+  "source_case_book": "a2_case_book",
+  "source_incident_candidates": "a2_incident_regression_candidates",
+  "source_regression_replay": "a2_case_book_regression_replay",
+  "target_mature_replay_case_count": 3,
+  "current_replay_case_count": 1,
+  "missing_replay_case_count": 2,
+  "promotion_candidate_count": 1,
+  "ready_for_owner_review_count": 1,
+  "evidence_blocked_count": 1,
+  "queue_status": "candidate_review_required",
+  "release_gate_summary": {
+    "schema_version": "a2.regression_promotion.release_gate_summary.v1",
+    "gate": "C5",
+    "blocks_release": true,
+    "upstream_replay_status": "blocked",
+    "candidate_supply_status": "has_candidates",
+    "missing_replay_case_count": 2,
+    "promotion_candidate_count": 1,
+    "required_action": "Review queued incident candidates, attach reviewed external evidence, then promote accepted cases into replay.",
+    "evidence_refs": [
+      "fixtures/a2/results/a2_regression_promotion_queue.json",
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_incident_regression_candidates.json"
+    ]
+  },
+  "promotion_items": [
+    {
+      "promotion_id": "promotion-incident-regression-prod-inc-2026-07-support-status-retry",
+      "queue_status": "ready_for_owner_review",
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "scenario_id": "A2-S041",
+      "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "source": "production_incident",
+      "incident_id": "prod-inc-2026-07-support-status-retry",
+      "severity": "high",
+      "primary_failure_class": "poor_failure_recovery",
+      "public_safe": true,
+      "ready_for_case_book_review": true,
+      "already_in_case_book": false,
+      "already_in_regression_replay": false,
+      "can_promote_to_case_book": true,
+      "can_promote_to_mature_replay": false,
+      "promotion_blockers": [
+        "needs_case_book_owner_review",
+        "needs_reviewed_ashr_or_audited_semantic_evidence"
+      ],
+      "required_reviews": [
+        "A2 case-book owner",
+        "A2 evidence reviewer"
+      ],
+      "required_evidence_sources": [
+        "reviewed_ashr_grading",
+        "audited_semantic_judge"
+      ],
+      "reviewer_note": "prod-inc-2026-07-support-status-retry maps to sample-a2-s041-poor-retry-recovery / A2-S041 with local failure_class=poor_failure_recovery. Keep it as a case-book candidate until A2 owner review and external evidence decide whether it should be promoted into the mature C5 replay set.",
+      "evidence_refs": [
+        "docs/evidence/private_refs/a2_prod_incident_support_status.redacted.json",
+        "fixtures/a2/incidents/a2_prod_incident_summary.json",
+        "fixtures/a2/runs/a2_s041_poor_retry_recovery.json"
+      ]
+    }
+  ],
+  "next_actions": [
+    "Promote 2 more reviewed C5 regression case(s).",
+    "Run A2 case-book owner review for queued production incident candidates.",
+    "Attach reviewed Ashr grading or audited semantic judge evidence before marking C5 mature."
+  ],
+  "evidence_refs": [
+    "fixtures/a2/results/a2_case_book.json",
+    "fixtures/a2/results/a2_incident_regression_candidates.json",
+    "fixtures/a2/results/a2_regression_replay_report.json"
+  ],
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make production incident to C5 regression promotion explicit, reviewable, and public-safe.",
+    "does_not_execute_live_calls": true,
+    "does_not_read_private_evidence": true,
+    "private_evidence_boundary": "Private evidence refs may be named, but raw private payloads stay under docs/evidence/private_refs/ and are not read."
+  }
+}

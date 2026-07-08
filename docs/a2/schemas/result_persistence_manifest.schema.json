@@ -33,7 +33,8 @@
         "grade_report": { "type": "string" },
         "release_gate": { "type": "string" },
         "scenario_pack": { "type": "string" },
-        "scenario_selection": { "type": "string" }
+        "scenario_selection": { "type": "string" },
+        "regression_promotion_queue": { "type": "string" }
       },
       "additionalProperties": true
     },
@@ -125,6 +126,20 @@
         "release_policy_audit": {
           "type": "object",
           "properties": {
+            "saas_surface_metrics": {
+              "type": "object",
+              "properties": {
+                "usage_quota_blocked": { "type": ["number", "integer", "boolean"] },
+                "trust_publishability_blocked": { "type": ["number", "integer", "boolean"] },
+                "api_key_boundary_violations": { "type": ["number", "integer", "boolean"] },
+                "server_side_grading_stale": { "type": ["number", "integer", "boolean"] }
+              },
+              "additionalProperties": false
+            },
+            "active_violations": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
             "waiver_summary": { "type": "object" },
             "applied_waivers": {
               "type": "array",

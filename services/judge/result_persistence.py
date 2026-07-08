@@ -35,6 +35,12 @@ SECRET_VALUE_PATTERNS = (
 PRIVATE_EVIDENCE_PATTERNS = (
     re.compile(r"docs[\\/]+evidence[\\/]+private_refs(?:[\\/][^\s\"']*)?", re.IGNORECASE),
 )
+PUBLIC_RELEASE_POLICY_METRICS = (
+    "usage_quota_blocked",
+    "trust_publishability_blocked",
+    "api_key_boundary_violations",
+    "server_side_grading_stale",
+)
 
 
 def build_result_persistence_manifest(
@@ -130,6 +136,15 @@ def build_result_persistence_manifest(
     )
 
     record_type_counts = dict(sorted(Counter(record["record_type"] for record in records).items()))
+    source_ref_payload = {
+        "grade_report": source_refs.get("grade_report", ""),
+        "release_gate": source_refs.get("release_gate", ""),
+        "scenario_pack": source_refs.get("scenario_pack", ""),
+        "scenario_selection": source_refs.get("scenario_selection", ""),
+    }
+    for optional_ref in ("regression_promotion_queue",):
+        if source_refs.get(optional_ref):
+            source_ref_payload[optional_ref] = source_refs[optional_ref]
     return {
         "schema_version": SCHEMA_VERSION,
         "manifest_id": manifest_id,
@@ -139,12 +154,7 @@ def build_result_persistence_manifest(
         "run": run_id,
         "dataset_id": grade_report.get("dataset_id"),
         "created_at": created_at,
-        "source_refs": {
-            "grade_report": source_refs.get("grade_report", ""),
-            "release_gate": source_refs.get("release_gate", ""),
-            "scenario_pack": source_refs.get("scenario_pack", ""),
-            "scenario_selection": source_refs.get("scenario_selection", ""),
-        },
+        "source_refs": source_ref_payload,
         "record_count": len(records),
         "record_type_counts": record_type_counts,
         "records": records,
@@ -327,6 +337,14 @@ def _release_policy_audit_summary(payload: dict[str, Any]) -> dict[str, Any]:
     for key in ("blocking_violation_count", "non_blocking_violation_count", "waived_violation_count"):
         _copy_public_scalar(audit, key, evaluation.get(key))
 
+    metrics = _public_saas_surface_metrics(evaluation.get("metrics"))
+    if metrics:
+        audit["saas_surface_metrics"] = metrics
+
+    active_violations = evaluation.get("violations")
+    if isinstance(active_violations, list):
+        audit["active_violations"] = _public_active_violations(active_violations)
+
     waiver_summary = evaluation.get("waiver_summary")
     if isinstance(waiver_summary, dict):
         audit["waiver_summary"] = _public_count_summary(waiver_summary)
@@ -366,6 +384,51 @@ def _public_count_summary(summary: dict[str, Any]) -> dict[str, Any]:
             public[str(key)] = value
         elif isinstance(value, (int, float)):
             public[str(key)] = value
+    return public
+
+
+def _public_saas_surface_metrics(metrics: Any) -> dict[str, Any]:
+    if not isinstance(metrics, dict):
+        return {}
+    public: dict[str, Any] = {}
+    for key in PUBLIC_RELEASE_POLICY_METRICS:
+        value = metrics.get(key)
+        if isinstance(value, bool):
+            public[key] = value
+        elif isinstance(value, (int, float)):
+            public[key] = value
+    return public
+
+
+def _public_active_violations(violations: list[Any]) -> list[dict[str, Any]]:
+    public: list[dict[str, Any]] = []
+    for violation in violations:
+        if not isinstance(violation, dict):
+            continue
+        summary: dict[str, Any] = {}
+        for key in (
+            "rule_id",
+            "type",
+            "mode",
+            "severity",
+            "summary",
+            "owner_role",
+            "business_impact",
+            "dashboard_label",
+        ):
+            _copy_public_scalar(summary, key, violation.get(key))
+        _copy_public_scalar(summary, "passed", violation.get("passed"))
+        _copy_public_scalar(summary, "risk_weight", violation.get("risk_weight"))
+        _copy_public_scalar(summary, "waiver_eligible", violation.get("waiver_eligible"))
+
+        observed = _public_measurement_summary(violation.get("observed"))
+        if observed:
+            summary["observed"] = observed
+        threshold = _public_measurement_summary(violation.get("threshold"))
+        if threshold:
+            summary["threshold"] = threshold
+
+        public.append(summary)
     return public
 
 
@@ -713,4 +776,6 @@ def _run_fixtures_by_case(run_fixtures: list[dict[str, Any]]) -> dict[str, dict[
 
 def _is_secret_key(key: str) -> bool:
     normalized = key.lower().replace("-", "_")
+    if normalized in PUBLIC_RELEASE_POLICY_METRICS:
+        return False
     return any(marker in normalized for marker in SECRET_KEY_MARKERS)
