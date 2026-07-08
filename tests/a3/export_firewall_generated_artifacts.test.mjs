@@ -176,6 +176,7 @@ function shouldSkipPath(relPath, name) {
     BINARY_EXTENSIONS.has(extension) ||
     /(^|\/)\.env(?:\.|$)/i.test(relPath) ||
     /(^|\/)docs\/screenshots\//i.test(relPath) ||
+    /(^|\/)fixtures\/a3\/p3\/tmp-[^/]+(?:\/|$)/i.test(relPath) ||
     /(^|\/)private_refs\//i.test(relPath)
   );
 }

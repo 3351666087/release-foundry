@@ -1,4 +1,4 @@
-import {
+﻿import {
   redactExport,
   sanitizeCsvCellValue,
   summarizeRedactionResults
@@ -3548,6 +3548,89 @@ export function summarizeArtifactRegistryExport(artifactRegistryFixture = {}) {
   };
 }
 
+export function summarizeGithubPublishEvidence(githubPublishFixture = {}) {
+  const checkPublish = objectOr(githubPublishFixture.check_publish);
+  const prCommentPublish = objectOr(githubPublishFixture.pr_comment_publish);
+  const requiredCheckPlan = objectOr(githubPublishFixture.required_check_plan);
+  const records = [checkPublish, prCommentPublish, requiredCheckPlan].filter((item) => item.schema_version);
+  if (!records.length) {
+    return {
+      schema_version: "a3.github_publish_evidence_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach GitHub check publish, PR comment publish, and required-check plan receipts before claiming PR Gate publish evidence."
+    };
+  }
+  const postedCount = records.filter((item) => item.posted === true || item.status === "posted").length;
+  const plannedCount = records.filter((item) => item.dry_run === true || item.status === "planned" || String(item.mode || "").startsWith("plan_")).length;
+  const dryRunOnly = records.every((item) => item.dry_run === true || item.safety?.dry_run_only === true || String(item.mode || "").startsWith("plan_"));
+  const tokenIncluded = records.some((item) => item.safety?.token_included === true);
+  const secretValuesAllowed = records.some((item) => item.safety?.secret_values_allowed === true);
+  const requiredTokenScopes = [...new Set(records
+    .map((item) => item.requires_token_scope || item.request?.requires_token_scope || item.plan?.requires_token_scope)
+    .filter(Boolean))];
+  const summaryStatus = postedCount === 2 && requiredCheckPlan.schema_version
+    ? "posted_with_required_check_plan"
+    : postedCount > 0
+      ? "partial"
+      : plannedCount > 0
+        ? "planned"
+        : "missing";
+  return {
+    schema_version: "a3.github_publish_evidence_export.v1",
+    available: true,
+    status: summaryStatus,
+    dry_run_only: dryRunOnly,
+    posted_count: postedCount,
+    planned_count: plannedCount,
+    mutation_count: postedCount,
+    check_publish: summarizeGithubPublishRecord(checkPublish, "github_check"),
+    pr_comment_publish: summarizeGithubPublishRecord(prCommentPublish, "pr_comment"),
+    required_check_plan: summarizeGithubPublishRecord(requiredCheckPlan, "required_check_plan"),
+    required_check_planned: requiredCheckPlan.schema_version === "a3.github_required_check_plan.v1",
+    repo: checkPublish.request?.repo || prCommentPublish.plan?.repo || requiredCheckPlan.repo || {},
+    branch: requiredCheckPlan.branch || null,
+    pull_number: prCommentPublish.plan?.pull_number || null,
+    check_name: requiredCheckPlan.check_name || checkPublish.request?.body?.name || "Ashr++ Release Gate",
+    required_token_scopes: requiredTokenScopes,
+    maintainer_approval_required: requiredCheckPlan.safety?.maintainer_approval_required === true,
+    safety: {
+      token_included: tokenIncluded,
+      secret_values_allowed: secretValuesAllowed,
+      response_body_sanitized: records.every((item) => item.safety?.response_body_sanitized !== false),
+      raw_secret_values_allowed: false
+    },
+    recommendation: "Use GitHub publish evidence as the PR Gate delivery receipt, then bind it into Artifact Registry, audit bundle, and branch-protection verification."
+  };
+}
+
+function summarizeGithubPublishRecord(record = {}, type = "unknown") {
+  if (!record.schema_version) {
+    return {
+      type,
+      available: false,
+      status: "missing",
+      posted: false,
+      dry_run: null
+    };
+  }
+  return {
+    type,
+    available: true,
+    schema_version: record.schema_version,
+    mode: record.mode || "unknown",
+    status: record.status || (String(record.mode || "").startsWith("plan_") ? "planned" : "unknown"),
+    posted: record.posted === true,
+    dry_run: record.dry_run === true || record.safety?.dry_run_only === true,
+    http_status: record.http_status ?? null,
+    github_request_id: record.github_request_id || null,
+    redacted_summary: record.redacted_summary || null,
+    token_included: record.safety?.token_included === true,
+    secret_values_allowed: record.safety?.secret_values_allowed === true
+  };
+}
+
+
 function hashPrefix(value, length = 16) {
   return typeof value === "string" && value.length ? value.slice(0, length) : null;
 }
@@ -3899,7 +3982,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -3947,6 +4030,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const saasAdmin = summarizeSaasAdminExport(saasAdminFixture);
   const artifactRegistry = summarizeArtifactRegistryExport(artifactRegistryFixture);
   const releaseEvidence = summarizeReleaseEvidenceSummary(releaseEvidenceFixture);
+  const githubPublishEvidence = summarizeGithubPublishEvidence(githubPublishEvidenceFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -4011,6 +4095,24 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       ""
     );
     lines.push("### PR Comment Template", "", releaseWorkflow.pr_comment_markdown.trim(), "");
+  }
+
+
+  if (githubPublishEvidence.available) {
+    lines.push(
+      "## GitHub Publish Evidence",
+      "",
+      `- Status: ${githubPublishEvidence.status}`,
+      `- Dry-run only: ${githubPublishEvidence.dry_run_only ? "yes" : "no"}`,
+      `- Posted receipts: ${githubPublishEvidence.posted_count}`,
+      `- Planned receipts: ${githubPublishEvidence.planned_count}`,
+      `- Check: ${githubPublishEvidence.check_publish.status}`,
+      `- PR comment: ${githubPublishEvidence.pr_comment_publish.status}`,
+      `- Required check planned: ${githubPublishEvidence.required_check_planned ? "yes" : "no"}`,
+      `- Required scopes: ${githubPublishEvidence.required_token_scopes.join(", ") || "none"}`,
+      `- Maintainer approval required: ${githubPublishEvidence.maintainer_approval_required ? "yes" : "no"}`,
+      ""
+    );
   }
 
   if (productConsole.available) {
@@ -4694,7 +4796,7 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -4738,6 +4840,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
+    github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

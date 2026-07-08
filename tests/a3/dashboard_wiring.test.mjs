@@ -291,6 +291,20 @@ test("A3 dashboard wires commercial release gate into console and reports", asyn
   assert.match(html, /PR Gate & Audit Workflow/);
 });
 
+test("A3 dashboard wires GitHub publish evidence into reports and registry", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /githubPublishEvidence: \{\}/);
+  assert.match(html, /loadGithubPublishEvidenceFixtures/);
+  assert.match(html, /a3_github_check_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_pr_comment_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_required_check_plan\.redacted\.json/);
+  assert.match(html, /github_publish_evidence/);
+  assert.match(html, /state\.githubPublishEvidence/);
+  assert.match(html, /githubPublishEvidence: state\.githubPublishEvidence/);
+  assert.match(html, /state\.githubPublishEvidence = payload\.github_publish_evidence \|\| \{\}/);
+});
+
 test("A3 dashboard wires release war room into console and reports", async () => {
   const html = await loadDashboardHtml();
 

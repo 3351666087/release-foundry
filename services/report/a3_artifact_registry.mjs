@@ -19,6 +19,7 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const migrationPlan = options.migrationPlan || inputs.migrationPlan || {};
   const productConsole = options.productConsole || inputs.productConsole || {};
   const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
+  const githubPublishEvidence = options.githubPublishEvidence || inputs.githubPublishEvidence || {};
   const source = options.source || inputs.source || reportCenter.source || "unknown";
   const tenantScope = {
     organization_id: options.organizationId || inputs.organizationId || reportCenter.tenant_scope?.organization_id || "org-local",
@@ -37,7 +38,8 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     releaseEvidenceReadbacks,
     migrationPlan,
     productConsole,
-    saasAdmin
+    saasAdmin,
+    githubPublishEvidence
   });
   const entries = [...reportEntries, ...controlEntries];
   const summary = summarizeEntries(entries);
@@ -135,7 +137,50 @@ function controlArtifactEntries(context) {
     customerValue: "login, team, API-key, usage, trust, and cloud-management safety map",
     missingControls: context.saasAdmin.schema_version ? ["rbac_enforcement_receipt"] : ["saas_admin_state"]
   }));
+  entries.push(...githubPublishArtifactEntries(context));
   return entries;
+}
+
+function githubPublishArtifactEntries(context) {
+  const evidence = context.githubPublishEvidence || {};
+  return [
+    githubArtifact("github_check_publish_receipt", evidence.check_publish, {
+      context,
+      billableMeter: "pr_gate_publish_events",
+      customerValue: "machine-readable GitHub Check Run publish evidence",
+      missingControls: ["live_check_receipt", "content_hash"]
+    }),
+    githubArtifact("github_pr_comment_publish_receipt", evidence.pr_comment_publish, {
+      context,
+      billableMeter: "pr_gate_publish_events",
+      customerValue: "human-readable PR release comment publish evidence",
+      missingControls: ["live_comment_receipt", "content_hash"]
+    }),
+    githubArtifact("github_required_check_plan", evidence.required_check_plan, {
+      context,
+      billableMeter: "release_gate_enforcement",
+      customerValue: "branch-protection plan for making Ashr++ Release Gate required",
+      missingControls: ["maintainer_branch_protection_receipt"]
+    })
+  ];
+}
+
+function githubArtifact(type, payload, options) {
+  const ready = payload && typeof payload === "object" && payload.schema_version;
+  const posted = payload?.posted === true || payload?.status === "posted";
+  const planned = ready && (payload?.dry_run === true || payload?.mode?.startsWith?.("plan_") || payload?.status === "planned");
+  return controlArtifact(type, {
+    context: options.context,
+    ready,
+    contentType: "application/json",
+    billableMeter: options.billableMeter,
+    customerValue: options.customerValue,
+    missingControls: posted
+      ? ["content_hash"]
+      : planned
+        ? options.missingControls
+        : [type]
+  });
 }
 
 function controlArtifact(type, options) {
@@ -197,6 +242,7 @@ function summarizeEntries(entries) {
 function buildPacketPresets(entries) {
   return [
     packetPreset("pr_review_packet", ["json_report", "markdown_report", "release_evidence_summary", "report_manifest"], entries),
+    packetPreset("github_pr_gate_packet", ["github_check_publish_receipt", "github_pr_comment_publish_receipt", "github_required_check_plan"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
     packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)

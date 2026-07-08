@@ -2499,6 +2499,21 @@ Added:
 - tests for release evidence health/diff, cross-tenant denial, SQLite tenant persistence, and error redaction
 - authority handoff in `docs/a3/p3_release_evidence_authority_round_2026_07_08.md`
 
+## 2026-07-08 - GitHub publish evidence in reports and artifact registry
+
+Continued A3 PR Gate evidence work by binding GitHub publish receipts into report exports and Artifact Registry.
+
+Added:
+
+- `summarizeGithubPublishEvidence(...)`
+- JSON report field `github_publish_evidence`
+- Markdown section `GitHub Publish Evidence`
+- Artifact Registry entries for GitHub check receipt, PR comment receipt, and required-check plan
+- Artifact Registry preset `github_pr_gate_packet`
+- dashboard static fixture loading for GitHub publish evidence
+- dashboard export wiring for `state.githubPublishEvidence`
+- documentation in `docs/a3/p3_github_publish_evidence_registry_2026_07_08.md`
+
 Verification:
 
 ```text
@@ -2685,6 +2700,11 @@ A1/A2 calibration:
 - A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
 - A3 readback evidence stays downstream of A1/A2 and only proves PR/release publication state.
 
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Result: 73 pass, 0 fail.
+
 Safety boundary:
 
 - No `.env.local` read.
@@ -2806,3 +2826,9 @@ Safety boundary:
 Current interpretation:
 
 This closes the gap between "A3 can store readback" and "A3 can be fed by a worker and show readback to users." Production still needs a live GitHub App/GitHub Actions worker, hosted auth/RBAC, and production Postgres/RLS before readback can enforce a real customer release gate.
+
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+Publish receipts still need audit-bundle hashing, dedicated dashboard cards, and real branch-protection verification.

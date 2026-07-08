@@ -77,6 +77,7 @@ const state = {
   usageLedger: {},
   reportCenter: {},
   artifactRegistry: {},
+  githubPublishEvidence: {},
   reviewWorkflow: {},
   releaseEvidence: {},
   releaseEvidenceReadbacks: {},
@@ -2408,7 +2409,8 @@ function exportReport(format) {
       },
       state.artifactRegistry,
       state.reviewWorkflow,
-      state.releaseEvidence
+      state.releaseEvidence,
+      state.githubPublishEvidence
     ), null, 2), "application/json");
     return;
   }
@@ -2438,7 +2440,8 @@ function exportReport(format) {
       releaseGate: state.releaseGate
     },
     state.artifactRegistry,
-    state.releaseEvidence
+    state.releaseEvidence,
+    state.githubPublishEvidence
   ), "text/markdown");
 }
 
@@ -2580,6 +2583,7 @@ function applyApiDashboardPayload(payload) {
     readback_status_counts: releaseEvidenceReadbacks.status_counts || baseReleaseEvidence.readback_status_counts,
     readback_resource_counts: releaseEvidenceReadbacks.resource_counts || baseReleaseEvidence.readback_resource_counts
   };
+  state.githubPublishEvidence = payload.github_publish_evidence || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2804,7 +2808,8 @@ function refreshLocalArtifactRegistry() {
     reportCenter: state.reportCenter || {},
     usageLedger: state.usageLedger || {},
     productConsole: state.productConsole || {},
-    saasAdmin: state.saasAdmin || {}
+    saasAdmin: state.saasAdmin || {},
+    githubPublishEvidence: state.githubPublishEvidence || {}
   }, {
     source: state.source
   });
@@ -2874,6 +2879,7 @@ async function loadDataSource(source) {
     state.commercialReadiness = await loadOptionalJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
     state.releaseGate = await loadOptionalJson("../../fixtures/a2/results/a2_release_gate_report.json");
     state.releaseEvidence = await loadReleaseEvidenceFixtures();
+    state.githubPublishEvidence = await loadGithubPublishEvidenceFixtures();
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
@@ -2919,6 +2925,20 @@ async function loadDataSource(source) {
   renderClusters();
 }
 
+async function loadGithubPublishEvidenceFixtures() {
+  const [checkPublish, prCommentPublish, requiredCheckPlan] = await Promise.all([
+    loadOptionalJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    loadOptionalJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    loadOptionalJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json")
+  ]);
+  return {
+    schema_version: "a3.github_publish_evidence.v1",
+    check_publish: checkPublish,
+    pr_comment_publish: prCommentPublish,
+    required_check_plan: requiredCheckPlan
+  };
+}
+
 function getA3ApiBaseUrl() {
   const params = new URLSearchParams(window.location.search);
   return params.get("apiBase") || window.A3_API_BASE_URL || "";
@@ -2941,6 +2961,7 @@ function resetCalibrationState() {
   state.reviewWorkflow = {};
   state.releaseEvidence = {};
   state.releaseEvidenceReadbacks = {};
+  state.githubPublishEvidence = {};
 }
 
 async function init() {

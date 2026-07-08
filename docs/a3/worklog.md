@@ -3938,6 +3938,27 @@ Continue the A3 PR Gate / Release Evidence authority work by adding readback con
 - Added documentation:
   - `docs/a3/p3_github_readback_contract_2026_07_08.md`
 
+## 2026-07-08 - GitHub publish evidence in reports and artifact registry
+
+### Goal
+
+Bind GitHub publish receipts into A3's customer-facing evidence chain so PR Gate delivery evidence appears in reports, Artifact Registry, and dashboard Report Center wiring.
+
+### Work completed
+
+- Added `summarizeGithubPublishEvidence(...)` in `services/report/report_builder.mjs`.
+- Added `github_publish_evidence` to JSON report export.
+- Added `GitHub Publish Evidence` to Markdown report export.
+- Added Artifact Registry control artifacts:
+  - `github_check_publish_receipt`
+  - `github_pr_comment_publish_receipt`
+  - `github_required_check_plan`
+- Added `github_pr_gate_packet` Artifact Registry preset.
+- Dashboard static sources now load redacted GitHub publish evidence fixtures.
+- Dashboard export calls pass `state.githubPublishEvidence` to JSON and Markdown reports.
+- Added documentation:
+  - `docs/a3/p3_github_publish_evidence_registry_2026_07_08.md`
+
 ### Verification
 
 ```text
@@ -3945,6 +3966,8 @@ node --check services/report/a3_github_integration.mjs
 node --check services/report/a3_release_evidence.mjs
 node --check services/report/report_builder.mjs
 node --test tests/a3/a3_github_integration.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs
+
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
 ```
 
 Result:
@@ -4013,6 +4036,11 @@ Result:
 - A2 judge and grade semantics were not changed.
 - A3 readback capture consumes downstream release evidence only.
 - A3 does not claim that GitHub readback equals A1 verifier success.
+
+73 tests
+73 pass
+0 fail
+```
 
 ### Safety boundary
 
@@ -4092,3 +4120,10 @@ Result:
 ### Current interpretation
 
 A3 now has the local path needed for a future CI worker: collect a redacted GitHub readback receipt, submit it through the A3 API, persist it, and show it in customer-facing dashboard/report surfaces. The remaining commercial step is a maintainer-approved live GitHub App or GitHub Actions worker plus hosted auth/RBAC and production Postgres/RLS.
+
+- No branch-protection mutation was made.
+- No token, cookie, email, Authorization header, raw signed URL, or local absolute user path was committed.
+
+### Current interpretation
+
+A3 PR Gate now has a stronger audit story: generated check/comment/required-check evidence can travel through report export and Artifact Registry. The next enterprise step is hashing those receipts into the audit bundle and verifying real branch protection.

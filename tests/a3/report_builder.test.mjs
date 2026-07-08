@@ -19,6 +19,7 @@ import {
   summarizeCoverage,
   summarizeCloudConsoleShell,
   summarizeEvidenceReadiness,
+  summarizeGithubPublishEvidence,
   summarizeMediaReadiness,
   summarizeRegressionReadiness,
   summarizeOfficialAshrGap,
@@ -863,6 +864,38 @@ test("A3 report exports include release evidence publish and verification summar
   const missing = summarizeReleaseEvidenceSummary({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /GitHub publish receipts/);
+});
+
+test("A3 report exports include GitHub publish evidence receipts", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const githubPublishEvidence = {
+    schema_version: "a3.github_publish_evidence.v1",
+    check_publish: await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    pr_comment_publish: await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    required_check_plan: await loadJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json")
+  };
+
+  const summary = summarizeGithubPublishEvidence(githubPublishEvidence);
+  assert.equal(summary.available, true);
+  assert.equal(summary.status, "planned");
+  assert.equal(summary.dry_run_only, true);
+  assert.equal(summary.posted_count, 0);
+  assert.equal(summary.planned_count, 3);
+  assert.equal(summary.required_check_planned, true);
+  assert.equal(summary.check_name, "Ashr++ Release Gate");
+  assert.equal(summary.safety.token_included, false);
+  assert.equal(summary.safety.secret_values_allowed, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, githubPublishEvidence);
+  assert.equal(json.github_publish_evidence.schema_version, "a3.github_publish_evidence_export.v1");
+  assert.equal(json.github_publish_evidence.required_check_planned, true);
+  assert.equal(json.github_publish_evidence.pr_comment_publish.status, "planned");
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, githubPublishEvidence);
+  assert.match(markdown, /## GitHub Publish Evidence/);
+  assert.match(markdown, /Required check planned: yes/);
+  assert.doesNotMatch(JSON.stringify(json.github_publish_evidence), /Authorization|Bearer|gh[pousr]_/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {

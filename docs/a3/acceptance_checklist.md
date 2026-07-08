@@ -258,6 +258,8 @@
 - [x] Add live-capable PR comment publisher behind explicit `--pr-comment --pull-number` opt-in.
 - [x] Add dry-run branch-protection required-check plan for `Ashr++ Release Gate`.
 - [x] Save redacted PR comment receipt and required-check plan fixtures under `fixtures/a3/p3`.
+- [x] Add `github_publish_evidence` to JSON and Markdown reports.
+- [x] Add GitHub check/comment/required-check artifacts to Artifact Registry and dashboard Report Center wiring.
 - [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
 - [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
 - [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
