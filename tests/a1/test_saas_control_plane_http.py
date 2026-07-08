@@ -159,23 +159,31 @@ def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch
     assert built_packet["run_id"] == "run_http"
     assert built_packet["integrity"]["packet_sha256"]
 
-    packet = build_release_evidence_packet(
+    _, packet_verification, packet_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_http/runs/run_http/release-evidence/verify",
+        {"tenant_id": "tenant_http", "api_key_id": "key_http", "packet": built_packet},
+    )
+    assert packet_verification["verified"] is True
+    assert packet_verification["bindings"]["usage"]["operation_totals"]["trace.ingest"] == 1
+    assert packet_verification["source"] == "submitted_packet"
+    stale_packet = build_release_evidence_packet(
         tenant_id="tenant_http",
         project_id="project_http",
         run_id="run_http",
         lifecycle=lifecycle,
         audit_chain=audit["verification"],
-        packet_id="packet_http",
+        packet_id="packet_http_stale",
     )
-    _, packet_verification, packet_text = _invoke_wsgi(
+    _, stale_verification, _ = _invoke_wsgi(
         app,
         "POST",
         "/v1/projects/project_http/runs/run_http/release-evidence/verify",
-        {"tenant_id": "tenant_http", "api_key_id": "key_http", "packet": packet},
+        {"tenant_id": "tenant_http", "api_key_id": "key_http", "packet": stale_packet},
     )
-    assert packet_verification["verified"] is True
-    assert packet_verification["packet_id"] == "packet_http"
-    assert packet_verification["source"] == "submitted_packet"
+    assert stale_verification["verified"] is False
+    assert "usage_operation_totals_mismatch" in {failure["reason"] for failure in stale_verification["failures"]}
     assert "secret_hash_sha256" not in audit_text + built_packet_text + packet_text
     assert "redacted-router-flow-marker" not in key_text + listed_text + uploaded_text + lifecycle_text + audit_text + built_packet_text + packet_text
 

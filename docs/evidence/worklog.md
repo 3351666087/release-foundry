@@ -3207,3 +3207,83 @@ Final post-audit validation:
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
 - `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
 - `git diff --check` passed; only LF-to-CRLF working-copy warnings.
+
+## Round23 A1 Large SaaS Verifier Hardening - 2026-07-08
+
+Goal source:
+- User updated active target to `docs/strategy/large-saas-a1-a2-a3-full-plan.md`; this round treated the Commercial SaaS / Agent Release OS plan as authoritative.
+- Highest-ROI slice selected from 3 options:
+  1. Canonical Phase-1 project/dataset/run CRUD API expansion.
+  2. SaaS-grade release evidence verifier v2 with auth/usage/audit/artifact bindings.
+  3. TS CLI full ingestion parity expansion.
+- Chosen: option 2, because it upgrades an existing buyer-facing evidence/read control-plane primitive into tenant-scoped, metered, audited SaaS infrastructure without changing A2 judge semantics or A3 dashboard workflows.
+
+Baseline / peer changes:
+- Commands: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `git branch --show-current`; `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- Peer changes observed: `origin/main` advanced to `69025b5 Prefer latest development toolchains`; A3 branches/PRs active: PR #18 `codex/a3-audit-evidence-bundle`, PR #17 `codex/a3-dashboard-polish`. No peer files were staged. Long-lived untracked `recon/` and `tools/` remain ignored/untracked.
+
+Bus / explorer review:
+- Bus-Auditor pre-implementation must-fixes: verifier endpoints required optional auth only; verifier reads were not metered/audited; release packet verification was too self-contained and did not bind stored run/audit/usage/artifact facts; A3 artifact bundle/publish evidence requires explicit A1 support or typed rejection; schema docs lagged implementation.
+- Reviewer risks: local router body/query tenant id must not be treated as hosted auth; idempotency lacks request fingerprints; Python upload/trace usage lacked `run_id`; CLI/OpenAPI parity must be watched.
+- Explorer-SDK/API findings: Python lacked TS artifact-manifest parity; Python SDK/CLI lacked usage/artifact-manifest methods; TS CLI still lags Python ingestion commands for a later slice.
+
+Implemented files:
+- `services/api/control_plane.py`
+  - Added `artifact_manifests` store bucket and state serialization/restore.
+  - Added `artifact.manifest`, `audit_chain.verify`, `release_evidence.verify` quota operations.
+  - Added `create_artifact_manifest` / `list_artifact_manifests` service methods and REST-ish routes.
+  - Added lifecycle `artifact_manifests` summary.
+  - Fixed Python upload/trace usage records to include `run_id`.
+  - Made audit-chain verification require `auth_key_id` with audit read scope, consume usage, and append an audit event.
+  - Made release-evidence verification require `auth_key_id` with evidence read scope, consume usage, append audit, and verify tenant/project/run plus stored counts, usage rollup, audit tail, artifact manifest hash, and bundle root binding when packet fields are present.
+- `packages/sdk/ashr_clone/saas.py`
+  - Added `usage_snapshot`, `create_artifact_manifest`, `list_artifact_manifests`.
+  - Added request_id propagation for verifier calls.
+  - Included artifact manifests in local release evidence packet build.
+- `packages/sdk/ashr_clone/saas_cli.py`
+  - Added `usage`, `artifact-manifest-create`, `artifact-manifest-list` commands.
+  - Added verifier `--request-id` support.
+- `packages/ts/ashr-clone/src/saas.ts`
+  - Mirrored verifier auth/usage/audit hardening and binding verification.
+  - Added verifier requestId passthrough for router/HTTP/CLI.
+  - Added quota operations for verifier reads.
+- `packages/ts/ashr-clone/test/saas-release-parity.test.mjs`
+  - Updated TS tests to require evidence read scope and explicit auth key for verifier calls.
+- `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_saas_control_plane_http.py`
+  - Updated positive verifier tests to use current release evidence packets.
+  - Added stale/manual packet mismatch assertions for usage binding failures.
+- `docs/a1/schemas/saas_release_evidence_verifier.schema.json`
+  - New public schema for verifier v2 response, bindings, usage_event_id, and public-safe flags.
+
+Commands / results:
+- `python -B -m py_compile services/api/control_plane.py packages/sdk/ashr_clone/saas.py packages/sdk/ashr_clone/saas_cli.py` passed.
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py -q -p no:cacheprovider` -> 26 passed.
+- `npm run build --prefix packages/ts/ashr-clone` passed.
+- `node --test packages/ts/ashr-clone/test/saas-release-parity.test.mjs` -> 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only Windows LF-to-CRLF warnings.
+
+Real API / private evidence:
+- No real Ashr API call was made in this round. The updated strategy demanded SaaS backend/verifier hardening first; this slice is local-only and marks `ashr_api_used=false`.
+- No desktop key files read. No secret values written to code, logs, schema, or worklog.
+
+Known gaps / next top 3:
+1. Add request fingerprint checking to idempotency records so same idempotency key with different payload returns conflict without quota/audit/mutation.
+2. Expand Phase-1 hosted API contract: canonical project/dataset/run CRUD plus complete/cancel/replay and case/observation/artifact aliases, with OpenAPI/Python/TS path parity.
+3. Bring TS CLI to Python CLI ingestion parity: bootstrap, sdk-submit, run-upload, trace-ingest, lifecycle, quota, state, usage, artifact-manifest commands.
+
+Round23 Bus-Auditor follow-up closure:
+- Auditor blocked initial commit because adjacent SaaS read/write surfaces still had optional auth: artifact manifest read/write, usage snapshot, and release-evidence build/read.
+- Follow-up implemented:
+  - Python `usage_snapshot` now requires `auth_key_id` with `usage:read`.
+  - Python `create_artifact_manifest` now requires `api_key_id` with `artifact:upload`.
+  - Python `list_artifact_manifests` now requires `auth_key_id` with `evidence:read`.
+  - Python release-evidence build route now requires `auth_key_id` with `evidence:read` and passes auth into artifact/audit reads.
+  - TS mirrors usage/artifact/release-evidence read auth requirements and tests now pass explicit scoped keys.
+- Follow-up validation:
+  - `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+  - `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+  - `git diff --check` passed; only Windows LF-to-CRLF warnings.
+- Staging caution: explicitly include `docs/a1/schemas/saas_release_evidence_verifier.schema.json`; keep `recon/` and `tools/` unstaged.

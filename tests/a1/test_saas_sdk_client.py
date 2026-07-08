@@ -112,25 +112,29 @@ def test_sdk_saas_client_exposes_audit_and_release_evidence_verification():
     assert audit["result"]["verification"]["verified"] is True
     assert audit["result"]["event_count"] >= 3
 
-    lifecycle = client.lifecycle_snapshot("tenant_verify", "project_verify", "run_verify")["result"]
-    packet = build_release_evidence_packet(
-        tenant_id="tenant_verify",
-        project_id="project_verify",
-        run_id="run_verify",
-        lifecycle=lifecycle,
-        audit_chain=audit["result"]["verification"],
-        packet_id="packet_verify",
-    )
+    packet = client.build_release_evidence_packet("tenant_verify", "project_verify", "run_verify", auth_key_id="key_verify")["result"]
     verified = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=packet, auth_key_id="key_verify")
     assert verified["operation"] == "verify_release_evidence_packet"
     assert verified["result"]["verified"] is True
-    assert verified["result"]["packet_id"] == "packet_verify"
+    assert verified["result"]["bindings"]["usage"]["operation_totals"]["run.upload"] == 1
+    assert verified["result"]["usage_event_id"].startswith("usage_")
 
     tampered = json.loads(json.dumps(packet))
     tampered["project_id"] = "project_other"
     mismatch = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=tampered, auth_key_id="key_verify")
     assert mismatch["result"]["verified"] is False
     assert {failure["reason"] for failure in mismatch["result"]["failures"]} >= {"packet_sha256_mismatch", "project_id_mismatch"}
+    stale = build_release_evidence_packet(
+        tenant_id="tenant_verify",
+        project_id="project_verify",
+        run_id="run_verify",
+        lifecycle=client.lifecycle_snapshot("tenant_verify", "project_verify", "run_verify")["result"],
+        audit_chain=audit["result"]["verification"],
+        packet_id="packet_verify_stale",
+    )
+    stale_result = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=stale, auth_key_id="key_verify")
+    assert stale_result["result"]["verified"] is False
+    assert "usage_operation_totals_mismatch" in {failure["reason"] for failure in stale_result["result"]["failures"]}
 
 
 def test_sdk_saas_client_rejects_raw_api_key_values():
@@ -177,15 +181,7 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True
 
-    lifecycle = cli("--state-input", str(state), "lifecycle", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli")
-    packet = build_release_evidence_packet(
-        tenant_id="tenant_sdk_cli",
-        project_id="project_sdk_cli",
-        run_id="run_sdk_cli",
-        lifecycle=lifecycle["result"],
-        audit_chain=audit["result"]["verification"],
-        packet_id="packet_sdk_cli",
-    )
+    packet = cli("--state-input", str(state), "release-evidence", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli")["result"]
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(packet), encoding="utf-8")
     verified = cli("--state-input", str(state), "release-evidence-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli", "--packet-file", str(packet_path))

@@ -20,7 +20,7 @@ function seededService() {
   const service = new SaaSControlPlaneService();
   service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_release", projectId: "project_ts_release" });
   service.cloud.createDataset("tenant_ts_release", "project_ts_release", { datasetId: "dataset_ts_release", name: "Dataset", cases: [{ id: "case-1", prompt: "ship?" }] });
-  service.createApiKey("tenant_ts_release", "project_ts_release", { name: "release key", scopes: ["sdk:submit", "run:upload", "trace:ingest", "artifact:write", "audit:read"], keyId: "key_ts_release" });
+  service.createApiKey("tenant_ts_release", "project_ts_release", { name: "release key", scopes: ["sdk:submit", "run:upload", "trace:ingest", "artifact:write", "audit:read", "evidence:read", "usage:read"], keyId: "key_ts_release" });
   service.sdkSubmitRun("tenant_ts_release", "project_ts_release", { datasetId: "dataset_ts_release", agentRef: "mock", runId: "run_ts_release", apiKeyId: "key_ts_release" });
   service.uploadRunResult("tenant_ts_release", "project_ts_release", "run_ts_release", { status: "completed", api_key: "tp_should_not_leak", score: 0.98 }, { uploadId: "upload_ts_release", apiKeyId: "key_ts_release" });
   service.ingestTrace("tenant_ts_release", "project_ts_release", "run_ts_release", [{ observation_id: "obs-1", type: "agent_message", content: "ok" }], { batchId: "trace_ts_release", apiKeyId: "key_ts_release" });
@@ -90,7 +90,7 @@ test("TS audit hash chain detects tampered audit events", () => {
 
 test("TS release evidence packet summarizes counts hashes usage and redaction", () => {
   const service = seededService();
-  const packet = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const packet = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   assert.equal(packet.packet_schema_version, "ashr.clone.release_evidence_packet.v1");
   assert.equal(packet.counts.uploads, 1);
   assert.equal(packet.counts.trace_batches, 1);
@@ -106,7 +106,7 @@ test("TS release evidence packet summarizes counts hashes usage and redaction", 
 });
 
 test("TS release evidence packet verifier rejects count tampering", () => {
-  const packet = seededService().buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const packet = seededService().buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   const tampered = JSON.parse(JSON.stringify(packet));
   tampered.counts.uploads = 99;
   const verification = verifyReleaseEvidencePacket(tampered);
@@ -130,9 +130,9 @@ test("TS release evidence packet verifier rejects count tampering", () => {
 
 test("TS release evidence packet integrity changes when evidence changes", () => {
   const service = seededService();
-  const before = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const before = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   service.ingestTrace("tenant_ts_release", "project_ts_release", "run_ts_release", [{ observation_id: "obs-2", type: "tool_call" }], { batchId: "trace_ts_release_2", apiKeyId: "key_ts_release" });
-  const after = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const after = service.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   assert.notEqual(after.integrity.packet_sha256, before.integrity.packet_sha256);
   assert.equal(after.counts.trace_batches, 2);
   assert.equal(after.counts.observations, 2);
@@ -192,9 +192,9 @@ test("TS client local wrappers envelope release gate audit and evidence operatio
   const client = new SaaSIngestionClient({ service: seededService() });
   const gate = client.evaluateReleaseGate("tenant_ts_release", "project_ts_release", "run_ts_release");
   const audit = client.auditLog("tenant_ts_release", "project_ts_release", { actionPrefix: "release_gate" });
-  const auditVerify = client.verifyAuditChain("tenant_ts_release", "project_ts_release");
-  const evidence = client.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
-  const evidenceVerify = client.verifyReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const auditVerify = client.verifyAuditChain("tenant_ts_release", "project_ts_release", { authKeyId: "key_ts_release" });
+  const evidence = client.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
+  const evidenceVerify = client.verifyReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   assert.equal(gate.operation, "release_gate");
   assert.equal(audit.operation, "audit_log");
   assert.equal(auditVerify.operation, "audit_chain_verify");
@@ -292,14 +292,14 @@ test("TS SaaS CLI emits audit log and release evidence from state", async () => 
     service.evaluateReleaseGate("tenant_ts_release", "project_ts_release", "run_ts_release", { requestId: "req-audit" });
     await writeFile(statePath, `${JSON.stringify(service.snapshotState(), null, 2)}\n`, "utf8");
     const audit = runSaasCli(["--state-input", statePath, "audit-log", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--action-prefix", "release_gate"]);
-    const auditVerify = runSaasCli(["--state-input", statePath, "audit-chain-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release"]);
-    const evidence = runSaasCli(["--state-input", statePath, "release-evidence", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release"]);
-    const evidenceVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release"]);
+    const auditVerify = runSaasCli(["--state-input", statePath, "audit-chain-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--auth-key-id", "key_ts_release"]);
+    const evidence = runSaasCli(["--state-input", statePath, "release-evidence", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--auth-key-id", "key_ts_release"]);
+    const evidenceVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--auth-key-id", "key_ts_release"]);
     const packetPath = join(tempDir, "packet.json");
     const tamperedPacket = JSON.parse(JSON.stringify(evidence.result));
     tamperedPacket.counts.uploads = 99;
     await writeFile(packetPath, `${JSON.stringify(tamperedPacket)}\n`, "utf8");
-    const submittedVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--packet-file", packetPath]);
+    const submittedVerify = runSaasCli(["--state-input", statePath, "release-evidence-verify", "--tenant-id", "tenant_ts_release", "--project-id", "project_ts_release", "--run-id", "run_ts_release", "--auth-key-id", "key_ts_release", "--packet-file", packetPath]);
     assert.equal(audit.operation, "audit_log");
     assert.equal(audit.result.events.some((event) => event.request_id === "req-audit"), true);
     assert.equal(auditVerify.operation, "audit_chain_verify");
@@ -327,7 +327,7 @@ test("TS SaaS CLI hosted mode rejects state mixing for release commands", async 
 
 test("TS release evidence packet survives snapshot restore", () => {
   const restored = SaaSControlPlaneService.fromState(seededService().snapshotState());
-  const packet = restored.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release");
+  const packet = restored.buildReleaseEvidencePacket("tenant_ts_release", "project_ts_release", "run_ts_release", { authKeyId: "key_ts_release" });
   assert.equal(packet.counts.uploads, 1);
   assert.equal(packet.counts.trace_batches, 1);
   assert.equal(packet.counts.artifacts, 1);

@@ -92,6 +92,22 @@ def build_parser() -> argparse.ArgumentParser:
     quota = subparsers.add_parser("quota", help="Read tenant/project quota snapshot.")
     _add_project_args(quota)
 
+    usage = subparsers.add_parser("usage", help="Read tenant/project usage ledger snapshot.")
+    _add_project_args(usage)
+    usage.add_argument("--auth-key-id")
+
+    artifact_create = subparsers.add_parser("artifact-manifest-create", help="Store a hash-only artifact manifest receipt for a run.")
+    _add_run_args(artifact_create)
+    artifact_create.add_argument("--manifest-json")
+    artifact_create.add_argument("--manifest-file")
+    artifact_create.add_argument("--artifact-id")
+    artifact_create.add_argument("--api-key-id")
+    _add_ingestion_retry_args(artifact_create)
+
+    artifact_list = subparsers.add_parser("artifact-manifest-list", help="List artifact manifest receipts for a run.")
+    _add_run_args(artifact_list)
+    artifact_list.add_argument("--auth-key-id")
+
     audit_verify = subparsers.add_parser("audit-chain-verify", help="Verify the local hosted audit event hash chain.")
     _add_project_args(audit_verify)
     audit_verify.add_argument("--auth-key-id")
@@ -99,12 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
     audit_verify.add_argument("--target-id")
     audit_verify.add_argument("--audit-api-key-id")
     audit_verify.add_argument("--limit", type=int)
+    audit_verify.add_argument("--request-id")
 
     release_verify = subparsers.add_parser("release-evidence-verify", help="Verify a release evidence packet JSON file.")
     _add_run_args(release_verify)
     release_verify.add_argument("--packet-json")
     release_verify.add_argument("--packet-file")
     release_verify.add_argument("--auth-key-id")
+    release_verify.add_argument("--request-id")
 
     release_evidence = subparsers.add_parser("release-evidence", help="Build a public-safe release evidence packet from local control-plane state.")
     _add_run_args(release_evidence)
@@ -184,13 +202,28 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.lifecycle_snapshot(args.tenant_id, args.project_id, args.run_id)
     elif command == "quota":
         envelope = client.quota_snapshot(args.tenant_id, args.project_id)
+    elif command == "usage":
+        envelope = client.usage_snapshot(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
+    elif command == "artifact-manifest-create":
+        envelope = client.create_artifact_manifest(
+            args.tenant_id,
+            args.project_id,
+            args.run_id,
+            _load_object_arg(args.manifest_json, args.manifest_file, default={}),
+            artifact_id=args.artifact_id,
+            api_key_id=args.api_key_id,
+            idempotency_key=args.idempotency_key,
+            request_id=args.request_id,
+        )
+    elif command == "artifact-manifest-list":
+        envelope = client.list_artifact_manifests(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
     elif command == "audit-chain-verify":
-        envelope = client.verify_audit_chain(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id, action=args.action, target_id=args.target_id, api_key_id=args.audit_api_key_id, limit=args.limit)
+        envelope = client.verify_audit_chain(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id, action=args.action, target_id=args.target_id, api_key_id=args.audit_api_key_id, limit=args.limit, request_id=args.request_id)
     elif command == "release-evidence":
         envelope = client.build_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
     elif command == "release-evidence-verify":
         packet = _load_object_arg(args.packet_json, args.packet_file, default=None) if (args.packet_json or args.packet_file) else None
-        envelope = client.verify_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, packet=packet, auth_key_id=args.auth_key_id)
+        envelope = client.verify_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, packet=packet, auth_key_id=args.auth_key_id, request_id=args.request_id)
     elif command == "state":
         snapshot = client.snapshot_state()
         envelope = {

@@ -207,7 +207,7 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   const service = new SaaSControlPlaneService();
   service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_artifact", projectId: "project_ts_artifact" });
   service.cloud.createDataset("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", name: "Dataset", cases: [{ id: "case-1" }] });
-  service.createApiKey("tenant_ts_artifact", "project_ts_artifact", { name: "artifact-writer", scopes: ["sdk:submit", "artifact:write"], keyId: "key_ts_artifact" });
+  service.createApiKey("tenant_ts_artifact", "project_ts_artifact", { name: "artifact-writer", scopes: ["sdk:submit", "artifact:write", "evidence:read", "usage:read"], keyId: "key_ts_artifact" });
   service.sdkSubmitRun("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", agentRef: "mock", runId: "run_ts_artifact", apiKeyId: "key_ts_artifact" });
 
   const manifest = service.createArtifactManifest(
@@ -231,9 +231,9 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   assert.equal(replay.artifact_id, "artifact_ts");
   assert.equal(JSON.stringify(manifest).includes("tp_should_not_leak"), false);
 
-  const listed = service.listArtifactManifests("tenant_ts_artifact", "project_ts_artifact", "run_ts_artifact");
+  const listed = service.listArtifactManifests("tenant_ts_artifact", "project_ts_artifact", "run_ts_artifact", { authKeyId: "key_ts_artifact" });
   assert.equal(listed.length, 1);
-  const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact");
+  const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact", { authKeyId: "key_ts_artifact" });
   assert.equal(usage.totals["artifact.manifest"], 1);
 });
 

@@ -15,6 +15,8 @@ export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "sdk.submit": 10000,
   "trace.ingest": 100000,
   "artifact.manifest": 10000,
+  "audit_chain.verify": 10000,
+  "release_evidence.verify": 10000,
 };
 
 export const API_KEY_ADMIN_SCOPE = "api_key:write";
@@ -393,7 +395,8 @@ export class SaaSControlPlaneService {
 
   usageSnapshot(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
     this.cloud.getProject(tenantId, projectId);
-    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: USAGE_READ_SCOPE });
+    if (options.authKeyId === undefined) throw new ValidationError("usage snapshot requires authKeyId with usage:read scope");
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: USAGE_READ_SCOPE });
     const events = Object.values(this.store.usage_ledger).filter((item) => item.tenant_id === tenantId && item.project_id === projectId);
     const totals: Record<string, number> = {};
     for (const event of events) {
@@ -405,7 +408,8 @@ export class SaaSControlPlaneService {
 
   createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
     this.cloud.getRun(tenantId, projectId, runId);
-    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
+    if (options.apiKeyId === undefined) throw new ValidationError("artifact manifest upload requires apiKeyId with artifact:upload scope");
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
     const cached = this.idempotencyLookup(tenantId, projectId, "artifact.manifest", options.idempotencyKey);
     if (cached !== null) return { ...cached, idempotent_replay: true };
     const usage = this.consumeUsage(tenantId, projectId, "artifact.manifest", { apiKeyId: options.apiKeyId, idempotencyKey: options.idempotencyKey, requestId: options.requestId, runId });
@@ -435,7 +439,8 @@ export class SaaSControlPlaneService {
 
   listArtifactManifests(tenantId: string, projectId: string, runId?: string, options: { authKeyId?: string } = {}): JsonRecord[] {
     this.cloud.getProject(tenantId, projectId);
-    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: ARTIFACT_MANIFEST_SCOPE });
+    if (options.authKeyId === undefined) throw new ValidationError("artifact manifest read requires authKeyId with evidence:read scope");
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: "evidence:read" });
     return Object.values(this.store.artifact_manifests).filter((item) => item.tenant_id === tenantId && item.project_id === projectId && (runId === undefined || item.run_id === runId)).map((item) => cloneJson(item) as JsonRecord);
   }
 
@@ -508,27 +513,34 @@ export class SaaSControlPlaneService {
     };
   }
 
-  verifyAuditChain(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
+  verifyAuditChain(tenantId: string, projectId: string, options: { authKeyId?: string; requestId?: string } = {}): JsonRecord {
+    if (options.authKeyId === undefined) throw new ValidationError("audit-chain verification requires authKeyId with audit:read scope");
     const snapshot = this.auditSnapshot(tenantId, projectId, { authKeyId: options.authKeyId, limit: 500 });
-    return {
+    const usage = this.consumeUsage(tenantId, projectId, "audit_chain.verify", { apiKeyId: options.authKeyId, requestId: options.requestId });
+    const response: JsonRecord = {
       schema_version: "ashr.clone.audit_chain_verification.v1",
       tenant_id: tenantId,
       project_id: projectId,
       ...cloneJson(snapshot.chain) as JsonRecord,
+      usage_event_id: usage.usage_event_id,
       raw_payload_included: false,
       secret_value_present: false,
     };
+    this.appendAudit(tenantId, projectId, "audit_chain.verify", { apiKeyId: options.authKeyId, requestId: options.requestId, after: { verified: response.verified, event_count: response.event_count, usage_event_id: usage.usage_event_id } });
+    return response;
   }
 
   buildReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { releaseGate?: JsonRecord; authKeyId?: string } = {}): JsonRecord {
     const lifecycle = this.lifecycleSnapshot(tenantId, projectId, runId);
     if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: AUDIT_READ_SCOPE });
     const releaseGate = options.releaseGate ?? this.evaluateReleaseGate(tenantId, projectId, runId, { authKeyId: options.authKeyId });
-    const artifacts = this.listArtifactManifests(tenantId, projectId, runId);
-    const usage = this.usageSnapshot(tenantId, projectId);
+    if (options.authKeyId === undefined) throw new ValidationError("release evidence read requires authKeyId with evidence:read scope");
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: "evidence:read" });
+    const artifacts = this.listArtifactManifests(tenantId, projectId, runId, { authKeyId: options.authKeyId });
+    const usage = this.usageSnapshot(tenantId, projectId, { authKeyId: options.authKeyId });
     const uploads = Array.isArray(lifecycle.uploads) ? lifecycle.uploads : [];
     const traces = Array.isArray(lifecycle.trace_batches) ? lifecycle.trace_batches : [];
-    const audit = this.auditSnapshot(tenantId, projectId, { runId, limit: 200 });
+    const audit = this.auditSnapshot(tenantId, projectId, { runId, limit: 200, authKeyId: options.authKeyId });
     const payload = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
       packet_schema_version: "ashr.clone.release_evidence_packet.v1",
@@ -565,23 +577,34 @@ export class SaaSControlPlaneService {
     return { ...payload, integrity: { packet_sha256: sha256(JSON.stringify(sortJson(payload))) } };
   }
 
-  verifyReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord } = {}): JsonRecord {
+  verifyReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord; requestId?: string } = {}): JsonRecord {
+    if (options.authKeyId === undefined) throw new ValidationError("release-evidence verification requires authKeyId with evidence:read scope");
+    this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: "evidence:read" });
     const packet = options.packet ?? this.buildReleaseEvidencePacket(tenantId, projectId, runId, { authKeyId: options.authKeyId });
     const verification = verifyReleaseEvidencePacket(packet);
     const failures = Array.isArray(verification.failures) ? [...verification.failures] : [];
     if (String(packet.tenant_id ?? "") !== tenantId) failures.push({ reason: "tenant_id_mismatch", expected: tenantId, actual: packet.tenant_id ?? null });
     if (String(packet.project_id ?? "") !== projectId) failures.push({ reason: "project_id_mismatch", expected: projectId, actual: packet.project_id ?? null });
     if (String(packet.run_id ?? "") !== runId) failures.push({ reason: "run_id_mismatch", expected: runId, actual: packet.run_id ?? null });
-    return {
+    const bindings = releasePacketBindings(this, tenantId, projectId, runId, options.authKeyId);
+    failures.push(...verifyReleasePacketBindings(packet, bindings));
+    const usage = this.consumeUsage(tenantId, projectId, "release_evidence.verify", { apiKeyId: options.authKeyId, requestId: options.requestId, runId });
+    const response: JsonRecord = {
       tenant_id: tenantId,
       project_id: projectId,
       run_id: runId,
       ...verification,
       verified: failures.length === 0,
       failures,
+      bindings,
+      usage_event_id: usage.usage_event_id,
       source: options.packet === undefined ? "current_snapshot" : "submitted_packet",
       raw_payload_included: false,
       secret_value_present: false,
+    };
+    this.appendAudit(tenantId, projectId, "release_evidence.verify", { targetId: runId, apiKeyId: options.authKeyId, requestId: options.requestId, after: { verified: response.verified, packet_sha256: response.packet_sha256, actual_packet_sha256: response.actual_packet_sha256, usage_event_id: usage.usage_event_id } });
+    return {
+      ...response,
     };
   }
 
@@ -794,7 +817,7 @@ export class SaaSControlPlaneRouter {
           return { status_code: 200, body: this.service.auditSnapshot(tenantId, projectId, { authKeyId, runId: optionalString(body.run_id), actionPrefix: optionalString(body.action_prefix), limit: body.limit === undefined ? undefined : Number(body.limit) }) };
         }
         if (upperMethod === "POST" && parts.length === 5 && parts[3] === "audit-chain" && parts[4] === "verify") {
-          return { status_code: 200, body: this.service.verifyAuditChain(tenantId, projectId, { authKeyId }) };
+          return { status_code: 200, body: this.service.verifyAuditChain(tenantId, projectId, { authKeyId, requestId: optionalString(body.request_id) }) };
         }
         if (parts.length >= 6 && parts[3] === "runs") {
           const runId = parts[4];
@@ -814,7 +837,7 @@ export class SaaSControlPlaneRouter {
             return { status_code: 200, body: this.service.buildReleaseEvidencePacket(tenantId, projectId, runId, { authKeyId }) };
           }
           if (upperMethod === "POST" && parts.length === 7 && parts[5] === "release-evidence" && parts[6] === "verify") {
-            return { status_code: 200, body: this.service.verifyReleaseEvidencePacket(tenantId, projectId, runId, { authKeyId, packet: isRecord(body.packet) ? body.packet : undefined }) };
+            return { status_code: 200, body: this.service.verifyReleaseEvidencePacket(tenantId, projectId, runId, { authKeyId, packet: isRecord(body.packet) ? body.packet : undefined, requestId: optionalString(body.request_id) }) };
           }
           if (upperMethod === "POST" && parts.length === 6 && parts[5] === "artifact-manifests") {
             return { status_code: 202, body: this.service.createArtifactManifest(tenantId, projectId, runId, isRecord(body.manifest) ? body.manifest : body, { artifactId: optionalString(body.artifact_id), apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
@@ -1062,7 +1085,7 @@ export class SaaSIngestionClient {
     return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, options));
   }
 
-  verifyAuditChain(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
+  verifyAuditChain(tenantId: string, projectId: string, options: { authKeyId?: string; requestId?: string } = {}): JsonRecord {
     return envelope("audit_chain_verify", this.service.verifyAuditChain(tenantId, projectId, options));
   }
 
@@ -1074,7 +1097,7 @@ export class SaaSIngestionClient {
     return envelope("release_evidence", this.service.buildReleaseEvidencePacket(tenantId, projectId, runId, options));
   }
 
-  verifyReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord } = {}): JsonRecord {
+  verifyReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord; requestId?: string } = {}): JsonRecord {
     return envelope("release_evidence_verify", this.service.verifyReleaseEvidencePacket(tenantId, projectId, runId, options));
   }
 
@@ -1145,8 +1168,8 @@ export class SaaSIngestionClient {
     return envelope("audit_log", body);
   }
 
-  async verifyAuditChainHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/audit-chain/verify`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+  async verifyAuditChainHttp(tenantId: string, projectId: string, options: { authKeyId?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/audit-chain/verify`, { tenant_id: tenantId, auth_key_id: options.authKeyId, request_id: options.requestId });
     return envelope("audit_chain_verify", body);
   }
 
@@ -1160,8 +1183,8 @@ export class SaaSIngestionClient {
     return envelope("release_evidence", body);
   }
 
-  async verifyReleaseEvidencePacketHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/release-evidence/verify`, { tenant_id: tenantId, auth_key_id: options.authKeyId, packet: options.packet });
+  async verifyReleaseEvidencePacketHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string; packet?: JsonRecord; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/release-evidence/verify`, { tenant_id: tenantId, auth_key_id: options.authKeyId, packet: options.packet, request_id: options.requestId });
     return envelope("release_evidence_verify", body);
   }
 
@@ -1240,8 +1263,8 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       break;
     case "audit-chain-verify":
       result = baseUrl !== undefined
-        ? await client.verifyAuditChainHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
-        : client.verifyAuditChain(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
+        ? await client.verifyAuditChainHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false), requestId: stringOption(options, "request-id", false) })
+        : client.verifyAuditChain(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false), requestId: stringOption(options, "request-id", false) });
       break;
     case "release-evidence":
       result = baseUrl !== undefined
@@ -1252,8 +1275,8 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       {
         const packet = await packetOption(options);
       result = baseUrl !== undefined
-        ? await client.verifyReleaseEvidencePacketHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet })
-        : client.verifyReleaseEvidencePacket(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet });
+        ? await client.verifyReleaseEvidencePacketHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet, requestId: stringOption(options, "request-id", false) })
+        : client.verifyReleaseEvidencePacket(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet, requestId: stringOption(options, "request-id", false) });
       }
       break;
     default:
@@ -1491,6 +1514,54 @@ export function verifyReleaseEvidencePacket(packet: JsonRecord): JsonRecord {
     actual_packet_sha256: actualHash,
     failures,
   };
+}
+
+function releasePacketBindings(service: SaaSControlPlaneService, tenantId: string, projectId: string, runId: string, authKeyId: string): JsonRecord {
+  const lifecycle = service.lifecycleSnapshot(tenantId, projectId, runId);
+  const artifacts = service.listArtifactManifests(tenantId, projectId, runId, { authKeyId });
+  const usage = service.usageSnapshot(tenantId, projectId, { authKeyId });
+  const audit = service.auditSnapshot(tenantId, projectId, { runId, limit: 200, authKeyId });
+  const uploads = Array.isArray(lifecycle.uploads) ? lifecycle.uploads : [];
+  const traces = Array.isArray(lifecycle.trace_batches) ? lifecycle.trace_batches : [];
+  const events = Array.isArray(usage.events) ? usage.events : [];
+  const operationTotals = isRecord(usage.totals) ? usage.totals : {};
+  const auditChain = isRecord(audit.chain) ? audit.chain : {};
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+    counts: { uploads: uploads.length, trace_batches: traces.length, artifacts: artifacts.length },
+    hashes: {
+      uploads_sha256: sha256(JSON.stringify(sortJson(uploads))),
+      trace_batches_sha256: sha256(JSON.stringify(sortJson(traces))),
+      artifact_manifests_sha256: sha256(JSON.stringify(sortJson(artifacts))),
+      usage_ledger_sha256: sha256(JSON.stringify(sortJson(events))),
+    },
+    usage: { operation_totals: cloneJson(operationTotals), billable_units: Object.values(operationTotals).reduce<number>((total, item) => total + Number(item ?? 0), 0) },
+    audit_chain: { verified: auditChain.verified ?? null, event_count: auditChain.event_count ?? 0, tail_audit_event_sha256: auditChain.tail_audit_event_sha256 ?? null },
+    bundle_root_sha256: sha256(JSON.stringify(sortJson({ artifacts, usage: operationTotals, audit_chain: auditChain }))),
+  };
+}
+
+function verifyReleasePacketBindings(packet: JsonRecord, expected: JsonRecord): JsonRecord[] {
+  const failures: JsonRecord[] = [];
+  const packetCounts = isRecord(packet.counts) ? packet.counts : {};
+  const expectedCounts = isRecord(expected.counts) ? expected.counts : {};
+  for (const key of ["uploads", "trace_batches", "artifacts"]) {
+    if (packetCounts[key] !== undefined && packetCounts[key] !== expectedCounts[key]) failures.push({ reason: `${key}_count_mismatch`, expected: expectedCounts[key], actual: packetCounts[key] });
+  }
+  const packetUsage = isRecord(packet.usage) ? packet.usage : {};
+  const expectedUsage = isRecord(expected.usage) ? expected.usage : {};
+  if (packetUsage.operation_totals !== undefined && JSON.stringify(sortJson(packetUsage.operation_totals)) !== JSON.stringify(sortJson(expectedUsage.operation_totals))) failures.push({ reason: "usage_operation_totals_mismatch", expected: expectedUsage.operation_totals, actual: packetUsage.operation_totals });
+  if (packetUsage.billable_units !== undefined && packetUsage.billable_units !== expectedUsage.billable_units) failures.push({ reason: "usage_billable_units_mismatch", expected: expectedUsage.billable_units, actual: packetUsage.billable_units });
+  const packetAudit = isRecord(packet.audit_chain) ? packet.audit_chain : {};
+  const expectedAudit = isRecord(expected.audit_chain) ? expected.audit_chain : {};
+  if (packetAudit.tail_audit_event_sha256 !== undefined && packetAudit.tail_audit_event_sha256 !== null && packetAudit.tail_audit_event_sha256 !== expectedAudit.tail_audit_event_sha256) failures.push({ reason: "audit_chain_tail_mismatch", expected: expectedAudit.tail_audit_event_sha256, actual: packetAudit.tail_audit_event_sha256 });
+  const packetHashes = isRecord(packet.hashes) ? packet.hashes : {};
+  const expectedHashes = isRecord(expected.hashes) ? expected.hashes : {};
+  const artifactHash = packetHashes.artifacts_sha256 ?? packetHashes.artifact_manifests_sha256;
+  if (artifactHash !== undefined && artifactHash !== expectedHashes.artifact_manifests_sha256) failures.push({ reason: "artifact_manifest_hash_mismatch", expected: expectedHashes.artifact_manifests_sha256, actual: artifactHash });
+  const packetBindings = isRecord(packet.bindings) ? packet.bindings : {};
+  if (packetBindings.bundle_root_sha256 !== undefined && packetBindings.bundle_root_sha256 !== expected.bundle_root_sha256) failures.push({ reason: "bundle_root_sha256_mismatch", expected: expected.bundle_root_sha256, actual: packetBindings.bundle_root_sha256 });
+  return failures;
 }
 
 const SUSPICIOUS_RELEASE_PACKET_KEYS = new Set([
