@@ -150,6 +150,66 @@ class A2ResultPersistenceTests(unittest.TestCase):
         self.assertNotIn("Reviewed private waiver reason", record_text)
         self.assertNotIn("secret-test-value", record_text)
 
+    def test_release_policy_saas_surface_audit_persists_public_safe_summary(self):
+        release_gate = _release_gate_with_saas_surface_violations()
+        manifest = build_result_persistence_manifest(
+            {"schema_version": "a2.grade_results.v1", "report_id": "unit", "dataset_id": "unit", "grade_results": []},
+            release_gate,
+            {"schema_version": "a2.scenario_pack.v1", "scenarios": []},
+            created_at="2026-07-07T00:00:00Z",
+        )
+        release_gate_record = next(record for record in manifest["records"] if record["record_type"] == "release_gate")
+        audit = release_gate_record["release_policy_audit"]
+
+        self.assertEqual(
+            audit["saas_surface_metrics"],
+            {
+                "usage_quota_blocked": 1,
+                "trust_publishability_blocked": 1,
+                "api_key_boundary_violations": 1,
+                "server_side_grading_stale": 1,
+            },
+        )
+        self.assertEqual(len(audit["active_violations"]), 4)
+        active_by_metric = {
+            violation["observed"]["metric"]: violation for violation in audit["active_violations"]
+        }
+        self.assertEqual(active_by_metric["api_key_boundary_violations"]["mode"], "blocking")
+        self.assertEqual(active_by_metric["api_key_boundary_violations"]["severity"], "critical")
+        self.assertEqual(active_by_metric["usage_quota_blocked"]["owner_role"], "billing_admin")
+        self.assertEqual(active_by_metric["server_side_grading_stale"]["dashboard_label"], "Server-side grading stale")
+        self.assertNotIn("raw_account_payload", audit["saas_surface_metrics"])
+
+        jsonl_record = build_result_record(
+            {
+                "schema_version": "a2.internal_service_response.v1",
+                "endpoint": "/internal/release-policy/evaluate",
+                "ok": True,
+                "status_code": 200,
+                "result": release_gate,
+            },
+            org_id="org_demo",
+            project_id="project_enterprise",
+            run_id="run_demo",
+            kind="release_policy",
+            judge_version="a2-judge-service-0.1.0",
+            policy_hash=stable_hash({"policy": "unit"}),
+            input_payload={"authorization": "Bearer" + " secret-test-value-1234"},
+            created_at="2026-07-07T00:00:00Z",
+        )
+        jsonl_audit = jsonl_record["output_summary"]["release_policy_audit"]
+        self.assertEqual(jsonl_audit["saas_surface_metrics"], audit["saas_surface_metrics"])
+        self.assertEqual(len(jsonl_audit["active_violations"]), 4)
+
+        record_text = json.dumps({"release_gate": release_gate_record, "jsonl": jsonl_record}, sort_keys=True)
+        self.assertNotIn("docs/evidence/private_refs", record_text)
+        self.assertNotIn("raw_account_payload", record_text)
+        self.assertNotIn("raw_request_body", record_text)
+        self.assertNotIn("should-not-persist", record_text)
+        self.assertNotIn("Bearer", record_text)
+        self.assertNotIn("ashr_live_", record_text)
+        self.assertNotIn("secret-test-value", record_text)
+
     def test_jsonl_ready_record_keeps_hashes_without_raw_payload_or_private_refs(self):
         record = build_result_record(
             {
@@ -301,6 +361,115 @@ def _release_gate_with_policy_waiver() -> dict:
             ],
             "unapplied_waivers": [{"raw_payload": {"api_key": "secret-test-value-1234"}}],
         },
+    }
+
+
+def _release_gate_with_saas_surface_violations() -> dict:
+    return {
+        "schema_version": "a2.release_gate.v1",
+        "release_candidate": {"id": "agent-v43", "profile": "strict-commercial"},
+        "decision": "block",
+        "exit_code": 2,
+        "risk_score": 95,
+        "blocking_gate_count": 4,
+        "evidence_blocker_count": 0,
+        "warning_count": 0,
+        "ready_for_commercial_gate": False,
+        "policy_evaluation": {
+            "schema_version": "a2.release_policy_evaluation.v1",
+            "policy_id": "release_policy_prod_strict",
+            "policy_version": "2026-07-07.1",
+            "policy_hash": stable_hash({"policy": "unit-saas-surface"}),
+            "project_id": "project_enterprise",
+            "environment": "prod",
+            "release_candidate_id": "agent-v43",
+            "decision": "block",
+            "blocking_violation_count": 4,
+            "non_blocking_violation_count": 0,
+            "waived_violation_count": 0,
+            "metrics": {
+                "usage_quota_blocked": 1,
+                "trust_publishability_blocked": 1,
+                "api_key_boundary_violations": 1,
+                "server_side_grading_stale": 1,
+                "raw_account_payload": "should-not-persist",
+            },
+            "violations": [
+                _saas_metric_violation(
+                    "prod_usage_quota_available",
+                    "usage_quota_blocked",
+                    "blocking",
+                    "high",
+                    "billing_admin",
+                    "Usage quota blocks release evaluation.",
+                    "Usage quota blocked",
+                    45,
+                ),
+                _saas_metric_violation(
+                    "prod_no_api_key_boundary_violations",
+                    "api_key_boundary_violations",
+                    "blocking",
+                    "critical",
+                    "security_admin",
+                    "Release boundary leaked credential handling.",
+                    "API key boundary violation",
+                    45,
+                ),
+                _saas_metric_violation(
+                    "prod_trust_page_publishable",
+                    "trust_publishability_blocked",
+                    "blocking",
+                    "high",
+                    "release_manager",
+                    "Trust page is not publishable for enterprise review.",
+                    "Trust publishability blocked",
+                    25,
+                ),
+                _saas_metric_violation(
+                    "prod_server_side_grading_current",
+                    "server_side_grading_stale",
+                    "blocking",
+                    "high",
+                    "evaluation_owner",
+                    "Server-side grading evidence is stale.",
+                    "Server-side grading stale",
+                    25,
+                ),
+            ],
+        },
+    }
+
+
+def _saas_metric_violation(
+    rule_id: str,
+    metric: str,
+    mode: str,
+    severity: str,
+    owner_role: str,
+    business_impact: str,
+    dashboard_label: str,
+    risk_weight: int,
+) -> dict:
+    return {
+        "rule_id": rule_id,
+        "type": "metric_threshold",
+        "mode": mode,
+        "severity": severity,
+        "passed": False,
+        "summary": f"{metric} failed == 0.",
+        "owner_role": owner_role,
+        "business_impact": business_impact,
+        "dashboard_label": dashboard_label,
+        "risk_weight": risk_weight,
+        "waiver_eligible": False,
+        "observed": {
+            "metric": metric,
+            "value": 1,
+            "raw_request_body": "should-not-persist",
+        },
+        "threshold": {"operator": "==", "threshold": 0},
+        "evidence_refs": ["docs/evidence/private_refs/saas-surface.json"],
+        "raw_payload": {"token": "ashr" + "_live_should_not_persist"},
     }
 
 
