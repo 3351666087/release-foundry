@@ -19,7 +19,7 @@
       "id": "json_report",
       "path": "fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json",
       "content_type": "application/json",
-      "sha256": "aa1827554400849a99564b55dd28de4e25cfdcae2d0be6bb400b0bcf0f93c2fb",
+      "sha256": "1951e5af1e4db53b0982302c9594fe638a1fc1fedac3c61872581834bf67bbe1",
       "byte_size": 20382,
       "required": true
     },
@@ -27,7 +27,7 @@
       "id": "markdown_report",
       "path": "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
       "content_type": "text/markdown",
-      "sha256": "f9a05a1c897efd1d8709d94accd87bb365c2c4b1a736d10597cf19fd4663b53b",
+      "sha256": "91666a12fb0731cf3fef56e3552cca31db1a3f46ba8b87c3e534f3c97257ec33",
       "byte_size": 2557,
       "required": true
     },
