@@ -476,7 +476,16 @@ def test_saas_control_plane_worker_job_lease_retry_dead_letter_and_redaction():
 
     listed = control.list_worker_jobs(tenant_id, project_id, status="dead_lettered")
     assert listed["count"] == 1
+    assert listed["returned_count"] == 1
+    assert listed["total_count"] == 1
+    assert listed["has_more"] is False
+    assert listed["next_cursor"] is None
     assert listed["jobs"][0]["job_id"] == "job_replay_1"
+    limited = control.list_worker_jobs(tenant_id, project_id, limit=1)
+    assert limited["count"] == 1
+    assert limited["returned_count"] == 1
+    assert limited["total_count"] == 1
+    assert limited["has_more"] is False
     assert control.cloud.quota_snapshot(tenant_id, project_id)["used"]["worker.job.fail"] == 2
     audit = control.audit_snapshot(tenant_id, project_id)
     assert {event["action"] for event in audit["events"]} >= {"worker.job.enqueue", "worker.job.lease", "worker.job.fail"}
@@ -496,6 +505,35 @@ def test_saas_control_plane_worker_job_can_be_released_after_expired_lease():
     assert leased_again["leased"] is True
     assert leased_again["job"]["lease_owner_id"] == "worker-new"
     assert leased_again["job"]["attempts"] == 2
+
+
+def test_saas_control_plane_worker_job_router_and_openapi_use_enqueue_route():
+    from services.api.control_plane import SaaSControlPlaneRouter, control_plane_openapi_document
+
+    control, tenant, project, _dataset = _control_plane_with_dataset()
+    tenant_id = tenant["tenant_id"]
+    project_id = project["project_id"]
+    router = SaaSControlPlaneRouter(control)
+    spec = control_plane_openapi_document()
+
+    assert "/v1/projects/{project_id}/worker-jobs/enqueue" in spec["paths"]
+    assert "post" not in spec["paths"]["/v1/projects/{project_id}/worker-jobs"]
+
+    enqueued = router.handle(
+        "POST",
+        f"/v1/projects/{project_id}/worker-jobs/enqueue",
+        {"tenant_id": tenant_id, "job_type": "trace.compact", "job_id": "job_route_enqueue", "payload": {"secret": "must-not-leak"}},
+    )
+    assert enqueued["status_code"] == 202
+    assert enqueued["body"]["raw_payload_included"] is False
+    assert "must-not-leak" not in json.dumps(enqueued, sort_keys=True)
+
+    listed = router.handle("GET", f"/v1/projects/{project_id}/worker-jobs", {"tenant_id": tenant_id, "limit": 1})
+    assert listed["status_code"] == 200
+    assert listed["body"]["returned_count"] == 1
+    assert listed["body"]["total_count"] == 1
+    assert listed["body"]["has_more"] is False
+    assert listed["body"]["next_cursor"] is None
 
 
 def test_saas_control_plane_router_covers_key_sdk_upload_trace_lifecycle_and_redaction():

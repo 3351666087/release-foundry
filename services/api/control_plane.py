@@ -725,9 +725,22 @@ class SaaSControlPlaneService:
         if job_type is not None:
             jobs = [job for job in jobs if job.get("job_type") == str(job_type)]
         jobs = sorted((_jsonable(job) for job in jobs), key=lambda item: (int(item.get("priority", 100) or 100), str(item.get("created_at") or ""), str(item.get("job_id") or "")))
+        total_count = len(jobs)
+        requested_limit = _normalize_positive_int(limit, "limit") if limit is not None else None
         if limit is not None:
-            jobs = jobs[: _normalize_positive_int(limit, "limit")]
-        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"status": status, "job_type": job_type, "limit": limit}, "jobs": jobs, "count": len(jobs)}
+            jobs = jobs[:requested_limit]
+        return {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "filters": {"status": status, "job_type": job_type, "limit": requested_limit},
+            "jobs": jobs,
+            "count": len(jobs),
+            "returned_count": len(jobs),
+            "total_count": total_count,
+            "has_more": requested_limit is not None and total_count > len(jobs),
+            "next_cursor": None,
+        }
 
     def _worker_job_record(self, tenant_id: str, project_id: str, job_id: str) -> JsonDict:
         job = self.store.worker_jobs.get(str(job_id))
@@ -1177,6 +1190,8 @@ def control_plane_openapi_document() -> JsonDict:
             },
             "/v1/projects/{project_id}/worker-jobs": {
                 "get": {"summary": "List public-safe local worker jobs by status or type", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}},
+            },
+            "/v1/projects/{project_id}/worker-jobs/enqueue": {
                 "post": {"summary": "Enqueue a local worker job without storing raw payloads", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response, "409": json_response}},
             },
             "/v1/projects/{project_id}/worker-jobs/lease": {
@@ -1393,7 +1408,7 @@ class SaaSControlPlaneRouter:
                     if method == "GET" and len(parts) == 4:
                         limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
                         return {"status_code": 200, "body": self.service.list_worker_jobs(tenant_id, project_id, status=body.get("status"), job_type=body.get("job_type"), limit=limit, auth_key_id=auth_key_id)}
-                    if method == "POST" and len(parts) == 4:
+                    if method == "POST" and ((len(parts) == 4) or (len(parts) == 5 and parts[4] == "enqueue")):
                         payload = body.get("payload") if isinstance(body.get("payload"), Mapping) else None
                         return {
                             "status_code": 202,

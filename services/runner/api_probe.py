@@ -455,6 +455,7 @@ def build_target_binding(
     modality_sequence: list[dict[str, Any]],
 ) -> dict[str, Any]:
     modalities = [item["modality"] for item in modality_sequence]
+    media_modalities = [item["modality"] for item in modality_sequence if item.get("kind") != "text"]
     request_fingerprint = _stable_sha256(request) if request is not None else None
     request_schema_fingerprint = _stable_sha256(request_input_schema) if request_input_schema is not None else None
     components = {
@@ -468,6 +469,8 @@ def build_target_binding(
         "small_batch_size": small_batch_size,
         "batch_size": batch_size,
         "modalities": modalities,
+        "media_modalities": media_modalities,
+        "text_first_small_batch": bool("text" in modalities and media_modalities),
     }
     return redact_sensitive(
         {
@@ -483,6 +486,9 @@ def build_target_binding(
             "small_batch_size": small_batch_size,
             "batch_size": batch_size,
             "modalities": modalities,
+            "media_modalities": media_modalities,
+            "text_first_small_batch": bool("text" in modalities and media_modalities),
+            "modality_sequence": modality_sequence,
             "fingerprint": _stable_sha256(components),
             "fingerprint_fields": sorted(components.keys()),
             "raw_request_not_recorded": True,

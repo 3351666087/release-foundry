@@ -224,6 +224,20 @@ def test_build_field_parity_plan_is_public_safe_and_env_only():
     assert "request" in by_step["create-request-text"]["observed_response_keys"]
 
 
+def test_build_field_parity_plan_describes_all_modality_shapes_without_raw_assets():
+    args = CalibrationArgs(include_mutating=True)
+    plan = build_field_parity_plan(args)
+    plan_text = json.dumps(plan, sort_keys=True)
+
+    assert plan["summary"]["modalities"] == ["audio", "file", "image", "text", "video"]
+    assert {item["modality"] for item in plan["modality_matrix"]} == {"text", "image", "audio", "file", "video"}
+    assert all(item["raw_asset_recorded_publicly"] is False for item in plan["modality_matrix"])
+    assert all(item["request_shape"] is not None for item in plan["steps"] if item["kind"] == "mutate")
+    assert "Authorization" not in plan_text
+    assert "Bearer" not in plan_text
+    assert "tp_syntheticsecret" not in plan_text
+
+
 def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path: Path):
     output = tmp_path / "read_only_real.json"
     client = FakeCalibrationClient()
@@ -245,6 +259,27 @@ def test_run_calibration_mutating_execute_requires_quota_gate_before_calls(tmp_p
     args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="quota-gate-record"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_mutating_execute_requires_explicit_modality_before_calls(tmp_path: Path):
+    output = tmp_path / "implicit_modalities.json"
+    client = FakeCalibrationClient()
+    args = CalibrationArgs(
+        execute=True,
+        small_batch=True,
+        include_mutating=True,
+        allow_paid_media=True,
+        max_retries=0,
+        output=str(output),
+        quota_gate_record=str(write_plan_batch_gate(tmp_path)),
+        allow_nonprivate_output=True,
+    )
+
+    with pytest.raises(CalibrationUsageError, match="explicit --modality"):
         run_calibration(args, env={}, client=client)
 
     assert client.calls == []

@@ -384,6 +384,9 @@ CREATE INDEX IF NOT EXISTS idx_evidence_bundles_project_status ON evidence_bundl
 CREATE INDEX IF NOT EXISTS idx_api_keys_org_status ON api_keys(organization_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_org_status ON webhook_endpoints(organization_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys(organization_id, project_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_ledger_idempotency_key_unique
+  ON usage_ledger(organization_id, project_id, idempotency_key_id)
+  WHERE idempotency_key_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_scope_meter_period ON usage_ledger(organization_id, project_id, meter, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_workspace_meter_period ON usage_ledger(organization_id, workspace_id, meter, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_quota_policies_scope_meter ON quota_policies(organization_id, project_id, meter, status);

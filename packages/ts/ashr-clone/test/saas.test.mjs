@@ -381,6 +381,10 @@ test("TS SaaS worker jobs lease retry dead-letter and redact payloads", () => {
 
   const listed = client.listWorkerJobs("tenant_ts_worker", "project_ts_worker", { status: "dead_lettered" });
   assert.equal(listed.result.count, 1);
+  assert.equal(listed.result.returned_count, 1);
+  assert.equal(listed.result.total_count, 1);
+  assert.equal(listed.result.has_more, false);
+  assert.equal(listed.result.next_cursor, null);
   assert.equal(listed.result.jobs[0].job_id, "job_ts_worker");
   const used = client.service.cloud.quotaSnapshot("tenant_ts_worker", "project_ts_worker").used;
   assert.equal(used["worker.job.heartbeat"] ?? 0, 0);
@@ -414,6 +418,10 @@ test("TS SaaS router HTTP and OpenAPI expose worker job heartbeat parity", async
   const list = router.handle("GET", "/v1/projects/project_ts_worker_http/worker-jobs", { tenant_id: "tenant_ts_worker_http", status: "leased" });
   assert.equal(list.status_code, 200);
   assert.equal(list.body.count, 1);
+  assert.equal(list.body.returned_count, 1);
+  assert.equal(list.body.total_count, 1);
+  assert.equal(list.body.has_more, false);
+  assert.equal(list.body.next_cursor, null);
 
   const client = new SaaSIngestionClient({ service });
   const completed = await client.completeWorkerJobHttp("tenant_ts_worker_http", "project_ts_worker_http", "job_ts_worker_http", { ok: true, raw: "still-hashed" }, { lease_owner_id: "worker-http" });
@@ -585,6 +593,10 @@ test("TS SaaS CLI covers worker job lifecycle and public-safe state", async () =
     ]);
     assert.equal(listed.operation, "worker_jobs");
     assert.equal(listed.result.count, 1);
+    assert.equal(listed.result.returned_count, 1);
+    assert.equal(listed.result.total_count, 1);
+    assert.equal(listed.result.has_more, false);
+    assert.equal(listed.result.next_cursor, null);
     assert.equal(listed.result.jobs[0].result_sha256.length, 64);
 
     const persisted = JSON.parse(await readFile(stateAfterComplete, "utf8"));

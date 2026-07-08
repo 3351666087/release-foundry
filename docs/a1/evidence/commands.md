@@ -1160,3 +1160,17 @@ Results:
 - Public field parity plan generated with schema `ashr.clone.api_field_parity_plan.v1`, 6 steps, zero dry-run API calls, and 9 estimated text-only small-batch calls.
 - Focused calibrator tests: 24 passed.
 - Read-only dry-run CLI completed with `status=planned`; no API key was required, no official API call was made, and full dry-run records were written only under ignored `docs/evidence/private_refs/`.
+
+## Round22 multimodal calibrator guardrail refresh - 2026-07-08
+
+```powershell
+python -B -m pytest tests/a1/test_python_calibrator.py
+python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run_local_check.json
+python -B -c "import json; from pathlib import Path; from packages.sdk.ashr_clone.calibrate import CalibrationArgs, build_field_parity_plan; plan=build_field_parity_plan(CalibrationArgs(include_mutating=True)); Path('docs/a1/api_calibration/official_api_field_parity_plan.json').write_text(json.dumps(plan, indent=2, sort_keys=True)+'\\n', encoding='utf-8'); print(json.dumps({'schema_version': plan['schema_version'], 'steps': plan['summary']['steps'], 'modalities': plan['summary']['modalities'], 'dry_run_calls': plan['summary']['estimated_calls_dry_run'], 'small_batch_calls': plan['summary']['estimated_calls_small_batch']}, sort_keys=True))"
+```
+
+Results:
+- Focused calibrator tests: 26 passed.
+- Multimodal dry-run planned 10 steps across Text/Audio/File/Image/Video, estimated 17 small-batch calls, required no API key, and made no official API calls.
+- Public field parity plan now covers all five modalities, keeps dry-run calls at zero, and records only request-shape/fingerprint metadata.
+- Real mutating execution now requires explicit `--modality` selection before quota-gate validation can proceed; dry-run may still enumerate all modalities safely.

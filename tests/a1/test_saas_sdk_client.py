@@ -297,7 +297,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
             return {"verification": {"verified": True}, "event_count": 1}
         if url.endswith("/runs/run_http/release-evidence/verify"):
             return {"verified": True, "packet_id": data["packet"]["packet_id"]}
-        if url.endswith("/worker-jobs") and data.get("job_type") == "run.replay":
+        if url.endswith("/worker-jobs/enqueue") and data.get("job_type") == "run.replay":
             return {"job_id": data["job_id"], "raw_payload_included": False, "payload": data["payload"], "status": "queued"}
         if url.endswith("/worker-jobs/lease"):
             return {"status": "leased", "leased": True, "job": {"job_id": "job_http", "attempts": 1, "lease_owner_id": data["lease_owner_id"]}}
@@ -369,7 +369,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
         "http://127.0.0.1:8765/a1/quota",
         "http://127.0.0.1:8765/a1/audit-chain/verify",
         "http://127.0.0.1:8765/a1/runs/run_http/release-evidence/verify",
-        "http://127.0.0.1:8765/a1/worker-jobs",
+        "http://127.0.0.1:8765/a1/worker-jobs/enqueue",
         "http://127.0.0.1:8765/a1/worker-jobs/lease",
         "http://127.0.0.1:8765/a1/worker-jobs/job_http/fail",
         "http://127.0.0.1:8765/a1/worker-jobs",

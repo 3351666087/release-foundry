@@ -21,7 +21,9 @@ The plan is intentionally dry-run first:
 
 - Default calibration mode writes planned call records only and makes zero official API calls.
 - Real read-only calibration requires `--execute --small-batch --max-retries 0` and writes under `docs/evidence/private_refs/`.
-- Mutating text calibration requires `--include-mutating`, a fresh `plan-batch` quota gate for `create-request`, and private output.
+- Dry-run mutating calibration may enumerate Text/Audio/File/Image/Video request shapes with zero official API calls.
+- Real mutating calibration requires `--include-mutating`, explicit `--modality` selection, a fresh `plan-batch` quota gate for `create-request`, and private output.
+- Non-text real calibration additionally requires `--allow-paid-media`; media modalities should only enter after the text small-batch record is reviewed.
 - API keys are read only from `ASHR_API_KEY` or `ASHR_LABS_API_KEY` at execution time; the public plan does not contain key material, authorization headers, raw payload responses, or private evidence contents.
 
 ## Probe Surface

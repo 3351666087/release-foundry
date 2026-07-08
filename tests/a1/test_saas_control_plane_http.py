@@ -57,7 +57,8 @@ def test_control_plane_wsgi_serves_healthz_and_openapi_without_secret_env(monkey
     assert "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify" in openapi["paths"]
     assert "/v1/projects/{project_id}/worker-jobs" in openapi["paths"]
     assert "get" in openapi["paths"]["/v1/projects/{project_id}/worker-jobs"]
-    assert "post" in openapi["paths"]["/v1/projects/{project_id}/worker-jobs"]
+    assert "/v1/projects/{project_id}/worker-jobs/enqueue" in openapi["paths"]
+    assert "post" in openapi["paths"]["/v1/projects/{project_id}/worker-jobs/enqueue"]
     assert "/v1/projects/{project_id}/worker-jobs/lease" in openapi["paths"]
     assert "/v1/projects/{project_id}/worker-jobs/{job_id}/complete" in openapi["paths"]
     assert "/v1/projects/{project_id}/worker-jobs/{job_id}/fail" in openapi["paths"]
@@ -261,7 +262,7 @@ def test_control_plane_wsgi_worker_job_routes_are_auth_scoped_and_public_safe(mo
     unauth_meta, unauth, unauth_text = _invoke_wsgi(
         app,
         "POST",
-        "/v1/projects/project_worker_http/worker-jobs",
+        "/v1/projects/project_worker_http/worker-jobs/enqueue",
         {"tenant_id": "tenant_worker_http", "api_key_id": "missing", "job_type": "run.replay"},
     )
     assert str(unauth_meta["status"]).startswith("404 ")
@@ -271,7 +272,7 @@ def test_control_plane_wsgi_worker_job_routes_are_auth_scoped_and_public_safe(mo
     _, enqueued, enqueued_text = _invoke_wsgi(
         app,
         "POST",
-        "/v1/projects/project_worker_http/worker-jobs",
+        "/v1/projects/project_worker_http/worker-jobs/enqueue",
         {
             "tenant_id": "tenant_worker_http",
             "api_key_id": "key_worker_http",
@@ -290,7 +291,7 @@ def test_control_plane_wsgi_worker_job_routes_are_auth_scoped_and_public_safe(mo
     replay_meta, replay, _ = _invoke_wsgi(
         app,
         "POST",
-        "/v1/projects/project_worker_http/worker-jobs",
+        "/v1/projects/project_worker_http/worker-jobs/enqueue",
         {
             "tenant_id": "tenant_worker_http",
             "api_key_id": "key_worker_http",

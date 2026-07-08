@@ -2586,7 +2586,7 @@ Growth-Auditor alignment:
 - Growth-Auditor recommended moving from SDK/tooling to an enterprise SaaS control-plane evidence kit covering Usage/Billing, API Keys, Observability, capability matrix, and readiness badge. Implemented those plus the user-requested SaaS surfaces: API key, SDK submit, run upload, trace ingestion, quota ledger, tenant/project/run lifecycle.
 
 Next-round top 20:
-1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run éˆ«?gated small-batch plan when quota evidence is fresh.
+1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run éˆ?gated small-batch plan when quota evidence is fresh.
 
 Strategy alignment note:
 - The updated active goal requires following `docs/strategy/large-saas-a1-a2-a3-full-plan.md` from GitHub `origin/main`. Local branch did not yet contain the file, so it was read with `git show origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` without switching branches or overwriting A1 work.
@@ -2608,7 +2608,7 @@ Round16 Worker-CLI-Ingestion:
 - Validation: `python -B -m pytest tests/a1/test_saas_control_plane_cli.py tests/a1/test_saas_control_plane.py -q -p no:cacheprovider` => 12 passed.
 - Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` => 223 passed.
 
-## Round16 éˆ¥?A1 SaaS ingestion/control-plane hardening (2026-07-07)
+## Round16 éˆ?A1 SaaS ingestion/control-plane hardening (2026-07-07)
 
 Goal baseline:
 - Repo/branch: `C:\Users\33516\Documents\Ashr` on `codex/a1-local-sdk-runner`.
@@ -2643,12 +2643,12 @@ Goal baseline:
 24. `git diff --check` repaired after TS EOF issue.
 
 Real API evidence (private, ignored; no raw key logged):
-- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` éˆ¥?dry-run batch plan.
-- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` éˆ¥?read-only health check.
-- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` éˆ¥?read-only dataset list.
-- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` éˆ¥?read-only run list.
-- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` éˆ¥?read-only request list.
-- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` éˆ¥?read-only agent list.
+- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` éˆ?dry-run batch plan.
+- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` éˆ?read-only health check.
+- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` éˆ?read-only dataset list.
+- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` éˆ?read-only run list.
+- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` éˆ?read-only request list.
+- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` éˆ?read-only agent list.
 
 Validation:
 - `git diff --check`: pass after EOF cleanup.
@@ -2728,12 +2728,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: hosted/self-host adapter usage.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` éˆ¥?plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` éˆ¥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` éˆ?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` éˆ?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 6 passed.
@@ -2793,12 +2793,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: platform primitive docs.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` éˆ¥?plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` éˆ¥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` éˆ?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` éˆ?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_platform.py -q -p no:cacheprovider`: 4 passed.
@@ -3701,3 +3701,94 @@ Known gaps / next top 20:
 18. Add enterprise evidence bundle export with audit hash and signed index.
 19. Add Rust evidence bundle verifier command.
 20. Add A1 commercial readiness report linked to API evidence, run replay, and quota ledger.
+
+## A1 round 2026-07-08 - Go worker backend surge + five-modality calibration + frontend runtime schema
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` succeeded.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 20` -> PR #20 open draft for this branch, PR #19 merged, A3 PRs #18/#17 open drafts.
+- Tracked tree started clean after commit `5893c71`; untracked `recon/` and `tools/` remained unstaged.
+
+20 growth points attacked this round:
+1. Promote Go toward primary backend by adding worker-job control-plane service lifecycle.
+2. Add Go worker-job typed DTOs/statuses/errors/list envelope.
+3. Add Go worker-job hosted HTTP client methods.
+4. Align Go worker enqueue route with Python/TS `/worker-jobs/enqueue` contract.
+5. Add Go worker job retry/dead-letter/lease-expiry tests.
+6. Add Go integration smoke for worker lifecycle.
+7. Add Postgres usage-ledger idempotency partial unique index.
+8. Add migration static tests for required repository contracts.
+9. Expand official API parity plan from text-only to text/audio/file/image/video.
+10. Add explicit real-mutating modality guard in calibrator.
+11. Run one real read-only official API small-batch with env-only key and private evidence.
+12. Add frontend mirror runtime schema evidence from desktop mirror zip.
+13. Capture public-safe frontend signals for datasets, folders, team, observability, API keys, usage.
+14. Add runtime schema fixture/test for frontend mirror evidence.
+15. Update capability matrix artifact after frontend evidence expansion.
+16. Update commercial control-plane kit after capability matrix expansion.
+17. Add worker-job list pagination metadata in Python/TS service surfaces.
+18. Keep legacy worker enqueue route handler while making `/enqueue` the explicit OpenAPI/SDK route.
+19. Re-run Python/TS/Go/migration/frontend tests after integration fixes.
+20. Update evidence/worklog with Growth-Auditor money-grade next directives.
+
+Implemented files:
+- `packages/go/ashrclone/api_error.go`, `types.go`, `service.go`, `hosted.go`, `client_test.go`, `service_test.go`: Go worker-job control-plane lifecycle, hosted methods, typed not-found, retry/dead-letter/lease behavior, route tests.
+- `tests/integration/go/ashrclone_integration_test.go`: Go worker lifecycle integration smoke.
+- `services/api/migrations/001_a1_large_saas_foundation.sql` and `tests/integration/test_a1_large_saas_migration.py`: usage ledger idempotency unique index and static repository-contract coverage.
+- `packages/sdk/ashr_clone/calibrate.py`, `services/runner/api_probe.py`, `tests/a1/test_python_calibrator.py`, `docs/a1/api_calibration/official_api_field_parity_plan.json`: five-modality public-safe API parity plan and explicit modality guard.
+- `services/api/control_plane.py`, `packages/sdk/ashr_clone/saas.py`, `packages/ts/ashr-clone/src/saas.ts`, `packages/ts/ashr-clone/test/saas.test.mjs`, and related Python tests: worker-job pagination metadata and `/worker-jobs/enqueue` contract alignment.
+- `docs/a1/frontend_mirror/frontend_mirror_index.json`, `docs/a1/frontend_mirror/frontend_mirror_runtime_schema.md`, `tests/a1/fixtures/round21_frontend_runtime_schema_public.json`, `tests/a1/test_frontend_runtime_schema.py`: public-safe frontend runtime schema evidence.
+- `docs/a1/commercial/capability_matrix.json` and `docs/a1/commercial/control_plane_kit.json`: regenerated from builders after frontend schema expansion.
+- `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`: calibration and command evidence updates.
+
+Subagent outputs:
+- Growth-Auditor: A1 is stronger but not yet sellable; next money-grade move is a narrow Go + Postgres + HTTP vertical slice with Python/TS clients calling it.
+- Worker-GoBackend: landed Go worker job service/hosted/integration lifecycle and tests.
+- Worker-PostgresRepo: landed usage-ledger idempotency index and migration static contract tests.
+- Worker-API-Calibrator: expanded five-modality parity plan and real-mutating modality guard.
+- Worker-SDKParity: aligned Python/TS worker route and pagination metadata.
+- Worker-FrontendMirrorSchema: extracted public-safe runtime schema signals from `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip`; source archive SHA-256 `1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793`.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 288 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 280 passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/a1/test_frontend_mirror_index.py tests/a1/test_frontend_dashboard_dtos.py tests/a1/test_frontend_runtime_schema.py -q -p no:cacheprovider` -> 12 passed.
+- `git diff --check` -> passed with CRLF warnings only.
+
+Real API / private evidence:
+- Env presence check showed `ASHR_API_KEY` was present and only its length was displayed; raw key value was not read, printed, logged, or committed.
+- Real read-only small-batch command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_readonly_round_go_backend_20260708.json`.
+- Real API result summary printed: `status=ok`, 5 read steps, 0 mutating steps, 0 quota blocks, 7 estimated calls. Raw records remain under ignored private evidence.
+- Additional dry-run all-modality evidence under `docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run_local_check.json` remains private/unstaged.
+
+Peer changes / impact:
+- No tracked peer files were staged from outside A1 owned lanes.
+- `recon/`, `tools/`, `.secrets/`, and `docs/evidence/private_refs/**` intentionally remain unstaged.
+- PR #20 is the active draft for this branch and should receive this commit after secret scan/push.
+
+Known gaps / next top 20:
+1. Add actual Go HTTP server/router entrypoint for health, submit, upload, trace, usage, audit, worker jobs.
+2. Add Postgres-backed Go repository for projects, runs, idempotency keys, API keys, audit log, usage ledger, and worker jobs.
+3. Add Python SDK hosted-mode integration test against the Go server.
+4. Add TS SDK hosted-mode integration test against the Go server.
+5. Add Go API-key auth middleware with hashed key verification, scopes, revoked/expired status, and last-used metadata.
+6. Add Go quota-before-mutation enforcement and durability tests.
+7. Add Go audit hash-chain append/verify and tamper test.
+8. Add Go worker daemon loop using durable leases and heartbeat.
+9. Add OpenAPI/route manifest generated from Go server and consumed by Python/TS/Go tests.
+10. Add Redis/distributed rate-limit/idempotency adapter once DB path is stable.
+11. Add signed upload intent/complete/verify object-storage adapter for text/audio/file/image/video artifacts.
+12. Add webhook outbox/delivery worker with HMAC, retry, dead-letter, and replay.
+13. Add tenant-isolation adversarial tests through HTTP and DB boundaries.
+14. Add billing-period usage export with CSV/JSON reconciliation fixture.
+15. Add official API quota-gated text mutating small-batch after a plan-batch gate.
+16. Add one media modality official API calibration at a time after text passes.
+17. Add frontend trust-profile DTO fixture once A1 exposes trust-profile state.
+18. Add CI matrix for Python, TS, Go, Rust, migration, Terraform, SQL, and secret scan.
+19. Add staged-diff secret scan script as a repo command instead of ad hoc shell.
+20. Add enterprise self-host deployment path that proves API + worker + DB + object store can boot together.

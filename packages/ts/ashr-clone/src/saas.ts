@@ -784,8 +784,21 @@ export class SaaSControlPlaneService {
     if (options.status !== undefined) jobs = jobs.filter((job) => job.status === options.status);
     if (options.jobType !== undefined) jobs = jobs.filter((job) => job.job_type === options.jobType);
     jobs = jobs.map((job) => cloneJson(job) as JsonRecord).sort((a, b) => Number(a.priority ?? 100) - Number(b.priority ?? 100) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.job_id ?? "").localeCompare(String(b.job_id ?? "")));
-    if (options.limit !== undefined) jobs = jobs.slice(0, positiveInt(options.limit, "limit"));
-    return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, filters: { status: options.status ?? null, job_type: options.jobType ?? null, limit: options.limit ?? null }, jobs, count: jobs.length };
+    const totalCount = jobs.length;
+    const requestedLimit = options.limit === undefined ? undefined : positiveInt(options.limit, "limit");
+    if (requestedLimit !== undefined) jobs = jobs.slice(0, requestedLimit);
+    return {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      filters: { status: options.status ?? null, job_type: options.jobType ?? null, limit: requestedLimit ?? null },
+      jobs,
+      count: jobs.length,
+      returned_count: jobs.length,
+      total_count: totalCount,
+      has_more: requestedLimit !== undefined && totalCount > jobs.length,
+      next_cursor: null,
+    };
   }
 
   snapshotState(): SaaSControlPlaneState {

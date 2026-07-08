@@ -521,7 +521,7 @@ _OPERATION_PATHS = {
     "usage_snapshot": "usage",
     "create_artifact_manifest": "artifact-manifests",
     "list_artifact_manifests": "artifact-manifests/list",
-    "enqueue_worker_job": "worker-jobs",
+    "enqueue_worker_job": "worker-jobs/enqueue",
     "lease_worker_job": "worker-jobs/lease",
     "heartbeat_worker_job": "worker-jobs/heartbeat",
     "complete_worker_job": "worker-jobs/complete",
