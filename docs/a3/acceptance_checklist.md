@@ -225,6 +225,9 @@
 - [x] Add live-capable GitHub Check Run publisher and CLI with dry-run default and sanitized receipts.
 - [x] Update GitHub Actions example to publish the Ashr++ Release Gate check using a runtime `GITHUB_TOKEN`.
 - [x] Save redacted dry-run publish receipt under `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`.
+- [x] Add live-capable PR comment publisher behind explicit `--pr-comment --pull-number` opt-in.
+- [x] Add dry-run branch-protection required-check plan for `Ashr++ Release Gate`.
+- [x] Save redacted PR comment receipt and required-check plan fixtures under `fixtures/a3/p3`.
 - [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
 - [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
 - [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.

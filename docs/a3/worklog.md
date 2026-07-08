@@ -3541,3 +3541,48 @@ Result:
 ### Current interpretation
 
 A3 can now publish a GitHub Check Run when CI explicitly opts in, which is much closer to a commercial PR gate. It is still not the full "required check" story until branch protection is configured and evidenced.
+
+## 2026-07-08 - PR comment publisher and required-check plan
+
+### Goal
+
+Continue the PR Gate commercial workflow by adding human-readable PR comment publishing and a branch-protection required-check plan.
+
+### Work completed
+
+- Added `publishPrCommentUpsert(...)` in `services/report/a3_github_integration.mjs`.
+- Added `buildBranchProtectionRequiredCheckPlan(...)` in `services/report/a3_github_integration.mjs`.
+- Extended `services/report/a3_github_publish_cli.mjs` with explicit PR comment mode:
+  - `--pr-comment`
+  - `--pull-number`
+- Updated `docs/a3/p3_github_action_workflow_example.yml` with `Publish Ashr++ PR Comment`.
+- Saved redacted evidence fixtures:
+  - `fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json`
+  - `fixtures/a3/p3/a3_github_required_check_plan.redacted.json`
+- Added documentation:
+  - `docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### Safety boundary
+
+- Existing PR comment plan builder remains dry-run and plan-only.
+- PR comment publishing requires explicit `--pr-comment --pull-number`.
+- Branch protection is still plan-only; no repository settings were changed.
+- No `.env.local`, Ashr key, GitHub token, cookie, email, Authorization header, or raw signed URL was committed.
+
+### Current interpretation
+
+A3 now has both machine-readable Check Run publishing and human-readable PR comment publishing. The remaining commercial gap is enforcing the check through branch protection and proving that setting with maintainer-approved evidence.

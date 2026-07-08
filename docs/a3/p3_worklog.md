@@ -2308,3 +2308,37 @@ Safety boundary:
 Remaining production gap:
 
 The publisher can create/update a GitHub Check Run when CI explicitly opts in, but repository branch protection still needs maintainer-approved configuration before `Ashr++ Release Gate` is truly a required check.
+
+## 2026-07-08 - PR comment publisher and required-check plan
+
+Continued A3 PR Gate work by adding human-readable PR comment publishing and a branch-protection required-check plan.
+
+Added:
+
+- `publishPrCommentUpsert(...)`
+- `buildBranchProtectionRequiredCheckPlan(...)`
+- CLI flags `--pr-comment` and `--pull-number`
+- GitHub Actions `Publish Ashr++ PR Comment` example step
+- redacted dry-run PR comment receipt fixture
+- redacted required-check plan fixture
+- documentation in `docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result: 21 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+Branch protection still needs maintainer approval before `Ashr++ Release Gate` is truly required.

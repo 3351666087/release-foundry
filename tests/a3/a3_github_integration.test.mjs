@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
+  buildBranchProtectionRequiredCheckPlan,
   buildGitHubActionWorkflowExample,
   buildGitHubCheckRunRequest,
   buildPrCommentUpsertPlan,
-  publishGitHubCheckRun
+  publishGitHubCheckRun,
+  publishPrCommentUpsert
 } from "../../services/report/a3_github_integration.mjs";
 import {
   buildGitHubPublishCliReceipt,
@@ -101,6 +103,8 @@ test("A3 GitHub Action workflow example keeps the integration in docs-owned scop
   assert.match(workflow, /--output-check artifacts\/ashr-check\.json/);
   assert.match(workflow, /--output-pr-comment artifacts\/ashr-pr-comment\.md/);
   assert.match(workflow, /--output-receipt artifacts\/ashr-github-check-receipt\.json/);
+  assert.match(workflow, /--output-receipt artifacts\/ashr-pr-comment-receipt\.json/);
+  assert.match(workflow, /--pr-comment/);
   assert.match(workflow, /--live --json/);
   assert.doesNotMatch(workflow, /gh[pousr]_[A-Za-z0-9_]+|Bearer /);
 });
@@ -124,6 +128,8 @@ test("A3 GitHub integration committed fixtures stay redacted", async () => {
   const checkRequest = await loadJson("../../fixtures/a3/p3/a3_github_check_create_request.redacted.json");
   const commentPlan = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_upsert_plan.redacted.json");
   const publishReceipt = await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json");
+  const commentReceipt = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json");
+  const requiredCheckPlan = await loadJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json");
   const workflow = await readFile(new URL("../../docs/a3/p3_github_action_workflow_example.yml", import.meta.url), "utf8");
 
   assert.equal(checkRequest.safety.token_included, false);
@@ -133,13 +139,21 @@ test("A3 GitHub integration committed fixtures stay redacted", async () => {
   assert.equal(publishReceipt.dry_run, true);
   assert.equal(publishReceipt.posted, false);
   assert.equal(publishReceipt.request.safety.dry_run_only, true);
+  assert.equal(commentReceipt.safety.token_included, false);
+  assert.equal(commentReceipt.dry_run, true);
+  assert.equal(commentReceipt.posted, false);
+  assert.equal(requiredCheckPlan.safety.dry_run_only, true);
+  assert.equal(requiredCheckPlan.check_name, "Ashr++ Release Gate");
   assert.match(commentPlan.request.body.body, /Decision: \*\*Block release\*\*/);
   assert.match(workflow, /actions\/checkout@v4/);
   assert.match(workflow, /a3_github_publish_cli\.mjs/);
   assert.match(workflow, /--output-receipt artifacts\/ashr-github-check-receipt\.json/);
+  assert.match(workflow, /--output-receipt artifacts\/ashr-pr-comment-receipt\.json/);
   assert.doesNotMatch(JSON.stringify(checkRequest), /C:\/Users|Authorization|Bearer /);
   assert.doesNotMatch(JSON.stringify(commentPlan), /C:\/Users|Authorization|Bearer /);
   assert.doesNotMatch(JSON.stringify(publishReceipt), /C:\/Users|Authorization|Bearer|gh[pousr]_/);
+  assert.doesNotMatch(JSON.stringify(commentReceipt), /C:\/Users|Authorization|Bearer|gh[pousr]_/);
+  assert.doesNotMatch(JSON.stringify(requiredCheckPlan), /C:\/Users|Authorization|Bearer|gh[pousr]_/);
   assert.doesNotMatch(workflow, /gh[pousr]_[A-Za-z0-9_]+|Bearer /);
 });
 
@@ -228,6 +242,129 @@ test("A3 GitHub integration publisher sanitizes GitHub API errors", async () => 
   assert.doesNotMatch(JSON.stringify(receipt), /rt_secret|reviewer@example.com|Bearer rt_secret/);
 });
 
+test("A3 GitHub integration PR comment publisher defaults to dry run without fetch", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  let called = false;
+  const receipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    fetchImpl: async () => {
+      called = true;
+      throw new Error("fetch should not be called in PR comment dry run");
+    }
+  });
+
+  assert.equal(called, false);
+  assert.equal(receipt.schema_version, "a3.github_pr_comment_publish_receipt.v1");
+  assert.equal(receipt.status, "planned");
+  assert.equal(receipt.dry_run, true);
+  assert.equal(receipt.posted, false);
+  assert.equal(receipt.plan.safety.dry_run_only, true);
+  assert.match(receipt.plan.request.body.body, /Decision: \*\*Block release\*\*/);
+  assert.doesNotMatch(JSON.stringify(receipt), /Authorization|Bearer|gh[pousr]_/);
+});
+
+test("A3 GitHub integration PR comment publisher creates comment with sanitized receipt", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const calls = [];
+  const receipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "GET") {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "x-github-request-id": "lookup:create" }
+        });
+      }
+      return new Response(JSON.stringify({
+        id: 2001,
+        html_url: "https://github.example/acme/refund-agent/pull/17#issuecomment-2001",
+        issue_url: "https://api.github.example/repos/acme/refund-agent/issues/17",
+        created_at: "2026-07-08T00:00:00Z",
+        updated_at: "2026-07-08T00:00:00Z",
+        author_association: "MEMBER",
+        body: "must not be stored in receipt"
+      }), {
+        status: 201,
+        headers: { "x-github-request-id": "comment:create" }
+      });
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, "https://api.github.com/repos/acme/refund-agent/issues/17/comments");
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[1].init.method, "POST");
+  assert.equal(calls[1].init.headers.authorization, "Bearer rt_secret");
+  assert.equal(receipt.status, "posted");
+  assert.equal(receipt.mode, "create_new_comment");
+  assert.equal(receipt.posted, true);
+  assert.equal(receipt.lookup.inspected_comment_count, 0);
+  assert.equal(receipt.comment.id, 2001);
+  assert.equal(receipt.safety.token_included, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /rt_secret|Authorization|Bearer|must not be stored/);
+});
+
+test("A3 GitHub integration PR comment publisher updates existing marker comment", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const marker = "<!-- ashr-plus-plus:release-gate:run_a3_generated_from_a2_g3 -->";
+  const calls = [];
+  const receipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "GET") {
+        return new Response(JSON.stringify([{ id: 3001, body: `${marker}\nold body` }]), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: 3001,
+        html_url: "https://github.example/acme/refund-agent/pull/17#issuecomment-3001",
+        updated_at: "2026-07-08T00:00:01Z"
+      }), { status: 200 });
+    }
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].url, "https://api.github.com/repos/acme/refund-agent/issues/comments/3001");
+  assert.equal(calls[1].init.method, "PATCH");
+  assert.equal(receipt.mode, "update_existing_comment");
+  assert.equal(receipt.plan.existing_comment_id, 3001);
+  assert.equal(receipt.lookup.matched_existing_comment, true);
+  assert.equal(receipt.comment.id, 3001);
+});
+
+test("A3 GitHub integration PR comment publisher stops on lookup errors", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const calls = [];
+  const receipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({
+        message: "Bad credentials for Bearer rt_secret owned by reviewer@example.com"
+      }), { status: 401 });
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(receipt.mode, "lookup_failed");
+  assert.equal(receipt.status, "failed");
+  assert.equal(receipt.posted, false);
+  assert.equal(receipt.http_status, 401);
+  assert.match(receipt.redacted_summary, /\[REDACTED/);
+  assert.doesNotMatch(JSON.stringify(receipt), /rt_secret|reviewer@example.com|Bearer rt_secret/);
+});
+
 test("A3 GitHub publisher rejects live mode without a runtime token", async () => {
   const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
   let called = false;
@@ -272,6 +409,22 @@ test("A3 GitHub publish CLI parses safe dry-run arguments", () => {
   assert.equal(args.json, true);
 });
 
+test("A3 GitHub publish CLI parses explicit PR comment target", () => {
+  const args = parseGitHubPublishArgs([
+    "--gate", "artifacts/ashr-gate.json",
+    "--repo", "acme/refund-agent",
+    "--pull-number", "17",
+    "--pr-comment",
+    "--output-receipt", "artifacts/ashr-pr-comment-receipt.json",
+    "--json"
+  ]);
+
+  assert.equal(args.prComment, true);
+  assert.equal(args.pullNumber, 17);
+  assert.equal(args.dryRun, true);
+  assert.equal(args.outputReceipt, "artifacts/ashr-pr-comment-receipt.json");
+});
+
 test("A3 GitHub publish CLI writes dry-run receipt without posting", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "a3-github-publish-"));
   const outputReceipt = join(tempDir, "receipt.json");
@@ -298,6 +451,51 @@ test("A3 GitHub publish CLI writes dry-run receipt without posting", async () =>
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("A3 GitHub publish CLI writes PR comment dry-run receipt without head sha", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "a3-github-comment-"));
+  const outputReceipt = join(tempDir, "comment-receipt.json");
+  try {
+    const exitCode = await runGitHubPublishCli([
+      "--gate", fixturePath("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json"),
+      "--repo", "acme/refund-agent",
+      "--pull-number", "17",
+      "--pr-comment",
+      "--output-receipt", outputReceipt
+    ], {
+      stdout: { write() {} },
+      stderr: { write(value) { throw new Error(value); } }
+    });
+    const receipt = JSON.parse(await readFile(outputReceipt, "utf8"));
+
+    assert.equal(exitCode, 0);
+    assert.equal(receipt.schema_version, "a3.github_pr_comment_publish_receipt.v1");
+    assert.equal(receipt.status, "planned");
+    assert.equal(receipt.dry_run, true);
+    assert.equal(receipt.posted, false);
+    assert.match(receipt.plan.request.body.body, /Decision: \*\*Block release\*\*/);
+    assert.doesNotMatch(JSON.stringify(receipt), /Authorization|Bearer|gh[pousr]_|C:\\Users/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("A3 GitHub publish CLI requires pull number for PR comment mode", async () => {
+  let stderr = "";
+  const exitCode = await runGitHubPublishCli([
+    "--gate", fixturePath("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json"),
+    "--repo", "acme/refund-agent",
+    "--pr-comment"
+  ], {
+    stdout: { write() {} },
+    stderr: { write(value) { stderr += value; } }
+  });
+  const error = JSON.parse(stderr);
+
+  assert.equal(exitCode, 1);
+  assert.match(error.message, /--pull-number is required/);
+  assert.equal(error.safety.token_included, false);
 });
 
 test("A3 GitHub publish CLI returns sanitized error for live mode without token", async () => {
@@ -328,4 +526,28 @@ test("A3 GitHub publish CLI returns sanitized error for live mode without token"
     if (previousGhToken === undefined) delete process.env.GH_TOKEN;
     else process.env.GH_TOKEN = previousGhToken;
   }
+});
+
+test("A3 GitHub integration builds branch protection required-check plan only", () => {
+  const plan = buildBranchProtectionRequiredCheckPlan({
+    repo: "acme/refund-agent",
+    branch: "main",
+    existingChecks: [{ context: "ci/test", app_id: 1 }],
+    existingContexts: ["legacy/status"],
+    appId: 12345
+  });
+
+  assert.equal(plan.schema_version, "a3.github_required_check_plan.v1");
+  assert.equal(plan.mode, "plan_required_check");
+  assert.equal(plan.check_name, "Ashr++ Release Gate");
+  assert.equal(plan.request.method, "PATCH");
+  assert.equal(plan.request.body.strict, true);
+  assert.deepEqual(plan.request.body.contexts, ["legacy/status"]);
+  assert.deepEqual(plan.request.body.checks, [
+    { context: "ci/test", app_id: 1 },
+    { context: "Ashr++ Release Gate", app_id: 12345 }
+  ]);
+  assert.equal(plan.safety.dry_run_only, true);
+  assert.equal(plan.safety.maintainer_approval_required, true);
+  assert.doesNotMatch(JSON.stringify(plan), /Authorization|Bearer|gh[pousr]_/);
 });

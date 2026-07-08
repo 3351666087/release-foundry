@@ -3,7 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { publishGitHubCheckRun } from "./a3_github_integration.mjs";
+import {
+  publishGitHubCheckRun,
+  publishPrCommentUpsert
+} from "./a3_github_integration.mjs";
 
 export function parseGitHubPublishArgs(argv = []) {
   const args = {
@@ -18,6 +21,8 @@ export function parseGitHubPublishArgs(argv = []) {
     else if (item === "--head-sha") args.headSha = next();
     else if (item === "--details-url") args.detailsUrl = next();
     else if (item === "--check-run-id") args.checkRunId = Number(next());
+    else if (item === "--pr-comment") args.prComment = true;
+    else if (item === "--pull-number") args.pullNumber = Number(next());
     else if (item === "--api-base-url") args.apiBaseUrl = next();
     else if (item === "--token-env") args.tokenEnvName = next();
     else if (item === "--output-receipt") args.outputReceipt = next();
@@ -40,10 +45,22 @@ export async function buildGitHubPublishCliReceipt(options = {}) {
   if (!options.repo) {
     throw new Error("--repo is required.");
   }
-  if (!options.headSha) {
+  if (options.prComment && (!Number.isInteger(Number(options.pullNumber)) || Number(options.pullNumber) <= 0)) {
+    throw new Error("--pull-number is required when --pr-comment is used.");
+  }
+  if (!options.prComment && !options.headSha) {
     throw new Error("--head-sha is required.");
   }
   const gatePayload = JSON.parse(await readFile(resolve(options.gate), "utf8"));
+  if (options.prComment) {
+    return publishPrCommentUpsert(gatePayload, {
+      repo: options.repo,
+      pullNumber: options.pullNumber,
+      apiBaseUrl: options.apiBaseUrl,
+      tokenEnvName: options.tokenEnvName,
+      dryRun: options.dryRun
+    });
+  }
   return publishGitHubCheckRun(gatePayload, {
     repo: options.repo,
     headSha: options.headSha,
@@ -88,6 +105,7 @@ function usageReceipt() {
   return {
     schema_version: "a3.github_publish_cli_usage.v1",
     command: "node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo owner/repo --head-sha <sha> --output-receipt artifacts/ashr-github-check-receipt.json",
+    pr_comment_command: "node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo owner/repo --pull-number <number> --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json",
     default_mode: "dry-run",
     live_mode: "Add --live and provide a token through --token-env GITHUB_TOKEN.",
     safety: {

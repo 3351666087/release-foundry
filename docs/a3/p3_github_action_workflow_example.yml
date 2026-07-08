@@ -29,6 +29,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo ${{ github.repository }} --head-sha ${{ github.event.pull_request.head.sha }} --details-url ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --live --json
+      - name: Publish Ashr++ PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo ${{ github.repository }} --pull-number ${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json --live --json
       - name: Enforce local gate result
         run: |
           node -e "const fs=require('fs'); const gate=JSON.parse(fs.readFileSync('artifacts/ashr-gate.json','utf8')); process.exit(gate.exit_code_hint || 0);"
