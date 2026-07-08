@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/api_probe_quota_gate.schema.json",
+  "title": "A1 API Probe Quota Gate",
+  "type": "object",
+  "required": ["schema_version", "function", "response"],
+  "properties": {
+    "schema_version": { "const": "ashr.clone.api_probe_batch_plan.v1" },
+    "function": { "const": "plan_batch" },
+    "response": {
+      "type": "object",
+      "required": ["plan"],
+      "properties": {
+        "plan": {
+          "type": "object",
+          "required": ["schema_version", "target_operation", "created_at", "target_binding", "quota_stop_go"],
+          "properties": {
+            "schema_version": { "const": "ashr.clone.api_probe_batch_plan.v1" },
+            "target_operation": {
+              "enum": ["create-request", "create-run", "get-dataset", "get-request", "get-run", "health-check", "init", "list-agents", "list-datasets", "list-requests", "list-runs", "poll-request", "poll-run"]
+            },
+            "created_at": { "type": "string", "format": "date-time" },
+            "target_binding": {
+              "type": "object",
+              "required": ["schema_version", "target_operation", "binding_scope", "fingerprint", "request_fingerprint", "request_input_schema_source", "raw_request_not_recorded"],
+              "properties": {
+                "schema_version": { "const": "ashr.clone.api_probe_target_binding.v1" },
+                "target_operation": {
+                  "enum": ["create-request", "create-run", "get-dataset", "get-request", "get-run", "health-check", "init", "list-agents", "list-datasets", "list-requests", "list-runs", "poll-request", "poll-run"]
+                },
+                "binding_scope": { "enum": ["operation", "request-payload"] },
+                "fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+                "request_fingerprint": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+                "request_input_schema_fingerprint": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+                "request_input_schema_source": { "type": "string" },
+                "allow_media_generation": { "type": "boolean" },
+                "allow_non_text_inputs": { "type": "boolean" },
+                "max_request_variations": {},
+                "small_batch_size": { "type": "integer", "minimum": 1 },
+                "batch_size": { "type": "integer", "minimum": 1 },
+                "modalities": { "type": "array", "items": { "type": "string" } },
+                "fingerprint_fields": { "type": "array", "items": { "type": "string" } },
+                "raw_request_not_recorded": { "const": true }
+              },
+              "additionalProperties": true
+            },
+            "quota_stop_go": {
+              "type": "object",
+              "required": ["decision", "source", "can_enter_small_batch", "can_enter_batch"],
+              "properties": {
+                "decision": { "enum": ["go", "stop", "wait"] },
+                "source": { "type": "string" },
+                "evidence_present": { "type": "boolean" },
+                "quota_or_reset_evidence_present": { "type": "boolean" },
+                "quota": { "type": ["object", "null"] },
+                "reset": {
+                  "type": "object",
+                  "properties": {
+                    "known": { "type": "boolean" },
+                    "wait_hint_present": { "type": "boolean" },
+                    "header_keys": { "type": "array", "items": { "type": "string" } },
+                    "retry_after_seconds": { "type": ["integer", "string", "null"] },
+                    "ratelimit_reset": { "type": ["string", "null"] }
+                  },
+                  "additionalProperties": true
+                },
+                "go_conditions": { "type": "array", "items": { "type": "string" } },
+                "stop_conditions": { "type": "array", "items": { "type": "string" } },
+                "can_enter_small_batch": { "type": "boolean" },
+                "can_enter_batch": { "type": "boolean" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

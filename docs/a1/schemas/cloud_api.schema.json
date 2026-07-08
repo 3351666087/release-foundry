@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/cloud_api.schema.json",
+  "title": "A1 Cloud API Local Runtime Records",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "const": "ashr.clone.cloud_api.v1"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "dataset_id": {
+      "type": "string"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "lease_owner_id": {
+      "type": ["string", "null"],
+      "description": "Queue worker lease owner for non-terminal queued/running runs. Terminal runs clear this field."
+    },
+    "lease_expires_at": {
+      "type": ["string", "null"],
+      "description": "ISO timestamp after which another worker may reclaim the run lease."
+    },
+    "lease_heartbeat_at": {
+      "type": ["string", "null"],
+      "description": "ISO timestamp of the most recent successful worker heartbeat."
+    },
+    "lease_reclaim_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of times an expired lease has been reclaimed for this run."
+    },
+    "status_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["status", "at"],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

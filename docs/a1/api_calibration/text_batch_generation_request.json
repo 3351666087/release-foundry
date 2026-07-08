@@ -1,0 +1,75 @@
+{
+  "agent": {
+    "name": "A1 Mock Support Agent",
+    "description": "A deterministic local mock agent used for small paid API calibration batches.",
+    "accepted_inputs": {
+      "text": true,
+      "audio": false,
+      "file": false,
+      "image": false,
+      "video": false,
+      "conversation": false
+    },
+    "tools": [
+      {
+        "name": "lookup_order",
+        "description": "Look up an order by ID.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "description": "Synthetic order identifier."
+            }
+          },
+          "required": ["order_id"]
+        }
+      },
+      {
+        "name": "open_ticket",
+        "description": "Open a synthetic support ticket.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string",
+              "enum": ["low", "normal", "high"]
+            }
+          },
+          "required": ["topic", "priority"]
+        }
+      }
+    ],
+    "output_format": {
+      "type": "text"
+    }
+  },
+  "context": {
+    "domain": "support operations",
+    "use_case": "Generate a small text-only calibration dataset for support-agent tool and response behavior.",
+    "scenario_context": "Use synthetic non-sensitive customer, order, and ticket examples only."
+  },
+  "generation_options": {
+    "generate_audio": false,
+    "generate_files": false,
+    "generate_images": false,
+    "generate_videos": false,
+    "generate_simulations": false
+  },
+  "test_config": {
+    "num_variations": 3,
+    "strategy": "focused",
+    "coverage": {
+      "happy_path": true,
+      "edge_cases": true,
+      "error_handling": false
+    }
+  },
+  "metadata": {
+    "dataset_name": "A1 Text Batch Calibration",
+    "description": "Small real paid API calibration batch with text-only inputs and three variations."
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SaasControlPlaneReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "created_at",
+    "tenant",
+    "service",
+    "judge_versioning",
+    "judge_version_registry",
+    "policy_config",
+    "scenario_selection",
+    "calibration",
+    "result_persistence",
+    "release_gate",
+    "a3_dashboard_contract",
+    "source_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.saas_control_plane_report.v1" },
+    "report_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "tenant": {
+      "type": "object",
+      "required": ["tenant_id", "org_id", "project_id", "environment", "run_id", "dataset_id", "tenant_scoped"],
+      "properties": {
+        "tenant_id": { "type": "string" },
+        "org_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "environment": { "type": "string" },
+        "run_id": { "type": "string" },
+        "dataset_id": { "type": "string" },
+        "tenant_scoped": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "service": {
+      "type": "object",
+      "required": ["service_version", "mode", "endpoints", "async_job_compatible", "safe_for_worker_dispatch"],
+      "properties": {
+        "service_version": { "type": "string" },
+        "mode": { "type": "string" },
+        "endpoints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/endpoint" },
+          "minItems": 8
+        },
+        "async_job_compatible": { "type": "boolean" },
+        "safe_for_worker_dispatch": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "judge_versioning": {
+      "type": "object",
+      "required": [
+        "judge_result_record_count",
+        "judge_id_count",
+        "judge_ids",
+        "judge_versions",
+        "policy_hash_count",
+        "all_records_have_policy_hash",
+        "all_records_have_input_hash",
+        "all_records_have_output_hash",
+        "version_fields"
+      ],
+      "properties": {
+        "judge_result_record_count": { "type": "integer", "minimum": 0 },
+        "judge_id_count": { "type": "integer", "minimum": 0 },
+        "judge_ids": { "$ref": "#/$defs/string_array" },
+        "judge_versions": { "$ref": "#/$defs/string_array" },
+        "policy_hash_count": { "type": "integer", "minimum": 0 },
+        "all_records_have_policy_hash": { "type": "boolean" },
+        "all_records_have_input_hash": { "type": "boolean" },
+        "all_records_have_output_hash": { "type": "boolean" },
+        "version_fields": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "judge_version_registry": {
+      "type": "object",
+      "required": [
+        "registry_id",
+        "registry_hash",
+        "active_release",
+        "declared_judge_count",
+        "observed_judge_count",
+        "all_declared_judges_observed",
+        "pinning_supported",
+        "history_replay_supported",
+        "can_compare_judge_versions",
+        "can_replay_history",
+        "judge_pins"
+      ],
+      "properties": {
+        "registry_id": { "type": "string" },
+        "registry_hash": { "$ref": "#/$defs/hash" },
+        "active_release": { "type": "object" },
+        "declared_judge_count": { "type": "integer", "minimum": 0 },
+        "observed_judge_count": { "type": "integer", "minimum": 0 },
+        "all_declared_judges_observed": { "type": "boolean" },
+        "pinning_supported": { "type": "boolean" },
+        "history_replay_supported": { "type": "boolean" },
+        "can_compare_judge_versions": { "type": "boolean" },
+        "can_replay_history": { "type": "boolean" },
+        "judge_pins": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "policy_config": {
+      "type": "object",
+      "required": [
+        "config_id",
+        "default_policy_id",
+        "policy_count",
+        "assignment_count",
+        "environments",
+        "selected_policy",
+        "waiver_flow_supported",
+        "release_gate_decision",
+        "metadata"
+      ],
+      "properties": {
+        "config_id": { "type": "string" },
+        "default_policy_id": { "type": "string" },
+        "policy_count": { "type": "integer", "minimum": 0 },
+        "assignment_count": { "type": "integer", "minimum": 0 },
+        "environments": { "$ref": "#/$defs/string_array" },
+        "selected_policy": {
+          "type": "object",
+          "required": ["policy_id", "policy_version", "policy_hash", "policy_hash_valid", "rule_count", "selection"],
+          "properties": {
+            "policy_id": { "type": "string" },
+            "policy_version": { "type": "string" },
+            "policy_hash": { "$ref": "#/$defs/hash" },
+            "policy_hash_valid": { "type": "boolean" },
+            "rule_count": { "type": "integer", "minimum": 0 },
+            "selection": { "type": "object" }
+          },
+          "additionalProperties": true
+        },
+        "waiver_flow_supported": { "type": "boolean" },
+        "release_gate_decision": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "scenario_selection": {
+      "type": "object",
+      "required": [
+        "selection_id",
+        "source_pack_id",
+        "source_scenario_count",
+        "selected_count",
+        "selected_scenario_ids",
+        "coverage_ready",
+        "required_axes_met",
+        "media_or_multimodal_count",
+        "missing_capability_axes",
+        "missing_tenant_saas_tags",
+        "risk_tier_counts"
+      ],
+      "properties": {
+        "selection_id": { "type": "string" },
+        "source_pack_id": { "type": "string" },
+        "source_scenario_count": { "type": "integer", "minimum": 0 },
+        "selected_count": { "type": "integer", "minimum": 0 },
+        "selected_scenario_ids": { "$ref": "#/$defs/string_array" },
+        "coverage_ready": { "type": "boolean" },
+        "required_axes_met": { "type": "object" },
+        "media_or_multimodal_count": { "type": "integer", "minimum": 0 },
+        "missing_capability_axes": { "$ref": "#/$defs/string_array" },
+        "missing_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
+        "risk_tier_counts": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "calibration": {
+      "type": "object",
+      "required": ["matrix_id", "case_count", "sources", "source_coverage", "agreement_mismatch_count", "cost_ledger", "live_evidence_gates"],
+      "properties": {
+        "matrix_id": { "type": "string" },
+        "case_count": { "type": "integer", "minimum": 0 },
+        "sources": { "$ref": "#/$defs/string_array" },
+        "source_coverage": { "type": "object" },
+        "agreement_mismatch_count": { "type": "integer", "minimum": 0 },
+        "cost_ledger": { "type": "array" },
+        "live_evidence_gates": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "result_persistence": {
+      "type": "object",
+      "required": [
+        "manifest_id",
+        "record_count",
+        "record_type_counts",
+        "public_safe",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded",
+        "ready_for_audit_export"
+      ],
+      "properties": {
+        "manifest_id": { "type": "string" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "record_type_counts": { "type": "object" },
+        "public_safe": { "type": "boolean" },
+        "raw_private_evidence_not_recorded": { "type": "boolean" },
+        "secrets_not_recorded": { "type": "boolean" },
+        "ready_for_audit_export": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "release_gate": { "type": "object" },
+    "a3_dashboard_contract": {
+      "type": "object",
+      "required": [
+        "consumer",
+        "status",
+        "recommended_payload_keys",
+        "dashboard_can_show",
+        "local_meter",
+        "selected_policy_id",
+        "release_gate_decision",
+        "selection_coverage_ready",
+        "private_fields_forbidden",
+        "mutations_enabled"
+      ],
+      "properties": {
+        "consumer": { "type": "string" },
+        "status": { "type": "string" },
+        "recommended_payload_keys": { "type": "object" },
+        "dashboard_can_show": { "$ref": "#/$defs/string_array" },
+        "local_meter": { "type": "object" },
+        "selected_policy_id": { "type": "string" },
+        "release_gate_decision": { "type": "string" },
+        "selection_coverage_ready": { "type": "boolean" },
+        "private_fields_forbidden": { "$ref": "#/$defs/string_array" },
+        "mutations_enabled": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "source_refs": { "type": "object" },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "deterministic",
+        "requires_network",
+        "requires_ashr_api_key",
+        "does_not_execute_live_calls",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "deterministic": { "const": true },
+        "requires_network": { "const": false },
+        "requires_ashr_api_key": { "const": false },
+        "does_not_execute_live_calls": { "const": true },
+        "raw_private_evidence_not_recorded": { "const": true },
+        "secrets_not_recorded": { "const": true },
+        "intended_consumers": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "required": ["endpoint_id", "method", "path", "request_fields", "response_fields", "deterministic", "requires_network"],
+      "properties": {
+        "endpoint_id": { "type": "string" },
+        "method": { "type": "string" },
+        "path": { "type": "string" },
+        "request_fields": { "$ref": "#/$defs/string_array" },
+        "response_fields": { "$ref": "#/$defs/string_array" },
+        "deterministic": { "type": "boolean" },
+        "requires_network": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

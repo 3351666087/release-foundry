@@ -1,0 +1,11 @@
+[package]
+name = "ashr-runtime-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Static Ashr A1 runtime fixture verifier and replay-plan utility."
+license = "UNLICENSED"
+publish = false
+
+[[bin]]
+name = "ashr-runtime-verify"
+path = "src/main.rs"

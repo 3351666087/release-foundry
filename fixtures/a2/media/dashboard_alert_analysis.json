@@ -1,0 +1,12 @@
+{
+  "asset_id": "dashboard-alert-001",
+  "source_path": "fixtures/a2/images/dashboard-alert.png",
+  "modality": "image",
+  "analysis": {
+    "service": "Billing",
+    "severity": "critical",
+    "alert_color": "red",
+    "confidence": 0.94
+  },
+  "notes": "Local deterministic media-analysis fixture; no hosted Ashr API call is required."
+}

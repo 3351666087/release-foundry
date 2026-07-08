@@ -1,0 +1,62 @@
+{
+  "schema_version": "a2.synthetic_ashr_grading_import_sample.v1",
+  "status": "ok",
+  "response": {
+    "run": {
+      "id": "ashr-run-redacted-001",
+      "dataset": "ashr-dataset-redacted-001",
+      "result": {
+        "status": "completed",
+        "aggregate_metrics": {
+          "total_tests": 2,
+          "tests_passed": 1,
+          "tests_failed": 1
+        },
+        "tests": [
+          {
+            "test_id": "ashr-pass-control",
+            "status": "completed",
+            "action_results": [
+              {
+                "action_index": 0,
+                "actor": "agent",
+                "action_type": "text",
+                "match_status": "similar",
+                "semantic_similarity": 0.98,
+                "expected_response": {"text": "Ask for the missing information."},
+                "actual_response": {"text": "I need a little more information before I can complete your request."}
+              }
+            ]
+          },
+          {
+            "test_id": "ashr-wrong-contract-path",
+            "status": "completed",
+            "action_results": [
+              {
+                "action_index": 0,
+                "actor": "agent",
+                "action_type": "tool_call",
+                "match_status": "mismatch",
+                "semantic_similarity": 0.42,
+                "divergence_notes": "The actual file path used vendor-alfa instead of vendor-alpha.",
+                "tool_calls": [
+                  {
+                    "match_status": "mismatch",
+                    "expected": {
+                      "tool_name": "file.read",
+                      "arguments": {"path": "fixtures/a2/contracts/vendor-alpha.txt"}
+                    },
+                    "actual": {
+                      "tool_name": "file.read",
+                      "arguments": {"path": "fixtures/a2/contracts/vendor-alfa.txt"}
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

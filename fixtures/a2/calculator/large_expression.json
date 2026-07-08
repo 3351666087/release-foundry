@@ -1,0 +1,6 @@
+{
+  "expression": "4873 * 29 + 1187",
+  "expected_value": 142504,
+  "decoy_expression": "4873 + 29 + 1187",
+  "decoy_value": 6089
+}

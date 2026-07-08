@@ -1,0 +1,165 @@
+﻿{
+  "schema_version": "ashr.a1.frontend_contract_public.v1",
+  "source": {
+    "archive": "C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip",
+    "inspection_date": "2026-07-08",
+    "temp_extract": "%TEMP%/ashr_frontend_mirror_round19",
+    "redaction": "Public-safe names and labels only; no secrets, cookies, account IDs, request bodies, or response bodies."
+  },
+  "api": {
+    "endpoint": "https://api.ashr.io/testing-platform-api",
+    "method": "POST",
+    "envelope_fields": [
+      "function",
+      "token",
+      "auth_provider"
+    ],
+    "error_status_value": "error",
+    "function_groups": {
+      "dataset_request_run_lifecycle": [
+        "list_datasets",
+        "get_dataset",
+        "create_dataset",
+        "update_dataset",
+        "delete_dataset",
+        "list_requests",
+        "get_request",
+        "create_request",
+        "update_request_status",
+        "delete_request",
+        "list_runs",
+        "get_run",
+        "create_run",
+        "update_run_result",
+        "delete_run",
+        "evaluate_run"
+      ],
+      "agent_linkage": [
+        "list_agents",
+        "create_agent",
+        "update_agent",
+        "delete_agent",
+        "get_agent_datasets",
+        "set_dataset_agent",
+        "get_tools_by_agent",
+        "get_agent_tool_performance"
+      ],
+      "usage_billing_api_keys": [
+        "get_usage",
+        "billing_get_status",
+        "billing_get_public_pricing",
+        "billing_create_checkout_session",
+        "billing_create_portal_session",
+        "list_api_keys",
+        "create_api_key",
+        "revoke_api_key"
+      ],
+      "media_voice_adjacent": [
+        "get_upload_link",
+        "get_download_link",
+        "list_voice_sessions",
+        "get_voice_session",
+        "get_voice_session_turns",
+        "get_voice_session_audio_url",
+        "get_voice_analytics_overview",
+        "get_voice_charts",
+        "get_voice_call_insights",
+        "generate_voice_call_insights",
+        "get_lightberry_scenario"
+      ]
+    }
+  },
+  "frontend_fields": [
+    "function",
+    "token",
+    "auth_provider",
+    "request_status",
+    "request_name",
+    "requestor_details",
+    "request_input_schema",
+    "actual_duration_s",
+    "estimated_duration_s",
+    "aggregate_metrics",
+    "total_tests",
+    "tests_passed",
+    "tests_failed",
+    "created_at",
+    "last_run_at",
+    "run_count",
+    "agent_details",
+    "creator_details",
+    "dataset_source",
+    "expires_seconds",
+    "api_key_id"
+  ],
+  "lifecycle_status_labels": {
+    "pending": "Queued",
+    "processing": "Processing",
+    "failed": "Failed",
+    "completed": "Completed"
+  },
+  "retry_labels": [
+    "Retry",
+    "Edit & retry",
+    "Retrying...",
+    "Generation failed",
+    "Being worked on..."
+  ],
+  "usage": {
+    "backend_key_to_label": {
+      "videos": "Videos",
+      "images": "Images",
+      "simulations": "Simulations",
+      "audios": "Audio",
+      "files": "Files",
+      "graded_scenarios": "Graded scenarios",
+      "observations": "Observations",
+      "voice_minutes": "Voice minutes"
+    },
+    "tabs": [
+      "Plan limits",
+      "Assets"
+    ],
+    "cap_mode_badges": {
+      "hard_limit": "Limit reached",
+      "overage": "Overage billing"
+    },
+    "threshold_percentages": {
+      "warning_at": 75,
+      "error_above": 90
+    }
+  },
+  "empty_states": {
+    "api_keys": {
+      "title": "No API keys yet",
+      "hint": "Create your first API key to get started with programmatic access."
+    },
+    "agents": {
+      "loading": "Loading agents...",
+      "error_prefix": "Couldn't load agents:",
+      "empty": "No agents yet."
+    },
+    "datasets": {
+      "loading": "Loading datasets...",
+      "error_prefix": "Couldn't load datasets:",
+      "empty_filtered": "No datasets match your filters.",
+      "clear_action": "Clear all filters"
+    },
+    "agent_dataset_linkage": {
+      "empty": "No datasets assigned to this agent yet."
+    },
+    "folders_adjacent": {
+      "empty": "This folder is empty",
+      "hint": "Click \"Add datasets\" to start organizing"
+    }
+  },
+  "evidence_paths": [
+    "_report/api-like-observed-skipped.json",
+    "mirror/lab.ashr.io/assets/index-DSO2XOq6.js",
+    "mirror/lab.ashr.io/assets/UsagePage-CoD18uzD.js",
+    "mirror/lab.ashr.io/assets/ApiKeysPage-DcsMtTi4.js",
+    "mirror/lab.ashr.io/assets/AgentsPage-CfpNKbhq.js",
+    "mirror/lab.ashr.io/assets/DatasetsPage-C6F1zCF4.js",
+    "mirror/lab.ashr.io/assets/RequestDetailDrawer-SLqhBzSz.js"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "scenario_id": "A2-S012",
+  "case_id": "sample-a2-s012-ignored-tool-result",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.open#1",
+        "tool": "web.open",
+        "args": {
+          "url": "https://example.test/holiday-page"
+        }
+      }
+    ],
+    "final_response": "The office is open on July 5.",
+    "expected_facts": [
+      "closed"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "ignored_tool_result"
+  }
+}

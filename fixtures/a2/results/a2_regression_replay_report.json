@@ -1,0 +1,92 @@
+{
+  "schema_version": "a2.regression_replay.v1",
+  "replay_id": "a2_case_book_regression_replay",
+  "source_case_book": "a2_case_book",
+  "source_matrix": "a2_g3_calibration_matrix",
+  "dataset_id": "a2-g3-calibration",
+  "replay_case_count": 1,
+  "passed_count": 1,
+  "failed_count": 0,
+  "replay_ready": true,
+  "maturity_status": "seed",
+  "maturity_gate": {
+    "status": "seed",
+    "ready": false,
+    "target_replay_case_count": 3,
+    "current_replay_case_count": 1,
+    "missing_replay_case_count": 2,
+    "failed_replay_case_count": 0,
+    "case_book_maturity_ready": false,
+    "reviewed_evidence_target_count": 3,
+    "reviewed_external_evidence_count": 0,
+    "missing_reviewed_evidence_count": 3,
+    "missing_reviewed_replay_cases": 3,
+    "gaps": [
+      "Replay 2 more reviewed case-book regression(s) before marking C5 mature.",
+      "Keep the case-book maturity gate open until reviewed external evidence supports the regression set."
+    ]
+  },
+  "release_gate_summary": {
+    "schema_version": "a2.regression_replay.release_gate_summary.v1",
+    "gate": "C5",
+    "status": "seed",
+    "release_gate_status": "blocked",
+    "blocks_release": true,
+    "action": "promote_more_regressions",
+    "required_action": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+    "blocking_count": 3,
+    "current_replay_case_count": 1,
+    "target_replay_case_count": 3,
+    "missing_replay_case_count": 2,
+    "failed_replay_case_count": 0,
+    "reviewed_external_evidence_count": 0,
+    "reviewed_evidence_target_count": 3,
+    "missing_reviewed_evidence_count": 3,
+    "case_book_maturity_ready": false,
+    "gaps": [
+      "Replay 2 more reviewed case-book regression(s) before marking C5 mature.",
+      "Keep the case-book maturity gate open until reviewed external evidence supports the regression set."
+    ],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_regression_replay_report.json",
+      "fixtures/a2/results/a2_case_book.json"
+    ]
+  },
+  "cases": [
+    {
+      "regression_id": "regression-sample-a2-s010-wrong-arguments",
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "scenario_id": "A2-S010",
+      "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+      "replay_status": "passed",
+      "checks": {
+        "fixture_replayed": true,
+        "local_failure_class_preserved": true,
+        "local_pass_status_preserved": true,
+        "matrix_disagreement_visible": true,
+        "regression_assertion_present": true
+      },
+      "expected_local_failure_class": "wrong_arguments",
+      "observed_local_failure_class": "wrong_arguments",
+      "expected_llm_failure_class": "ignored_tool_result",
+      "replay_grade": {
+        "passed": false,
+        "score": 75,
+        "primary_failure_class": "wrong_arguments",
+        "judge_count": 5
+      },
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_grade_results.json",
+        "fixtures/a2/runs/a2_s010_wrong_arguments.json"
+      ]
+    }
+  ],
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make C5 case-book regressions executable and auditable.",
+    "notes": [
+      "This report replays current local judge behavior; it does not resolve judge disagreements by itself.",
+      "C5 remains partial until the case book covers more reviewed Ashr/local/LLM disagreements."
+    ]
+  }
+}

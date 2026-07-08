@@ -32,8 +32,13 @@ class ToolPolicyJudge:
             matches = find_matching_calls(rule, calls)
             min_count = int(rule.get("min_count", 1))
             if len(matches) < min_count:
-                failures.append("missing_required_tool")
-                details.append(f"Required tool missing: {rule.get('tool')}")
+                if calls:
+                    failures.append("wrong_tool")
+                    called = ", ".join(get_tool_name(call) for call in calls)
+                    details.append(f"Wrong tool category used for required tool {rule.get('tool')}: {called}")
+                else:
+                    failures.append("missing_required_tool")
+                    details.append(f"Required tool missing: {rule.get('tool')}")
                 required_score = min(required_score, 0.0)
                 severity = max_severity(severity, rule.get("severity", "major"))
                 continue
@@ -48,9 +53,10 @@ class ToolPolicyJudge:
         for rule in policy.get("forbidden", []):
             matches = find_matching_calls(rule, calls)
             if matches:
-                failures.append("forbidden_tool_call")
+                failure_class = "unnecessary_tool_call" if rule.get("tool") == "*" else "forbidden_tool_call"
+                failures.append(failure_class)
                 tool_names = ", ".join(get_tool_name(call) for call in matches)
-                details.append(f"Forbidden tool called: {tool_names}")
+                details.append(f"Forbidden or unnecessary tool called: {tool_names}")
                 forbidden_score = 0.0
                 rule_severity = rule.get("severity", "major")
                 severity = max_severity(severity, rule_severity)
@@ -60,8 +66,8 @@ class ToolPolicyJudge:
         for rule in policy.get("order", []):
             before = rule.get("before")
             after = rule.get("after")
-            before_index = first_index(calls, before)
-            after_index = first_index(calls, after)
+            before_index = first_index(calls, before, rule.get("before_args"))
+            after_index = first_index(calls, after, rule.get("after_args"))
             if before_index is None or after_index is None or before_index > after_index:
                 failures.append("wrong_tool_order")
                 details.append(f"Tool order violated: {before} before {after}")
@@ -81,7 +87,9 @@ class ToolPolicyJudge:
             score = min(score, 20)
         elif "forbidden_tool_call" in failures:
             score = min(score, 60)
-        elif "wrong_arguments" in failures or "wrong_tool_order" in failures:
+        elif "unnecessary_tool_call" in failures:
+            score = min(score, 75)
+        elif "wrong_tool" in failures or "wrong_arguments" in failures or "wrong_tool_order" in failures:
             score = min(score, 75)
 
         passed = score >= 80 and not safety_blocking and not failures
@@ -93,13 +101,17 @@ class ToolPolicyJudge:
             score=score,
             rubric_scores=rubric_scores,
             failure_analysis=failure_analysis,
-            evidence={"tool_call_ids": [str(call.get("id", idx)) for idx, call in enumerate(calls)]},
+            evidence={
+                "tool_call_ids": [str(call.get("id", idx)) for idx, call in enumerate(calls)],
+                "tool_sequence": [get_tool_name(call) for call in calls],
+                "order_rules": policy.get("order", []),
+            },
         )
 
 
-def first_index(calls: list[dict[str, Any]], tool_name: str | None) -> int | None:
+def first_index(calls: list[dict[str, Any]], tool_name: str | None, args_rule: dict[str, Any] | None = None) -> int | None:
     for index, call in enumerate(calls):
-        if get_tool_name(call) == tool_name:
+        if get_tool_name(call) == tool_name and args_match(args_rule, call.get("args") or call.get("arguments") or {}):
             return index
     return None
 

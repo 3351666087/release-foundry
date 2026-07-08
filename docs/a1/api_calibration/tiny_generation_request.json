@@ -1,0 +1,58 @@
+{
+  "agent": {
+    "name": "A1 Mock Support Agent",
+    "description": "A deterministic local mock agent used for tiny API calibration dry-runs.",
+    "accepted_inputs": {
+      "text": true,
+      "audio": false,
+      "file": false,
+      "image": false,
+      "video": false,
+      "conversation": false
+    },
+    "tools": [
+      {
+        "name": "lookup_order",
+        "description": "Look up an order by ID.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "description": "Synthetic order identifier."
+            }
+          },
+          "required": ["order_id"]
+        }
+      }
+    ],
+    "output_format": {
+      "type": "text"
+    }
+  },
+  "context": {
+    "domain": "support operations",
+    "use_case": "Answer synthetic order-status questions for local calibration.",
+    "scenario_context": "Use tiny, non-sensitive mock order data only."
+  },
+  "generation_options": {
+    "generate_audio": false,
+    "generate_files": false,
+    "generate_images": false,
+    "generate_videos": false,
+    "generate_simulations": false
+  },
+  "test_config": {
+    "num_variations": 1,
+    "strategy": "focused",
+    "coverage": {
+      "happy_path": true,
+      "edge_cases": false,
+      "error_handling": false
+    }
+  },
+  "metadata": {
+    "dataset_name": "A1 Tiny Calibration Dry Run",
+    "description": "Safe one-scenario request config for dry-run planning."
+  }
+}

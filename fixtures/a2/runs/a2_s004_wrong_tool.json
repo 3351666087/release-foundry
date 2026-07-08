@@ -1,0 +1,23 @@
+{
+  "scenario_id": "A2-S004",
+  "case_id": "sample-a2-s004-wrong-tool",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "weather.lookup#1",
+        "tool": "weather.lookup",
+        "args": {
+          "location": "Acme MiniDock"
+        }
+      }
+    ],
+    "final_response": "The Acme MiniDock costs $79.",
+    "expected_keywords": [
+      "$79"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool"
+  }
+}

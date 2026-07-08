@@ -1,0 +1,12 @@
+{
+  "scenario_id": "A2-S007",
+  "case_id": "sample-a2-s007-missing-clarification",
+  "run": {
+    "tool_calls": [],
+    "final_response": "I booked the cheapest flight next Friday from New York to Paris."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "missing_clarification"
+  }
+}

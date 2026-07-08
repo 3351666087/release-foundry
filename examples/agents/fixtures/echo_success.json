@@ -1,0 +1,225 @@
+{
+  "events": [
+    {
+      "event_id": "evt_76132daccb75780c",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "agent": "mock-agent",
+          "scenario": "echo_success"
+        },
+        "kind": "control",
+        "status": "ok",
+        "text": "run.started"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_26a0172c03b36376",
+      "schema": "ashr.clone.trace.v1",
+      "seq": 0,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_3be6a34231a8eeae",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "user",
+        "data": {
+          "scenario": "echo_success"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "Say hello to the trace harness."
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_26a0172c03b36376",
+      "schema": "ashr.clone.trace.v1",
+      "seq": 1,
+      "source": "mock-agent",
+      "tags": [
+        "user"
+      ],
+      "timestamp": "2026-01-01T00:00:00.050Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_7b6cb0fa03e1993f",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "assistant",
+        "data": {
+          "policy": "echo"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "Echo: Say hello to the trace harness."
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_26a0172c03b36376",
+      "schema": "ashr.clone.trace.v1",
+      "seq": 2,
+      "source": "mock-agent",
+      "tags": [
+        "assistant"
+      ],
+      "timestamp": "2026-01-01T00:00:00.100Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_fbb6b1b204d51670",
+      "event_type": "telemetry.metric",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "name": "events_emitted",
+          "unit": "count",
+          "value": 5
+        },
+        "kind": "metric",
+        "status": "ok",
+        "text": "events_emitted"
+      },
+      "parent_id": null,
+      "phase": "telemetry",
+      "run_id": "run_26a0172c03b36376",
+      "schema": "ashr.clone.trace.v1",
+      "seq": 3,
+      "source": "mock-agent",
+      "tags": [
+        "metric",
+        "events_emitted"
+      ],
+      "timestamp": "2026-01-01T00:00:00.150Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_74912dcb2251fd84",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "result": "Echo: Say hello to the trace harness.",
+          "scenario": "echo_success"
+        },
+        "kind": "control",
+        "status": "ok",
+        "text": "run.finished"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_26a0172c03b36376",
+      "schema": "ashr.clone.trace.v1",
+      "seq": 4,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.200Z",
+      "type": "trace_event"
+    }
+  ],
+  "expected": {
+    "event_count": 5,
+    "final_text": "Echo: Say hello to the trace harness.",
+    "status": "ok"
+  },
+  "labels": [
+    "a3",
+    "dialogue",
+    "success"
+  ],
+  "name": "echo_success",
+  "replay": {
+    "command": "--scenario echo_success",
+    "entrypoint": "python examples/agents/mock_agent.py",
+    "mode": "deterministic-local"
+  },
+  "run": {
+    "agent": "mock-agent",
+    "finished_at": "2026-01-01T00:00:00.200Z",
+    "run_id": "run_26a0172c03b36376",
+    "started_at": "2026-01-01T00:00:00.000Z",
+    "status": "ok",
+    "task": "Return a concise echo of the user request."
+  },
+  "schema": "ashr.clone.run.v1",
+  "vm_stream": [
+    {
+      "data": {
+        "agent": "mock-agent",
+        "scenario": "echo_success"
+      },
+      "event_id": "evt_76132daccb75780c",
+      "schema": "ashr.clone.vm_stream.v1",
+      "seq": 0,
+      "status": "ok",
+      "stream": "lifecycle",
+      "text": "run.started",
+      "timestamp": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "data": {
+        "scenario": "echo_success"
+      },
+      "event_id": "evt_3be6a34231a8eeae",
+      "schema": "ashr.clone.vm_stream.v1",
+      "seq": 1,
+      "status": "ok",
+      "stream": "stdin",
+      "text": "Say hello to the trace harness.",
+      "timestamp": "2026-01-01T00:00:00.050Z"
+    },
+    {
+      "data": {
+        "policy": "echo"
+      },
+      "event_id": "evt_7b6cb0fa03e1993f",
+      "schema": "ashr.clone.vm_stream.v1",
+      "seq": 2,
+      "status": "ok",
+      "stream": "stdout",
+      "text": "Echo: Say hello to the trace harness.",
+      "timestamp": "2026-01-01T00:00:00.100Z"
+    },
+    {
+      "data": {
+        "name": "events_emitted",
+        "unit": "count",
+        "value": 5
+      },
+      "event_id": "evt_fbb6b1b204d51670",
+      "schema": "ashr.clone.vm_stream.v1",
+      "seq": 3,
+      "status": "ok",
+      "stream": "metric",
+      "text": "events_emitted",
+      "timestamp": "2026-01-01T00:00:00.150Z"
+    },
+    {
+      "data": {
+        "result": "Echo: Say hello to the trace harness.",
+        "scenario": "echo_success"
+      },
+      "event_id": "evt_74912dcb2251fd84",
+      "schema": "ashr.clone.vm_stream.v1",
+      "seq": 4,
+      "status": "ok",
+      "stream": "lifecycle",
+      "text": "run.finished",
+      "timestamp": "2026-01-01T00:00:00.200Z"
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "schema_version": "a2.sdk_parity.v1",
+  "report_id": "a2_sdk_parity_report",
+  "scenario_id": "A2-S005",
+  "required_languages": [
+    "python",
+    "typescript"
+  ],
+  "passed_languages": [
+    "python",
+    "typescript"
+  ],
+  "sdk_language_count": 2,
+  "parity_passed": true,
+  "official_sdk_chains": [
+    {
+      "language": "python",
+      "docs_url": "https://ashr.io/docs/python-sdk/overview",
+      "install": "pip install ashr-labs",
+      "runtime": "Python 3.10+",
+      "client_entrypoint": "AshrLabsClient(api_key=...)",
+      "runner_entrypoint": "EvalRunner.from_dataset(client, dataset_id=...)",
+      "run_and_deploy_entrypoint": "runner.run_and_deploy(agent, client, dataset_id=...)",
+      "testing_surface": "EvalRunner / RunBuilder / Agent / comparators",
+      "a2_consumed_shape": "AgentTurn or AgentResult.to_dict()"
+    },
+    {
+      "language": "typescript",
+      "docs_url": "https://ashr.io/docs/typescript-sdk/overview",
+      "install": "npm install ashr-labs",
+      "runtime": "Node.js 18+ and TypeScript 5.4+ recommended",
+      "client_entrypoint": "new AshrLabsClient(apiKey)",
+      "runner_entrypoint": "await EvalRunner.fromDataset(client, datasetId)",
+      "run_and_deploy_entrypoint": "await runner.runAndDeploy(agent, client, datasetId)",
+      "testing_surface": "EvalRunner / RunBuilder / Agent / comparators",
+      "a2_consumed_shape": "CaseResult.agent_output"
+    }
+  ],
+  "source_contracts": [
+    {
+      "language": "python",
+      "sdk_path": "packages/sdk/ashr_clone/adapter.py",
+      "schema_versions": [
+        "ashr.clone.agent_input.v1",
+        "ashr.clone.agent_turn.v1"
+      ],
+      "runner_shape": "AgentResult.to_dict() -> A2 normalize_run_input"
+    },
+    {
+      "language": "typescript",
+      "sdk_path": "packages/ts/ashr-clone/src/index.ts",
+      "schema_versions": [
+        "ashr.clone.agent_input.v1",
+        "ashr.clone.agent_turn.v1"
+      ],
+      "runner_shape": "CaseResult.agent_output -> A2 normalize_run_input"
+    }
+  ],
+  "cases": [
+    {
+      "language": "python",
+      "case_id": "sdk-parity-python",
+      "input_shape": "AgentTurn",
+      "runner_metadata": {
+        "sdk_language": "python",
+        "sdk_contract": "packages/sdk/ashr_clone/adapter.py",
+        "adapter_name": "A1PythonAdapter"
+      },
+      "a2_grade": {
+        "passed": true,
+        "score": 100.0,
+        "primary_failure_class": "none",
+        "judge_count": 5
+      }
+    },
+    {
+      "language": "typescript",
+      "case_id": "sdk-parity-typescript-case",
+      "input_shape": "CaseResult.agent_output",
+      "runner_metadata": {
+        "sdk_language": "typescript",
+        "runner_id": "ts-local-runner",
+        "sdk_contract": "packages/ts/ashr-clone/src/index.ts",
+        "package": "@ashr-clone/sdk"
+      },
+      "a2_grade": {
+        "passed": true,
+        "score": 100.0,
+        "primary_failure_class": "none",
+        "judge_count": 5
+      }
+    }
+  ],
+  "metadata": {
+    "deterministic": true,
+    "official_docs_refs": [
+      "https://ashr.io/docs/python-sdk/overview",
+      "https://ashr.io/docs/typescript-sdk/overview"
+    ],
+    "purpose": "Keep the A2 judge contract aligned with both Ashr Python and TypeScript SDK entrypoints."
+  }
+}

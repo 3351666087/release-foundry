@@ -11,11 +11,21 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .grounding import GroundingJudge
 from .outcome import OutcomeJudge
+from .safety_boundary import SafetyBoundaryJudge
+from .trace_integrity import TraceIntegrityJudge
 from .tool_policy import ToolPolicyJudge
 
 
-DEFAULT_SCENARIO_PACK = Path("packages/scenarios/a2_g2_seed_pack.json")
+DEFAULT_SCENARIO_PACK = Path("packages/scenarios/a2_g3_full_pack.json")
+JUDGES = (
+    ToolPolicyJudge,
+    OutcomeJudge,
+    TraceIntegrityJudge,
+    GroundingJudge,
+    SafetyBoundaryJudge,
+)
 
 
 def load_scenario_pack(path: str | Path = DEFAULT_SCENARIO_PACK) -> dict[str, Any]:
@@ -39,10 +49,8 @@ def grade_run(
     scenario = get_scenario(scenario_id, pack)
     normalized_run = normalize_run_input(run)
     effective_case_id = case_id or normalized_run.get("case_id") or scenario_id
-    results = [
-        ToolPolicyJudge().grade(scenario, normalized_run, case_id=effective_case_id).to_dict(),
-        OutcomeJudge().grade(scenario, normalized_run, case_id=effective_case_id).to_dict(),
-    ]
+    normalized_run["case_id"] = effective_case_id
+    results = [judge().grade(scenario, normalized_run, case_id=effective_case_id).to_dict() for judge in JUDGES]
     passed = all(result["passed"] for result in results)
     score = round(sum(result["score"] for result in results) / len(results), 2)
     failure_classes = [
@@ -50,6 +58,9 @@ def grade_run(
         for result in results
         if result["failure_analysis"]["primary_failure_class"] != "none"
     ]
+    if not passed:
+        failing_scores = [result["score"] for result in results if not result["passed"]]
+        score = min(score, min(failing_scores) if failing_scores else score)
     return {
         "schema_version": "a2.local_judge_run.v1",
         "scenario_id": scenario_id,
@@ -59,6 +70,42 @@ def grade_run(
         "primary_failure_class": failure_classes[0] if failure_classes else "none",
         "judge_results": results,
     }
+
+
+def grade_runs(
+    run_fixtures: list[dict[str, Any]],
+    pack_path: str | Path = DEFAULT_SCENARIO_PACK,
+    *,
+    report_id: str = "a2_g3_grade_results",
+    dataset_id: str = "a2-g3-calibration",
+) -> dict[str, Any]:
+    grade_results = [
+        grade_run(
+            fixture["scenario_id"],
+            fixture.get("run", fixture),
+            pack_path=pack_path,
+            case_id=fixture.get("case_id"),
+        )
+        for fixture in run_fixtures
+    ]
+    return {
+        "schema_version": "a2.grade_results.v1",
+        "report_id": report_id,
+        "dataset_id": dataset_id,
+        "scenario_pack": _display_pack_path(pack_path),
+        "total_cases": len(grade_results),
+        "passed": sum(1 for result in grade_results if result["passed"]),
+        "failed": sum(1 for result in grade_results if not result["passed"]),
+        "grade_results": grade_results,
+    }
+
+
+def _display_pack_path(pack_path: str | Path) -> str:
+    path = Path(pack_path)
+    try:
+        return path.relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def normalize_run_input(run: dict[str, Any]) -> dict[str, Any]:
@@ -72,7 +119,21 @@ def normalize_run_input(run: dict[str, Any]) -> dict[str, Any]:
         "tool_calls": [_normalize_tool_call(call, index) for index, call in enumerate(tool_calls or [])],
         "final_response": _final_response(run, source),
     }
-    for key in ("case_id", "expected_keywords", "forbidden_keywords"):
+    for key in (
+        "case_id",
+        "status",
+        "error",
+        "latency_ms",
+        "observations",
+        "trace_events",
+        "expected",
+        "actual",
+        "expected_keywords",
+        "forbidden_keywords",
+        "expected_facts",
+        "forbidden_facts",
+        "metadata",
+    ):
         if key in run:
             normalized[key] = run[key]
         elif key in source:

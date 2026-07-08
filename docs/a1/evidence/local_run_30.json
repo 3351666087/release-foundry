@@ -1,0 +1,4802 @@
+{
+  "aggregate_metrics": {
+    "errored": 0,
+    "failed": 0,
+    "passed": 30,
+    "schema_version": "ashr.clone.run_result.v1",
+    "timed_out": 0,
+    "total_tool_calls": 30,
+    "trace_completeness": 1.0
+  },
+  "cases": [
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-00",
+      "ended_at": "2026-07-03T15:34:50.993Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-00",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-00",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.993Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-00"
+          },
+          "observation_id": "obs_804b25c58ec7f6f2",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.993Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-00",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.993Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_cdd5e6ded391e09d",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.993Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-00"
+          }
+        }
+      ],
+      "scenario_id": "scenario-00",
+      "started_at": "2026-07-03T15:34:50.993Z",
+      "status": "passed",
+      "title": "Calculator 00"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-01",
+      "ended_at": "2026-07-03T15:34:50.995Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-01",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-01",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.995Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-01"
+          },
+          "observation_id": "obs_6f70892725155921",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-01",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.995Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_eba28cd405930db5",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-01"
+          }
+        }
+      ],
+      "scenario_id": "scenario-01",
+      "started_at": "2026-07-03T15:34:50.995Z",
+      "status": "passed",
+      "title": "Calculator 01"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-02",
+      "ended_at": "2026-07-03T15:34:50.996Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-02",
+        "score": 1.0
+      },
+      "latency_ms": 1,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-02",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.995Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-02"
+          },
+          "observation_id": "obs_8d980a2a6fd976ce",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-02",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.996Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_620513b15a42df31",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-02"
+          }
+        }
+      ],
+      "scenario_id": "scenario-02",
+      "started_at": "2026-07-03T15:34:50.995Z",
+      "status": "passed",
+      "title": "Calculator 02"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-03",
+      "ended_at": "2026-07-03T15:34:50.995Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-03",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-03",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.995Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-03"
+          },
+          "observation_id": "obs_a07f53db84afd87d",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-03",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.995Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_6ce3b2536ffe3dd1",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.995Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-03"
+          }
+        }
+      ],
+      "scenario_id": "scenario-03",
+      "started_at": "2026-07-03T15:34:50.995Z",
+      "status": "passed",
+      "title": "Calculator 03"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-04",
+      "ended_at": "2026-07-03T15:34:50.998Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-04",
+        "score": 1.0
+      },
+      "latency_ms": 2,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-04",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.996Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-04"
+          },
+          "observation_id": "obs_e45d64b2616d8cd6",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.996Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-04",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.998Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_dae20c4d46f3f98a",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.996Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-04"
+          }
+        }
+      ],
+      "scenario_id": "scenario-04",
+      "started_at": "2026-07-03T15:34:50.996Z",
+      "status": "passed",
+      "title": "Calculator 04"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-05",
+      "ended_at": "2026-07-03T15:34:50.996Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-05",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-05",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.996Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-05"
+          },
+          "observation_id": "obs_a4138ef63b3174ab",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.996Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-05",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.996Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_e20672356f04fbc1",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.996Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-05"
+          }
+        }
+      ],
+      "scenario_id": "scenario-05",
+      "started_at": "2026-07-03T15:34:50.996Z",
+      "status": "passed",
+      "title": "Calculator 05"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-06",
+      "ended_at": "2026-07-03T15:34:50.998Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-06",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-06",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.998Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-06"
+          },
+          "observation_id": "obs_59f59c2de16fe6a6",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.998Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-06",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.998Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_4f0c6abd1d406b19",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.998Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-06"
+          }
+        }
+      ],
+      "scenario_id": "scenario-06",
+      "started_at": "2026-07-03T15:34:50.998Z",
+      "status": "passed",
+      "title": "Calculator 06"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-07",
+      "ended_at": "2026-07-03T15:34:50.999Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-07",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-07",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.999Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-07"
+          },
+          "observation_id": "obs_00f9ccec5a13551c",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.999Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-07",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.999Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_d2886120902cffdf",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.999Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-07"
+          }
+        }
+      ],
+      "scenario_id": "scenario-07",
+      "started_at": "2026-07-03T15:34:50.999Z",
+      "status": "passed",
+      "title": "Calculator 07"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-08",
+      "ended_at": "2026-07-03T15:34:50.999Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-08",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-08",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:50.999Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-08"
+          },
+          "observation_id": "obs_da780c4898c2c519",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.999Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-08",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:50.999Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_29585dff5d8f5c02",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:50.999Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-08"
+          }
+        }
+      ],
+      "scenario_id": "scenario-08",
+      "started_at": "2026-07-03T15:34:50.999Z",
+      "status": "passed",
+      "title": "Calculator 08"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-09",
+      "ended_at": "2026-07-03T15:34:51.001Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-09",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-09",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.001Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-09"
+          },
+          "observation_id": "obs_ab17c4d99206e7ec",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-09",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.001Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_583a915213b4017c",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-09"
+          }
+        }
+      ],
+      "scenario_id": "scenario-09",
+      "started_at": "2026-07-03T15:34:51.001Z",
+      "status": "passed",
+      "title": "Calculator 09"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-10",
+      "ended_at": "2026-07-03T15:34:51.001Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-10",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-10",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.001Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-10"
+          },
+          "observation_id": "obs_9a831c01d2fce9ff",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-10",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.001Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_ee5ba89fd55ef837",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-10"
+          }
+        }
+      ],
+      "scenario_id": "scenario-10",
+      "started_at": "2026-07-03T15:34:51.001Z",
+      "status": "passed",
+      "title": "Calculator 10"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-11",
+      "ended_at": "2026-07-03T15:34:51.002Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-11",
+        "score": 1.0
+      },
+      "latency_ms": 1,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-11",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.001Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-11"
+          },
+          "observation_id": "obs_e4f3a907abef0a1f",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-11",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.002Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_abe68b641a155a72",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.001Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-11"
+          }
+        }
+      ],
+      "scenario_id": "scenario-11",
+      "started_at": "2026-07-03T15:34:51.001Z",
+      "status": "passed",
+      "title": "Calculator 11"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-12",
+      "ended_at": "2026-07-03T15:34:51.002Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-12",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-12",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.002Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-12"
+          },
+          "observation_id": "obs_30a5b44543f57ea2",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.002Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-12",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.002Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_8f308d1475180cdc",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.002Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-12"
+          }
+        }
+      ],
+      "scenario_id": "scenario-12",
+      "started_at": "2026-07-03T15:34:51.002Z",
+      "status": "passed",
+      "title": "Calculator 12"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-13",
+      "ended_at": "2026-07-03T15:34:51.004Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-13",
+        "score": 1.0
+      },
+      "latency_ms": 2,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-13",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.002Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-13"
+          },
+          "observation_id": "obs_490498b388af8958",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.002Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-13",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.004Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_12bab7088430229e",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.002Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-13"
+          }
+        }
+      ],
+      "scenario_id": "scenario-13",
+      "started_at": "2026-07-03T15:34:51.002Z",
+      "status": "passed",
+      "title": "Calculator 13"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-14",
+      "ended_at": "2026-07-03T15:34:51.004Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-14",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-14",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.004Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-14"
+          },
+          "observation_id": "obs_23a711b6f30ffbac",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.004Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-14",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.004Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_3ac95763b910277d",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.004Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-14"
+          }
+        }
+      ],
+      "scenario_id": "scenario-14",
+      "started_at": "2026-07-03T15:34:51.004Z",
+      "status": "passed",
+      "title": "Calculator 14"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-15",
+      "ended_at": "2026-07-03T15:34:51.005Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-15",
+        "score": 1.0
+      },
+      "latency_ms": 1,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-15",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.004Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-15"
+          },
+          "observation_id": "obs_c115d9f2c5eaa500",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.004Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-15",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.005Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_b555ecbaad049df4",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.004Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-15"
+          }
+        }
+      ],
+      "scenario_id": "scenario-15",
+      "started_at": "2026-07-03T15:34:51.004Z",
+      "status": "passed",
+      "title": "Calculator 15"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-16",
+      "ended_at": "2026-07-03T15:34:51.005Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-16",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-16",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.005Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-16"
+          },
+          "observation_id": "obs_d8ebf07e73ee1736",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.005Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-16",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.005Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_31a5d099e7032ad3",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.005Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-16"
+          }
+        }
+      ],
+      "scenario_id": "scenario-16",
+      "started_at": "2026-07-03T15:34:51.005Z",
+      "status": "passed",
+      "title": "Calculator 16"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-17",
+      "ended_at": "2026-07-03T15:34:51.005Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-17",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-17",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.005Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-17"
+          },
+          "observation_id": "obs_87fd3b21b47d9b1a",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.005Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-17",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.005Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_4bd863d345086e2c",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.005Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-17"
+          }
+        }
+      ],
+      "scenario_id": "scenario-17",
+      "started_at": "2026-07-03T15:34:51.005Z",
+      "status": "passed",
+      "title": "Calculator 17"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-18",
+      "ended_at": "2026-07-03T15:34:51.007Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-18",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-18",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.007Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-18"
+          },
+          "observation_id": "obs_00671b98fe4c13b6",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.007Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-18",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.007Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_c6514df3542bd9bc",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.007Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-18"
+          }
+        }
+      ],
+      "scenario_id": "scenario-18",
+      "started_at": "2026-07-03T15:34:51.007Z",
+      "status": "passed",
+      "title": "Calculator 18"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-19",
+      "ended_at": "2026-07-03T15:34:51.008Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-19",
+        "score": 1.0
+      },
+      "latency_ms": 1,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-19",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.007Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-19"
+          },
+          "observation_id": "obs_2ec551266136acf3",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.007Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-19",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.008Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_df6e0e2f01c51a4c",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.007Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-19"
+          }
+        }
+      ],
+      "scenario_id": "scenario-19",
+      "started_at": "2026-07-03T15:34:51.007Z",
+      "status": "passed",
+      "title": "Calculator 19"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-20",
+      "ended_at": "2026-07-03T15:34:51.009Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-20",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-20",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.009Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-20"
+          },
+          "observation_id": "obs_5d43bad81fa8201a",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.009Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-20",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.009Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_fa47e5874e4f0dd5",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.009Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-20"
+          }
+        }
+      ],
+      "scenario_id": "scenario-20",
+      "started_at": "2026-07-03T15:34:51.009Z",
+      "status": "passed",
+      "title": "Calculator 20"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-21",
+      "ended_at": "2026-07-03T15:34:51.009Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-21",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-21",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.009Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-21"
+          },
+          "observation_id": "obs_4278287108f44bb0",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.009Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-21",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.009Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_b823b7b6726ad10c",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.009Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-21"
+          }
+        }
+      ],
+      "scenario_id": "scenario-21",
+      "started_at": "2026-07-03T15:34:51.009Z",
+      "status": "passed",
+      "title": "Calculator 21"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-22",
+      "ended_at": "2026-07-03T15:34:51.010Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-22",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-22",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.010Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-22"
+          },
+          "observation_id": "obs_194839095aaac7cc",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.010Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-22",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.010Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_8958b0415973fc4a",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.010Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-22"
+          }
+        }
+      ],
+      "scenario_id": "scenario-22",
+      "started_at": "2026-07-03T15:34:51.010Z",
+      "status": "passed",
+      "title": "Calculator 22"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-23",
+      "ended_at": "2026-07-03T15:34:51.010Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-23",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-23",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.010Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-23"
+          },
+          "observation_id": "obs_4f1e5ac576f54fcc",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.010Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-23",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.010Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_f7056f612894150d",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.010Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-23"
+          }
+        }
+      ],
+      "scenario_id": "scenario-23",
+      "started_at": "2026-07-03T15:34:51.010Z",
+      "status": "passed",
+      "title": "Calculator 23"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-24",
+      "ended_at": "2026-07-03T15:34:51.013Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-24",
+        "score": 1.0
+      },
+      "latency_ms": 2,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-24",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.011Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-24"
+          },
+          "observation_id": "obs_c6d2813ccf2a2f70",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.011Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-24",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.013Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_36bf4bb40edb8025",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.011Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-24"
+          }
+        }
+      ],
+      "scenario_id": "scenario-24",
+      "started_at": "2026-07-03T15:34:51.011Z",
+      "status": "passed",
+      "title": "Calculator 24"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-25",
+      "ended_at": "2026-07-03T15:34:51.011Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-25",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-25",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.011Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-25"
+          },
+          "observation_id": "obs_572e863fa52e01a2",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.011Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-25",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.011Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_810105d9afa9104f",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.011Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-25"
+          }
+        }
+      ],
+      "scenario_id": "scenario-25",
+      "started_at": "2026-07-03T15:34:51.011Z",
+      "status": "passed",
+      "title": "Calculator 25"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-26",
+      "ended_at": "2026-07-03T15:34:51.013Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-26",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-26",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.013Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-26"
+          },
+          "observation_id": "obs_012e92e60e66e364",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.013Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-26",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.013Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_4000cfd968efbaae",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.013Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-26"
+          }
+        }
+      ],
+      "scenario_id": "scenario-26",
+      "started_at": "2026-07-03T15:34:51.013Z",
+      "status": "passed",
+      "title": "Calculator 26"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-27",
+      "ended_at": "2026-07-03T15:34:51.013Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-27",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-27",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.013Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-27"
+          },
+          "observation_id": "obs_eab716278341fee9",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.013Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-27",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.013Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_61ebff6d60e366b8",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.013Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-27"
+          }
+        }
+      ],
+      "scenario_id": "scenario-27",
+      "started_at": "2026-07-03T15:34:51.013Z",
+      "status": "passed",
+      "title": "Calculator 27"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-28",
+      "ended_at": "2026-07-03T15:34:51.014Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-28",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-28",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.014Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-28"
+          },
+          "observation_id": "obs_414d99e3557aaebb",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.014Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-28",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.014Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_7436a311ab5cc638",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.014Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-28"
+          }
+        }
+      ],
+      "scenario_id": "scenario-28",
+      "started_at": "2026-07-03T15:34:51.014Z",
+      "status": "passed",
+      "title": "Calculator 28"
+    },
+    {
+      "agent_output": {
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "mock_agent": "responding",
+          "style": "respond"
+        },
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "status": "ok",
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "expression": "19 + 23"
+            },
+            "name": "calculator",
+            "output": {
+              "value": 42
+            }
+          }
+        ]
+      },
+      "case_id": "math-29",
+      "ended_at": "2026-07-03T15:34:51.014Z",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      },
+      "grade": {
+        "actual": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ]
+        },
+        "expected": {
+          "text": "The answer is 42.",
+          "tool_calls": [
+            {
+              "name": "calculator"
+            }
+          ]
+        },
+        "label": "passed",
+        "metrics": {
+          "latency_ms": 0,
+          "reset_ok": true,
+          "text_match": true,
+          "tool_match": true
+        },
+        "passed": true,
+        "reason": "local checks passed",
+        "scenario_id": "scenario-29",
+        "score": 1.0
+      },
+      "latency_ms": 0,
+      "metadata": {},
+      "observations": [
+        {
+          "case_id": "math-29",
+          "content": "What is 19 + 23?",
+          "ended_at": "2026-07-03T15:34:51.014Z",
+          "event_type": "message",
+          "metadata": {
+            "scenario_id": "scenario-29"
+          },
+          "observation_id": "obs_ef57d2d40e72f9b6",
+          "role": "user",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.014Z",
+          "status": "ok",
+          "tool_calls": [],
+          "turn_index": 0
+        },
+        {
+          "case_id": "math-29",
+          "content": "The answer is 42.",
+          "ended_at": "2026-07-03T15:34:51.014Z",
+          "event_type": "agent_response",
+          "latency_ms": 0,
+          "metadata": {
+            "reset_ok": true
+          },
+          "observation_id": "obs_be4051453aa24be3",
+          "role": "assistant",
+          "run_id": "run_4f6de8067d5005b3",
+          "started_at": "2026-07-03T15:34:51.014Z",
+          "status": "ok",
+          "tool_calls": [
+            {
+              "arguments": {
+                "expression": "19 + 23"
+              },
+              "name": "calculator",
+              "output": {
+                "value": 42
+              }
+            }
+          ],
+          "turn_index": 1,
+          "vm_stream": {
+            "duration_ms": 0,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": "What is 19 + 23?"
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The answer is 42."
+                },
+                "ts": 0,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "expression": "19 + 23"
+                  },
+                  "name": "calculator",
+                  "output": {
+                    "value": 42
+                  }
+                },
+                "ts": 0,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "math-29"
+          }
+        }
+      ],
+      "scenario_id": "scenario-29",
+      "started_at": "2026-07-03T15:34:51.014Z",
+      "status": "passed",
+      "title": "Calculator 29"
+    }
+  ],
+  "dataset_id": "a2-local-scenarios",
+  "duration_ms": 24,
+  "ended_at": "2026-07-03T15:34:51.016Z",
+  "errored": 0,
+  "failed": 0,
+  "field_map_version": "a1-local-2026-07-03",
+  "max_workers": 4,
+  "metadata": {
+    "ashr_api_used": false,
+    "local_only": true
+  },
+  "passed": 30,
+  "run_id": "run_4f6de8067d5005b3",
+  "runner_id": "a1-local-runner",
+  "started_at": "2026-07-03T15:34:50.992Z",
+  "status": "passed",
+  "timed_out": 0,
+  "total_cases": 30,
+  "trace_completeness": 1.0
+}

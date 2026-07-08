@@ -1,0 +1,424 @@
+{
+  "cases": [
+    {
+      "id": "math-00",
+      "scenario_id": "scenario-00",
+      "title": "Calculator 00",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-01",
+      "scenario_id": "scenario-01",
+      "title": "Calculator 01",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-02",
+      "scenario_id": "scenario-02",
+      "title": "Calculator 02",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-03",
+      "scenario_id": "scenario-03",
+      "title": "Calculator 03",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-04",
+      "scenario_id": "scenario-04",
+      "title": "Calculator 04",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-05",
+      "scenario_id": "scenario-05",
+      "title": "Calculator 05",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-06",
+      "scenario_id": "scenario-06",
+      "title": "Calculator 06",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-07",
+      "scenario_id": "scenario-07",
+      "title": "Calculator 07",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-08",
+      "scenario_id": "scenario-08",
+      "title": "Calculator 08",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-09",
+      "scenario_id": "scenario-09",
+      "title": "Calculator 09",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-10",
+      "scenario_id": "scenario-10",
+      "title": "Calculator 10",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-11",
+      "scenario_id": "scenario-11",
+      "title": "Calculator 11",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-12",
+      "scenario_id": "scenario-12",
+      "title": "Calculator 12",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-13",
+      "scenario_id": "scenario-13",
+      "title": "Calculator 13",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-14",
+      "scenario_id": "scenario-14",
+      "title": "Calculator 14",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-15",
+      "scenario_id": "scenario-15",
+      "title": "Calculator 15",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-16",
+      "scenario_id": "scenario-16",
+      "title": "Calculator 16",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-17",
+      "scenario_id": "scenario-17",
+      "title": "Calculator 17",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-18",
+      "scenario_id": "scenario-18",
+      "title": "Calculator 18",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-19",
+      "scenario_id": "scenario-19",
+      "title": "Calculator 19",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-20",
+      "scenario_id": "scenario-20",
+      "title": "Calculator 20",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-21",
+      "scenario_id": "scenario-21",
+      "title": "Calculator 21",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-22",
+      "scenario_id": "scenario-22",
+      "title": "Calculator 22",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-23",
+      "scenario_id": "scenario-23",
+      "title": "Calculator 23",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-24",
+      "scenario_id": "scenario-24",
+      "title": "Calculator 24",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-25",
+      "scenario_id": "scenario-25",
+      "title": "Calculator 25",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-26",
+      "scenario_id": "scenario-26",
+      "title": "Calculator 26",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-27",
+      "scenario_id": "scenario-27",
+      "title": "Calculator 27",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-28",
+      "scenario_id": "scenario-28",
+      "title": "Calculator 28",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "math-29",
+      "scenario_id": "scenario-29",
+      "title": "Calculator 29",
+      "prompt": "What is 19 + 23?",
+      "expected": {
+        "text": "The answer is 42.",
+        "tool_calls": [
+          {
+            "name": "calculator"
+          }
+        ]
+      }
+    }
+  ]
+}

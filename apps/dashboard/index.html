@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A3 Dashboard & Triage</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">A3</span><span>Ashr A3</span></div>
+        <div class="subtitle">Product console for run triage, evidence review, and report export.</div>
+        <nav class="nav" aria-label="Dashboard sections">
+          <a href="#summary" class="active">Overview</a>
+          <a href="#console">Console</a>
+          <a href="#saas-runtime">SaaS Runtime</a>
+          <a href="#product-console">Product Console</a>
+          <a href="#saas-admin">SaaS Admin</a>
+          <a href="#enterprise-readiness">Enterprise Readiness</a>
+          <a href="#media-readiness">Media</a>
+          <a href="#cloud-shell">Cloud Shell</a>
+          <a href="#official-gap">Official Gap</a>
+          <a href="#official-mirror">Frontend Mirror</a>
+          <a href="#official-code-crawl">Code Crawl</a>
+          <a href="#official-roadmap">Parity Roadmap</a>
+          <a href="#release-gate">Release Gate</a>
+          <a href="#war-room">War Room</a>
+          <a href="#incident-replay">Incident Replay</a>
+          <a href="#observability-replay">Observability Replay</a>
+          <a href="#regression-factory">Regression Factory</a>
+          <a href="#reviewer-workflow">Reviewer Workflow</a>
+          <a href="#pr-gate">PR Gate</a>
+          <a href="#export-redaction">Export Safety</a>
+          <a href="#operations">Operations</a>
+          <a href="#report-preview">Report</a>
+          <a href="#runs">Run List</a>
+          <a href="#detail">Case Detail</a>
+          <a href="#timeline">Trace Timeline</a>
+          <a href="#clusters">Failure Clusters</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="topbar" id="summary">
+          <div>
+            <h1>A3 Product Console</h1>
+            <div class="caption" id="data-source">Loading local fixtures...</div>
+            <div class="topbar-meta">
+              <span class="status-chip">Local read-only</span>
+              <span class="status-chip">Redacted evidence</span>
+              <span class="status-chip">No cloud mutations</span>
+            </div>
+          </div>
+          <div class="actions">
+            <label class="source-picker" for="source-select">
+              Data
+              <select id="source-select">
+                <option value="mock">A1/A2 Mock</option>
+                <option value="api-mock">API-backed Mock</option>
+                <option value="raw-a1">Raw A1 RunResult</option>
+                <option value="raw-a2">Raw A2 Single Case</option>
+                <option value="p3-media">P3 Media Sample</option>
+                <option value="p3-official-demo">P3 Official Demo 884/11926</option>
+              </select>
+            </label>
+            <button class="button primary" id="export-json" data-export="json" type="button">Export JSON</button>
+            <button class="button subtle" id="export-csv" data-export="csv" type="button">Export CSV</button>
+            <button class="button subtle" id="export-md" data-export="md" type="button">Export Markdown</button>
+            <button class="button subtle" data-print type="button">Print Report</button>
+          </div>
+        </section>
+
+        <section class="metrics" aria-label="Run summary metrics">
+          <div class="metric info" id="metric-runs-card"><label>Runs</label><strong id="metric-runs">0</strong><span>execution batches</span></div>
+          <div class="metric info" id="metric-cases-card"><label>Cases</label><strong id="metric-cases">0</strong><span>normalized test cases</span></div>
+          <div class="metric" id="metric-pass-card"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong><span>current source</span></div>
+          <div class="metric" id="metric-score-card"><label>Average Score</label><strong id="metric-score">0</strong><span>0-100 normalized</span></div>
+          <div class="metric" id="metric-trace-card"><label>Trace Complete</label><strong id="metric-trace">0%</strong><span>A1 evidence coverage</span></div>
+          <div class="metric info" id="metric-media-card"><label>Media Evidence</label><strong id="metric-media">0</strong><span>case-level attachments</span></div>
+        </section>
+
+        <section class="console-grid" id="console" aria-label="Product console overview">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Workflow</h2>
+              <span class="caption">Request to report</span>
+            </div>
+            <div class="panel-body">
+              <div class="workflow">
+                <div class="workflow-step"><strong>Requests</strong><span class="muted" id="workflow-requests">calibrated</span></div>
+                <div class="workflow-step"><strong>Datasets</strong><span class="muted" id="workflow-datasets">loaded</span></div>
+                <div class="workflow-step"><strong>Runs</strong><span class="muted" id="workflow-runs">loaded</span></div>
+                <div class="workflow-step"><strong>Analysis</strong><span class="muted" id="workflow-analysis">ready</span></div>
+                <div class="workflow-step"><strong>Export</strong><span class="muted">JSON/CSV/MD</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="saas-runtime">
+            <div class="panel-header">
+              <h2>SaaS Runtime</h2>
+              <span class="badge info">API + DB-ready</span>
+            </div>
+            <div class="panel-body" id="saas-runtime-body">
+              <div class="caption">Waiting for runtime contract.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="product-console">
+            <div class="panel-header">
+              <h2>Product Console</h2>
+              <span class="badge info">onboarding / audit</span>
+            </div>
+            <div class="panel-body" id="product-console-body">
+              <div class="caption">Waiting for onboarding, project, and audit workflow state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="saas-admin">
+            <div class="panel-header">
+              <h2>SaaS Admin Console</h2>
+              <span class="badge warn">clean-room shell</span>
+            </div>
+            <div class="panel-body" id="saas-admin-body">
+              <div class="caption">Waiting for login, team, usage, API key, and trust state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="enterprise-readiness">
+            <div class="panel-header">
+              <h2>Enterprise Readiness</h2>
+              <span class="badge info">self-host / audit</span>
+            </div>
+            <div class="panel-body" id="enterprise-readiness-body">
+              <div class="caption">Waiting for A1/A2 evidence, admin guardrails, and DB contract.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Usage / Quota</h2>
+              <span class="badge neutral">read-only</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="usage-detail">Waiting for fixture data.</div>
+              <div class="progress" aria-hidden="true"><span id="usage-bar"></span></div>
+              <div class="mini-list" id="usage-quota-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="media-readiness">
+            <div class="panel-header">
+              <h2>Media Readiness</h2>
+              <span class="badge neutral" id="media-render-policy">metadata only</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="media-readiness-summary">Waiting for media calibration data.</div>
+              <div class="channel-strip" id="media-channel-strip"></div>
+              <div class="mini-list" id="media-readiness-list"></div>
+              <div class="matrix-list" id="media-channel-matrix"></div>
+              <div class="matrix-list" id="media-evidence-queue"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Objects</h2>
+              <span class="caption">Requests / datasets / runs</span>
+            </div>
+            <div class="panel-body">
+              <div class="mini-list" id="object-summary"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="cloud-shell">
+            <div class="panel-header">
+              <h2>Cloud Console Shell</h2>
+              <span class="badge warn">mock controls</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="cloud-shell-summary">Waiting for auth and frontend calibration data.</div>
+              <div class="cloud-list" id="cloud-shell-list"></div>
+              <div class="action-list" id="cloud-action-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-gap">
+            <div class="panel-header">
+              <h2>Official Ashr Gap</h2>
+              <span class="badge neutral">read-only map</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-gap-summary">Comparing A3 with observed Ashr Lab structure.</div>
+              <div class="health-grid" id="official-gap-counts"></div>
+              <div class="gap-list" id="official-gap-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-mirror">
+            <div class="panel-header">
+              <h2>Official Frontend Mirror</h2>
+              <span class="badge neutral">clean-room</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-mirror-summary">Waiting for official frontend mirror summary.</div>
+              <div class="health-grid" id="official-mirror-counts"></div>
+              <div class="gap-list" id="official-mirror-pages"></div>
+              <div class="matrix-list" id="official-mirror-api"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-code-crawl">
+            <div class="panel-header">
+              <h2>Official Code Crawl</h2>
+              <span class="badge neutral">clean-room</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-code-crawl-summary">Waiting for official code crawl summary.</div>
+              <div class="health-grid" id="official-code-crawl-counts"></div>
+              <div class="matrix-list" id="official-code-crawl-chunks"></div>
+              <div class="matrix-list" id="official-code-crawl-targets"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="official-roadmap">
+            <div class="panel-header">
+              <h2>Official Parity Roadmap</h2>
+              <span class="badge info">build order</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="official-roadmap-summary">Waiting for official parity roadmap.</div>
+              <div class="health-grid" id="official-roadmap-counts"></div>
+              <div class="matrix-list" id="official-roadmap-priorities"></div>
+              <div class="matrix-list" id="official-roadmap-media"></div>
+              <div class="matrix-list" id="official-roadmap-next"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Request Provenance</h2>
+              <span class="badge neutral" id="request-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="request-summary">Waiting for request calibration data.</div>
+              <div class="mini-list" id="request-provenance"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ops-grid" id="operations" aria-label="Operational triage">
+          <div class="panel" id="release-gate">
+            <div class="panel-header">
+              <h2>Release Gate</h2>
+              <span class="badge neutral" id="release-gate-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="release-gate-summary">Waiting for release evidence.</div>
+              <div class="health-grid" id="release-gate-metrics"></div>
+              <div class="matrix-list" id="release-gate-checks"></div>
+              <div class="warning-list" id="release-gate-blockers"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="war-room">
+            <div class="panel-header">
+              <h2>Release War Room</h2>
+              <span class="badge neutral" id="war-room-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="war-room-summary">Waiting for release decision evidence.</div>
+              <div class="health-grid" id="war-room-metrics"></div>
+              <div class="warning-list" id="war-room-brief"></div>
+              <div class="matrix-list" id="war-room-lanes"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="incident-replay">
+            <div class="panel-header">
+              <h2>Incident Replay</h2>
+              <span class="badge warn" id="incident-replay-status">waiting</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="incident-replay-summary">Waiting for failed-case replay evidence.</div>
+              <div class="health-grid" id="incident-replay-metrics"></div>
+              <div class="matrix-list" id="incident-replay-list"></div>
+              <div class="matrix-list" id="incident-replay-steps"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="observability-replay">
+            <div class="panel-header">
+              <h2>Observability Replay</h2>
+              <span class="badge neutral" id="observability-replay-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="observability-replay-summary">Waiting for trace replay evidence.</div>
+              <div class="health-grid" id="observability-replay-metrics"></div>
+              <div class="matrix-list" id="observability-replay-lanes"></div>
+              <div class="matrix-list" id="observability-replay-items"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="regression-factory">
+            <div class="panel-header">
+              <h2>Regression Factory</h2>
+              <span class="badge neutral" id="regression-factory-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="regression-factory-summary">Waiting for failed-case regression evidence.</div>
+              <div class="health-grid" id="regression-factory-metrics"></div>
+              <div class="matrix-list" id="regression-factory-lanes"></div>
+              <div class="matrix-list" id="regression-factory-candidates"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="reviewer-workflow">
+            <div class="panel-header">
+              <h2>Reviewer Workflow</h2>
+              <span class="badge neutral" id="reviewer-workflow-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="reviewer-workflow-summary">Waiting for reviewer workflow evidence.</div>
+              <div class="health-grid" id="reviewer-workflow-metrics"></div>
+              <div class="matrix-list" id="reviewer-workflow-lanes"></div>
+              <div class="matrix-list" id="reviewer-workflow-items"></div>
+              <div class="matrix-list" id="review-workflow-records"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="pr-gate">
+            <div class="panel-header">
+              <h2>PR Gate & Audit</h2>
+              <span class="badge neutral" id="pr-gate-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="pr-gate-summary">Waiting for PR workflow evidence.</div>
+              <div class="health-grid" id="pr-gate-metrics"></div>
+              <div class="mini-list" id="pr-gate-review"></div>
+              <div class="matrix-list" id="audit-bundle-list"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Coverage Health</h2>
+              <span class="badge neutral" id="coverage-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="coverage-summary">Waiting for A2 coverage fixture.</div>
+              <div class="health-grid" id="coverage-grid"></div>
+              <div class="warning-list" id="coverage-warnings"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Triage Queue</h2>
+              <span class="caption">Highest-risk failures first</span>
+            </div>
+            <div class="panel-body">
+              <div class="triage-list" id="triage-queue"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Report Center</h2>
+              <span class="badge info" id="report-status">ready</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="report-summary">Exports include normalized A3 cases and evidence.</div>
+              <div class="report-actions">
+                <button class="button primary" data-export="json" type="button">JSON</button>
+                <button class="button subtle" data-export="csv" type="button">CSV</button>
+                <button class="button subtle" data-export="md" type="button">Markdown</button>
+                <button class="button subtle" data-print type="button">Print/PDF</button>
+                <button class="button subtle" data-share-report type="button">Share Hosted Report</button>
+              </div>
+              <div class="share-status">
+                <span class="badge neutral" id="share-report-status">not shared</span>
+                <span class="caption" id="share-report-detail">API-backed mode can create a redacted hosted report payload.</span>
+              </div>
+              <div class="report-list" id="report-center"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="export-redaction">
+            <div class="panel-header">
+              <h2>Export Safety</h2>
+              <span class="badge neutral" id="export-redaction-status">unknown</span>
+            </div>
+            <div class="panel-body">
+              <div class="caption" id="export-redaction-summary">Waiting for export firewall scan.</div>
+              <div class="health-grid" id="export-redaction-metrics"></div>
+              <div class="matrix-list" id="export-redaction-surfaces"></div>
+              <div class="mini-list" id="export-redaction-guardrails"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel report-preview" id="report-preview" aria-label="PDF-ready report preview">
+          <div class="panel-header">
+            <h2>Report Preview</h2>
+            <span class="caption">Print-ready handoff</span>
+          </div>
+          <div class="panel-body">
+            <div class="print-report" id="print-report"></div>
+          </div>
+        </section>
+
+        <section class="filters" aria-label="Filters">
+          <div class="field">
+            <label for="filter-status">Status</label>
+            <select id="filter-status">
+              <option value="all">All</option>
+              <option value="passed">Passed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-family">Scenario Family</label>
+            <select id="filter-family">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-failure">Failure Class</label>
+            <select id="filter-failure">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-run">Run</label>
+            <select id="filter-run">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-severity">Severity</label>
+            <select id="filter-severity">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-score">Score Band</label>
+            <select id="filter-score">
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filter-judge">Judge Mode</label>
+            <select id="filter-judge">
+              <option value="all">All</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel" id="runs">
+            <div class="panel-header">
+              <h2>Run List</h2>
+              <span class="badge neutral" id="visible-count">0 visible</span>
+            </div>
+            <div class="panel-body">
+              <div class="run-list" id="case-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="detail">
+            <div class="panel-header">
+              <h2>Case Detail</h2>
+              <span id="detail-status" class="badge neutral">No case</span>
+            </div>
+            <div class="panel-body">
+              <div id="case-heading" class="caption">Select a case to inspect expected vs actual.</div>
+              <div class="detail-grid" style="margin-top: 12px;">
+                <div class="compare">
+                  <h3>Expected</h3>
+                  <pre id="expected-view">{}</pre>
+                </div>
+                <div class="compare">
+                  <h3>Actual</h3>
+                  <pre id="actual-view">{}</pre>
+                </div>
+              </div>
+              <div class="tool-diff" id="tool-diff-view"></div>
+              <div class="media-evidence" id="media-view"></div>
+              <div class="judge-list" id="judge-view"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel" id="timeline">
+            <div class="panel-header">
+              <h2>Trace Timeline</h2>
+              <span class="caption">A1 observations and trace events</span>
+            </div>
+            <div class="panel-body">
+              <div class="timeline" id="timeline-view"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="clusters">
+            <div class="panel-header">
+              <h2>Failure Clusters</h2>
+              <span class="caption">Grouped by A2 primary failure class</span>
+            </div>
+            <div class="panel-body">
+              <div class="cluster-list" id="cluster-list"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./src/app.mjs"></script>
+  </body>
+</html>

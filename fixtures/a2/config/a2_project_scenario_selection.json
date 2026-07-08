@@ -1,0 +1,73 @@
+{
+  "schema_version": "a2.project_scenario_selection_config.v1",
+  "config_id": "a2-large-saas-selection-default",
+  "default_profile_id": "profile_staging_balanced",
+  "project_profiles": [
+    {
+      "profile_id": "profile_enterprise_prod",
+      "project_ids": [
+        "proj_enterprise_support"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "risk_tier": "enterprise-prod",
+      "max_scenarios": 12,
+      "minimum_difficulty": "D2",
+      "required_tags": [
+        "enterprise-saas"
+      ],
+      "required_tag_minimum": 4,
+      "preferred_tags": [
+        "enterprise-saas",
+        "admin-audit",
+        "billing-risk",
+        "privacy-compliance",
+        "secrets-management",
+        "skill-governance"
+      ],
+      "required_axis_minimums": {
+        "enterprise_saas_operations": 6,
+        "safety_boundary": 2,
+        "trace_contract": 2,
+        "media_and_multimodal": 1
+      },
+      "preferred_capability_axes": [
+        "enterprise_saas_operations",
+        "grounding_and_reference",
+        "trace_contract",
+        "media_and_multimodal"
+      ]
+    },
+    {
+      "profile_id": "profile_staging_balanced",
+      "project_ids": [],
+      "environments": [
+        "staging",
+        "dev"
+      ],
+      "risk_tier": "team-staging",
+      "max_scenarios": 10,
+      "minimum_difficulty": "D1",
+      "required_tags": [],
+      "required_tag_minimum": 0,
+      "preferred_tags": [
+        "fixture",
+        "clarification",
+        "recovery"
+      ],
+      "required_axis_minimums": {
+        "tool_choice_and_policy": 2,
+        "clarification_handling": 1,
+        "failure_recovery": 1,
+        "safety_boundary": 1
+      },
+      "preferred_capability_axes": [
+        "tool_choice_and_policy",
+        "multi_step_workflow",
+        "clarification_handling",
+        "failure_recovery"
+      ]
+    }
+  ]
+}

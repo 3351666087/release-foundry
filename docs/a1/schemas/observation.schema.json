@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 Observation",
+  "type": "object",
+  "required": ["observation_id", "run_id", "case_id", "turn_index", "event_type", "role", "started_at", "ended_at", "status", "metadata"],
+  "properties": {
+    "observation_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "case_id": { "type": "string" },
+    "turn_index": { "type": "integer", "minimum": 0 },
+    "event_type": { "type": "string" },
+    "role": { "type": "string" },
+    "content": {},
+    "tool_calls": { "type": "array" },
+    "started_at": { "type": "string" },
+    "ended_at": { "type": "string" },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "status": { "type": "string" },
+    "error": { "type": "string" },
+    "metadata": { "type": "object" },
+    "vm_stream": {
+      "type": "object",
+      "required": ["provider", "session_id", "duration_ms", "logs", "metadata"],
+      "properties": {
+        "provider": { "type": "string" },
+        "session_id": { "type": "string" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "logs": { "type": "array" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

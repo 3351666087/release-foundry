@@ -1,0 +1,146 @@
+{
+  "all_required_calls_reached": true,
+  "api_call_count": 6,
+  "auth": {
+    "note_count": 0,
+    "session_reached": true,
+    "status": "ok",
+    "tenant_id_present": true,
+    "tenant_name_present": true,
+    "user_email_sha256_12": "b28feb653070",
+    "user_id_present": true
+  },
+  "base_url": "https://api.ashr.io/testing-platform-api",
+  "calls": [
+    {
+      "name": "init",
+      "status": "ok",
+      "summary": {
+        "keys": [
+          "features",
+          "notes",
+          "status",
+          "tenant",
+          "user"
+        ],
+        "notes_count": 0,
+        "notes_item_keys": [],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "health_check",
+      "status": "ok",
+      "summary": {
+        "keys": [
+          "db",
+          "message",
+          "status"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_datasets",
+      "status": "ok",
+      "summary": {
+        "datasets_count": 3,
+        "datasets_item_keys": [
+          "agent_details",
+          "agent_id",
+          "created_at",
+          "creator",
+          "creator_details",
+          "dataset_source",
+          "dataset_type",
+          "description",
+          "id",
+          "name",
+          "repo_id",
+          "request_id",
+          "run_count",
+          "tenant"
+        ],
+        "keys": [
+          "_user",
+          "datasets",
+          "next_cursor",
+          "status"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_runs",
+      "status": "ok",
+      "summary": {
+        "keys": [
+          "_user",
+          "runs",
+          "status"
+        ],
+        "runs_count": 4,
+        "runs_item_keys": [
+          "created_at",
+          "dataset",
+          "dataset_details",
+          "id",
+          "result",
+          "runner",
+          "runner_details",
+          "tenant"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_requests",
+      "status": "ok",
+      "summary": {
+        "keys": [
+          "_user",
+          "next_cursor",
+          "requests",
+          "status"
+        ],
+        "requests_count": 5,
+        "requests_item_keys": [
+          "actual_duration_s",
+          "completed_at",
+          "created_at",
+          "estimated_duration_s",
+          "id",
+          "request",
+          "request_name",
+          "request_status",
+          "requestor_details",
+          "requestor_id",
+          "requestor_tenant"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_agents",
+      "status": "ok",
+      "summary": {
+        "count": 0,
+        "item_keys": [],
+        "type": "list"
+      }
+    }
+  ],
+  "generated_at": "2026-07-07T04:14:18Z",
+  "notes": [
+    "This file is a redacted real-API calibration summary.",
+    "No API key, signed media URL, dataset payload, run payload, or raw private response is stored.",
+    "Local deterministic unit tests must not depend on this smoke result."
+  ],
+  "schema_version": "a2.real_api_smoke.v1",
+  "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl"
+}

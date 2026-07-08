@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/capability_matrix.schema.json",
+  "title": "A1 Public-Safe Commercial Capability Matrix",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "label",
+    "field_map_version",
+    "public_safe",
+    "secret_policy",
+    "source_indexes",
+    "summary",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {"const": "ashr.clone.capability_matrix.v1"},
+    "label": {"type": "string"},
+    "field_map_version": {"type": "string"},
+    "public_safe": {"const": true},
+    "secret_policy": {
+      "type": "object",
+      "required": ["private_evidence_read", "tokens_included", "raw_private_payloads_included", "input_sources"],
+      "properties": {
+        "private_evidence_read": {"const": false},
+        "tokens_included": {"const": false},
+        "raw_private_payloads_included": {"const": false},
+        "input_sources": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "source_indexes": {
+      "type": "object",
+      "required": ["public_evidence", "frontend_mirror"],
+      "properties": {
+        "public_evidence": {"type": "object"},
+        "frontend_mirror": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_capabilities", "axis_counts", "categories"],
+      "properties": {
+        "total_capabilities": {"type": "integer", "minimum": 0},
+        "axis_counts": {
+          "type": "object",
+          "required": ["local_only", "real_read_verified", "mutating_planned_or_quota_blocked", "frontend_mirrored", "test_covered"],
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "categories": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "local_runtime",
+          "local_only",
+          "real_read_verified",
+          "mutating_planned_or_quota_blocked",
+          "frontend_mirrored",
+          "test_covered",
+          "evidence",
+          "source_notes"
+        ],
+        "properties": {
+          "name": {"type": "string"},
+          "category": {"type": "string"},
+          "local_runtime": {"type": "boolean"},
+          "local_only": {"type": "boolean"},
+          "real_read_verified": {"type": "boolean"},
+          "mutating_planned_or_quota_blocked": {"type": "boolean"},
+          "frontend_mirrored": {"type": "boolean"},
+          "test_covered": {"type": "boolean"},
+          "evidence": {"type": "object"},
+          "source_notes": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

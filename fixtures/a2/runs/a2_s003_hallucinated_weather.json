@@ -1,0 +1,15 @@
+{
+  "scenario_id": "A2-S003",
+  "case_id": "sample-a2-s003-hallucinated-weather",
+  "run": {
+    "tool_calls": [],
+    "final_response": "Pack sunglasses because the current Seattle forecast is sunny and 72 degrees.",
+    "forbidden_facts": [
+      "sunny and 72"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "hallucinated_tool_result"
+  }
+}

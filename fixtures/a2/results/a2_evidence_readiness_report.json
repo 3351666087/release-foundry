@@ -1,0 +1,391 @@
+{
+  "schema_version": "a2.evidence_readiness.v1",
+  "report_id": "a2_g3_evidence_readiness",
+  "dataset_id": "a2-g3-calibration",
+  "status": "awaiting_private_evidence",
+  "ready_for_external_collection": true,
+  "readiness_checks": {
+    "has_calibration_cases": true,
+    "ashr_case_map_covers_cases": true,
+    "ashr_import_commands_documented": true,
+    "semantic_harness_ready": true,
+    "semantic_false_positive_tracking_ready": true,
+    "semantic_required_fields_documented": true,
+    "semantic_sdk_language_matrix_ready": true,
+    "official_sdk_smoke_readonly_ok": true,
+    "private_payload_boundary_documented": true
+  },
+  "calibration_case_count": 6,
+  "calibration_cases": [
+    {
+      "case_id": "sample-a2-s001-pass",
+      "scenario_id": "A2-S001",
+      "fixture_ref": "fixtures/a2/runs/a2_s001_pass.json",
+      "calibration_focus": [
+        "direct_answer",
+        "pass_control"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "scenario_id": "A2-S010",
+      "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+      "calibration_focus": [
+        "argument_fidelity",
+        "misclassification_probe"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031",
+      "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_unsupported_output.json",
+      "calibration_focus": [
+        "media",
+        "tool_output_grounding"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "scenario_id": "A2-S041",
+      "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "calibration_focus": [
+        "failure_recovery",
+        "tool_error"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s048-secret-leak",
+      "scenario_id": "A2-S048",
+      "fixture_ref": "fixtures/a2/runs/a2_s048_secret_leak.json",
+      "calibration_focus": [
+        "safety",
+        "secret_leak"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s054-missing-clarification",
+      "scenario_id": "A2-S054",
+      "fixture_ref": "fixtures/a2/runs/a2_s054_missing_clarification.json",
+      "calibration_focus": [
+        "clarification",
+        "ambiguous_request"
+      ]
+    }
+  ],
+  "ashr_grading_preflight": {
+    "source": "ashr_grading",
+    "current_available": 0,
+    "current_missing": 6,
+    "expected_observation_count": 6,
+    "case_map_path": "fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+    "case_map_count": 6,
+    "case_map_covers_all_calibration_cases": true,
+    "case_map_missing_case_ids": [],
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
+    "private_input_ref": "docs/evidence/private_refs/a2_ashr_get_run.redacted.json",
+    "commands": [
+      "python scripts/a2_scan_ashr_grading_evidence.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "a1_real_api_evidence": {
+    "available": true,
+    "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
+    "schema_version": "ashr.clone.evidence_index.v1",
+    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "field_map_version": "a1-api-calibration-2026-07-04",
+    "total_records": 368,
+    "status_counts": {
+      "blocked": 2,
+      "completed": 13,
+      "error": 27,
+      "failed": 1,
+      "ok": 214,
+      "partial": 13,
+      "passed": 11,
+      "planned": 53,
+      "timeout": 1
+    },
+    "function_counts": {
+      "create_request": 35,
+      "create_run": 2,
+      "get_dataset": 8,
+      "get_request": 11,
+      "get_run": 4,
+      "init": 33,
+      "keep_alive": 32,
+      "list_agents": 33,
+      "list_datasets": 39,
+      "list_requests": 42,
+      "list_runs": 5,
+      "plan_batch": 3,
+      "poll_request": 1,
+      "poll_run": 2,
+      "validate_gate": 3
+    },
+    "quota_block_count": 43,
+    "real_ok_functions": [
+      "create_request",
+      "create_run",
+      "get_dataset",
+      "get_request",
+      "get_run",
+      "init",
+      "keep_alive",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "mutating_functions_present": [
+      "create_request",
+      "create_run"
+    ],
+    "real_record_count": 241,
+    "real_read_status_counts": {
+      "error": 11,
+      "ok": 172,
+      "timeout": 1
+    },
+    "real_create_request_status_counts": {
+      "error": 15,
+      "ok": 2
+    },
+    "real_create_request_error_kind_counts": {
+      "api": 15
+    },
+    "real_quota_gate": {
+      "blocked": true,
+      "blocked_count": 13,
+      "blocked_functions": [
+        "create_request"
+      ],
+      "create_request_blocked": true,
+      "quota_keys": [
+        "asset_type",
+        "error",
+        "limit",
+        "remaining",
+        "requested",
+        "used"
+      ],
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_text_batch_create_request_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260707_121848/python/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json"
+      ],
+      "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
+    },
+    "api_probe_gate_validation": {
+      "available": true,
+      "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
+      "plan_batch_count": 3,
+      "validate_gate_count": 3,
+      "plan_batch_status_counts": {
+        "blocked": 2,
+        "planned": 1
+      },
+      "validate_gate_status_counts": {
+        "error": 1,
+        "ok": 2
+      },
+      "ok_validate_gate_count": 2,
+      "error_validate_gate_count": 1,
+      "blocked_plan_batch_count": 2,
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+        "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json"
+      ],
+      "release_interpretation": "mixed_gate_evidence_review_required"
+    },
+    "c3_candidate_record_count": 7,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 index is public-safe evidence of API reachability and field shapes, not an Ashr grading import.",
+      "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
+      "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
+    ]
+  },
+  "official_sdk_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_real_api_smoke.json",
+    "schema_version": "a2.real_api_smoke.v1",
+    "generated_at": "2026-07-07T04:14:18Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.ashr.io/testing-platform-api",
+    "api_call_count": 6,
+    "ok_call_count": 6,
+    "error_call_count": 0,
+    "call_status_counts": {
+      "ok": 6
+    },
+    "call_names": [
+      "health_check",
+      "init",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "all_required_calls_reached": true,
+    "read_only_reachable": true,
+    "notes": [
+      "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
+      "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence."
+    ]
+  },
+  "ashr_public_merge_gate": {
+    "source": "ashr_grading",
+    "status": "not_merged",
+    "public_matrix_merged": false,
+    "safe_to_mark_c3_met": false,
+    "current_public_observation_count": 0,
+    "merged_public_observation_count": 0,
+    "reviewed_public_observation_count": 0,
+    "missing_public_observation_count": 6,
+    "missing_reviewed_observation_count": 6,
+    "required_public_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
+    "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+    "reviewed_private_import_ref": "docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+    "blocking_reason": "Reviewed Ashr grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+    "required_commands": [
+      "python scripts/a2_scan_ashr_grading_evidence.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json",
+      "python scripts/a2_import_ashr_grading.py --input docs/evidence/private_refs/a2_ashr_get_run.redacted.json --case-map fixtures/a2/calibration/ashr_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_ashr_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_ashr_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_ashr_grading_import.review.json --source ashr_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "semantic_judge_preflight": {
+    "source": "llm_judge",
+    "current_available": 6,
+    "current_missing": 0,
+    "offline_reference_only": true,
+    "expected_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "reviewed_live_observation_count": 0,
+    "missing_reviewed_live_observation_count": 6,
+    "reviewed_live_sdk_languages": [],
+    "reviewed_live_required_metadata_fields": [
+      "prompt_template_id",
+      "prompt_hash",
+      "response_hash",
+      "review_status",
+      "sdk_language"
+    ],
+    "risk_assessment_status": "offline_reference_risk_register",
+    "false_positive_tracking_ready": true,
+    "false_positive_candidate_count": 0,
+    "false_negative_candidate_count": 0,
+    "failure_class_drift_candidate_count": 1,
+    "score_delta_review_count": 4,
+    "risk_case_count": 4,
+    "required_fields": [
+      "case_id",
+      "scenario_id",
+      "provider",
+      "model",
+      "prompt_template_id",
+      "prompt_hash",
+      "response_hash",
+      "review_status",
+      "sdk_language",
+      "cost.prompt_tokens",
+      "cost.completion_tokens",
+      "cost.estimated_usd",
+      "output.passed",
+      "output.primary_failure_class",
+      "output.score",
+      "output.confidence",
+      "output.rationale",
+      "output.evidence_refs"
+    ],
+    "required_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "covered_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+    "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+    "commands": [
+      "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "semantic_live_merge_gate": {
+    "source": "llm_judge",
+    "status": "offline_reference_only",
+    "audited_live_evidence_merged": false,
+    "safe_to_mark_c4_met": false,
+    "current_public_observation_count": 6,
+    "audited_public_observation_count": 0,
+    "reviewed_live_observation_count": 0,
+    "missing_audited_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "offline_reference_only": true,
+    "live_model_evidence_available": false,
+    "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+    "reviewed_private_import_ref": "docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+    "blocking_reason": "Audited semantic judge observations must replace offline references before C4 is met.",
+    "required_commands": [
+      "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "batch_plan_refs": [
+    "ashr_grading_tiny_calibration",
+    "semantic_llm_judge_audit"
+  ],
+  "redaction_policy": {
+    "raw_private_path": "docs/evidence/private_refs/",
+    "commit_only": [
+      "reviewed observation summaries",
+      "provider/model names",
+      "prompt and response hashes",
+      "cost totals",
+      "confidence and review status",
+      "private evidence refs"
+    ],
+    "never_commit": [
+      "API keys",
+      "raw prompts",
+      "raw model responses",
+      "raw account payloads"
+    ]
+  },
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make C3/C4 evidence collection auditable without committing private payloads."
+  }
+}

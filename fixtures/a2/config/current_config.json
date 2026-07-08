@@ -1,0 +1,6 @@
+{
+  "telemetry": true,
+  "autosave": true,
+  "requires_permission_before_write": true,
+  "allowed_current_step": "read-only inspection"
+}

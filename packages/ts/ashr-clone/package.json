@@ -1,0 +1,29 @@
+{
+  "name": "@ashr-clone/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only TypeScript parity SDK for Ashr clone A1 runtime.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ashr-clone-api-probe": "./dist/probe.js",
+    "ashr-clone-calibrate": "./dist/calibrate.js",
+    "ashr-clone-cloud": "./dist/cloud-cli.js",
+    "ashr-clone-dataset-adapter": "./dist/dataset-adapter-cli.js",
+    "ashr-clone-probe": "./dist/probe.js",
+    "ashr-clone-runner": "./dist/runner-cli.js",
+    "ashr-clone-saas": "./dist/saas.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cloud": "node dist/cloud-cli.js",
+    "probe": "node dist/probe.js",
+    "runner": "node dist/runner-cli.js",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.9.3"
+  }
+}

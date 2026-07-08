@@ -1,0 +1,431 @@
+# A3 Acceptance Checklist
+
+## G2.3 Dashboard Skeleton
+
+- [x] `apps/dashboard` exists.
+- [x] Dashboard can load local fixture JSON.
+- [x] Dashboard shows summary metrics.
+- [x] Dashboard shows Run List.
+- [x] Dashboard shows Case Detail.
+- [x] Dashboard shows Expected vs Actual.
+- [x] Dashboard shows Trace Timeline.
+- [x] Dashboard shows Failure Clusters.
+- [x] Dashboard exposes JSON/CSV/Markdown export actions.
+- [x] Dashboard exposes 7 filters: status, family, failure class, run, severity, score band, judge mode.
+- [x] Dashboard shows per-judge drilldown for selected cases.
+- [x] `services/report` contains shared report/normalization logic.
+- [x] `tests/a3` verifies summary, clustering, and export shapes.
+- [x] `tests/a3` verifies filter options and filter behavior.
+- [x] Browser screenshot evidence captured under `docs/screenshots`.
+
+## G2 Contract Safety
+
+- [x] No real Ashr API calls.
+- [x] No real keys or secrets.
+- [x] A1 runner logic not modified.
+- [x] A2 judge semantics not modified.
+- [x] A1/A2 draft PR branches not merged.
+- [x] A3 mock fixtures cite A1/A2 PR source paths.
+
+## P3 Ashr Calibration
+
+- [x] Confirmed `.env.local` exists and is ignored.
+- [x] Did not print, document, or commit the Ashr key.
+- [x] Ran minimal read-only Ashr SDK smoke test.
+- [x] Confirmed `init()` and `health_check()` succeed.
+- [x] Confirmed `list_datasets()`, `list_runs()`, and `list_requests()` return usable field shapes.
+- [x] Saved sanitized fixtures under `fixtures/a3/p3`.
+- [x] Documented P3 plan in `docs/a3/p3_ashr_calibration_plan.md`.
+- [x] Documented field mapping in `docs/a3/p3_field_mapping.md`.
+- [x] Documented worklog and evidence in `docs/a3/p3_worklog.md`.
+- [x] Added small P3 mapper in `services/report/p3_ashr_mapper.mjs`.
+- [x] Added mapper tests in `tests/a3/p3_ashr_mapper.test.mjs`.
+- [x] Confirmed existing A3 report builder tests still pass.
+- [x] Confirmed new P3 mapper tests pass.
+- [x] Checked native backend failure-class evidence with a real failing run; current sample has grade metrics/reason but no named backend `failure_class`, so A3 derives the class.
+- [x] Decide score source: prefer Ashr grade score; use `semantic_similarity` only as provisional action-results fallback.
+- [x] Join dataset scenario titles into mapped A3 cases.
+
+## P3 Product Console / Media Evidence
+
+- [x] Recorded ROI decision before implementation.
+- [x] Selected one highest ROI enhancement for this round: media evidence.
+- [x] Saved sanitized media calibration fixtures under `fixtures/a3/p3`.
+- [x] Confirmed real sample includes `audio`, `file`, `action_tags`, `output_path`, and `vm_stream`.
+- [x] Documented media calibration in `docs/a3/p3_media_calibration.md`.
+- [x] Documented official frontend observation in `docs/a3/p3_official_frontend_notes.md`.
+- [x] Extended P3 mapper to support `run.result.cases[]`.
+- [x] Extended P3 mapper to emit `media_evidence`.
+- [x] Extended P3 mapper to emit media timeline events.
+- [x] Extended report export to preserve media evidence in JSON/CSV.
+- [x] Added P3 media sample test coverage.
+- [x] Dashboard can switch between A1/A2 mock and P3 media sample.
+- [x] Dashboard shows product console overview.
+- [x] Dashboard shows Usage / Quota known-gap panel.
+- [x] Dashboard shows Requests / Datasets / Runs object summary.
+- [x] Dashboard shows case-level Media Evidence panel.
+- [x] Browser smoke test confirmed P3 media sample renders.
+- [x] Mobile viewport check confirmed no horizontal overflow at width 390.
+- [x] Screenshots saved under `docs/screenshots`.
+- [x] Authenticated Ashr Lab dashboard observed after manual login through isolated Chrome/CDP.
+- [x] Audited signed media URL coverage in `docs/a3/p3_signed_media_url_coverage.md`.
+- [x] Confirmed `signed_url` field for file-like dataset actions.
+- [ ] Native signed media URL field confirmed for audio/image/video.
+- [x] Added read-only media API recalibration fixture under `fixtures/a3/p3/ashr_media_api_calibration.redacted.json`.
+- [x] Added signed URL refresh fixture under `fixtures/a3/p3/ashr_media_signed_url_sample.redacted.json`.
+- [x] Confirmed official frontend Usage page exposes Images, Audio, and Files quota channels.
+- [x] Confirmed Usage frontend functions: `get_usage` and `billing_get_status`.
+- [x] Confirmed direct API-key calls to `get_usage` and `billing_get_status` are OAuth-gated with 403 responses.
+- [x] Added A3 Usage / Quota dashboard panel wiring from redacted P3 evidence.
+- [x] Added Usage / Quota evidence to JSON and Markdown reports.
+- [x] Added Usage / Quota section to print-ready report preview.
+- [x] Saved Usage / Quota dashboard screenshot under `docs/screenshots/a3-dashboard-usage-quota-media.png`.
+
+## P3 Frontend / API Product Logic
+
+- [x] Saved current read-only frontend/API calibration sample under `fixtures/a3/p3/ashr_frontend_api_objects.redacted.json`.
+- [x] Saved current redacted run detail sample under `fixtures/a3/p3/ashr_run_trace_sample.redacted.json`.
+- [x] Saved current signed media URL field probe under `fixtures/a3/p3/ashr_media_url_sample.redacted.json`.
+- [x] Confirmed `get_run` can return a direct run object with `result.cases[]`.
+- [x] Confirmed signed URL field name appears as `actions[].signed_url` in at least one dataset action.
+- [x] Saved signed URL coverage summary under `fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json`.
+- [x] Saved read-only failed run/request probes under `fixtures/a3/p3`.
+- [x] Confirmed real failed run fields: `run.result.status`, `cases[].status`, `cases[].grade.passed`, `cases[].grade.score`, `cases[].grade.reason`, and `cases[].grade.metrics`.
+- [x] Confirmed A3 mapper can consume API probe `response.run` failed-run fixture shape.
+- [x] Documented frontend page map in `docs/a3/p3_frontend_page_map.md`.
+- [x] Documented frontend workflow in `docs/a3/p3_frontend_workflow_notes.md`.
+- [x] Documented frontend field mapping in `docs/a3/p3_frontend_field_mapping.md`.
+- [x] Documented A3 MVP recommendations in `docs/a3/p3_a3_mvp_recommendations.md`.
+- [x] Documented frontend-to-A3 gap analysis in `docs/a3/p3_frontend_to_a3_mvp_gap.md`.
+- [x] Documented API-vs-frontend visibility gap in `docs/a3/p3_api_frontend_visibility_gap.md`.
+- [x] Documented Chinese P3/A3 handoff summary in `docs/a3/p3_status_handoff_cn.md`.
+- [x] Direct authenticated Lab page content scrape after manual login, using isolated Chrome/CDP instead of Codex in-app browser.
+- [x] Saved redacted frontend session-expired network probe under `fixtures/a3/p3/ashr_frontend_session_expired_network.redacted.json`.
+- [x] Confirmed an earlier frontend session-expired state required fresh manual login before deeper page observation.
+- [x] Documented relogin observation checklist in `docs/a3/p3_frontend_relogin_observation_checklist.md`.
+- [x] Confirmed fresh manual relogin restored frontend access and returned `200` for top-level Lab/frontend API calls.
+- [x] Saved redacted relogin top-level summary under `fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json`.
+- [x] Confirmed fresh logged-in frontend still has no UI-visible populated dataset/run.
+- [x] Confirmed authenticated Lab tabs: Datasets, Agents, Folders, Analytics, Usage, Trust, API Keys, Team.
+- [x] Confirmed New Dataset opens an 8-step wizard: Basic Info, Agent, Inputs, Tools, Context, Test Config, Behaviors, Review.
+- [x] Recovered from in-app-browser Google login stall by using isolated normal Chrome plus local CDP after manual login.
+- [x] Crawled authenticated top-level Lab pages through the normal Chrome session without saving cookies, tokens, API keys, or raw account values.
+- [x] Filled a minimal official New Dataset wizard draft to the Review step for `A3 Refund Demo Dataset` / `A3 Refund Demo Agent`.
+- [x] Confirmed official media input configuration includes text, audio, file, image, video, website simulation, and custom schema.
+- [x] Confirmed official tool configuration fields: tool name, description, parameter name, parameter type, parameter description, optional marker.
+- [x] Saved redacted wizard-review evidence under `fixtures/a3/p3/ashr_chrome_agent_wizard_review.redacted.json`.
+- [x] With explicit user confirmation, clicked official `Generate Test Suite`.
+- [x] Confirmed hosted dataset became UI-visible as `A3 Refund Demo Dataset`, display id `#00000374`, dataset id `884`.
+- [x] Confirmed generated dataset has 5 frontend-visible test cases covering text, audio, file, and image evidence.
+- [x] Saved post-generation frontend/API evidence under `fixtures/a3/p3/ashr_after_generate_frontend_summary.redacted.json` and `fixtures/a3/p3/ashr_after_generate_dataset_884.redacted.json`.
+- [x] Confirmed official `Results (0)` / no runs found state after generation.
+- [x] Created a hosted run result for generated dataset `884` and saved redacted run evidence as run `11925`.
+- [x] Confirmed run `11925` exposes pass/fail, score, expected vs actual, tool-call, trace-like observations, and media evidence fields through the API sample.
+- [x] Added `P3 Official Demo 884/11925` as a selectable dashboard source.
+- [x] Confirmed the official demo source renders 1 run, 5 cases, 2 pass, 3 fail, 40% pass rate, and 56.4 average score.
+- [x] Saved official demo dashboard screenshot under `docs/screenshots/a3-dashboard-official-demo-884-11925.png`.
+- [x] Attempted direct official frontend revisit for dataset `884` after run `11925`; saved redacted relogin-needed evidence under `fixtures/a3/p3/ashr_dataset_884_frontend_relogin_needed.redacted.json`.
+- [x] Observed authenticated official dataset `884` frontend in normal Chrome after relogin.
+- [x] Confirmed official Test cases tab shows 5 generated refund cases with title, case key, description, action count, and tag count.
+- [x] Confirmed official case detail shows TEST DETAILS, tags, ACTIONS, User/Agent actors, TEXT/AUDIO labels, and Tool Calls.
+- [x] Confirmed official Results still shows `Results (0)` / `No runs found`; API run `11925` is not visible in the official Results UI.
+- [x] Saved authenticated frontend observation under `fixtures/a3/p3/ashr_dataset_884_official_frontend_observation.redacted.json`.
+- [x] Documented official-vs-A3 dashboard gap analysis in `docs/a3/p3_official_dashboard_gap_analysis.md`.
+- [x] Added dashboard Official Ashr Gap panel for copied/partial/blocked/out-of-scope product areas.
+- [x] Added `official_ashr_gap` to report JSON and Official Ashr Gap to Markdown/print report output.
+- [x] Saved Official Ashr Gap dashboard screenshot under `docs/screenshots/a3-dashboard-official-gap.png`.
+- [x] Added Media Readiness dashboard panel with channel, evidence, VM stream, signed URL, and live-rendering safety status.
+- [x] Added Cloud Console Shell dashboard panel for read-only auth/workspace/team/API-key/billing/trust/cloud-mutation boundaries.
+- [x] Added `media_readiness` and `cloud_console_shell` to JSON reports.
+- [x] Added Media Readiness and Cloud Console Shell sections to Markdown/print report output.
+- [x] Added per-channel Media Readiness Matrix for audio/files/images/video/VM stream decisions.
+- [x] Added Cloud Action Guardrails for local exports vs disabled login/API-key/team/billing/trust/cloud actions.
+- [x] Documented media/cloud console polish in `docs/a3/p3_media_cloud_console_polish.md`.
+- [x] Saved Media/Cloud polish screenshot under `docs/screenshots/a3-dashboard-media-cloud-polish.png`.
+- [x] Saved Cloud Shell screenshot under `docs/screenshots/a3-dashboard-cloud-shell.png`.
+- [x] Saved Media Channel Matrix screenshot under `docs/screenshots/a3-dashboard-media-matrix.png`.
+- [x] Saved Cloud Action Guardrails screenshot under `docs/screenshots/a3-dashboard-cloud-guardrails.png`.
+- [x] Added A3 Request Provenance summary from real redacted Ashr request fields.
+- [x] Dashboard shows Request Provenance for P3 media sample source.
+- [x] JSON and Markdown exports include Request Provenance when available.
+- [x] Created official-UI-compatible hosted run `11926` using `result.tests[].action_results[]`.
+- [x] Confirmed `get_run(11926)` exposes 5 tests, expected vs actual, tool-call comparisons, pass/fail, score, and media metadata through redacted API evidence.
+- [x] Confirmed `list_runs(dataset_id=884, summary_only=true)` returns run `11926`, matching the frontend-style list-runs call shape.
+- [x] Updated `P3 Official Demo 884/11926` as the selectable dashboard source.
+- [x] Confirmed local dashboard renders run `11926` with 1 run, 5 cases, 2 pass, 3 fail, 40% pass rate, 56.4 average score, and 5 media-evidence cases.
+- [x] Saved official demo dashboard screenshot under `docs/screenshots/a3-dashboard-official-demo-884-11926.png`.
+- [ ] Visually confirm in a logged-in official Ashr frontend whether dataset `884` Results now lists run `11926`; API summary evidence is confirmed, but the in-app browser was logged out.
+- [x] Added commercial Release Gate summary with approve/review/block decisions.
+- [x] Added Release Gate to JSON, Markdown, and print/PDF report output.
+- [x] Added Release Gate dashboard panel.
+- [x] Confirmed run `11926` correctly blocks release with risk score `70`.
+- [x] Added tests for blocked risky evidence and approved clean evidence.
+- [x] Saved Release Gate screenshot under `docs/screenshots/a3-dashboard-release-gate-11926.png`.
+- [x] Added `release_workflow` JSON export with GitHub check, PR comment, waiver policy, reviewer lanes, audit bundle, and incident replay pack.
+- [x] Added PR Gate / Review Workflow to Markdown report output.
+- [x] Added PR Gate & Audit dashboard panel.
+- [x] Added PR Gate & Audit Workflow to print/PDF report preview.
+- [x] Added tests for release workflow packaging and dashboard wiring.
+- [x] Documented PR Gate workflow growth in `docs/a3/p3_pr_gate_workflow_growth_2026_07_07.md`.
+- [x] Saved PR Gate & Audit screenshot under `docs/screenshots/a3-dashboard-pr-gate-audit-11926.png`.
+- [x] Added command-shaped gate entrypoint in `services/report/a3_gate_cli.mjs`.
+- [x] Added configurable commercial thresholds fixture in `fixtures/a3/release_gate_thresholds.json`.
+- [x] Added threshold-aware release gate output.
+- [x] Added hashed CLI audit manifest for input files.
+- [x] Added workspace-relative artifact paths to avoid local absolute path leakage.
+- [x] Added `--strict-exit` mode for CI-controlled nonzero process exits.
+- [x] Added `--no-fail` mode for local report generation.
+- [x] Added CLI output files for JSON, Markdown, GitHub Check payload, and PR comment Markdown.
+- [x] Added GitHub Check annotations for top-risk cases.
+- [x] Added lightweight CLI output redaction scrubber.
+- [x] Saved redacted GitHub Check and PR comment artifacts under `fixtures/a3/p3`.
+- [x] Saved redacted CLI evidence in `fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json`.
+- [x] Added CLI tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented CLI growth in `docs/a3/p3_gate_cli_growth_2026_07_07.md`.
+- [x] Added dry-run GitHub Check Run request builder in `services/report/a3_github_integration.mjs`.
+- [x] Added dry-run PR comment upsert planner in `services/report/a3_github_integration.mjs`.
+- [x] Added GitHub Actions workflow example in `docs/a3/p3_github_action_workflow_example.yml`.
+- [x] Saved redacted dry-run GitHub request fixtures under `fixtures/a3/p3`.
+- [x] Added GitHub dry-run adapter tests in `tests/a3/a3_github_integration.test.mjs`.
+- [x] Documented GitHub dry-run integration growth in `docs/a3/p3_github_dry_run_integration_2026_07_07.md`.
+- [x] Added `--output-manifest` to the A3 Gate CLI.
+- [x] Added generated artifact manifest schema `a3.generated_artifact_manifest.v1`.
+- [x] Added hashes for generated JSON, Markdown, GitHub Check, and PR comment artifacts.
+- [x] Saved redacted generated artifact manifest under `fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json`.
+- [x] Added generated artifact manifest tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented generated artifact manifest growth in `docs/a3/p3_generated_artifact_manifest_growth_2026_07_07.md`.
+- [x] Added `--waiver` and `--generated-at` to the A3 Gate CLI.
+- [x] Added file-backed waiver validation schema `a3.waiver.v1`.
+- [x] Added waiver review output schema `a3.waiver_review.v1`.
+- [x] Added waiver expiry and required-approver validation.
+- [x] Saved redacted waiver request and waiver review fixtures under `fixtures/a3/p3`.
+- [x] Added waiver validation tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented waiver validation growth in `docs/a3/p3_waiver_validation_growth_2026_07_07.md`.
+- [x] Added `--approval` to the A3 Gate CLI.
+- [x] Added file-backed approval record schema `a3.approval.v1`.
+- [x] Added approval review output schema `a3.approval_review.v1`.
+- [x] Added approval decision, signer role, artifact hash, waiver binding, and separation-of-duties validation.
+- [x] Saved redacted approval record and approval review fixtures under `fixtures/a3/p3`.
+- [x] Added approval validation tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented signed approval validation growth in `docs/a3/p3_signed_approval_validation_growth_2026_07_07.md`.
+- [x] Added `--output-bundle` to the A3 Gate CLI.
+- [x] Added audit bundle index schema `a3.audit_bundle_index.v1`.
+- [x] Added canonical bundle root hash generation.
+- [x] Added chain-of-custody event hashes with previous-event links.
+- [x] Added artifact grouping for source inputs, generated outputs, governance records, and custody records.
+- [x] Saved redacted audit bundle fixture under `fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json`.
+- [x] Added audit bundle tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented audit bundle index growth in `docs/a3/p3_audit_bundle_index_growth_2026_07_07.md`.
+- [x] Added `--verify-index` to the A3 Gate CLI.
+- [x] Added audit bundle verification schema `a3.audit_bundle_verification.v1`.
+- [x] Added root hash, artifact hash, byte-size, and custody-chain verification.
+- [x] Saved redacted audit bundle verification fixture under `fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json`.
+- [x] Added verifier tests in `tests/a3/a3_gate_cli.test.mjs`.
+- [x] Documented audit bundle verifier growth in `docs/a3/p3_audit_bundle_verifier_growth_2026_07_07.md`.
+- [x] Add live-capable GitHub Check Run publisher and CLI with dry-run default and sanitized receipts.
+- [x] Update GitHub Actions example to publish the Ashr++ Release Gate check using a runtime `GITHUB_TOKEN`.
+- [x] Save redacted dry-run publish receipt under `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`.
+- [x] Add live-capable PR comment publisher behind explicit `--pr-comment --pull-number` opt-in.
+- [x] Add dry-run branch-protection required-check plan for `Ashr++ Release Gate`.
+- [x] Save redacted PR comment receipt and required-check plan fixtures under `fixtures/a3/p3`.
+- [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
+- [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
+- [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
+- [ ] Add file hashes for generated PDF and screenshot export artifacts.
+- [ ] Add signed immutable audit bundle archive and archive/zip verifier.
+
+## P3 Trace / Tool-Call Diff
+
+- [x] Added `buildToolCallDiffs()` to compare expected vs actual tool calls.
+- [x] Added statuses for match, missing tool, unexpected tool, wrong tool, and wrong arguments.
+- [x] Added report JSON export field `tool_call_diffs`.
+- [x] Added dashboard Tool Call Diff panel in Case Detail.
+- [x] Added test coverage for missing required tool.
+- [x] Added test coverage for wrong arguments.
+- [x] Browser smoke confirmed missing-tool and wrong-arguments cases render.
+- [x] Screenshot saved under `docs/screenshots/a3-p3-tool-call-diff.png`.
+- [x] Add field-level argument diff highlighting.
+- [x] Added field-level argument diffs to JSON export.
+- [x] Added test coverage for changed, missing, and unexpected argument fields.
+- [x] Link each diff row back to A2 judge evidence.
+- [x] Added judge evidence links to JSON export.
+- [x] Dashboard shows judge mode, score, summary, details, remediation, and tool call IDs for matched diff rows.
+- [x] Added semantic matching for reordered tool calls.
+- [x] Dashboard shows tool-call match strategy and original expected/actual positions.
+- [x] Added mock `wrong_tool_order` case to exercise the matching behavior.
+- [x] Deep-link judge evidence to exact trace event IDs when shared trace IDs are available.
+
+## A3 Product Console Polish
+
+- [x] Added product-console polish documentation.
+- [x] Refined dashboard visual hierarchy and metric health styling.
+- [x] Added Coverage Health panel using optional A2 coverage fixture data.
+- [x] Added Triage Queue panel for highest-priority failed cases.
+- [x] Added Report Center panel explaining JSON/CSV/Markdown outputs.
+- [x] Shared export logic across topbar and Report Center buttons.
+- [x] Added dashboard wiring test coverage for new operations panels.
+- [x] Added P3 mapper de-duplication for repeated redacted case IDs.
+- [x] Added Judge Mode filter using normalized A2 judge modes.
+- [x] Browser-smoke updated desktop dashboard.
+- [x] Browser-smoke updated P3 media dashboard.
+- [x] Browser-smoke updated mobile dashboard.
+- [x] Capture updated screenshots under `docs/screenshots`.
+- [x] Added PDF/print-ready Report Preview section.
+- [x] Added Print Report / Print-PDF actions.
+- [x] Added print CSS that hides interactive dashboard controls.
+- [x] Browser-smoke print-ready report preview.
+- [x] Added Request Provenance panel using P3 request fixture fields.
+- [x] Added Official Frontend Mirror clean-room dashboard panel.
+- [x] Added `official_frontend_mirror` JSON export field.
+- [x] Added Official Frontend Mirror Markdown and print/PDF report sections.
+- [x] Wired `ashr_frontend_mirror_summary.redacted.json` into dashboard data loading.
+- [x] Added report-builder and dashboard-wiring tests for the frontend mirror summary.
+- [x] Browser-smoke verified the Official Frontend Mirror panel with 11 navigation items and 7 API groups.
+- [x] Saved Official Frontend Mirror screenshot under `docs/screenshots/a3-dashboard-official-frontend-mirror.png`.
+- [x] Added Release War Room summary schema `a3.release_war_room.v1`.
+- [x] Added `release_war_room` JSON export field.
+- [x] Added Release War Room Markdown and print/PDF report sections.
+- [x] Added Release War Room dashboard panel.
+- [x] Added redacted War Room fixture for official demo dataset `884` / run `11926`.
+- [x] Added Growth-Auditor Release War Room artifact.
+- [x] Added report-builder and dashboard-wiring tests for Release War Room.
+- [x] Browser-smoke verified Release War Room with `No-go`, 4 metrics, 4 executive brief lines, and 6 lanes.
+- [x] Saved Release War Room screenshot under `docs/screenshots/a3-dashboard-release-war-room.png`.
+- [x] Added `official_parity_roadmap` JSON export field.
+- [x] Added Official Parity Roadmap Markdown and print/PDF report sections.
+- [x] Added Official Parity Roadmap dashboard panel.
+- [x] Added Media Evidence Queue inside Media Readiness.
+- [x] Added report-builder tests for Official Parity Roadmap and Media Evidence Queue.
+- [x] Added dashboard-wiring tests for Official Parity Roadmap and Media Evidence Queue.
+- [x] Re-ran A3 report tests against A1-style run/tool-call data and A2 G3 grade/coverage fixtures.
+- [x] Browser-smoke verified Official Parity Roadmap with 6 priority rows and Media Evidence Queue with 5 queued cases.
+- [x] Saved Official Parity Roadmap screenshot under `docs/screenshots/a3-dashboard-official-parity-media-queue.png`.
+- [x] Saved Media Evidence Queue screenshots under `docs/screenshots/a3-dashboard-media-evidence-queue.png` and `docs/screenshots/a3-dashboard-media-evidence-queue-detail.png`.
+- [x] Added Incident Replay Queue summary schema `a3.incident_replay_queue.v1`.
+- [x] Added `incident_replay_queue` JSON export field.
+- [x] Added Incident Replay Queue Markdown and print/PDF report sections.
+- [x] Added Incident Replay dashboard panel.
+- [x] Added reviewer packet artifacts per replay case.
+- [x] Added report-builder tests proving A1 trace/tool-call evidence and A2 judge evidence are packaged into replay queue.
+- [x] Added dashboard-wiring tests for Incident Replay.
+- [x] Browser-smoke verified Incident Replay Queue with 3 queued official-demo failed cases and 6 replay steps.
+- [x] Saved Incident Replay Queue screenshot under `docs/screenshots/a3-dashboard-incident-replay-queue.png`.
+- [x] Added Reviewer Workflow Board summary schema `a3.reviewer_workflow_board.v1`.
+- [x] Added `reviewer_workflow_board` JSON export field.
+- [x] Added Reviewer Workflow Board Markdown and print/PDF report sections.
+- [x] Added Reviewer Workflow dashboard panel.
+- [x] Added reviewer lane, review state, missing-artifact, waiver-state, approval-readiness, and next-action fields.
+- [x] Calibrated Reviewer Workflow against A1 trace/tool-call evidence and A2 judge/coverage evidence.
+- [x] Added report-builder tests proving A1/A2 evidence drives reviewer workflow state.
+- [x] Added dashboard-wiring tests for Reviewer Workflow.
+- [x] Browser-smoke verified Reviewer Workflow with `Blocked`, 3 open official-demo items, 6 reviewer lanes, and A1/A2 calibration counts.
+- [x] Saved Reviewer Workflow screenshot under `docs/screenshots/a3-dashboard-reviewer-workflow-board.png`.
+- [x] Added Official Code Crawl Parity summary schema `a3.official_code_crawl_parity.v1`.
+- [x] Added redacted code-crawl fixture from official frontend mirror structure and keyword counts.
+- [x] Added `official_code_crawl_parity` JSON export field.
+- [x] Added Official Code Crawl Parity Markdown and print/PDF report sections.
+- [x] Added Official Code Crawl dashboard panel.
+- [x] Verified code-crawl parity preserves clean-room boundary and does not commit official source.
+- [x] Calibrated code-crawl parity targets against A1 run/trace/tool-call data and A2 score/failure/judge data.
+- [x] Added report-builder and dashboard-wiring tests for Official Code Crawl.
+- [x] Browser-smoke verified Official Code Crawl with 9 chunk rows, 6 parity target rows, and `source committed no`.
+- [x] Saved Official Code Crawl screenshot under `docs/screenshots/a3-dashboard-official-code-crawl-parity.png`.
+- [x] Added Observability Replay Matrix summary schema `a3.observability_replay_matrix.v1`.
+- [x] Added `observability_replay_matrix` JSON export field.
+- [x] Added Observability Replay Matrix Markdown and print/PDF report sections.
+- [x] Added Observability Replay dashboard panel.
+- [x] Added replay lanes for trace timeline, tool errors, latency/duration, A2 judge link, media metadata, and official Observability parity.
+- [x] Added per-case observability replay items with production risk, observability state, trace/tool/error/judge/media counts, official parity source, and next action.
+- [x] Calibrated Observability Replay against A1 trace/observation/tool-call evidence and A2 score/pass-fail/failure/judge evidence.
+- [x] Calibrated Observability Replay against official clean-room Observability code-crawl signals without copying source.
+- [x] Added report-builder and dashboard-wiring tests for Observability Replay.
+- [x] Browser-smoke verified Observability Replay after official-demo dashboard load.
+- [x] Saved Observability Replay screenshot under `docs/screenshots/a3-dashboard-observability-replay-matrix.png`.
+- [x] Added Regression Factory summary schema `a3.regression_factory.v1`.
+- [x] Added `regression_factory` JSON export field.
+- [x] Added Regression Factory Markdown and print/PDF report sections.
+- [x] Added Regression Factory dashboard panel.
+- [x] Added regression candidates that derive from Incident Replay and Observability Replay evidence.
+- [x] Calibrated regression candidates against A1 trace/tool-call evidence, A2 judge/coverage evidence, and official Results review parity.
+- [x] Added generated suite plan, required contracts, proposed assertions, and next action per candidate.
+- [x] Added report-builder and dashboard-wiring tests for Regression Factory.
+- [x] Browser-smoke verified Regression Factory after official-demo dashboard load.
+- [x] Saved Regression Factory screenshot under `docs/screenshots/a3-dashboard-regression-factory.png`.
+- [x] Added shared Export Redaction Firewall module for report and gate outputs.
+- [x] Added `export_redaction_firewall` JSON export field.
+- [x] Added Export Redaction Firewall Markdown and print/PDF report sections.
+- [x] Added Export Safety dashboard panel.
+- [x] Added CSV secret scrubbing and spreadsheet formula hardening.
+- [x] Reused the shared export firewall from the A3 Gate CLI.
+- [x] Split dashboard into `index.html`, `src/app.mjs`, and `src/styles.css`.
+- [x] Reduced dashboard HTML from more than 3,000 lines to about 400 lines.
+- [x] Strengthened direct A1 RunResult compatibility.
+- [x] Strengthened direct A2 single-run plus single-grade compatibility.
+- [x] Added focused tests for raw A1 and raw A2 compatibility.
+- [x] Added dashboard Data option for raw A1 RunResult.
+- [x] Added dashboard Data option for raw A2 single-case fixture.
+- [x] Added dashboard wiring tests for raw A1/A2 sources.
+- [x] Browser-smoke verified raw A1 and raw A2 dashboard sources.
+- [x] Saved raw A2 dashboard screenshot under `docs/screenshots/a3-dashboard-raw-a2-source.png`.
+
+## Next Acceptance Targets
+
+- [x] Replace A3 mock fixtures with generated fixtures from merged A1/A2 outputs.
+- [x] Add case-level judge drilldown.
+- [x] Add severity and score-band filters.
+- [x] Add judge-mode filter after A2 exposes more varied judge-mode cases.
+- [x] Expand from current 4 screenshots to 10 demo screenshots.
+- [x] Add a dashboard data-source option that loads raw A1/A2 fixtures directly.
+- [x] Add an API-backed dashboard source that can serve the current A3 normalized payload through `/api/a3/dashboard`.
+- [x] Add a DB-ready store abstraction with memory, JSON-file, and fixture-backed implementations.
+- [x] Add a shareable hosted report payload with redaction, hashes, report metadata, and share URL path.
+- [x] Add dashboard component boundary for SaaS Runtime instead of keeping every new UI block inside the main app module.
+- [x] Add tests for A3 store, A3 API server, shareable report payloads, and dashboard API wiring.
+- [x] Add SaaS Admin Console shell for login, cloud/project management, usage, API key metadata, team, and trust.
+- [x] Add `GET /api/a3/admin/console` and `POST /api/a3/admin/actions/plan`.
+- [x] Keep SaaS admin actions safe: real login, API-key creation, team invites, billing mutations, and Trust publishing are disabled or plan-only.
+- [x] Add A1/A2 compatibility counts inside SaaS Admin Console.
+- [x] Add Auth Session, RBAC Matrix, Invite Workflow, Usage Controls, API Key Lifecycle, Trust Center, Cloud Management, and Product Console Map to SaaS Admin dashboard rendering.
+- [x] Add SaaS database migration-contract tables for `users`, `roles`, `team_members`, `api_keys`, and `trust_reports`.
+- [x] Keep SaaS admin and cloud-management parity clean-room: no official private source, no real account data, and no cloud mutations committed.
+- [x] Add Product Console workflow model for onboarding, project console, audit log, and commercial readiness.
+- [x] Add `GET /api/a3/product/console`.
+- [x] Wire Product Console into API-backed dashboard payload and dashboard UI.
+- [x] Add A1/A2 compatibility evidence for Product Console workflow.
+- [x] Add Growth-Auditor artifact with at least 20 next growth points for onboarding/audit/project console.
+- [x] Add Product Console workflow state to JSON, Markdown, and print/PDF report exports.
+- [x] Add SaaS Admin login/team/usage/API-key/trust/cloud guardrails to JSON, Markdown, and print/PDF report exports.
+- [x] Confirm Product Console and SaaS Admin exports still derive readiness from A1 run evidence and A2 judge evidence.
+- [x] Add Growth-Auditor artifact with 40 next growth points for Product Console artifact/export entry.
+- [x] Add Artifact Registry model for report exports and control-plane evidence.
+- [x] Add `GET /api/a3/artifacts/registry`.
+- [x] Add `artifact_registry_entries` and `artifact_lifecycle_events` to the SQL migration contract.
+- [x] Show Artifact Registry summary and entries in Report Center.
+- [x] Include Artifact Registry evidence in JSON, Markdown, and print/PDF report exports.
+- [x] Add Growth-Auditor artifact with 45 next growth points for Artifact Registry commercialization.
+- [x] Add CI export-firewall scans for generated docs and fixtures.
+- [x] Add a real local SQL adapter target using Node SQLite, while keeping Postgres/MySQL production migration tooling as future work.
+- [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
+- [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
+- [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
+- [x] Add self-host console contract artifact and document-contract tests.
+- [x] Add idempotency keys and validation error shapes to A1/A2 import routes.
+- [x] Add view audit event and expiry/revocation policy for hosted reports.
+- [x] Add SQL adapter contract artifact for idempotency ledger, audit events, share/revoke/view tables, and usage ledger.
+- [x] Add API calibration evidence artifact for import validation/error shapes.
+- [x] Add SQL migration contract generator for Postgres, MySQL, and SQLite targets.
+- [x] Add read-only usage ledger meters for runs, cases, trace events, tool-call cases, judge results, hosted reports, report views, revocations, and API imports.
+- [x] Add report center manifest contract for hosted report artifacts, usage ledger evidence, and DB migration evidence.
+- [x] Add Report Center index/control-plane API for hosted report lifecycle, manifest readiness, usage, migration, and redaction status.
+- [x] Wire Report Center index into API-backed dashboard after hosted report creation.
+- [x] Add external `/r/:shareToken` hosted report route with token-hash lookup.
+- [x] Keep raw share tokens out of stored report payloads and durable Report Center summaries.
+- [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.
+- [x] Add dashboard Report Center revoke controls for active API-backed hosted reports.
+- [x] Verify SQLite-backed A3 store can persist A1/A2 imports, hosted report lifecycle, audit events, and usage ledger rows.
+- [x] Add safe SaaS Admin action request workflow for login/team/usage/API-key/trust/cloud-management operations.
+- [x] Add `POST /api/a3/admin/actions/submit` and `GET /api/a3/admin/actions`.
+- [x] Persist `saas_admin_action_requests` in the SQL migration contract and SQLite-backed A3 store.
+- [x] Add dashboard Record Request / Record Guardrail controls without enabling real Ashr cloud mutations.
+- [x] Include SaaS Admin action request summary in JSON/Markdown/print-ready exports.
+- [x] Confirm SaaS Admin action requests preserve A1/A2 compatibility and do not store secrets, emails, tokens, cookies, or real API keys.

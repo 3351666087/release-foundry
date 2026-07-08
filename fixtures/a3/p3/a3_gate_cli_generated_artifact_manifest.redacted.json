@@ -1,0 +1,57 @@
+{
+  "schema_version": "a3.generated_artifact_manifest.v1",
+  "generated_at": "2026-07-07T00:00:00.000Z",
+  "source": "a3-local-mock",
+  "command_shape": "ashr gate --json",
+  "manifest_file": "fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json",
+  "manifest_self_hash": "excluded_to_avoid_self_reference",
+  "release": {
+    "run_id": "run_a3_generated_from_a2_g3",
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 100,
+    "blocks_merge": true,
+    "github_check_conclusion": "failure"
+  },
+  "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output.",
+  "generated_artifacts": [
+    {
+      "id": "json_report",
+      "path": "fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json",
+      "content_type": "application/json",
+      "sha256": "c8252dcf6d335319a3dbc156435a73fc896483ad285c6d234d356a5de471cd6e",
+      "byte_size": 20373,
+      "required": true
+    },
+    {
+      "id": "markdown_report",
+      "path": "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+      "content_type": "text/markdown",
+      "sha256": "741add584b46b8f331cc67428179599200ada50079cd5ca919537a3f3152765f",
+      "byte_size": 2548,
+      "required": true
+    },
+    {
+      "id": "github_check_run",
+      "path": "fixtures/a3/p3/a3_gate_cli_github_check.redacted.json",
+      "content_type": "application/json",
+      "sha256": "b211850411e1afec0cda78accfb7c6fb2a6b878a610908687a367165efb85a3b",
+      "byte_size": 3550,
+      "required": true
+    },
+    {
+      "id": "pr_comment_markdown",
+      "path": "fixtures/a3/p3/a3_gate_cli_pr_comment.redacted.md",
+      "content_type": "text/markdown",
+      "sha256": "5ad3f7870b2e2264d7925a3a1bc2e960a99fc6c7f8688ef76ee8bca1f9fe5f33",
+      "byte_size": 1133,
+      "required": true
+    }
+  ],
+  "safety": {
+    "dry_run_compatible": true,
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "manifest_hashes_itself": false
+  }
+}

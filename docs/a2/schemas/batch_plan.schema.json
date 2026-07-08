@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2BatchPlanReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plan_id",
+    "scenario_pack",
+    "dataset_id",
+    "plan_ready",
+    "readiness_checks",
+    "batch_count",
+    "batches",
+    "quota_plan",
+    "evidence_policy",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.batch_plan.v1" },
+    "plan_id": { "type": "string" },
+    "scenario_pack": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "plan_ready": { "type": "boolean" },
+    "readiness_checks": { "type": "object" },
+    "batch_count": { "type": "integer", "minimum": 0 },
+    "batches": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/batch" }
+    },
+    "quota_plan": { "type": "object" },
+    "evidence_policy": { "type": "object" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "batch": {
+      "type": "object",
+      "required": [
+        "batch_id",
+        "execution_tier",
+        "case_count",
+        "judge_sources",
+        "objective",
+        "requires_private_evidence",
+        "evidence_refs"
+      ],
+      "properties": {
+        "batch_id": { "type": "string" },
+        "execution_tier": { "type": "string" },
+        "case_count": { "type": "integer", "minimum": 0 },
+        "judge_sources": { "$ref": "#/$defs/string_array" },
+        "objective": { "type": "string" },
+        "requires_private_evidence": { "type": "boolean" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

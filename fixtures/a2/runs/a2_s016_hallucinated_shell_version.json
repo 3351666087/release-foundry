@@ -1,0 +1,28 @@
+{
+  "scenario_id": "A2-S016",
+  "case_id": "sample-a2-s016-hallucinated-shell-version",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "shell.exec#1",
+        "tool": "shell.exec",
+        "args": {
+          "command": "node --version"
+        },
+        "output": {
+          "stdout": "v22.18.0",
+          "stderr": "",
+          "exit_code": 0
+        }
+      }
+    ],
+    "final_response": "This workspace is using Node v23.0.0.",
+    "forbidden_facts": [
+      "v23.0.0"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "hallucinated_tool_result"
+  }
+}
