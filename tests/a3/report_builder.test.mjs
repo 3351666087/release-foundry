@@ -19,6 +19,7 @@ import {
   summarizeCoverage,
   summarizeCloudConsoleShell,
   summarizeEvidenceReadiness,
+  summarizeGithubPublishEvidence,
   summarizeMediaReadiness,
   summarizeRegressionReadiness,
   summarizeOfficialAshrGap,
@@ -33,6 +34,7 @@ import {
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
   summarizeReviewerWorkflowBoard,
+  summarizeReleaseEvidenceSummary,
   summarizeReleaseGate,
   summarizeReleaseWarRoom,
   summarizeReleaseWorkflow,
@@ -796,6 +798,104 @@ test("A3 report exports include durable review workflow records", async () => {
   const missing = summarizeReviewWorkflowExport({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /Review Workflow API/);
+});
+
+test("A3 report exports include release evidence publish and verification summary", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const releaseEvidence = {
+    githubCheckPublishReceipt: await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    githubPrCommentPublishReceipt: await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    githubRequiredCheckPlan: await loadJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json"),
+    githubCheckReadback: await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json"),
+    githubPrCommentReadback: await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json"),
+    githubRequiredCheckProof: await loadJson("../../fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json"),
+    auditBundleVerification: await loadJson("../../fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json"),
+    auditArchiveVerification: await loadJson("../../fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json")
+  };
+  releaseEvidence.readback_records = [
+    releaseEvidence.githubCheckReadback,
+    releaseEvidence.githubPrCommentReadback,
+    releaseEvidence.githubRequiredCheckProof
+  ];
+
+  const summary = summarizeReleaseEvidenceSummary(releaseEvidence);
+  assert.equal(summary.schema_version, "a3.release_evidence_summary.v1");
+  assert.equal(summary.available, true);
+  assert.equal(summary.overall_status, "verified");
+  assert.equal(summary.github_check_publish.dry_run, true);
+  assert.equal(summary.github_check_publish.posted, false);
+  assert.equal(summary.github_pr_comment_publish.dry_run, true);
+  assert.equal(summary.github_pr_comment_publish.posted, false);
+  assert.equal(summary.github_required_check_plan.maintainer_approval_required, true);
+  assert.equal(summary.github_check_readback.readback_status, "readback_confirmed");
+  assert.equal(summary.pr_comment_readback.body_hash_match, true);
+  assert.equal(summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
+  assert.equal(summary.readback_record_count, 3);
+  assert.equal(summary.readback_status_counts.readback_confirmed, 2);
+  assert.equal(summary.readback_status_counts.plan_only, 1);
+  assert.equal(summary.readback_resource_counts.github_check, 1);
+  assert.equal(summary.audit_bundle_verification.status, "passed");
+  assert.equal(summary.audit_bundle_verification.root_hash_passed, true);
+  assert.equal(summary.audit_archive_verification.status, "passed");
+  assert.equal(summary.audit_archive_verification.signature_passed, true);
+  assert.equal(summary.safety.token_included, false);
+  assert.equal(summary.safety.real_github_mutation_performed, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, releaseEvidence);
+  assert.equal(json.release_evidence_summary.available, true);
+  assert.equal(json.release_evidence_summary.audit_archive_verification.signature_passed, true);
+  assert.equal(json.release_evidence_summary.readback_record_count, 3);
+  assert.equal(json.release_evidence_summary.readback_records[0].resource_kind, "github_check");
+  assert.match(json.release_evidence_summary.readback_history.a1_a2_boundary, /A1 RunResult/);
+  assert.doesNotMatch(JSON.stringify(json.release_evidence_summary), /scrape saved browser passwords/);
+  assert.doesNotMatch(JSON.stringify(json.release_evidence_summary), /raw_details/);
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, releaseEvidence);
+  assert.match(markdown, /## Release Evidence Summary/);
+  assert.match(markdown, /GitHub check readback: readback_confirmed/);
+  assert.match(markdown, /PR comment readback: readback_confirmed/);
+  assert.match(markdown, /Required check readback: plan_only/);
+  assert.match(markdown, /Readback records: 3, confirmed 2/);
+  assert.match(markdown, /Audit bundle verification: passed/);
+  assert.match(markdown, /Audit archive verification: passed/);
+  assert.match(markdown, /real GitHub mutation no/);
+
+  const missing = summarizeReleaseEvidenceSummary({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /GitHub publish receipts/);
+});
+
+test("A3 report exports include GitHub publish evidence receipts", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const githubPublishEvidence = {
+    schema_version: "a3.github_publish_evidence.v1",
+    check_publish: await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    pr_comment_publish: await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    required_check_plan: await loadJson("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json")
+  };
+
+  const summary = summarizeGithubPublishEvidence(githubPublishEvidence);
+  assert.equal(summary.available, true);
+  assert.equal(summary.status, "planned");
+  assert.equal(summary.dry_run_only, true);
+  assert.equal(summary.posted_count, 0);
+  assert.equal(summary.planned_count, 3);
+  assert.equal(summary.required_check_planned, true);
+  assert.equal(summary.check_name, "Ashr++ Release Gate");
+  assert.equal(summary.safety.token_included, false);
+  assert.equal(summary.safety.secret_values_allowed, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, githubPublishEvidence);
+  assert.equal(json.github_publish_evidence.schema_version, "a3.github_publish_evidence_export.v1");
+  assert.equal(json.github_publish_evidence.required_check_planned, true);
+  assert.equal(json.github_publish_evidence.pr_comment_publish.status, "planned");
+
+  const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, githubPublishEvidence);
+  assert.match(markdown, /## GitHub Publish Evidence/);
+  assert.match(markdown, /Required check planned: yes/);
+  assert.doesNotMatch(JSON.stringify(json.github_publish_evidence), /Authorization|Bearer|gh[pousr]_/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {

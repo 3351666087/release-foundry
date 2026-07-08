@@ -126,6 +126,8 @@ test("generated A3 docs and fixture report artifacts are free of unredacted secr
   assert.ok(relativeFiles.includes("fixtures/a3/p3/a3_gate_cli_report.redacted.md"));
   assert.ok(relativeFiles.includes("fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json"));
   assert.ok(relativeFiles.includes("fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json"));
+  assert.ok(relativeFiles.includes("fixtures/a3/p3/a3_audit_archive_manifest.redacted.json"));
+  assert.ok(relativeFiles.includes("fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json"));
   assert.equal(
     unexpectedFindings.length,
     0,
@@ -174,6 +176,7 @@ function shouldSkipPath(relPath, name) {
     BINARY_EXTENSIONS.has(extension) ||
     /(^|\/)\.env(?:\.|$)/i.test(relPath) ||
     /(^|\/)docs\/screenshots\//i.test(relPath) ||
+    /(^|\/)fixtures\/a3\/p3\/tmp-[^/]+(?:\/|$)/i.test(relPath) ||
     /(^|\/)private_refs\//i.test(relPath)
   );
 }

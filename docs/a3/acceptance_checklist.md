@@ -27,6 +27,36 @@
 - [x] A1/A2 draft PR branches not merged.
 - [x] A3 mock fixtures cite A1/A2 PR source paths.
 
+## A3 Release Evidence / Audit Display
+
+- [x] Latest `origin/main` merged before this round's A3 changes.
+- [x] `services/report/report_builder.mjs` can summarize GitHub Check publish evidence.
+- [x] `services/report/report_builder.mjs` can summarize GitHub PR comment publish evidence.
+- [x] `services/report/report_builder.mjs` can summarize required-check rollout plan evidence.
+- [x] `services/report/report_builder.mjs` can summarize audit bundle verification evidence.
+- [x] `services/report/report_builder.mjs` can summarize signed audit archive verification evidence.
+- [x] JSON reports include `release_evidence_summary`.
+- [x] Markdown reports include `## Release Evidence Summary`.
+- [x] Dashboard includes a `Release Evidence` panel.
+- [x] Dashboard loads existing redacted release evidence fixtures for static sources.
+- [x] Report Center includes Release Evidence status.
+- [x] Print-ready report includes Release Evidence status.
+- [x] Dashboard wrapping hardened for long release ids, check names, and verification badges.
+- [x] Screenshot evidence saved under `docs/screenshots/a3-dashboard-release-evidence-2026-07-08.png`.
+- [x] Tests verify release evidence export does not include raw GitHub request details.
+- [x] Tests verify dashboard release evidence wiring.
+- [x] GitHub publish receipts remain clearly labeled as dry-run / not posted.
+- [x] No real Ashr, GitHub, billing, auth, or cloud mutation API was called in this display round.
+- [x] API-backed dashboard payload includes sanitized `release_evidence_summary`.
+- [x] Added `GET /api/a3/releases/:releaseId/evidence-summary` response contract.
+- [x] Hosted reports include immutable `release_evidence_snapshot` metadata.
+- [x] Hosted report HTML renders Release Evidence only for active/shareable reports.
+- [x] Denied hosted report pages still do not render report body or case evidence.
+- [x] Report Center manifest includes `release_evidence_summary` artifact evidence.
+- [x] Artifact Registry treats `release_evidence_summary` as a first-class report artifact.
+- [x] SQL migration contract includes `release_evidence_summaries`.
+- [x] SQLite-backed A3 store persists release evidence summary rows.
+
 ## P3 Ashr Calibration
 
 - [x] Confirmed `.env.local` exists and is ignored.
@@ -228,11 +258,16 @@
 - [x] Add live-capable PR comment publisher behind explicit `--pr-comment --pull-number` opt-in.
 - [x] Add dry-run branch-protection required-check plan for `Ashr++ Release Gate`.
 - [x] Save redacted PR comment receipt and required-check plan fixtures under `fixtures/a3/p3`.
+- [x] Add `github_publish_evidence` to JSON and Markdown reports.
+- [x] Add GitHub check/comment/required-check artifacts to Artifact Registry and dashboard Report Center wiring.
 - [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
 - [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
 - [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
 - [ ] Add file hashes for generated PDF and screenshot export artifacts.
-- [ ] Add signed immutable audit bundle archive and archive/zip verifier.
+- [x] Add signed immutable audit archive manifest and archive verifier.
+- [x] Save redacted signed archive manifest and verification fixtures under `fixtures/a3/p3`.
+- [x] Add archive manifest signature, root-hash, entry-hash, missing-entry, and CLI tests.
+- [ ] Add binary zip/tar packaging around the signed archive manifest.
 
 ## P3 Trace / Tool-Call Diff
 
@@ -429,3 +464,44 @@
 - [x] Add dashboard Record Request / Record Guardrail controls without enabling real Ashr cloud mutations.
 - [x] Include SaaS Admin action request summary in JSON/Markdown/print-ready exports.
 - [x] Confirm SaaS Admin action requests preserve A1/A2 compatibility and do not store secrets, emails, tokens, cookies, or real API keys.
+- [x] Add Gate CLI inputs for GitHub Check publish receipt, PR-comment publish receipt, and required-check plan.
+- [x] Seal GitHub publish evidence into generated artifact manifests and audit bundle indexes with SHA-256 and byte-size evidence.
+- [x] Keep GitHub publish evidence downstream of A3 delivery; do not mix it into A1 run inputs or A2 judge inputs.
+- [x] Refresh stale committed Gate CLI/audit-bundle fixtures after latest `main` conflict-resolution artifact changes.
+- [x] Verify A3 Gate CLI after GitHub publish evidence sealing: 21 pass, 0 fail.
+- [x] Move release evidence summary from static display into A3 store/API/hosted-report/Report Center/SQLite paths.
+- [x] Add release evidence health, next-action, and sanitized diff helpers.
+- [x] Add local tenant-scope negative tests for release evidence API reads.
+- [x] Add local tenant-scope negative tests for report detail, manifest, view, revoke, and report-list routes.
+- [x] Verify SQLite report persistence stores report tenant scope instead of defaulting to `org-local`.
+- [x] Redact unexpected API internal-error messages before returning them to clients.
+- [x] Add explicit `a3.release_evidence_summary.v2` authority summary builder.
+- [x] Keep release evidence v1 stable while serving v2 only through explicit version negotiation.
+- [x] Add `GET /api/a3/releases/:releaseId/evidence-health`.
+- [x] Add `GET /api/a3/releases/:releaseId/evidence-diff`.
+- [x] Add A1 RunResult/Trace/ToolCall/Observation counts to v2 release evidence.
+- [x] Add A2 Scenario/Judge/GradeResult/FailureTaxonomy counts to v2 release evidence.
+- [x] Add A1/A2 release evidence v2 contract mapping artifact.
+- [x] Add Growth-Auditor money-grade release evidence v2 audit artifact.
+- [x] Add release evidence v2 SQL contract tables for snapshots, diffs, and readbacks.
+- [x] Persist release evidence v2 snapshots, safe diffs, and readback placeholder rows in the SQLite-backed A3 store.
+- [x] Add live-shaped GitHub Check readback contract for confirmed, stale, missing, deleted, permission-denied, and failed states.
+- [x] Add live-shaped PR comment readback contract for marker/body-hash match, stale, missing, deleted, and permission-denied states.
+- [x] Add required-check proof contract where plan-only cannot claim enforcement.
+- [x] Wire GitHub readback receipts into release evidence v2 summaries and SQLite readback rows.
+- [x] Add `POST /api/a3/releases/:releaseId/readbacks` for sanitized readback capture.
+- [x] Add `GET /api/a3/releases/:releaseId/readbacks` for release-scoped readback inspection.
+- [x] Add idempotency, tenant-scope 404s, audit event linkage, and nested secret redaction for readback capture.
+- [x] Keep A1/A2 API import receipts separate from A3 readback capture receipts.
+- [x] Persist latest readback authority rows in the SQLite-backed A3 store and reload captured readbacks from durable state.
+- [x] Add `release_evidence_readbacks` usage meter and `release_evidence_readback` artifact registry entries.
+- [x] Document readback capture API in `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`.
+- [x] Add safe readback capture CLI for CI/worker usage with dry-run default and explicit `--submit`.
+- [x] Add dashboard payload `release_evidence_readbacks` so API-backed UI can display captured readback records.
+- [x] Add readback records, status counts, and resource counts to Release Evidence JSON/Markdown exports.
+- [x] Add readback rows to dashboard Release Evidence panel and print/PDF-ready report.
+- [x] Add tests proving dashboard/report/store/API readback visibility does not leak tokens, emails, Authorization headers, or raw secret values.
+- [x] Document that readback evidence is downstream of A1/A2 and does not replace A1 RunResult or A2 GradeResult proof.
+- [x] Document readback worker and visibility round in `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`.
+- [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
+- [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

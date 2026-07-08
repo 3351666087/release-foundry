@@ -26,6 +26,102 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.product_console.schema_version, "a3.product_console.v1");
     assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
     assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
+    assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
+    assert.equal(dashboard.release_evidence_summary.available, true);
+
+    const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
+    assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
+    assert.equal(releaseEvidence.release_evidence_summary.available, true);
+    assert.equal(releaseEvidence.release_evidence_health.schema_version, "a3.release_evidence_health.v1");
+    assert.equal(releaseEvidence.next_action.action, "publish_github_check");
+    assert.equal(releaseEvidence.safety.raw_request_body_exposed, false);
+
+    const releaseEvidenceV2 = await getJson(`${url}${dashboard.release_evidence_api.path}&version=2`);
+    assert.equal(releaseEvidenceV2.schema_version, "a3.release_evidence_api_response.v2");
+    assert.equal(releaseEvidenceV2.release_evidence_summary.schema_version, "a3.release_evidence_summary.v2");
+    assert.equal(releaseEvidenceV2.release_evidence_summary.a1_evidence.contracts.includes("Trace"), true);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.a2_evidence.contracts.includes("Judge"), true);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.enforced, false);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.safety.raw_secret_values_allowed, false);
+
+    const releaseEvidenceHealth = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-health?source=mock`);
+    assert.equal(releaseEvidenceHealth.schema_version, "a3.release_evidence_health_api_response.v1");
+    assert.equal(releaseEvidenceHealth.summary_id, releaseEvidenceV2.summary_id);
+    assert.equal(releaseEvidenceHealth.release_evidence_health.schema_version, "a3.release_evidence_health.v1");
+
+    const releaseEvidenceDiff = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-diff?source=mock`);
+    assert.equal(releaseEvidenceDiff.schema_version, "a3.release_evidence_diff_api_response.v1");
+    assert.equal(releaseEvidenceDiff.diff.schema_version, "a3.release_evidence_diff.v1");
+    assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
+    assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
+
+    const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+    const readbackCaptureBody = {
+      readback: {
+        ...checkReadback,
+        expected: {
+          ...checkReadback.expected,
+          authorization: "Bearer should-not-leak"
+        }
+      },
+      actor: ["release-owner", "example.com"].join("@")
+    };
+    const readbackCapture = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      body: JSON.stringify(readbackCaptureBody)
+    });
+    assert.equal(readbackCapture.status, 202);
+    const readbackReceipt = await readbackCapture.json();
+    assert.equal(readbackReceipt.schema_version, "a3.release_evidence_readback_capture_receipt.v1");
+    assert.equal(readbackReceipt.readback_status, "readback_confirmed");
+    assert.equal(readbackReceipt.idempotency.status, "recorded");
+    assert.equal(readbackReceipt.secret_values_included, false);
+    assert.doesNotMatch(JSON.stringify(readbackReceipt), /should-not-leak|release-owner@example.com|Bearer/);
+
+    const duplicateReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      body: JSON.stringify(readbackCaptureBody)
+    });
+    assert.equal(duplicateReadback.status, 202);
+    const duplicateReadbackReceipt = await duplicateReadback.json();
+    assert.equal(duplicateReadbackReceipt.idempotency.duplicate, true);
+
+    const readbacks = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`);
+    assert.equal(readbacks.schema_version, "a3.release_evidence_readback_list.v1");
+    assert.equal(readbacks.readback_count, 1);
+    assert.equal(readbacks.status_counts.readback_confirmed, 1);
+    assert.equal(readbacks.readbacks[0].resource_kind, "github_check");
+    assert.doesNotMatch(JSON.stringify(readbacks), /should-not-leak|release-owner@example.com|Bearer/);
+
+    const releaseEvidenceAfterCapture = await getJson(`${url}${dashboard.release_evidence_api.path}&version=2`);
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_status, "readback_confirmed");
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_confirmed, true);
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.payload_hash, readbackReceipt.payload_hash);
+    assert.equal(releaseEvidenceAfterCapture.readback_records.length, 1);
+    assert.equal(releaseEvidenceAfterCapture.readback_records[0].resource_kind, "github_check");
+
+    const dashboardAfterCapture = await getJson(`${url}/api/a3/dashboard?source=mock`);
+    assert.equal(dashboardAfterCapture.release_evidence_readbacks.schema_version, "a3.release_evidence_readback_dashboard.v1");
+    assert.equal(dashboardAfterCapture.release_evidence_readbacks.readback_count, 1);
+    assert.equal(dashboardAfterCapture.release_evidence_summary.readback_status_counts.readback_confirmed, 1);
+    assert.equal(dashboardAfterCapture.release_evidence_summary.readback_records[0].resource_kind, "github_check");
+    assert.doesNotMatch(JSON.stringify(dashboardAfterCapture.release_evidence_readbacks), /should-not-leak|release-owner@example.com|Bearer/);
+
+    const usageAfterReadback = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
+    assert.equal(usageAfterReadback.meters.some((item) => item.meter === "release_evidence_readbacks" && item.quantity === 1), true);
+
+    const crossTenantReleaseEvidence = await fetch(`${url}${dashboard.release_evidence_api.path}&organization_id=org-other`);
+    assert.equal(crossTenantReleaseEvidence.status, 404);
+    const crossTenantPayload = await crossTenantReleaseEvidence.json();
+    assert.equal(crossTenantPayload.error, "not_found");
+    assert.equal(crossTenantPayload.kind, "release_evidence");
+    assert.doesNotMatch(JSON.stringify(crossTenantPayload), /Release Evidence|github_check_publish|audit_bundle_verification/);
+    const crossTenantDiff = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-diff?source=mock&organization_id=org-other`);
+    assert.equal(crossTenantDiff.status, 404);
+    const crossTenantReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock&organization_id=org-other`);
+    assert.equal(crossTenantReadback.status, 404);
 
     const migrations = await getJson(`${url}/api/a3/db-migrations`);
     assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");
@@ -266,16 +362,49 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(report.share_url_path, /^\/r\/a3s_/);
     assert.match(report.internal_url_path, /^\/reports\/a3r_/);
 
+    const otherTenantShareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "A3 other tenant report",
+        organization_id: "org-other",
+        project_id: "project-other"
+      })
+    });
+    assert.equal(otherTenantShareResponse.status, 201);
+    const otherTenantReport = await otherTenantShareResponse.json();
+
     const savedReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}`);
     assert.equal(savedReport.report_id, report.report_id);
     assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
     assert.equal(savedReport.share_link.token_hash, undefined);
     assert.match(savedReport.share_link.token_hash_prefix, /^[a-f0-9]{12}$/);
 
+    const crossTenantReport = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}?source=mock`);
+    assert.equal(crossTenantReport.status, 404);
+    const crossTenantManifest = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/manifest?source=mock`);
+    assert.equal(crossTenantManifest.status, 404);
+    const crossTenantView = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/view?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ viewer: "wrong-tenant" })
+    });
+    assert.equal(crossTenantView.status, 404);
+    const crossTenantRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/revoke?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "wrong-tenant" })
+    });
+    assert.equal(crossTenantRevoke.status, 404);
+    const scopedOtherTenantReport = await getJson(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}?source=mock&organization_id=org-other&project_id=project-other`);
+    assert.equal(scopedOtherTenantReport.report_id, otherTenantReport.report_id);
+
     const manifest = await getJson(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/manifest?source=mock`);
     assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
     assert.equal(manifest.release_packet.hosted_report_ready, true);
+    assert.equal(manifest.release_packet.release_evidence_summary_ready, true);
     assert.ok(manifest.artifacts.some((item) => item.id === "db_migration_plan"));
+    assert.ok(manifest.artifacts.some((item) => item.id === "release_evidence_summary"));
 
     const reportCenter = await getJson(`${url}/api/a3/reports/center?source=mock`);
     assert.equal(reportCenter.schema_version, "a3.report_center_index.v1");
@@ -284,12 +413,17 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(reportCenter.reports[0].report_id, report.report_id);
     assert.equal(reportCenter.control_plane.sql_contract_ready, true);
     assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+    assert.equal(reportCenter.summary.release_evidence_ready_count, 1);
     assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
     assert.ok(reportCenter.artifact_registry.entries.some((item) => item.report_id === report.report_id));
 
+    const reportList = await getJson(`${url}/api/a3/reports?source=mock`);
+    assert.deepEqual(reportList.reports.map((item) => item.report_id), [report.report_id]);
+
     const artifactRegistry = await getJson(`${url}/api/a3/artifacts/registry?source=mock`);
     assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
-    assert.equal(artifactRegistry.summary.report_artifact_count, 4);
+    assert.equal(artifactRegistry.summary.report_artifact_count, 5);
+    assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
     assert.ok(artifactRegistry.packet_presets.some((item) => item.preset_id === "pr_review_packet"));
     assert.equal(artifactRegistry.safety.raw_share_tokens_stored, false);
 
@@ -308,6 +442,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(internalReport.headers.get("content-type"), /text\/html/);
     const internalHtml = await internalReport.text();
     assert.match(internalHtml, /A3 API smoke report/);
+    assert.match(internalHtml, /Release Evidence/);
     assert.match(internalHtml, /Sealed Evidence/);
 
     const hostedReport = await fetch(`${url}${report.share_url_path}`);
@@ -315,6 +450,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(hostedReport.headers.get("content-type"), /text\/html/);
     const hostedHtml = await hostedReport.text();
     assert.match(hostedHtml, /A3 API smoke report/);
+    assert.match(hostedHtml, /Release Evidence/);
     assert.match(hostedHtml, /Sealed Evidence/);
 
     const revokeResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke`, {
@@ -337,6 +473,27 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API server redacts unexpected internal error messages", async () => {
+  const store = {
+    storage_mode: "memory",
+    async getDashboardSnapshot() {
+      throw new Error(`Authorization: Bearer ${"x".repeat(24)} ASHR_API_KEY=secret_live_value owner@example.com`);
+    }
+  };
+  const { server, url } = await startA3ApiServer({ store });
+  try {
+    const response = await fetch(`${url}/api/a3/dashboard`);
+    assert.equal(response.status, 500);
+    const payload = await response.json();
+    assert.equal(payload.error, "internal_error");
+    assert.match(payload.message, /Bearer \[REDACTED\]/);
+    assert.match(payload.message, /ASHR_API_KEY=\[REDACTED\]/);
+    assert.doesNotMatch(JSON.stringify(payload), /secret_live_value|owner@example.com|x{24}/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

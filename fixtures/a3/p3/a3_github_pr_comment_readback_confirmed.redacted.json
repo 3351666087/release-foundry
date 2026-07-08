@@ -1,0 +1,52 @@
+{
+  "schema_version": "a3.github_pr_comment_readback_receipt.v1",
+  "provider": "github",
+  "resource_kind": "pr_comment",
+  "readback_id": "ghprb_redacted_confirmed",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "posted": true,
+  "stale": false,
+  "missing": false,
+  "deleted": false,
+  "http_status": 200,
+  "github_request_id": "redacted:request:id",
+  "expected": {
+    "repo": "3351666087/ashr-codex-factory",
+    "pull_number": 18,
+    "comment_id_alias": 2001,
+    "marker": "<!-- ashr-plus-plus:release-gate:run_a3_generated_from_a2_g3 -->",
+    "body_hash": "sha256_redacted_expected_comment_body",
+    "head_sha_alias": "abc123"
+  },
+  "observed": {
+    "comment_id_alias": 2001,
+    "html_url": "https://github.example/ashr/pull/18#issuecomment-2001",
+    "issue_url": "https://api.github.example/repos/3351666087/ashr-codex-factory/issues/18",
+    "created_at": "2026-07-08T00:00:00.000Z",
+    "updated_at": "2026-07-08T00:00:01.000Z",
+    "author_association": "MEMBER",
+    "body_marker_present": true,
+    "body_hash": "sha256_redacted_expected_comment_body",
+    "head_sha_alias": "abc123"
+  },
+  "matches": {
+    "comment_id": true,
+    "marker": true,
+    "body_hash": true,
+    "head_sha": true
+  },
+  "marker_match": true,
+  "body_hash_match": true,
+  "sanitized_error_class": null,
+  "payload_hash": "sha256_redacted_pr_comment_readback_payload",
+  "checked_at": "2026-07-08T00:00:02.000Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "not_recorded",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false
+  }
+}

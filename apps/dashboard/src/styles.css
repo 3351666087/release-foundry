@@ -110,6 +110,7 @@ select {
   padding: 26px;
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .topbar {
@@ -445,6 +446,7 @@ h1 {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+  min-width: 0;
   padding-top: 12px;
 }
 
@@ -455,6 +457,7 @@ h1 {
   background: #fff;
   display: grid;
   gap: 6px;
+  min-width: 0;
   padding: 9px;
 }
 
@@ -465,17 +468,25 @@ h1 {
   gap: 8px;
   justify-content: space-between;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.matrix-head > *,
+.action-head > * {
+  min-width: 0;
 }
 
 .matrix-row strong,
 .action-row strong {
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .matrix-row .muted,
 .action-row .muted {
   font-size: 12px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .cloud-row {
@@ -766,6 +777,7 @@ h1 {
 
 .panel-body {
   padding: 14px 16px;
+  min-width: 0;
 }
 
 .run-list {
@@ -804,11 +816,14 @@ h1 {
 .badge {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   min-height: 22px;
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .badge.pass {

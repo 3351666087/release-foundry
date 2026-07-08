@@ -80,6 +80,82 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url)));
       }
 
+      const releaseEvidenceMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-summary$/);
+      if (request.method === "GET" && releaseEvidenceMatch) {
+        const summary = await store.getReleaseEvidenceSummary(decodeURIComponent(releaseEvidenceMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          version: url.searchParams.get("version") || url.searchParams.get("schema_version") || undefined
+        });
+        return summary
+          ? sendJson(response, 200, summary)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceMatch[1]));
+      }
+
+      const releaseEvidenceHealthMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-health$/);
+      if (request.method === "GET" && releaseEvidenceHealthMatch) {
+        const summary = await store.getReleaseEvidenceSummary(decodeURIComponent(releaseEvidenceHealthMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          version: "2"
+        });
+        return summary
+          ? sendJson(response, 200, {
+            schema_version: "a3.release_evidence_health_api_response.v1",
+            release_id: summary.release_id,
+            summary_id: summary.summary_id,
+            tenant_scope: summary.tenant_scope,
+            release_evidence_health: summary.release_evidence_health,
+            next_action: summary.next_action,
+            safety: summary.safety
+          })
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceHealthMatch[1]));
+      }
+
+      const releaseEvidenceDiffMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-diff$/);
+      if (request.method === "GET" && releaseEvidenceDiffMatch) {
+        const diff = await store.getReleaseEvidenceDiff(decodeURIComponent(releaseEvidenceDiffMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          from: url.searchParams.get("from") || undefined,
+          to: url.searchParams.get("to") || undefined
+        });
+        return diff
+          ? sendJson(response, 200, diff)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceDiffMatch[1]));
+      }
+
+      const releaseEvidenceReadbacksMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/readbacks$/);
+      if (request.method === "POST" && releaseEvidenceReadbacksMatch) {
+        const body = await readJsonBody(request);
+        const receipt = await store.submitReleaseEvidenceReadback(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), body.readback || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          capturedAt: body.captured_at || body.capturedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceReadbacksMatch[1]));
+      }
+
+      if (request.method === "GET" && releaseEvidenceReadbacksMatch) {
+        const readbacks = await store.listReleaseEvidenceReadbacks(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        });
+        return readbacks
+          ? sendJson(response, 200, readbacks)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceReadbacksMatch[1]));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {
         return sendJson(response, 200, await store.getSaasAdminConsole({
           source: sourceFrom(url),
@@ -232,7 +308,7 @@ export function createA3ApiHandler(options = {}) {
 
       const reportMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)$/);
       if (request.method === "GET" && reportMatch) {
-        const report = await store.getReport(decodeURIComponent(reportMatch[1]));
+        const report = await store.getReport(decodeURIComponent(reportMatch[1]), reportScopeFrom(url));
         return report
           ? sendJson(response, 200, report)
           : sendJson(response, 404, notFound("report", reportMatch[1]));
@@ -240,9 +316,7 @@ export function createA3ApiHandler(options = {}) {
 
       const reportManifestMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/manifest$/);
       if (request.method === "GET" && reportManifestMatch) {
-        const manifest = await store.getReportManifest(decodeURIComponent(reportManifestMatch[1]), {
-          source: sourceFrom(url)
-        });
+        const manifest = await store.getReportManifest(decodeURIComponent(reportManifestMatch[1]), reportScopeFrom(url));
         return manifest
           ? sendJson(response, 200, manifest)
           : sendJson(response, 404, notFound("report", reportManifestMatch[1]));
@@ -254,7 +328,8 @@ export function createA3ApiHandler(options = {}) {
         const receipt = await store.revokeReport(decodeURIComponent(reportRevokeMatch[1]), {
           reason: body.reason,
           revokedBy: body.revoked_by || body.revokedBy || "a3-api",
-          revokedAt: body.revoked_at || body.revokedAt
+          revokedAt: body.revoked_at || body.revokedAt,
+          ...reportScopeFrom(url, body)
         });
         return receipt
           ? sendJson(response, 200, receipt)
@@ -266,7 +341,8 @@ export function createA3ApiHandler(options = {}) {
         const body = await readJsonBody(request);
         const report = await store.getReportForView(decodeURIComponent(reportViewMatch[1]), {
           viewer: body.viewer || "api",
-          viewedAt: body.viewed_at || body.viewedAt
+          viewedAt: body.viewed_at || body.viewedAt,
+          ...reportScopeFrom(url, body)
         });
         return report
           ? sendJson(response, report.status === "shareable" ? 200 : 410, {
@@ -310,7 +386,7 @@ export function createA3ApiHandler(options = {}) {
       if (request.method === "GET" && url.pathname === "/api/a3/reports") {
         return sendJson(response, 200, {
           schema_version: "a3.api_report_list.v1",
-          reports: await store.listReports()
+          reports: await store.listReports(reportScopeFrom(url))
         });
       }
 
@@ -322,7 +398,7 @@ export function createA3ApiHandler(options = {}) {
       return sendJson(response, 500, {
         schema_version: "a3.api_error.v1",
         error: "internal_error",
-        message: error.message
+        message: redactErrorMessage(error.message)
       });
     }
   };
@@ -346,6 +422,14 @@ export async function startA3ApiServer(options = {}) {
 
 function sourceFrom(url) {
   return url.searchParams.get("source") || "mock";
+}
+
+function reportScopeFrom(url, body = {}) {
+  return {
+    source: body.source || sourceFrom(url),
+    organizationId: body.organization_id || body.organizationId || url.searchParams.get("organization_id") || undefined,
+    projectId: body.project_id || body.projectId || url.searchParams.get("project_id") || undefined
+  };
 }
 
 function idempotencyKeyFrom(request, body = {}) {
@@ -406,6 +490,15 @@ function validationErrorPayload(error) {
     redacted_summary: "Request was rejected before persistence; payload body is not echoed.",
     quota_or_cost: "local_validation_only"
   };
+}
+
+function redactErrorMessage(message) {
+  return String(message || "Unexpected internal error.")
+    .replace(/\b(Authorization:\s*Bearer\s+)[A-Za-z0-9._-]{8,}/gi, "$1[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]{8,}/gi, "Bearer [REDACTED]")
+    .replace(/\bCookie:\s*[^;\n]+/gi, "Cookie: [REDACTED]")
+    .replace(/\bASHR(?:_LABS)?_API_KEY\s*[:=]\s*[^\s"']+/gi, "ASHR_API_KEY=[REDACTED]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]");
 }
 
 function escapeHtml(value) {

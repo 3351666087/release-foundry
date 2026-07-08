@@ -94,6 +94,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
+      const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
+      await persist();
+      return result;
+    },
+
     async persist() {
       await persist();
     },
@@ -126,6 +132,10 @@ export function inspectSqliteA3Store(db) {
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
+      release_evidence_summaries: countRows(db, "release_evidence_summaries"),
+      release_evidence_snapshots: countRows(db, "release_evidence_snapshots"),
+      release_evidence_diffs: countRows(db, "release_evidence_diffs"),
+      release_evidence_readbacks: countRows(db, "release_evidence_readbacks"),
       audit_events: countRows(db, "audit_events"),
       usage_ledger: countRows(db, "usage_ledger")
     },
@@ -206,6 +216,10 @@ function clearOperationalRows(db) {
     "audit_events",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
+    "release_evidence_readbacks",
+    "release_evidence_diffs",
+    "release_evidence_snapshots",
+    "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
     "api_import_receipts",
@@ -302,13 +316,125 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         JSON.stringify(item)
       );
     }
+    const releaseEvidenceSummary = dashboard.release_evidence_summary || {};
+    if (releaseEvidenceSummary.available === true) {
+      const releaseId = dashboard.release_evidence_api?.release_id || `${source}-release`;
+      const summaryHash = sha256(JSON.stringify(releaseEvidenceSummary));
+      let authority = null;
+      let authorityDiff = null;
+      try {
+        authority = await store.getReleaseEvidenceSummary(releaseId, { source, version: "2" });
+        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, { source });
+      } catch {
+        authority = null;
+        authorityDiff = null;
+      }
+      db.prepare(`
+INSERT INTO release_evidence_summaries (id, organization_id, project_id, release_id, source, summary_schema_version, overall_status, summary_hash, payload, hosted_report_snapshot_id, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+        `res_${summaryHash.slice(0, 16)}`,
+        snapshot.organizationId || "org-local",
+        snapshot.projectId || "project-local",
+        releaseId,
+        source,
+        releaseEvidenceSummary.schema_version || "unknown",
+        releaseEvidenceSummary.overall_status || "unknown",
+        summaryHash,
+        JSON.stringify(releaseEvidenceSummary),
+        null,
+        updatedAt
+      );
+      if (authority?.release_evidence_summary?.schema_version === "a3.release_evidence_summary.v2") {
+        const payload = authority.release_evidence_summary;
+        const contentHash = sha256(JSON.stringify(payload));
+        db.prepare(`
+INSERT INTO release_evidence_snapshots (id, organization_id, project_id, release_id, summary_id, source_snapshot_id, summary_schema_version, summary_hash, content_hash, health_status, next_action, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+          `resnap_${contentHash.slice(0, 16)}`,
+          snapshot.organizationId || "org-local",
+          snapshot.projectId || "project-local",
+          releaseId,
+          authority.summary_id,
+          payload.release_identity?.source_snapshot_id || null,
+          payload.schema_version,
+          payload.summary_hash,
+          contentHash,
+          payload.health?.overall_status || "unknown",
+          payload.health?.next_action?.action || authority.next_action?.action || null,
+          JSON.stringify(payload),
+          updatedAt
+        );
+        const readbackRows = [
+          ["github_check", payload.github_check_readback],
+          ["pr_comment", payload.pr_comment_readback],
+          ["required_check", payload.required_check_proof],
+          ...((state.releaseEvidenceReadbacks || [])
+            .filter((item) => (
+              (item.source || source) === source
+              && (item.release_id || releaseId) === releaseId
+              && (item.organization_id || "org-local") === (snapshot.organizationId || "org-local")
+              && (item.project_id || "project-local") === (snapshot.projectId || "project-local")
+            ))
+            .map((item) => [item.resource_kind || "readback", item]))
+        ];
+        const seenReadbackKeys = new Set();
+        for (const [provider, item] of readbackRows) {
+          const readbackPayload = item || {};
+          const readbackIdSeed = readbackPayload.readback_id || readbackPayload.proof_id || `${authority.summary_id}:${provider}`;
+          const dedupeKey = `${provider}:${readbackIdSeed}:${readbackPayload.payload_hash || "no_hash"}`;
+          if (seenReadbackKeys.has(dedupeKey)) {
+            continue;
+          }
+          seenReadbackKeys.add(dedupeKey);
+          db.prepare(`
+INSERT INTO release_evidence_readbacks (id, organization_id, project_id, release_id, summary_id, provider, readback_status, head_sha_alias, external_id_alias, payload_hash, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+            `rerb_${sha256(`${authority.summary_id}:${provider}:${readbackIdSeed}`).slice(0, 16)}`,
+            snapshot.organizationId || "org-local",
+            snapshot.projectId || "project-local",
+            releaseId,
+            authority.summary_id,
+            provider,
+            readbackPayload.readback_status || readbackPayload.enforcement_readback_status || "plan_only",
+            readbackPayload.head_sha_alias || payload.release_identity?.head_sha_alias || null,
+            readbackPayload.external_id_alias || readbackPayload.check_name || null,
+            readbackPayload.payload_hash || sha256(JSON.stringify(readbackPayload)),
+            JSON.stringify(readbackPayload),
+            readbackPayload.captured_at || updatedAt
+          );
+        }
+      }
+      if (authorityDiff?.diff?.schema_version === "a3.release_evidence_diff.v1") {
+        const diffHash = sha256(JSON.stringify(authorityDiff.diff));
+        db.prepare(`
+INSERT INTO release_evidence_diffs (id, organization_id, project_id, release_id, from_summary_id, to_summary_id, diff_hash, changed_field_count, regression_count, improvement_count, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+          `rediff_${diffHash.slice(0, 16)}`,
+          snapshot.organizationId || "org-local",
+          snapshot.projectId || "project-local",
+          releaseId,
+          authorityDiff.diff.before_summary_id,
+          authorityDiff.diff.after_summary_id,
+          diffHash,
+          authorityDiff.diff.safe_summary?.changed_field_count || 0,
+          authorityDiff.diff.regression_count || 0,
+          authorityDiff.diff.improvement_count || 0,
+          JSON.stringify(authorityDiff.diff),
+          updatedAt
+        );
+      }
+    }
   }
 }
 
 function persistReports(db, state, updatedAt) {
   for (const report of state.reports || []) {
-    const organizationId = report.organization_id || "org-local";
-    const projectId = report.project_id || "project-local";
+    const organizationId = report.tenant_scope?.organization_id || report.organization_id || "org-local";
+    const projectId = report.tenant_scope?.project_id || report.project_id || "project-local";
     db.prepare(`
 INSERT INTO shareable_reports (id, organization_id, project_id, source, status, payload_hash, expires_at, revoked_at, payload, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -362,6 +488,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       JSON.stringify(receipt),
       updatedAt
     );
+    if (!["a1_run_result_import", "a2_grade_result_import"].includes(item.request_type)) {
+      continue;
+    }
     db.prepare(`
 INSERT INTO api_import_receipts (organization_id, project_id, source, request_type, payload_hash, imported_run_count, imported_grade_count, dashboard_case_count, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

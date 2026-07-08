@@ -291,6 +291,20 @@ test("A3 dashboard wires commercial release gate into console and reports", asyn
   assert.match(html, /PR Gate & Audit Workflow/);
 });
 
+test("A3 dashboard wires GitHub publish evidence into reports and registry", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /githubPublishEvidence: \{\}/);
+  assert.match(html, /loadGithubPublishEvidenceFixtures/);
+  assert.match(html, /a3_github_check_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_pr_comment_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_required_check_plan\.redacted\.json/);
+  assert.match(html, /github_publish_evidence/);
+  assert.match(html, /state\.githubPublishEvidence/);
+  assert.match(html, /githubPublishEvidence: state\.githubPublishEvidence/);
+  assert.match(html, /state\.githubPublishEvidence = payload\.github_publish_evidence \|\| \{\}/);
+});
+
 test("A3 dashboard wires release war room into console and reports", async () => {
   const html = await loadDashboardHtml();
 
@@ -488,6 +502,44 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
   assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+});
+
+test("A3 dashboard wires release evidence publish and verification display", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /summarizeReleaseEvidenceSummary/);
+  assert.match(html, /releaseEvidence: \{\}/);
+  assert.match(html, /releaseEvidenceReadbacks: \{\}/);
+  assert.match(html, /id="release-evidence"/);
+  assert.match(html, /id="release-evidence-status"/);
+  assert.match(html, /id="release-evidence-metrics"/);
+  assert.match(html, /id="release-evidence-github"/);
+  assert.match(html, /id="release-evidence-verification"/);
+  assert.match(html, /function loadReleaseEvidenceFixtures\(\)/);
+  assert.match(html, /a3_github_check_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_pr_comment_publish_receipt_dry_run\.redacted\.json/);
+  assert.match(html, /a3_github_required_check_plan\.redacted\.json/);
+  assert.match(html, /a3_github_check_readback_confirmed\.redacted\.json/);
+  assert.match(html, /a3_github_pr_comment_readback_confirmed\.redacted\.json/);
+  assert.match(html, /a3_github_required_check_proof_plan_only\.redacted\.json/);
+  assert.match(html, /a3_audit_bundle_verification_passed\.redacted\.json/);
+  assert.match(html, /a3_audit_archive_verification_passed\.redacted\.json/);
+  assert.match(html, /function renderReleaseEvidenceSummary\(\)/);
+  assert.match(html, /function shortHash\(value\)/);
+  assert.match(html, /function releaseEvidenceRow\(title, value, detail\)/);
+  assert.match(html, /renderReleaseEvidenceSummary\(\)/);
+  assert.match(html, /state\.releaseEvidence/);
+  assert.match(html, /state\.releaseEvidenceReadbacks/);
+  assert.match(html, /release_evidence_summary/);
+  assert.match(html, /release_evidence_readbacks/);
+  assert.match(html, /Release Evidence/);
+  assert.match(html, /Check readback/);
+  assert.match(html, /PR comment readback/);
+  assert.match(html, /Required-check readback/);
+  assert.match(html, /Readback history/);
+  assert.match(html, /A1\/A2 boundary/);
+  assert.match(html, /archive signature/);
+  assert.match(html, /real GitHub mutation/);
 });
 
 test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and trust", async () => {

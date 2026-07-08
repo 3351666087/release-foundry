@@ -50,7 +50,8 @@ export function buildReportCenterIndex(reports = [], options = {}) {
       firewall_pass_count: items.filter((item) => item.redaction.status === "passed").length,
       artifact_registry_count: artifactRegistry.summary.artifact_count,
       artifact_ready_count: artifactRegistry.summary.ready_count,
-      artifact_billable_meter_count: artifactRegistry.summary.billable_meter_count
+      artifact_billable_meter_count: artifactRegistry.summary.billable_meter_count,
+      release_evidence_ready_count: items.filter((item) => item.release_evidence.available).length
     },
     control_plane: {
       usage_meter_count: Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0,
@@ -108,12 +109,24 @@ function reportCenterItem(report = {}, options = {}) {
       payload_hash_present: Boolean(report.sealed_evidence?.payload_hash),
       secret_free: report.sealed_evidence?.secret_free === true
     },
+    release_evidence: {
+      available: report.release_evidence_summary?.available === true,
+      overall_status: report.release_evidence_summary?.overall_status || "missing",
+      summary_snapshot_id: report.release_evidence_snapshot?.snapshot_id || null,
+      summary_hash_present: Boolean(report.release_evidence_snapshot?.summary_hash),
+      github_check_status: report.release_evidence_summary?.github_check_publish?.status || "missing",
+      pr_comment_status: report.release_evidence_summary?.github_pr_comment_publish?.status || "missing",
+      bundle_status: report.release_evidence_summary?.audit_bundle_verification?.status || "missing",
+      archive_status: report.release_evidence_summary?.audit_archive_verification?.status || "missing"
+    },
     manifest: {
       schema_version: manifest.schema_version,
       artifact_count: manifest.artifacts.length,
       usage_meter_count: manifest.release_packet.usage_meter_count,
       migration_count: manifest.release_packet.migration_count,
       hosted_report_ready: manifest.release_packet.hosted_report_ready,
+      release_evidence_summary_ready: manifest.release_packet.release_evidence_summary_ready === true,
+      release_evidence_snapshot_id: manifest.release_packet.release_evidence_snapshot_id || null,
       redaction_status: manifest.release_packet.redaction_status,
       completeness_score: completeness.score,
       missing: completeness.missing
@@ -128,6 +141,7 @@ function manifestCompleteness(manifest, report, status) {
     ["payload_hash", Boolean(report.sealed_evidence?.payload_hash)],
     ["redaction_passed", report.redaction?.status === "passed" && report.redaction?.blocked !== true],
     ["hosted_report_ready", manifest.release_packet.hosted_report_ready || status !== "shareable"],
+    ["release_evidence_summary", manifest.release_packet.release_evidence_summary_ready === true],
     ["usage_ledger", manifest.release_packet.usage_meter_count > 0],
     ["db_migration_plan", manifest.release_packet.migration_count > 0],
     ["artifact_registry", Array.isArray(manifest.artifacts) && manifest.artifacts.length >= 5],

@@ -41,6 +41,9 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.ok(dashboard.enterprise_readiness.enabled_capabilities.length > 0);
   assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
   assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
+  assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
+  assert.equal(dashboard.release_evidence_summary.available, true);
+  assert.equal(dashboard.release_evidence_api.raw_fixture_exposed, false);
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);
@@ -63,6 +66,136 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(report.share_url_path, "/r/unit_store_share_token");
   assert.match(report.internal_url_path, /^\/reports\/a3r_/);
   assert.equal(report.sealed_evidence.secret_free, true);
+  assert.equal(report.release_evidence_summary.available, true);
+  assert.equal(report.release_evidence_snapshot.immutable_in_hosted_report, true);
+  const otherTenantReport = await store.createShareableReport({
+    source: "mock",
+    organizationId: "org-other",
+    projectId: "project-other",
+    createdAt: "2026-07-07T00:01:00.000Z",
+    shareToken: "unit_other_tenant_share_token"
+  });
+
+  const releaseEvidence = await store.getReleaseEvidenceSummary("current", { source: "mock" });
+  assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
+  assert.equal(releaseEvidence.release_evidence_summary.available, true);
+  assert.equal(releaseEvidence.release_evidence_health.schema_version, "a3.release_evidence_health.v1");
+  assert.equal(releaseEvidence.next_action.action, "publish_github_check");
+  assert.equal(releaseEvidence.safety.raw_fixture_exposed, false);
+  assert.ok(releaseEvidence.hosted_report_snapshots.some((item) => item.report_id === report.report_id));
+  assert.equal(releaseEvidence.hosted_report_snapshots.some((item) => item.report_id === otherTenantReport.report_id), false);
+
+  const scopedReleaseEvidence = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    organizationId: "org-local",
+    projectId: "project-local"
+  });
+  assert.equal(scopedReleaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
+
+  const releaseEvidenceV2 = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    organizationId: "org-local",
+    projectId: "project-local",
+    version: "2"
+  });
+  assert.equal(releaseEvidenceV2.schema_version, "a3.release_evidence_api_response.v2");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.schema_version, "a3.release_evidence_summary.v2");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.a1_evidence.contracts.includes("RunResult"), true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.a2_evidence.contracts.includes("GradeResult"), true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.github_check_readback.readback_status, "readback_confirmed");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.pr_comment_readback.readback_status, "readback_confirmed");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.enforced, false);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.usage_ledger.linked_summary_id, releaseEvidenceV2.summary_id);
+  assert.equal(releaseEvidenceV2.compatibility.v1_stable, true);
+
+  const releaseEvidenceDiff = await store.getReleaseEvidenceDiff("current", {
+    source: "mock",
+    organizationId: "org-local",
+    projectId: "project-local"
+  });
+  assert.equal(releaseEvidenceDiff.schema_version, "a3.release_evidence_diff_api_response.v1");
+  assert.equal(releaseEvidenceDiff.diff.schema_version, "a3.release_evidence_diff.v1");
+  assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
+  assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
+
+  const stalePrReadback = {
+    schema_version: "a3.github_pr_comment_readback_receipt.v1",
+    provider: "github",
+    resource_kind: "pr_comment",
+    readback_id: "ghprb_store_stale",
+    readback_status: "stale",
+    stale: true,
+    expected: {
+      comment_id_alias: 2001,
+      body_hash: "expected_hash",
+      marker: "<!-- ashr-plus-plus:release-gate:unit -->"
+    },
+    observed: {
+      comment_id_alias: 2001,
+      body_hash: "old_hash",
+      body_marker_present: true
+    },
+    matches: {
+      marker: true,
+      body_hash: false
+    },
+    safety: {
+      token_included: false,
+      secret_values_allowed: false,
+      raw_body_stored: false
+    }
+  };
+  const readbackReceipt = await store.submitReleaseEvidenceReadback("current", stalePrReadback, {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    idempotencyKey: "store-readback-1"
+  });
+  assert.equal(readbackReceipt.schema_version, "a3.release_evidence_readback_capture_receipt.v1");
+  assert.equal(readbackReceipt.readback_status, "stale");
+  assert.equal(readbackReceipt.idempotency.status, "recorded");
+  assert.equal(readbackReceipt.secret_values_included, false);
+
+  const duplicateReadback = await store.submitReleaseEvidenceReadback("current", stalePrReadback, {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    idempotencyKey: "store-readback-1"
+  });
+  assert.equal(duplicateReadback.idempotency.duplicate, true);
+
+  const readbackList = await store.listReleaseEvidenceReadbacks("current", { source: "mock" });
+  assert.equal(readbackList.schema_version, "a3.release_evidence_readback_list.v1");
+  assert.equal(readbackList.readback_count, 1);
+  assert.equal(readbackList.status_counts.stale, 1);
+  assert.doesNotMatch(JSON.stringify(readbackList), /reviewer@example.com|Bearer|Authorization/);
+
+  const releaseEvidenceAfterReadback = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    version: "2"
+  });
+  assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.readback_status, "stale");
+  assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.body_hash_match, false);
+  assert.equal(releaseEvidenceAfterReadback.readback_records.length, 1);
+  assert.equal(releaseEvidenceAfterReadback.readback_records[0].resource_kind, "pr_comment");
+
+  const dashboardAfterReadback = await store.getDashboardSnapshot("mock");
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.schema_version, "a3.release_evidence_readback_dashboard.v1");
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.readback_count, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_readbacks.status_counts.stale, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_summary.readback_record_count, 1);
+  assert.equal(dashboardAfterReadback.release_evidence_summary.readback_records[0].resource_kind, "pr_comment");
+  assert.match(dashboardAfterReadback.release_evidence_summary.readback_history.a1_a2_boundary, /A1 RunResult/);
+  assert.doesNotMatch(JSON.stringify(dashboardAfterReadback.release_evidence_readbacks), /reviewer@example.com|Bearer|Authorization/);
+
+  const crossTenantReleaseEvidence = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    organizationId: "org-other"
+  });
+  assert.equal(crossTenantReleaseEvidence, null);
+  assert.equal(await store.getReleaseEvidenceDiff("current", {
+    source: "mock",
+    organizationId: "org-other"
+  }), null);
 
   const savedReport = await store.getReport(report.report_id);
   assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
@@ -144,12 +277,14 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(reportCenter.summary.shareable_count, 1);
   assert.equal(reportCenter.control_plane.sql_contract_ready, true);
   assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+  assert.equal(reportCenter.summary.release_evidence_ready_count, 1);
   assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
-  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 4);
+  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 5);
 
   const artifactRegistry = await store.getArtifactRegistry({ source: "mock" });
   assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
   assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "product_console_state"));
+  assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
   assert.equal(artifactRegistry.safety.raw_secret_values_allowed, false);
 });
 
@@ -255,8 +390,33 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
     expiresAt: "2026-07-08T00:00:00.000Z",
     shareToken: "unit_lifecycle_share_token"
   });
+  const otherTenantReport = await store.createShareableReport({
+    source: "mock",
+    organizationId: "org-other",
+    projectId: "project-other",
+    createdAt: "2026-07-07T00:01:00.000Z",
+    expiresAt: "2026-07-08T00:00:00.000Z",
+    shareToken: "unit_lifecycle_other_tenant_share_token"
+  });
   assert.equal(report.status, "shareable");
   assert.equal(report.expires_at, "2026-07-08T00:00:00.000Z");
+  assert.equal(await store.getReport(otherTenantReport.report_id, { source: "mock" }), null);
+  assert.equal(await store.getReportManifest(otherTenantReport.report_id, { source: "mock" }), null);
+  assert.equal(await store.getReportForView(otherTenantReport.report_id, {
+    source: "mock",
+    viewer: "wrong-tenant",
+    viewedAt: "2026-07-07T12:00:00.000Z"
+  }), null);
+  assert.equal(await store.revokeReport(otherTenantReport.report_id, {
+    source: "mock",
+    revokedBy: "wrong-tenant"
+  }), null);
+  const scopedOtherTenantReport = await store.getReport(otherTenantReport.report_id, {
+    source: "mock",
+    organizationId: "org-other",
+    projectId: "project-other"
+  });
+  assert.equal(scopedOtherTenantReport.report_id, otherTenantReport.report_id);
 
   const viewed = await store.getReportForView(report.report_id, {
     viewer: "unit-test",
@@ -311,6 +471,8 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
   assert.ok(center.reports[0].manifest.migration_count >= 8);
   assert.ok(center.artifact_registry.entries.some((item) => item.artifact_type === "db_migration_plan"));
   assert.ok(center.reports[0].manifest.completeness_score > 0);
+  const scopedList = await store.listReports({ source: "mock" });
+  assert.deepEqual(scopedList.map((item) => item.report_id), [report.report_id]);
 
   const revoked = await store.getReportForView(report.report_id, {
     viewer: "unit-test",

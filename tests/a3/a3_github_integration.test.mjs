@@ -9,9 +9,15 @@ import {
   buildBranchProtectionRequiredCheckPlan,
   buildGitHubActionWorkflowExample,
   buildGitHubCheckRunRequest,
+  buildGitHubCheckReadbackReceipt,
   buildPrCommentUpsertPlan,
+  buildPrCommentReadbackReceipt,
+  buildRequiredCheckProof,
   publishGitHubCheckRun,
-  publishPrCommentUpsert
+  publishPrCommentUpsert,
+  readGitHubCheckRun,
+  readPrCommentReadback,
+  readRequiredCheckProof
 } from "../../services/report/a3_github_integration.mjs";
 import {
   buildGitHubPublishCliReceipt,
@@ -550,4 +556,263 @@ test("A3 GitHub integration builds branch protection required-check plan only", 
   assert.equal(plan.safety.dry_run_only, true);
   assert.equal(plan.safety.maintainer_approval_required, true);
   assert.doesNotMatch(JSON.stringify(plan), /Authorization|Bearer|gh[pousr]_/);
+});
+
+test("A3 GitHub check readback confirms matching check run without storing raw token", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = await publishGitHubCheckRun(payload, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async () => new Response(JSON.stringify({
+      id: 9001,
+      name: "Ashr++ Release Gate",
+      status: "completed",
+      conclusion: "failure",
+      html_url: "https://github.example/checks/9001",
+      details_url: "https://example.invalid/a3-gate",
+      head_sha: "abc123",
+      output: {
+        title: "Ashr++ Release Gate",
+        summary: "Release gate completed.",
+        text: ""
+      }
+    }), { status: 201 })
+  });
+  const readback = buildGitHubCheckReadbackReceipt(publishReceipt, {
+    checkRun: {
+      id: 9001,
+      name: "Ashr++ Release Gate",
+      status: "completed",
+      conclusion: "failure",
+      html_url: "https://github.example/checks/9001",
+      details_url: "https://example.invalid/a3-gate",
+      head_sha: "abc123",
+      output: {
+        title: publishReceipt.request.body.output.title,
+        summary: publishReceipt.request.body.output.summary,
+        text: publishReceipt.request.body.output.text
+      }
+    },
+    httpStatus: 200,
+    githubRequestId: "unit:check:readback"
+  });
+
+  assert.equal(readback.schema_version, "a3.github_check_readback_receipt.v1");
+  assert.equal(readback.readback_status, "readback_confirmed");
+  assert.equal(readback.readback_confirmed, true);
+  assert.equal(readback.matches.head_sha, true);
+  assert.equal(readback.matches.conclusion, true);
+  assert.equal(readback.safety.token_included, false);
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|Authorization|Bearer/);
+});
+
+test("A3 GitHub check readback marks stale SHA and deleted check runs", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = await publishGitHubCheckRun(payload, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async () => new Response(JSON.stringify({
+      id: 9001,
+      name: "Ashr++ Release Gate",
+      status: "completed",
+      conclusion: "failure",
+      head_sha: "abc123"
+    }), { status: 201 })
+  });
+  const stale = buildGitHubCheckReadbackReceipt(publishReceipt, {
+    checkRun: {
+      id: 9001,
+      name: "Ashr++ Release Gate",
+      status: "completed",
+      conclusion: "failure",
+      head_sha: "def456"
+    },
+    httpStatus: 200
+  });
+  const deleted = buildGitHubCheckReadbackReceipt(publishReceipt, {
+    httpStatus: 404,
+    errorMessage: "Not Found"
+  });
+
+  assert.equal(stale.readback_status, "stale");
+  assert.equal(stale.matches.head_sha, false);
+  assert.equal(deleted.readback_status, "deleted");
+  assert.equal(deleted.deleted, true);
+});
+
+test("A3 live-shaped GitHub check readback uses runtime token and sanitizes permission errors", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = {
+    schema_version: "a3.github_check_publish_receipt.v1",
+    posted: true,
+    dry_run: false,
+    request: {
+      repo: { owner: "acme", repo: "refund-agent" },
+      body: {
+        name: "Ashr++ Release Gate",
+        head_sha: "abc123",
+        conclusion: "failure"
+      }
+    },
+    check_run: { id: 9001, head_sha: "abc123", conclusion: "failure" }
+  };
+  const calls = [];
+  const readback = await readGitHubCheckRun(publishReceipt, {
+    repo: "acme/refund-agent",
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({
+        message: "Bad credentials for Bearer rt_secret owned by reviewer@example.com"
+      }), { status: 403 });
+    }
+  });
+
+  assert.equal(payload.schema_version, "a3.gate_cli.v1");
+  assert.equal(calls[0].url, "https://api.github.com/repos/acme/refund-agent/check-runs/9001");
+  assert.equal(calls[0].init.headers.authorization, "Bearer rt_secret");
+  assert.equal(readback.readback_status, "permission_denied");
+  assert.equal(readback.sanitized_error_class, "permission_denied");
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|reviewer@example.com|Bearer rt_secret/);
+});
+
+test("A3 PR comment readback confirms marker and body hash", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async (url, init) => {
+      if (init.method === "GET") {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: 2001,
+        html_url: "https://github.example/acme/refund-agent/pull/17#issuecomment-2001"
+      }), { status: 201 });
+    }
+  });
+  const body = publishReceipt.plan.request.body.body;
+  const readback = buildPrCommentReadbackReceipt(publishReceipt, {
+    comment: {
+      id: 2001,
+      body,
+      html_url: "https://github.example/acme/refund-agent/pull/17#issuecomment-2001",
+      author_association: "MEMBER"
+    },
+    httpStatus: 200
+  });
+
+  assert.equal(readback.schema_version, "a3.github_pr_comment_readback_receipt.v1");
+  assert.equal(readback.readback_status, "readback_confirmed");
+  assert.equal(readback.marker_match, true);
+  assert.equal(readback.body_hash_match, true);
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|Authorization|Bearer/);
+});
+
+test("A3 PR comment readback detects marker and body mismatches", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: true
+  });
+  const stale = buildPrCommentReadbackReceipt(publishReceipt, {
+    comment: {
+      id: 2001,
+      body: "old body without marker"
+    },
+    httpStatus: 200
+  });
+  const missing = buildPrCommentReadbackReceipt(publishReceipt, {
+    comments: [],
+    httpStatus: 200
+  });
+
+  assert.equal(stale.readback_status, "stale");
+  assert.equal(stale.matches.marker, false);
+  assert.equal(stale.matches.body_hash, false);
+  assert.equal(missing.readback_status, "missing");
+});
+
+test("A3 live-shaped PR comment readback fetches comments and sanitizes deleted state", async () => {
+  const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
+  const publishReceipt = await publishPrCommentUpsert(payload, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: true
+  });
+  const readback = await readPrCommentReadback(publishReceipt, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async () => new Response(JSON.stringify({
+      message: "Gone"
+    }), { status: 410 })
+  });
+
+  assert.equal(readback.readback_status, "deleted");
+  assert.equal(readback.deleted, true);
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|Authorization|Bearer/);
+});
+
+test("A3 required-check proof only enforces after branch-protection readback", () => {
+  const plan = buildBranchProtectionRequiredCheckPlan({
+    repo: "acme/refund-agent",
+    branch: "main",
+    existingChecks: [],
+    existingContexts: []
+  });
+  const planOnly = buildRequiredCheckProof(plan);
+  const enforced = buildRequiredCheckProof(plan, {
+    branchProtection: {
+      strict: true,
+      contexts: [],
+      checks: [{ context: "Ashr++ Release Gate", app_id: 12345 }]
+    },
+    httpStatus: 200
+  });
+  const missing = buildRequiredCheckProof(plan, {
+    branchProtection: {
+      strict: true,
+      contexts: ["ci/test"],
+      checks: []
+    },
+    httpStatus: 200
+  });
+
+  assert.equal(planOnly.enforcement_readback_status, "plan_only");
+  assert.equal(planOnly.enforced, false);
+  assert.equal(planOnly.plan_only_must_not_claim_enforcement, true);
+  assert.equal(enforced.enforcement_readback_status, "readback_confirmed");
+  assert.equal(enforced.enforced, true);
+  assert.equal(missing.enforcement_readback_status, "missing");
+  assert.equal(missing.enforced, false);
+  assert.doesNotMatch(JSON.stringify(enforced), /Authorization|Bearer|gh[pousr]_/);
+});
+
+test("A3 live-shaped required-check proof distinguishes permission denied from enforcement", async () => {
+  const plan = buildBranchProtectionRequiredCheckPlan({
+    repo: "acme/refund-agent",
+    branch: "main"
+  });
+  const proof = await readRequiredCheckProof(plan, {
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl: async () => new Response(JSON.stringify({
+      message: "Resource not accessible by integration"
+    }), { status: 403 })
+  });
+
+  assert.equal(proof.enforcement_readback_status, "permission_denied");
+  assert.equal(proof.enforced, false);
+  assert.equal(proof.plan_only_must_not_claim_enforcement, true);
+  assert.doesNotMatch(JSON.stringify(proof), /rt_secret|Authorization|Bearer/);
 });

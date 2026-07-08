@@ -1,5 +1,322 @@
 # A3 Worklog
 
+## 2026-07-08 - Release Evidence Authority Guardrails
+
+### Goal
+
+Continue the A3 commercial-SaaS push after API-backed release evidence landed. This round makes the release evidence path more authoritative by adding health/next-action/diff helpers and tightening tenant/error safety around the API, Report Center, hosted snapshots, and SQLite persistence.
+
+### 26 Growth Points Considered
+
+1. Release evidence health object.
+2. Deterministic next-action engine.
+3. Evidence summary diff.
+4. Tenant-scoped release evidence API reads.
+5. Tenant-scoped hosted report snapshot listing.
+6. Tenant-scoped Report Center report aggregation.
+7. Tenant-scoped Artifact Registry report aggregation.
+8. Tenant-scoped Product Console report evidence.
+9. SQLite report tenant persistence.
+10. API internal error redaction.
+11. Immutable hosted snapshot proof.
+12. GitHub Check readback.
+13. PR comment readback.
+14. Required-check enforcement proof.
+15. Review identity binding.
+16. Redaction fail-closed external publish policy.
+17. Usage ledger summary-id linkage.
+18. Offline verifier packet.
+19. Webhook contract.
+20. Playwright visual evidence.
+21. API docs and v2 handoff.
+22. Billing/usage evidence.
+23. Enterprise retention/legal-hold evidence.
+24. War Room health integration.
+25. Backward compatibility guard.
+26. Postgres migration hardening.
+
+Implemented this round: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 21 as local A3-safe changes. Follow-up in the same round also added report-id scope guards for detail, manifest, view, revoke, and list routes.
+
+### Work completed
+
+- Added `services/report/a3_release_evidence.mjs`.
+  - `buildReleaseEvidenceHealth(...)`
+  - `computeReleaseEvidenceNextAction(...)`
+  - `diffReleaseEvidenceSummaries(...)`
+- Added `tests/a3/a3_release_evidence.test.mjs`.
+- Added release evidence health and next action into `GET /api/a3/releases/:releaseId/evidence-summary`.
+- Added tenant/project guard for release evidence API reads.
+- Added tenant/project filtering for hosted report snapshots in the release evidence API response.
+- Added scoped report filtering for Dashboard, Report Center, Artifact Registry, Product Console, and usage-ledger inputs.
+- Added tenant/project scope guards for report detail, manifest, view, revoke, and report-list reads.
+- Fixed SQLite report persistence to store `tenant_scope.organization_id` and `tenant_scope.project_id` instead of defaulting reports to `org-local`.
+- Added API internal-error redaction so unexpected errors cannot echo Bearer tokens, Ashr key assignments, cookies, or emails.
+- Added next-round authority handoff:
+  - `docs/a3/p3_release_evidence_authority_round_2026_07_08.md`
+
+### A1/A2 compatibility
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not modified.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not modified.
+- This round stays in A3's product/report/API/store boundary and packages downstream evidence only.
+
+### Verification
+
+```text
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/a3_store.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --test tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/shareable_report.test.mjs tests/a3/report_center_index.test.mjs tests/a3/artifact_registry.test.mjs
+node --test tests/a3/a3_sqlite_store.test.mjs
+```
+
+Current focused result before full-suite closeout:
+
+```text
+release-evidence/API/store/report-center/SQLite focused: 20 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not write API keys, tokens, cookies, emails, private keys, live signed URLs, or account values.
+- Added API error redaction for unexpected internal exceptions.
+
+## 2026-07-08 - API-backed release evidence summary
+
+### Goal
+
+Continue A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` and move release evidence from a static display into the A3 API/store/hosted-report path.
+
+### Work completed
+
+- Loaded existing redacted release evidence fixtures at the A3 store boundary.
+- Added sanitized release evidence summary output to `/api/a3/dashboard`.
+- Added release evidence API response support for `GET /api/a3/releases/:releaseId/evidence-summary`.
+- Added immutable hosted report release evidence snapshots.
+- Added Release Evidence rendering to active hosted report HTML.
+- Kept denied hosted report pages body-free for revoked, expired, blocked, or missing links.
+- Added release evidence readiness to Report Center summaries and manifests.
+- Added `release_evidence_summary` as a first-class Artifact Registry report artifact.
+- Added `release_evidence_summaries` to the SQL migration contract.
+- Persisted release evidence summary rows in the SQLite-backed A3 store.
+- Added docs artifact:
+  - `docs/a3/p3_api_backed_release_evidence_2026_07_08.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, tool-call, and SDK semantics were not modified.
+- A2 judge, score, pass/fail, and failure taxonomy semantics were not modified.
+- Release evidence stays downstream of A1/A2 output and only packages A3 delivery evidence.
+
+### Verification
+
+```text
+node --check services/report/a3_store.mjs
+node --check services/report/a3_shareable_report.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --check services/report/a3_sql_migrations.mjs
+node --test tests/a3/a3_store.test.mjs tests/a3/shareable_report.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/report_center_index.test.mjs tests/a3/report_center_manifest_contract.test.mjs tests/a3/artifact_registry.test.mjs
+node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")
+git diff --check
+```
+
+Result:
+
+```text
+Focused: 20 pass, 0 fail
+Full A3 single-threaded: 167 pass, 0 fail
+diff --check: no whitespace errors; Windows LF/CRLF warnings only
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Confirmed `.env.local` is ignored.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit API keys, tokens, cookies, emails, raw share tokens, private keys, live signed URLs, or raw account values.
+- Secret scan matches were limited to intentional redaction-test strings in A3 tests.
+- GitHub publish evidence remains dry-run or locally redacted unless a future maintainer-approved live round is run.
+
+## 2026-07-08 - Release Evidence Display In Dashboard And Reports
+
+### Goal
+
+Continue A3 against `docs/strategy/large-saas-a1-a2-a3-full-plan.md` after the group lead updated `main`. This round moves GitHub publish evidence, audit bundle verification, and signed archive verification out of hidden fixture/CLI evidence and into the customer-facing Dashboard, Report Center, JSON export, Markdown export, and print-ready report.
+
+### Work completed
+
+- Merged the latest `origin/main` into the A3 branch to preserve the group lead's conflict-resolution updates and refreshed SaaS strategy file.
+- Added `summarizeReleaseEvidenceSummary(...)` to `services/report/report_builder.mjs`.
+  - Summarizes GitHub Check publish receipt.
+  - Summarizes GitHub PR comment publish receipt.
+  - Summarizes required-check rollout plan.
+  - Summarizes audit bundle root-hash/artifact/custody verification.
+  - Summarizes signed audit archive root-hash/signature/entry verification.
+  - Only exposes whitelisted status, count, hash-prefix, and safety fields.
+- Added `release_evidence_summary` to JSON report exports.
+- Added `## Release Evidence Summary` to Markdown report exports.
+- Added Dashboard `Release Evidence` panel with:
+  - publish evidence status
+  - dry-run vs posted state
+  - required check plan state
+  - audit bundle verification state
+  - audit archive signature state
+  - safety summary for tokens, secrets, private keys, and real GitHub mutation.
+- Added Release Evidence to Report Center and print-ready report output.
+- Hardened dashboard wrapping for long release ids, check names, and verification badges so evidence rows do not force horizontal page overflow.
+- Wired local static dashboard sources to load existing redacted release evidence fixtures:
+  - `a3_github_check_publish_receipt_dry_run.redacted.json`
+  - `a3_github_pr_comment_publish_receipt_dry_run.redacted.json`
+  - `a3_github_required_check_plan.redacted.json`
+  - `a3_audit_bundle_verification_passed.redacted.json`
+  - `a3_audit_archive_verification_passed.redacted.json`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_round_release_evidence_display_2026_07_08.md`
+- Saved screenshot evidence:
+  - `docs/screenshots/a3-dashboard-release-evidence-2026-07-08.png`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, tool-call, SDK, and artifact semantics were not modified.
+- A2 judge, score, pass/fail, release policy, and failure taxonomy semantics were not modified.
+- The new release evidence summary is appended as a downstream A3 report/dashboard argument, preserving existing positional call compatibility.
+
+### Verification
+
+```text
+node --check services/report/report_builder.mjs
+node --check apps/dashboard/src/app.mjs
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")
+```
+
+Result:
+
+```text
+Focused: 70 pass, 0 fail
+Full A3 single-threaded: 167 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit API keys, tokens, cookies, emails, private keys, live signed URLs, or raw account values.
+- GitHub publish receipts are still dry-run evidence, so the UI labels them as `dry-run` and `posted false`.
+
+## 2026-07-08 - Signed Audit Archive Manifest And Verifier
+
+### Goal
+
+Continue A3 against `docs/strategy/large-saas-a1-a2-a3-full-plan.md`, specifically the large-SaaS requirements for reports/evidence sharing, enterprise audit, self-host retention, and release workflow evidence. This round closes the next audit gap after the bundle index: A3 can now create and verify a signed, immutable, zip-compatible audit archive manifest.
+
+### Work completed
+
+- Added `services/report/a3_audit_archive.mjs`.
+  - Produces `a3.audit_archive_manifest.v1`.
+  - Verifies `a3.audit_archive_verification.v1`.
+  - Seals the audit bundle index plus bundle artifacts into an archive-level manifest.
+  - Records archive entry `sha256`, byte size, content type, role, creator, and workspace-relative path.
+  - Adds Ed25519 detached signature metadata with public key only.
+  - Does not persist private keys.
+  - Keeps binary zip/tar packaging as a follow-up item, while making the manifest zip-compatible.
+- Added redacted fixtures:
+  - `fixtures/a3/p3/a3_audit_archive_manifest.redacted.json`
+  - `fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json`
+- Added tests:
+  - archive manifest creation
+  - signature/root-hash verification
+  - tamper detection
+  - missing entry detection
+  - CLI build/verify flow
+  - export-firewall coverage for new archive fixtures
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_round_audit_archive_2026_07_08.md`
+  - Maps the next money-grade A3 work back to the large SaaS plan.
+
+### A1/A2 compatibility
+
+- A1 run, trace, tool-call, and artifact semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
+- The archive layer sits downstream of A3 release evidence and verifies already-generated files.
+
+### Verification
+
+```text
+node --check services/report/a3_audit_archive.mjs
+node --test tests/a3/a3_audit_archive.test.mjs tests/a3/a3_gate_cli.test.mjs tests/a3/export_firewall_generated_artifacts.test.mjs
+node --test (rg --files tests/a3 -g "*.test.mjs")
+```
+
+Result:
+
+```text
+Focused: 27 pass, 0 fail
+Full A3: 165 pass, 0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit private signing keys, API keys, tokens, cookies, emails, live signed URLs, or local absolute paths.
+- This round adds signed archive manifest verification, not physical binary zip/tar packaging yet.
+
+## 2026-07-08 - GitHub Publish Evidence Audit Bundle Sealing
+
+### Goal
+
+Preserve the group lead's latest `main` conflict-resolution work, then close the next A3 enterprise audit gap: GitHub Check, PR-comment, and required-check-plan evidence can now be sealed into the generated artifact manifest and audit bundle instead of living as loose dry-run receipts.
+
+### Work completed
+
+- Started from the refreshed `origin/main` baseline after the group lead resolved merge conflicts.
+- Added optional Gate CLI inputs:
+  - `--github-check-publish-receipt`
+  - `--github-pr-comment-publish-receipt`
+  - `--github-required-check-plan`
+- The Gate CLI now reads these files as external GitHub publish evidence.
+  - It does not rewrite the receipt files.
+  - It records workspace-relative paths only.
+  - It records SHA-256 and byte size.
+  - It tags them with `origin: external_github_publish_evidence`.
+- Generated artifact manifests can now include the three GitHub publish evidence artifacts alongside JSON report, Markdown report, GitHub check payload, and PR comment payload.
+- Audit bundle indexes can now include and verify those GitHub publish evidence artifacts in the same custody chain.
+- Refreshed committed Gate CLI and audit-bundle fixtures after `main` artifact changes left older hashes stale.
+
+### A1/A2 compatibility
+
+- A1 run/case/trace/tool-call evidence is still consumed through the existing `runs` fixture/input path.
+- A2 grade/pass-fail/failure/coverage evidence is still consumed through the existing `grades`, `coverage`, and `thresholds` paths.
+- No A1 runner logic or A2 judge semantics were changed.
+- GitHub publish evidence stays downstream of A3 release/report delivery; it is not mixed into A1/A2 source inputs.
+
+### Verification
+
+```text
+node --check services/report/a3_gate_cli.mjs
+node --test tests/a3/a3_gate_cli.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr APIs.
+- Did not commit real GitHub tokens, API keys, cookies, emails, account data, or signed URLs.
+- Did not configure live branch protection; required-check enforcement remains a plan artifact.
+
 ## 2026-07-07 - Artifact Registry Evidence Catalog
 
 ### Goal
@@ -3586,3 +3903,227 @@ Result:
 ### Current interpretation
 
 A3 now has both machine-readable Check Run publishing and human-readable PR comment publishing. The remaining commercial gap is enforcing the check through branch protection and proving that setting with maintainer-approved evidence.
+
+## 2026-07-08 - GitHub readback and required-check proof contracts
+
+### Goal
+
+Continue the A3 PR Gate / Release Evidence authority work by adding readback contracts. This lets A3 distinguish "we generated a GitHub artifact" from "GitHub currently has the expected check/comment/required-check state."
+
+### Work completed
+
+- Added GitHub Check readback receipt contract:
+  - generated
+  - posted
+  - readback-confirmed
+  - stale SHA/body
+  - missing
+  - deleted
+  - permission denied
+  - failed
+- Added PR comment readback receipt contract:
+  - marker match
+  - body-hash match
+  - comment id match
+  - stale/missing/deleted/permission-denied states
+- Added required-check proof contract:
+  - branch-protection readback
+  - enforced only when readback confirms the configured check
+  - plan-only cannot claim enforcement
+- Wired readback summaries into:
+  - `services/report/report_builder.mjs`
+  - `services/report/a3_release_evidence.mjs`
+  - `services/report/a3_store.mjs`
+- Added redacted fixture examples under `fixtures/a3/p3`.
+- Added documentation:
+  - `docs/a3/p3_github_readback_contract_2026_07_08.md`
+
+## 2026-07-08 - GitHub publish evidence in reports and artifact registry
+
+### Goal
+
+Bind GitHub publish receipts into A3's customer-facing evidence chain so PR Gate delivery evidence appears in reports, Artifact Registry, and dashboard Report Center wiring.
+
+### Work completed
+
+- Added `summarizeGithubPublishEvidence(...)` in `services/report/report_builder.mjs`.
+- Added `github_publish_evidence` to JSON report export.
+- Added `GitHub Publish Evidence` to Markdown report export.
+- Added Artifact Registry control artifacts:
+  - `github_check_publish_receipt`
+  - `github_pr_comment_publish_receipt`
+  - `github_required_check_plan`
+- Added `github_pr_gate_packet` Artifact Registry preset.
+- Dashboard static sources now load redacted GitHub publish evidence fixtures.
+- Dashboard export calls pass `state.githubPublishEvidence` to JSON and Markdown reports.
+- Added documentation:
+  - `docs/a3/p3_github_publish_evidence_registry_2026_07_08.md`
+
+### Verification
+
+```text
+node --check services/report/a3_github_integration.mjs
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/report_builder.mjs
+node --test tests/a3/a3_github_integration.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs
+
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Result:
+
+```text
+40 tests
+40 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 source data contracts were not changed.
+- A2 judge/policy semantics were not changed.
+- A3 readback evidence wraps the release workflow only, after A1/A2 have produced run and grade evidence.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made.
+- No real branch protection was changed.
+- No GitHub token, API key, cookie, email, Authorization header, raw signed URL, or secret value was committed.
+
+### Current interpretation
+
+This closes a major commercial evidence gap in local code: A3 can now model external GitHub proof instead of only local publish receipts. The next step is maintainer-approved CI or GitHub App integration that performs real readback and persists the receipt.
+
+## 2026-07-08 - Release evidence readback capture API
+
+### Goal
+
+Continue the A3 release evidence authority work by making readback receipts capturable through API and durable store paths, instead of only relying on static redacted fixtures.
+
+### Work completed
+
+- Added `POST /api/a3/releases/:releaseId/readbacks`.
+- Added `GET /api/a3/releases/:releaseId/readbacks`.
+- Added store methods for readback submit/list.
+- Added idempotency, tenant-scope checks, audit event linkage, and payload hash receipts.
+- Added deeper redaction for nested Authorization/token/email/secret-like fields.
+- Wired latest captured readbacks into release evidence v2 summary.
+- Persisted current readback authority rows through SQLite.
+- Added readback usage meter and artifact registry entries.
+- Kept readback idempotency separate from A1/A2 API import receipts.
+- Added documentation:
+  - `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/artifact_registry.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 runner and trace/tool-call contracts were not changed.
+- A2 judge and grade semantics were not changed.
+- A3 readback capture consumes downstream release evidence only.
+- A3 does not claim that GitHub readback equals A1 verifier success.
+
+73 tests
+73 pass
+0 fail
+```
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub API call was made.
+- No branch protection was changed.
+- No API key, token, cookie, email, Authorization header, or raw account value was committed.
+
+### Current interpretation
+
+A3 now has an API/DB path for runtime readback evidence. The next production step is a maintainer-approved CI or GitHub App worker that performs live readback and submits sanitized receipts to this API.
+
+## 2026-07-08 - Readback Worker CLI And Dashboard Visibility
+
+### Goal
+
+Continue A3 along the commercial SaaS plan by making release evidence readback usable from a worker/CI command and visible in the dashboard, Report Center, JSON export, Markdown export, and print-ready report.
+
+### Work completed
+
+- Added `services/report/a3_readback_capture_cli.mjs`.
+- Added `tests/a3/a3_readback_capture_cli.test.mjs`.
+- CLI defaults to dry-run and only submits when `--submit` is provided.
+- CLI posts sanitized readback evidence to `POST /api/a3/releases/:releaseId/readbacks`.
+- CLI supports `--output-receipt` so CI can save a redacted artifact.
+- Normalized readback resource kinds:
+  - `check_run` / `github_check` -> `github_check`
+  - `pr_comment` / `pull_request_comment` -> `pr_comment`
+  - `required_check` / `branch_protection` -> `required_check`
+- Added `release_evidence_readbacks` to API-backed dashboard payloads.
+- Added readback history to `release_evidence_summary`.
+- Added Release Evidence readback rows to the dashboard panel.
+- Added readback summary to Report Center text.
+- Added readback fields to JSON, Markdown, and print/PDF-ready report exports.
+- Added A1/A2 contract-alignment doc:
+  - `docs/a3/p3_readback_a1_a2_contract_alignment_2026_07_08.md`
+- Added Growth-Auditor doc:
+  - `docs/a3/p3_growth_auditor_readback_worker_round_2026_07_08.md`
+- Added implementation summary:
+  - `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`
+
+### Verification
+
+```text
+node --check services/report/a3_readback_capture_cli.mjs
+node --check services/report/report_builder.mjs
+node --check services/report/a3_store.mjs
+node --check apps/dashboard/src/app.mjs
+node --test tests/a3/a3_readback_capture_cli.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+git diff --check
+```
+
+Result:
+
+```text
+81 tests
+81 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 runner, trace, observation, and tool-call contracts were not changed.
+- A2 judge, score, pass/fail, rubric, and failure taxonomy semantics were not changed.
+- A3 readback is explicitly documented as external release-control proof, not as A1 or A2 proof.
+- Dashboard/report copy now keeps "GitHub readback confirmed" separate from "A1 RunResult valid" and "A2 GradeResult passed".
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made.
+- No branch protection, billing, auth, API-key, team, Trust, or cloud mutation was made.
+- No token, cookie, email, Authorization header, raw key, account data, or secret value was committed.
+
+### Current interpretation
+
+A3 now has the local path needed for a future CI worker: collect a redacted GitHub readback receipt, submit it through the A3 API, persist it, and show it in customer-facing dashboard/report surfaces. The remaining commercial step is a maintainer-approved live GitHub App or GitHub Actions worker plus hosted auth/RBAC and production Postgres/RLS.
+
+- No branch-protection mutation was made.
+- No token, cookie, email, Authorization header, raw signed URL, or local absolute user path was committed.
+
+### Current interpretation
+
+A3 PR Gate now has a stronger audit story: generated check/comment/required-check evidence can travel through report export and Artifact Registry. The next enterprise step is hashing those receipts into the audit bundle and verifying real branch protection.

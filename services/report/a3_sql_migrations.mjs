@@ -17,6 +17,9 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
+      "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
+      "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
+      "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -311,7 +314,72 @@ CREATE TABLE IF NOT EXISTS review_workflow_records (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`)
+CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`),
+    statement("010_release_evidence_summaries", ["release_evidence_summaries"], `
+CREATE TABLE IF NOT EXISTS release_evidence_summaries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  summary_schema_version TEXT NOT NULL,
+  overall_status TEXT NOT NULL,
+  summary_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  hosted_report_snapshot_id TEXT,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_project_release ON release_evidence_summaries(project_id, release_id, overall_status);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_summary_hash ON release_evidence_summaries(summary_hash);`),
+    statement("011_release_evidence_authority_v2", ["release_evidence_snapshots", "release_evidence_diffs", "release_evidence_readbacks"], `
+CREATE TABLE IF NOT EXISTS release_evidence_snapshots (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  summary_id TEXT NOT NULL,
+  source_snapshot_id TEXT,
+  summary_schema_version TEXT NOT NULL,
+  summary_hash TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  health_status TEXT NOT NULL,
+  next_action TEXT,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_snapshots_release ON release_evidence_snapshots(project_id, release_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_release_evidence_snapshots_hash ON release_evidence_snapshots(project_id, summary_hash);
+CREATE TABLE IF NOT EXISTS release_evidence_diffs (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  from_summary_id TEXT NOT NULL,
+  to_summary_id TEXT NOT NULL,
+  diff_hash TEXT NOT NULL,
+  changed_field_count INTEGER NOT NULL,
+  regression_count INTEGER NOT NULL,
+  improvement_count INTEGER NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_diffs_release ON release_evidence_diffs(project_id, release_id, created_at);
+CREATE TABLE IF NOT EXISTS release_evidence_readbacks (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  summary_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  readback_status TEXT NOT NULL,
+  head_sha_alias TEXT,
+  external_id_alias TEXT,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary ON release_evidence_readbacks(project_id, summary_id, provider, readback_status);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release ON release_evidence_readbacks(project_id, release_id, provider, created_at);`)
   ];
 }
 
