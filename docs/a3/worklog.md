@@ -3972,3 +3972,56 @@ Result:
 ### Current interpretation
 
 This closes a major commercial evidence gap in local code: A3 can now model external GitHub proof instead of only local publish receipts. The next step is maintainer-approved CI or GitHub App integration that performs real readback and persists the receipt.
+
+## 2026-07-08 - Release evidence readback capture API
+
+### Goal
+
+Continue the A3 release evidence authority work by making readback receipts capturable through API and durable store paths, instead of only relying on static redacted fixtures.
+
+### Work completed
+
+- Added `POST /api/a3/releases/:releaseId/readbacks`.
+- Added `GET /api/a3/releases/:releaseId/readbacks`.
+- Added store methods for readback submit/list.
+- Added idempotency, tenant-scope checks, audit event linkage, and payload hash receipts.
+- Added deeper redaction for nested Authorization/token/email/secret-like fields.
+- Wired latest captured readbacks into release evidence v2 summary.
+- Persisted current readback authority rows through SQLite.
+- Added readback usage meter and artifact registry entries.
+- Kept readback idempotency separate from A1/A2 API import receipts.
+- Added documentation:
+  - `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/artifact_registry.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 runner and trace/tool-call contracts were not changed.
+- A2 judge and grade semantics were not changed.
+- A3 readback capture consumes downstream release evidence only.
+- A3 does not claim that GitHub readback equals A1 verifier success.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub API call was made.
+- No branch protection was changed.
+- No API key, token, cookie, email, Authorization header, or raw account value was committed.
+
+### Current interpretation
+
+A3 now has an API/DB path for runtime readback evidence. The next production step is a maintainer-approved CI or GitHub App worker that performs live readback and submits sanitized receipts to this API.

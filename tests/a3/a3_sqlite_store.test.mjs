@@ -136,9 +136,22 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
     assert.equal(approvalReceipt.status, "valid_exception_approval");
 
+    const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+    const readbackReceipt = await store.submitReleaseEvidenceReadback("current", {
+      ...checkReadback,
+      readback_id: "ghcrb_sqlite_captured"
+    }, {
+      source: "mock",
+      actor: ["sqlite-release-owner", "example.com"].join("@"),
+      idempotencyKey: "sqlite-readback-idempotency-key",
+      capturedAt: "2026-07-07T14:00:00.000Z"
+    });
+    assert.equal(readbackReceipt.readback_status, "readback_confirmed");
+    assert.equal(readbackReceipt.secret_values_included, false);
+
     inspection = store.inspectSqliteState();
     assert.equal(inspection.operational_tables.dashboard_snapshots, 2);
-    assert.equal(inspection.operational_tables.idempotency_keys, 1);
+    assert.equal(inspection.operational_tables.idempotency_keys, 2);
     assert.equal(inspection.operational_tables.api_import_receipts, 1);
     assert.equal(inspection.operational_tables.shareable_reports, 1);
     assert.equal(inspection.operational_tables.report_share_links, 1);
@@ -162,6 +175,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
       const snapshotRow = sqlCheck.prepare("SELECT summary_schema_version, health_status FROM release_evidence_snapshots LIMIT 1").get();
       assert.equal(snapshotRow.summary_schema_version, "a3.release_evidence_summary.v2");
       assert.ok(snapshotRow.health_status);
+      const readbackRow = sqlCheck.prepare("SELECT provider, readback_status, payload_hash FROM release_evidence_readbacks WHERE payload_hash = ?").get(readbackReceipt.payload_hash);
+      assert.equal(readbackRow.provider, "github_check");
+      assert.equal(readbackRow.readback_status, "readback_confirmed");
     } finally {
       sqlCheck.close();
     }
@@ -179,6 +195,10 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     const savedReviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
     assert.equal(savedReviewWorkflow.record_count, 2);
     assert.equal(savedReviewWorkflow.accepted_count, 2);
+    const savedReadbacks = await store.listReleaseEvidenceReadbacks("current", { source: "mock" });
+    assert.equal(savedReadbacks.readback_count, 1);
+    assert.equal(savedReadbacks.readbacks[0].readback_id, "ghcrb_sqlite_captured");
+    assert.doesNotMatch(JSON.stringify(savedReadbacks), /sqlite-release-owner@example.com|Bearer [A-Za-z0-9]/);
   } finally {
     if (store?.close) {
       store.close();

@@ -11,6 +11,11 @@ const REPORT_ARTIFACTS = [
 export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const reportCenter = options.reportCenter || inputs.reportCenter || {};
   const usageLedger = options.usageLedger || inputs.usageLedger || {};
+  const releaseEvidenceReadbacks = Array.isArray(options.releaseEvidenceReadbacks)
+    ? options.releaseEvidenceReadbacks
+    : Array.isArray(inputs.releaseEvidenceReadbacks)
+      ? inputs.releaseEvidenceReadbacks
+      : [];
   const migrationPlan = options.migrationPlan || inputs.migrationPlan || {};
   const productConsole = options.productConsole || inputs.productConsole || {};
   const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
@@ -29,6 +34,7 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     tenantScope,
     source,
     usageLedger,
+    releaseEvidenceReadbacks,
     migrationPlan,
     productConsole,
     saasAdmin
@@ -95,6 +101,16 @@ function controlArtifactEntries(context) {
     customerValue: "billing, quota, chargeback, and adoption evidence",
     missingControls: usageMeters.length ? ["content_hash"] : ["usage_meters", "content_hash"]
   }));
+  entries.push(...context.releaseEvidenceReadbacks.slice(-12).map((readback) => controlArtifact(`release_evidence_readback:${readback.resource_kind || "unknown"}:${readback.readback_id || "unknown"}`, {
+    context,
+    ready: Boolean(readback.payload_hash),
+    contentType: "application/json",
+    billableMeter: "release_evidence_readbacks",
+    customerValue: "external GitHub readback proof for PR gate, reviewer workflow, and audit packets",
+    missingControls: readback.payload_hash ? ["live_provider_attestation"] : ["payload_hash", "live_provider_attestation"],
+    resourceId: readback.readback_id || null,
+    lifecycleState: readback.readback_status === "readback_confirmed" ? "generated" : "planned"
+  })));
   entries.push(controlArtifact("db_migration_plan", {
     context,
     ready: context.migrationPlan.schema_version === "a3.sql_migration_plan.v1" && context.migrationPlan.status === "contract_ready",
@@ -125,13 +141,13 @@ function controlArtifactEntries(context) {
 function controlArtifact(type, options) {
   return {
     artifact_id: `control:${type}`,
-    artifact_type: type,
+    artifact_type: type.startsWith("release_evidence_readback:") ? "release_evidence_readback" : type,
     content_type: options.contentType,
     source: options.context.source,
     tenant_scope: options.context.tenantScope,
     report_id: null,
     manifest_join_key: `control:${type}`,
-    lifecycle_state: options.ready ? "generated" : "planned",
+    lifecycle_state: options.lifecycleState || (options.ready ? "generated" : "planned"),
     hash_status: options.ready ? "schema_reference_present" : "pending_source",
     redaction_status: "metadata_only",
     retention_class: "control_plane_evidence",
@@ -140,6 +156,7 @@ function controlArtifact(type, options) {
     audit_events_required: ["artifact_generated", "redaction_scanned", "admin_reviewed"],
     missing_controls: options.missingControls,
     customer_value: options.customerValue,
+    resource_id: options.resourceId || null,
     raw_secret_values_allowed: false,
     raw_share_token_stored: false
   };

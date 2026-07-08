@@ -19,6 +19,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
+      "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -377,7 +378,8 @@ CREATE TABLE IF NOT EXISTS release_evidence_readbacks (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary ON release_evidence_readbacks(project_id, summary_id, provider, readback_status);`)
+CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary ON release_evidence_readbacks(project_id, summary_id, provider, readback_status);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release ON release_evidence_readbacks(project_id, release_id, provider, created_at);`)
   ];
 }
 

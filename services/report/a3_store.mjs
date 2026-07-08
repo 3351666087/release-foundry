@@ -121,6 +121,9 @@ export const A3_DB_CONTRACT = {
     "saas_admin_action_requests",
     "review_workflow_records",
     "release_evidence_summaries",
+    "release_evidence_snapshots",
+    "release_evidence_diffs",
+    "release_evidence_readbacks",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -153,7 +156,9 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
     "GET /api/a3/artifacts/registry",
-    "GET /api/a3/releases/:releaseId/evidence-summary"
+    "GET /api/a3/releases/:releaseId/evidence-summary",
+    "POST /api/a3/releases/:releaseId/readbacks",
+    "GET /api/a3/releases/:releaseId/readbacks"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -235,6 +240,7 @@ export function createMemoryA3Store(seed = {}) {
   const auditEvents = [];
   const adminActionRequests = [];
   const reviewWorkflowRecords = [];
+  const releaseEvidenceReadbacks = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -264,6 +270,9 @@ export function createMemoryA3Store(seed = {}) {
   for (const record of seed.reviewWorkflowRecords || []) {
     reviewWorkflowRecords.push(record);
   }
+  for (const readback of seed.releaseEvidenceReadbacks || []) {
+    releaseEvidenceReadbacks.push(sanitizeReleaseEvidenceReadback(readback));
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -283,7 +292,8 @@ export function createMemoryA3Store(seed = {}) {
         auditEvents,
         adminActionRequests,
         reviewWorkflowRecords,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+        releaseEvidenceReadbacks,
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
     },
 
@@ -447,7 +457,8 @@ export function createMemoryA3Store(seed = {}) {
       return buildA3UsageLedger(snapshot, {
         reports: filterReportsForSnapshot([...reports.values()], scopedSnapshot),
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        releaseEvidenceReadbacks,
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         organizationId: scopedSnapshot.organizationId,
         projectId: scopedSnapshot.projectId,
         periodStart: options.periodStart,
@@ -622,6 +633,94 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async submitReleaseEvidenceReadback(releaseId = "current", readback = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (
+        !releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)
+        || !snapshotMatchesTenantScope(snapshot, options)
+      ) {
+        return null;
+      }
+      const payloadHash = sha256(stableJson(readback || {}));
+      const replay = getIdempotentReplay(idempotencyReceipts, "release_evidence_readback_capture", snapshot.source, options.idempotencyKey, payloadHash);
+      if (replay) {
+        return replay;
+      }
+      const storedReadback = sanitizeReleaseEvidenceReadback({
+        ...readback,
+        source: snapshot.source,
+        release_id: canonicalReleaseId,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        captured_at: options.capturedAt || new Date().toISOString(),
+        actor_hash: options.actor ? sha256(String(options.actor)).slice(0, 16) : options.actorHash || "actor_[REDACTED_HASH]"
+      });
+      releaseEvidenceReadbacks.push(storedReadback);
+      const auditEvent = releaseEvidenceReadbackAuditEvent(storedReadback, auditEvents.length);
+      auditEvents.push(auditEvent);
+      const receipt = {
+        schema_version: "a3.release_evidence_readback_capture_receipt.v1",
+        release_id: canonicalReleaseId,
+        source: snapshot.source,
+        tenant_scope: {
+          organization_id: storedReadback.organization_id,
+          project_id: storedReadback.project_id
+        },
+        readback_id: storedReadback.readback_id,
+        provider: storedReadback.provider,
+        resource_kind: storedReadback.resource_kind,
+        readback_status: storedReadback.readback_status,
+        payload_hash: storedReadback.payload_hash,
+        audit_event_id: auditEvent.event_id,
+        idempotency: {
+          key_present: Boolean(options.idempotencyKey),
+          duplicate: false,
+          status: options.idempotencyKey ? "recorded" : "not_provided"
+        },
+        persisted: true,
+        secret_values_included: false,
+        raw_body_stored: false,
+        real_cloud_mutation_performed: false
+      };
+      rememberIdempotentReceipt(idempotencyReceipts, "release_evidence_readback_capture", snapshot.source, options.idempotencyKey, payloadHash, receipt);
+      return receipt;
+    },
+
+    async listReleaseEvidenceReadbacks(releaseId = "current", options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (
+        !releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)
+        || !snapshotMatchesTenantScope(snapshot, options)
+      ) {
+        return null;
+      }
+      const readbacks = filterReleaseEvidenceReadbacks(releaseEvidenceReadbacks, {
+        source: snapshot.source,
+        releaseId: canonicalReleaseId,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      });
+      return {
+        schema_version: "a3.release_evidence_readback_list.v1",
+        release_id: canonicalReleaseId,
+        source: snapshot.source,
+        tenant_scope: {
+          organization_id: options.organizationId || snapshot.organizationId,
+          project_id: options.projectId || snapshot.projectId
+        },
+        readback_count: readbacks.length,
+        status_counts: countBy(readbacks, "readback_status"),
+        readbacks,
+        safety: {
+          raw_body_stored: false,
+          token_included: false,
+          secret_values_allowed: false
+        }
+      };
+    },
+
     async getReleaseEvidenceSummary(releaseId = "current", options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
@@ -636,7 +735,8 @@ export function createMemoryA3Store(seed = {}) {
         storageMode: this.storage_mode,
         reports: [...reports.values()],
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        releaseEvidenceReadbacks,
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         version: options.version || options.schemaVersion
       });
     },
@@ -655,7 +755,8 @@ export function createMemoryA3Store(seed = {}) {
         storageMode: this.storage_mode,
         reports: [...reports.values()],
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        releaseEvidenceReadbacks,
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         version: "1"
       }).release_evidence_summary;
       const after = buildReleaseEvidenceApiResponse(snapshot, {
@@ -663,7 +764,8 @@ export function createMemoryA3Store(seed = {}) {
         storageMode: this.storage_mode,
         reports: [...reports.values()],
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        releaseEvidenceReadbacks,
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         version: "2"
       }).release_evidence_summary;
       const diff = diffReleaseEvidenceSummaries(before, after);
@@ -728,7 +830,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger: buildA3UsageLedger(snapshot, {
           reports: scopedReports,
           auditEvents,
-          importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+          importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
           organizationId: scopedSnapshot.organizationId,
           projectId: scopedSnapshot.projectId
         }),
@@ -743,7 +845,7 @@ export function createMemoryA3Store(seed = {}) {
       const usageLedger = buildA3UsageLedger(snapshot, {
         reports: scopedReports,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         organizationId: scopedSnapshot.organizationId,
         projectId: scopedSnapshot.projectId
       });
@@ -762,7 +864,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         reportCenter: baseReportCenter,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
       return buildReportCenterIndex(scopedReports, {
         source: snapshot.source,
@@ -789,7 +891,7 @@ export function createMemoryA3Store(seed = {}) {
       const usageLedger = buildA3UsageLedger(snapshot, {
         reports: scopedReports,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         organizationId: scopedSnapshot.organizationId,
         projectId: scopedSnapshot.projectId
       });
@@ -808,7 +910,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         reportCenter,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
       const saasAdmin = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
         source: snapshot.source,
@@ -826,7 +928,11 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         migrationPlan,
         productConsole,
-        saasAdmin
+        saasAdmin,
+        releaseEvidenceReadbacks: filterReleaseEvidenceReadbacks(releaseEvidenceReadbacks, {
+          organizationId: scopedSnapshot.organizationId,
+          projectId: scopedSnapshot.projectId
+        })
       });
     },
 
@@ -837,7 +943,7 @@ export function createMemoryA3Store(seed = {}) {
       const usageLedger = buildA3UsageLedger(snapshot, {
         reports: scopedReports,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts),
         organizationId: scopedSnapshot.organizationId,
         projectId: scopedSnapshot.projectId
       });
@@ -855,7 +961,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         reportCenter,
         auditEvents,
-        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
+        importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
     },
 
@@ -1034,7 +1140,8 @@ export function createMemoryA3Store(seed = {}) {
         idempotencyReceipts: [...idempotencyReceipts.entries()].map(([key, value]) => ({ key, ...value })),
         auditEvents,
         adminActionRequests,
-        reviewWorkflowRecords
+        reviewWorkflowRecords,
+        releaseEvidenceReadbacks
       };
     }
   };
@@ -1127,6 +1234,11 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
+      const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
+      await persist();
+      return result;
+    },
     async persist() {
       await persist();
     }
@@ -1171,6 +1283,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const usageLedger = buildA3UsageLedger(snapshot, {
     reports: options.reports || [],
     auditEvents: options.auditEvents || [],
+    releaseEvidenceReadbacks: options.releaseEvidenceReadbacks || [],
     importReceipts: options.importReceipts || []
   });
   const migrationPlan = buildA3SqlMigrationPlan();
@@ -1243,6 +1356,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       projectId: snapshot.projectId,
       reportCenter,
       usageLedger,
+      releaseEvidenceReadbacks: options.releaseEvidenceReadbacks || [],
       migrationPlan,
       productConsole,
       saasAdmin
@@ -1299,11 +1413,18 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
   const usageLedger = buildA3UsageLedger(snapshot, {
     reports: reports.map((item) => ({ report_id: item.report_id, status: item.status })),
     auditEvents: options.auditEvents || [],
+    releaseEvidenceReadbacks: options.releaseEvidenceReadbacks || [],
     importReceipts: options.importReceipts || [],
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
   const releaseStats = buildReleaseEvidenceV2Stats(snapshot);
+  const latestReadbacks = latestReleaseEvidenceReadbacks(options.releaseEvidenceReadbacks || [], {
+    source: snapshot.source,
+    releaseId,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
   const summaryV2 = buildReleaseEvidenceSummaryV2(summary, {
     releaseId,
     summaryId: `res_${summaryHash.slice(0, 16)}`,
@@ -1315,6 +1436,9 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
     hostedReportSnapshotId: primarySnapshot.summary_snapshot_id,
     shareableReportCount: reports.length,
     usageLedger,
+    githubCheckReadback: latestReadbacks.github_check,
+    prCommentReadback: latestReadbacks.pr_comment,
+    requiredCheckProof: latestReadbacks.required_check,
     health,
     ...releaseStats
   });
@@ -1336,6 +1460,7 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
         v2_additive: true
       },
       safety: summaryV2.safety,
+      readback_records: latestReadbacks.records,
       next_actions: summaryV2.next_actions
     };
   }
@@ -1505,6 +1630,141 @@ function filterAdminActionRequests(requests = [], options = {}) {
   ));
 }
 
+function filterReleaseEvidenceReadbacks(readbacks = [], options = {}) {
+  const source = options.source ? normalizeSourceKey(options.source) : null;
+  const releaseId = options.releaseId || "current";
+  const organizationId = options.organizationId || "org-local";
+  const projectId = options.projectId || "project-local";
+  return (Array.isArray(readbacks) ? readbacks : []).filter((item) => (
+    (!source || normalizeSourceKey(item.source || "unknown") === source)
+    && (item.release_id || "current") === releaseId
+    && (item.organization_id || "org-local") === organizationId
+    && (item.project_id || "project-local") === projectId
+  ));
+}
+
+function latestReleaseEvidenceReadbacks(readbacks = [], options = {}) {
+  const filtered = filterReleaseEvidenceReadbacks(readbacks, options);
+  const byKind = {};
+  for (const readback of filtered) {
+    byKind[readback.resource_kind] = readback;
+  }
+  return {
+    github_check: byKind.github_check || byKind.check_run || null,
+    pr_comment: byKind.pr_comment || null,
+    required_check: byKind.required_check || null,
+    records: filtered
+  };
+}
+
+function sanitizeReleaseEvidenceReadback(readback = {}) {
+  const sanitizedPayload = redactPotentialSecret(readback);
+  const resourceKind = normalizeReadbackResourceKind(sanitizedPayload.resource_kind || sanitizedPayload.resourceKind);
+  const payloadHash = sanitizedPayload.payload_hash || sha256(stableJson({
+    schema_version: sanitizedPayload.schema_version,
+    resource_kind: resourceKind,
+    readback_status: sanitizedPayload.readback_status,
+    expected: sanitizedPayload.expected,
+    observed: sanitizedPayload.observed,
+    matches: sanitizedPayload.matches,
+    proof_id: sanitizedPayload.proof_id
+  }));
+  return {
+    schema_version: sanitizedPayload.schema_version || "a3.release_evidence_readback_record.v1",
+    proof_id: sanitizedPayload.proof_id || null,
+    readback_id: sanitizedPayload.readback_id
+      || sanitizedPayload.proof_id
+      || `rerb_${sha256(`${resourceKind}:${payloadHash}`).slice(0, 16)}`,
+    provider: sanitizedPayload.provider || "github",
+    resource_kind: resourceKind,
+    source: normalizeSourceKey(sanitizedPayload.source || "mock"),
+    release_id: sanitizedPayload.release_id || "current",
+    organization_id: sanitizedPayload.organization_id || "org-local",
+    project_id: sanitizedPayload.project_id || "project-local",
+    readback_status: sanitizedPayload.readback_status || sanitizedPayload.enforcement_readback_status || "missing",
+    enforcement_readback_status: sanitizedPayload.enforcement_readback_status || sanitizedPayload.readback_status || "missing",
+    check_name: sanitizedPayload.check_name || sanitizedPayload.expected?.check_name || sanitizedPayload.matched_check?.context || null,
+    posted: sanitizedPayload.posted === true,
+    readback_confirmed: sanitizedPayload.readback_confirmed === true || sanitizedPayload.readback_status === "readback_confirmed",
+    stale: sanitizedPayload.stale === true || sanitizedPayload.readback_status === "stale",
+    missing: sanitizedPayload.missing === true || sanitizedPayload.readback_status === "missing",
+    deleted: sanitizedPayload.deleted === true || sanitizedPayload.readback_status === "deleted",
+    enforced: sanitizedPayload.enforced === true,
+    payload_hash: payloadHash,
+    external_id_alias: sanitizedPayload.expected?.check_run_id_alias
+      || sanitizedPayload.expected?.comment_id_alias
+      || sanitizedPayload.matched_check?.context
+      || sanitizedPayload.check_name
+      || null,
+    head_sha_alias: sanitizedPayload.expected?.head_sha_alias || sanitizedPayload.observed?.head_sha_alias || null,
+    sanitized_error_class: sanitizedPayload.sanitized_error_class || null,
+    captured_at: sanitizedPayload.captured_at || sanitizedPayload.checked_at || new Date().toISOString(),
+    actor_hash: sanitizedPayload.actor_hash || "actor_[REDACTED_HASH]",
+    payload: {
+      schema_version: sanitizedPayload.schema_version || "unknown",
+      expected: sanitizedPayload.expected || null,
+      observed: sanitizedPayload.observed || null,
+      matches: sanitizedPayload.matches || null,
+      safety: {
+        ...(sanitizedPayload.safety || {}),
+        token_included: false,
+        secret_values_allowed: false,
+        raw_body_stored: false
+      }
+    },
+    safety: {
+      token_included: false,
+      secret_values_allowed: false,
+      raw_body_stored: false,
+      real_cloud_mutation_performed: false
+    }
+  };
+}
+
+function normalizeReadbackResourceKind(value) {
+  const kind = String(value || "unknown").toLowerCase();
+  if (["check_run", "github_check"].includes(kind)) {
+    return "github_check";
+  }
+  if (["pr_comment", "pull_request_comment"].includes(kind)) {
+    return "pr_comment";
+  }
+  if (["required_check", "branch_protection"].includes(kind)) {
+    return "required_check";
+  }
+  return kind;
+}
+
+function releaseEvidenceReadbackAuditEvent(readback = {}, index = 0) {
+  return {
+    event_id: `rerb_evt_${sha256(`${readback.readback_id || "missing"}:${index}`).slice(0, 12)}`,
+    organization_id: readback.organization_id || "org-local",
+    project_id: readback.project_id || "project-local",
+    event_type: "release_evidence.readback_captured",
+    subject_id: readback.readback_id,
+    payload: {
+      schema_version: readback.schema_version,
+      release_id: readback.release_id,
+      provider: readback.provider,
+      resource_kind: readback.resource_kind,
+      readback_status: readback.readback_status,
+      payload_hash: readback.payload_hash,
+      raw_body_stored: false,
+      secret_values_included: false
+    },
+    created_at: readback.captured_at || new Date().toISOString(),
+    redacted: true
+  };
+}
+
+function countBy(items = [], field) {
+  return items.reduce((counts, item) => {
+    const key = item[field] || "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
 function sanitizeAdminActionRequest(request = {}) {
   return {
     schema_version: request.schema_version || "a3.saas_admin_action_request.v1",
@@ -1563,9 +1823,19 @@ function redactPotentialSecret(value) {
   }
   if (typeof value === "object") {
     return JSON.parse(JSON.stringify(value, (key, item) => (
-      /secret|token|cookie|email|password|key_value/i.test(key) ? "[REDACTED]" : item
+      /authorization|secret|token|cookie|email|password|key_value|api_key|access_key|private_key/i.test(key)
+        && typeof item !== "boolean"
+        && typeof item !== "number"
+        ? "[REDACTED]"
+        : typeof item === "string"
+          ? redactPotentialSecretString(item)
+          : item
     )));
   }
+  return redactPotentialSecretString(String(value));
+}
+
+function redactPotentialSecretString(value) {
   return String(value)
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
     .replace(/\b(Bearer\s+)[A-Za-z0-9._-]{12,}/g, "$1[REDACTED]")
@@ -1836,6 +2106,12 @@ function rememberIdempotentReceipt(idempotencyReceipts, requestType, source, ide
     payload_hash: payloadHash,
     receipt
   });
+}
+
+function apiImportReceiptsFromLedger(idempotencyReceipts) {
+  return [...idempotencyReceipts.values()]
+    .filter((item) => ["a1_run_result_import", "a2_grade_result_import"].includes(item.request_type))
+    .map((item) => item.receipt);
 }
 
 function idempotencyLedgerKey(requestType, source, idempotencyKey) {

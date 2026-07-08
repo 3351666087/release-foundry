@@ -10,6 +10,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
   const gradeFixture = inputs.gradeFixture || inputs.grades || {};
   const reports = Array.isArray(options.reports) ? options.reports : [];
   const auditEvents = Array.isArray(options.auditEvents) ? options.auditEvents : [];
+  const releaseEvidenceReadbacks = Array.isArray(options.releaseEvidenceReadbacks) ? options.releaseEvidenceReadbacks : [];
   const importReceipts = Array.isArray(options.importReceipts) ? options.importReceipts : [];
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
@@ -27,6 +28,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     meter("shareable_reports", reports.length, "Hosted report payloads"),
     meter("report_views", auditEvents.filter((item) => item.event_type === "report_view" || item.event_type === "report_share_link_viewed").length, "Hosted report view and share-link access events"),
     meter("report_revocations", auditEvents.filter((item) => item.event_type === "report_revoke").length, "Hosted report revocation events"),
+    meter("release_evidence_readbacks", releaseEvidenceReadbacks.length || auditEvents.filter((item) => item.event_type === "release_evidence.readback_captured").length, "GitHub Check, PR comment, and required-check readback receipts"),
     meter("api_imports", importReceipts.length, "A1/A2 API import receipts")
   ];
 
@@ -45,7 +47,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     meters,
     billable_unit_count: meters.reduce((sum, item) => sum + item.quantity, 0),
     high_value_meters: meters
-      .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "api_imports"].includes(item.meter))
+      .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "release_evidence_readbacks", "api_imports"].includes(item.meter))
       .map((item) => item.meter),
     commercial_note: "Usage ledger is read-only until hosted billing, RBAC, and customer plan controls exist."
   };

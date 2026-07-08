@@ -2697,3 +2697,50 @@ Safety boundary:
 Current interpretation:
 
 A3 can now represent the commercial distinction between a generated artifact, a posted artifact, and a readback-confirmed external control. The remaining production step is maintainer-approved live CI/GitHub App integration that actually performs the readback against GitHub.
+
+## 2026-07-08 - Release evidence readback capture API
+
+Continued A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` by moving release evidence readback from static fixture state into an API-backed, idempotent, tenant-scoped capture path.
+
+Implemented:
+
+- Added `POST /api/a3/releases/:releaseId/readbacks`.
+- Added `GET /api/a3/releases/:releaseId/readbacks`.
+- Added `submitReleaseEvidenceReadback(...)` and `listReleaseEvidenceReadbacks(...)` to the A3 store.
+- Added readback capture idempotency.
+- Added audit event `release_evidence.readback_captured`.
+- Added nested redaction for Authorization, token, email, cookie, password, API-key, and secret-like values.
+- Wired captured readbacks into `a3.release_evidence_summary.v2` so latest captured readback can override static fixture readback state.
+- Kept A1/A2 import receipts separate from readback capture receipts.
+- Persisted current authority readback rows through the SQLite-backed store.
+- Added `release_evidence_readbacks` usage meter evidence.
+- Added `release_evidence_readback` artifact registry entries.
+- Added documentation:
+  - `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/artifact_registry.test.mjs
+```
+
+Result: 21 pass, 0 fail.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
+- A3 readback capture remains downstream of A1/A2 evidence.
+- GitHub readback confirmed is still not the same as A1 release evidence verifier passed.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No token, cookie, email, Authorization header, raw account value, or secret value committed.
+
+Current interpretation:
+
+A3 now has a concrete API and DB path for external CI/GitHub readback evidence. This is a useful SaaS step from static mock evidence toward release control-plane evidence, but production still needs a live GitHub App/CI worker, A1 verifier packet adapter, hosted auth/RBAC, and Postgres/RLS.

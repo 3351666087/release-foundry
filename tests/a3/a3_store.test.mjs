@@ -119,6 +119,63 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
   assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
 
+  const stalePrReadback = {
+    schema_version: "a3.github_pr_comment_readback_receipt.v1",
+    provider: "github",
+    resource_kind: "pr_comment",
+    readback_id: "ghprb_store_stale",
+    readback_status: "stale",
+    stale: true,
+    expected: {
+      comment_id_alias: 2001,
+      body_hash: "expected_hash",
+      marker: "<!-- ashr-plus-plus:release-gate:unit -->"
+    },
+    observed: {
+      comment_id_alias: 2001,
+      body_hash: "old_hash",
+      body_marker_present: true
+    },
+    matches: {
+      marker: true,
+      body_hash: false
+    },
+    safety: {
+      token_included: false,
+      secret_values_allowed: false,
+      raw_body_stored: false
+    }
+  };
+  const readbackReceipt = await store.submitReleaseEvidenceReadback("current", stalePrReadback, {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    idempotencyKey: "store-readback-1"
+  });
+  assert.equal(readbackReceipt.schema_version, "a3.release_evidence_readback_capture_receipt.v1");
+  assert.equal(readbackReceipt.readback_status, "stale");
+  assert.equal(readbackReceipt.idempotency.status, "recorded");
+  assert.equal(readbackReceipt.secret_values_included, false);
+
+  const duplicateReadback = await store.submitReleaseEvidenceReadback("current", stalePrReadback, {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    idempotencyKey: "store-readback-1"
+  });
+  assert.equal(duplicateReadback.idempotency.duplicate, true);
+
+  const readbackList = await store.listReleaseEvidenceReadbacks("current", { source: "mock" });
+  assert.equal(readbackList.schema_version, "a3.release_evidence_readback_list.v1");
+  assert.equal(readbackList.readback_count, 1);
+  assert.equal(readbackList.status_counts.stale, 1);
+  assert.doesNotMatch(JSON.stringify(readbackList), /reviewer@example.com|Bearer|Authorization/);
+
+  const releaseEvidenceAfterReadback = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    version: "2"
+  });
+  assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.readback_status, "stale");
+  assert.equal(releaseEvidenceAfterReadback.release_evidence_summary.pr_comment_readback.body_hash_match, false);
+
   const crossTenantReleaseEvidence = await store.getReleaseEvidenceSummary("current", {
     source: "mock",
     organizationId: "org-other"

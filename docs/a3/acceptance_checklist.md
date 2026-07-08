@@ -487,5 +487,12 @@
 - [x] Add live-shaped PR comment readback contract for marker/body-hash match, stale, missing, deleted, and permission-denied states.
 - [x] Add required-check proof contract where plan-only cannot claim enforcement.
 - [x] Wire GitHub readback receipts into release evidence v2 summaries and SQLite readback rows.
+- [x] Add `POST /api/a3/releases/:releaseId/readbacks` for sanitized readback capture.
+- [x] Add `GET /api/a3/releases/:releaseId/readbacks` for release-scoped readback inspection.
+- [x] Add idempotency, tenant-scope 404s, audit event linkage, and nested secret redaction for readback capture.
+- [x] Keep A1/A2 API import receipts separate from A3 readback capture receipts.
+- [x] Persist latest readback authority rows in the SQLite-backed A3 store and reload captured readbacks from durable state.
+- [x] Add `release_evidence_readbacks` usage meter and `release_evidence_readback` artifact registry entries.
+- [x] Document readback capture API in `docs/a3/p3_release_evidence_readback_capture_api_2026_07_08.md`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

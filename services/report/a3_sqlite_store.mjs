@@ -94,6 +94,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
+      const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
+      await persist();
+      return result;
+    },
+
     async persist() {
       await persist();
     },
@@ -360,29 +366,44 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           JSON.stringify(payload),
           updatedAt
         );
-        for (const readback of [
+        const readbackRows = [
           ["github_check", payload.github_check_readback],
           ["pr_comment", payload.pr_comment_readback],
-          ["required_check", payload.required_check_proof]
-        ]) {
-          const [provider, item] = readback;
+          ["required_check", payload.required_check_proof],
+          ...((state.releaseEvidenceReadbacks || [])
+            .filter((item) => (
+              (item.source || source) === source
+              && (item.release_id || releaseId) === releaseId
+              && (item.organization_id || "org-local") === (snapshot.organizationId || "org-local")
+              && (item.project_id || "project-local") === (snapshot.projectId || "project-local")
+            ))
+            .map((item) => [item.resource_kind || "readback", item]))
+        ];
+        const seenReadbackKeys = new Set();
+        for (const [provider, item] of readbackRows) {
           const readbackPayload = item || {};
+          const readbackIdSeed = readbackPayload.readback_id || readbackPayload.proof_id || `${authority.summary_id}:${provider}`;
+          const dedupeKey = `${provider}:${readbackIdSeed}:${readbackPayload.payload_hash || "no_hash"}`;
+          if (seenReadbackKeys.has(dedupeKey)) {
+            continue;
+          }
+          seenReadbackKeys.add(dedupeKey);
           db.prepare(`
 INSERT INTO release_evidence_readbacks (id, organization_id, project_id, release_id, summary_id, provider, readback_status, head_sha_alias, external_id_alias, payload_hash, payload, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-            `rerb_${sha256(`${authority.summary_id}:${provider}`).slice(0, 16)}`,
+            `rerb_${sha256(`${authority.summary_id}:${provider}:${readbackIdSeed}`).slice(0, 16)}`,
             snapshot.organizationId || "org-local",
             snapshot.projectId || "project-local",
             releaseId,
             authority.summary_id,
             provider,
             readbackPayload.readback_status || readbackPayload.enforcement_readback_status || "plan_only",
-            payload.release_identity?.head_sha_alias || null,
-            readbackPayload.check_name || null,
-            sha256(JSON.stringify(readbackPayload)),
+            readbackPayload.head_sha_alias || payload.release_identity?.head_sha_alias || null,
+            readbackPayload.external_id_alias || readbackPayload.check_name || null,
+            readbackPayload.payload_hash || sha256(JSON.stringify(readbackPayload)),
             JSON.stringify(readbackPayload),
-            updatedAt
+            readbackPayload.captured_at || updatedAt
           );
         }
       }
@@ -467,6 +488,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       JSON.stringify(receipt),
       updatedAt
     );
+    if (!["a1_run_result_import", "a2_grade_result_import"].includes(item.request_type)) {
+      continue;
+    }
     db.prepare(`
 INSERT INTO api_import_receipts (organization_id, project_id, source, request_type, payload_hash, imported_run_count, imported_grade_count, dashboard_case_count, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

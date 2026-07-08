@@ -55,6 +55,54 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
     assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
 
+    const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+    const readbackCaptureBody = {
+      readback: {
+        ...checkReadback,
+        expected: {
+          ...checkReadback.expected,
+          authorization: "Bearer should-not-leak"
+        }
+      },
+      actor: ["release-owner", "example.com"].join("@")
+    };
+    const readbackCapture = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      body: JSON.stringify(readbackCaptureBody)
+    });
+    assert.equal(readbackCapture.status, 202);
+    const readbackReceipt = await readbackCapture.json();
+    assert.equal(readbackReceipt.schema_version, "a3.release_evidence_readback_capture_receipt.v1");
+    assert.equal(readbackReceipt.readback_status, "readback_confirmed");
+    assert.equal(readbackReceipt.idempotency.status, "recorded");
+    assert.equal(readbackReceipt.secret_values_included, false);
+    assert.doesNotMatch(JSON.stringify(readbackReceipt), /should-not-leak|release-owner@example.com|Bearer/);
+
+    const duplicateReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      body: JSON.stringify(readbackCaptureBody)
+    });
+    assert.equal(duplicateReadback.status, 202);
+    const duplicateReadbackReceipt = await duplicateReadback.json();
+    assert.equal(duplicateReadbackReceipt.idempotency.duplicate, true);
+
+    const readbacks = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`);
+    assert.equal(readbacks.schema_version, "a3.release_evidence_readback_list.v1");
+    assert.equal(readbacks.readback_count, 1);
+    assert.equal(readbacks.status_counts.readback_confirmed, 1);
+    assert.equal(readbacks.readbacks[0].resource_kind, "github_check");
+    assert.doesNotMatch(JSON.stringify(readbacks), /should-not-leak|release-owner@example.com|Bearer/);
+
+    const releaseEvidenceAfterCapture = await getJson(`${url}${dashboard.release_evidence_api.path}&version=2`);
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_status, "readback_confirmed");
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.readback_confirmed, true);
+    assert.equal(releaseEvidenceAfterCapture.release_evidence_summary.github_check_readback.payload_hash, readbackReceipt.payload_hash);
+
+    const usageAfterReadback = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
+    assert.equal(usageAfterReadback.meters.some((item) => item.meter === "release_evidence_readbacks" && item.quantity === 1), true);
+
     const crossTenantReleaseEvidence = await fetch(`${url}${dashboard.release_evidence_api.path}&organization_id=org-other`);
     assert.equal(crossTenantReleaseEvidence.status, 404);
     const crossTenantPayload = await crossTenantReleaseEvidence.json();
@@ -63,6 +111,8 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.doesNotMatch(JSON.stringify(crossTenantPayload), /Release Evidence|github_check_publish|audit_bundle_verification/);
     const crossTenantDiff = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-diff?source=mock&organization_id=org-other`);
     assert.equal(crossTenantDiff.status, 404);
+    const crossTenantReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock&organization_id=org-other`);
+    assert.equal(crossTenantReadback.status, 404);
 
     const migrations = await getJson(`${url}/api/a3/db-migrations`);
     assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");

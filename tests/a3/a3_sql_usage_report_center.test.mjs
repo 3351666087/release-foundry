@@ -49,6 +49,7 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
   assert.match(sql, /source_snapshot_id TEXT/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_snapshots_release/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release/);
   assert.ok(plan.guardrails.some((item) => item.includes("v2 authority rows")));
 });
 
@@ -97,6 +98,7 @@ test("A3 usage ledger turns A1/A2 evidence and hosted reports into read-only met
   }, {
     reports: [{ report_id: "a3r_1" }],
     auditEvents: [{ event_type: "report_view" }, { event_type: "report_revoke" }],
+    releaseEvidenceReadbacks: [{ readback_id: "rerb_usage", readback_status: "readback_confirmed" }],
     importReceipts: [{ schema_version: "a3.a1_run_result_ingest.v1" }]
   });
 
@@ -107,6 +109,7 @@ test("A3 usage ledger turns A1/A2 evidence and hosted reports into read-only met
   assert.equal(meter(ledger, "judge_results"), 1);
   assert.equal(meter(ledger, "shareable_reports"), 1);
   assert.equal(meter(ledger, "report_views"), 1);
+  assert.equal(meter(ledger, "release_evidence_readbacks"), 1);
   assert.equal(meter(ledger, "api_imports"), 1);
 });
 

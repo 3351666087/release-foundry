@@ -20,6 +20,12 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
       }]
     },
     usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "runs", quantity: 1 }] },
+    releaseEvidenceReadbacks: [{
+      readback_id: "rerb_registry",
+      resource_kind: "github_check",
+      readback_status: "readback_confirmed",
+      payload_hash: "sha256_registry_readback"
+    }],
     migrationPlan: { schema_version: "a3.sql_migration_plan.v1", status: "contract_ready", migration_count: 7 },
     productConsole: { schema_version: "a3.product_console.v1" },
     saasAdmin: { schema_version: "a3.saas_admin_console.v1" }
@@ -28,10 +34,11 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
   assert.equal(registry.schema_version, "a3.artifact_registry.v1");
   assert.equal(registry.registry_status, "evidence_available");
   assert.equal(registry.summary.report_artifact_count, 5);
-  assert.equal(registry.summary.control_artifact_count, 4);
+  assert.equal(registry.summary.control_artifact_count, 5);
   assert.equal(registry.summary.billable_meter_count >= 4, true);
   assert.ok(registry.entries.some((item) => item.artifact_type === "hosted_report" && item.lifecycle_state === "shared"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
+  assert.ok(registry.entries.some((item) => item.artifact_type === "release_evidence_readback" && item.resource_id === "rerb_registry"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "usage_ledger"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "security_audit_packet"));
   assert.equal(registry.safety.raw_secret_values_allowed, false);

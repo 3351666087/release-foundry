@@ -128,6 +128,34 @@ export function createA3ApiHandler(options = {}) {
           : sendJson(response, 404, notFound("release_evidence", releaseEvidenceDiffMatch[1]));
       }
 
+      const releaseEvidenceReadbacksMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/readbacks$/);
+      if (request.method === "POST" && releaseEvidenceReadbacksMatch) {
+        const body = await readJsonBody(request);
+        const receipt = await store.submitReleaseEvidenceReadback(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), body.readback || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          capturedAt: body.captured_at || body.capturedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceReadbacksMatch[1]));
+      }
+
+      if (request.method === "GET" && releaseEvidenceReadbacksMatch) {
+        const readbacks = await store.listReleaseEvidenceReadbacks(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        });
+        return readbacks
+          ? sendJson(response, 200, readbacks)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceReadbacksMatch[1]));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {
         return sendJson(response, 200, await store.getSaasAdminConsole({
           source: sourceFrom(url),

@@ -302,10 +302,15 @@ function readbackState(item = {}, defaults = {}) {
     permission_denied: readbackStatus === "permission_denied",
     sanitized_error_class: item?.sanitized_error_class || null,
     payload_hash: item?.payload_hash || null,
-    external_id_alias: item?.expected?.check_run_id_alias || item?.expected?.comment_id_alias || item?.check_name || null,
-    head_sha_match: item?.matches?.head_sha ?? null,
-    marker_match: item?.matches?.marker ?? item?.marker_match ?? null,
-    body_hash_match: item?.matches?.body_hash ?? item?.body_hash_match ?? null,
+    external_id_alias: item?.expected?.check_run_id_alias
+      || item?.expected?.comment_id_alias
+      || item?.payload?.expected?.check_run_id_alias
+      || item?.payload?.expected?.comment_id_alias
+      || item?.check_name
+      || null,
+    head_sha_match: item?.matches?.head_sha ?? item?.payload?.matches?.head_sha ?? null,
+    marker_match: item?.matches?.marker ?? item?.payload?.matches?.marker ?? item?.marker_match ?? null,
+    body_hash_match: item?.matches?.body_hash ?? item?.payload?.matches?.body_hash ?? item?.body_hash_match ?? null,
     required_before_enforced: defaults.required_before_enforced === true
   };
 }
