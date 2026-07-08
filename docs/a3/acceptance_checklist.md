@@ -481,5 +481,7 @@
 - [x] Add A2 Scenario/Judge/GradeResult/FailureTaxonomy counts to v2 release evidence.
 - [x] Add A1/A2 release evidence v2 contract mapping artifact.
 - [x] Add Growth-Auditor money-grade release evidence v2 audit artifact.
+- [x] Add release evidence v2 SQL contract tables for snapshots, diffs, and readbacks.
+- [x] Persist release evidence v2 snapshots, safe diffs, and readback placeholder rows in the SQLite-backed A3 store.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

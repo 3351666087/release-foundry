@@ -29,7 +29,11 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
     "audit_events",
     "usage_ledger",
     "artifact_registry_entries",
-    "artifact_lifecycle_events"
+    "artifact_lifecycle_events",
+    "release_evidence_summaries",
+    "release_evidence_snapshots",
+    "release_evidence_diffs",
+    "release_evidence_readbacks"
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
@@ -42,6 +46,10 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
   assert.match(sql, /manifest_join_key TEXT NOT NULL/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_artifact_registry_project_state/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_events_artifact/);
+  assert.match(sql, /source_snapshot_id TEXT/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_snapshots_release/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary/);
+  assert.ok(plan.guardrails.some((item) => item.includes("v2 authority rows")));
 });
 
 test("A3 SQL migration plan documents Postgres, MySQL, and SQLite dialect targets", () => {

@@ -38,6 +38,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.runs, 1);
     assert.equal(inspection.operational_tables.cases, 32);
     assert.equal(inspection.operational_tables.release_evidence_summaries, 1);
+    assert.equal(inspection.operational_tables.release_evidence_snapshots, 1);
+    assert.equal(inspection.operational_tables.release_evidence_diffs, 1);
+    assert.equal(inspection.operational_tables.release_evidence_readbacks, 3);
     assert.equal(inspection.safety.raw_share_tokens_stored, false);
     assert.equal(inspection.safety.state_payload_secret_scan.api_key_assignment_found, false);
 
@@ -144,6 +147,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.saas_admin_action_requests, 1);
     assert.equal(inspection.operational_tables.review_workflow_records, 2);
     assert.equal(inspection.operational_tables.release_evidence_summaries, 1);
+    assert.equal(inspection.operational_tables.release_evidence_snapshots, 1);
+    assert.equal(inspection.operational_tables.release_evidence_diffs, 1);
+    assert.equal(inspection.operational_tables.release_evidence_readbacks, 3);
     assert.ok(inspection.operational_tables.audit_events >= 2);
     assert.ok(inspection.operational_tables.usage_ledger > 0);
     assert.equal(inspection.safety.state_payload_secret_scan.raw_share_token_hint_found, false);
@@ -153,6 +159,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
       const row = sqlCheck.prepare("SELECT organization_id, project_id FROM shareable_reports WHERE id = ?").get(report.report_id);
       assert.equal(row.organization_id, "org-enterprise");
       assert.equal(row.project_id, "project-enterprise");
+      const snapshotRow = sqlCheck.prepare("SELECT summary_schema_version, health_status FROM release_evidence_snapshots LIMIT 1").get();
+      assert.equal(snapshotRow.summary_schema_version, "a3.release_evidence_summary.v2");
+      assert.ok(snapshotRow.health_status);
     } finally {
       sqlCheck.close();
     }

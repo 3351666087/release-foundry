@@ -127,6 +127,9 @@ export function inspectSqliteA3Store(db) {
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
       release_evidence_summaries: countRows(db, "release_evidence_summaries"),
+      release_evidence_snapshots: countRows(db, "release_evidence_snapshots"),
+      release_evidence_diffs: countRows(db, "release_evidence_diffs"),
+      release_evidence_readbacks: countRows(db, "release_evidence_readbacks"),
       audit_events: countRows(db, "audit_events"),
       usage_ledger: countRows(db, "usage_ledger")
     },
@@ -207,6 +210,9 @@ function clearOperationalRows(db) {
     "audit_events",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
+    "release_evidence_readbacks",
+    "release_evidence_diffs",
+    "release_evidence_snapshots",
     "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
@@ -308,6 +314,15 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     if (releaseEvidenceSummary.available === true) {
       const releaseId = dashboard.release_evidence_api?.release_id || `${source}-release`;
       const summaryHash = sha256(JSON.stringify(releaseEvidenceSummary));
+      let authority = null;
+      let authorityDiff = null;
+      try {
+        authority = await store.getReleaseEvidenceSummary(releaseId, { source, version: "2" });
+        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, { source });
+      } catch {
+        authority = null;
+        authorityDiff = null;
+      }
       db.prepare(`
 INSERT INTO release_evidence_summaries (id, organization_id, project_id, release_id, source, summary_schema_version, overall_status, summary_hash, payload, hosted_report_snapshot_id, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -324,6 +339,73 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         null,
         updatedAt
       );
+      if (authority?.release_evidence_summary?.schema_version === "a3.release_evidence_summary.v2") {
+        const payload = authority.release_evidence_summary;
+        const contentHash = sha256(JSON.stringify(payload));
+        db.prepare(`
+INSERT INTO release_evidence_snapshots (id, organization_id, project_id, release_id, summary_id, source_snapshot_id, summary_schema_version, summary_hash, content_hash, health_status, next_action, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+          `resnap_${contentHash.slice(0, 16)}`,
+          snapshot.organizationId || "org-local",
+          snapshot.projectId || "project-local",
+          releaseId,
+          authority.summary_id,
+          payload.release_identity?.source_snapshot_id || null,
+          payload.schema_version,
+          payload.summary_hash,
+          contentHash,
+          payload.health?.overall_status || "unknown",
+          payload.health?.next_action?.action || authority.next_action?.action || null,
+          JSON.stringify(payload),
+          updatedAt
+        );
+        for (const readback of [
+          ["github_check", payload.github_check_readback],
+          ["pr_comment", payload.pr_comment_readback],
+          ["required_check", payload.required_check_proof]
+        ]) {
+          const [provider, item] = readback;
+          const readbackPayload = item || {};
+          db.prepare(`
+INSERT INTO release_evidence_readbacks (id, organization_id, project_id, release_id, summary_id, provider, readback_status, head_sha_alias, external_id_alias, payload_hash, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+            `rerb_${sha256(`${authority.summary_id}:${provider}`).slice(0, 16)}`,
+            snapshot.organizationId || "org-local",
+            snapshot.projectId || "project-local",
+            releaseId,
+            authority.summary_id,
+            provider,
+            readbackPayload.readback_status || readbackPayload.enforcement_readback_status || "plan_only",
+            payload.release_identity?.head_sha_alias || null,
+            readbackPayload.check_name || null,
+            sha256(JSON.stringify(readbackPayload)),
+            JSON.stringify(readbackPayload),
+            updatedAt
+          );
+        }
+      }
+      if (authorityDiff?.diff?.schema_version === "a3.release_evidence_diff.v1") {
+        const diffHash = sha256(JSON.stringify(authorityDiff.diff));
+        db.prepare(`
+INSERT INTO release_evidence_diffs (id, organization_id, project_id, release_id, from_summary_id, to_summary_id, diff_hash, changed_field_count, regression_count, improvement_count, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+          `rediff_${diffHash.slice(0, 16)}`,
+          snapshot.organizationId || "org-local",
+          snapshot.projectId || "project-local",
+          releaseId,
+          authorityDiff.diff.before_summary_id,
+          authorityDiff.diff.after_summary_id,
+          diffHash,
+          authorityDiff.diff.safe_summary?.changed_field_count || 0,
+          authorityDiff.diff.regression_count || 0,
+          authorityDiff.diff.improvement_count || 0,
+          JSON.stringify(authorityDiff.diff),
+          updatedAt
+        );
+      }
     }
   }
 }

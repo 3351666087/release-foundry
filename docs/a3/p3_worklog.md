@@ -2599,3 +2599,41 @@ Safety boundary:
 Current interpretation:
 
 A3 now has a concrete v2 authority API surface, but not yet full enterprise production proof. The next money-grade step is live-shaped GitHub readback plus immutable source snapshots and Postgres/RLS-backed persistence.
+
+## 2026-07-08 - Release evidence v2 SQL authority rows
+
+Continued the same release evidence v2 authority round by adding DB-shaped storage contracts for the v2 summary instead of leaving it as an API-only computed object.
+
+Added:
+
+- SQL migration contract table `release_evidence_snapshots`
+- SQL migration contract table `release_evidence_diffs`
+- SQL migration contract table `release_evidence_readbacks`
+- Postgres/MySQL/SQLite-compatible DDL for v2 authority rows
+- SQLite inspection counts for v2 snapshots, diffs, and readbacks
+- SQLite persistence of one v2 authority snapshot per release evidence summary
+- SQLite persistence of safe v1-to-v2 diff evidence
+- SQLite persistence of readback placeholder rows for:
+  - GitHub Check
+  - PR comment
+  - required-check proof
+
+Verification:
+
+```text
+node --check services/report/a3_sql_migrations.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --test tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs
+```
+
+Result: 18 pass, 0 fail.
+
+Safety boundary:
+
+- No live Ashr, GitHub, auth, billing, object storage, or cloud API calls.
+- No `.env.local` read.
+- No real readback claims; readback rows remain explicit placeholder/plan-only states until live readback exists.
+
+Current interpretation:
+
+A3 now has a local SQL-backed place for release evidence v2 snapshots, diffs, and readbacks. This still is not production Postgres/RLS, but it gives A1/A3 a concrete DB contract to implement against.
