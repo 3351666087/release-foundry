@@ -405,9 +405,14 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /id="reviewer-workflow-metrics"/);
   assert.match(html, /id="reviewer-workflow-lanes"/);
   assert.match(html, /id="reviewer-workflow-items"/);
+  assert.match(html, /id="review-workflow-records"/);
   assert.match(html, /function renderReviewerWorkflowBoard\(\)/);
   assert.match(html, /function reviewerWorkflowLaneRow\(lane\)/);
   assert.match(html, /function reviewerWorkflowItemRow\(item\)/);
+  assert.match(html, /function renderReviewWorkflowRecords\(\)/);
+  assert.match(html, /fetchA3ReviewWorkflow/);
+  assert.match(html, /review_workflow/);
+  assert.match(html, /GET \/api\/a3\/review\/workflow/);
   assert.match(html, /renderReviewerWorkflowBoard\(\)/);
   assert.match(html, /reviewerWorkflowBoard\.board_label/);
   assert.match(html, /Reviewer Workflow Board<\/h4>/);

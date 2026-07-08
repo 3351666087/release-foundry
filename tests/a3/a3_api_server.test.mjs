@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import { startA3ApiServer } from "../../services/report/a3_api_server.mjs";
 import { createFixtureBackedA3Store } from "../../services/report/a3_store.mjs";
+
+async function loadJson(path) {
+  return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+}
 
 test("A3 API server exposes dashboard, run, case, and shareable report routes", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
@@ -84,6 +89,40 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const readiness = await getJson(`${url}/api/a3/enterprise/readiness?source=mock`);
     assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
     assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
+
+    const waiver = await loadJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+    const approval = await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+    const waiverResponse = await fetch(`${url}/api/a3/review/waivers?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        waiver,
+        generated_at: "2026-07-07T12:00:00.000Z"
+      })
+    });
+    assert.equal(waiverResponse.status, 202);
+    const waiverReceipt = await waiverResponse.json();
+    assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
+    assert.equal(waiverReceipt.accepted, true);
+
+    const approvalResponse = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        approval,
+        waiver,
+        generated_at: "2026-07-07T12:00:00.000Z"
+      })
+    });
+    assert.equal(approvalResponse.status, 202);
+    const approvalReceipt = await approvalResponse.json();
+    assert.equal(approvalReceipt.status, "valid_exception_approval");
+    assert.equal(approvalReceipt.accepted, true);
+
+    const reviewWorkflow = await getJson(`${url}/api/a3/review/workflow?source=mock`);
+    assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
+    assert.equal(reviewWorkflow.record_count, 2);
+    assert.equal(reviewWorkflow.durable_storage_ready, true);
 
     const productConsole = await getJson(`${url}/api/a3/product/console?source=mock`);
     assert.equal(productConsole.schema_version, "a3.product_console.v1");

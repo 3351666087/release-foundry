@@ -37,6 +37,7 @@ import {
   fetchA3DashboardSnapshot,
   fetchA3ProductConsole,
   fetchA3ReportCenter,
+  fetchA3ReviewWorkflow,
   planA3AdminAction,
   submitA3AdminAction,
   revokeShareableA3Report,
@@ -75,6 +76,7 @@ const state = {
   usageLedger: {},
   reportCenter: {},
   artifactRegistry: {},
+  reviewWorkflow: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
@@ -987,6 +989,53 @@ function renderReviewerWorkflowBoard() {
       ? board.items.map((item) => reviewerWorkflowItemRow(item))
       : [emptyMatrixRow("No reviewer workflow items are open.")]
   ));
+  renderReviewWorkflowRecords();
+}
+
+function renderReviewWorkflowRecords() {
+  const workflow = state.reviewWorkflow || {};
+  const records = Array.isArray(workflow.records) ? workflow.records : [];
+  const block = $("review-workflow-records");
+  if (!block) {
+    return;
+  }
+  const recordRows = records.length
+    ? records.slice(-4).reverse().map((record) => reviewWorkflowRecordRow(record))
+    : [emptyMatrixRow("No durable waiver or approval records have been submitted through the A3 API yet.")];
+  block.replaceChildren(
+    matrixKicker("Durable Review Records"),
+    miniRow("Records", String(workflow.record_count || records.length || 0)),
+    miniRow("Waivers", String(workflow.waiver_count || 0)),
+    miniRow("Approvals", String(workflow.approval_count || 0)),
+    miniRow("Accepted", String(workflow.accepted_count || 0)),
+    miniRow("Storage", workflow.durable_storage_ready ? "durable-ready" : "not durable"),
+    ...recordRows
+  );
+}
+
+function matrixKicker(label) {
+  const node = document.createElement("div");
+  node.className = "section-kicker";
+  node.textContent = label;
+  return node;
+}
+
+function reviewWorkflowRecordRow(record) {
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>${escapeHtml(record.record_type || "record")}</strong>
+      <span class="badge ${record.accepted ? "pass" : "warn"}">${escapeHtml(record.status || "unknown")}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(record.record_id)}</span>
+      <span>${escapeHtml(record.run_id || "no run")}</span>
+      <span>${escapeHtml(record.signature?.status || "hash sealed")}</span>
+    </div>
+    <div class="muted">${escapeHtml(record.subject?.decision || record.subject?.follow_up_issue || record.release_version || "")}</div>
+  `;
+  return node;
 }
 
 function reviewerWorkflowLaneRow(lane) {
@@ -2251,7 +2300,8 @@ function exportReport(format) {
         commercialReadiness: state.commercialReadiness,
         releaseGate: state.releaseGate
       },
-      state.artifactRegistry
+      state.artifactRegistry,
+      state.reviewWorkflow
     ), null, 2), "application/json");
     return;
   }
@@ -2357,8 +2407,13 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.reviewWorkflow = await fetchA3ReviewWorkflow({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
   renderReportCenter();
   renderProductConsole();
+  renderReviewerWorkflowBoard();
   renderPrintReport();
 }
 
@@ -2397,6 +2452,7 @@ function applyApiDashboardPayload(payload) {
   state.usageLedger = payload.usage_ledger || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
+  state.reviewWorkflow = payload.review_workflow || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2425,6 +2481,9 @@ function resetSaasRuntime(mode = "static_fixture") {
         "POST /api/a3/admin/actions/plan",
         "POST /api/a3/admin/actions/submit",
         "GET /api/a3/admin/actions",
+        "POST /api/a3/review/waivers",
+        "POST /api/a3/review/approvals",
+        "GET /api/a3/review/workflow",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",

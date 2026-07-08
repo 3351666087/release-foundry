@@ -22,6 +22,10 @@ import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
+import {
+  buildReviewWorkflowIndex,
+  buildReviewWorkflowRecord
+} from "./a3_review_workflow.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -109,6 +113,7 @@ export const A3_DB_CONTRACT = {
     "artifact_registry_entries",
     "artifact_lifecycle_events",
     "saas_admin_action_requests",
+    "review_workflow_records",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -131,6 +136,9 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/admin/actions/plan",
     "POST /api/a3/admin/actions/submit",
     "GET /api/a3/admin/actions",
+    "POST /api/a3/review/waivers",
+    "POST /api/a3/review/approvals",
+    "GET /api/a3/review/workflow",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
@@ -206,6 +214,7 @@ export function createMemoryA3Store(seed = {}) {
   const idempotencyReceipts = new Map();
   const auditEvents = [];
   const adminActionRequests = [];
+  const reviewWorkflowRecords = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -232,6 +241,9 @@ export function createMemoryA3Store(seed = {}) {
   for (const request of seed.adminActionRequests || []) {
     adminActionRequests.push(request);
   }
+  for (const record of seed.reviewWorkflowRecords || []) {
+    reviewWorkflowRecords.push(record);
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -250,6 +262,7 @@ export function createMemoryA3Store(seed = {}) {
         reports: [...reports.values()],
         auditEvents,
         adminActionRequests,
+        reviewWorkflowRecords,
         importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt)
       });
     },
@@ -529,6 +542,63 @@ export function createMemoryA3Store(seed = {}) {
         summary: summarizeSaasAdminActionRequests(requests),
         requests
       };
+    },
+
+    async submitReviewWaiver(waiver, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const record = sanitizeReviewWorkflowRecord({
+        ...buildReviewWorkflowRecord("waiver", waiver, snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        requestedAt: options.requestedAt,
+        generatedAt: options.generatedAt,
+        releaseVersion: options.releaseVersion,
+        environment: options.environment,
+        headSha: options.headSha
+        }),
+        payload: waiver
+      });
+      reviewWorkflowRecords.push(record);
+      auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
+      return reviewWorkflowReceipt(record);
+    },
+
+    async submitReviewApproval(approval, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const waiverRecord = options.waiver
+        ? { payload: options.waiver }
+        : [...reviewWorkflowRecords].reverse().find((item) => item.record_type === "waiver" && item.subject?.waiver_id === approval?.waiver_id);
+      const record = sanitizeReviewWorkflowRecord({
+        ...buildReviewWorkflowRecord("approval", approval, snapshot, {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        requestedAt: options.requestedAt,
+        generatedAt: options.generatedAt,
+        releaseVersion: options.releaseVersion,
+        environment: options.environment,
+        headSha: options.headSha,
+        waiver: options.waiver || waiverRecord?.payload || {}
+        }),
+        payload: approval
+      });
+      reviewWorkflowRecords.push(record);
+      auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
+      return reviewWorkflowReceipt(record);
+    },
+
+    async getReviewWorkflow(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      return buildReviewWorkflowIndex(filterReviewWorkflowRecords(reviewWorkflowRecords, {
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId
+      }), {
+        source: snapshot.source,
+        organizationId: options.organizationId || snapshot.organizationId,
+        projectId: options.projectId || snapshot.projectId,
+        durableStorageReady: true
+      });
     },
 
     async createShareableReport(options = {}) {
@@ -853,7 +923,8 @@ export function createMemoryA3Store(seed = {}) {
         shareLinks: [...shareLinks.values()],
         idempotencyReceipts: [...idempotencyReceipts.entries()].map(([key, value]) => ({ key, ...value })),
         auditEvents,
-        adminActionRequests
+        adminActionRequests,
+        reviewWorkflowRecords
       };
     }
   };
@@ -933,6 +1004,16 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async submitSaasAdminAction(action, options = {}) {
       const result = await store.submitSaasAdminAction(action, options);
+      await persist();
+      return result;
+    },
+    async submitReviewWaiver(waiver, options = {}) {
+      const result = await store.submitReviewWaiver(waiver, options);
+      await persist();
+      return result;
+    },
+    async submitReviewApproval(approval, options = {}) {
+      const result = await store.submitReviewApproval(approval, options);
       await persist();
       return result;
     },
@@ -1045,6 +1126,15 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       productConsole,
       saasAdmin
     }),
+    review_workflow: buildReviewWorkflowIndex(filterReviewWorkflowRecords(options.reviewWorkflowRecords || [], {
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId
+    }), {
+      source: snapshot.source,
+      organizationId: snapshot.organizationId,
+      projectId: snapshot.projectId,
+      durableStorageReady: true
+    }),
     product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({
@@ -1141,6 +1231,79 @@ function redactPotentialSecret(value) {
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
     .replace(/\b(Bearer\s+)[A-Za-z0-9._-]{12,}/g, "$1[REDACTED]")
     .replace(/\b(sk-|ghp_|github_pat_|ashr_)[A-Za-z0-9._-]{12,}/gi, "[REDACTED_SECRET]");
+}
+
+function filterReviewWorkflowRecords(records = [], options = {}) {
+  const organizationId = options.organizationId || "org-local";
+  const projectId = options.projectId || "project-local";
+  return (Array.isArray(records) ? records : []).filter((item) => (
+    (item.organization_id || "org-local") === organizationId
+    && (item.project_id || "project-local") === projectId
+  ));
+}
+
+function sanitizeReviewWorkflowRecord(record = {}) {
+  return {
+    ...record,
+    payload: redactPotentialSecret(record.payload || {}),
+    review: redactPotentialSecret(record.review || {}),
+    subject: redactPotentialSecret(record.subject || {}),
+    safety: {
+      ...(record.safety || {}),
+      secret_values_included: false,
+      raw_signature_stored: false,
+      raw_identity_values_redacted: true,
+      real_cloud_mutation_performed: false
+    },
+    signature: {
+      ...(record.signature || {}),
+      raw_signature_stored: false
+    }
+  };
+}
+
+function reviewWorkflowAuditEvent(record = {}, index = 0) {
+  return {
+    event_id: `rwr_evt_${sha256(`${record.record_id || "missing"}:${index}`).slice(0, 12)}`,
+    organization_id: record.organization_id || "org-local",
+    project_id: record.project_id || "project-local",
+    event_type: "review_workflow_record_submitted",
+    subject_id: record.record_id,
+    payload: {
+      schema_version: record.schema_version,
+      record_id: record.record_id,
+      record_type: record.record_type,
+      status: record.status,
+      accepted: record.accepted === true,
+      payload_hash: record.payload_hash,
+      review_hash: record.review_hash,
+      raw_signature_stored: false
+    },
+    created_at: record.created_at || new Date().toISOString(),
+    redacted: true
+  };
+}
+
+function reviewWorkflowReceipt(record = {}) {
+  return {
+    schema_version: "a3.review_workflow_receipt.v1",
+    record_id: record.record_id,
+    record_type: record.record_type,
+    status: record.status,
+    accepted: record.accepted === true,
+    automatic_unblock: record.automatic_unblock === true,
+    organization_id: record.organization_id,
+    project_id: record.project_id,
+    run_id: record.run_id,
+    release_version: record.release_version,
+    environment: record.environment,
+    payload_hash: record.payload_hash,
+    review_hash: record.review_hash,
+    signature: record.signature,
+    durable_storage_ready: true,
+    real_cloud_mutation_performed: false,
+    secret_values_included: false
+  };
 }
 
 function selectSnapshot(snapshots, source = "mock") {

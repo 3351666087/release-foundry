@@ -2241,3 +2241,36 @@ node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
 ```
 
 Result: 79 pass, 0 fail.
+
+## 2026-07-08 - Durable reviewer waiver and approval records
+
+Continued A3 enterprise release sign-off work by adding a durable review workflow layer above the existing file-backed waiver/approval validation.
+
+Added:
+
+- `services/report/a3_review_workflow.mjs`
+- `a3.review_workflow_record.v1`
+- `a3.review_workflow_index.v1`
+- `a3.review_workflow_receipt.v1`
+- `POST /api/a3/review/waivers`
+- `POST /api/a3/review/approvals`
+- `GET /api/a3/review/workflow`
+- SQL table contract: `review_workflow_records`
+- SQLite persistence for waiver/approval workflow records
+- Dashboard durable review records under Reviewer Workflow
+- JSON export field: `review_workflow`
+- Documentation: `docs/a3/p3_review_workflow_durable_storage_2026_07_08.md`
+
+The new durable records reuse the existing Gate CLI validators rather than changing release-gate semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live cloud mutation.
+- No raw cryptographic signatures stored.
+- No API key, token, cookie, account email, raw share token, or live signed URL committed.
+
+Remaining production gap:
+
+Real cryptographic signature verification and SSO/OIDC/GitHub reviewer identity binding are still not implemented.

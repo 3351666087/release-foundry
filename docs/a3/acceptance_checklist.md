@@ -223,7 +223,8 @@
 - [x] Added verifier tests in `tests/a3/a3_gate_cli.test.mjs`.
 - [x] Documented audit bundle verifier growth in `docs/a3/p3_audit_bundle_verifier_growth_2026_07_07.md`.
 - [ ] Turn the PR Gate payload into a live GitHub required check.
-- [ ] Persist cryptographically signed reviewer approvals in durable storage.
+- [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
+- [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
 - [ ] Add file hashes for generated PDF and screenshot export artifacts.
 - [ ] Add signed immutable audit bundle archive and archive/zip verifier.
 

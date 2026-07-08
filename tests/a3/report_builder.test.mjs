@@ -27,6 +27,7 @@ import {
   summarizeOfficialParityRoadmap,
   summarizeObservabilityReplayMatrix,
   summarizeProductConsoleExport,
+  summarizeReviewWorkflowExport,
   summarizeSaasAdminExport,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
@@ -746,6 +747,55 @@ test("A3 report exports include Artifact Registry evidence catalog", async () =>
   const missing = summarizeArtifactRegistryExport({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /Attach Artifact Registry/);
+});
+
+test("A3 report exports include durable review workflow records", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const reviewWorkflow = {
+    schema_version: "a3.review_workflow_index.v1",
+    source: "mock",
+    record_count: 2,
+    waiver_count: 1,
+    approval_count: 1,
+    accepted_count: 2,
+    durable_storage_ready: true,
+    real_cloud_mutations_performed: false,
+    records: [{
+      record_id: "rwr_waiver_unit",
+      record_type: "waiver",
+      status: "valid_exceptional_waiver",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "a".repeat(64),
+      review_hash: "b".repeat(64),
+      signature: { status: "hash_sealed_unsigned_record" }
+    }, {
+      record_id: "rwr_approval_unit",
+      record_type: "approval",
+      status: "valid_exception_approval",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "c".repeat(64),
+      review_hash: "d".repeat(64),
+      signature: { status: "hash_sealed_signer_record" }
+    }]
+  };
+
+  const summary = summarizeReviewWorkflowExport(reviewWorkflow);
+  assert.equal(summary.available, true);
+  assert.equal(summary.record_count, 2);
+  assert.equal(summary.durable_storage_ready, true);
+  assert.equal(summary.real_cloud_mutations_performed, false);
+
+  const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, reviewWorkflow);
+  assert.equal(json.review_workflow.schema_version, "a3.review_workflow_export.v1");
+  assert.equal(json.review_workflow.accepted_count, 2);
+  assert.equal(json.review_workflow.latest_records[1].signature_status, "hash_sealed_signer_record");
+
+  const missing = summarizeReviewWorkflowExport({});
+  assert.equal(missing.available, false);
+  assert.match(missing.recommendation, /Review Workflow API/);
 });
 
 test("A3 report builder creates tool-call expected-vs-actual diffs", async () => {

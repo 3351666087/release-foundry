@@ -3447,3 +3447,52 @@ Result:
 ### Current interpretation
 
 A3 now has a safer SaaS admin workflow: dangerous console actions can be represented as request records and audit events instead of fake-working buttons. This keeps the student MVP honest while moving it closer to enterprise product behavior.
+
+## 2026-07-08 - Durable review workflow records
+
+### Goal
+
+Move reviewer waiver/approval from file-backed validation only toward API-backed and DB-backed enterprise sign-off evidence.
+
+### Work completed
+
+- Added `services/report/a3_review_workflow.mjs`.
+- Reused existing Gate CLI validators:
+  - `validateWaiverRequest(...)`
+  - `validateApprovalRecord(...)`
+- Added schemas:
+  - `a3.review_workflow_record.v1`
+  - `a3.review_workflow_index.v1`
+  - `a3.review_workflow_receipt.v1`
+- Added API routes:
+  - `POST /api/a3/review/waivers`
+  - `POST /api/a3/review/approvals`
+  - `GET /api/a3/review/workflow`
+- Added SQL migration table `review_workflow_records`.
+- Added SQLite persistence and inspection count for review workflow rows.
+- Added dashboard durable review records under Reviewer Workflow.
+- Added JSON export field `review_workflow`.
+- Added tests for service, store, API, SQLite, dashboard wiring, and report export.
+
+### Verification
+
+Focused tests:
+
+```text
+node --test tests/a3/a3_review_workflow.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result: passed after aligning waiver validation context with the original release version fixture.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team, API-key, Trust, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, live signed URL, or raw cryptographic signature was committed.
+
+### Current interpretation
+
+A3 now has durable review workflow records, but not final production-grade signature verification. The next true enterprise step is real reviewer identity binding through SSO/OIDC/GitHub plus cryptographic signature verification before approvals can affect a live required check.

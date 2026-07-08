@@ -129,6 +129,45 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/review/waivers") {
+        const body = await readJsonBody(request);
+        const receipt = await store.submitReviewWaiver(body.waiver || body.waiver_request || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          requestedAt: body.requested_at || body.requestedAt,
+          generatedAt: body.generated_at || body.generatedAt,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          headSha: body.head_sha || body.headSha
+        });
+        return sendJson(response, 202, receipt);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/review/approvals") {
+        const body = await readJsonBody(request);
+        const receipt = await store.submitReviewApproval(body.approval || body.approval_record || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          requestedAt: body.requested_at || body.requestedAt,
+          generatedAt: body.generated_at || body.generatedAt,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          headSha: body.head_sha || body.headSha,
+          waiver: body.waiver
+        });
+        return sendJson(response, 202, receipt);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/review/workflow") {
+        return sendJson(response, 200, await store.getReviewWorkflow({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {
         return sendJson(response, 200, {
           schema_version: "a3.api_run_list.v1",

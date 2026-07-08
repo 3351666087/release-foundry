@@ -82,6 +82,18 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitReviewWaiver(waiver, options = {}) {
+      const result = await store.submitReviewWaiver(waiver, options);
+      await persist();
+      return result;
+    },
+
+    async submitReviewApproval(approval, options = {}) {
+      const result = await store.submitReviewApproval(approval, options);
+      await persist();
+      return result;
+    },
+
     async persist() {
       await persist();
     },
@@ -113,6 +125,7 @@ export function inspectSqliteA3Store(db) {
       idempotency_keys: countRows(db, "idempotency_keys"),
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
+      review_workflow_records: countRows(db, "review_workflow_records"),
       audit_events: countRows(db, "audit_events"),
       usage_ledger: countRows(db, "usage_ledger")
     },
@@ -167,6 +180,7 @@ async function persistSqliteState(db, store) {
     persistReports(db, state, updatedAt);
     persistIdempotencyReceipts(db, state, updatedAt);
     persistSaasAdminActionRequests(db, state, updatedAt);
+    persistReviewWorkflowRecords(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
@@ -193,6 +207,7 @@ function clearOperationalRows(db) {
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "saas_admin_action_requests",
+    "review_workflow_records",
     "api_import_receipts",
     "idempotency_keys",
     "report_share_links",
@@ -381,6 +396,30 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       request.request_hash || sha256(JSON.stringify(request)),
       JSON.stringify(request),
       request.requested_at || updatedAt
+    );
+  }
+}
+
+function persistReviewWorkflowRecords(db, state, updatedAt) {
+  for (const record of state.reviewWorkflowRecords || []) {
+    db.prepare(`
+INSERT INTO review_workflow_records (id, organization_id, project_id, record_type, run_id, release_version, environment, status, accepted, payload_hash, review_hash, signature_status, payload, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      record.record_id,
+      record.organization_id || "org-local",
+      record.project_id || "project-local",
+      record.record_type || "unknown",
+      record.run_id || null,
+      record.release_version || null,
+      record.environment || null,
+      record.status || "unknown",
+      record.accepted === true ? 1 : 0,
+      record.payload_hash || sha256(JSON.stringify(record.payload || {})),
+      record.review_hash || sha256(JSON.stringify(record.review || {})),
+      record.signature?.status || "hash_sealed_unsigned_record",
+      JSON.stringify(record),
+      record.created_at || updatedAt
     );
   }
 }

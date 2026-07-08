@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -12,6 +12,10 @@ import {
   createMemoryA3Store,
   loadA3SourceSnapshot
 } from "../../services/report/a3_store.mjs";
+
+async function importJson(path) {
+  return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+}
 
 test("A3 store loads fixture sources through a DB-ready dashboard snapshot", async () => {
   const snapshot = await loadA3SourceSnapshot("mock");
@@ -96,6 +100,31 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(adminRequests.requests[0].target.email, undefined);
   assert.equal(adminRequests.requests[0].target.token, undefined);
   assert.doesNotMatch(JSON.stringify(adminRequests), new RegExp(`${["reviewer", "example.com"].join("@")}|should-not-persist`));
+
+  const waiver = await importJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+  const approval = await importJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+  const waiverReceipt = await store.submitReviewWaiver(waiver, {
+    source: "mock",
+    generatedAt: "2026-07-07T12:00:00.000Z"
+  });
+  assert.equal(waiverReceipt.schema_version, "a3.review_workflow_receipt.v1");
+  assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
+  assert.equal(waiverReceipt.accepted, true);
+
+  const approvalReceipt = await store.submitReviewApproval(approval, {
+    source: "mock",
+    waiver,
+    generatedAt: "2026-07-07T12:00:00.000Z"
+  });
+  assert.equal(approvalReceipt.status, "valid_exception_approval");
+  assert.equal(approvalReceipt.accepted, true);
+
+  const reviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
+  assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
+  assert.equal(reviewWorkflow.record_count, 2);
+  assert.equal(reviewWorkflow.waiver_count, 1);
+  assert.equal(reviewWorkflow.approval_count, 1);
+  assert.equal(reviewWorkflow.durable_storage_ready, true);
 
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
   assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");

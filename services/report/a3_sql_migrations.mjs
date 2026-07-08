@@ -16,6 +16,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Hosted report views and revocations must write audit_events.",
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
+      "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -292,7 +293,25 @@ CREATE TABLE IF NOT EXISTS saas_admin_action_requests (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_saas_admin_action_requests_project ON saas_admin_action_requests(project_id, area, status, created_at);`)
+CREATE INDEX IF NOT EXISTS idx_saas_admin_action_requests_project ON saas_admin_action_requests(project_id, area, status, created_at);`),
+    statement("009_review_workflow_records", ["review_workflow_records"], `
+CREATE TABLE IF NOT EXISTS review_workflow_records (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  record_type TEXT NOT NULL,
+  run_id TEXT,
+  release_version TEXT,
+  environment TEXT,
+  status TEXT NOT NULL,
+  accepted BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  review_hash TEXT NOT NULL,
+  signature_status TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`)
   ];
 }
 

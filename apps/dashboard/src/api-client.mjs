@@ -66,6 +66,16 @@ export async function fetchA3ArtifactRegistry(options = {}) {
   return response.json();
 }
 
+export async function fetchA3ReviewWorkflow(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/review/workflow?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API review workflow load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

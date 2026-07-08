@@ -4285,7 +4285,43 @@ function scanCsvExportSurface(cases = []) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}) {
+export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
+  const available = reviewWorkflowFixture?.schema_version === "a3.review_workflow_index.v1"
+    || Boolean(reviewWorkflowFixture?.records || reviewWorkflowFixture?.record_count);
+  if (!available) {
+    return {
+      schema_version: "a3.review_workflow_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Submit waiver and approval records through the A3 Review Workflow API before claiming durable sign-off storage."
+    };
+  }
+  const records = Array.isArray(reviewWorkflowFixture.records) ? reviewWorkflowFixture.records : [];
+  return {
+    schema_version: "a3.review_workflow_export.v1",
+    available: true,
+    source: reviewWorkflowFixture.source || "unknown",
+    record_count: reviewWorkflowFixture.record_count || records.length,
+    waiver_count: reviewWorkflowFixture.waiver_count || records.filter((item) => item.record_type === "waiver").length,
+    approval_count: reviewWorkflowFixture.approval_count || records.filter((item) => item.record_type === "approval").length,
+    accepted_count: reviewWorkflowFixture.accepted_count || records.filter((item) => item.accepted === true).length,
+    durable_storage_ready: reviewWorkflowFixture.durable_storage_ready === true,
+    real_cloud_mutations_performed: reviewWorkflowFixture.real_cloud_mutations_performed === true,
+    latest_records: records.slice(-5).map((item) => ({
+      record_id: item.record_id,
+      record_type: item.record_type,
+      status: item.status,
+      accepted: item.accepted === true,
+      run_id: item.run_id,
+      payload_hash: item.payload_hash,
+      review_hash: item.review_hash,
+      signature_status: item.signature?.status || "unknown"
+    })),
+    recommendation: "Use durable Review Workflow records as the enterprise sign-off layer above the local reviewer board and PR gate."
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -4327,6 +4363,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     product_console: summarizeProductConsoleExport(productConsoleFixture),
     saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
+    review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -12,6 +12,10 @@ import {
   loadA3SourceSnapshot
 } from "../../services/report/a3_store.mjs";
 import { startA3ApiServer } from "../../services/report/a3_api_server.mjs";
+
+async function loadJson(path) {
+  return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+}
 
 test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage rows", async () => {
   const dir = await mkdtemp(join(tmpdir(), "a3-sqlite-store-"));
@@ -111,6 +115,20 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(adminAction.schema_version, "a3.saas_admin_action_receipt.v1");
     assert.equal(adminAction.real_cloud_mutation_performed, false);
 
+    const waiver = await loadJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+    const approval = await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+    const waiverReceipt = await store.submitReviewWaiver(waiver, {
+      source: "mock",
+      generatedAt: "2026-07-07T12:00:00.000Z"
+    });
+    const approvalReceipt = await store.submitReviewApproval(approval, {
+      source: "mock",
+      waiver,
+      generatedAt: "2026-07-07T12:00:00.000Z"
+    });
+    assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
+    assert.equal(approvalReceipt.status, "valid_exception_approval");
+
     inspection = store.inspectSqliteState();
     assert.equal(inspection.operational_tables.dashboard_snapshots, 2);
     assert.equal(inspection.operational_tables.idempotency_keys, 1);
@@ -120,6 +138,7 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.report_view_events, 1);
     assert.equal(inspection.operational_tables.report_revocations, 1);
     assert.equal(inspection.operational_tables.saas_admin_action_requests, 1);
+    assert.equal(inspection.operational_tables.review_workflow_records, 2);
     assert.ok(inspection.operational_tables.audit_events >= 2);
     assert.ok(inspection.operational_tables.usage_ledger > 0);
     assert.equal(inspection.safety.state_payload_secret_scan.raw_share_token_hint_found, false);
@@ -134,6 +153,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     const savedAdminActions = await store.listSaasAdminActionRequests({ source: "api-ingest" });
     assert.equal(savedAdminActions.summary.request_count, 1);
     assert.doesNotMatch(JSON.stringify(savedAdminActions), new RegExp(["trust-admin", "example.com"].join("@")));
+    const savedReviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
+    assert.equal(savedReviewWorkflow.record_count, 2);
+    assert.equal(savedReviewWorkflow.accepted_count, 2);
   } finally {
     if (store?.close) {
       store.close();
