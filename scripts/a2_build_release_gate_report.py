@@ -25,6 +25,7 @@ def main() -> int:
     parser.add_argument("--calibration-matrix", default="fixtures/a2/results/a2_g3_calibration_matrix.json")
     parser.add_argument("--regression-replay", default="fixtures/a2/results/a2_regression_replay_report.json")
     parser.add_argument("--scenario-selection", default="fixtures/a2/results/a2_scenario_selection_report.json")
+    parser.add_argument("--a1-evidence-index", default="docs/a1/api_calibration/real_api_evidence_index.json")
     parser.add_argument("--check", action="store_true", help="Compare generated report with the output path.")
     parser.add_argument("--fail-on-block", action="store_true", help="Return the report exit_code when decision is block or warn.")
     args = parser.parse_args()
@@ -36,6 +37,7 @@ def main() -> int:
         _read_json(Path(args.calibration_matrix)),
         _read_json(Path(args.regression_replay)),
         _read_json(Path(args.scenario_selection)),
+        _read_optional_json(Path(args.a1_evidence_index)),
     )
     text = json.dumps(report, indent=2) + "\n"
     output = Path(args.output)
@@ -57,6 +59,12 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise SystemExit(f"{path.as_posix()} must contain a JSON object")
     return value
+
+
+def _read_optional_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return _read_json(path)
 
 
 if __name__ == "__main__":

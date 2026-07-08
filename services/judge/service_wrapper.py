@@ -8,6 +8,7 @@ from typing import Any
 
 from .calibration import build_calibration_matrix
 from .regression_replay import build_regression_replay_report
+from .release_gate import apply_a1_output_policy_gate
 from .release_policy import ReleasePolicyError, evaluate_release_policy_config
 from .result_persistence import build_result_record, stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
@@ -21,6 +22,7 @@ RELEASE_POLICY_ENDPOINT = "/internal/release-policy/evaluate"
 REGRESSION_REPLAY_ENDPOINT = "/internal/regression/replay"
 CALIBRATION_EVALUATE_ENDPOINT = "/internal/calibration/evaluate"
 SCENARIO_SELECT_ENDPOINT = "/internal/scenarios/select"
+RESULTS_PERSIST_ENDPOINT = "/internal/results/persist"
 SERVICE_VERSION = "a2-judge-service-0.1.0"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_GRADE_REPORT = Path("fixtures/a2/results/a2_g3_grade_results.json")
@@ -174,7 +176,10 @@ def evaluate_release_policy(
         approvals=request.get("approvals") if isinstance(request.get("approvals"), list) else None,
     )
     gate_report = dict(request.get("release_gate_report") or _read_json(release_gate_path))
+    if isinstance(request.get("a1_evidence_index"), dict):
+        gate_report = apply_a1_output_policy_gate(gate_report, request["a1_evidence_index"])
     gate_report["policy_evaluation"] = policy_evaluation
+    gate_report["a3_release_gate_summary"] = _a3_release_gate_summary(gate_report, policy_evaluation)
     gate_report["release_candidate"] = {
         **gate_report.get("release_candidate", {}),
         "id": str(request.get("release_candidate_id", gate_report.get("release_candidate", {}).get("id", ""))),
@@ -276,6 +281,55 @@ def select_project_scenarios(
     return {**selection, "project": project}
 
 
+def persist_results(request: dict[str, Any]) -> dict[str, Any]:
+    """Build JSONL-ready public-safe audit records for A1/A2/A3 service handoff."""
+    records = []
+    a1_ingestion = request.get("a1_ingestion") or request.get("ingestion_digest")
+    if isinstance(a1_ingestion, dict):
+        records.append(_a1_ingestion_digest_record(a1_ingestion, request))
+
+    response = request.get("response") or request.get("service_response")
+    if isinstance(response, dict):
+        records.append(
+            build_result_record(
+                response,
+                org_id=_org_id(request) or _tenant_id(response),
+                project_id=str(request.get("project_id") or response.get("project_id", "")),
+                run_id=str(request.get("run_id") or response.get("run_id", "")),
+                case_id=str(request.get("case_id") or response.get("case_id", "")),
+                kind=str(request.get("kind", "service_response")),
+                judge_version=str(response.get("judge_version", SERVICE_VERSION)),
+                policy_hash=str(request.get("policy_hash") or stable_hash({"endpoint": response.get("endpoint", "")})),
+                input_payload=request.get("input_payload") if isinstance(request.get("input_payload"), dict) else request,
+                evidence_refs=response.get("evidence_refs", []),
+                created_at=str(request.get("created_at")) if request.get("created_at") else None,
+            )
+        )
+
+    if not records:
+        raise ValueError("results persist request must include a1_ingestion, ingestion_digest, response, or service_response")
+
+    return {
+        "schema_version": "a2.judge_service.result_persistence_response.v1",
+        "endpoint": f"POST {RESULTS_PERSIST_ENDPOINT}",
+        "service_version": SERVICE_VERSION,
+        "tenant_id": _tenant_id(request),
+        "org_id": _org_id(request),
+        "project_id": str(request.get("project_id", "")),
+        "run_id": str(request.get("run_id", "")),
+        "record_count": len(records),
+        "record_type_counts": _record_type_counts(records),
+        "records": records,
+        "metadata": {
+            "public_safe": True,
+            "raw_payload_not_recorded": True,
+            "raw_private_evidence_not_recorded": True,
+            "secrets_not_recorded": True,
+            "intended_consumers": ["A1 control plane", "A2 release gate", "A3 report center"],
+        },
+    }
+
+
 def post_internal_judge_case(payload: dict[str, Any]) -> dict[str, Any]:
     result = judge_case(payload)
     return _ok_response(CASE_ENDPOINT, payload, result["judge_result"], status_code=200)
@@ -312,6 +366,11 @@ def post_internal_scenarios_select(payload: dict[str, Any]) -> dict[str, Any]:
     return _ok_response(SCENARIO_SELECT_ENDPOINT, payload, selection, status_code=200)
 
 
+def post_internal_results_persist(payload: dict[str, Any]) -> dict[str, Any]:
+    response = persist_results(payload)
+    return _ok_response(RESULTS_PERSIST_ENDPOINT, payload, response, status_code=200)
+
+
 def handle_internal_request(endpoint: str, payload: dict[str, Any], *, method: str = "POST") -> dict[str, Any]:
     if method.upper() != "POST":
         return _error_response(endpoint, payload, 405, "method_not_allowed", f"{method} is not supported")
@@ -330,6 +389,8 @@ def handle_internal_request(endpoint: str, payload: dict[str, Any], *, method: s
             return post_internal_calibration_evaluate(payload)
         if endpoint == SCENARIO_SELECT_ENDPOINT:
             return post_internal_scenarios_select(payload)
+        if endpoint == RESULTS_PERSIST_ENDPOINT:
+            return post_internal_results_persist(payload)
     except (KeyError, ReleasePolicyError, ValueError) as exc:
         return _error_response(endpoint, payload, 400, "bad_request", str(exc))
     return _error_response(endpoint, payload, 404, "route_not_found", f"Unknown internal endpoint: {endpoint}")
@@ -356,6 +417,102 @@ def build_audit_record(
         evidence_refs=response.get("evidence_refs", []),
         created_at=created_at,
     )
+
+
+def _a1_ingestion_digest_record(source: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "schema_version": "a2.a1_ingestion_digest.v1",
+        "endpoint": RESULTS_PERSIST_ENDPOINT,
+        "source": "a1_saas_control_plane",
+        "source_schema_version": str(source.get("schema_version", "ashr.clone.saas_control_plane.v1")),
+        "operation": str(source.get("operation") or source.get("surface") or source.get("event_type") or ""),
+        "tenant_id": _tenant_id({**source, **request}),
+        "org_id": _org_id({**source, **request}),
+        "project_id": str(request.get("project_id") or source.get("project_id", "")),
+        "run_id": str(request.get("run_id") or source.get("run_id", "")),
+        "upload_id": str(source.get("upload_id", "")),
+        "batch_id": str(source.get("batch_id", "")),
+        "trace_batch_id": str(source.get("trace_batch_id", "")),
+        "payload_sha256": str(source.get("payload_sha256", "")),
+        "trace_batch_sha256": str(source.get("trace_batch_sha256", "")),
+        "payload_keys": _string_list(source.get("payload_keys")),
+        "raw_payload_included": source.get("raw_payload_included") is True,
+        "public_safe": True,
+    }
+    return build_result_record(
+        payload,
+        org_id=payload["org_id"] or payload["tenant_id"],
+        project_id=payload["project_id"],
+        run_id=payload["run_id"],
+        case_id=str(request.get("case_id", "")),
+        kind="a1_ingestion_digest",
+        judge_version=SERVICE_VERSION,
+        policy_hash=stable_hash({"source": "a1_saas_control_plane", "raw_payload_required": False}),
+        input_payload={
+            "schema_version": payload["source_schema_version"],
+            "operation": payload["operation"],
+            "upload_id": payload["upload_id"],
+            "batch_id": payload["batch_id"],
+            "trace_batch_id": payload["trace_batch_id"],
+            "payload_sha256": payload["payload_sha256"],
+            "trace_batch_sha256": payload["trace_batch_sha256"],
+            "payload_keys": payload["payload_keys"],
+            "raw_payload_included": payload["raw_payload_included"],
+        },
+        created_at=str(request.get("created_at")) if request.get("created_at") else None,
+    )
+
+
+def _a3_release_gate_summary(gate_report: dict[str, Any], policy_evaluation: dict[str, Any]) -> dict[str, Any]:
+    decision = str(gate_report.get("decision") or policy_evaluation.get("decision") or "")
+    action = {
+        "pass": "approve_release",
+        "warn": "needs_review",
+        "block": "block_release",
+    }.get(decision, "needs_review")
+    blockers = [item for item in gate_report.get("blockers", []) if isinstance(item, dict)]
+    warnings = [item for item in gate_report.get("warnings", []) if isinstance(item, dict)]
+    missing_approvals = [
+        item for item in policy_evaluation.get("missing_approvals", []) if isinstance(item, dict)
+    ]
+    return {
+        "schema_version": "a2.a3_release_gate_summary.v1",
+        "action": action,
+        "decision": decision,
+        "risk_score": gate_report.get("risk_score"),
+        "blocks_merge": action == "block_release",
+        "needs_human_review": action != "approve_release" or bool(missing_approvals),
+        "failed_checks": _a3_failed_checks(blockers),
+        "warning_checks": _a3_failed_checks(warnings),
+        "required_approvers": [
+            str(item.get("approval_type") or item.get("requirement_id") or "")
+            for item in missing_approvals
+            if item.get("approval_type") or item.get("requirement_id")
+        ],
+        "top_risk_cases": [],
+        "pr_gate": {
+            "blocks_merge": action == "block_release",
+            "audit_artifacts": [
+                "fixtures/a2/results/a2_release_gate_report.json",
+                "fixtures/a2/results/a2_result_persistence_manifest.json",
+            ],
+            "required_approval_count": len(missing_approvals),
+        },
+    }
+
+
+def _a3_failed_checks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    checks = []
+    for item in items:
+        checks.append(
+            {
+                "id": str(item.get("gate") or item.get("rule_id") or item.get("type") or ""),
+                "type": str(item.get("type", "")),
+                "severity": str(item.get("severity", "")),
+                "summary": str(item.get("summary", "")),
+            }
+        )
+    return checks
 
 
 def _ok_response(endpoint: str, payload: dict[str, Any], result: dict[str, Any], *, status_code: int) -> dict[str, Any]:
@@ -491,3 +648,17 @@ def _recommended_actions(result: dict[str, Any]) -> list[str]:
     for item in result.get("judge_results", []):
         actions.extend(item.get("failure_analysis", {}).get("remediation", []))
     return sorted({str(action) for action in actions if str(action).strip()})
+
+
+def _record_type_counts(records: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        record_type = str(record.get("record_type", "unknown"))
+        counts[record_type] = counts.get(record_type, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]

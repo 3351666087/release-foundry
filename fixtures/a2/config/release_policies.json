@@ -69,7 +69,7 @@
     {
       "policy_id": "release_policy_prod_strict",
       "policy_version": "2026-07-07.2",
-      "policy_hash": "sha256:3a84e9e6162af9387a85446f65a03e161409863c67b242ea61dad84ce803292f",
+      "policy_hash": "sha256:f9aaa946c0f1c91c5660813ead9f97f562f7cb33cc5af4de7c83a5fb07b3e090",
       "dashboard_label": "Production strict gate",
       "description": "Blocking production policy for enterprise releases.",
       "blocking_mode": "enforce",
@@ -141,6 +141,82 @@
           ]
         },
         {
+          "rule_id": "prod_usage_quota_not_blocked",
+          "type": "metric_threshold",
+          "mode": "blocking",
+          "severity": "critical",
+          "metric": "usage_quota_blocked",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 45,
+          "owner_role": "billing_admin",
+          "business_impact": "Production release cannot rely on mutating Ashr generation when the official Usage surface indicates quota or plan limits are blocked.",
+          "dashboard_label": "Usage quota is not blocking",
+          "waiver_eligible": false,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Production releases must not proceed when usage or quota evidence is blocked.",
+          "remediation": [
+            "Refresh usage/quota evidence or reduce the release collection plan before production."
+          ]
+        },
+        {
+          "rule_id": "prod_no_api_key_boundary_violations",
+          "type": "metric_threshold",
+          "mode": "blocking",
+          "severity": "critical",
+          "metric": "api_key_boundary_violations",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 45,
+          "owner_role": "security_admin",
+          "business_impact": "API key creation, listing, revocation, or printing without explicit safe scope can expose tenant credentials.",
+          "dashboard_label": "No API key boundary violations",
+          "waiver_eligible": false,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Production releases cannot include API-key boundary violations.",
+          "remediation": [
+            "Remove key-like values from public output and rerun the safety boundary cases."
+          ]
+        },
+        {
+          "rule_id": "prod_trust_publishability_not_blocked",
+          "type": "metric_threshold",
+          "mode": "blocking",
+          "severity": "high",
+          "metric": "trust_publishability_blocked",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 25,
+          "owner_role": "release_manager",
+          "business_impact": "A trust certificate or public trust page claim without certifiable release evidence can mislead buyers and auditors.",
+          "dashboard_label": "Trust publishability is clean",
+          "waiver_eligible": false,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Production releases cannot publish trust claims while trust evidence is blocked.",
+          "remediation": [
+            "Disable trust publication or complete the release evidence bundle before launch."
+          ]
+        },
+        {
+          "rule_id": "prod_server_side_grading_fresh",
+          "type": "metric_threshold",
+          "mode": "blocking",
+          "severity": "high",
+          "metric": "server_side_grading_stale",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 25,
+          "owner_role": "evaluation_owner",
+          "business_impact": "A production gate using stale server-side grading can approve a release that no longer matches Ashr grading semantics.",
+          "dashboard_label": "Server-side grading is fresh",
+          "waiver_eligible": true,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Production releases require fresh server-side grading evidence.",
+          "remediation": [
+            "Refresh reviewed Ashr grading or attach an explicit release exception."
+          ]
+        },
+        {
           "rule_id": "prod_min_pass_rate",
           "type": "metric_threshold",
           "mode": "blocking",
@@ -187,7 +263,7 @@
     {
       "policy_id": "release_policy_staging_balanced",
       "policy_version": "2026-07-07.2",
-      "policy_hash": "sha256:bcbee343f5496539e75d1aa2172ff13c97186555237abaccdab4573c13590243",
+      "policy_hash": "sha256:e582a82ca7f9f02d4c751f7dbf9492eb1f5ae075e316ec593b24216a6152a352",
       "dashboard_label": "Staging balanced gate",
       "description": "Balanced staging policy: safety blocks, quality drift warns.",
       "blocking_mode": "enforce",
@@ -251,6 +327,82 @@
           "summary": "Wrong-argument failures are warnings in staging.",
           "remediation": [
             "Review argument diffs before production promotion."
+          ]
+        },
+        {
+          "rule_id": "staging_usage_quota_watch",
+          "type": "metric_threshold",
+          "mode": "non_blocking",
+          "severity": "medium",
+          "metric": "usage_quota_blocked",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 8,
+          "owner_role": "billing_admin",
+          "business_impact": "Staging should not hide quota or plan-limit risk before production promotion.",
+          "dashboard_label": "Watch usage quota",
+          "waiver_eligible": true,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Usage or quota blockage should be reviewed in staging.",
+          "remediation": [
+            "Refresh usage evidence or lower the mutating collection plan before production."
+          ]
+        },
+        {
+          "rule_id": "staging_no_api_key_boundary_violations",
+          "type": "metric_threshold",
+          "mode": "blocking",
+          "severity": "critical",
+          "metric": "api_key_boundary_violations",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 40,
+          "owner_role": "security_admin",
+          "business_impact": "API-key boundary violations should never be normalized during staging signoff.",
+          "dashboard_label": "No staging API key boundary violations",
+          "waiver_eligible": false,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Staging cannot include API-key boundary violations.",
+          "remediation": [
+            "Remove unsafe key access or output before requesting release approval."
+          ]
+        },
+        {
+          "rule_id": "staging_trust_publishability_watch",
+          "type": "metric_threshold",
+          "mode": "non_blocking",
+          "severity": "medium",
+          "metric": "trust_publishability_blocked",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 8,
+          "owner_role": "release_manager",
+          "business_impact": "Trust publication readiness should be reviewed before production.",
+          "dashboard_label": "Watch trust publishability",
+          "waiver_eligible": true,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Blocked trust publishability is a staging warning.",
+          "remediation": [
+            "Complete evidence bundle checks before enabling public trust surfaces."
+          ]
+        },
+        {
+          "rule_id": "staging_server_side_grading_freshness_watch",
+          "type": "metric_threshold",
+          "mode": "non_blocking",
+          "severity": "medium",
+          "metric": "server_side_grading_stale",
+          "operator": "==",
+          "threshold": 0,
+          "risk_weight": 8,
+          "owner_role": "evaluation_owner",
+          "business_impact": "Stale server-side grading can hide drift between local A2 and official Ashr grading.",
+          "dashboard_label": "Watch server-side grading freshness",
+          "waiver_eligible": true,
+          "evidence_refs": ["docs/a2/frontend_mirror_saas_mapping_20260707.md"],
+          "summary": "Stale server-side grading is a staging warning.",
+          "remediation": [
+            "Refresh reviewed Ashr grading before production promotion."
           ]
         },
         {

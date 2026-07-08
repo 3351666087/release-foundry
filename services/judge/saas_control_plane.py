@@ -12,8 +12,10 @@ from .service_wrapper import (
     CASE_ENDPOINT,
     REGRESSION_REPLAY_ENDPOINT,
     RELEASE_POLICY_ENDPOINT,
+    RESULTS_PERSIST_ENDPOINT,
     RUN_ENDPOINT,
     SERVICE_VERSION,
+    SCENARIO_SELECT_ENDPOINT,
 )
 
 
@@ -139,14 +141,14 @@ def _service_summary() -> dict[str, Any]:
             ),
             _endpoint(
                 "scenario_selection",
-                "/internal/scenarios/select",
+                SCENARIO_SELECT_ENDPOINT,
                 ["project_id", "environment"],
                 ["selected_scenario_ids", "coverage_summary"],
             ),
             _endpoint(
-                "result_persistence_manifest",
-                "/internal/results/persist",
-                ["grade_report", "release_gate", "scenario_pack"],
+                "result_persistence",
+                RESULTS_PERSIST_ENDPOINT,
+                ["a1_ingestion", "response"],
                 ["records", "record_type_counts"],
             ),
         ],
@@ -325,9 +327,14 @@ def _persistence_summary(manifest: dict[str, Any]) -> dict[str, Any]:
 def _release_gate_summary(report: dict[str, Any]) -> dict[str, Any]:
     blockers = [item for item in report.get("blockers", []) if isinstance(item, dict)]
     warnings = [item for item in report.get("warnings", []) if isinstance(item, dict)]
+    decision = str(report.get("decision", ""))
+    action = _a3_release_action(decision)
     return {
         "report_id": str(report.get("report_id", "")),
-        "decision": str(report.get("decision", "")),
+        "decision": decision,
+        "a3_action": action,
+        "blocks_merge": action == "block_release",
+        "needs_human_review": action != "approve_release",
         "exit_code": report.get("exit_code"),
         "risk_score": report.get("risk_score"),
         "current_commercial_gate": str(report.get("current_commercial_gate", "")),
@@ -335,6 +342,15 @@ def _release_gate_summary(report: dict[str, Any]) -> dict[str, Any]:
         "blocking_gate_count": int(report.get("blocking_gate_count", len(blockers))),
         "warning_count": int(report.get("warning_count", len(warnings))),
         "blocker_type_counts": dict(sorted(Counter(str(item.get("type", "")) for item in blockers).items())),
+        "pr_gate": {
+            "blocks_merge": action == "block_release",
+            "failed_check_count": len(blockers),
+            "warning_check_count": len(warnings),
+            "audit_artifacts": [
+                "fixtures/a2/results/a2_release_gate_report.json",
+                "fixtures/a2/results/a2_result_persistence_manifest.json",
+            ],
+        },
     }
 
 
@@ -383,3 +399,11 @@ def _a3_dashboard_contract(
         "private_fields_forbidden": ["api_key", "authorization", "token", "private_input_ref", "raw_evidence"],
         "mutations_enabled": False,
     }
+
+
+def _a3_release_action(decision: str) -> str:
+    return {
+        "pass": "approve_release",
+        "warn": "needs_review",
+        "block": "block_release",
+    }.get(decision, "needs_review")

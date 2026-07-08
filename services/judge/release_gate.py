@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 
 HARD_GATES = ("C0", "C1", "C2", "C3", "C4", "C5")
+A1_EVIDENCE_INDEX_REF = "docs/a1/api_calibration/real_api_evidence_index.json"
+OUTPUT_POLICY_BLOCKING_COUNTERS = (
+    "unsafe_real_nonprivate_override",
+    "private_required_but_not_private",
+)
 
 
 def build_release_gate_report(
@@ -14,6 +20,7 @@ def build_release_gate_report(
     calibration_matrix: dict[str, Any],
     regression_replay_report: dict[str, Any] | None = None,
     scenario_selection_report: dict[str, Any] | None = None,
+    a1_evidence_index: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert readiness evidence into a machine-readable PR/release gate."""
     gates = {str(gate.get("gate", "")): gate for gate in commercial_readiness_report.get("gate_status", [])}
@@ -26,7 +33,9 @@ def build_release_gate_report(
     evidence_blockers = _evidence_blockers(evidence_readiness_report, calibration_matrix, regression_replay_report or {})
     scenario_selection_gate = _scenario_selection_gate(scenario_selection_report or {})
     scenario_selection_blockers = _scenario_selection_blockers(scenario_selection_gate)
-    blockers = blocking_gates + evidence_blockers + scenario_selection_blockers
+    a1_output_policy_gate = build_a1_output_policy_gate(a1_evidence_index)
+    output_policy_blockers = _a1_output_policy_blockers(a1_output_policy_gate)
+    blockers = blocking_gates + evidence_blockers + scenario_selection_blockers + output_policy_blockers
     warnings = _warnings(commercial_readiness_report, evidence_readiness_report) + _scenario_selection_warnings(
         scenario_selection_gate
     )
@@ -49,8 +58,10 @@ def build_release_gate_report(
         "blocking_gate_count": len(blocking_gates),
         "evidence_blocker_count": len(evidence_blockers),
         "scenario_selection_blocker_count": len(scenario_selection_blockers),
+        "a1_output_policy_blocker_count": len(output_policy_blockers),
         "warning_count": len(warnings),
         "scenario_selection_gate": scenario_selection_gate,
+        "a1_output_policy_gate": a1_output_policy_gate,
         "blockers": blockers,
         "warnings": warnings,
         "required_evidence": _required_evidence(evidence_readiness_report),
@@ -68,7 +79,13 @@ def build_release_gate_report(
         },
         "machine_contract": {
             "ci_mode": "fail on decision=block",
-            "blocking_fields": ["decision", "blockers", "required_evidence", "scenario_selection_gate"],
+            "blocking_fields": [
+                "decision",
+                "blockers",
+                "required_evidence",
+                "scenario_selection_gate",
+                "a1_output_policy_gate",
+            ],
             "stable_join_keys": ["case_id", "scenario_id", "gate"],
             "a3_consumption": "A3 may render this as a PR/release gate without reading private evidence.",
         },
@@ -78,12 +95,86 @@ def build_release_gate_report(
             "fixtures/a2/results/a2_g3_calibration_matrix.json",
             "fixtures/a2/results/a2_regression_replay_report.json",
             "fixtures/a2/results/a2_scenario_selection_report.json",
+            A1_EVIDENCE_INDEX_REF,
         ],
         "metadata": {
             "deterministic": True,
             "purpose": "Block unsafe agent releases until A2 replay, judge, evidence, review, and regression gates are proven.",
             "does_not_execute_live_calls": True,
         },
+    }
+
+
+def apply_a1_output_policy_gate(report: dict[str, Any], evidence_index: dict[str, Any] | None) -> dict[str, Any]:
+    """Return a release gate report with A1 public output-policy evidence applied."""
+    patched = deepcopy(report)
+    gate = build_a1_output_policy_gate(evidence_index)
+    output_policy_blockers = _a1_output_policy_blockers(gate)
+    blockers = [
+        item
+        for item in patched.get("blockers", [])
+        if not (isinstance(item, dict) and item.get("type") == "a1_output_policy_gate")
+    ]
+    blockers.extend(output_policy_blockers)
+    warnings = [item for item in patched.get("warnings", []) if isinstance(item, dict)]
+    decision = "block" if blockers else "warn" if warnings else "pass"
+
+    patched["a1_output_policy_gate"] = gate
+    patched["a1_output_policy_blocker_count"] = len(output_policy_blockers)
+    patched["blockers"] = blockers
+    patched["decision"] = decision
+    patched["exit_code"] = 2 if decision == "block" else 1 if decision == "warn" else 0
+    patched["risk_score"] = _risk_score(blockers, warnings)
+    patched["pr_annotations"] = _pr_annotations(blockers, warnings)
+    patched["warning_count"] = len(warnings)
+    patched["evidence_refs"] = _append_unique_string(patched.get("evidence_refs", []), A1_EVIDENCE_INDEX_REF)
+    machine_contract = patched.get("machine_contract")
+    if isinstance(machine_contract, dict):
+        machine_contract["blocking_fields"] = _append_unique_string(
+            machine_contract.get("blocking_fields", []),
+            "a1_output_policy_gate",
+        )
+    return patched
+
+
+def build_a1_output_policy_gate(evidence_index: dict[str, Any] | None) -> dict[str, Any]:
+    """Summarize A1 output policy counters into a public release-gate input."""
+    if not isinstance(evidence_index, dict):
+        return {
+            "status": "not_evaluated",
+            "ready": True,
+            "source_schema_version": "",
+            "label": "",
+            "index_path": A1_EVIDENCE_INDEX_REF,
+            "total_records": 0,
+            "dangerous_counts": {key: 0 for key in OUTPUT_POLICY_BLOCKING_COUNTERS},
+            "safe_counts": {},
+            "evidence_refs": [],
+        }
+
+    counts = evidence_index.get("output_policy_counts")
+    if not isinstance(counts, dict):
+        counts = {}
+    dangerous_counts = {
+        key: _int_count(counts.get(key))
+        for key in OUTPUT_POLICY_BLOCKING_COUNTERS
+    }
+    ready = all(value == 0 for value in dangerous_counts.values())
+    return {
+        "status": "ready" if ready else "blocked",
+        "ready": ready,
+        "source_schema_version": str(evidence_index.get("schema_version", "")),
+        "label": str(evidence_index.get("label", "")),
+        "index_path": A1_EVIDENCE_INDEX_REF,
+        "total_records": _int_count(evidence_index.get("total_records")),
+        "dangerous_counts": dangerous_counts,
+        "safe_counts": {
+            "private_required": _int_count(counts.get("private_required")),
+            "private_file": _int_count(counts.get("private_file")),
+            "stdout_full_record_blocked": _int_count(counts.get("stdout_full_record_blocked")),
+            "present": _int_count(counts.get("present")),
+        },
+        "evidence_refs": [A1_EVIDENCE_INDEX_REF],
     }
 
 
@@ -149,6 +240,34 @@ def _scenario_selection_blockers(gate: dict[str, Any]) -> list[dict[str, Any]]:
             "summary": "Per-project scenario selection coverage or minimums are not release-ready.",
             "required_action": "Fix scenario selection gaps before using this pack as a release gate baseline.",
             "missing_count": len(gate.get("gaps", [])),
+            "evidence_refs": gate.get("evidence_refs", []),
+        }
+    ]
+
+
+def _a1_output_policy_blockers(gate: dict[str, Any]) -> list[dict[str, Any]]:
+    if gate.get("status") != "blocked":
+        return []
+    dangerous_counts = gate.get("dangerous_counts", {})
+    if not isinstance(dangerous_counts, dict):
+        dangerous_counts = {}
+    nonzero = {
+        key: _int_count(dangerous_counts.get(key))
+        for key in OUTPUT_POLICY_BLOCKING_COUNTERS
+        if _int_count(dangerous_counts.get(key)) > 0
+    }
+    if not nonzero:
+        return []
+    return [
+        {
+            "type": "a1_output_policy_gate",
+            "gate": "A1-OUTPUT-POLICY",
+            "status": "blocked",
+            "severity": "critical",
+            "summary": "A1 public evidence index reports unsafe output-policy counters.",
+            "required_action": "Fix output policy evidence so private-required API records stay private before release.",
+            "missing_count": sum(nonzero.values()),
+            "dangerous_counts": nonzero,
             "evidence_refs": gate.get("evidence_refs", []),
         }
     ]
@@ -352,3 +471,23 @@ def _risk_score(blockers: list[dict[str, Any]], warnings: list[dict[str, Any]]) 
     for item in warnings:
         score += severity_weight.get(str(item.get("severity", "")), 5)
     return min(score, 100)
+
+
+def _int_count(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+    if isinstance(value, str):
+        try:
+            return max(0, int(float(value)))
+        except ValueError:
+            return 0
+    return 0
+
+
+def _append_unique_string(values: Any, value: str) -> list[str]:
+    result = [str(item) for item in values] if isinstance(values, list) else []
+    if value not in result:
+        result.append(value)
+    return result
