@@ -3877,3 +3877,35 @@ Known gaps / next top 20 A1 growth points:
 18. Add frontend mirror-to-API route map so official UI state drives missing Go routes.
 19. Add A1 CI matrix for Python, TS, Go, SQL migration, Rust verifier, Terraform validate, secret scan.
 20. Add commercial self-host readiness report tying Go backend, SDK parity, official API evidence, quota ledger, and replay into a sellable enterprise story.
+
+## Growth-Auditor closeout after commit 6f4dcc4 - 2026-07-08
+
+Commit / PR:
+- Pushed `6f4dcc4 A1: add Go HTTP server vertical slice` to `codex/a1-local-sdk-runner`.
+- PR #20 remains open draft at `https://github.com/3351666087/ashr-codex-factory/pull/20` with 39 changed files and commits `5893c71`, `8a39c32`, `6f4dcc4`.
+- Commit authorship shown by `gh pr view 20` is `3351666087 / Null3351`.
+
+Growth-Auditor verdict:
+- This round materially moved A1 from Go parity/client layer to a Go HTTP backend vertical slice.
+- Commercially true claim: A1 now has a Go-owned HTTP control-plane vertical slice for bootstrap, run submit, and worker-job lifecycle, with Python SDK compatibility proven.
+- Do not yet claim production Go-primary backend. The server is still `memory_service_v0` and `local_only: true`.
+
+Auditor required evidence gates:
+1. Go server with Postgres backing persists bootstrap/submit/worker state across restart.
+2. Python SDK and TS SDK both run hosted smoke tests against the Go server.
+3. Go server enforces API-key auth, scopes, revoke/expiry, and redacted errors.
+4. Go server enforces quota before every mutating route.
+5. Go server appends/verifies audit hash-chain events for submit, upload, trace, worker job, and release evidence.
+6. Go server supports upload result, trace ingest, lifecycle, usage, release gate, release evidence, and evidence verification routes.
+7. Worker daemon survives restart and handles leases/retries/dead-letter.
+8. Docker/Compose boots API + worker + DB and runs a smoke.
+9. Live Postgres migration smoke runs with `A1_POSTGRES_TEST_DSN` in a controlled environment.
+10. Public-safe evidence packet proves no raw API key, raw media, customer payload, or private calibration evidence leaks.
+
+Auditor next direction:
+- Highest-value next milestone: Go API + Go worker + Postgres + Python/TS clients + Docker smoke.
+- Immediate growth list starts with replacing `MemoryService` behind `cmd/ashr-api` with a repository interface, adding `ASHR_GO_BACKEND=memory|postgres`, implementing Postgres repository slices, TS hosted smoke against Go server, auth/scope/quota middleware, audit chain, trace/upload/release-evidence routes, worker daemon, and reproducible self-host boot evidence.
+
+Resource cleanup:
+- Growth-Auditor and the six execution/review subagents were closed after their outputs were integrated.
+- One repeated `close_agent` call returned `not found` because the target had already been closed; no work remained attached to it.
