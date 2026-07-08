@@ -302,9 +302,27 @@
           "endpoint": { "type": "string" },
           "request_id": { "type": "string" },
           "result": { "type": "object", "additionalProperties": true },
+          "grade_result": { "$ref": "#/components/schemas/A1ReleaseGateBridgeGradeResult" },
           "error": { "$ref": "#/components/schemas/InternalServiceError" },
           "service_context": { "$ref": "#/components/schemas/ServiceContext" },
           "metadata": { "$ref": "#/components/schemas/ServiceMetadata" }
+        },
+        "additionalProperties": true
+      },
+      "A1ReleaseGateBridgeGradeResult": {
+        "type": "object",
+        "description": "GradeResult-like response accepted by A1 LocalReleaseGateBridgeClient for target_contract=A2.release_gate.evaluate.",
+        "required": ["scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"],
+        "properties": {
+          "schema_version": { "const": "a2.a1_release_gate_bridge_grade_result.v1" },
+          "scenario_id": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "label": { "enum": ["release_gate_pass", "release_gate_review"] },
+          "reason": { "type": "string" },
+          "expected": { "type": "object", "additionalProperties": true },
+          "actual": { "type": "object", "additionalProperties": true },
+          "metrics": { "type": "object", "additionalProperties": true }
         },
         "additionalProperties": true
       },

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from services.judge.service_wrapper import (
+    A1_RELEASE_GATE_CONTRACT,
     BATCH_ENDPOINT,
     CALIBRATION_EVALUATE_ENDPOINT,
     CASE_ENDPOINT,
@@ -76,6 +77,18 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertFalse(boundary["hosted_server_in_scope"])
         self.assertFalse(boundary["sql_in_scope"])
         self.assertFalse(boundary["typescript_runtime_in_scope"])
+        envelope = contract["components"]["schemas"]["InternalServiceEnvelope"]
+        self.assertEqual(
+            envelope["properties"]["grade_result"]["$ref"],
+            "#/components/schemas/A1ReleaseGateBridgeGradeResult",
+        )
+        bridge_grade = contract["components"]["schemas"]["A1ReleaseGateBridgeGradeResult"]
+        self.assertEqual(
+            bridge_grade["properties"]["schema_version"]["const"],
+            "a2.a1_release_gate_bridge_grade_result.v1",
+        )
+        for field in ("scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"):
+            self.assertIn(field, bridge_grade["required"])
         serialized = json.dumps(contract, sort_keys=True)
         self.assertNotIn("docs/evidence/private_refs", serialized)
         self.assertNotIn("Bearer ", serialized)
@@ -219,6 +232,79 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["service_context"]["tenant_id"], "tenant_demo")
         self.assertEqual(response["service_context"]["release_candidate_id"], "agent-v42")
         self.assertFalse(response["metadata"]["does_not_execute_live_calls"] is False)
+
+    def test_release_policy_endpoint_accepts_a1_release_gate_bridge_contract(self):
+        payload = {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "request_id": "req-a1-bridge",
+            "idempotency_key": "idem-a1-bridge",
+            "tenant_id": "tenant_bridge",
+            "project_id": "project_bridge",
+            "run_id": "run_bridge",
+            "target_contract": A1_RELEASE_GATE_CONTRACT,
+            "decision_hint": "pass",
+            "policy": {
+                "minimum_uploads": 1,
+                "minimum_trace_batches": 1,
+                "api_key": "secret_should_not_persist",
+            },
+            "inputs": {
+                "run_status": "completed",
+                "upload_count": 1,
+                "trace_batch_count": 1,
+                "authorization": "redacted credential secret_should_not_persist",
+            },
+            "raw_payload_included": False,
+        }
+
+        response = post_internal_release_policy_evaluate(payload)
+        dispatched = handle_internal_request(RELEASE_POLICY_ENDPOINT, payload)
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response, dispatched)
+        self.assertEqual(response["endpoint"], RELEASE_POLICY_ENDPOINT)
+        self.assertEqual(response["request_id"], "req-a1-bridge")
+        result = response["result"]
+        self.assertEqual(response["grade_result"], result)
+        self.assertEqual(result["schema_version"], "a2.a1_release_gate_bridge_grade_result.v1")
+        self.assertEqual(result["scenario_id"], "run_bridge")
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["score"], 1.0)
+        self.assertEqual(result["label"], "release_gate_pass")
+        self.assertEqual(result["expected"]["target_contract"], A1_RELEASE_GATE_CONTRACT)
+        self.assertEqual(result["expected"]["minimum_uploads"], 1)
+        self.assertEqual(result["expected"]["minimum_trace_batches"], 1)
+        self.assertEqual(result["actual"]["upload_count"], 1)
+        self.assertEqual(result["actual"]["trace_batch_count"], 1)
+        self.assertFalse(result["actual"]["raw_payload_included"])
+        self.assertTrue(result["metrics"]["a1_bridge_compatible"])
+        serialized = json.dumps(response, sort_keys=True)
+        self.assertNotIn("secret_should_not_persist", serialized)
+        self.assertNotIn("Bearer", serialized)
+        for field in ("scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"):
+            self.assertIn(field, result)
+
+    def test_release_policy_endpoint_marks_a1_bridge_review_when_lifecycle_counts_miss_policy(self):
+        response = post_internal_release_policy_evaluate(
+            {
+                "request_id": "req-a1-bridge-review",
+                "tenant_id": "tenant_bridge",
+                "project_id": "project_bridge",
+                "run_id": "run_bridge_review",
+                "target_contract": A1_RELEASE_GATE_CONTRACT,
+                "decision_hint": "review",
+                "policy": {"minimum_uploads": 1, "minimum_trace_batches": 1},
+                "inputs": {"run_status": "running", "upload_count": 1, "trace_batch_count": 0},
+                "raw_payload_included": False,
+            }
+        )
+
+        self.assertTrue(response["ok"])
+        result = response["result"]
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["label"], "release_gate_review")
+        self.assertEqual(result["actual"]["trace_batch_count"], 0)
 
     def test_release_policy_endpoint_applies_a1_output_policy_gate(self):
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
