@@ -184,6 +184,19 @@
           "table": "runs",
           "tenant_scoped": true,
           "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "status",
+            "lease_expires_at"
+          ],
+          "description": "",
+          "name": "runs_lease_expiry_idx",
+          "table": "runs",
+          "tenant_scoped": true,
+          "unique": false,
+          "where": "lease_expires_at IS NOT NULL"
         }
       ],
       "primary_key": [

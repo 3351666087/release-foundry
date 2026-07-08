@@ -17,7 +17,7 @@ test("TS SaaS control plane covers key submit upload trace lifecycle idempotency
   assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
 
   const submitted = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit" });
-  const replay = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas_2", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit" });
+  const replay = service.sdkSubmitRun("tenant_ts_saas", "project_ts_saas", { datasetId: "dataset_ts_saas", agentRef: "mock", runId: "run_ts_saas", apiKeyId: "key_ts_saas", idempotencyKey: "idem-submit", requestId: "retry-request" });
   assert.equal(submitted.run.run_id, "run_ts_saas");
   assert.equal(replay.idempotent_replay, true);
   assert.equal(replay.run.run_id, "run_ts_saas");
@@ -40,6 +40,38 @@ test("TS SaaS control plane covers key submit upload trace lifecycle idempotency
 
   const restored = SaaSControlPlaneService.fromState(service.snapshotState());
   assert.equal(restored.lifecycleSnapshot("tenant_ts_saas", "project_ts_saas", "run_ts_saas").trace_batches[0].batch_id, "trace_ts_saas");
+});
+
+test("TS SaaS ingestion client accepts Python SDK option aliases", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_alias", projectId: "project_ts_alias" });
+  service.cloud.createDataset("tenant_ts_alias", "project_ts_alias", { datasetId: "dataset_ts_alias", name: "Dataset", cases: [{ id: "case-1" }] });
+  const client = new SaaSIngestionClient({ service });
+
+  const key = client.createApiKey("tenant_ts_alias", "project_ts_alias", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest", "usage:read"], key_id: "key_ts_alias", reveal_secret: true });
+  assert.equal(key.result.key_id, "key_ts_alias");
+  assert.equal(key.result.secret_value_present, true);
+  assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
+
+  const submitted = client.sdkSubmit("tenant_ts_alias", "project_ts_alias", { dataset_id: "dataset_ts_alias", agent_ref: "mock", run_id: "run_ts_alias", api_key_id: "key_ts_alias", idempotency_key: "idem-submit" });
+  assert.equal(submitted.result.run.run_id, "run_ts_alias");
+
+  const upload = client.uploadRun("tenant_ts_alias", "project_ts_alias", "run_ts_alias", { status: "completed", api_key: "tp_should_not_leak" }, { upload_id: "upload_ts_alias", api_key_id: "key_ts_alias", request_id: "req-upload" });
+  assert.equal(upload.result.upload_id, "upload_ts_alias");
+  assert.equal(JSON.stringify(upload).includes("tp_should_not_leak"), false);
+
+  const trace = client.ingestTrace("tenant_ts_alias", "project_ts_alias", "run_ts_alias", [{ observation_id: "obs_ts_alias" }], { batch_id: "trace_ts_alias", api_key_id: "key_ts_alias" });
+  assert.deepEqual(trace.result.observation_ids, ["obs_ts_alias"]);
+
+  const quota = client.quotaSnapshot("tenant_ts_alias", "project_ts_alias", { auth_key_id: "key_ts_alias" });
+  assert.equal(quota.operation, "quota_snapshot");
+  assert.equal(quota.result.totals["sdk.submit"], 1);
+  assert.equal(quota.result.quota.used["run.upload"], 1);
+
+  assert.throws(
+    () => client.sdkSubmit("tenant_ts_alias", "project_ts_alias", { dataset_id: "dataset_ts_alias", agent_ref: "mock", api_key: "tp_raw" }),
+    /raw API key values are not accepted/,
+  );
 });
 
 test("TS SaaS API key one-time secret verify and public redaction parity", () => {
@@ -102,6 +134,58 @@ test("TS SaaS API key rate limit blocks before mutation and records snapshot", (
   assert.equal(snapshot.schema_version, CONTROL_PLANE_SCHEMA_VERSION);
   assert.equal(snapshot.rate_limits[0].used, 1);
   assert.equal(snapshot.rate_limits[0].remaining, 0);
+});
+
+test("TS SaaS idempotency keys reject request fingerprint conflicts before usage audit and mutation", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_idem_conflict", projectId: "project_ts_idem_conflict" });
+  service.cloud.createDataset("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", name: "Dataset", cases: [{ id: "case-1" }] });
+  service.createApiKey("tenant_ts_idem_conflict", "project_ts_idem_conflict", { name: "writer", scopes: ["sdk:submit", "run:upload", "trace:ingest", "artifact:write", "usage:read", "audit:read", "evidence:read"], keyId: "key_ts_idem_conflict" });
+  for (const operation of ["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"]) {
+    service.configureApiKeyRateLimit("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict", operation, limit: 20 });
+  }
+
+  service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit" });
+  const submitReplay = service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit", requestId: "retry-request" });
+  assert.equal(submitReplay.idempotent_replay, true);
+
+  service.uploadRunResult("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { status: "completed" }, { uploadId: "upload_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-upload" });
+  service.ingestTrace("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", [{ observation_id: "obs_ts_idem_conflict", type: "agent_message" }], { batchId: "trace_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-trace" });
+  service.createArtifactManifest("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json" }] }, { artifactId: "artifact_ts_idem_conflict", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-artifact" });
+
+  const before = service.lifecycleSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict");
+  const beforeUsage = { ...before.quota.used };
+  const beforeAuditCount = before.audit_log.length;
+  const beforeUploads = before.uploads.length;
+  const beforeTraceBatches = before.trace_batches.length;
+  const beforeArtifacts = service.listArtifactManifests("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { authKeyId: "key_ts_idem_conflict" }).length;
+  const beforeRateLimits = service.apiKeyRateLimitSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict" }).rate_limits;
+  assert.deepEqual(Object.fromEntries(beforeRateLimits.map((bucket) => [bucket.operation, bucket.used])), { "sdk:submit": 1, "run:upload": 1, "trace:ingest": 1, "artifact:upload": 1 });
+
+  assert.throws(
+    () => service.sdkSubmitRun("tenant_ts_idem_conflict", "project_ts_idem_conflict", { datasetId: "dataset_ts_idem_conflict", agentRef: "mock", runId: "run_ts_idem_conflict_different", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-submit" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.uploadRunResult("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { status: "failed" }, { uploadId: "upload_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-upload" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.ingestTrace("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", [{ observation_id: "obs_ts_idem_conflict_2", type: "tool_call" }], { batchId: "trace_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-trace" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.throws(
+    () => service.createArtifactManifest("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict_missing", { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "different.json" }] }, { artifactId: "artifact_ts_idem_conflict_2", apiKeyId: "key_ts_idem_conflict", idempotencyKey: "idem-artifact" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+
+  const after = service.lifecycleSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict");
+  assert.deepEqual(after.quota.used, beforeUsage);
+  assert.equal(after.audit_log.length, beforeAuditCount);
+  assert.equal(after.uploads.length, beforeUploads);
+  assert.equal(after.trace_batches.length, beforeTraceBatches);
+  assert.equal(service.listArtifactManifests("tenant_ts_idem_conflict", "project_ts_idem_conflict", "run_ts_idem_conflict", { authKeyId: "key_ts_idem_conflict" }).length, beforeArtifacts);
+  assert.deepEqual(service.apiKeyRateLimitSnapshot("tenant_ts_idem_conflict", "project_ts_idem_conflict", { keyId: "key_ts_idem_conflict" }).rate_limits, beforeRateLimits);
 });
 
 test("TS SaaS router maps local REST-ish ingestion and redacts errors", () => {
@@ -181,22 +265,26 @@ test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
     const spec = await client.openApi();
     assert.equal(spec.openapi, "3.0.3");
 
-    const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest"], keyId: "key_ts_http" });
+    const key = await client.createApiKeyHttp("tenant_ts_http", "project_ts_http", { name: "ingester", scopes: ["sdk:submit", "run:upload", "trace:ingest", "usage:read"], keyId: "key_ts_http" });
     assert.equal(key.result.key_id, "key_ts_http");
     assert.equal(JSON.stringify(key).includes("secret_hash_sha256"), false);
 
-    const submitted = await client.sdkSubmitHttp("tenant_ts_http", "project_ts_http", { datasetId: "dataset_ts_http", agentRef: "mock", runId: "run_ts_http", apiKeyId: "key_ts_http" });
+    const submitted = await client.sdkSubmitHttp("tenant_ts_http", "project_ts_http", { dataset_id: "dataset_ts_http", agent_ref: "mock", run_id: "run_ts_http", api_key_id: "key_ts_http" });
     assert.equal(submitted.result.run.run_id, "run_ts_http");
 
-    const upload = await client.uploadRunHttp("tenant_ts_http", "project_ts_http", "run_ts_http", { status: "completed", api_key: "tp_should_not_leak" }, { uploadId: "upload_ts_http", apiKeyId: "key_ts_http" });
+    const upload = await client.uploadRunHttp("tenant_ts_http", "project_ts_http", "run_ts_http", { status: "completed", api_key: "tp_should_not_leak" }, { upload_id: "upload_ts_http", api_key_id: "key_ts_http" });
     assert.equal(upload.result.upload_id, "upload_ts_http");
     assert.equal(JSON.stringify(upload).includes("tp_should_not_leak"), false);
 
-    const trace = await client.ingestTraceHttp("tenant_ts_http", "project_ts_http", "run_ts_http", [{ observation_id: "obs_ts_http" }], { batchId: "trace_ts_http", apiKeyId: "key_ts_http" });
+    const trace = await client.ingestTraceHttp("tenant_ts_http", "project_ts_http", "run_ts_http", [{ observation_id: "obs_ts_http" }], { batch_id: "trace_ts_http", api_key_id: "key_ts_http" });
     assert.deepEqual(trace.result.observation_ids, ["obs_ts_http"]);
 
     const lifecycle = await client.lifecycleHttp("tenant_ts_http", "project_ts_http", "run_ts_http");
     assert.equal(lifecycle.result.quota.used["trace.ingest"], 1);
+
+    const quota = await client.quotaSnapshotHttp("tenant_ts_http", "project_ts_http", { auth_key_id: "key_ts_http" });
+    assert.equal(quota.operation, "quota_snapshot");
+    assert.equal(quota.result.totals["trace.ingest"], 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -207,7 +295,7 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   const service = new SaaSControlPlaneService();
   service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_artifact", projectId: "project_ts_artifact" });
   service.cloud.createDataset("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", name: "Dataset", cases: [{ id: "case-1" }] });
-  service.createApiKey("tenant_ts_artifact", "project_ts_artifact", { name: "artifact-writer", scopes: ["sdk:submit", "artifact:write"], keyId: "key_ts_artifact" });
+  service.createApiKey("tenant_ts_artifact", "project_ts_artifact", { name: "artifact-writer", scopes: ["sdk:submit", "artifact:write", "evidence:read", "usage:read"], keyId: "key_ts_artifact" });
   service.sdkSubmitRun("tenant_ts_artifact", "project_ts_artifact", { datasetId: "dataset_ts_artifact", agentRef: "mock", runId: "run_ts_artifact", apiKeyId: "key_ts_artifact" });
 
   const manifest = service.createArtifactManifest(
@@ -221,8 +309,18 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
     "tenant_ts_artifact",
     "project_ts_artifact",
     "run_ts_artifact",
-    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "different" }] },
-    { artifactId: "artifact_ts_again", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+    { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "tp_should_not_leak" }] },
+    { artifactId: "artifact_ts", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem", requestId: "artifact-retry" },
+  );
+  assert.throws(
+    () => service.createArtifactManifest(
+      "tenant_ts_artifact",
+      "project_ts_artifact",
+      "run_ts_artifact",
+      { schema_version: "ashr.clone.artifact_manifest.v1", files: [{ name: "trace.json", api_key: "different" }] },
+      { artifactId: "artifact_ts_again", apiKeyId: "key_ts_artifact", idempotencyKey: "artifact-idem" },
+    ),
+    /idempotency key conflict.*request fingerprint mismatch/,
   );
 
   assert.equal(manifest.artifact_id, "artifact_ts");
@@ -231,10 +329,58 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   assert.equal(replay.artifact_id, "artifact_ts");
   assert.equal(JSON.stringify(manifest).includes("tp_should_not_leak"), false);
 
-  const listed = service.listArtifactManifests("tenant_ts_artifact", "project_ts_artifact", "run_ts_artifact");
+  const listed = service.listArtifactManifests("tenant_ts_artifact", "project_ts_artifact", "run_ts_artifact", { authKeyId: "key_ts_artifact" });
   assert.equal(listed.length, 1);
-  const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact");
+  const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact", { authKeyId: "key_ts_artifact" });
   assert.equal(usage.totals["artifact.manifest"], 1);
+});
+
+test("TS SaaS worker jobs lease retry dead-letter and redact payloads", () => {
+  const client = new SaaSIngestionClient();
+  client.bootstrapProject({ tenantName: "Worker Tenant", projectName: "Worker Project", tenantId: "tenant_ts_worker", projectId: "project_ts_worker", datasetId: "dataset_ts_worker" });
+  client.sdkSubmit("tenant_ts_worker", "project_ts_worker", { dataset_id: "dataset_ts_worker", agent_ref: "mock", run_id: "run_ts_worker" });
+
+  const enqueued = client.enqueueWorkerJob("tenant_ts_worker", "project_ts_worker", {
+    job_type: "run.replay",
+    target_id: "run_ts_worker",
+    job_id: "job_ts_worker",
+    priority: 3,
+    max_attempts: 2,
+    idempotency_key: "idem-ts-worker",
+    payload: { run_id: "run_ts_worker", secret: "must-not-leak" },
+  });
+  const replay = client.enqueueWorkerJob("tenant_ts_worker", "project_ts_worker", {
+    job_type: "run.replay",
+    target_id: "run_ts_worker",
+    job_id: "job_ts_worker",
+    priority: 3,
+    max_attempts: 2,
+    idempotency_key: "idem-ts-worker",
+    payload: { run_id: "run_ts_worker", secret: "must-not-leak" },
+  });
+  assert.equal(enqueued.result.raw_payload_included, false);
+  assert.equal(JSON.stringify(enqueued).includes("must-not-leak"), false);
+  assert.equal(replay.result.idempotent_replay, true);
+
+  const leased = client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-a", lease_seconds: 30, job_type: "run.replay" });
+  assert.equal(leased.result.leased, true);
+  assert.equal(leased.result.job.attempts, 1);
+  assert.throws(() => client.completeWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { ok: true }, { lease_owner_id: "worker-b" }), /lease owner mismatch/);
+
+  const failed = client.failWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { type: "TransientError", message: "redacted", raw: "not stored" }, { lease_owner_id: "worker-a", retry_after_seconds: 0 });
+  assert.equal(failed.result.status, "retrying");
+  assert.equal(failed.result.last_error.raw_payload_included, false);
+  const leasedAgain = client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-b", lease_seconds: 30 });
+  assert.equal(leasedAgain.result.job.attempts, 2);
+  const dead = client.failWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { type: "PermanentError" }, { lease_owner_id: "worker-b" });
+  assert.equal(dead.result.status, "dead_lettered");
+  assert.equal(client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-c" }).result.status, "empty");
+
+  const listed = client.listWorkerJobs("tenant_ts_worker", "project_ts_worker", { status: "dead_lettered" });
+  assert.equal(listed.result.count, 1);
+  assert.equal(listed.result.jobs[0].job_id, "job_ts_worker");
+  const used = client.service.cloud.quotaSnapshot("tenant_ts_worker", "project_ts_worker").used;
+  assert.equal(used["worker.job.fail"], 2);
 });
 
 test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () => {

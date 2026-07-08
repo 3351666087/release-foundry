@@ -66,6 +66,7 @@ class ReleaseGateBridgeResult:
     idempotency_key: str
     transport: str
     status_code: int | None = None
+    created_at: str = field(default_factory=_utc_now)
 
     def to_dict(self) -> JsonDict:
         return {
@@ -77,7 +78,7 @@ class ReleaseGateBridgeResult:
             "status_code": self.status_code,
             "grade_result": _jsonable(self.grade_result),
             "raw_payload_included": False,
-            "created_at": _utc_now(),
+            "created_at": self.created_at,
         }
 
 

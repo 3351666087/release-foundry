@@ -9,9 +9,7 @@ from typing import Any, Iterable, Iterator, Mapping
 from packages.sdk.ashr_clone.api_client import redact_text
 from services.runner.runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalize_max_workers, normalize_timeout_seconds, run_agent_batch
 
-from .runtime import DEFAULT_QUEUE_LEASE_SECONDS, CloudApiService, JsonDict, NotFoundError, ValidationError
-
-TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled"}
+from .runtime import DEFAULT_QUEUE_LEASE_SECONDS, DEFAULT_QUEUE_MAX_ATTEMPTS, TERMINAL_RUN_STATUSES, CloudApiService, JsonDict, NotFoundError, ValidationError
 MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
 
 
@@ -28,6 +26,7 @@ class QueueRunRequest:
     timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS
     lease_owner_id: str | None = None
     lease_seconds: float | None = DEFAULT_QUEUE_LEASE_SECONDS
+    max_attempts: int = DEFAULT_QUEUE_MAX_ATTEMPTS
     metadata: Mapping[str, Any] | None = None
 
 
@@ -49,6 +48,7 @@ class CloudQueueWorker:
             dataset_id=request.dataset_id,
             runner_id=request.runner_id,
             run_id=request.run_id,
+            max_attempts=request.max_attempts,
             metadata=self._execution_metadata(request, runner_workers=runner_workers),
         )
         normalized = QueueRunRequest(
@@ -62,6 +62,7 @@ class CloudQueueWorker:
             timeout_seconds=timeout_seconds,
             lease_owner_id=request.lease_owner_id or self._lease_owner_id(queued["run_id"]),
             lease_seconds=request.lease_seconds,
+            max_attempts=request.max_attempts,
             metadata=request.metadata,
         )
         self._futures[queued["run_id"]] = self._executor.submit(self._execute, normalized)
@@ -77,7 +78,7 @@ class CloudQueueWorker:
         *,
         agent: Any,
         dataset_id: str | None = None,
-        statuses: Iterable[str] = ("queued", "running"),
+        statuses: Iterable[str] = ("queued", "running", "failed"),
         max_runs: int = 100,
         max_workers: int | None = DEFAULT_MAX_WORKERS,
         timeout_seconds: float | None = DEFAULT_TIMEOUT_SECONDS,
@@ -87,7 +88,7 @@ class CloudQueueWorker:
         replay_statuses = {str(status) for status in statuses}
         if not replay_statuses:
             raise ValidationError("replay statuses must not be empty")
-        unsupported = replay_statuses - {"queued", "running"}
+        unsupported = replay_statuses - {"queued", "running", "failed"}
         if unsupported:
             raise ValidationError(f"unsupported replay statuses: {', '.join(sorted(unsupported))}")
         limit = _normalize_replay_limit(max_runs)
@@ -104,6 +105,17 @@ class CloudQueueWorker:
             if run.get("lease_owner_id") is not None:
                 continue
             run_id = str(run["run_id"])
+            if run.get("status") == "failed":
+                run = self.service.retry_run(
+                    str(run["tenant_id"]),
+                    str(run["project_id"]),
+                    run_id,
+                    reason="worker replay",
+                    metadata=metadata,
+                )
+                if run.get("status") == "dead_lettered":
+                    replayed.append(run)
+                    continue
             future = self._futures.get(run_id)
             if future is not None and not future.done():
                 continue
@@ -118,6 +130,7 @@ class CloudQueueWorker:
                 timeout_seconds=normalized_timeout,
                 lease_owner_id=self._lease_owner_id(run_id),
                 lease_seconds=lease_seconds,
+                max_attempts=int(run.get("max_attempts") or DEFAULT_QUEUE_MAX_ATTEMPTS),
                 metadata=metadata,
             )
             self._futures[run_id] = self._executor.submit(self._execute, request)

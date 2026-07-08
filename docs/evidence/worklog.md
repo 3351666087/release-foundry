@@ -3114,3 +3114,498 @@ Final Round21 validation:
 Commit hygiene:
 - Stage only tracked Round21 A1 files plus this public worklog.
 - Keep `recon/**`, `tools/**`, and `docs/evidence/private_refs/**` unstaged.
+
+## A1 Round22 - Hosted verifier API/SDK/CLI parity (2026-07-08)
+
+Round goal: continue large-SaaS A1 by turning Round21 helper-level audit/release verification into hosted, SDK, CLI, and OpenAPI surfaces that can be used by CI, enterprise audit, and A3 release workflows.
+
+Baseline / peer changes:
+- Ran `pwd`, `git rev-parse --show-toplevel`, `git remote -v`, `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb`, `git branch --show-current`, `gh repo view --json nameWithOwner,defaultBranchRef,url`, and `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner`, aligned with origin before this round's changes.
+- Peer change observed: `origin/codex/a3-dashboard-polish` advanced `9c742c9..c4646e2`. Read-only impact: A3 dashboard/admin/check publishing work; no A1 owned-file conflict observed.
+- Long-lived untracked `recon/**` and `tools/**` remain unstaged and out of scope.
+- Public official context checked via Ashr public search/open context. Public product posture still emphasizes SDKs, runs, datasets, traces/replay, VM streams, media modalities, and usage/quota; this round maps those into enterprise audit/release verification surfaces. No desktop key file was read and no API key was written to repo/logs.
+
+20 A1 growth points advanced:
+1. Hosted audit-chain verification endpoint.
+2. Hosted release-evidence verification endpoint.
+3. Run-scoped release-evidence verification route.
+4. Submitted-packet verification path to avoid rebuild masking tamper.
+5. Current-snapshot verification fallback with explicit source.
+6. Python SDK `verify_audit_chain` wrapper.
+7. Python SDK `build_release_evidence_packet` wrapper.
+8. Python SDK run-scoped `verify_release_evidence_packet` wrapper.
+9. Python CLI `audit-chain-verify`.
+10. Python CLI `release-evidence`.
+11. Python CLI run-scoped `release-evidence-verify`.
+12. Python private path guard for packet file inputs.
+13. Python WSGI/OpenAPI tests for hosted verifier surfaces.
+14. TS service `verifyAuditChain` hosted parity.
+15. TS service submitted-packet `verifyReleaseEvidencePacket` parity.
+16. TS router endpoints for audit-chain and release-evidence verification.
+17. TS client local and HTTP wrappers.
+18. TS CLI `audit-chain-verify` and `release-evidence-verify`.
+19. TS submitted tamper tests for router, HTTP client, and CLI packet file.
+20. Cross-language release verifier parity stayed green after full gates.
+
+Implemented files:
+- `services/api/control_plane.py`: verify service methods, OpenAPI paths, WSGI route handlers, run-scoped submitted/current packet verification.
+- `packages/sdk/ashr_clone/saas.py`: SDK wrappers and payload-aware hosted operation paths.
+- `packages/sdk/ashr_clone/saas_cli.py`: audit/release verifier CLI commands and packet input behavior.
+- `tests/a1/test_saas_control_plane_http.py`, `tests/a1/test_saas_sdk_client.py`: hosted/SDK/CLI tests.
+- `packages/ts/ashr-clone/src/saas.ts`: TS service/router/OpenAPI/client/CLI verifier parity and packet input helper.
+- `packages/ts/ashr-clone/test/saas-release-parity.test.mjs`: TS router/OpenAPI/client/CLI submitted/current verifier tests.
+
+Commands / results:
+- `python -B -m py_compile services/api/control_plane.py packages/sdk/ashr_clone/saas.py packages/sdk/ashr_clone/saas_cli.py` passed.
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_saas_release_gate_endpoint.py -q -p no:cacheprovider` -> 16 passed.
+- `npm run build --prefix packages/ts/ashr-clone` passed.
+- `node --test packages/ts/ashr-clone/test/saas-release-parity.test.mjs` -> 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only Windows LF-to-CRLF working-copy warnings.
+
+Failures / fixes:
+- Initial Python targeted run failed because OpenAPI and router retained project-level release-evidence verify path; fixed to `/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify`.
+- TS initial worker implementation verified rebuilt snapshots only; fixed by adding submitted packet support and tamper tests for router, HTTP client, and CLI packet file.
+
+Evidence paths:
+- Public worklog: `docs/evidence/worklog.md`.
+- No private official API response payload was produced in this round; no key was read from desktop files or logged.
+
+Next A1 growth vectors:
+1. Add verifier response schemas to `docs/a1/schemas` and OpenAPI examples.
+2. Add signed audit-chain export bundles.
+3. Add release evidence diff for old-vs-new run comparison.
+4. Bind usage ledger hashes into release packet verification.
+5. Bind webhook delivery retry ledger into release packet verification.
+6. Add idempotency ledger section and verifier.
+7. Add durable sqlite/postgres persistence for audit chain and verifier state.
+8. Add Docker/self-host smoke for API + verifier CLI.
+9. Add GitHub Action example invoking verifier CLI.
+10. Add official API small-batch calibration gated by quota evidence.
+11. Add text/audio/file/image/video equal-modality evidence packet counts.
+12. Add A3 dashboard DTO fixture for verifier status.
+13. Add A2 gate contract adapter consuming verifier output.
+14. Add audit-chain legacy migration/repair mode.
+15. Add retention/export controls per tenant/project.
+16. Add admin key scope for verifier-only read access.
+17. Add OpenAI-style adapter evidence upload path into packet verifier.
+18. Add production replay incident evidence packet.
+19. Add per-run artifact signed URL proof records.
+20. Add CI guard preventing `recon/**`, `tools/**`, or private refs staging.
+
+Round22 Growth-Auditor follow-up:
+- Auditor verdict: this round improves sellability because hosted audit-chain verification and release-evidence verification are buyer-facing trust/compliance/release-governance surfaces.
+- Must-fix 1 addressed: Python audit-chain verify route/OpenAPI now uses POST, matching TS route/client/OpenAPI semantics.
+- Must-fix 2 addressed: Python hosted SDK remains POST-based and now aligns with POST audit-chain verify; no GET/POST drift remains for verifier action endpoints.
+- Must-fix 3 addressed: Python WSGI/OpenAPI now exposes `GET /v1/projects/{project_id}/runs/{run_id}/release-evidence`, matching TS build route.
+- Must-fix 4 addressed operationally: `recon/**` and `tools/**` remain unstaged and out of commit scope.
+
+Final post-audit validation:
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_saas_release_gate_endpoint.py -q -p no:cacheprovider` -> 16 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only LF-to-CRLF working-copy warnings.
+
+## Round23 A1 Large SaaS Verifier Hardening - 2026-07-08
+
+Goal source:
+- User updated active target to `docs/strategy/large-saas-a1-a2-a3-full-plan.md`; this round treated the Commercial SaaS / Agent Release OS plan as authoritative.
+- Highest-ROI slice selected from 3 options:
+  1. Canonical Phase-1 project/dataset/run CRUD API expansion.
+  2. SaaS-grade release evidence verifier v2 with auth/usage/audit/artifact bindings.
+  3. TS CLI full ingestion parity expansion.
+- Chosen: option 2, because it upgrades an existing buyer-facing evidence/read control-plane primitive into tenant-scoped, metered, audited SaaS infrastructure without changing A2 judge semantics or A3 dashboard workflows.
+
+Baseline / peer changes:
+- Commands: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `git branch --show-current`; `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- Peer changes observed: `origin/main` advanced to `69025b5 Prefer latest development toolchains`; A3 branches/PRs active: PR #18 `codex/a3-audit-evidence-bundle`, PR #17 `codex/a3-dashboard-polish`. No peer files were staged. Long-lived untracked `recon/` and `tools/` remain ignored/untracked.
+
+Bus / explorer review:
+- Bus-Auditor pre-implementation must-fixes: verifier endpoints required optional auth only; verifier reads were not metered/audited; release packet verification was too self-contained and did not bind stored run/audit/usage/artifact facts; A3 artifact bundle/publish evidence requires explicit A1 support or typed rejection; schema docs lagged implementation.
+- Reviewer risks: local router body/query tenant id must not be treated as hosted auth; idempotency lacks request fingerprints; Python upload/trace usage lacked `run_id`; CLI/OpenAPI parity must be watched.
+- Explorer-SDK/API findings: Python lacked TS artifact-manifest parity; Python SDK/CLI lacked usage/artifact-manifest methods; TS CLI still lags Python ingestion commands for a later slice.
+
+Implemented files:
+- `services/api/control_plane.py`
+  - Added `artifact_manifests` store bucket and state serialization/restore.
+  - Added `artifact.manifest`, `audit_chain.verify`, `release_evidence.verify` quota operations.
+  - Added `create_artifact_manifest` / `list_artifact_manifests` service methods and REST-ish routes.
+  - Added lifecycle `artifact_manifests` summary.
+  - Fixed Python upload/trace usage records to include `run_id`.
+  - Made audit-chain verification require `auth_key_id` with audit read scope, consume usage, and append an audit event.
+  - Made release-evidence verification require `auth_key_id` with evidence read scope, consume usage, append audit, and verify tenant/project/run plus stored counts, usage rollup, audit tail, artifact manifest hash, and bundle root binding when packet fields are present.
+- `packages/sdk/ashr_clone/saas.py`
+  - Added `usage_snapshot`, `create_artifact_manifest`, `list_artifact_manifests`.
+  - Added request_id propagation for verifier calls.
+  - Included artifact manifests in local release evidence packet build.
+- `packages/sdk/ashr_clone/saas_cli.py`
+  - Added `usage`, `artifact-manifest-create`, `artifact-manifest-list` commands.
+  - Added verifier `--request-id` support.
+- `packages/ts/ashr-clone/src/saas.ts`
+  - Mirrored verifier auth/usage/audit hardening and binding verification.
+  - Added verifier requestId passthrough for router/HTTP/CLI.
+  - Added quota operations for verifier reads.
+- `packages/ts/ashr-clone/test/saas-release-parity.test.mjs`
+  - Updated TS tests to require evidence read scope and explicit auth key for verifier calls.
+- `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_saas_control_plane_http.py`
+  - Updated positive verifier tests to use current release evidence packets.
+  - Added stale/manual packet mismatch assertions for usage binding failures.
+- `docs/a1/schemas/saas_release_evidence_verifier.schema.json`
+  - New public schema for verifier v2 response, bindings, usage_event_id, and public-safe flags.
+
+Commands / results:
+- `python -B -m py_compile services/api/control_plane.py packages/sdk/ashr_clone/saas.py packages/sdk/ashr_clone/saas_cli.py` passed.
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py -q -p no:cacheprovider` -> 26 passed.
+- `npm run build --prefix packages/ts/ashr-clone` passed.
+- `node --test packages/ts/ashr-clone/test/saas-release-parity.test.mjs` -> 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+- `git diff --check` passed; only Windows LF-to-CRLF warnings.
+
+Real API / private evidence:
+- No real Ashr API call was made in this round. The updated strategy demanded SaaS backend/verifier hardening first; this slice is local-only and marks `ashr_api_used=false`.
+- No desktop key files read. No secret values written to code, logs, schema, or worklog.
+
+Known gaps / next top 3:
+1. Add request fingerprint checking to idempotency records so same idempotency key with different payload returns conflict without quota/audit/mutation.
+2. Expand Phase-1 hosted API contract: canonical project/dataset/run CRUD plus complete/cancel/replay and case/observation/artifact aliases, with OpenAPI/Python/TS path parity.
+3. Bring TS CLI to Python CLI ingestion parity: bootstrap, sdk-submit, run-upload, trace-ingest, lifecycle, quota, state, usage, artifact-manifest commands.
+
+Round23 Bus-Auditor follow-up closure:
+- Auditor blocked initial commit because adjacent SaaS read/write surfaces still had optional auth: artifact manifest read/write, usage snapshot, and release-evidence build/read.
+- Follow-up implemented:
+  - Python `usage_snapshot` now requires `auth_key_id` with `usage:read`.
+  - Python `create_artifact_manifest` now requires `api_key_id` with `artifact:upload`.
+  - Python `list_artifact_manifests` now requires `auth_key_id` with `evidence:read`.
+  - Python release-evidence build route now requires `auth_key_id` with `evidence:read` and passes auth into artifact/audit reads.
+  - TS mirrors usage/artifact/release-evidence read auth requirements and tests now pass explicit scoped keys.
+- Follow-up validation:
+  - `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 273 passed.
+  - `npm test --prefix packages/ts/ashr-clone` -> 274 passed.
+  - `git diff --check` passed; only Windows LF-to-CRLF warnings.
+- Staging caution: explicitly include `docs/a1/schemas/saas_release_evidence_verifier.schema.json`; keep `recon/` and `tools/` unstaged.
+
+## Round24 A1 SaaS Idempotency Fingerprint Enforcement - 2026-07-08
+
+Goal source:
+- Active large-SaaS goal remains ongoing and explicitly anchored to `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+- User emphasized A1-only ownership, aggressive TS parity, real Ashr API calibration via env-only key handling, equal importance of text/audio/file/image/video, and next growth into Go, SQL/PLpgSQL, Docker/YAML/Terraform/HCL, and Rust.
+
+Baseline / peer changes:
+- Commands: `pwd`; `git rev-parse --show-toplevel`; `git remote -v`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `git branch --show-current`; `gh pr list --state all --limit 30`.
+- Current branch: `codex/a1-local-sdk-runner`, tracking `origin/codex/a1-local-sdk-runner`; PR #19 remains draft.
+- Worktree before integration contained only A1/TS idempotency edits plus long-lived untracked `recon/` and `tools/`.
+- Peer changes observed: PR #18 / `origin/codex/a3-audit-evidence-bundle` advanced with A3 signed audit archive / GitHub publish evidence bundle work. Impact for A1: request replay/idempotency must be trustworthy because A3 sealed archives depend on stable run/upload/trace/artifact evidence.
+- `origin/main` latest: `69025b5 Prefer latest development toolchains`; main carries broad A1/A2/A3 updates and touches A1/TS files. This round did not merge or stage main artifacts to avoid mixing peer work; full tests were used as the safety gate.
+
+Growth points considered / queued:
+1. Enforce request fingerprints for idempotency keys on SaaS writes.
+2. Return HTTP 409 for idempotency conflicts.
+3. Preserve idempotent replay for exact request retries while excluding request_id from fingerprint.
+4. Prove conflict happens before quota usage.
+5. Prove conflict happens before audit append.
+6. Prove conflict happens before upload/trace/artifact mutation.
+7. Persist fingerprint metadata across state round trips.
+8. Mirror Python and TypeScript behavior.
+9. Keep artifact manifest idempotency aligned with release evidence verifier needs.
+10. Use real Ashr read-only API probes to refresh response key evidence.
+11. Keep private API evidence out of commits.
+12. Add next-round Go runtime/client surface.
+13. Add next-round SQL/PLpgSQL schema and migrations for tenant/project/run/idempotency/usage/audit.
+14. Add next-round Dockerfile/compose worker + API dev service.
+15. Add next-round YAML CI gate for Python/TS/Go/schema/migration checks.
+16. Add next-round Terraform/HCL self-host scaffold.
+17. Add next-round Rust verifier/replay utility exploration if it buys performance or tamper-proof packaging.
+18. Keep text/audio/file/image/video at equal modality level in API/client/runtime plans.
+19. Add CI guard preventing `docs/evidence/private_refs/**`, `recon/**`, and `tools/**` staging.
+20. Expand official API calibration from read-only probes to quota-gated small-batch mutating probes when a valid quota gate exists.
+
+Chosen implementation slice:
+- Request fingerprint enforcement for A1 SaaS idempotency records, because stale replay under the same idempotency key could pollute billing, audits, run evidence, and A3 sealed archives.
+
+Subagent outputs:
+- Growth-Auditor: endorsed idempotency fingerprint enforcement as a money-grade SaaS primitive; required coverage for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`; conflicts must occur before quota/audit/mutation; no raw payloads or secrets in stored records.
+- Worker-Python-Idempotency: implemented Python service/HTTP/SDK tests and route mapping for `idempotency_conflict` -> 409.
+- Worker-TS-Idempotency: implemented TypeScript fingerprint storage/enforcement and tests for conflict-before-side-effects.
+- Main agent integration: tightened Python legacy-record behavior so a stored idempotency record without matching fingerprint now conflicts; added `fingerprint_schema_version`; updated older TS edge parity tests from unsafe old replay semantics to exact-payload replay plus changed-payload conflict.
+
+Implemented files:
+- `services/api/control_plane.py`
+  - Added `IdempotencyConflictError` and `IDEMPOTENCY_FINGERPRINT_SCHEMA_VERSION`.
+  - Added deterministic request fingerprints for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`.
+  - Stored `fingerprint_schema_version` and `request_fingerprint_sha256` with idempotency records.
+  - Replays exact same request with `idempotent_replay=true`; same key plus changed fingerprint raises `idempotency_conflict` before quota, audit, or mutation.
+  - WSGI router maps `idempotency_conflict` to HTTP 409.
+- `tests/a1/test_saas_control_plane.py`
+  - Added matrix coverage for replay/conflict across all four operations and side-effect counts.
+- `tests/a1/test_saas_sdk_client.py`
+  - Added SDK-level submit replay/conflict coverage.
+- `tests/a1/test_saas_control_plane_http.py`
+  - Added HTTP replay and 409 conflict coverage.
+- `packages/ts/ashr-clone/src/saas.ts`
+  - Mirrored request fingerprint storage/enforcement in TS SaaS control plane.
+- `packages/ts/ashr-clone/test/saas.test.mjs`
+  - Added TS conflict-before-usage/audit/mutation coverage for all four operations.
+- `packages/ts/ashr-clone/test/saas-edge-parity.test.mjs`
+  - Updated old idempotency tests to require exact-request replay and changed-request conflict.
+
+Real API / private evidence:
+- Env check: `ASHR_API_KEY` present by length only; no key value printed, read from desktop, written, or committed.
+- Dry-run/private planning evidence created before real calls:
+  - `docs/evidence/private_refs/a1_round24_create_request_multimodal_plan_20260708_175030.json` -> multimodal create-request batch plan blocked by quota gate decision `wait`; no mutation executed.
+  - `docs/evidence/private_refs/a1_round24_health_dry_run_20260708_175030.json` -> planned.
+  - `docs/evidence/private_refs/a1_round24_list_runs_dry_run_20260708_175030.json` -> planned.
+- Real read-only probes executed after env key availability, with no mutating calls:
+  - `docs/evidence/private_refs/a1_round24_health_real_20260708_180046.json` -> status `ok`, response keys `db,message,status`.
+  - `docs/evidence/private_refs/a1_round24_list_runs_real_20260708_180046.json` -> status `ok`, response keys `_user,runs,status`.
+  - `docs/evidence/private_refs/a1_round24_list_agents_real_20260708_180046.json` -> status `ok`, response keys `_user,agents,status`.
+  - `docs/evidence/private_refs/a1_round24_list_requests_real_20260708_180046.json` -> status `ok`, response keys `_user,next_cursor,requests,status`.
+- Private refs remain unstaged.
+
+Commands / results:
+- `python -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py` -> 28 passed in worker.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 275 passed.
+- `npm test --prefix packages/ts/ashr-clone` initially failed 2 old TS edge tests that expected same-key/different-request replay.
+- Updated TS edge tests to new fingerprint conflict semantics.
+- `npm test --prefix packages/ts/ashr-clone` -> 275 passed.
+
+Growth-Auditor follow-up closure:
+- Auditor verdict: sellability improved because idempotency is now a billing-safe ingestion contract for CI retries, SDK trust, usage metering, audit defensibility, and A3 evidence sealing.
+- P0 blockers: none.
+- P1 fixed before commit: API-key rate consumption was happening during auth before idempotency replay/conflict. Python and TS now authenticate write API keys with `consume_rate=false`, perform fingerprint lookup, and only consume API-key rate after a cache miss that proceeds toward mutation.
+- P1 fixed before commit: artifact manifest idempotency lookup previously happened after `get_run`, so changed same-key requests with nonexistent run IDs could return not_found instead of conflict. Python and TS now compute/lookup the artifact manifest fingerprint before run lookup.
+- Added tests proving exact replays and same-key conflicts preserve API-key rate buckets, and artifact manifest changed/nonexistent run IDs return idempotency conflict first.
+- Follow-up targeted validation:
+  - `python -B -m pytest tests/a1/test_saas_control_plane.py::test_saas_control_plane_idempotency_keys_enforce_request_fingerprints_before_mutation -q -p no:cacheprovider` -> 1 passed.
+  - `npm run build --prefix packages/ts/ashr-clone` -> passed.
+  - `node --test packages/ts/ashr-clone/test/saas.test.mjs` -> 9 passed.
+
+Failures / decisions:
+- Main branch contains relevant A1/TS changes, but merging/overwriting during this focused round would mix peer changes into PR #19. Decision: keep branch narrow, use full tests as compatibility gate, revisit main integration in the next baseline.
+- Mutating multimodal official API probe remains blocked until a valid quota gate says `go` or an auditable override is intentionally recorded.
+
+Next A1 growth vectors, aligned to strategy bus:
+1. Add Go SDK/client/runtime package covering health/list-runs/list-agents/list-requests and local SaaS ingestion DTOs.
+2. Add Go tests and fixture parity with Python/TS for AgentInput text/audio/file/image/video envelopes.
+3. Add Postgres SQL migrations for tenants/projects/datasets/runs/idempotency_keys/usage/audit/artifact_manifests.
+4. Add PLpgSQL helper functions for usage rollup, idempotency conflict checking, and audit-chain tail lookup.
+5. Add Dockerfile and docker-compose for API + worker + Postgres local self-host demo.
+6. Add YAML CI workflow for Python A1, TS, Go, schema validation, and migration lint.
+7. Add Terraform/HCL self-host skeleton for API/worker/Postgres/storage buckets.
+8. Add Rust verifier/replay command if it can provide fast tamper-proof evidence bundle verification.
+9. Add hosted API route group for canonical tenant/project/dataset/run lifecycle.
+10. Add queue lease/worker durability backed by Postgres rows.
+11. Add official API small-batch quota-gated mutating calibration once gate evidence is `go`.
+12. Add media parity probes and fixtures for audio/file/image/video at equal priority with text.
+13. Add private evidence index record for new real API response key maps.
+14. Add public redacted API field map schema update from real probes.
+15. Add A3-facing signed idempotency evidence summary in release packets.
+16. Add API key usage scopes for Go/CI/self-host workers.
+17. Add SaaS OpenAPI export examples for idempotency conflict responses.
+18. Add retry/backoff idempotency client behavior in Python/TS/Go.
+19. Add CI secret/staging guard for private refs and local recon directories.
+20. Add main-branch integration smoke comparing current PR against `origin/main` A1/A2/A3 fixture contracts.
+
+## Round25 A1 Large SaaS Polyglot Runtime and Infra Foundation - 2026-07-08
+
+Goal source:
+- User inserted a hard direction that Go, SQL/PLpgSQL, Dockerfile/YAML/Terraform/HCL, and Rust must be added quickly, with Go especially important, and still under the large-SaaS strategy bus.
+- Strategy sections used: A1-1 real multi-tenant data model, A1-4 worker/job system, A1-5 artifact/trace storage, A1-7 usage/quota, and A1-8 infrastructure/deploy.
+
+Baseline / peer changes:
+- Commands: `git status -sb`; `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `gh pr view 19 --json ...`.
+- Current branch: `codex/a1-local-sdk-runner`; PR #19 draft updated by commit `9890ce2` from Round24.
+- Peer change observed: `origin/codex/a3-audit-evidence-bundle` advanced `bf187fc..daf825a`; no peer files were staged.
+- Worktree start: only untracked `recon/` and `tools/` after Round24 commit.
+
+Environment/toolchain actions:
+- Initial probe showed `go`, `rustc`, `cargo`, `docker`, and `terraform` unavailable; Python 3.12.7, Node v24.14.0, npm 11.9.0 available.
+- Installed user-level tools with Scoop, no admin prompt:
+  - `scoop install go terraform rustup`.
+  - `go version` -> `go version go1.26.5 windows/amd64`.
+  - `terraform version` -> `Terraform v1.15.7 on windows_amd64`.
+  - `rustup default stable`; `rustc --version` -> `rustc 1.96.1`; `cargo --version` -> `cargo 1.96.1`.
+- Docker CLI/daemon remains unavailable in this environment; Docker artifacts were statically validated instead of executed.
+
+Growth points pursued:
+1. Add Go SDK/runtime module.
+2. Add Go typed DTOs for tenant/project/dataset/run.
+3. Add Go AgentInput with equal text/audio/file/image/video modalities.
+4. Add Go idempotency replay/conflict helper.
+5. Add Go HTTP client with env-only API key loading and redacted config.
+6. Add Go in-memory SaaS service tests.
+7. Add Go integration module.
+8. Add Postgres schema migration for large SaaS metadata.
+9. Add idempotency fingerprint unique constraints in SQL.
+10. Add PLpgSQL idempotency conflict helper.
+11. Add PLpgSQL usage rollup helper.
+12. Add PLpgSQL audit-chain tail helper.
+13. Add SQL static validation tests.
+14. Add Dockerfile for Python runtime.
+15. Add docker-compose self-host YAML for API/worker/Postgres/Redis/object-store placeholder.
+16. Add Terraform/HCL self-host skeleton.
+17. Add `.terraform.lock.hcl` from real `terraform init` for reproducible provider pinning.
+18. Add Rust runtime verifier/replay-plan utility.
+19. Add deploy scaffold static tests.
+20. Fix release gate bridge idempotent cache response stability discovered by full A1 gate.
+
+Subagent outputs:
+- Worker-Go: created `packages/go/ashrclone` with DTOs, modality model, idempotency, redaction, HTTP client, memory service, and Go tests; created `tests/integration/go` module.
+- Worker-Infra-SQL: created `services/api/migrations/001_a1_large_saas_foundation.sql` and `tests/integration/test_a1_large_saas_migration.py`.
+- Worker-Deploy-Rust: created `infra/docker`, `infra/terraform/self-host`, `packages/rust/ashr-runtime-verify`, `tests/integration/deploy_runtime_scaffold.test.mjs`, and `docs/a1/self_host_runtime_scaffold.md`.
+- Main integration: installed missing toolchains, ran real Go/Rust/Terraform validation, split fake secret test literals to avoid staged secret-scan false positives, and fixed `ReleaseGateBridgeResult.created_at` to be stable across cached idempotent replays.
+
+Implemented files:
+- `packages/go/ashrclone/*`: first Go SDK/runtime package with typed SaaS DTOs, five-modality `AgentInput`, idempotency fingerprinting, redaction, HTTP client, memory service, and tests.
+- `tests/integration/go/*`: Go integration test module consuming the local Go package.
+- `services/api/migrations/001_a1_large_saas_foundation.sql`: Postgres/PLpgSQL foundation for organizations, workspaces, projects, environments, datasets, runs, case results, trace events, observations, artifacts, evidence bundles, API keys, webhooks, usage ledger, quota policies, jobs, idempotency keys, and audit log.
+- `tests/integration/test_a1_large_saas_migration.py`: static migration checks for tables, scopes, functions, constraints, and indexes.
+- `infra/docker/Dockerfile.python-runtime` and `infra/docker/docker-compose.self-host.yml`: self-host runtime scaffold for API, worker, Postgres, Redis, and object-store placeholder.
+- `infra/terraform/self-host/*`: provider-neutral Terraform skeleton and generated lock file.
+- `packages/rust/ashr-runtime-verify/*`: dependency-free Rust verifier with `verify` and `replay-plan` commands.
+- `tests/integration/deploy_runtime_scaffold.test.mjs`: static deploy/Rust/Terraform/compose checks.
+- `docs/a1/self_host_runtime_scaffold.md`: operator note for static validation and local/self-host posture.
+- `services/api/release_gate_bridge.py`: fixed cached release-gate bridge replay to preserve `created_at` instead of generating a fresh timestamp on each `to_dict()`.
+
+Commands / results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `cargo test` in `packages/rust/ashr-runtime-verify` -> 3 passed.
+- `terraform fmt -check -recursive`; `terraform init -backend=false`; `terraform validate` in `infra/terraform/self-host` -> passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider` -> 3 passed.
+- `node --test tests/integration/deploy_runtime_scaffold.test.mjs` -> 5 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` initially failed one release-gate bridge idempotent cache test due `created_at` drift; fixed in `services/api/release_gate_bridge.py`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` after fix -> 275 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 275 passed.
+
+Growth-Auditor follow-up closure:
+- Auditor verdict: strong strategic lift toward large-SaaS / polyglot platform, but initially blocked commit on runtime realism and DB evidence.
+- P0 fixed before commit: compose worker previously ran `replay-queued --help`. `infra/docker/docker-compose.self-host.yml` now runs a bounded real `python -m services.api.cli replay-queued` command with state input/output, mock agent, tenant/project/dataset IDs, summary/fixture/run outputs, max-runs, queue-workers, max-workers, and timeout. Static deploy test now asserts worker args exist and `--help` is absent.
+- P1 fixed before commit: Postgres composite FKs with `ON DELETE SET NULL` now use column-specific nulling for nullable child columns only, avoiding attempts to null `organization_id` / `project_id`.
+- P1 fixed before commit: child FKs from trace events, observations, artifacts, and evidence bundles now reference `(organization_id, project_id, id)` scoped keys instead of global IDs. Static migration tests reject global child references and require scoped FK names.
+- P1 evidence upgrade before commit: installed user-level PostgreSQL with Scoop, started it on local port `55432`, applied the migration to a disposable DB, executed idempotency/usage/audit helper smoke, reapplied the migration, added optional live pytest `tests/integration/test_a1_large_saas_migration_live.py`, ran it with `A1_POSTGRES_TEST_DSN` and `A1_PSQL_BIN`, then stopped Postgres.
+- P1 fixed before commit after live/static recheck: `jobs_environment_scope_fk` and audit/idempotency references were also converted to column-specific `ON DELETE SET NULL (...)` semantics, and static tests now ensure every `ON DELETE SET NULL` includes a target column list.
+- Follow-up validation:
+  - `python -B -m services.api.cli replay-queued --help` used to confirm real worker arguments.
+  - `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` without DSN -> 4 passed, 1 skipped.
+  - `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` with local Postgres DSN -> 1 passed.
+  - Local Postgres stopped with `pg_ctl ... stop`.
+
+Real API / private evidence:
+- No new real Ashr API call in this round; this round focused on requested language/runtime/infra expansion and local toolchain setup.
+- No desktop key files read. No secret values written. Private refs remain unstaged.
+
+Known gaps / next top 20:
+1. Add live Postgres migration smoke using the compose database when Docker is available.
+2. Add Docker daemon/install path or alternative local Postgres service for DB execution tests.
+3. Add Go hosted API methods for health/list-runs/list-agents/list-requests using official API field maps.
+4. Add Go CLI quickstart and fixture generation.
+5. Add Go retry/backoff and idempotency-key helpers matching Python/TS.
+6. Add SQL migrations for webhook deliveries and artifact object pointers beyond the foundation schema.
+7. Add migration down/rollback strategy.
+8. Add Terraform provider adapters for one real target after choosing cloud/self-host substrate.
+9. Add Kubernetes YAML after Docker compose stabilizes.
+10. Add Rust verifier JSON parser or schema validation once dependencies are allowed/pinned.
+11. Add Rust release evidence bundle hash verification.
+12. Add Go/Python/TS/Rust cross-runtime fingerprint golden fixtures.
+13. Add CI workflow YAML running Python, TS, Go, SQL static, Terraform validate, and Rust tests.
+14. Add secret/staging guard for private refs, recon, tools, and generated local Terraform directories.
+15. Add official API read-only probes through Go client.
+16. Add quota-gated small-batch mutating official API calibration when gate says `go`.
+17. Add object storage signed URL API skeleton.
+18. Add worker job lease persistence backed by Postgres schema.
+19. Add tenant/org/user auth model bindings into Python/TS services.
+20. Add main-branch integration smoke before next PR update.
+
+## A1 round 2026-07-08 - SaaS worker queue + TS/Go parity surge
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 20` -> PR #19 open draft for this branch; A3 PR #18 open draft; prior A1 PRs merged.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` failed once with GitHub 443 connection timeout; `gh` repo/PR calls succeeded. No remote merge performed this round.
+- Initial tracked tree was clean at HEAD `809a899`; untracked `recon/` and `tools/` observed and intentionally left unstaged.
+
+20 growth points considered this round:
+1. Control-plane worker job queue with lease/retry/dead-letter.
+2. CloudApi run-level retry/dead-letter.
+3. TS SaaS worker job local SDK parity.
+4. TS SaaS Python-style option aliases.
+5. TS five-modality alias normalization.
+6. Go hosted HTTP parity methods.
+7. Go typed/redacted API errors.
+8. Go retry/backoff/idempotency safety.
+9. Go media-safe envelope validation.
+10. Worker data model schema regeneration for retry/dead-letter fields.
+11. CLI state-file worker job lifecycle.
+12. Queue audit log/usage ledger events.
+13. Public-safe worker payload hashing without raw payload storage.
+14. Dead-letter evidence doc.
+15. SQL/deploy static validation re-run.
+16. Rust verifier validation re-run.
+17. Terraform validation re-run.
+18. A1 full pytest gate.
+19. TS full package gate.
+20. Go package + integration gates.
+
+Implemented files:
+- `services/api/control_plane.py`: added `worker_jobs` store, scopes, quota operations, enqueue/lease/heartbeat/complete/fail/list methods, lease expiry reclaim, retry/dead-letter handling, audit events, usage events, idempotent enqueue, snapshot/restore support.
+- `services/api/control_plane_cli.py`: added `job-enqueue`, `job-lease`, `job-heartbeat`, `job-complete`, `job-fail`, and `job-list` commands.
+- `tests/a1/test_saas_control_plane.py`: added service-level worker job lease/retry/dead-letter and expired lease reclaim coverage.
+- `tests/a1/test_saas_control_plane_cli.py`: added persisted CLI worker job lifecycle and public-safe state coverage.
+- `services/api/runtime.py`, `services/api/queue_worker.py`, `services/api/data_model.py`, `services/api/__init__.py`, `tests/a1/test_cloud_api.py`, and `docs/a1/schemas/worker_data_model.*`: Worker-Runtime added run-level retry/dead-letter lifecycle, queue replay retry handling, schema regeneration, and tests.
+- `docs/a1/docs/evidence/worker_runtime_queue_retry_dead_letter_2026_07_08.md`: public evidence for runtime retry/dead-letter behavior.
+- `packages/ts/ashr-clone/src/index.ts`, `packages/ts/ashr-clone/src/saas.ts`, `packages/ts/ashr-clone/test/runtime.test.mjs`, `packages/ts/ashr-clone/test/saas.test.mjs`: TS media alias parity, snake_case SaaS option aliases, quota snapshot, worker job local SDK parity, and tests.
+- `packages/go/ashrclone/api_error.go`, `hosted.go`, `media_safe.go`, plus updates to `client.go`, `idempotency.go`, `types.go`, tests, and `tests/integration/go/ashrclone_integration_test.go`: Go hosted API parity, typed/redacted errors, retry/backoff, and media-safe envelope validation.
+
+Subagent outputs:
+- Growth-Auditor: no edits; flagged money-grade gaps: persistent backend, HTTP/OpenAPI server, tenant isolation, API key lifecycle, distributed quota, object storage, webhook worker, immutable audit. Highest ROI next: FastAPI/OpenAPI shell, Postgres repository adapter, storage adapter, Redis quota/idempotency, API-key lifecycle, OpenAPI/SDK parity tests, commercial readiness gate, webhook worker.
+- Worker-TS: landed TS aliases/media/quota parity and verified `npm test` -> 277 passed before main added worker-job TS parity.
+- Worker-Runtime: landed CloudApi retry/dead-letter runtime and schema/test/evidence; verified focused Python tests -> 51 passed for selected suite.
+- Worker-Go/Polyglot: landed hosted Go methods, typed errors, retry/backoff, media safety; verified Go package and Go integration tests.
+
+Commands / results:
+- `python -B -m pytest tests/a1/test_saas_control_plane.py tests/a1/test_saas_control_plane_cli.py -q -p no:cacheprovider` -> initially failed 3 worker-job lease visibility tests; fixed `available_at <= now` semantics; then 20 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 280 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> initially 277 passed; after main TS worker-job parity, 278 passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `cargo test` in repo root -> failed because no root `Cargo.toml`; rerun in `packages/rust/ashr-runtime-verify` -> 3 passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> 4 passed, 1 skipped.
+- `node --test tests/integration/deploy_runtime_scaffold.test.mjs` -> 5 passed.
+- `terraform fmt -check -recursive`; `terraform init -backend=false`; `terraform validate` in `infra/terraform/self-host` -> passed.
+
+Real API / private evidence:
+- No desktop key files read. No raw key values logged or committed.
+- No new official Ashr API call in this code-heavy round; Growth-Auditor still requires next round to prioritize API/OpenAPI calibration using env-only key and private refs.
+- `recon/`, `tools/`, `.secrets/`, and `docs/evidence/private_refs/**` intentionally left unstaged.
+
+Peer changes / impact:
+- A3 PR #18 is open draft and updated after this branch; no remote fetch update succeeded in this network window, so peer code was not merged locally.
+- Current main integration risk remains: before final PR merge, fetch must be retried and origin/main compared.
+
+Known gaps / next top 20:
+1. Retry `git fetch` and compare origin/main once GitHub network is stable.
+2. Add real HTTP/FastAPI or ASGI wrapper for A1 SaaS routes with OpenAPI.
+3. Wire Postgres repository adapter behind control plane for tenants/projects/runs/API keys/audit/usage/jobs.
+4. Add Redis/distributed quota/idempotency adapter.
+5. Add object storage adapter and signed upload intent/complete/verify flow.
+6. Add webhook delivery worker with retry/dead-letter/HMAC metadata.
+7. Add TS HTTP/router/CLI parity for worker jobs, beyond local SDK parity.
+8. Add Go worker job hosted methods once A1 HTTP route exists.
+9. Add official API read-only calibration batch using env-only key and private evidence.
+10. Add official paid small-batch calibration plan with quota/error/cost recording.
+11. Add OpenAPI-generated Python/TS/Go parity contract snapshots.
+12. Add migration live test through compose Postgres when Docker is available.
+13. Add CI YAML for Python/TS/Go/Rust/Terraform/SQL gates.
+14. Add secret scan gate for staged diffs.
+15. Add tenant isolation concurrency tests for worker jobs and trace ingestion.
+16. Add API-key rotation/expiration/last-used metadata.
+17. Add billing-period usage export and reconciliation fixtures.
+18. Add enterprise audit export with signed evidence bundle index.
+19. Add Rust evidence bundle verification command.
+20. Add A1 commercial readiness report consumed by A3.

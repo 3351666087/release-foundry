@@ -164,9 +164,9 @@ TABLES: tuple[Table, ...] = (
     Table(
         "runs",
         "Worker/evaluation execution envelope with lifecycle, agent, dataset, and environment references.",
-        (TENANT, WORKSPACE, PROJECT, ENVIRONMENT, DATASET, RUN, c("agent_ref", "text"), c("status", "text", enum=("queued", "running", "completed", "failed", "cancelled", "expired"), default="queued"), c("runner_id", "text", required=False), c("started_at", "timestamp", required=False), c("finished_at", "timestamp", required=False), c("summary", "json", required=False, default="{}"), c("metadata", "json", required=False, default="{}"), *COMMON_TIMESTAMPS),
+        (TENANT, WORKSPACE, PROJECT, ENVIRONMENT, DATASET, RUN, c("agent_ref", "text"), c("status", "text", enum=("queued", "running", "completed", "failed", "cancelled", "expired", "dead_lettered"), default="queued"), c("runner_id", "text", required=False), c("attempt", "integer", default="0"), c("max_attempts", "integer", default="3"), c("lease_owner_id", "text", required=False), c("lease_expires_at", "timestamp", required=False), c("lease_heartbeat_at", "timestamp", required=False), c("lease_reclaim_count", "integer", default="0"), c("started_at", "timestamp", required=False), c("finished_at", "timestamp", required=False), c("last_error", "json", required=False), c("dead_letter_reason", "text", required=False), c("summary", "json", required=False, default="{}"), c("metadata", "json", required=False, default="{}"), *COMMON_TIMESTAMPS),
         ("tenant_id", "run_id"),
-        (ix("runs_project_status_idx", ("tenant_id", "project_id", "status", "created_at")), ix("runs_dataset_idx", ("tenant_id", "dataset_id", "created_at")), ix("runs_environment_idx", ("tenant_id", "environment_id", "created_at"))),
+        (ix("runs_project_status_idx", ("tenant_id", "project_id", "status", "created_at")), ix("runs_dataset_idx", ("tenant_id", "dataset_id", "created_at")), ix("runs_environment_idx", ("tenant_id", "environment_id", "created_at")), ix("runs_lease_expiry_idx", ("tenant_id", "status", "lease_expires_at"), where="lease_expires_at IS NOT NULL")),
     ),
     Table(
         "case_results",
