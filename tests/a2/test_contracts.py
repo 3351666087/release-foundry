@@ -29,6 +29,7 @@ from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLAS
 from services.judge.sdk_parity import build_sdk_parity_report
 from services.judge.semantic_collection import build_semantic_judge_collection_packet
 from services.judge.semantic_harness import build_semantic_harness_report
+from services.judge.unblock_checklist import build_release_unblock_checklist
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -326,6 +327,7 @@ class A2ContractTests(unittest.TestCase):
         regression_promotion_schema = json.loads((schema_dir / "regression_promotion_queue.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         release_gate_schema = json.loads((schema_dir / "release_gate.schema.json").read_text(encoding="utf-8"))
+        unblock_checklist_schema = json.loads((schema_dir / "release_unblock_checklist.schema.json").read_text(encoding="utf-8"))
         scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
@@ -345,6 +347,7 @@ class A2ContractTests(unittest.TestCase):
         regression_promotion = json.loads((ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        unblock_checklist = json.loads((ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
 
@@ -388,6 +391,10 @@ class A2ContractTests(unittest.TestCase):
             release_gate["schema_version"],
         )
         self.assertEqual(
+            unblock_checklist_schema["properties"]["schema_version"]["const"],
+            unblock_checklist["schema_version"],
+        )
+        self.assertEqual(
             scenario_selection_schema["properties"]["schema_version"]["const"],
             scenario_selection["schema_version"],
         )
@@ -418,6 +425,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(regression_promotion_schema["required"]), set(regression_promotion))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
+        self.assertLessEqual(set(unblock_checklist_schema["required"]), set(unblock_checklist))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
@@ -580,6 +588,14 @@ class A2ContractTests(unittest.TestCase):
         for blocker in release_gate["blockers"]:
             with self.subTest(release_gate_blocker=blocker["type"]):
                 self.assertLessEqual(release_blocker_required, set(blocker))
+
+        unblock_gate_required = set(unblock_checklist_schema["$defs"]["gate_item"]["required"])
+        unblock_action_required = set(unblock_checklist_schema["$defs"]["action_item"]["required"])
+        for gate_item in unblock_checklist["gate_items"]:
+            with self.subTest(unblock_gate=gate_item["gate"]):
+                self.assertLessEqual(unblock_gate_required, set(gate_item))
+                for action in gate_item["required_actions"]:
+                    self.assertLessEqual(unblock_action_required, set(action))
 
         selected_scenario_required = set(scenario_selection_schema["$defs"]["selected_scenario"]["required"])
         for selected_scenario in scenario_selection["selected_scenarios"]:
@@ -918,6 +934,50 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("audited_semantic_judge", item["required_evidence_sources"])
         self.assertNotIn("Bearer ", report_text)
         self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
+
+    def test_release_unblock_checklist_tracks_c3_c4_c5_owner_actions(self):
+        release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
+        evidence_readiness = json.loads(
+            (ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8")
+        )
+        regression_replay = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8")
+        )
+        promotion_queue = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8")
+        )
+        report = build_release_unblock_checklist(
+            release_gate,
+            evidence_readiness,
+            regression_replay,
+            promotion_queue,
+        )
+        expected_report = json.loads(
+            (ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8")
+        )
+        report_text = json.dumps(report)
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.release_unblock_checklist.v1")
+        self.assertEqual(report["overall_status"], "blocked")
+        self.assertEqual(report["blocked_gate_count"], 3)
+        self.assertTrue(report["metadata"]["public_safe"])
+        self.assertTrue(report["metadata"]["does_not_execute_live_calls"])
+        gates = {item["gate"]: item for item in report["gate_items"]}
+        self.assertEqual(set(gates), {"C3", "C4", "C5"})
+        self.assertEqual(gates["C3"]["owner_role"], "A2 evidence reviewer")
+        self.assertEqual(gates["C3"]["required_actions"][0]["required_evidence_source"], "reviewed_ashr_grading")
+        self.assertEqual(gates["C4"]["owner_role"], "A2 semantic judge reviewer")
+        self.assertEqual(gates["C4"]["required_actions"][0]["required_evidence_source"], "audited_semantic_judge")
+        self.assertEqual(gates["C5"]["owner_role"], "A2 case-book owner")
+        self.assertEqual(gates["C5"]["required_actions"][0]["required_evidence_source"], "reviewed_regression_replay")
+        self.assertEqual(
+            report["a3_consumption_summary"]["evidence_refs"],
+            ["fixtures/a2/results/a2_release_unblock_checklist.json"],
+        )
+        self.assertNotIn("Bearer ", report_text)
+        self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
+        self.assertNotRegex(report_text, re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"))
 
     def test_c5_maturity_requires_reviewed_external_evidence(self):
         def matrix_with_three_disagreements(*, reviewed: bool) -> dict:

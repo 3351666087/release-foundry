@@ -29,6 +29,7 @@ from services.judge.scenario_selection import build_scenario_selection_report  #
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
+from services.judge.unblock_checklist import build_release_unblock_checklist  # noqa: E402
 from services.judge.versioning import build_judge_version_registry  # noqa: E402
 
 
@@ -53,6 +54,7 @@ DEFAULT_INCIDENT_REGRESSION_CANDIDATES = DEFAULT_RESULT_DIR / "a2_incident_regre
 DEFAULT_REGRESSION_PROMOTION_QUEUE = DEFAULT_RESULT_DIR / "a2_regression_promotion_queue.json"
 DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 DEFAULT_RELEASE_GATE = DEFAULT_RESULT_DIR / "a2_release_gate_report.json"
+DEFAULT_RELEASE_UNBLOCK_CHECKLIST = DEFAULT_RESULT_DIR / "a2_release_unblock_checklist.json"
 DEFAULT_A1_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
 DEFAULT_SCENARIO_SELECTION_PROFILE = Path("fixtures/a2/config/a2_saas_project_selection_profile.json")
 DEFAULT_SCENARIO_SELECTION = DEFAULT_RESULT_DIR / "a2_scenario_selection_report.json"
@@ -89,6 +91,7 @@ def main() -> int:
     parser.add_argument("--regression-promotion-queue", default=DEFAULT_REGRESSION_PROMOTION_QUEUE.as_posix())
     parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     parser.add_argument("--release-gate", default=DEFAULT_RELEASE_GATE.as_posix())
+    parser.add_argument("--release-unblock-checklist", default=DEFAULT_RELEASE_UNBLOCK_CHECKLIST.as_posix())
     parser.add_argument("--a1-evidence-index", default=DEFAULT_A1_EVIDENCE_INDEX.as_posix())
     parser.add_argument("--scenario-selection-profile", default=DEFAULT_SCENARIO_SELECTION_PROFILE.as_posix())
     parser.add_argument("--scenario-selection", default=DEFAULT_SCENARIO_SELECTION.as_posix())
@@ -124,6 +127,7 @@ def main() -> int:
         regression_promotion_queue_path=Path(args.regression_promotion_queue),
         evidence_readiness_path=Path(args.evidence_readiness),
         release_gate_path=Path(args.release_gate),
+        release_unblock_checklist_path=Path(args.release_unblock_checklist),
         a1_evidence_index_path=Path(args.a1_evidence_index),
         scenario_selection_profile_path=Path(args.scenario_selection_profile),
         scenario_selection_path=Path(args.scenario_selection),
@@ -164,6 +168,7 @@ def generate_outputs(
     regression_promotion_queue_path: Path,
     evidence_readiness_path: Path,
     release_gate_path: Path,
+    release_unblock_checklist_path: Path,
     a1_evidence_index_path: Path,
     scenario_selection_profile_path: Path,
     scenario_selection_path: Path,
@@ -275,6 +280,12 @@ def generate_outputs(
         _load_optional_object(a1_evidence_index_path),
     )
     outputs[release_gate_path] = release_gate
+    outputs[release_unblock_checklist_path] = build_release_unblock_checklist(
+        release_gate,
+        evidence_readiness,
+        regression_replay,
+        outputs[regression_promotion_queue_path],
+    )
     scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
     result_persistence_manifest = build_result_persistence_manifest(
         outputs[grade_report_path],

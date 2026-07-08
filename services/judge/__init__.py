@@ -17,6 +17,7 @@ from .saas_control_plane import build_saas_control_plane_report
 from .scenario_selection import build_project_scenario_selection, build_scenario_selection_report
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
+from .unblock_checklist import build_release_unblock_checklist
 from .service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
     handle_internal_request,
@@ -61,6 +62,7 @@ __all__ = [
     "build_incident_regression_candidate_report",
     "build_judge_version_registry",
     "build_project_scenario_selection",
+    "build_release_unblock_checklist",
     "build_regression_replay_report",
     "build_result_record",
     "build_result_persistence_manifest",
