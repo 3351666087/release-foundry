@@ -1,5 +1,56 @@
 # A3 Worklog
 
+## 2026-07-08 - GitHub Publish Evidence Audit Bundle Sealing
+
+### Goal
+
+Preserve the group lead's latest `main` conflict-resolution work, then close the next A3 enterprise audit gap: GitHub Check, PR-comment, and required-check-plan evidence can now be sealed into the generated artifact manifest and audit bundle instead of living as loose dry-run receipts.
+
+### Work completed
+
+- Started from the refreshed `origin/main` baseline after the group lead resolved merge conflicts.
+- Added optional Gate CLI inputs:
+  - `--github-check-publish-receipt`
+  - `--github-pr-comment-publish-receipt`
+  - `--github-required-check-plan`
+- The Gate CLI now reads these files as external GitHub publish evidence.
+  - It does not rewrite the receipt files.
+  - It records workspace-relative paths only.
+  - It records SHA-256 and byte size.
+  - It tags them with `origin: external_github_publish_evidence`.
+- Generated artifact manifests can now include the three GitHub publish evidence artifacts alongside JSON report, Markdown report, GitHub check payload, and PR comment payload.
+- Audit bundle indexes can now include and verify those GitHub publish evidence artifacts in the same custody chain.
+- Refreshed committed Gate CLI and audit-bundle fixtures after `main` artifact changes left older hashes stale.
+
+### A1/A2 compatibility
+
+- A1 run/case/trace/tool-call evidence is still consumed through the existing `runs` fixture/input path.
+- A2 grade/pass-fail/failure/coverage evidence is still consumed through the existing `grades`, `coverage`, and `thresholds` paths.
+- No A1 runner logic or A2 judge semantics were changed.
+- GitHub publish evidence stays downstream of A3 release/report delivery; it is not mixed into A1/A2 source inputs.
+
+### Verification
+
+```text
+node --check services/report/a3_gate_cli.mjs
+node --test tests/a3/a3_gate_cli.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr APIs.
+- Did not commit real GitHub tokens, API keys, cookies, emails, account data, or signed URLs.
+- Did not configure live branch protection; required-check enforcement remains a plan artifact.
+
 ## 2026-07-07 - Artifact Registry Evidence Catalog
 
 ### Goal

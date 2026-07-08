@@ -568,6 +568,95 @@ test("A3 gate CLI writes audit bundle index with generated manifest and governan
   }
 });
 
+test("A3 gate CLI seals GitHub publish evidence into generated manifest and audit bundle", async () => {
+  const tempDir = await mkdtemp(join(fixturePath("../../fixtures/a3/p3/"), "tmp-github-evidence-"));
+  const paths = {
+    json: join(tempDir, "gate.json"),
+    markdown: join(tempDir, "gate.md"),
+    check: join(tempDir, "check.json"),
+    comment: join(tempDir, "pr-comment.md"),
+    manifest: join(tempDir, "generated-artifacts.json"),
+    bundle: join(tempDir, "audit-bundle-index.json")
+  };
+  const evidencePaths = {
+    github_check_publish_receipt: fixturePath("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json"),
+    github_pr_comment_publish_receipt: fixturePath("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json"),
+    github_required_check_plan: fixturePath("../../fixtures/a3/p3/a3_github_required_check_plan.redacted.json")
+  };
+  try {
+    const command = fixturePath("../../services/report/a3_gate_cli.mjs");
+    const completed = await execFileAsync(process.execPath, [
+      command,
+      "--runs", "fixtures/a3/mock_run_results.json",
+      "--grades", "fixtures/a3/mock_grade_results.json",
+      "--coverage", "fixtures/a2/results/a2_g3_coverage_report.json",
+      "--thresholds", "fixtures/a3/release_gate_thresholds.json",
+      "--release-version", "local-mock-commercial-gate",
+      "--environment", "staging",
+      "--source", "cli-github-publish-evidence-test",
+      "--head-sha", "local-demo-head-sha",
+      "--output-json", paths.json,
+      "--output-md", paths.markdown,
+      "--output-check", paths.check,
+      "--output-pr-comment", paths.comment,
+      "--output-manifest", paths.manifest,
+      "--output-bundle", paths.bundle,
+      "--github-check-publish-receipt", "fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json",
+      "--github-pr-comment-publish-receipt", "fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json",
+      "--github-required-check-plan", "fixtures/a3/p3/a3_github_required_check_plan.redacted.json",
+      "--no-fail",
+      "--json"
+    ], {
+      cwd: fixturePath("../../"),
+      maxBuffer: 1024 * 1024
+    });
+
+    assert.equal(completed.stderr, "");
+    const manifest = JSON.parse(await readFile(paths.manifest, "utf8"));
+    const bundle = JSON.parse(await readFile(paths.bundle, "utf8"));
+    const manifestById = new Map(manifest.generated_artifacts.map((artifact) => [artifact.id, artifact]));
+    const bundleById = new Map(bundle.bundle_artifacts.map((artifact) => [artifact.id, artifact]));
+
+    assert.equal(manifest.generated_artifacts.length, 7);
+    assert.equal(bundle.completeness.status, "complete");
+    assert.match(bundle.bundle_root_hash, /^[a-f0-9]{64}$/);
+    assert.deepEqual([
+      bundleById.has("github_check_publish_receipt"),
+      bundleById.has("github_pr_comment_publish_receipt"),
+      bundleById.has("github_required_check_plan")
+    ], [true, true, true]);
+
+    for (const [id, evidencePath] of Object.entries(evidencePaths)) {
+      const bytes = await readFile(evidencePath);
+      const manifestArtifact = manifestById.get(id);
+      const bundleArtifact = bundleById.get(id);
+      assert.ok(manifestArtifact, `missing manifest artifact ${id}`);
+      assert.ok(bundleArtifact, `missing bundle artifact ${id}`);
+      assert.equal(manifestArtifact.origin, "external_github_publish_evidence");
+      assert.equal(bundleArtifact.origin, "external_github_publish_evidence");
+      assert.equal(bundleArtifact.created_by, "ashr gate external GitHub publish evidence reader");
+      assert.equal(manifestArtifact.sha256, sha256(bytes));
+      assert.equal(bundleArtifact.sha256, sha256(bytes));
+      assert.equal(manifestArtifact.byte_size, bytes.length);
+      assert.equal(bundleArtifact.byte_size, bytes.length);
+      assert.equal(manifestArtifact.path.startsWith("fixtures/a3/p3/"), true);
+      assert.equal(bundleArtifact.path.startsWith("fixtures/a3/p3/"), true);
+      assert.equal(bundleArtifact.path.includes("Users/"), false);
+      assert.equal(bundleArtifact.path.match(/^[A-Za-z]:\//), null);
+    }
+
+    const verification = await verifyAuditBundleIndex(paths.bundle, {
+      workspaceRoot: fixturePath("../../"),
+      generatedAt: "2026-07-07T00:00:00.000Z"
+    });
+    assert.equal(verification.status, "passed");
+    assert.equal(verification.root_hash.passed, true);
+    assert.equal(verification.artifacts.failed, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("A3 audit bundle verifier passes committed bundle and renders markdown evidence", async () => {
   const verification = await verifyAuditBundleIndex(
     fixturePath("../../fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json"),

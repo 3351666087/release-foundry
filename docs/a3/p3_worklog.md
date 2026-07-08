@@ -1,5 +1,28 @@
 # P3 Worklog
 
+## 2026-07-08 - GitHub publish evidence audit bundle sealing
+
+- Synced remote state and confirmed the group lead had refreshed `origin/main` after merge-conflict resolution.
+- Created the new work from the latest `origin/main` baseline instead of forcing the older A3 branch over main.
+- Added optional Gate CLI evidence inputs for:
+  - GitHub Check publish receipt.
+  - GitHub PR comment publish receipt.
+  - GitHub required-check plan.
+- Kept these artifacts downstream of A3 delivery evidence:
+  - They are not A1 run inputs.
+  - They are not A2 judge inputs.
+  - They are external GitHub publish evidence read by A3 for audit/report custody.
+- Updated the generated artifact manifest and audit bundle flow so the three GitHub evidence files can be hash-sealed and verified.
+- Refreshed stale committed Gate CLI/audit-bundle fixtures after main's conflict-resolution artifact refresh changed underlying file hashes.
+- Verification:
+  - `node --check services/report/a3_gate_cli.mjs`
+  - `node --test tests/a3/a3_gate_cli.test.mjs`
+  - Result: 21 pass, 0 fail.
+- Safety:
+  - Did not read or print `.env.local`.
+  - Did not call live Ashr APIs.
+  - Did not commit secrets, tokens, cookies, account data, emails, or live signed URLs.
+
 ## 2026-07-04
 
 ### Safety and Git state

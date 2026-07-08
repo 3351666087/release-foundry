@@ -166,7 +166,8 @@ export function buildGeneratedArtifactManifest(payload = {}, generatedArtifacts 
       content_type: artifact.content_type,
       sha256: artifact.sha256,
       byte_size: artifact.byte_size,
-      required: artifact.required !== false
+      required: artifact.required !== false,
+      ...(artifact.origin ? { origin: artifact.origin } : {})
     })),
     safety: {
       dry_run_compatible: true,
@@ -190,13 +191,21 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
     bundle_role: ["waiver", "approval"].includes(artifact.id) ? "governance_record" : "source_input",
     created_by: "ashr gate input manifest"
   }, workspaceRoot));
-  const outputArtifacts = arrayOf(generatedArtifacts).map((artifact) => normalizeBundleArtifact({
-    ...artifact,
-    bundle_role: artifact.id === "generated_artifact_manifest" ? "custody_record" : "generated_output",
-    created_by: artifact.id === "generated_artifact_manifest"
-      ? "ashr gate generated artifact manifest"
-      : "ashr gate output writer"
-  }, workspaceRoot));
+  const outputArtifacts = arrayOf(generatedArtifacts).map((artifact) => {
+    const isManifest = artifact.id === "generated_artifact_manifest";
+    const isExternalGithubEvidence = artifact.origin === "external_github_publish_evidence";
+    return normalizeBundleArtifact({
+      ...artifact,
+      bundle_role: artifact.bundle_role || (isManifest ? "custody_record" : "generated_output"),
+      created_by: artifact.created_by || (
+        isManifest
+          ? "ashr gate generated artifact manifest"
+          : isExternalGithubEvidence
+            ? "ashr gate external GitHub publish evidence reader"
+            : "ashr gate output writer"
+      )
+    }, workspaceRoot);
+  });
   const bundleArtifacts = dedupeBundleArtifacts([...sourceArtifacts, ...outputArtifacts])
     .filter((artifact) => artifact.id !== "audit_bundle_index")
     .sort(compareBundleArtifacts);
@@ -746,6 +755,15 @@ function parseArgs(argv = []) {
     } else if (arg === "--output-bundle") {
       options.outputBundle = next;
       index += 1;
+    } else if (arg === "--github-check-publish-receipt") {
+      options.githubCheckPublishReceipt = next;
+      index += 1;
+    } else if (arg === "--github-pr-comment-publish-receipt") {
+      options.githubPrCommentPublishReceipt = next;
+      index += 1;
+    } else if (arg === "--github-required-check-plan") {
+      options.githubRequiredCheckPlan = next;
+      index += 1;
     } else if (arg === "--verify-index") {
       options.verifyIndex = next;
       index += 1;
@@ -786,7 +804,7 @@ function parseArgs(argv = []) {
 }
 
 function helpText() {
-  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
+  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
 }
 
 async function loadJsonRequired(path, label) {
@@ -877,9 +895,11 @@ async function writeRequestedOutputs(options = {}, payload = {}, jsonText = "", 
     outputArtifact("pr_comment_markdown", options.outputPrComment, payload.pr_comment_markdown || "", "text/markdown")
   ].filter(Boolean);
   const generatedArtifacts = await Promise.all(outputs.map((artifact) => writeOutputArtifact(artifact, workspaceRoot)));
+  const externalEvidenceArtifacts = await readExternalEvidenceArtifacts(options, workspaceRoot);
+  const manifestInputs = [...generatedArtifacts, ...externalEvidenceArtifacts];
   let manifestArtifact = null;
   if (options.outputManifest) {
-    const manifest = buildGeneratedArtifactManifest(payload, generatedArtifacts, {
+    const manifest = buildGeneratedArtifactManifest(payload, manifestInputs, {
       outputManifest: options.outputManifest,
       workspaceRoot
     });
@@ -897,7 +917,7 @@ async function writeRequestedOutputs(options = {}, payload = {}, jsonText = "", 
   if (options.outputBundle) {
     const bundleIndex = buildAuditBundleIndex(
       payload,
-      manifestArtifact ? [...generatedArtifacts, manifestArtifact] : generatedArtifacts,
+      manifestArtifact ? [...manifestInputs, manifestArtifact] : manifestInputs,
       {
         outputBundle: options.outputBundle,
         workspaceRoot,
@@ -929,6 +949,54 @@ function outputArtifact(id, path, contents, contentType, required = true) {
     contents,
     content_type: contentType,
     required
+  };
+}
+
+async function readExternalEvidenceArtifacts(options = {}, workspaceRoot) {
+  const candidates = [
+    externalEvidenceArtifactInput(
+      "github_check_publish_receipt",
+      options.githubCheckPublishReceipt,
+      workspaceRoot
+    ),
+    externalEvidenceArtifactInput(
+      "github_pr_comment_publish_receipt",
+      options.githubPrCommentPublishReceipt,
+      workspaceRoot
+    ),
+    externalEvidenceArtifactInput(
+      "github_required_check_plan",
+      options.githubRequiredCheckPlan,
+      workspaceRoot
+    )
+  ].filter(Boolean);
+  return Promise.all(candidates.map(readExternalEvidenceArtifact));
+}
+
+function externalEvidenceArtifactInput(id, path, workspaceRoot) {
+  if (!path) {
+    return null;
+  }
+  const resolvedPath = resolve(path);
+  return {
+    id,
+    path: portableArtifactPath(resolvedPath, workspaceRoot),
+    resolved_path: resolvedPath,
+    content_type: contentTypeForPath(path),
+    required: true,
+    origin: "external_github_publish_evidence"
+  };
+}
+
+async function readExternalEvidenceArtifact(artifact) {
+  return {
+    id: artifact.id,
+    path: artifact.path,
+    content_type: artifact.content_type,
+    required: artifact.required,
+    origin: artifact.origin,
+    sha256: await sha256File(artifact.resolved_path),
+    byte_size: await byteSizeFile(artifact.resolved_path)
   };
 }
 
@@ -984,6 +1052,7 @@ function normalizeBundleArtifact(artifact = {}, workspaceRoot) {
     sha256: artifact.sha256 || null,
     byte_size: Number.isFinite(Number(artifact.byte_size)) ? Number(artifact.byte_size) : null,
     created_by: artifact.created_by || "ashr gate",
+    ...(artifact.origin ? { origin: artifact.origin } : {}),
     redaction_status: "redacted_or_safe_for_audit"
   };
 }
@@ -1017,9 +1086,11 @@ function compareBundleArtifacts(left, right) {
 }
 
 function buildChainOfCustodyEvents({ payload = {}, bundleId, bundleArtifacts = [], generatedAt, outputBundle, workspaceRoot }) {
-  const generatedArtifactIds = bundleArtifacts
-    .filter((artifact) => ["generated_output", "custody_record"].includes(artifact.bundle_role))
-    .map((artifact) => artifact.id);
+  const generatedArtifacts = bundleArtifacts
+    .filter((artifact) => ["generated_output", "custody_record"].includes(artifact.bundle_role));
+  const generatedArtifactIds = generatedArtifacts.map((artifact) => artifact.id);
+  const hasExternalGithubEvidence = generatedArtifacts
+    .some((artifact) => artifact.origin === "external_github_publish_evidence");
   const events = [
     custodyEvent("gate_built", "completed", ["runs", "grades"], "Release gate payload generated from source inputs."),
     custodyEvent("input_artifacts_hashed", "completed", bundleArtifacts
@@ -1027,7 +1098,14 @@ function buildChainOfCustodyEvents({ payload = {}, bundleId, bundleArtifacts = [
       .map((artifact) => artifact.id), "Source inputs hashed for audit manifest.")
   ];
   if (generatedArtifactIds.length) {
-    events.push(custodyEvent("generated_artifacts_hashed", "completed", generatedArtifactIds, "Generated report/check/comment artifacts hashed."));
+    events.push(custodyEvent(
+      "generated_artifacts_hashed",
+      "completed",
+      generatedArtifactIds,
+      hasExternalGithubEvidence
+        ? "Generated report/check/comment and GitHub publish evidence artifacts hashed."
+        : "Generated report/check/comment artifacts hashed."
+    ));
   }
   if (payload.waiver_review?.available) {
     events.push(custodyEvent("waiver_reviewed", payload.waiver_review.accepted ? "accepted" : "rejected", ["waiver"], payload.waiver_review.reason || "Waiver review completed."));

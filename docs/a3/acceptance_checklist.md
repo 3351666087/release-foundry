@@ -429,3 +429,8 @@
 - [x] Add dashboard Record Request / Record Guardrail controls without enabling real Ashr cloud mutations.
 - [x] Include SaaS Admin action request summary in JSON/Markdown/print-ready exports.
 - [x] Confirm SaaS Admin action requests preserve A1/A2 compatibility and do not store secrets, emails, tokens, cookies, or real API keys.
+- [x] Add Gate CLI inputs for GitHub Check publish receipt, PR-comment publish receipt, and required-check plan.
+- [x] Seal GitHub publish evidence into generated artifact manifests and audit bundle indexes with SHA-256 and byte-size evidence.
+- [x] Keep GitHub publish evidence downstream of A3 delivery; do not mix it into A1 run inputs or A2 judge inputs.
+- [x] Refresh stale committed Gate CLI/audit-bundle fixtures after latest `main` conflict-resolution artifact changes.
+- [x] Verify A3 Gate CLI after GitHub publish evidence sealing: 21 pass, 0 fail.
