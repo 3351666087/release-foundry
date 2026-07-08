@@ -102,7 +102,7 @@
           "public_safe_response": true
         },
         "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
-        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+        "responses": { "200": { "$ref": "#/components/responses/RegressionReplayServiceEnvelope" } }
       }
     },
     "/internal/calibration/evaluate": {
@@ -176,9 +176,105 @@
             "schema": { "$ref": "#/components/schemas/InternalServiceEnvelope" }
           }
         }
+      },
+      "RegressionReplayServiceEnvelope": {
+        "description": "A2 internal regression replay response envelope with release gate summary.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RegressionReplayServiceEnvelope" }
+          }
+        }
       }
     },
     "schemas": {
+      "RegressionReplayServiceEnvelope": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/components/schemas/InternalServiceEnvelope" },
+          {
+            "type": "object",
+            "required": ["result"],
+            "properties": {
+              "result": { "$ref": "#/components/schemas/RegressionReplayReport" }
+            }
+          }
+        ]
+      },
+      "RegressionReplayReport": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "replay_ready",
+          "maturity_status",
+          "maturity_gate",
+          "release_gate_summary"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.regression_replay.v1" },
+          "replay_ready": { "type": "boolean" },
+          "maturity_status": { "type": "string" },
+          "maturity_gate": { "type": "object", "additionalProperties": true },
+          "release_gate_summary": { "$ref": "#/components/schemas/RegressionReplayReleaseGateSummary" }
+        },
+        "additionalProperties": true
+      },
+      "RegressionReplayReleaseGateSummary": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "gate",
+          "status",
+          "release_gate_status",
+          "blocks_release",
+          "action",
+          "required_action",
+          "blocking_count",
+          "current_replay_case_count",
+          "target_replay_case_count",
+          "missing_replay_case_count",
+          "failed_replay_case_count",
+          "reviewed_external_evidence_count",
+          "reviewed_evidence_target_count",
+          "missing_reviewed_evidence_count",
+          "case_book_maturity_ready",
+          "gaps",
+          "evidence_refs"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.regression_replay.release_gate_summary.v1" },
+          "gate": { "const": "C5" },
+          "status": { "type": "string" },
+          "release_gate_status": { "enum": ["blocked", "ready"] },
+          "blocks_release": { "type": "boolean" },
+          "action": {
+            "enum": [
+              "fix_failed_replays",
+              "promote_more_regressions",
+              "attach_reviewed_evidence",
+              "ready"
+            ]
+          },
+          "required_action": { "type": "string" },
+          "blocking_count": { "type": "integer", "minimum": 0 },
+          "current_replay_case_count": { "type": "integer", "minimum": 0 },
+          "target_replay_case_count": { "type": "integer", "minimum": 0 },
+          "missing_replay_case_count": { "type": "integer", "minimum": 0 },
+          "failed_replay_case_count": { "type": "integer", "minimum": 0 },
+          "reviewed_external_evidence_count": { "type": "integer", "minimum": 0 },
+          "reviewed_evidence_target_count": { "type": "integer", "minimum": 0 },
+          "missing_reviewed_evidence_count": { "type": "integer", "minimum": 0 },
+          "case_book_maturity_ready": { "type": "boolean" },
+          "gaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      },
       "GenericInternalRequest": {
         "type": "object",
         "description": "Endpoint-specific payload. Raw private evidence, API key values, raw model responses, and exact private counters must stay outside tracked artifacts.",

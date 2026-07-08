@@ -59,6 +59,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
                 "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
                 "scenario_pack": "packages/scenarios/a2_g3_full_pack.json",
                 "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+                "regression_promotion_queue": "fixtures/a2/results/a2_regression_promotion_queue.json",
             },
         )
 
@@ -72,6 +73,10 @@ class A2ResultPersistenceTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["schema_version"]["const"], manifest["schema_version"])
         self.assertEqual(manifest["record_count"], len(records))
         self.assertEqual(manifest["tenant_id"], manifest["org"])
+        self.assertEqual(
+            manifest["source_refs"]["regression_promotion_queue"],
+            "fixtures/a2/results/a2_regression_promotion_queue.json",
+        )
         self.assertEqual(
             manifest["record_type_counts"],
             {

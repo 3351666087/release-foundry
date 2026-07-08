@@ -21,6 +21,7 @@ from services.judge.evidence_readiness import build_evidence_readiness_report
 from services.judge.incident_regression import build_incident_regression_candidate_report
 from services.judge.readiness import build_commercial_readiness_report
 from services.judge.release_gate import build_release_gate_report
+from services.judge.regression_promotion import build_regression_promotion_queue_report
 from services.judge.regression_replay import build_regression_replay_report
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.scenario_selection import build_scenario_selection_report
@@ -322,6 +323,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness_schema = json.loads((schema_dir / "semantic_harness.schema.json").read_text(encoding="utf-8"))
         regression_replay_schema = json.loads((schema_dir / "regression_replay.schema.json").read_text(encoding="utf-8"))
         incident_regression_schema = json.loads((schema_dir / "incident_regression_candidates.schema.json").read_text(encoding="utf-8"))
+        regression_promotion_schema = json.loads((schema_dir / "regression_promotion_queue.schema.json").read_text(encoding="utf-8"))
         evidence_readiness_schema = json.loads((schema_dir / "evidence_readiness.schema.json").read_text(encoding="utf-8"))
         release_gate_schema = json.loads((schema_dir / "release_gate.schema.json").read_text(encoding="utf-8"))
         scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
@@ -340,6 +342,7 @@ class A2ContractTests(unittest.TestCase):
         semantic_harness = json.loads((ROOT / "fixtures/a2/results/a2_semantic_harness_report.json").read_text(encoding="utf-8"))
         regression_replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
         incident_regression = json.loads((ROOT / "fixtures/a2/results/a2_incident_regression_candidates.json").read_text(encoding="utf-8"))
+        regression_promotion = json.loads((ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8"))
         evidence_readiness = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
@@ -371,6 +374,10 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             incident_regression_schema["properties"]["schema_version"]["const"],
             incident_regression["schema_version"],
+        )
+        self.assertEqual(
+            regression_promotion_schema["properties"]["schema_version"]["const"],
+            regression_promotion["schema_version"],
         )
         self.assertEqual(
             evidence_readiness_schema["properties"]["schema_version"]["const"],
@@ -408,6 +415,7 @@ class A2ContractTests(unittest.TestCase):
             "#/$defs/release_gate_summary",
         )
         self.assertLessEqual(set(incident_regression_schema["required"]), set(incident_regression))
+        self.assertLessEqual(set(regression_promotion_schema["required"]), set(regression_promotion))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
@@ -558,6 +566,10 @@ class A2ContractTests(unittest.TestCase):
         for candidate in incident_regression["candidates"]:
             with self.subTest(incident_regression_candidate=candidate["case_id"]):
                 self.assertLessEqual(incident_candidate_required, set(candidate))
+        promotion_item_required = set(regression_promotion_schema["$defs"]["promotion_item"]["required"])
+        for item in regression_promotion["promotion_items"]:
+            with self.subTest(regression_promotion_item=item["case_id"]):
+                self.assertLessEqual(promotion_item_required, set(item))
 
         evidence_case_required = set(evidence_readiness_schema["$defs"]["calibration_case"]["required"])
         for evidence_case in evidence_readiness["calibration_cases"]:
@@ -864,6 +876,48 @@ class A2ContractTests(unittest.TestCase):
         self.assertNotIn("Bearer ", report_text)
         self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
         self.assertNotRegex(report_text, re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"))
+
+    def test_regression_promotion_queue_tracks_incident_candidate_to_c5(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        regression_replay = build_regression_replay_report(
+            calibration_matrix,
+            case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        incident_candidates = build_incident_regression_candidate_report(
+            ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        report = build_regression_promotion_queue_report(case_book, incident_candidates, regression_replay)
+        expected_report = json.loads(
+            (ROOT / "fixtures/a2/results/a2_regression_promotion_queue.json").read_text(encoding="utf-8")
+        )
+        report_text = json.dumps(report)
+
+        self.assertEqual(report, expected_report)
+        self.assertEqual(report["schema_version"], "a2.regression_promotion_queue.v1")
+        self.assertEqual(report["queue_status"], "candidate_review_required")
+        self.assertEqual(report["promotion_candidate_count"], 1)
+        self.assertEqual(report["ready_for_owner_review_count"], 1)
+        self.assertEqual(report["evidence_blocked_count"], 1)
+        self.assertEqual(report["missing_replay_case_count"], 2)
+        self.assertTrue(report["release_gate_summary"]["blocks_release"])
+        self.assertEqual(report["release_gate_summary"]["candidate_supply_status"], "has_candidates")
+        self.assertIn("Review queued incident candidates", report["release_gate_summary"]["required_action"])
+        item = report["promotion_items"][0]
+        self.assertEqual(item["case_id"], "sample-a2-s041-poor-retry-recovery")
+        self.assertEqual(item["queue_status"], "ready_for_owner_review")
+        self.assertTrue(item["can_promote_to_case_book"])
+        self.assertFalse(item["can_promote_to_mature_replay"])
+        self.assertIn("A2 evidence reviewer", item["required_reviews"])
+        self.assertIn("audited_semantic_judge", item["required_evidence_sources"])
+        self.assertNotIn("Bearer ", report_text)
+        self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
 
     def test_c5_maturity_requires_reviewed_external_evidence(self):
         def matrix_with_three_disagreements(*, reviewed: bool) -> dict:

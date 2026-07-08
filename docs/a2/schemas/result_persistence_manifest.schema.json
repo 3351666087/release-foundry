@@ -33,7 +33,8 @@
         "grade_report": { "type": "string" },
         "release_gate": { "type": "string" },
         "scenario_pack": { "type": "string" },
-        "scenario_selection": { "type": "string" }
+        "scenario_selection": { "type": "string" },
+        "regression_promotion_queue": { "type": "string" }
       },
       "additionalProperties": true
     },

@@ -11,7 +11,8 @@
     "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
     "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
     "scenario_pack": "packages/scenarios/a2_g3_full_pack.json",
-    "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json"
+    "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+    "regression_promotion_queue": "fixtures/a2/results/a2_regression_promotion_queue.json"
   },
   "record_count": 162,
   "record_type_counts": {

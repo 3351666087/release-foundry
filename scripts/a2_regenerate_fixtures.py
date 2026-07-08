@@ -20,6 +20,7 @@ from services.judge.evidence_readiness import build_evidence_readiness_report  #
 from services.judge.incident_regression import build_incident_regression_candidate_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.release_gate import build_release_gate_report  # noqa: E402
+from services.judge.regression_promotion import build_regression_promotion_queue_report  # noqa: E402
 from services.judge.regression_replay import build_regression_replay_report  # noqa: E402
 from services.judge.result_persistence import build_result_persistence_manifest  # noqa: E402
 from services.judge.runner import grade_run, grade_runs  # noqa: E402
@@ -49,6 +50,7 @@ DEFAULT_SEMANTIC_HARNESS = DEFAULT_RESULT_DIR / "a2_semantic_harness_report.json
 DEFAULT_REGRESSION_REPLAY = DEFAULT_RESULT_DIR / "a2_regression_replay_report.json"
 DEFAULT_INCIDENT_SUMMARY = Path("fixtures/a2/incidents/a2_prod_incident_summary.json")
 DEFAULT_INCIDENT_REGRESSION_CANDIDATES = DEFAULT_RESULT_DIR / "a2_incident_regression_candidates.json"
+DEFAULT_REGRESSION_PROMOTION_QUEUE = DEFAULT_RESULT_DIR / "a2_regression_promotion_queue.json"
 DEFAULT_EVIDENCE_READINESS = DEFAULT_RESULT_DIR / "a2_evidence_readiness_report.json"
 DEFAULT_RELEASE_GATE = DEFAULT_RESULT_DIR / "a2_release_gate_report.json"
 DEFAULT_A1_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
@@ -84,6 +86,7 @@ def main() -> int:
     parser.add_argument("--regression-replay", default=DEFAULT_REGRESSION_REPLAY.as_posix())
     parser.add_argument("--incident-summary", default=DEFAULT_INCIDENT_SUMMARY.as_posix())
     parser.add_argument("--incident-regression-candidates", default=DEFAULT_INCIDENT_REGRESSION_CANDIDATES.as_posix())
+    parser.add_argument("--regression-promotion-queue", default=DEFAULT_REGRESSION_PROMOTION_QUEUE.as_posix())
     parser.add_argument("--evidence-readiness", default=DEFAULT_EVIDENCE_READINESS.as_posix())
     parser.add_argument("--release-gate", default=DEFAULT_RELEASE_GATE.as_posix())
     parser.add_argument("--a1-evidence-index", default=DEFAULT_A1_EVIDENCE_INDEX.as_posix())
@@ -118,6 +121,7 @@ def main() -> int:
         regression_replay_path=Path(args.regression_replay),
         incident_summary_path=Path(args.incident_summary),
         incident_regression_candidates_path=Path(args.incident_regression_candidates),
+        regression_promotion_queue_path=Path(args.regression_promotion_queue),
         evidence_readiness_path=Path(args.evidence_readiness),
         release_gate_path=Path(args.release_gate),
         a1_evidence_index_path=Path(args.a1_evidence_index),
@@ -157,6 +161,7 @@ def generate_outputs(
     regression_replay_path: Path,
     incident_summary_path: Path,
     incident_regression_candidates_path: Path,
+    regression_promotion_queue_path: Path,
     evidence_readiness_path: Path,
     release_gate_path: Path,
     a1_evidence_index_path: Path,
@@ -215,9 +220,15 @@ def generate_outputs(
         pack_path=pack_path,
     )
     outputs[regression_replay_path] = regression_replay
-    outputs[incident_regression_candidates_path] = build_incident_regression_candidate_report(
+    incident_regression_candidates = build_incident_regression_candidate_report(
         incident_summary_path,
         pack_path=pack_path,
+    )
+    outputs[incident_regression_candidates_path] = incident_regression_candidates
+    outputs[regression_promotion_queue_path] = build_regression_promotion_queue_report(
+        case_book,
+        incident_regression_candidates,
+        regression_replay,
     )
     sdk_parity = build_sdk_parity_report(pack_path=pack_path)
     outputs[sdk_parity_path] = sdk_parity
@@ -276,6 +287,7 @@ def generate_outputs(
             "release_gate": release_gate_path.as_posix(),
             "scenario_pack": pack_path.as_posix(),
             "scenario_selection": scenario_selection_path.as_posix(),
+            "regression_promotion_queue": regression_promotion_queue_path.as_posix(),
         },
     )
     outputs[result_persistence_manifest_path] = result_persistence_manifest

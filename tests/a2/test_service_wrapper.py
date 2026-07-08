@@ -44,6 +44,12 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
             SCENARIO_SELECT_ENDPOINT: "post_internal_scenarios_select",
             RESULTS_PERSIST_ENDPOINT: "post_internal_results_persist",
         }
+        expected_response_refs = {
+            endpoint: "#/components/responses/InternalServiceEnvelope" for endpoint in expected_routes
+        }
+        expected_response_refs[REGRESSION_REPLAY_ENDPOINT] = (
+            "#/components/responses/RegressionReplayServiceEnvelope"
+        )
 
         self.assertEqual(contract["openapi"], "3.1.0")
         self.assertEqual(contract["info"]["version"], SERVICE_VERSION)
@@ -62,7 +68,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
                 self.assertFalse(operation["x-a2"]["requires_ashr_api_key"])
                 self.assertEqual(
                     operation["responses"]["200"]["$ref"],
-                    "#/components/responses/InternalServiceEnvelope",
+                    expected_response_refs[endpoint],
                 )
 
         boundary = contract["x-a2-boundary"]
@@ -74,6 +80,40 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertNotIn("docs/evidence/private_refs", serialized)
         self.assertNotIn("Bearer ", serialized)
         self.assertNotIn("ashr_live_", serialized)
+
+    def test_openapi_contract_covers_regression_replay_release_gate_summary(self):
+        contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+        response_ref = contract["paths"][REGRESSION_REPLAY_ENDPOINT]["post"]["responses"]["200"]["$ref"]
+        replay_envelope = contract["components"]["schemas"]["RegressionReplayServiceEnvelope"]
+        replay_report = contract["components"]["schemas"]["RegressionReplayReport"]
+        release_summary = contract["components"]["schemas"]["RegressionReplayReleaseGateSummary"]
+
+        self.assertEqual(response_ref, "#/components/responses/RegressionReplayServiceEnvelope")
+        self.assertEqual(
+            replay_envelope["allOf"][1]["properties"]["result"]["$ref"],
+            "#/components/schemas/RegressionReplayReport",
+        )
+        self.assertIn("release_gate_summary", replay_report["required"])
+        self.assertEqual(
+            replay_report["properties"]["release_gate_summary"]["$ref"],
+            "#/components/schemas/RegressionReplayReleaseGateSummary",
+        )
+        self.assertEqual(
+            release_summary["properties"]["schema_version"]["const"],
+            "a2.regression_replay.release_gate_summary.v1",
+        )
+        self.assertEqual(release_summary["properties"]["gate"]["const"], "C5")
+        for field in (
+            "blocks_release",
+            "action",
+            "required_action",
+            "blocking_count",
+            "current_replay_case_count",
+            "target_replay_case_count",
+            "gaps",
+            "evidence_refs",
+        ):
+            self.assertIn(field, release_summary["required"])
 
     def test_case_endpoint_grades_single_case_without_external_api(self):
         response = post_internal_judge_case(
@@ -379,6 +419,15 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["result"]["schema_version"], "a2.regression_replay.v1")
         self.assertIn("replay_ready", response["result"])
         self.assertIn("maturity_gate", response["result"])
+        summary = response["result"]["release_gate_summary"]
+        self.assertEqual(summary["schema_version"], "a2.regression_replay.release_gate_summary.v1")
+        self.assertEqual(summary["gate"], "C5")
+        self.assertIn(
+            summary["action"],
+            {"fix_failed_replays", "promote_more_regressions", "attach_reviewed_evidence", "ready"},
+        )
+        self.assertIn("blocks_release", summary)
+        self.assertIn("evidence_refs", summary)
 
     def test_calibration_evaluate_endpoint_returns_public_matrix(self):
         response = post_internal_calibration_evaluate(

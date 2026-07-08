@@ -136,6 +136,15 @@ def build_result_persistence_manifest(
     )
 
     record_type_counts = dict(sorted(Counter(record["record_type"] for record in records).items()))
+    source_ref_payload = {
+        "grade_report": source_refs.get("grade_report", ""),
+        "release_gate": source_refs.get("release_gate", ""),
+        "scenario_pack": source_refs.get("scenario_pack", ""),
+        "scenario_selection": source_refs.get("scenario_selection", ""),
+    }
+    for optional_ref in ("regression_promotion_queue",):
+        if source_refs.get(optional_ref):
+            source_ref_payload[optional_ref] = source_refs[optional_ref]
     return {
         "schema_version": SCHEMA_VERSION,
         "manifest_id": manifest_id,
@@ -145,12 +154,7 @@ def build_result_persistence_manifest(
         "run": run_id,
         "dataset_id": grade_report.get("dataset_id"),
         "created_at": created_at,
-        "source_refs": {
-            "grade_report": source_refs.get("grade_report", ""),
-            "release_gate": source_refs.get("release_gate", ""),
-            "scenario_pack": source_refs.get("scenario_pack", ""),
-            "scenario_selection": source_refs.get("scenario_selection", ""),
-        },
+        "source_refs": source_ref_payload,
         "record_count": len(records),
         "record_type_counts": record_type_counts,
         "records": records,
