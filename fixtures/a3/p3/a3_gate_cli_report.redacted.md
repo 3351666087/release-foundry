@@ -1,7 +1,7 @@
 # Ashr++ Gate CLI Report
 
 - Command shape: ashr gate --json
-- Source: a3-local-mock
+- Source: cli-output-bundle-test
 - Run: run_a3_generated_from_a2_g3
 - Decision: Block release
 - Risk score: 100
@@ -11,12 +11,12 @@
 
 ## Audit Manifest
 
-- runs: 7b302746ddc2823153f87c6f5492989be371cd67a548567965125617497d0605 (fixtures/a3/mock_run_results.json)
-- grades: 8b2a22eee2e1219f4175b4684f9f1e7764784f94fcedb5a05f9d4691da0669b6 (fixtures/a3/mock_grade_results.json)
-- coverage: 1cd8523aac6e01b6888667fb52ebf29fd8bcce34a791ee6c4a035c40c8b1cc41 (fixtures/a2/results/a2_g3_coverage_report.json)
-- thresholds: 64a245a6dfc2e59a3cc97eefc05668c7e106a582ef720d317822ddf66dc91143 (fixtures/a3/release_gate_thresholds.json)
-- waiver: ca8706d89dd5722bffddfa5bffea455f35514f9d088bd685d27326dd8f57aa95 (fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json)
-- approval: 92d25d130d7771b36fa28cda6e866d550742298444dee00bdd3e14986365fddf (fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json)
+- runs: 7319e52307fdd55f97baad6f8cea12180055bc20e526a29231971f3bd18709a2 (fixtures/a3/mock_run_results.json)
+- grades: 35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086 (fixtures/a3/mock_grade_results.json)
+- coverage: 3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f (fixtures/a2/results/a2_g3_coverage_report.json)
+- thresholds: fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729 (fixtures/a3/release_gate_thresholds.json)
+- waiver: c4cb4fd461d557a79ec6d5f45b15626c991b8d68741e43c86880630d21e0230b (fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json)
+- approval: b970f83ea3bdc1b54db4ac1d4b16ac301451619eb8dd07b8c7d3d3698e6264f3 (fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json)
 
 ## Waiver Review
 
