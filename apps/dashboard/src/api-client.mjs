@@ -106,6 +106,29 @@ export async function createShareableA3Report(options = {}) {
   return response.json();
 }
 
+export async function revokeShareableA3Report(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const reportId = options.reportId;
+  if (!reportId) {
+    throw new Error("A3 API revoke report requires reportId");
+  }
+  const response = await fetch(`${baseUrl}/api/a3/reports/${encodeURIComponent(reportId)}/revoke?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      reason: options.reason || "dashboard_revoke",
+      revoked_by: options.revokedBy || "a3-dashboard"
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API revoke report failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 function normalizeBaseUrl(baseUrl) {
   const value = baseUrl || "";
   return value.endsWith("/") ? value.slice(0, -1) : value;

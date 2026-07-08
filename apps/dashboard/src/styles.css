@@ -223,6 +223,16 @@ h1 {
   background: var(--panel-soft);
 }
 
+.button.danger {
+  border-color: #b42318;
+  color: #9a1c14;
+}
+
+.button.danger:hover {
+  background: #fff4f2;
+  border-color: #9a1c14;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -343,6 +353,10 @@ h1 {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 12px;
+}
+
+.report-actions.compact {
+  margin-top: 8px;
 }
 
 .share-status {

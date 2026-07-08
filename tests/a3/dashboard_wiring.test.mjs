@@ -463,6 +463,7 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(runtimeComponent, /Usage meters/);
   assert.match(html, /data-share-report/);
   assert.match(html, /createShareableA3Report/);
+  assert.match(html, /revokeShareableA3Report/);
   assert.match(html, /fetchA3ArtifactRegistry/);
   assert.match(html, /fetchA3ReportCenter/);
   assert.match(html, /id="share-report-status"/);
@@ -472,6 +473,10 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/reports\/center/);
   assert.match(html, /GET \/api\/a3\/artifacts\/registry/);
   assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /function revokeHostedReport\(report\)/);
+  assert.match(html, /function refreshReportEvidence\(\)/);
+  assert.match(html, /Revoke/);
+  assert.match(html, /dashboard_revoke/);
   assert.match(html, /function artifactRegistrySummaryRow\(registry/);
   assert.match(html, /function artifactEntryRow\(entry/);
   assert.match(html, /Artifact Registry/);

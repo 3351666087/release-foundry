@@ -3328,3 +3328,65 @@ Create a docs-only Growth-Auditor artifact for the next A3 commercial SaaS round
 - Did not read or print `.env.local`.
 - Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
 - Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
+
+## 2026-07-08 - SQLite-backed A3 store and hosted report revoke UI
+
+### Goal
+
+Move A3 from "SQL contract exists" toward "local SQL-backed SaaS store can actually run."
+
+### Work completed
+
+- Added `services/report/a3_sqlite_store.mjs`.
+  - Uses Node's built-in SQLite runtime.
+  - Applies the existing SQLite migration contract.
+  - Persists A3 state into real SQL tables for dashboard snapshots, runs, cases, reports, share links, import receipts, idempotency rows, audit events, view events, revocations, and usage ledger rows.
+  - Keeps raw share tokens out of stored report reads and inspection evidence.
+  - Handles missing share-token audit as an audit event without creating fake report rows.
+- Added `tests/a3/a3_sqlite_store.test.mjs`.
+  - Verifies A1 RunResult and A2 GradeResult import persistence.
+  - Verifies idempotency duplicate replay and conflict behavior.
+  - Verifies hosted report share/view/revoke lifecycle rows.
+  - Verifies API server compatibility when injected with the SQLite store.
+  - Verifies reopen-after-close persistence for revoked report state.
+- Extended dashboard Report Center lifecycle controls.
+  - Added `revokeShareableA3Report()` to the dashboard API client.
+  - Added a Revoke button for active API-backed hosted reports.
+  - Refreshes Report Center, Artifact Registry, Product Console, and print report evidence after share/revoke actions.
+- Added `docs/a3/p3_sqlite_store_growth_2026_07_08.md`.
+  - Captures commercial value, safety boundary, verification, and 22 next growth points.
+
+### Verification
+
+```text
+node --test tests/a3/a3_sqlite_store.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs
+```
+
+Result:
+
+```text
+38 tests
+38 pass
+0 fail
+```
+
+Syntax check:
+
+```text
+node --check apps/dashboard/src/app.mjs
+node --check apps/dashboard/src/api-client.mjs
+node --check services/report/a3_sqlite_store.mjs
+```
+
+Result: passed.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team, Trust, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, or live signed URL was committed.
+
+### Current interpretation
+
+A3 now has a concrete local SQL-backed store target. This is still not production Postgres or a hosted multi-tenant SaaS, but it turns the previous SQL contract into executable storage evidence and makes the hosted report lifecycle feel more like a real SaaS control plane.

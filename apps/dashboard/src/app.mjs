@@ -37,6 +37,7 @@ import {
   fetchA3ProductConsole,
   fetchA3ReportCenter,
   planA3AdminAction,
+  revokeShareableA3Report,
   isA3ApiSource
 } from "./api-client.mjs";
 import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
@@ -1405,6 +1406,21 @@ function hostedReportRow(report) {
     </div>
     <div class="muted">${escapeHtml((report.manifest?.missing || []).length ? `Missing: ${report.manifest.missing.join(", ")}` : "Manifest evidence is ready for PR gate and audit bundle linkage.")}</div>
   `;
+  const canRevoke = isA3ApiSource(state.source)
+    && report.lifecycle?.revocable !== false
+    && !["revoked", "expired"].includes(report.status);
+  if (canRevoke) {
+    const actions = document.createElement("div");
+    actions.className = "report-actions compact";
+    const revokeButton = document.createElement("button");
+    revokeButton.type = "button";
+    revokeButton.className = "button danger";
+    revokeButton.textContent = "Revoke";
+    revokeButton.title = "Revoke hosted report link and refresh Report Center evidence";
+    revokeButton.addEventListener("click", () => revokeHostedReport(report));
+    actions.append(revokeButton);
+    node.append(actions);
+  }
   return node;
 }
 
@@ -2280,26 +2296,61 @@ async function shareReport() {
     status.className = `badge ${report.status === "shareable" ? "pass" : "fail"}`;
     status.textContent = report.status;
     $("share-report-detail").textContent = `${report.share_url_path} / ${report.sealed_evidence.hash_algorithm}:${report.sealed_evidence.payload_hash.slice(0, 12)} / ${report.redaction.status}`;
-    state.reportCenter = await fetchA3ReportCenter({
-      source: state.source,
-      baseUrl: getA3ApiBaseUrl()
-    });
-    state.artifactRegistry = await fetchA3ArtifactRegistry({
-      source: state.source,
-      baseUrl: getA3ApiBaseUrl()
-    });
-    state.productConsole = await fetchA3ProductConsole({
-      source: state.source,
-      baseUrl: getA3ApiBaseUrl()
-    });
-    renderReportCenter();
-    renderProductConsole();
+    await refreshReportEvidence();
   } catch (error) {
     status.className = "badge fail";
     status.textContent = "failed";
     $("share-report-detail").textContent = error.message;
     console.error(error);
   }
+}
+
+async function revokeHostedReport(report) {
+  const status = $("share-report-status");
+  if (!isA3ApiSource(state.source)) {
+    status.className = "badge warn";
+    status.textContent = "API required";
+    $("share-report-detail").textContent = "Switch Data to API-backed Mock before revoking a hosted report link.";
+    return;
+  }
+  status.className = "badge neutral";
+  status.textContent = "revoking";
+  $("share-report-detail").textContent = `Revoking ${report.report_id} and refreshing Report Center evidence.`;
+  try {
+    const receipt = await revokeShareableA3Report({
+      source: state.source,
+      baseUrl: getA3ApiBaseUrl(),
+      reportId: report.report_id,
+      reason: "dashboard_revoke"
+    });
+    status.className = `badge ${receipt.status === "revoked" ? "pass" : "warn"}`;
+    status.textContent = receipt.status;
+    $("share-report-detail").textContent = `${receipt.report_id} revoked by ${receipt.revoked_by}; reason ${receipt.reason}.`;
+    await refreshReportEvidence();
+  } catch (error) {
+    status.className = "badge fail";
+    status.textContent = "failed";
+    $("share-report-detail").textContent = error.message;
+    console.error(error);
+  }
+}
+
+async function refreshReportEvidence() {
+  state.reportCenter = await fetchA3ReportCenter({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.artifactRegistry = await fetchA3ArtifactRegistry({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.productConsole = await fetchA3ProductConsole({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  renderReportCenter();
+  renderProductConsole();
+  renderPrintReport();
 }
 
 function printReport() {

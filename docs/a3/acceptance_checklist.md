@@ -397,7 +397,7 @@
 - [x] Include Artifact Registry evidence in JSON, Markdown, and print/PDF report exports.
 - [x] Add Growth-Auditor artifact with 45 next growth points for Artifact Registry commercialization.
 - [x] Add CI export-firewall scans for generated docs and fixtures.
-- [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
+- [x] Add a real local SQL adapter target using Node SQLite, while keeping Postgres/MySQL production migration tooling as future work.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
 - [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
 - [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
@@ -414,3 +414,5 @@
 - [x] Add external `/r/:shareToken` hosted report route with token-hash lookup.
 - [x] Keep raw share tokens out of stored report payloads and durable Report Center summaries.
 - [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.
+- [x] Add dashboard Report Center revoke controls for active API-backed hosted reports.
+- [x] Verify SQLite-backed A3 store can persist A1/A2 imports, hosted report lifecycle, audit events, and usage ledger rows.
