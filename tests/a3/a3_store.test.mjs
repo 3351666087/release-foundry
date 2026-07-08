@@ -92,11 +92,38 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   });
   assert.equal(scopedReleaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
 
+  const releaseEvidenceV2 = await store.getReleaseEvidenceSummary("current", {
+    source: "mock",
+    organizationId: "org-local",
+    projectId: "project-local",
+    version: "2"
+  });
+  assert.equal(releaseEvidenceV2.schema_version, "a3.release_evidence_api_response.v2");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.schema_version, "a3.release_evidence_summary.v2");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.a1_evidence.contracts.includes("RunResult"), true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.a2_evidence.contracts.includes("GradeResult"), true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.usage_ledger.linked_summary_id, releaseEvidenceV2.summary_id);
+  assert.equal(releaseEvidenceV2.compatibility.v1_stable, true);
+
+  const releaseEvidenceDiff = await store.getReleaseEvidenceDiff("current", {
+    source: "mock",
+    organizationId: "org-local",
+    projectId: "project-local"
+  });
+  assert.equal(releaseEvidenceDiff.schema_version, "a3.release_evidence_diff_api_response.v1");
+  assert.equal(releaseEvidenceDiff.diff.schema_version, "a3.release_evidence_diff.v1");
+  assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
+  assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
+
   const crossTenantReleaseEvidence = await store.getReleaseEvidenceSummary("current", {
     source: "mock",
     organizationId: "org-other"
   });
   assert.equal(crossTenantReleaseEvidence, null);
+  assert.equal(await store.getReleaseEvidenceDiff("current", {
+    source: "mock",
+    organizationId: "org-other"
+  }), null);
 
   const savedReport = await store.getReport(report.report_id);
   assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");

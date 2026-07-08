@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   buildReleaseEvidenceHealth,
+  buildReleaseEvidenceSummaryV2,
   computeReleaseEvidenceNextAction,
   diffReleaseEvidenceSummaries
 } from "../../services/report/a3_release_evidence.mjs";
@@ -42,6 +43,52 @@ test("A3 release evidence health marks verified evidence ready for review", () =
   assert.equal(health.verifier_readiness.audit_archive_passed, true);
   assert.equal(health.hosted_report_readiness.immutable_snapshot_present, true);
   assert.equal(health.safety.raw_secret_values_allowed, false);
+});
+
+test("A3 release evidence v2 authority summary is additive and tenant scoped", () => {
+  const summary = buildReleaseEvidenceSummaryV2(verifiedSummary, {
+    releaseId: "run-v2",
+    source: "mock",
+    organizationId: "org-unit",
+    projectId: "project-unit",
+    hostedReportSnapshotId: "resnap_unit",
+    shareableReportCount: 2,
+    runIds: ["run-v2"],
+    caseCount: 4,
+    a1: {
+      runCount: 1,
+      caseCount: 4,
+      traceEventCount: 8,
+      observationCount: 3,
+      toolCallCaseCount: 2
+    },
+    a2: {
+      gradeCount: 4,
+      judgeResultCount: 6,
+      failedCaseCount: 1,
+      failureClassCount: 2
+    },
+    usageLedger: {
+      schema_version: "a3.usage_ledger.v1",
+      meters: [{ meter: "runs", quantity: 1 }],
+      billable_unit_count: 10,
+      billing_mutations_enabled: false
+    }
+  });
+
+  assert.equal(summary.schema_version, "a3.release_evidence_summary.v2");
+  assert.equal(summary.release_identity.release_id, "run-v2");
+  assert.equal(summary.tenant_scope.organization_id, "org-unit");
+  assert.equal(summary.a1_evidence.contracts.includes("RunResult"), true);
+  assert.equal(summary.a1_evidence.trace_event_count, 8);
+  assert.equal(summary.a2_evidence.contracts.includes("GradeResult"), true);
+  assert.equal(summary.a2_evidence.failed_case_count, 1);
+  assert.equal(summary.github_check_readback.readback_status, "missing");
+  assert.equal(summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
+  assert.equal(summary.hosted_report.immutable_snapshot_present, true);
+  assert.equal(summary.usage_ledger.linked_summary_id, summary.summary_id);
+  assert.equal(summary.redaction.raw_secret_values_allowed, false);
+  assert.doesNotMatch(JSON.stringify(summary), /Bearer should-not-leak|secret_live_value/);
 });
 
 test("A3 release evidence next action drives missing GitHub and archive work", () => {

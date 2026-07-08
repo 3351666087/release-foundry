@@ -2,6 +2,119 @@ import { createHash } from "node:crypto";
 
 export const A3_RELEASE_EVIDENCE_HEALTH_SCHEMA_VERSION = "a3.release_evidence_health.v1";
 export const A3_RELEASE_EVIDENCE_DIFF_SCHEMA_VERSION = "a3.release_evidence_diff.v1";
+export const A3_RELEASE_EVIDENCE_SUMMARY_V2_SCHEMA_VERSION = "a3.release_evidence_summary.v2";
+
+export function buildReleaseEvidenceSummaryV2(summary = {}, context = {}) {
+  const safeSummary = sanitizeSummary(summary);
+  const summaryHash = sha256(stableJson(safeSummary));
+  const summaryId = context.summaryId || `res_${summaryHash.slice(0, 16)}`;
+  const health = context.health || buildReleaseEvidenceHealth(safeSummary, {
+    ...context,
+    summaryId
+  });
+  const usageLedger = context.usageLedger || {};
+  return {
+    schema_version: A3_RELEASE_EVIDENCE_SUMMARY_V2_SCHEMA_VERSION,
+    summary_id: summaryId,
+    summary_hash: summaryHash,
+    source_summary_schema_version: safeSummary.schema_version || "unknown",
+    source: context.source || "unknown",
+    tenant_scope: {
+      organization_id: context.organizationId || context.organization_id || "org-local",
+      project_id: context.projectId || context.project_id || "project-local"
+    },
+    release_identity: {
+      release_id: context.releaseId || safeSummary.release_id || "current",
+      environment: context.environment || "local",
+      source_snapshot_id: context.sourceSnapshotId || null,
+      head_sha_alias: context.headShaAlias || null,
+      source_import_receipt_ids: arrayOrEmpty(context.sourceImportReceiptIds),
+      run_ids: arrayOrEmpty(context.runIds),
+      case_count: numberOrZero(context.caseCount)
+    },
+    health,
+    a1_evidence: {
+      contracts: ["RunResult", "Trace", "ToolCall", "Observation"],
+      run_count: numberOrZero(context.a1?.runCount),
+      case_count: numberOrZero(context.a1?.caseCount),
+      trace_event_count: numberOrZero(context.a1?.traceEventCount),
+      observation_count: numberOrZero(context.a1?.observationCount),
+      tool_call_case_count: numberOrZero(context.a1?.toolCallCaseCount),
+      missing_required_fields: arrayOrEmpty(context.a1?.missingRequiredFields)
+    },
+    a2_evidence: {
+      contracts: ["Scenario", "Judge", "GradeResult", "FailureTaxonomy"],
+      grade_count: numberOrZero(context.a2?.gradeCount),
+      judge_result_count: numberOrZero(context.a2?.judgeResultCount),
+      failed_case_count: numberOrZero(context.a2?.failedCaseCount),
+      failure_class_count: numberOrZero(context.a2?.failureClassCount),
+      missing_required_fields: arrayOrEmpty(context.a2?.missingRequiredFields)
+    },
+    github_check_readback: readbackState(safeSummary.github_check_publish, {
+      generated_status: safeSummary.github_check_publish?.status,
+      readback_status: safeSummary.github_check_publish?.readback_status || "missing",
+      required_before_enforced: true
+    }),
+    pr_comment_readback: readbackState(safeSummary.github_pr_comment_publish, {
+      generated_status: safeSummary.github_pr_comment_publish?.status,
+      readback_status: safeSummary.github_pr_comment_publish?.readback_status || "missing"
+    }),
+    required_check_proof: {
+      plan_available: Boolean(safeSummary.github_required_check_plan?.check_name),
+      check_name: safeSummary.github_required_check_plan?.check_name || null,
+      enforcement_readback_status: safeSummary.github_required_check_plan?.enforcement_readback_status || "plan_only",
+      enforced: safeSummary.github_required_check_plan?.enforced === true,
+      plan_only_must_not_claim_enforcement: safeSummary.github_required_check_plan?.enforced !== true
+    },
+    hosted_report: {
+      snapshot_id: context.hostedReportSnapshotId || context.summarySnapshotId || null,
+      immutable_snapshot_present: Boolean(context.hostedReportSnapshotId || context.summarySnapshotId),
+      shareable_report_count: numberOrZero(context.shareableReportCount),
+      denied_body_leakage_allowed: false,
+      external_share_ready: Boolean(context.hostedReportSnapshotId || context.summarySnapshotId)
+        && safeSummary.safety?.contains_secret_values !== true
+    },
+    storage: {
+      mode: context.storageMode || "memory",
+      db_ready: context.dbReady !== false,
+      durable_summary_table: "release_evidence_summaries",
+      postgres_contract_required: true,
+      immutable_snapshot_table_required: true
+    },
+    usage_ledger: {
+      schema_version: usageLedger.schema_version || "a3.usage_ledger.v1",
+      linked_summary_id: summaryId,
+      meter_count: Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0,
+      billable_unit_count: numberOrZero(usageLedger.billable_unit_count),
+      billing_mutations_enabled: usageLedger.billing_mutations_enabled === true
+    },
+    redaction: {
+      external_publish_allowed: safeSummary.safety?.contains_secret_values !== true
+        && safeSummary.safety?.token_included !== true
+        && safeSummary.safety?.raw_private_key_stored !== true,
+      fail_closed_surfaces: ["json", "markdown", "csv", "html", "hosted_report", "github_check", "pr_comment", "manifest", "bundle", "archive"],
+      raw_secret_values_allowed: false
+    },
+    compliance: {
+      retention_policy: context.retentionPolicy || "local_demo_retention",
+      legal_hold_state: context.legalHoldState || "not_configured",
+      audit_chain_required: true,
+      self_host_offline_verifier_required: true
+    },
+    safety: {
+      raw_fixture_exposed: false,
+      raw_request_body_exposed: false,
+      raw_share_token_exposed: false,
+      raw_secret_values_allowed: false,
+      live_credentials_included: false
+    },
+    next_actions: [
+      "Persist v2 summaries and immutable snapshots with tenant/project/release keys.",
+      "Attach live GitHub Check and PR comment readback before claiming external enforcement.",
+      "Join usage, audit, manifest, bundle, and archive artifacts through this summary_id."
+    ]
+  };
+}
 
 export function buildReleaseEvidenceHealth(summary = {}, context = {}) {
   const safeSummary = sanitizeSummary(summary);
@@ -94,9 +207,12 @@ export function diffReleaseEvidenceSummaries(before = {}, after = {}) {
   const safeBefore = sanitizeSummary(before);
   const safeAfter = sanitizeSummary(after);
   const fields = [
-    ["overall_status", safeBefore.overall_status, safeAfter.overall_status],
-    ["github_check_publish.status", safeBefore.github_check_publish?.status, safeAfter.github_check_publish?.status],
-    ["github_pr_comment_publish.status", safeBefore.github_pr_comment_publish?.status, safeAfter.github_pr_comment_publish?.status],
+    ["schema_version", safeBefore.schema_version, safeAfter.schema_version],
+    ["overall_status", summaryOverallStatus(safeBefore), summaryOverallStatus(safeAfter)],
+    ["next_action.action", summaryNextAction(safeBefore), summaryNextAction(safeAfter)],
+    ["github_check.status", summaryGithubCheckStatus(safeBefore), summaryGithubCheckStatus(safeAfter)],
+    ["github_pr_comment.status", summaryPrCommentStatus(safeBefore), summaryPrCommentStatus(safeAfter)],
+    ["required_check.proof", summaryRequiredCheckStatus(safeBefore), summaryRequiredCheckStatus(safeAfter)],
     ["audit_bundle_verification.status", safeBefore.audit_bundle_verification?.status, safeAfter.audit_bundle_verification?.status],
     ["audit_archive_verification.status", safeBefore.audit_archive_verification?.status, safeAfter.audit_archive_verification?.status],
     ["audit_archive_verification.signature_passed", safeBefore.audit_archive_verification?.signature_passed, safeAfter.audit_archive_verification?.signature_passed]
@@ -104,8 +220,8 @@ export function diffReleaseEvidenceSummaries(before = {}, after = {}) {
   const changedFields = fields
     .filter(([, oldValue, newValue]) => oldValue !== newValue)
     .map(([field, oldValue, newValue]) => ({ field, before: oldValue ?? null, after: newValue ?? null }));
-  const beforeRank = statusRank(safeBefore.overall_status);
-  const afterRank = statusRank(safeAfter.overall_status);
+  const beforeRank = statusRank(summaryOverallStatus(safeBefore));
+  const afterRank = statusRank(summaryOverallStatus(safeAfter));
   return {
     schema_version: A3_RELEASE_EVIDENCE_DIFF_SCHEMA_VERSION,
     before_summary_id: `res_${sha256(stableJson(safeBefore)).slice(0, 16)}`,
@@ -115,13 +231,45 @@ export function diffReleaseEvidenceSummaries(before = {}, after = {}) {
     improvement_count: afterRank > beforeRank ? 1 : 0,
     regression_count: afterRank < beforeRank ? 1 : 0,
     safe_summary: {
-      before_status: safeBefore.overall_status || "missing",
-      after_status: safeAfter.overall_status || "missing",
+      before_status: summaryOverallStatus(safeBefore),
+      after_status: summaryOverallStatus(safeAfter),
       changed_field_count: changedFields.length,
       raw_details_exposed: false,
       secret_values_exposed: false
     }
   };
+}
+
+function summaryOverallStatus(summary = {}) {
+  return summary.health?.overall_status || summary.overall_status || "missing";
+}
+
+function summaryNextAction(summary = {}) {
+  return summary.health?.next_action?.action || summary.next_action?.action || null;
+}
+
+function summaryGithubCheckStatus(summary = {}) {
+  return summary.github_check_readback?.readback_status
+    || summary.github_check_readback?.generated_status
+    || summary.github_check_publish?.readback_status
+    || summary.github_check_publish?.status
+    || null;
+}
+
+function summaryPrCommentStatus(summary = {}) {
+  return summary.pr_comment_readback?.readback_status
+    || summary.pr_comment_readback?.generated_status
+    || summary.github_pr_comment_publish?.readback_status
+    || summary.github_pr_comment_publish?.status
+    || null;
+}
+
+function summaryRequiredCheckStatus(summary = {}) {
+  return summary.required_check_proof?.enforced === true
+    ? "enforced"
+    : summary.required_check_proof?.enforcement_readback_status
+      || summary.github_required_check_plan?.enforcement_readback_status
+      || (summary.github_required_check_plan?.check_name ? "plan_only" : null);
 }
 
 function publishReady(item = {}) {
@@ -134,6 +282,28 @@ function action(actionName, reason, label) {
     reason,
     label
   };
+}
+
+function readbackState(item = {}, defaults = {}) {
+  return {
+    generated_status: defaults.generated_status || item?.status || "missing",
+    posted: item?.posted === true || item?.status === "posted" || item?.status === "readback_confirmed",
+    readback_status: defaults.readback_status || item?.readback_status || "missing",
+    readback_confirmed: item?.status === "readback_confirmed" || item?.readback_status === "confirmed",
+    stale: item?.readback_status === "stale" || item?.stale === true,
+    missing: item?.readback_status === "missing" || item?.missing === true,
+    deleted: item?.readback_status === "deleted" || item?.deleted === true,
+    sanitized_error_class: item?.sanitized_error_class || null,
+    required_before_enforced: defaults.required_before_enforced === true
+  };
+}
+
+function arrayOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function numberOrZero(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
 function statusRank(status) {

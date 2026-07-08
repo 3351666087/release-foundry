@@ -36,12 +36,33 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(releaseEvidence.next_action.action, "publish_github_check");
     assert.equal(releaseEvidence.safety.raw_request_body_exposed, false);
 
+    const releaseEvidenceV2 = await getJson(`${url}${dashboard.release_evidence_api.path}&version=2`);
+    assert.equal(releaseEvidenceV2.schema_version, "a3.release_evidence_api_response.v2");
+    assert.equal(releaseEvidenceV2.release_evidence_summary.schema_version, "a3.release_evidence_summary.v2");
+    assert.equal(releaseEvidenceV2.release_evidence_summary.a1_evidence.contracts.includes("Trace"), true);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.a2_evidence.contracts.includes("Judge"), true);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.enforced, false);
+    assert.equal(releaseEvidenceV2.release_evidence_summary.safety.raw_secret_values_allowed, false);
+
+    const releaseEvidenceHealth = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-health?source=mock`);
+    assert.equal(releaseEvidenceHealth.schema_version, "a3.release_evidence_health_api_response.v1");
+    assert.equal(releaseEvidenceHealth.summary_id, releaseEvidenceV2.summary_id);
+    assert.equal(releaseEvidenceHealth.release_evidence_health.schema_version, "a3.release_evidence_health.v1");
+
+    const releaseEvidenceDiff = await getJson(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-diff?source=mock`);
+    assert.equal(releaseEvidenceDiff.schema_version, "a3.release_evidence_diff_api_response.v1");
+    assert.equal(releaseEvidenceDiff.diff.schema_version, "a3.release_evidence_diff.v1");
+    assert.ok(releaseEvidenceDiff.diff.changed_fields.some((item) => item.field === "schema_version"));
+    assert.equal(releaseEvidenceDiff.safety.raw_secret_values_allowed, false);
+
     const crossTenantReleaseEvidence = await fetch(`${url}${dashboard.release_evidence_api.path}&organization_id=org-other`);
     assert.equal(crossTenantReleaseEvidence.status, 404);
     const crossTenantPayload = await crossTenantReleaseEvidence.json();
     assert.equal(crossTenantPayload.error, "not_found");
     assert.equal(crossTenantPayload.kind, "release_evidence");
     assert.doesNotMatch(JSON.stringify(crossTenantPayload), /Release Evidence|github_check_publish|audit_bundle_verification/);
+    const crossTenantDiff = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/evidence-diff?source=mock&organization_id=org-other`);
+    assert.equal(crossTenantDiff.status, 404);
 
     const migrations = await getJson(`${url}/api/a3/db-migrations`);
     assert.equal(migrations.schema_version, "a3.sql_migration_plan.v1");

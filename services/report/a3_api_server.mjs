@@ -85,11 +85,47 @@ export function createA3ApiHandler(options = {}) {
         const summary = await store.getReleaseEvidenceSummary(decodeURIComponent(releaseEvidenceMatch[1]), {
           source: sourceFrom(url),
           organizationId: url.searchParams.get("organization_id") || undefined,
-          projectId: url.searchParams.get("project_id") || undefined
+          projectId: url.searchParams.get("project_id") || undefined,
+          version: url.searchParams.get("version") || url.searchParams.get("schema_version") || undefined
         });
         return summary
           ? sendJson(response, 200, summary)
           : sendJson(response, 404, notFound("release_evidence", releaseEvidenceMatch[1]));
+      }
+
+      const releaseEvidenceHealthMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-health$/);
+      if (request.method === "GET" && releaseEvidenceHealthMatch) {
+        const summary = await store.getReleaseEvidenceSummary(decodeURIComponent(releaseEvidenceHealthMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          version: "2"
+        });
+        return summary
+          ? sendJson(response, 200, {
+            schema_version: "a3.release_evidence_health_api_response.v1",
+            release_id: summary.release_id,
+            summary_id: summary.summary_id,
+            tenant_scope: summary.tenant_scope,
+            release_evidence_health: summary.release_evidence_health,
+            next_action: summary.next_action,
+            safety: summary.safety
+          })
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceHealthMatch[1]));
+      }
+
+      const releaseEvidenceDiffMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-diff$/);
+      if (request.method === "GET" && releaseEvidenceDiffMatch) {
+        const diff = await store.getReleaseEvidenceDiff(decodeURIComponent(releaseEvidenceDiffMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          from: url.searchParams.get("from") || undefined,
+          to: url.searchParams.get("to") || undefined
+        });
+        return diff
+          ? sendJson(response, 200, diff)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceDiffMatch[1]));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {

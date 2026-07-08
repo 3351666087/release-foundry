@@ -473,5 +473,13 @@
 - [x] Add local tenant-scope negative tests for report detail, manifest, view, revoke, and report-list routes.
 - [x] Verify SQLite report persistence stores report tenant scope instead of defaulting to `org-local`.
 - [x] Redact unexpected API internal-error messages before returning them to clients.
+- [x] Add explicit `a3.release_evidence_summary.v2` authority summary builder.
+- [x] Keep release evidence v1 stable while serving v2 only through explicit version negotiation.
+- [x] Add `GET /api/a3/releases/:releaseId/evidence-health`.
+- [x] Add `GET /api/a3/releases/:releaseId/evidence-diff`.
+- [x] Add A1 RunResult/Trace/ToolCall/Observation counts to v2 release evidence.
+- [x] Add A2 Scenario/Judge/GradeResult/FailureTaxonomy counts to v2 release evidence.
+- [x] Add A1/A2 release evidence v2 contract mapping artifact.
+- [x] Add Growth-Auditor money-grade release evidence v2 audit artifact.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

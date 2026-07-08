@@ -10,7 +10,11 @@ import {
 } from "./report_builder.mjs";
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
-import { buildReleaseEvidenceHealth } from "./a3_release_evidence.mjs";
+import {
+  buildReleaseEvidenceHealth,
+  buildReleaseEvidenceSummaryV2,
+  diffReleaseEvidenceSummaries
+} from "./a3_release_evidence.mjs";
 import {
   buildSaasAdminActionRequest,
   buildSaasAdminConsole,
@@ -627,8 +631,56 @@ export function createMemoryA3Store(seed = {}) {
       return buildReleaseEvidenceApiResponse(snapshot, {
         releaseId: canonicalReleaseId,
         storageMode: this.storage_mode,
-        reports: [...reports.values()]
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        version: options.version || options.schemaVersion
       });
+    },
+
+    async getReleaseEvidenceDiff(releaseId = "current", options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (
+        !releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)
+        || !snapshotMatchesTenantScope(snapshot, options)
+      ) {
+        return null;
+      }
+      const before = buildReleaseEvidenceApiResponse(snapshot, {
+        releaseId: canonicalReleaseId,
+        storageMode: this.storage_mode,
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        version: "1"
+      }).release_evidence_summary;
+      const after = buildReleaseEvidenceApiResponse(snapshot, {
+        releaseId: canonicalReleaseId,
+        storageMode: this.storage_mode,
+        reports: [...reports.values()],
+        auditEvents,
+        importReceipts: [...idempotencyReceipts.values()].map((item) => item.receipt),
+        version: "2"
+      }).release_evidence_summary;
+      const diff = diffReleaseEvidenceSummaries(before, after);
+      return {
+        schema_version: "a3.release_evidence_diff_api_response.v1",
+        release_id: canonicalReleaseId,
+        source: snapshot.source,
+        tenant_scope: {
+          organization_id: snapshot.organizationId,
+          project_id: snapshot.projectId
+        },
+        from: options.from || "v1-current",
+        to: options.to || "v2-authority",
+        diff,
+        safety: {
+          raw_fixture_exposed: false,
+          raw_request_body_exposed: false,
+          raw_secret_values_allowed: false
+        }
+      };
     },
 
     async createShareableReport(options = {}) {
@@ -1241,6 +1293,49 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
     hostedReportSnapshotId: primarySnapshot.summary_snapshot_id,
     shareableReportCount: reports.length
   });
+  const usageLedger = buildA3UsageLedger(snapshot, {
+    reports: reports.map((item) => ({ report_id: item.report_id, status: item.status })),
+    auditEvents: options.auditEvents || [],
+    importReceipts: options.importReceipts || [],
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
+  const releaseStats = buildReleaseEvidenceV2Stats(snapshot);
+  const summaryV2 = buildReleaseEvidenceSummaryV2(summary, {
+    releaseId,
+    summaryId: `res_${summaryHash.slice(0, 16)}`,
+    source: snapshot.source,
+    sourceSnapshotId: `${snapshot.source}:${summaryHash.slice(0, 12)}`,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId,
+    storageMode: options.storageMode || snapshot.storage?.mode || "memory",
+    hostedReportSnapshotId: primarySnapshot.summary_snapshot_id,
+    shareableReportCount: reports.length,
+    usageLedger,
+    health,
+    ...releaseStats
+  });
+  if (releaseEvidenceVersion(options) === "v2") {
+    return {
+      schema_version: "a3.release_evidence_api_response.v2",
+      release_id: releaseId,
+      summary_id: summaryV2.summary_id,
+      source: snapshot.source,
+      tenant_scope: summaryV2.tenant_scope,
+      api_backed: true,
+      release_evidence_summary: summaryV2,
+      release_evidence_health: health,
+      next_action: health.next_action,
+      compatibility: {
+        default_version: "v1",
+        requested_version: "v2",
+        v1_stable: true,
+        v2_additive: true
+      },
+      safety: summaryV2.safety,
+      next_actions: summaryV2.next_actions
+    };
+  }
   return {
     schema_version: "a3.release_evidence_api_response.v1",
     release_id: releaseId,
@@ -1275,6 +1370,41 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
       "Bind live GitHub readback receipts before claiming required-check enforcement.",
       "Use hosted report snapshot ids so external reports keep the exact evidence shown at share time."
     ]
+  };
+}
+
+function releaseEvidenceVersion(options = {}) {
+  const value = String(options.version || options.schemaVersion || "").toLowerCase();
+  return ["2", "v2", "a3.release_evidence_summary.v2", "a3.release_evidence_api_response.v2"].includes(value)
+    ? "v2"
+    : "v1";
+}
+
+function buildReleaseEvidenceV2Stats(snapshot = {}) {
+  const runRecords = extractRunRecords(snapshot.runFixture);
+  const grades = extractGradeResults(snapshot.gradeFixture);
+  const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
+  return {
+    runIds: runRecords.map((run) => run.run_id).filter(Boolean),
+    caseCount: cases.length,
+    a1: {
+      runCount: runRecords.length,
+      caseCount: cases.length,
+      traceEventCount: cases.reduce((sum, item) => sum + (Array.isArray(item.trace_events) ? item.trace_events.length : 0), 0),
+      observationCount: cases.reduce((sum, item) => sum + (Array.isArray(item.observations) ? item.observations.length : 0), 0),
+      toolCallCaseCount: cases.filter((item) => (
+        (Array.isArray(item.expected?.tool_calls) && item.expected.tool_calls.length > 0)
+        || (Array.isArray(item.actual?.tool_calls) && item.actual.tool_calls.length > 0)
+      )).length,
+      missingRequiredFields: []
+    },
+    a2: {
+      gradeCount: grades.length,
+      judgeResultCount: cases.reduce((sum, item) => sum + (Array.isArray(item.judge_results) ? item.judge_results.length : item.grade ? 1 : 0), 0),
+      failedCaseCount: cases.filter((item) => item.passed === false).length,
+      failureClassCount: new Set(cases.map((item) => item.primary_failure_class).filter(Boolean)).size,
+      missingRequiredFields: []
+    }
   };
 }
 

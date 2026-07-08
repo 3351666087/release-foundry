@@ -2527,3 +2527,75 @@ Safety boundary:
 Current interpretation:
 
 A3 now has a stronger SaaS-style evidence boundary. Release evidence and hosted reports are no longer only visible UI/report data; they also carry health, next-action, tenant scope, and denial behavior that future auth/RBAC/database work can attach to.
+
+## 2026-07-08 - Release evidence v2 authority API
+
+Continued A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` by moving release evidence from v1 report summary toward an explicit authority object that can anchor PR gates, hosted reports, usage, audit, and enterprise review.
+
+20 growth points considered this round:
+
+1. v2 authority summary.
+2. v1/v2 API version negotiation.
+3. compact evidence health endpoint.
+4. evidence diff endpoint.
+5. A1 RunResult evidence counts.
+6. A1 trace/observation/tool-call evidence counts.
+7. A2 GradeResult/Judge/failure-class evidence counts.
+8. required-check proof state.
+9. GitHub Check readback state placeholders.
+10. PR comment readback state placeholders.
+11. hosted report snapshot linkage.
+12. usage-ledger linkage.
+13. redaction fail-closed surfaces.
+14. compliance/retention placeholders.
+15. source snapshot id.
+16. tenant/project scope propagation.
+17. A1/A2 contract mapping artifact.
+18. Growth-Auditor money-grade audit artifact.
+19. cross-tenant diff denial.
+20. v1 backward compatibility.
+
+Implemented this round:
+
+- Added `a3.release_evidence_summary.v2` builder in `services/report/a3_release_evidence.mjs`.
+- Kept v1 stable by requiring explicit `version=2` or v2 schema request for the v2 response.
+- Added `GET /api/a3/releases/:releaseId/evidence-health`.
+- Added `GET /api/a3/releases/:releaseId/evidence-diff`.
+- Added v2 A1 evidence fields for RunResult, Trace, ToolCall, and Observation counts.
+- Added v2 A2 evidence fields for Scenario, Judge, GradeResult, and FailureTaxonomy counts.
+- Added required-check proof fields that keep plan-only separate from enforced.
+- Added readback placeholders that do not claim live GitHub Check or PR comment confirmation.
+- Added usage-ledger linkage through `summary_id`.
+- Added safety/redaction/compliance fields that fail closed by default.
+- Added A1/A2 contract mapping artifact:
+  - `docs/a3/p3_a1_a2_release_evidence_v2_contract_map_2026_07_08.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_release_evidence_v2_2026_07_08.md`
+
+Verification:
+
+```text
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/a3_store.mjs
+node --check services/report/a3_api_server.mjs
+node --test tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+```
+
+Result: 14 pass, 0 fail.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and release policy semantics were not changed.
+- A3 v2 authority maps A1/A2 outputs downstream and records where source snapshot/hash/readback contracts are still missing.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub readback, branch-protection mutation, billing mutation, auth/team/API-key/Trust mutation, or cloud mutation.
+- No API key, token, cookie, account email, raw share token, live signed URL, or private key committed.
+
+Current interpretation:
+
+A3 now has a concrete v2 authority API surface, but not yet full enterprise production proof. The next money-grade step is live-shaped GitHub readback plus immutable source snapshots and Postgres/RLS-backed persistence.
