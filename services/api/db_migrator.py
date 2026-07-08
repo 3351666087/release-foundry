@@ -11,6 +11,84 @@ from services.api.data_model import DATA_MODEL_SCHEMA_VERSION, Index, TABLES, Ta
 TENANT_SCOPE_COLUMN = "tenant_id"
 SCHEMA_LEDGER_TABLE = "schema_migrations"
 SUPPORTED_DIALECTS = frozenset({"sqlite", "postgres"})
+GO_POSTGRES_VERTICAL_SLICE_TABLES = frozenset({"runs", "idempotency_keys", "usage_ledger", "audit_log", "jobs"})
+GO_POSTGRES_VERTICAL_SLICE_FUNCTIONS = frozenset(
+    {"ensure_idempotency_fingerprint", "rollup_usage", "audit_chain_tail"}
+)
+
+GO_POSTGRES_VERTICAL_SLICE_CONTRACT: Mapping[str, Mapping[str, tuple[str, ...]]] = {
+    "runs": {
+        "required_columns": (
+            "organization_id",
+            "project_id",
+            "status",
+            "request_fingerprint",
+            "created_at",
+            "updated_at",
+        ),
+        "required_indexes": ("idx_runs_project_created", "idx_runs_project_status"),
+    },
+    "idempotency_keys": {
+        "required_columns": (
+            "organization_id",
+            "project_id",
+            "idempotency_key",
+            "request_method",
+            "request_path",
+            "fingerprint",
+            "created_at",
+        ),
+        "required_indexes": ("idx_idempotency_keys_created",),
+    },
+    "usage_ledger": {
+        "required_columns": (
+            "organization_id",
+            "project_id",
+            "meter",
+            "quantity",
+            "unit",
+            "idempotency_key_id",
+            "period_start",
+            "period_end",
+            "created_at",
+        ),
+        "required_indexes": (
+            "idx_usage_ledger_idempotency_key_unique",
+            "idx_usage_ledger_scope_meter_period",
+            "idx_usage_ledger_workspace_meter_period",
+        ),
+    },
+    "audit_log": {
+        "required_columns": (
+            "organization_id",
+            "project_id",
+            "actor_type",
+            "action",
+            "resource_type",
+            "idempotency_key_id",
+            "entry_hash",
+            "created_at",
+        ),
+        "required_indexes": ("idx_audit_log_scope_created", "idx_audit_log_resource"),
+    },
+    "jobs": {
+        "required_columns": (
+            "organization_id",
+            "project_id",
+            "job_type",
+            "status",
+            "priority",
+            "dedupe_key",
+            "run_after",
+            "attempts",
+            "max_attempts",
+            "payload",
+            "created_at",
+            "updated_at",
+        ),
+        "required_indexes": ("idx_jobs_ready_queue", "idx_jobs_project_status"),
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +252,27 @@ def generate_migration_plan(tables: Sequence[Table] = TABLES, *, dialect: str = 
 def build_ledger_entry(plan: MigrationPlan | None = None) -> SchemaVersionLedgerEntry:
     plan = plan or generate_migration_plan()
     return SchemaVersionLedgerEntry(schema_version=plan.schema_version, checksum=plan.checksum, dialect=plan.dialect)
+
+
+def build_go_postgres_vertical_slice_manifest() -> dict[str, object]:
+    """Return the schema contract the Go/Postgres worker path must preserve.
+
+    This is intentionally static and dependency-free so CI can validate the backend
+    persistence shape without needing a Docker daemon or a live Postgres service.
+    """
+
+    return {
+        "dialect": "postgres",
+        "tables": sorted(GO_POSTGRES_VERTICAL_SLICE_TABLES),
+        "functions": sorted(GO_POSTGRES_VERTICAL_SLICE_FUNCTIONS),
+        "contract": {
+            table: {
+                "required_columns": list(details["required_columns"]),
+                "required_indexes": list(details["required_indexes"]),
+            }
+            for table, details in sorted(GO_POSTGRES_VERTICAL_SLICE_CONTRACT.items())
+        },
+    }
 
 
 def validate_schema_ledger(

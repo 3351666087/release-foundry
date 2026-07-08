@@ -986,7 +986,7 @@ export class SaaSControlPlaneRouter {
       if (upperMethod === "GET" && (parts.join("/") === "healthz" || parts.join("/") === "v1/healthz")) {
         return { status_code: 200, body: saasHealthz() };
       }
-      if (upperMethod === "GET" && (parts.join("/") === "openapi.json" || parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi")) {
+      if (upperMethod === "GET" && (parts.join("/") === "openapi.json" || parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi" || parts.join("/") === "v1/openapi.json")) {
         return { status_code: 200, body: exportSaaSOpenApiSpec() };
       }
       if (upperMethod === "POST" && parts.join("/") === "v1/bootstrap") {
@@ -1164,6 +1164,7 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
     paths: {
       "/healthz": { get: { operationId: "healthz", responses: { "200": response("Health check") } } },
       "/openapi.json": { get: { operationId: "exportOpenApi", responses: { "200": response("OpenAPI document") } } },
+      "/v1/openapi.json": { get: { operationId: "exportOpenApiV1", responses: { "200": response("OpenAPI document") } } },
       "/healthz/openapi": { get: { operationId: "exportOpenApiLegacy", responses: { "200": response("OpenAPI document") } } },
       "/v1/bootstrap": { post: { operationId: "bootstrapProject", requestBody: { content: json }, responses: { "201": response("Bootstrap result") } } },
       "/v1/projects/{project_id}/api-keys": {

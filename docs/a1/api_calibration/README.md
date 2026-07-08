@@ -23,8 +23,15 @@ The plan is intentionally dry-run first:
 - Real read-only calibration requires `--execute --small-batch --max-retries 0` and writes under `docs/evidence/private_refs/`.
 - Dry-run mutating calibration may enumerate Text/Audio/File/Image/Video request shapes with zero official API calls.
 - Real mutating calibration requires `--include-mutating`, explicit `--modality` selection, a fresh `plan-batch` quota gate for `create-request`, and private output.
+- Preferred mutating gates include `response.plan.target_binding`, which binds the approved gate to the current calibrator request hash, modality sequence, and execution guardrails. Legacy `request_fingerprint` gates remain accepted for older private evidence, but new gates should use target binding.
 - Non-text real calibration additionally requires `--allow-paid-media`; media modalities should only enter after the text small-batch record is reviewed.
 - API keys are read only from `ASHR_API_KEY` or `ASHR_LABS_API_KEY` at execution time; the public plan does not contain key material, authorization headers, raw payload responses, or private evidence contents.
+
+Safe text mutation planning flow:
+
+1. Dry-run the request file with `services/runner/api_probe.py plan-batch --target-operation create-request --request-file docs/a1/api_calibration/text_batch_generation_request.json --small-batch-size 1 --output docs/evidence/private_refs/<gate>.json`.
+2. Attach reviewed quota/reset evidence with `--quota-record` when available so `quota_stop_go.decision` can become `go`.
+3. Execute the SDK calibrator only with `--execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<gate>.json --output docs/evidence/private_refs/<manifest>.json`.
 
 ## Probe Surface
 

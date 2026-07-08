@@ -429,6 +429,30 @@ test("TS SaaS router HTTP and OpenAPI expose worker job heartbeat parity", async
   assert.equal(JSON.stringify(completed).includes("still-hashed"), false);
 });
 
+test("TS SaaS OpenAPI keeps current Go HTTP vertical slice routes", () => {
+  const router = new SaaSControlPlaneRouter(new SaaSControlPlaneService());
+  const spec = router.handle("GET", "/v1/openapi.json");
+  assert.equal(spec.status_code, 200);
+
+  const goRoutes = [
+    ["GET", "/healthz"],
+    ["GET", "/openapi.json"],
+    ["GET", "/v1/openapi.json"],
+    ["POST", "/v1/bootstrap"],
+    ["POST", "/v1/projects/{project_id}/sdk-submit"],
+    ["POST", "/v1/projects/{project_id}/worker-jobs/enqueue"],
+    ["POST", "/v1/projects/{project_id}/worker-jobs/lease"],
+    ["GET", "/v1/projects/{project_id}/worker-jobs"],
+    ["POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"],
+    ["POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/complete"],
+    ["POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/fail"],
+  ];
+
+  for (const [method, path] of goRoutes) {
+    assert.ok(spec.body.paths[path]?.[method.toLowerCase()], `${method} ${path}`);
+  }
+});
+
 test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "ashr-ts-saas-cli-"));
   try {

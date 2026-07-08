@@ -21,7 +21,7 @@
     ]
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
-  "generated_at": "2026-07-08T13:58:41Z",
+  "generated_at": "2026-07-08T14:43:05Z",
   "modality_matrix": [
     {
       "accepted_input": "text",
@@ -111,6 +111,294 @@
       "video": "f71771450631ae392dc6f763e91cee5e14e939cfec088e4b55bad2e0fd7cf4b8"
     },
     "schema_version": "ashr.clone.api_probe_batch_plan.v1",
+    "target_bindings": {
+      "audio": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "e85b62ca5861bab5b8bb1b0ece2b7b3f47415f1cc8a1bfa49c1df2f9b2d484f3",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "audio"
+        ],
+        "modalities": [
+          "text",
+          "audio"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "audio",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "b492cf50d81b3b69f44bfd387b27326e13927ad4bf811e8f81da415aa8123f68",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "ashr.clone.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "file": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "189c815008556ed9ac8b6bb2c9c1713b7c7925948b3fbcac4a2b8e62f89a4a9f",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "file"
+        ],
+        "modalities": [
+          "text",
+          "file"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "file",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "a303722c641391ba947e67afa66f6155fdc7fd6c8c9e4530bd570f440cfe249b",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "ashr.clone.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "image": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "7b3baa02a30af20eddb541338dae3af67affa17ccc7c284458917ff9a38868a7",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "image"
+        ],
+        "modalities": [
+          "text",
+          "image"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "image",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "3c5b16f8b083c5ecc6c72ad16852c98fc4209cd5e1253cddaaf3e072d3b37a15",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "ashr.clone.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "text": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "34e425ae3a3cb986c21eed3477687702b421c2af105b48617ed9464245d9cfe5",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [],
+        "modalities": [
+          "text"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "5f6d06fd0e46f6c9bf3f57b34809638714740094d5d2fd11155a96dcce4b3b95",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "ashr.clone.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": false
+      },
+      "video": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "fcc66dd94d4e792dd57ac0f7bee612708ab49ff7d1d5404e583066a1cda37639",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "video"
+        ],
+        "modalities": [
+          "text",
+          "video"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "video",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "f71771450631ae392dc6f763e91cee5e14e939cfec088e4b55bad2e0fd7cf4b8",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "ashr.clone.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      }
+    },
     "target_operation": "create-request",
     "ttl_seconds": 86400
   },

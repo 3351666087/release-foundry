@@ -15,6 +15,7 @@ from packages.sdk.ashr_clone.calibrate import (
     CalibrationUsageError,
     build_field_parity_plan,
     calibration_request_fingerprint,
+    calibration_target_binding,
     parse_args,
     request_for_modality,
     run_calibration,
@@ -91,6 +92,7 @@ def write_plan_batch_gate(
     created_at: str | None = None,
     modalities: list[str] | None = None,
     request_fingerprint=None,
+    target_binding=None,
 ) -> Path:
     gate = {
         "decision": decision,
@@ -112,6 +114,8 @@ def write_plan_batch_gate(
         plan["modalities"] = modalities
     if request_fingerprint is not None:
         plan["request_fingerprint"] = request_fingerprint
+    if target_binding is not None:
+        plan["target_binding"] = target_binding
     record = {
         "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
         "function": "plan_batch",
@@ -440,6 +444,36 @@ def test_run_calibration_rejects_quota_gate_request_fingerprint_mismatch_before_
     args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), quota_gate_record=str(gate), allow_nonprivate_output=True)
 
     with pytest.raises(CalibrationUsageError, match="request_fingerprint"):
+        run_calibration(args, env={}, client=client)
+
+    assert client.calls == []
+    assert not output.exists()
+
+
+def test_run_calibration_accepts_matching_quota_gate_target_binding(tmp_path: Path):
+    output = tmp_path / "target_binding.json"
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), allow_nonprivate_output=True)
+    gate = write_plan_batch_gate(tmp_path, modalities=["text"], target_binding=calibration_target_binding("text", args))
+    args.quota_gate_record = str(gate)
+
+    manifest = run_calibration(args, env={}, client=FakeCalibrationClient())
+
+    validation = manifest["guardrails"]["quota_gate"]["validation"]
+    assert manifest["status"] == "ok"
+    assert validation["target_binding"]["fingerprint"] == calibration_target_binding("text", args)["fingerprint"]
+    assert validation["target_binding"]["raw_request_not_recorded"] is True
+
+
+def test_run_calibration_rejects_quota_gate_target_binding_mismatch_before_calls(tmp_path: Path):
+    output = tmp_path / "wrong_target_binding.json"
+    args = CalibrationArgs(execute=True, small_batch=True, include_mutating=True, max_retries=0, modalities=("text",), output=str(output), allow_nonprivate_output=True)
+    target_binding = calibration_target_binding("text", args)
+    target_binding["allow_non_text_inputs"] = False
+    gate = write_plan_batch_gate(tmp_path, modalities=["text"], target_binding=target_binding)
+    args.quota_gate_record = str(gate)
+    client = FakeCalibrationClient()
+
+    with pytest.raises(CalibrationUsageError, match="target_binding"):
         run_calibration(args, env={}, client=client)
 
     assert client.calls == []

@@ -50,6 +50,18 @@ def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> No
     INSERT INTO usage_ledger (id, organization_id, project_id, meter, quantity, unit, source_type, source_id, period_start, period_end)
       VALUES ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'run_count', 2, 'runs', 'run', 'run-live-a1', '2026-07-08T00:00:00Z', '2026-07-09T00:00:00Z')
       ON CONFLICT DO NOTHING;
+    INSERT INTO jobs (id, organization_id, project_id, job_type, status, priority, dedupe_key, payload)
+      VALUES ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'run.dispatch', 'queued', 10, 'job-live-a1', '{"run_id":"00000000-0000-0000-0000-000000000103"}'::jsonb)
+      ON CONFLICT DO NOTHING;
+    INSERT INTO jobs (id, organization_id, project_id, job_type, status, priority, dedupe_key, payload)
+      VALUES ('00000000-0000-0000-0000-000000000107', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'run.dispatch', 'queued', 99, 'job-live-a1', '{}'::jsonb)
+      ON CONFLICT DO NOTHING;
+    SELECT count(*) AS deduped_jobs
+      FROM jobs
+     WHERE organization_id = '00000000-0000-0000-0000-000000000101'
+       AND project_id = '00000000-0000-0000-0000-000000000103'
+       AND job_type = 'run.dispatch'
+       AND dedupe_key = 'job-live-a1';
     SELECT total_quantity, ledger_entries
       FROM rollup_usage(
         '00000000-0000-0000-0000-000000000101',
@@ -65,4 +77,44 @@ def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> No
     assert "idem-live-a1" in result.stdout
     assert "fp-live-a1" in result.stdout
     assert "2.000000" in result.stdout
+    assert "deduped_jobs" in result.stdout
+    assert "1" in result.stdout
     assert "hash-live-a1" in result.stdout
+
+
+def test_a1_foundation_idempotency_conflict_is_live_opt_in() -> None:
+    dsn = _dsn()
+    _psql(dsn, file=MIGRATION)
+
+    setup_sql = """
+    INSERT INTO organizations (id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000201', 'org-live-a1-conflict', 'Org Live A1 Conflict')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO workspaces (id, organization_id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000201', 'ws-live-a1-conflict', 'Workspace Live A1 Conflict')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO projects (id, organization_id, workspace_id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000203', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000202', 'proj-live-a1-conflict', 'Project Live A1 Conflict')
+      ON CONFLICT DO NOTHING;
+    SELECT idempotency_key
+      FROM ensure_idempotency_fingerprint(
+        '00000000-0000-0000-0000-000000000201',
+        '00000000-0000-0000-0000-000000000203',
+        'idem-live-a1-conflict', 'POST', '/v1/runs', 'fp-live-a1-original'
+      );
+    """
+    _psql(dsn, setup_sql)
+
+    conflict_sql = """
+    SELECT idempotency_key
+      FROM ensure_idempotency_fingerprint(
+        '00000000-0000-0000-0000-000000000201',
+        '00000000-0000-0000-0000-000000000203',
+        'idem-live-a1-conflict', 'POST', '/v1/runs', 'fp-live-a1-different'
+      );
+    """
+    command = [os.environ.get("A1_PSQL_BIN", "psql"), dsn, "-v", "ON_ERROR_STOP=1", "-c", conflict_sql]
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+
+    assert result.returncode != 0
+    assert "idempotency key conflict" in result.stderr

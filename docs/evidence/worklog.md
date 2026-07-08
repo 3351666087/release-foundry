@@ -3792,3 +3792,88 @@ Known gaps / next top 20:
 18. Add CI matrix for Python, TS, Go, Rust, migration, Terraform, SQL, and secret scan.
 19. Add staged-diff secret scan script as a repo command instead of ad hoc shell.
 20. Add enterprise self-host deployment path that proves API + worker + DB + object store can boot together.
+
+
+## Worker-ContractEvidence A1 - 2026-07-08
+
+Implemented files:
+- `docs/a1/go_python_route_contract_evidence.json`: public-safe Go/Python ownership, route-family, evidence, and A2/A3 consumer contract artifact based on current tracked code.
+- `docs/a1/schemas/go_python_route_contract_evidence.schema.json`: JSON schema for the route/contract/evidence artifact.
+- `tests/a1/test_go_python_route_contract_evidence.py`: schema-shape, public-safety, path-existence, source-symbol, and A2/A3 handoff validation.
+
+Public-safety notes:
+- Did not read or include `docs/evidence/private_refs/**`, `recon/**`, `tools/**`, or `.secrets/**` content.
+- Artifact includes only repo-relative public paths, owner summaries, route family names, symbol names, and aggregate consumer guidance.
+
+Validation:
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 5 passed.
+
+Known gaps:
+- Go has hosted client/service contracts, but A2/A3 should treat route details as contracted until an executable Go HTTP server/router and generated OpenAPI manifest land.
+- Durable Go repository and cross-SDK hosted-mode integration against that Go server remain future work.
+
+## A1 round 2026-07-08 - Go HTTP server vertical slice closeout
+
+Startup / environment verification:
+- Continued on `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner` after commit `8a39c32`.
+- `git status -sb` showed only A1-owned tracked changes plus untracked `recon/` and `tools/`, which remain unstaged.
+- `Test-Path packages\go\ashrclone\packages` -> `False`; no accidental nested Go package remains.
+- Toolchain check: `Docker version 29.6.1`, `Docker Compose version v5.2.0`, `go version go1.26.5 windows/amd64`, `Python 3.12.7`, `node v24.14.0`, `npm 11.9.0`.
+- Docker daemon check: `docker info` could not connect to `npipe:////./pipe/dockerDesktopLinuxEngine`; `wsl -l -v` showed `docker-desktop` running on WSL2. Containerized follow-up should first repair the daemon pipe, but this did not block the local Go/Python/TS validation.
+
+Implemented / integrated in this closeout:
+- `packages/go/ashrclone/server.go` and `server_test.go`: executable Go HTTP handler over `MemoryService` with health/openapi/bootstrap/sdk-submit/run-submit and worker-job lifecycle routes.
+- `packages/go/ashrclone/cmd/ashr-api/main.go`: local server entrypoint controlled by `ASHR_GO_API_ADDR` with default `127.0.0.1:8787`.
+- `tests/integration/test_a1_go_server_python_sdk.py`: Python `SaaSIngestionClient.from_base_url(...)` smoke against the real Go server process, covering bootstrap, SDK submit, enqueue, lease, complete, and list.
+- `packages/sdk/ashr_clone/saas.py` and `packages/ts/ashr-clone/src/saas.ts`: hosted/base-url clients now target REST-style Go-compatible `/v1/projects/{project_id}/...` routes while preserving local/legacy transports.
+- `docs/a1/go_python_route_contract_evidence.json` and schema/test: updated public-safe route evidence so A2/A3 can see the Go server route families are executable rather than future-only.
+- `services/api/db_migrator.py` and migration tests: durable Postgres manifest validation is now explicit, with live DB tests gated on `A1_POSTGRES_TEST_DSN`.
+- `packages/sdk/ashr_clone/calibrate.py` and API calibration docs/tests: mutating calibration gates now require explicit target binding and modality-aware evidence before paid mutation.
+
+Subagent closeout summary:
+- Growth-Auditor: pushed the main direction toward Go as a live backend owner, not just a typed SDK/client layer.
+- Worker-GoServer: landed the Go HTTP handler and tests.
+- Worker-PostgresPath: landed DB migrator/static/live opt-in migration validation.
+- Worker-SDKCompat: aligned Python and TypeScript hosted clients to Go-compatible route shapes.
+- Worker-APICalibration: added stricter target-bound calibration gates and regenerated five-modality parity plan.
+- Worker-ContractEvidence: added public-safe route contract evidence and validation for A2/A3 handoff.
+
+Validation results:
+- `git diff --check` -> passed with CRLF warnings only.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 296 passed in 19.20s.
+- `npm test --prefix packages/ts/ashr-clone` -> build passed; 281 tests passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed, including `cmd/ashr-api` package discovery.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/integration/test_a1_go_server_python_sdk.py tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> 7 passed, 2 skipped because `A1_POSTGRES_TEST_DSN` is unset.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 5 passed.
+
+Real API / private evidence:
+- Real read-only official API small-batch completed earlier this round with env-only key access and no raw key logging: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_readonly_go_server_20260708.json`.
+- Public summary: status ok; 5 read steps; 0 mutating steps; 0 quota blocks; 7 estimated calls. Raw records stay private and unstaged.
+- Blocked mutating text plan-batch remains private at `docs/evidence/private_refs/a1_worker_api_calibration_text_plan_batch_20260708.json`; it requires reviewed quota/reset evidence before any paid mutation.
+
+Peer changes / staging boundaries:
+- Remote fetch earlier in this round observed peer updates on `origin/codex/a3-audit-evidence-bundle` and `origin/dev/g3-a2-calibration`; no peer files were staged into this A1 commit.
+- `docs/evidence/private_refs/**`, `recon/`, and `tools/` remain unstaged.
+
+Known gaps / next top 20 A1 growth points:
+1. Make Go server Postgres-backed for tenant/project/dataset/run/API-key/usage/audit/worker-job tables.
+2. Add Go API-key auth middleware with scopes, one-time secret reveal, verify, revoke, expiry, last-used, and redacted audit.
+3. Add quota-before-mutation enforcement in Go for sdk submit, run upload, trace ingestion, worker enqueue, and release evidence.
+4. Add trace ingestion HTTP routes in Go for text/audio/file/image/video observations and VM stream frames.
+5. Add artifact upload intent/complete/verify routes across all five first-class modalities.
+6. Add Go release gate and release evidence packet routes with audit hash-chain verification.
+7. Add Python hosted integration smoke for API keys, trace ingestion, quota, and release evidence against Go server.
+8. Add TypeScript hosted integration smoke against Go server, matching Python coverage.
+9. Generate OpenAPI from Go route manifest and have Python/TS tests assert parity from that manifest.
+10. Add durable Go worker daemon with lease heartbeat, reclaim, retry, dead-letter, and graceful shutdown.
+11. Add DB-backed idempotency repository and conflict tests through real HTTP.
+12. Add Docker Compose self-host profile once Docker daemon pipe is repaired.
+13. Add Terraform/HCL skeleton for enterprise self-host network/secret/DB/object-store topology.
+14. Add Rust public evidence verifier for audit hash-chain and release evidence packets.
+15. Add SQL/PLpgSQL functions for usage ledger atomic consume/refund and audit append.
+16. Add official read-only calibration expansion for API keys, runs, usage, datasets, traces, and errors.
+17. Add quota-reviewed text mutating official calibration small-batch, then media modality one at a time.
+18. Add frontend mirror-to-API route map so official UI state drives missing Go routes.
+19. Add A1 CI matrix for Python, TS, Go, SQL migration, Rust verifier, Terraform validate, secret scan.
+20. Add commercial self-host readiness report tying Go backend, SDK parity, official API evidence, quota ledger, and replay into a sellable enterprise story.

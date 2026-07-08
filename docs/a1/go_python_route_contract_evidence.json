@@ -1,0 +1,388 @@
+{
+  "artifact_id": "a1_go_python_route_contract_evidence_2026_07_08",
+  "consumer_contracts": [
+    {
+      "can_consume": [
+        "python.a2_judge_release_contracts",
+        "python.runner_and_probe_contracts",
+        "go.worker_job_routes lifecycle state names for hosted-run planning",
+        "go.project_runtime_routes envelope/idempotency semantics for SDK parity tests"
+      ],
+      "consumer": "a2",
+      "handoff_notes": [
+        "Treat Go as the source of runtime route/envelope ownership as the server slice lands.",
+        "Treat Python as the source of judge/readiness/report generation until A2 explicitly migrates a piece."
+      ],
+      "must_not_consume": [
+        "docs/evidence/private_refs/** raw records",
+        "recon/** extracted packages or private crawls",
+        "tools/** ad hoc probes",
+        "raw API keys, bearer tokens, or exact private response payloads"
+      ],
+      "stable_inputs": [
+        "docs/a1/schemas/evidence_index.schema.json",
+        "docs/a1/schemas/capability_matrix.schema.json",
+        "docs/a1/go_python_route_contract_evidence.json",
+        "services/judge/release_gate.py",
+        "services/judge/scenario_selection.py"
+      ]
+    },
+    {
+      "can_consume": [
+        "public evidence artifact paths and aggregate readiness fields",
+        "Go route family names for report-center route inventory and SaaS admin wiring",
+        "Python release-gate and capability-matrix summaries for dashboards"
+      ],
+      "consumer": "a3",
+      "handoff_notes": [
+        "Use this artifact as a public-safe ownership map, not as a generated OpenAPI spec.",
+        "Route details marked contracted should be displayed as planned/contracted until the Go server/router publishes executable OpenAPI output."
+      ],
+      "must_not_consume": [
+        "private evidence payloads",
+        "non-public crawl outputs",
+        "implementation-only test fixtures that contain sensitive inputs or account data"
+      ],
+      "stable_inputs": [
+        "docs/a1/commercial/capability_matrix.json",
+        "docs/a1/api_calibration/real_api_evidence_index.json",
+        "docs/a1/frontend_mirror/frontend_mirror_index.json",
+        "docs/a1/go_python_route_contract_evidence.json"
+      ]
+    }
+  ],
+  "evidence_artifacts": [
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "owner": "shared",
+      "path": "docs/a1/go_python_route_contract_evidence.json",
+      "privacy_level": "public_safe",
+      "purpose": "Public-safe ownership, route-family, and consumer handoff map for A1 Go/Python contracts."
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "owner": "shared",
+      "path": "docs/a1/schemas/go_python_route_contract_evidence.schema.json",
+      "privacy_level": "public_safe",
+      "purpose": "Schema validation for the ownership and consumer handoff map."
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "owner": "python",
+      "path": "docs/a1/commercial/capability_matrix.json",
+      "privacy_level": "public_safe",
+      "purpose": "Public-safe commercial capability axis summary generated from public evidence, frontend mirror metadata, and local static coverage."
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "owner": "python",
+      "path": "docs/a1/api_calibration/real_api_evidence_index.json",
+      "privacy_level": "public_safe",
+      "purpose": "Public-safe evidence index that exposes operation/status/key summaries without raw private API payloads."
+    },
+    {
+      "consumers": [
+        "a3",
+        "a1"
+      ],
+      "owner": "python",
+      "path": "docs/a1/frontend_mirror/frontend_mirror_index.json",
+      "privacy_level": "public_safe",
+      "purpose": "Public-safe frontend runtime schema and route signal index for A3 compatibility checks."
+    }
+  ],
+  "generated_at": "2026-07-08",
+  "known_gaps": [
+    {
+      "id": "go.server_router_durable_openapi",
+      "owner": "go",
+      "summary": "A MemoryService-backed Go HTTP handler and cmd entrypoint now prove health/bootstrap/sdk-submit/worker-job routes; durable Postgres backing and generated OpenAPI are still required before A2/A3 treat the full Go route map as production truth.",
+      "unblocks": [
+        "a2",
+        "a3",
+        "a1"
+      ]
+    },
+    {
+      "id": "go.durable_repository",
+      "owner": "go",
+      "summary": "MemoryService proves lifecycle semantics; a durable Postgres-backed repository is still required for production tenant, run, idempotency, audit, usage, and worker-job state.",
+      "unblocks": [
+        "a2",
+        "a3",
+        "a1"
+      ]
+    },
+    {
+      "id": "cross_sdk_go_server_integration",
+      "owner": "shared",
+      "summary": "Python SDK hosted-mode smoke now calls the Go server for bootstrap, sdk-submit, and worker-job lifecycle; TypeScript hosted-mode smoke against the Go server remains future work.",
+      "unblocks": [
+        "a2",
+        "a3",
+        "a1"
+      ]
+    }
+  ],
+  "ownership_summary": [
+    {
+      "does_not_own": [
+        "A2 scenario selection, judge calibration, or release-readiness scoring",
+        "private evidence capture payloads",
+        "A3 report-center rendering or SaaS admin UI"
+      ],
+      "owner": "go",
+      "owns": [
+        "hosted API client route contract for project-scoped HTTP calls",
+        "in-memory service model for tenant/project/dataset/run/worker-job lifecycle",
+        "idempotency, retry, redaction, API error, and media-safe envelope checks",
+        "MemoryService-backed Go HTTP handler vertical slice for health, bootstrap, SDK submit, and worker-job runtime APIs"
+      ],
+      "primary_paths": [
+        "packages/go/ashrclone/client.go",
+        "packages/go/ashrclone/cmd/ashr-api/main.go",
+        "packages/go/ashrclone/hosted.go",
+        "packages/go/ashrclone/media_safe.go",
+        "packages/go/ashrclone/redaction.go",
+        "packages/go/ashrclone/server.go",
+        "packages/go/ashrclone/server_test.go",
+        "packages/go/ashrclone/service.go",
+        "packages/go/ashrclone/types.go",
+        "tests/integration/go/ashrclone_integration_test.go",
+        "tests/integration/test_a1_go_server_python_sdk.py"
+      ],
+      "public_outputs": [
+        "Go SDK/service route and envelope behavior",
+        "worker-job lifecycle contract",
+        "media-safe manifest validation contract",
+        "redacted client configuration behavior"
+      ]
+    },
+    {
+      "does_not_own": [
+        "Go HTTP route implementation details",
+        "Go worker lease state machine implementation",
+        "A3 dashboard/report rendering internals",
+        "private API response records"
+      ],
+      "owner": "python",
+      "owns": [
+        "agent runner and dataset adapter execution path",
+        "A2 judge, calibration, coverage, evidence readiness, scenario selection, and release-gate reports",
+        "public-safe evidence index and capability matrix generation",
+        "API probe planning and quota-gated calibration workflow"
+      ],
+      "primary_paths": [
+        "services/runner/runner.py",
+        "services/runner/dataset_adapter.py",
+        "services/runner/api_probe.py",
+        "services/judge/release_gate.py",
+        "services/judge/evidence_readiness.py",
+        "services/judge/scenario_selection.py",
+        "services/judge/sdk_parity.py",
+        "packages/sdk/ashr_clone/evidence.py",
+        "packages/sdk/ashr_clone/capability_matrix.py"
+      ],
+      "public_outputs": [
+        "A2 release-gate input summaries",
+        "scenario selection report shape",
+        "public evidence indexes without raw payloads",
+        "capability matrix public-safe axes"
+      ]
+    }
+  ],
+  "public_safe": true,
+  "route_contracts": [
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "contract_symbols": [
+        "Client.AuditLogHTTP",
+        "Client.BuildReleaseEvidencePacketHTTP",
+        "Client.CreateArtifactManifestHTTP",
+        "Client.EvaluateReleaseGateHTTP",
+        "Client.IngestTraceHTTP",
+        "Client.LifecycleHTTP",
+        "Client.SubmitRunHTTP",
+        "Client.UploadRunHTTP",
+        "Client.UsageHTTP",
+        "Client.VerifyAuditChainHTTP",
+        "Client.VerifyReleaseEvidencePacketHTTP",
+        "Envelope",
+        "GoRouteManifest",
+        "IdempotencyOptions",
+        "NewHTTPHandler",
+        "NewHTTPServer"
+      ],
+      "id": "go.project_runtime_routes",
+      "owner": "go",
+      "producer_paths": [
+        "packages/go/ashrclone/client.go",
+        "packages/go/ashrclone/cmd/ashr-api/main.go",
+        "packages/go/ashrclone/hosted.go",
+        "packages/go/ashrclone/server.go",
+        "packages/go/ashrclone/server_test.go",
+        "packages/go/ashrclone/types.go",
+        "tests/integration/test_a1_go_server_python_sdk.py"
+      ],
+      "public_contract": "Go HTTP handler currently implements health, bootstrap, sdk-submit, and worker-job lifecycle/list routes; broader project runtime routes remain hosted-client contracted until server parity expands.",
+      "route_family": "/v1/projects/{project_id}/runs and related project runtime routes",
+      "safe_to_consume": [
+        "route family names and method-level contract symbols",
+        "envelope shape and idempotency semantics",
+        "public schema paths listed in evidence_artifacts"
+      ],
+      "status": "implemented",
+      "transport": "HTTP JSON through Go hosted client plus Go HTTP handler for bootstrap and sdk-submit subset"
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "contract_symbols": [
+        "Client.CompleteWorkerJobHTTP",
+        "Client.EnqueueWorkerJobHTTP",
+        "Client.FailWorkerJobHTTP",
+        "Client.HeartbeatWorkerJobHTTP",
+        "Client.LeaseWorkerJobHTTP",
+        "Client.ListWorkerJobsHTTP",
+        "GoRouteManifest",
+        "MemoryService.CompleteWorkerJob",
+        "MemoryService.EnqueueWorkerJob",
+        "MemoryService.FailWorkerJob",
+        "MemoryService.HeartbeatWorkerJob",
+        "MemoryService.LeaseWorkerJob",
+        "MemoryService.ListWorkerJobs",
+        "NewHTTPHandler",
+        "NewHTTPServer",
+        "WorkerJob",
+        "WorkerJobList"
+      ],
+      "id": "go.worker_job_routes",
+      "owner": "go",
+      "producer_paths": [
+        "packages/go/ashrclone/hosted.go",
+        "packages/go/ashrclone/media_safe.go",
+        "packages/go/ashrclone/server.go",
+        "packages/go/ashrclone/server_test.go",
+        "packages/go/ashrclone/service.go",
+        "packages/go/ashrclone/types.go"
+      ],
+      "public_contract": "Worker jobs can be enqueued, leased, heartbeated, completed, failed, and listed with tenant/project scoping, lease-owner checks, retry metadata, and media-safe result/error envelopes.",
+      "route_family": "/v1/projects/{project_id}/worker-jobs",
+      "safe_to_consume": [
+        "worker-job lifecycle states and public method names",
+        "lease/retry/idempotency behavior for integration planning",
+        "media-safe envelope requirement for result and failure payloads"
+      ],
+      "status": "implemented",
+      "transport": "HTTP JSON through Go hosted client, Go HTTP handler, and in-memory service lifecycle"
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3",
+        "a1"
+      ],
+      "contract_symbols": [
+        "run_case",
+        "run_agent_batch",
+        "load_agent_target",
+        "build_api_probe_batch_plan",
+        "run_gate_validation",
+        "validate_quota_go_gate",
+        "build_private_evidence_index",
+        "validate_public_evidence_index"
+      ],
+      "id": "python.runner_and_probe_contracts",
+      "owner": "python",
+      "producer_paths": [
+        "services/runner/runner.py",
+        "services/runner/dataset_adapter.py",
+        "services/runner/api_probe.py",
+        "packages/sdk/ashr_clone/evidence.py"
+      ],
+      "public_contract": "Python owns local agent execution, dataset adaptation, API probe batch planning, quota stop-go validation, and public evidence summary generation without exposing raw private records.",
+      "route_family": "local runner, dataset adapter, and API probe planning commands",
+      "safe_to_consume": [
+        "public evidence index counts and response-key summaries",
+        "quota gate status summaries",
+        "runner result shape for local fixtures"
+      ],
+      "status": "implemented",
+      "transport": "Python CLI/function contracts producing JSON reports and public-safe summaries"
+    },
+    {
+      "consumers": [
+        "a2",
+        "a3"
+      ],
+      "contract_symbols": [
+        "build_release_gate_report",
+        "build_evidence_readiness_report",
+        "build_scenario_selection_report",
+        "build_calibration_matrix",
+        "build_coverage_report",
+        "build_sdk_parity_report"
+      ],
+      "id": "python.a2_judge_release_contracts",
+      "owner": "python",
+      "producer_paths": [
+        "services/judge/release_gate.py",
+        "services/judge/evidence_readiness.py",
+        "services/judge/scenario_selection.py",
+        "services/judge/calibration.py",
+        "services/judge/coverage.py",
+        "services/judge/sdk_parity.py"
+      ],
+      "public_contract": "A2 consumes Python-built calibration, coverage, scenario-selection, evidence-readiness, and release-gate summaries. These reports may cite public evidence paths but must not depend on private raw records.",
+      "route_family": "A2 judge/readiness/release report builders",
+      "safe_to_consume": [
+        "release gate status/blocker/warning summaries",
+        "scenario selection readiness summaries",
+        "public matrix/report paths and aggregate counts"
+      ],
+      "status": "implemented",
+      "transport": "Python report builders and JSON artifacts"
+    }
+  ],
+  "schema_version": "ashr.clone.go_python_route_contract_evidence.v1",
+  "source_policy": {
+    "allowed_source_classes": [
+      "tracked source files",
+      "public schemas",
+      "public A1 evidence summaries",
+      "public A2/A3-facing fixtures and reports"
+    ],
+    "excluded_paths": [
+      "docs/evidence/private_refs/**",
+      "recon/**",
+      "tools/**",
+      ".secrets/**"
+    ],
+    "private_evidence_read": false,
+    "raw_payloads_included": false,
+    "tokens_included": false
+  }
+}

@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -274,36 +275,44 @@ def test_sdk_saas_cli_rejects_private_release_packet_paths_without_reading(tmp_p
 
 
 def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
-    calls: list[tuple[str, dict]] = []
+    calls: list[tuple[str, str, dict, dict]] = []
 
-    def transport(url: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+    def transport(url: str, payload: Mapping[str, object], *, method: str = "POST") -> Mapping[str, object]:
         data = dict(payload)
-        calls.append((url, data))
+        parsed = urlparse(url)
+        query = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+        path_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        calls.append((method, path_url, data, query))
         assert "api_key" not in data
-        if url.endswith("/runs/submit"):
+        if parsed.path.endswith("/v1/projects/project_http/sdk-submit"):
             return {"run_id": data["run_id"], "status": "submitted", "echo_metadata": data["metadata"]}
-        if url.endswith("/runs/upload"):
+        if parsed.path.endswith("/v1/projects/project_http/runs/run_http/upload"):
             return {
                 "upload_id": data["upload_id"],
                 "raw_payload_included": False,
                 "payload": data["result"],
             }
-        if url.endswith("/traces/ingest"):
+        if parsed.path.endswith("/v1/projects/project_http/runs/run_http/trace-events"):
             observations = data["observations"]
             return {"batch_id": data["batch_id"], "observation_count": len(observations)}
-        if url.endswith("/quota"):
+        if parsed.path.endswith("/v1/projects/project_http/quota"):
+            assert method == "GET"
+            assert data == {}
+            assert query["tenant_id"] == "tenant_http"
             return {"used": {"run.submit": 1}}
-        if url.endswith("/audit-chain/verify"):
+        if parsed.path.endswith("/v1/projects/project_http/audit-chain/verify"):
             return {"verification": {"verified": True}, "event_count": 1}
-        if url.endswith("/runs/run_http/release-evidence/verify"):
+        if parsed.path.endswith("/v1/projects/project_http/runs/run_http/release-evidence/verify"):
             return {"verified": True, "packet_id": data["packet"]["packet_id"]}
-        if url.endswith("/worker-jobs/enqueue") and data.get("job_type") == "run.replay":
+        if parsed.path.endswith("/v1/projects/project_http/worker-jobs/enqueue") and data.get("job_type") == "run.replay":
             return {"job_id": data["job_id"], "raw_payload_included": False, "payload": data["payload"], "status": "queued"}
-        if url.endswith("/worker-jobs/lease"):
+        if parsed.path.endswith("/v1/projects/project_http/worker-jobs/lease"):
             return {"status": "leased", "leased": True, "job": {"job_id": "job_http", "attempts": 1, "lease_owner_id": data["lease_owner_id"]}}
-        if url.endswith("/worker-jobs/job_http/fail"):
+        if parsed.path.endswith("/v1/projects/project_http/worker-jobs/job_http/fail"):
             return {"job_id": "job_http", "status": "retrying", "last_error": {"raw_payload_included": False, "message": data["error"]["message"]}}
-        if url.endswith("/worker-jobs") and data.get("status") == "retrying":
+        if parsed.path.endswith("/v1/projects/project_http/worker-jobs") and query.get("status") == "retrying":
+            assert method == "GET"
+            assert data == {}
             return {"count": 1, "jobs": [{"job_id": "job_http", "status": "retrying"}]}
         raise AssertionError(url)
 
@@ -362,19 +371,19 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
     assert client.lease_worker_job("tenant_http", "project_http", lease_owner_id="worker-http", api_key_id="key_http")["result"]["leased"] is True
     assert client.fail_worker_job("tenant_http", "project_http", "job_http", {"message": "retry"}, lease_owner_id="worker-http", retry_after_seconds=0, api_key_id="key_http")["result"]["status"] == "retrying"
     assert client.list_worker_jobs("tenant_http", "project_http", status="retrying", auth_key_id="key_http")["result"]["count"] == 1
-    assert [url for url, _payload in calls] == [
-        "http://127.0.0.1:8765/a1/runs/submit",
-        "http://127.0.0.1:8765/a1/runs/upload",
-        "http://127.0.0.1:8765/a1/traces/ingest",
-        "http://127.0.0.1:8765/a1/quota",
-        "http://127.0.0.1:8765/a1/audit-chain/verify",
-        "http://127.0.0.1:8765/a1/runs/run_http/release-evidence/verify",
-        "http://127.0.0.1:8765/a1/worker-jobs/enqueue",
-        "http://127.0.0.1:8765/a1/worker-jobs/lease",
-        "http://127.0.0.1:8765/a1/worker-jobs/job_http/fail",
-        "http://127.0.0.1:8765/a1/worker-jobs",
+    assert [(method, url) for method, url, _payload, _query in calls] == [
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/sdk-submit"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/upload"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/trace-events"),
+        ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/quota"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/audit-chain/verify"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/release-evidence/verify"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/enqueue"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/lease"),
+        ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/job_http/fail"),
+        ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs"),
     ]
-    assert calls[0][1]["api_key_id"] == "key_http"
+    assert calls[0][2]["api_key_id"] == "key_http"
 
 
 def test_sdk_saas_client_base_url_rejects_raw_api_key_before_transport():

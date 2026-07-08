@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from services.api.db_migrator import build_go_postgres_vertical_slice_manifest
+
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "services/api/migrations/001_a1_large_saas_foundation.sql"
 
@@ -223,3 +225,27 @@ def test_a1_foundation_migration_has_worker_persistence_repository_contract() ->
         "create index if not exists idx_audit_log_resource on audit_log(organization_id, resource_type, resource_id, created_at desc)",
     ]:
         assert index_fragment in normalized
+
+
+def test_a1_foundation_migration_satisfies_go_postgres_vertical_slice_manifest() -> None:
+    sql = _migration_sql()
+    normalized = _normalize(sql)
+    manifest = build_go_postgres_vertical_slice_manifest()
+
+    declared_tables = _declared_objects(sql, r"create\s+table\s+if\s+not\s+exists\s+(\w+)")
+    declared_functions = _declared_objects(sql, r"create\s+or\s+replace\s+function\s+(\w+)")
+    declared_indexes = _declared_objects(sql, r"create\s+(?:unique\s+)?index\s+if\s+not\s+exists\s+(\w+)")
+
+    assert set(manifest["tables"]) <= declared_tables
+    assert set(manifest["functions"]) <= declared_functions
+
+    for table, contract in manifest["contract"].items():
+        body = _table_body(sql, table)
+        for column in contract["required_columns"]:
+            assert f"{column} " in body, f"{table} missing Go/Postgres column {column}"
+        for index in contract["required_indexes"]:
+            assert index in declared_indexes, f"{table} missing Go/Postgres index {index}"
+
+    assert "constraint jobs_org_project_dedupe_key unique (organization_id, project_id, job_type, dedupe_key)" in normalized
+    assert "constraint idempotency_keys_scope_fingerprint_unique unique" in normalized
+    assert "constraint usage_ledger_period_check check (period_end > period_start)" in normalized

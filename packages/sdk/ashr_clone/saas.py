@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from inspect import signature
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from urllib import error, request
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin, quote
 
 from .api_client import redact_sensitive, redact_text
 
@@ -36,7 +37,7 @@ class SaaSIngestionClient:
         *,
         service: Any | None = None,
         base_url: str | None = None,
-        http_transport: Callable[[str, Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        http_transport: Callable[..., Mapping[str, Any]] | None = None,
     ) -> None:
         if service is not None and base_url is not None:
             raise SaaSClientError("provide either service or base_url, not both")
@@ -58,7 +59,7 @@ class SaaSIngestionClient:
         cls,
         base_url: str,
         *,
-        http_transport: Callable[[str, Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        http_transport: Callable[..., Mapping[str, Any]] | None = None,
     ) -> "SaaSIngestionClient":
         return cls(base_url=base_url, http_transport=http_transport)
 
@@ -498,66 +499,85 @@ class SaaSIngestionClient:
     def _request(self, operation: str, payload: Mapping[str, Any]) -> JsonDict:
         if not self.base_url:  # pragma: no cover
             raise SaaSClientError("HTTP transport requested without base_url")
-        url = urljoin(self.base_url, f"{_operation_path(operation, payload)}")
-        response = dict(self._http_transport(url, _drop_none(payload)))
+        method, path = _operation_route(operation, payload)
+        body = _drop_none(payload)
+        url = urljoin(self.base_url, path.lstrip("/"))
+        if method == "GET" and body:
+            url = f"{url}?{urlencode(body)}"
+        response = dict(_call_http_transport(self._http_transport, method, url, {} if method == "GET" else body))
         if {"schema_version", "operation", "result"}.issubset(response):
             return redact_sensitive(response)
         return _remote_envelope(operation, response)
 
 
-_OPERATION_PATHS = {
-    "bootstrap_project": "bootstrap",
-    "create_api_key": "api-keys",
-    "list_api_keys": "api-keys/list",
-    "revoke_api_key": "api-keys/revoke",
-    "verify_api_key_secret": "api-keys/verify",
-    "configure_api_key_rate_limit": "api-keys/rate-limit",
-    "api_key_rate_limit_snapshot": "api-keys/rate-limits",
-    "sdk_submit": "runs/submit",
-    "upload_run": "runs/upload",
-    "ingest_trace": "traces/ingest",
-    "lifecycle_snapshot": "lifecycle",
-    "quota_snapshot": "quota",
-    "usage_snapshot": "usage",
-    "create_artifact_manifest": "artifact-manifests",
-    "list_artifact_manifests": "artifact-manifests/list",
-    "enqueue_worker_job": "worker-jobs/enqueue",
-    "lease_worker_job": "worker-jobs/lease",
-    "heartbeat_worker_job": "worker-jobs/heartbeat",
-    "complete_worker_job": "worker-jobs/complete",
-    "fail_worker_job": "worker-jobs/fail",
-    "list_worker_jobs": "worker-jobs",
-    "verify_audit_chain": "audit-chain/verify",
-    "release_evidence": "release-evidence",
-    "verify_release_evidence_packet": "release-evidence/verify",
-    "state": "state",
+_GET_OPERATIONS = {
+    "list_api_keys",
+    "api_key_rate_limit_snapshot",
+    "lifecycle_snapshot",
+    "quota_snapshot",
+    "usage_snapshot",
+    "list_artifact_manifests",
+    "list_worker_jobs",
+    "release_evidence",
+    "state",
 }
 
 
-def _operation_path(operation: str, payload: Mapping[str, Any] | None = None) -> str:
-    if operation in {"release_evidence", "verify_release_evidence_packet", "create_artifact_manifest", "list_artifact_manifests"} and payload is not None:
-        run_id = str(payload.get("run_id") or "")
-        if not run_id:
-            raise SaaSClientError("run_id is required for run-scoped SaaS operations")
-        suffixes = {
-            "release_evidence": "release-evidence",
-            "verify_release_evidence_packet": "release-evidence/verify",
+def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -> tuple[str, str]:
+    payload = payload or {}
+    method = "GET" if operation in _GET_OPERATIONS else "POST"
+    if operation == "bootstrap_project":
+        return method, "/v1/bootstrap"
+    if operation == "state":
+        return method, "/v1/state"
+    project_id = _required_route_value(payload, "project_id", operation)
+    project_path = f"/v1/projects/{_quote_path(project_id)}"
+    if operation in {"create_api_key", "list_api_keys"}:
+        return method, f"{project_path}/api-keys"
+    if operation in {"revoke_api_key", "verify_api_key_secret", "configure_api_key_rate_limit"}:
+        key_id = _required_route_value(payload, "key_id", operation)
+        suffix = {"revoke_api_key": "revoke", "verify_api_key_secret": "verify", "configure_api_key_rate_limit": "rate-limit"}[operation]
+        return method, f"{project_path}/api-keys/{_quote_path(key_id)}/{suffix}"
+    if operation == "api_key_rate_limit_snapshot":
+        return method, f"{project_path}/api-keys/rate-limits"
+    if operation == "sdk_submit":
+        return method, f"{project_path}/sdk-submit"
+    if operation in {"upload_run", "ingest_trace", "lifecycle_snapshot", "create_artifact_manifest", "list_artifact_manifests", "release_evidence", "verify_release_evidence_packet"}:
+        run_id = _required_route_value(payload, "run_id", operation)
+        suffix = {
+            "upload_run": "upload",
+            "ingest_trace": "trace-events",
+            "lifecycle_snapshot": "lifecycle",
             "create_artifact_manifest": "artifact-manifests",
             "list_artifact_manifests": "artifact-manifests",
-        }
-        suffix = suffixes[operation]
-        return f"runs/{run_id}/{suffix}"
-    if operation in {"heartbeat_worker_job", "complete_worker_job", "fail_worker_job"} and payload is not None:
-        job_id = str(payload.get("job_id") or "")
-        if not job_id:
-            raise SaaSClientError("job_id is required for worker-job SaaS operations")
-        suffixes = {
-            "heartbeat_worker_job": "heartbeat",
-            "complete_worker_job": "complete",
-            "fail_worker_job": "fail",
-        }
-        return f"worker-jobs/{job_id}/{suffixes[operation]}"
-    return _OPERATION_PATHS.get(operation, operation.replace("_", "-"))
+            "release_evidence": "release-evidence",
+            "verify_release_evidence_packet": "release-evidence/verify",
+        }[operation]
+        return method, f"{project_path}/runs/{_quote_path(run_id)}/{suffix}"
+    if operation in {"quota_snapshot", "usage_snapshot"}:
+        suffix = "quota" if operation == "quota_snapshot" else "usage"
+        return method, f"{project_path}/{suffix}"
+    if operation in {"enqueue_worker_job", "lease_worker_job", "list_worker_jobs"}:
+        suffix = {"enqueue_worker_job": "worker-jobs/enqueue", "lease_worker_job": "worker-jobs/lease", "list_worker_jobs": "worker-jobs"}[operation]
+        return method, f"{project_path}/{suffix}"
+    if operation in {"heartbeat_worker_job", "complete_worker_job", "fail_worker_job"}:
+        job_id = _required_route_value(payload, "job_id", operation)
+        suffix = {"heartbeat_worker_job": "heartbeat", "complete_worker_job": "complete", "fail_worker_job": "fail"}[operation]
+        return method, f"{project_path}/worker-jobs/{_quote_path(job_id)}/{suffix}"
+    if operation == "verify_audit_chain":
+        return method, f"{project_path}/audit-chain/verify"
+    raise SaaSClientError(f"unsupported SaaS HTTP operation: {operation}")
+
+
+def _required_route_value(payload: Mapping[str, Any], key: str, operation: str) -> str:
+    value = str(payload.get(key) or "")
+    if not value:
+        raise SaaSClientError(f"{key} is required for {operation} SaaS operations")
+    return value
+
+
+def _quote_path(value: str) -> str:
+    return quote(value, safe="")
 
 
 def _normalize_base_url(base_url: str) -> str:
@@ -571,9 +591,26 @@ def _drop_none(payload: Mapping[str, Any]) -> JsonDict:
     return {key: value for key, value in payload.items() if value is not None}
 
 
-def _post_json(url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-    body = json.dumps(payload, sort_keys=True).encode("utf-8")
-    req = request.Request(url, data=body, headers={"Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+def _call_http_transport(transport: Callable[..., Mapping[str, Any]], method: str, url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    try:
+        return transport(url, payload, method=method)
+    except TypeError as exc:
+        try:
+            signature(transport).bind(url, payload, method=method)
+        except TypeError:
+            return transport(url, payload)
+        else:
+            raise
+        raise exc
+
+
+def _post_json(url: str, payload: Mapping[str, Any], *, method: str = "POST") -> Mapping[str, Any]:
+    upper_method = method.upper()
+    body = None if upper_method == "GET" else json.dumps(payload, sort_keys=True).encode("utf-8")
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    req = request.Request(url, data=body, headers=headers, method=upper_method)
     try:
         with request.urlopen(req, timeout=30) as resp:  # nosec - caller supplied local hosted adapter URL.
             raw = resp.read().decode("utf-8")

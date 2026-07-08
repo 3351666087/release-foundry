@@ -22,6 +22,7 @@ from .api_client import (
     MissingAshrApiKeyError,
     elapsed_ms,
     redact_sensitive,
+    summarize_generation_request,
     summarize_quota_error,
     utc_now,
 )
@@ -30,6 +31,7 @@ CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
 FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
+API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v1"
 PLAN_BATCH_QUOTA_GATE_DECISIONS = {"go", "stop", "wait"}
 CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request"
 DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
@@ -236,13 +238,14 @@ def build_field_parity_plan(args: CalibrationArgs | None = None, *, field_map_pa
                 "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
                 "mutating_text_small_batch_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
             },
-            "quota_gate": {
-                "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
-                "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
-                "ttl_seconds": DEFAULT_QUOTA_GATE_TTL_SECONDS,
-                "expected_modalities": list(expected_calibration_gate_modalities(plan_args)) if plan_args.include_mutating else [],
-                "request_fingerprints": calibration_request_fingerprints(plan_args) if plan_args.include_mutating else {},
-            },
+    "quota_gate": {
+        "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+        "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+        "ttl_seconds": DEFAULT_QUOTA_GATE_TTL_SECONDS,
+        "expected_modalities": list(expected_calibration_gate_modalities(plan_args)) if plan_args.include_mutating else [],
+        "request_fingerprints": calibration_request_fingerprints(plan_args) if plan_args.include_mutating else {},
+        "target_bindings": calibration_target_bindings(plan_args) if plan_args.include_mutating else {},
+    },
             "modality_matrix": [modality_plan_entry(modality) for modality in selected_modalities],
             "summary": {
                 "steps": len(parity_steps),
@@ -650,6 +653,8 @@ def quota_gate_plan_binding(plan: Mapping[str, Any], args: CalibrationArgs, issu
 
     if "request_fingerprint" in plan:
         binding.update(validate_request_fingerprint_binding(plan.get("request_fingerprint"), args, issues))
+    if "target_binding" in plan:
+        binding.update(validate_target_binding(plan.get("target_binding"), args, issues))
     return binding
 
 
@@ -741,12 +746,158 @@ def validate_request_fingerprint_binding(value: Any, args: CalibrationArgs, issu
     return redact_sensitive(binding)
 
 
+def validate_target_binding(value: Any, args: CalibrationArgs, issues: list[JsonDict]) -> JsonDict:
+    expected = calibration_target_bindings(args)
+    binding: JsonDict = {"target_binding": target_binding_summary(value), "expected_target_bindings": {key: target_binding_summary(item) for key, item in expected.items()}}
+    if not isinstance(value, Mapping):
+        issues.append({"code": "missing_target_binding", "message": "quota gate target_binding must be an object when present"})
+        return redact_sensitive(binding)
+
+    selected_modalities = selected_calibration_modalities(args)
+    if len(selected_modalities) != 1:
+        issues.append({"code": "target_binding_ambiguous", "message": "quota gate target_binding can only bind one selected calibrator modality; use request_fingerprint modality map for multi-modality gates"})
+        return redact_sensitive(binding)
+
+    expected_binding = expected[selected_modalities[0]]
+    actual_fingerprint = value.get("fingerprint")
+    expected_fingerprint = expected_binding.get("fingerprint")
+    if value.get("schema_version") != API_PROBE_TARGET_BINDING_SCHEMA_VERSION:
+        issues.append({"code": "invalid_target_binding_schema", "message": f"quota gate target_binding.schema_version must be {API_PROBE_TARGET_BINDING_SCHEMA_VERSION}"})
+    if not isinstance(actual_fingerprint, str) or actual_fingerprint != expected_fingerprint:
+        issues.append({"code": "target_binding_mismatch", "message": "quota gate target_binding.fingerprint does not match the current calibrator request payload and execution guardrails"})
+        return redact_sensitive(binding)
+
+    for field in (
+        "target_operation",
+        "request_fingerprint",
+        "request_input_schema_fingerprint",
+        "request_input_schema_source",
+        "allow_media_generation",
+        "allow_non_text_inputs",
+        "max_request_variations",
+        "small_batch_size",
+        "batch_size",
+        "modalities",
+    ):
+        if value.get(field) != expected_binding.get(field):
+            issues.append({"code": "target_binding_field_mismatch", "message": f"quota gate target_binding.{field} does not match the current calibrator request"})
+            break
+    return redact_sensitive(binding)
+
+
 def calibration_request_fingerprints(args: CalibrationArgs) -> JsonDict:
     return {modality: calibration_request_fingerprint(modality) for modality in selected_calibration_modalities(args)}
 
 
 def calibration_request_fingerprint(modality: str) -> str:
     payload = json.dumps(request_for_modality(modality), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def calibration_target_bindings(args: CalibrationArgs) -> JsonDict:
+    return {modality: calibration_target_binding(modality, args) for modality in selected_calibration_modalities(args)}
+
+
+def calibration_target_binding(modality: str, args: CalibrationArgs) -> JsonDict:
+    request = request_for_modality(modality)
+    preflight = summarize_generation_request(request)
+    modality_sequence = calibration_modality_sequence(preflight)
+    modalities = [item["modality"] for item in modality_sequence]
+    media_modalities = [item["modality"] for item in modality_sequence if item.get("kind") != "text"]
+    request_fingerprint = stable_sha256(request)
+    components = {
+        "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+        "request_fingerprint": request_fingerprint,
+        "request_input_schema_fingerprint": None,
+        "request_input_schema_source": "client_default",
+        "allow_media_generation": bool(args.allow_paid_media),
+        "allow_non_text_inputs": True,
+        "max_request_variations": 1,
+        "small_batch_size": 1,
+        "batch_size": 1,
+        "modalities": modalities,
+        "media_modalities": media_modalities,
+        "text_first_small_batch": bool("text" in modalities and media_modalities),
+    }
+    return redact_sensitive(
+        {
+            "schema_version": API_PROBE_TARGET_BINDING_SCHEMA_VERSION,
+            "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+            "binding_scope": "request-payload",
+            "request_fingerprint": request_fingerprint,
+            "request_input_schema_fingerprint": None,
+            "request_input_schema_source": "client_default",
+            "allow_media_generation": bool(args.allow_paid_media),
+            "allow_non_text_inputs": True,
+            "max_request_variations": 1,
+            "small_batch_size": 1,
+            "batch_size": 1,
+            "modalities": modalities,
+            "media_modalities": media_modalities,
+            "text_first_small_batch": bool("text" in modalities and media_modalities),
+            "modality_sequence": modality_sequence,
+            "fingerprint": stable_sha256(components),
+            "fingerprint_fields": sorted(components.keys()),
+            "raw_request_not_recorded": True,
+        }
+    )
+
+
+def calibration_modality_sequence(preflight: Mapping[str, Any]) -> list[JsonDict]:
+    enabled_modalities: dict[str, set[str]] = {}
+    accepted_flags = preflight.get("accepted_input_flags") if isinstance(preflight.get("accepted_input_flags"), Mapping) else {}
+    for modality in ("text", "image", "audio", "file", "video", "conversation"):
+        if accepted_flags.get(modality):
+            enabled_modalities.setdefault(modality, set()).add("accepted_inputs")
+    media_generation = preflight.get("media_generation") if isinstance(preflight.get("media_generation"), Mapping) else {}
+    for generated_name, modality in {"audio": "audio", "files": "file", "images": "image", "videos": "video", "simulations": "simulation"}.items():
+        if media_generation.get(generated_name):
+            enabled_modalities.setdefault(modality, set()).add("media_generation")
+    if not enabled_modalities:
+        enabled_modalities["text"] = {"default"}
+
+    sequence: list[JsonDict] = []
+    for modality in ("text", "image", "audio", "file", "video", "conversation", "simulation"):
+        sources = enabled_modalities.get(modality)
+        if not sources:
+            continue
+        sequence.append(
+            {
+                "order": len(sequence),
+                "modality": modality,
+                "kind": "text" if modality == "text" else "media" if modality in {"image", "audio", "file", "video", "simulation"} else "conversation",
+                "sources": sorted(sources),
+                "phase_gate": "small-batch must pass with text before media/conversation batch execution" if modality != "text" else "first dry-run and small-batch modality",
+                "requires_allowance": modality not in {"text"} and ("accepted_inputs" in sources or "media_generation" in sources),
+            }
+        )
+    return sequence
+
+
+def target_binding_summary(value: Any) -> JsonDict | None:
+    if not isinstance(value, Mapping):
+        return None
+    fields = (
+        "schema_version",
+        "target_operation",
+        "binding_scope",
+        "fingerprint",
+        "request_fingerprint",
+        "request_input_schema_fingerprint",
+        "request_input_schema_source",
+        "allow_media_generation",
+        "allow_non_text_inputs",
+        "max_request_variations",
+        "small_batch_size",
+        "batch_size",
+        "modalities",
+        "raw_request_not_recorded",
+    )
+    return redact_sensitive({field: value.get(field) for field in fields if field in value})
+
+
+def stable_sha256(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
