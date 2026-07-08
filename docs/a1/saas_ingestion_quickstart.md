@@ -70,6 +70,27 @@ python -B -m ashr_clone.saas_cli --state-input $state quota --tenant-id tenant_c
 python -B -m ashr_clone.saas_cli --state-input $state lifecycle --tenant-id tenant_cli --project-id project_cli --run-id run_cli
 ```
 
+## API key lifecycle controls
+
+Round19 adds local API-key lifecycle controls that are shaped like a hosted SaaS control plane but remain secret-safe by default:
+
+- `api-key-create` returns redacted metadata unless `--reveal-secret` is set. When enabled, the synthetic local secret is returned once and the stored record keeps only a SHA-256 hash plus `secret_hash_present=true`.
+- `api-key-verify` checks a one-time local secret against the stored hash and can optionally authenticate a required scope.
+- `api-key-rate-limit` configures a per-key operation bucket such as `sdk:submit` or `run:upload`; ingestion consumes the bucket before mutating run state.
+- `api-key-rate-limits` returns used/remaining counts for audit and quota-ledger views.
+
+Example:
+
+```powershell
+$created = python -B -m ashr_clone.saas_cli --state-input $state --state-output $state api-key-create --tenant-id tenant_cli --project-id project_cli --name limited --scope sdk:submit --key-id key_cli_limited --reveal-secret | ConvertFrom-Json
+$secret = $created.result.one_time_secret
+python -B -m ashr_clone.saas_cli --state-input $state --state-output $state api-key-verify --tenant-id tenant_cli --project-id project_cli --key-id key_cli_limited --secret $secret --scope sdk:submit
+python -B -m ashr_clone.saas_cli --state-input $state --state-output $state api-key-rate-limit --tenant-id tenant_cli --project-id project_cli --key-id key_cli_limited --operation sdk:submit --limit 30
+python -B -m ashr_clone.saas_cli --state-input $state api-key-rate-limits --tenant-id tenant_cli --project-id project_cli --key-id key_cli_limited
+```
+
+The SDK equivalent is `SaaSIngestionClient.create_api_key(..., reveal_secret=True)`, `verify_api_key_secret(...)`, `configure_api_key_rate_limit(...)`, and `api_key_rate_limit_snapshot(...)`. This local surface does not read `ASHR_API_KEY`; official API calibration remains isolated in private evidence records.
+
 ## Boundaries
 
 - No hosted Ashr API calls are made by this quickstart.
@@ -88,7 +109,7 @@ server = serve_control_plane_http("127.0.0.1", 8080)
 server.serve_forever()
 ```
 
-Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, SDK submit, run upload, trace ingestion, and lifecycle snapshots. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
+Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, key secret verification, per-key rate limits, SDK submit, run upload, trace ingestion, and lifecycle snapshots. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
 
 The Python SDK can target the hosted adapter with `SaaSIngestionClient.from_base_url("http://127.0.0.1:8080")`, and the CLI accepts `--base-url` for HTTP JSON transport. `--base-url` is intentionally mutually exclusive with local state file read/write flags.
 

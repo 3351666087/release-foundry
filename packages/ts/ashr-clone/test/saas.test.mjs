@@ -38,6 +38,68 @@ test("TS SaaS control plane covers key submit upload trace lifecycle idempotency
   assert.equal(restored.lifecycleSnapshot("tenant_ts_saas", "project_ts_saas", "run_ts_saas").trace_batches[0].batch_id, "trace_ts_saas");
 });
 
+test("TS SaaS API key one-time secret verify and public redaction parity", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_secret", projectId: "project_ts_secret" });
+  service.cloud.createDataset("tenant_ts_secret", "project_ts_secret", { datasetId: "dataset_ts_secret", name: "Dataset", cases: [{ id: "case-1" }] });
+
+  const created = service.createApiKey("tenant_ts_secret", "project_ts_secret", {
+    name: "CI writer",
+    scopes: ["sdk:submit", "run:upload"],
+    keyId: "key_ts_secret",
+    revealSecret: true,
+  });
+  const secret = created.one_time_secret;
+  assert.equal(typeof secret, "string");
+  assert.equal(secret.startsWith("ashr_local_key_ts_secret_"), true);
+  assert.equal(created.secret_value_present, true);
+  assert.equal(created.one_time_secret_displayed, true);
+  assert.equal(created.verify_mode, "sha256");
+  assert.equal(JSON.stringify(created).includes("secret_hash_sha256"), false);
+
+  const listed = service.listApiKeys("tenant_ts_secret", "project_ts_secret");
+  const listedText = JSON.stringify(listed);
+  assert.equal(listed[0].secret_value_present, false);
+  assert.equal(listed[0].secret_hash_present, true);
+  assert.equal(listed[0].one_time_secret_displayed, true);
+  assert.equal(listed[0].verify_mode, "sha256");
+  assert.equal(listedText.includes(secret), false);
+  assert.equal(listedText.includes("secret_hash_sha256"), false);
+
+  const verified = service.verifyApiKeySecret("tenant_ts_secret", "project_ts_secret", { keyId: "key_ts_secret", secret, scope: "sdk:submit" });
+  assert.equal(verified.authenticated, true);
+  assert.equal(verified.api_key.key_id, "key_ts_secret");
+  assert.equal(verified.secret_value_present, false);
+  assert.throws(
+    () => service.verifyApiKeySecret("tenant_ts_secret", "project_ts_secret", { keyId: "key_ts_secret", secret: "wrong" }),
+    /secret verification failed/,
+  );
+});
+
+test("TS SaaS API key rate limit blocks before mutation and records snapshot", () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_rate", projectId: "project_ts_rate" });
+  service.cloud.createDataset("tenant_ts_rate", "project_ts_rate", { datasetId: "dataset_ts_rate", name: "Dataset", cases: [{ id: "case-1" }] });
+  service.createApiKey("tenant_ts_rate", "project_ts_rate", { name: "Limited submitter", scopes: ["sdk:submit"], keyId: "key_ts_rate", revealSecret: true });
+
+  const configured = service.configureApiKeyRateLimit("tenant_ts_rate", "project_ts_rate", { keyId: "key_ts_rate", operation: "sdk:submit", limit: 1 });
+  assert.equal(configured.limit, 1);
+  assert.equal(configured.remaining, 1);
+
+  const first = service.sdkSubmitRun("tenant_ts_rate", "project_ts_rate", { datasetId: "dataset_ts_rate", agentRef: "mock", runId: "run_ts_rate_1", apiKeyId: "key_ts_rate" });
+  assert.equal(first.run.run_id, "run_ts_rate_1");
+  assert.throws(
+    () => service.sdkSubmitRun("tenant_ts_rate", "project_ts_rate", { datasetId: "dataset_ts_rate", agentRef: "mock", runId: "run_ts_rate_2", apiKeyId: "key_ts_rate" }),
+    /rate limit exceeded/,
+  );
+  assert.throws(() => service.cloud.getRun("tenant_ts_rate", "project_ts_rate", "run_ts_rate_2"));
+
+  const snapshot = service.apiKeyRateLimitSnapshot("tenant_ts_rate", "project_ts_rate", { keyId: "key_ts_rate" });
+  assert.equal(snapshot.schema_version, CONTROL_PLANE_SCHEMA_VERSION);
+  assert.equal(snapshot.rate_limits[0].used, 1);
+  assert.equal(snapshot.rate_limits[0].remaining, 0);
+});
+
 test("TS SaaS router maps local REST-ish ingestion and redacts errors", () => {
   const service = new SaaSControlPlaneService();
   service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_router", projectId: "project_ts_router" });

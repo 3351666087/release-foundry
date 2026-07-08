@@ -25,12 +25,13 @@ def build_parser() -> argparse.ArgumentParser:
     bootstrap.add_argument("--dataset-name", default="SDK Bootstrap Dataset")
     bootstrap.add_argument("--cases-file")
 
-    key_create = subparsers.add_parser("api-key-create", help="Create a redacted local API key record; never returns raw key material.")
+    key_create = subparsers.add_parser("api-key-create", help="Create a redacted local API key record; optionally reveals a one-time local secret.")
     _add_project_args(key_create)
     key_create.add_argument("--name", required=True)
     key_create.add_argument("--scope", action="append", dest="scopes", required=True)
     key_create.add_argument("--key-id")
     key_create.add_argument("--auth-key-id")
+    key_create.add_argument("--reveal-secret", action="store_true", help="Return the synthetic local secret once in this command output.")
 
     key_list = subparsers.add_parser("api-key-list", help="List redacted local API key records.")
     _add_project_args(key_list)
@@ -40,6 +41,24 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_args(key_revoke)
     key_revoke.add_argument("--key-id", required=True)
     key_revoke.add_argument("--auth-key-id")
+
+    key_verify = subparsers.add_parser("api-key-verify", help="Verify a one-time local API key secret against its stored hash.")
+    _add_project_args(key_verify)
+    key_verify.add_argument("--key-id", required=True)
+    key_verify.add_argument("--secret", required=True)
+    key_verify.add_argument("--scope")
+
+    key_rate = subparsers.add_parser("api-key-rate-limit", help="Configure a local per-key operation rate limit.")
+    _add_project_args(key_rate)
+    key_rate.add_argument("--key-id", required=True)
+    key_rate.add_argument("--operation", required=True)
+    key_rate.add_argument("--limit", required=True, type=int)
+    key_rate.add_argument("--period", default="local-window")
+    key_rate.add_argument("--auth-key-id")
+
+    key_rate_snapshot = subparsers.add_parser("api-key-rate-limits", help="Read local per-key operation rate-limit buckets.")
+    _add_project_args(key_rate_snapshot)
+    key_rate_snapshot.add_argument("--key-id")
 
     submit = subparsers.add_parser("sdk-submit", help="Create a local SDK-submitted queued run.")
     _add_project_args(submit)
@@ -98,11 +117,17 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             cases=cases,
         )
     elif command == "api-key-create":
-        envelope = client.create_api_key(args.tenant_id, args.project_id, name=args.name, scopes=args.scopes, key_id=args.key_id, auth_key_id=args.auth_key_id)
+        envelope = client.create_api_key(args.tenant_id, args.project_id, name=args.name, scopes=args.scopes, key_id=args.key_id, auth_key_id=args.auth_key_id, reveal_secret=args.reveal_secret)
     elif command == "api-key-list":
         envelope = client.list_api_keys(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
     elif command == "api-key-revoke":
         envelope = client.revoke_api_key(args.tenant_id, args.project_id, args.key_id, auth_key_id=args.auth_key_id)
+    elif command == "api-key-verify":
+        envelope = client.verify_api_key_secret(args.tenant_id, args.project_id, args.key_id, secret=args.secret, scope=args.scope)
+    elif command == "api-key-rate-limit":
+        envelope = client.configure_api_key_rate_limit(args.tenant_id, args.project_id, args.key_id, operation=args.operation, limit=args.limit, period=args.period, auth_key_id=args.auth_key_id)
+    elif command == "api-key-rate-limits":
+        envelope = client.api_key_rate_limit_snapshot(args.tenant_id, args.project_id, key_id=args.key_id)
     elif command == "sdk-submit":
         envelope = client.sdk_submit(
             args.tenant_id,

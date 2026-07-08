@@ -131,6 +131,7 @@ class SaaSIngestionClient:
         scopes: Sequence[str],
         key_id: str | None = None,
         auth_key_id: str | None = None,
+        reveal_secret: bool = False,
         api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
@@ -144,6 +145,7 @@ class SaaSIngestionClient:
                     "scopes": [str(scope) for scope in scopes],
                     "key_id": key_id,
                     "auth_key_id": auth_key_id,
+                    "reveal_secret": bool(reveal_secret),
                 },
             )
         result = self.service.create_api_key(
@@ -153,6 +155,7 @@ class SaaSIngestionClient:
             scopes=[str(scope) for scope in scopes],
             key_id=key_id,
             auth_key_id=auth_key_id,
+            reveal_secret=bool(reveal_secret),
         )
         return _envelope("create_api_key", result)
 
@@ -167,6 +170,47 @@ class SaaSIngestionClient:
         if self.uses_http:
             return self._request("revoke_api_key", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "auth_key_id": auth_key_id})
         return _envelope("revoke_api_key", self.service.revoke_api_key(tenant_id, project_id, key_id, auth_key_id=auth_key_id))
+
+    def verify_api_key_secret(
+        self,
+        tenant_id: str,
+        project_id: str,
+        key_id: str,
+        *,
+        secret: str,
+        scope: str | None = None,
+    ) -> JsonDict:
+        if self.uses_http:
+            return self._request("verify_api_key_secret", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "secret": secret, "scope": scope})
+        return _envelope("verify_api_key_secret", self.service.verify_api_key_secret(tenant_id, project_id, key_id=key_id, secret=secret, scope=scope))
+
+    def configure_api_key_rate_limit(
+        self,
+        tenant_id: str,
+        project_id: str,
+        key_id: str,
+        *,
+        operation: str,
+        limit: int,
+        period: str = "local-window",
+        auth_key_id: str | None = None,
+        api_key: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        if self.uses_http:
+            return self._request(
+                "configure_api_key_rate_limit",
+                {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "operation": operation, "limit": int(limit), "period": period, "auth_key_id": auth_key_id},
+            )
+        return _envelope(
+            "configure_api_key_rate_limit",
+            self.service.configure_api_key_rate_limit(tenant_id, project_id, key_id=key_id, operation=operation, limit=int(limit), period=period, auth_key_id=auth_key_id),
+        )
+
+    def api_key_rate_limit_snapshot(self, tenant_id: str, project_id: str, *, key_id: str | None = None) -> JsonDict:
+        if self.uses_http:
+            return self._request("api_key_rate_limit_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id})
+        return _envelope("api_key_rate_limit_snapshot", self.service.api_key_rate_limit_snapshot(tenant_id, project_id, key_id=key_id))
 
     def sdk_submit(
         self,
@@ -316,6 +360,9 @@ _OPERATION_PATHS = {
     "create_api_key": "api-keys",
     "list_api_keys": "api-keys/list",
     "revoke_api_key": "api-keys/revoke",
+    "verify_api_key_secret": "api-keys/verify",
+    "configure_api_key_rate_limit": "api-keys/rate-limit",
+    "api_key_rate_limit_snapshot": "api-keys/rate-limits",
     "sdk_submit": "runs/submit",
     "upload_run": "runs/upload",
     "ingest_trace": "traces/ingest",

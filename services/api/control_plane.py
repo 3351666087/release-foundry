@@ -63,6 +63,7 @@ def _new_id(prefix: str) -> str:
 @dataclass(slots=True)
 class SaaSControlPlaneStore:
     api_keys: dict[str, JsonDict] = field(default_factory=dict)
+    api_key_rate_limits: dict[str, JsonDict] = field(default_factory=dict)
     uploads: dict[str, JsonDict] = field(default_factory=dict)
     trace_batches: dict[str, JsonDict] = field(default_factory=dict)
     sdk_submissions: dict[str, JsonDict] = field(default_factory=dict)
@@ -98,6 +99,7 @@ class SaaSControlPlaneService:
         scopes: list[str],
         key_id: str | None = None,
         auth_key_id: str | None = None,
+        reveal_secret: bool = False,
     ) -> JsonDict:
         project = self.cloud.get_project(tenant_id, project_id)
         if auth_key_id is not None:
@@ -110,7 +112,7 @@ class SaaSControlPlaneService:
         if key_id in self.store.api_keys:
             raise ValidationError(f"api key already exists: {key_id}")
         synthetic_secret = f"ashr_local_{key_id}_{uuid4().hex}"
-        digest = hashlib.sha256(synthetic_secret.encode("utf-8")).hexdigest()
+        digest = _secret_hash(synthetic_secret)
         now = _utc_now()
         record = {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
@@ -121,6 +123,8 @@ class SaaSControlPlaneService:
             "prefix": "ashr_local_***",
             "secret_hash_sha256": digest,
             "secret_value_present": False,
+            "one_time_secret_displayed": bool(reveal_secret),
+            "verify_mode": "sha256",
             "status": "active",
             "scopes": normalized_scopes,
             "created_at": now,
@@ -130,6 +134,8 @@ class SaaSControlPlaneService:
         self.store.api_keys[key_id] = record
         public = _public_api_key(record)
         self._append_audit(project["tenant_id"], project["project_id"], "api_key.create", target_id=key_id, api_key_id=auth_key_id, after=public)
+        if reveal_secret:
+            return {**public, "one_time_secret": synthetic_secret, "one_time_secret_displayed": True, "secret_value_present": True}
         return public
 
     def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str, *, auth_key_id: str | None = None) -> JsonDict:
@@ -162,6 +168,7 @@ class SaaSControlPlaneService:
             raise ValidationError(f"api key is not active: {key_id}")
         if not _scope_allows(record.get("scopes", []), required_scope):
             raise ValidationError(f"api key {key_id} missing required scope: {required_scope}")
+        self._consume_api_key_rate(record, required_scope)
         record["last_used_at"] = _utc_now()
         return {
             "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
@@ -173,6 +180,35 @@ class SaaSControlPlaneService:
             "api_key": _public_api_key(record),
             "secret_value_present": False,
         }
+
+
+    def verify_api_key_secret(self, tenant_id: str, project_id: str, *, key_id: str, secret: str, scope: str | None = None) -> JsonDict:
+        record = self._api_key_record(tenant_id, project_id, key_id)
+        if record.get("status") != "active":
+            raise ValidationError(f"api key is not active: {key_id}")
+        if _secret_hash(secret) != record.get("secret_hash_sha256"):
+            raise ValidationError("api key secret verification failed")
+        if scope is not None:
+            return self.authenticate_api_key(tenant_id, project_id, key_id=key_id, scope=scope)
+        record["last_used_at"] = _utc_now()
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "verified": True, "api_key": _public_api_key(record), "secret_value_present": False}
+
+    def configure_api_key_rate_limit(self, tenant_id: str, project_id: str, *, key_id: str, operation: str, limit: int, period: str = "local-window", auth_key_id: str | None = None) -> JsonDict:
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=API_KEY_ADMIN_SCOPE)
+        record = self._api_key_record(tenant_id, project_id, key_id)
+        if limit <= 0:
+            raise ValidationError("api key rate limit must be positive")
+        bucket_key = _api_key_rate_key(tenant_id, project_id, key_id, operation, period)
+        bucket = {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "operation": operation, "period": period, "limit": int(limit), "used": 0, "remaining": int(limit), "created_at": _utc_now()}
+        self.store.api_key_rate_limits[bucket_key] = bucket
+        public = _public_api_key(record)
+        self._append_audit(tenant_id, project_id, "api_key.rate_limit.configure", target_id=key_id, api_key_id=auth_key_id, after={"api_key": public, "rate_limit": bucket})
+        return _jsonable(bucket)
+
+    def api_key_rate_limit_snapshot(self, tenant_id: str, project_id: str, *, key_id: str | None = None) -> JsonDict:
+        buckets = [bucket for bucket in self.store.api_key_rate_limits.values() if bucket.get("tenant_id") == str(tenant_id) and bucket.get("project_id") == str(project_id) and (key_id is None or bucket.get("key_id") == str(key_id))]
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "rate_limits": _jsonable(buckets)}
 
     def sdk_submit_run(self, tenant_id: str, project_id: str, *, dataset_id: str, agent_ref: str, run_id: str | None = None, metadata: Mapping[str, Any] | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
         if api_key_id is not None:
@@ -350,6 +386,21 @@ class SaaSControlPlaneService:
         self.store.audit_log[event_id] = record
         return _jsonable(record)
 
+    def _consume_api_key_rate(self, record: Mapping[str, Any], operation: str) -> None:
+        key_id = str(record.get("key_id"))
+        tenant_id = str(record.get("tenant_id"))
+        project_id = str(record.get("project_id"))
+        candidates = [bucket for bucket in self.store.api_key_rate_limits.values() if bucket.get("tenant_id") == tenant_id and bucket.get("project_id") == project_id and bucket.get("key_id") == key_id and bucket.get("operation") in {operation, "*"}]
+        for bucket in candidates:
+            used = int(bucket.get("used") or 0)
+            limit = int(bucket.get("limit") or 0)
+            if used + 1 > limit:
+                raise ValidationError(f"api key rate limit exceeded for {key_id}: {operation}")
+        for bucket in candidates:
+            bucket["used"] = int(bucket.get("used") or 0) + 1
+            bucket["remaining"] = max(0, int(bucket.get("limit") or 0) - int(bucket.get("used") or 0))
+            bucket["last_used_at"] = _utc_now()
+
     def _idempotency_lookup(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None) -> JsonDict | None:
         if not idempotency_key:
             return None
@@ -403,6 +454,14 @@ def _scope_allows(granted_scopes: Any, required_scope: str) -> bool:
     return False
 
 
+def _secret_hash(secret: str) -> str:
+    return hashlib.sha256(str(secret).encode("utf-8")).hexdigest()
+
+
+def _api_key_rate_key(tenant_id: str, project_id: str, key_id: str, operation: str, period: str) -> str:
+    return hashlib.sha256(f"{tenant_id}:{project_id}:{key_id}:{operation}:{period}".encode("utf-8")).hexdigest()
+
+
 def _idempotency_record_key(tenant_id: str, project_id: str, operation: str, idempotency_key: str) -> str:
     raw = f"{tenant_id}:{project_id}:{operation}:{idempotency_key}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -423,6 +482,8 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
         "created_at": record.get("created_at"),
         "revoked_at": record.get("revoked_at"),
         "last_used_at": record.get("last_used_at"),
+        "one_time_secret_displayed": bool(record.get("one_time_secret_displayed", False)),
+        "verify_mode": record.get("verify_mode"),
     }
 
 
@@ -491,7 +552,7 @@ def control_plane_openapi_document() -> JsonDict:
                     "responses": {"200": json_response, "400": json_response, "404": json_response},
                 },
                 "post": {
-                    "summary": "Create an API key record and return only redacted metadata",
+                    "summary": "Create an API key record; optional reveal_secret returns one synthetic local secret once",
                     "requestBody": json_request,
                     "responses": {"201": json_response, "400": json_response, "404": json_response},
                 },
@@ -501,6 +562,15 @@ def control_plane_openapi_document() -> JsonDict:
             },
             "/v1/projects/{project_id}/api-keys/{key_id}/authenticate": {
                 "post": {"summary": "Validate a key id and scope", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/api-keys/{key_id}/verify": {
+                "post": {"summary": "Verify a one-time local API key secret against its stored hash", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit": {
+                "post": {"summary": "Configure a per-key operation rate-limit bucket", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/api-keys/rate-limits": {
+                "get": {"summary": "List per-key operation rate-limit buckets", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
             },
             "/v1/projects/{project_id}/sdk-submit": {
                 "post": {"summary": "Submit a run through the SDK control-plane surface", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
@@ -677,13 +747,19 @@ class SaaSControlPlaneRouter:
                     raise ValidationError("tenant_id is required")
                 auth_key_id = body.get("auth_key_id") or body.get("api_key_id")
                 if method == "POST" and len(parts) == 4 and parts[3] == "api-keys":
-                    return {"status_code": 201, "body": self.service.create_api_key(tenant_id, project_id, name=str(body.get("name") or "API key"), scopes=list(body.get("scopes") or []), key_id=body.get("key_id"), auth_key_id=auth_key_id)}
+                    return {"status_code": 201, "body": self.service.create_api_key(tenant_id, project_id, name=str(body.get("name") or "API key"), scopes=list(body.get("scopes") or []), key_id=body.get("key_id"), auth_key_id=auth_key_id, reveal_secret=bool(body.get("reveal_secret", False)))}
                 if method == "GET" and len(parts) == 4 and parts[3] == "api-keys":
                     return {"status_code": 200, "body": {"api_keys": self.service.list_api_keys(tenant_id, project_id, auth_key_id=auth_key_id)}}
                 if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "revoke":
                     return {"status_code": 200, "body": self.service.revoke_api_key(tenant_id, project_id, parts[4], auth_key_id=auth_key_id)}
                 if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "authenticate":
                     return {"status_code": 200, "body": self.service.authenticate_api_key(tenant_id, project_id, key_id=parts[4], scope=str(body.get("scope") or ""))}
+                if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "verify":
+                    return {"status_code": 200, "body": self.service.verify_api_key_secret(tenant_id, project_id, key_id=parts[4], secret=str(body.get("secret") or ""), scope=body.get("scope"))}
+                if method == "POST" and len(parts) == 6 and parts[3] == "api-keys" and parts[5] == "rate-limit":
+                    return {"status_code": 200, "body": self.service.configure_api_key_rate_limit(tenant_id, project_id, key_id=parts[4], operation=str(body.get("operation") or "*"), limit=int(body.get("limit") or 0), period=str(body.get("period") or "local-window"), auth_key_id=auth_key_id)}
+                if method == "GET" and len(parts) == 5 and parts[3] == "api-keys" and parts[4] == "rate-limits":
+                    return {"status_code": 200, "body": self.service.api_key_rate_limit_snapshot(tenant_id, project_id, key_id=body.get("key_id"))}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                 if len(parts) >= 6 and parts[3] == "runs":
@@ -712,6 +788,7 @@ def snapshot_control_plane(service: SaaSControlPlaneService) -> JsonDict:
         "state_metadata": {"writer": "services.api.control_plane", "updated_at": _utc_now()},
         "control_plane": {
             "api_keys": _jsonable(service.store.api_keys),
+            "api_key_rate_limits": _jsonable(service.store.api_key_rate_limits),
             "uploads": _jsonable(service.store.uploads),
             "trace_batches": _jsonable(service.store.trace_batches),
             "sdk_submissions": _jsonable(service.store.sdk_submissions),
@@ -744,6 +821,7 @@ def control_plane_from_state(payload: Mapping[str, Any]) -> SaaSControlPlaneServ
     cloud = CloudApiService.from_state(cloud_payload)
     store = SaaSControlPlaneStore(
         api_keys=dict(control_payload.get("api_keys") or {}),
+        api_key_rate_limits=dict(control_payload.get("api_key_rate_limits") or {}),
         uploads=dict(control_payload.get("uploads") or {}),
         trace_batches=dict(control_payload.get("trace_batches") or {}),
         sdk_submissions=dict(control_payload.get("sdk_submissions") or {}),

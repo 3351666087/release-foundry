@@ -47,6 +47,19 @@ from .platform import (
     release_gate_bridge_payload,
     usage_billing_rollup,
 )
+from .release_gate_bridge import (
+    A2_RELEASE_GATE_CONTRACT,
+    HttpReleaseGateBridgeClient,
+    LocalReleaseGateBridgeClient,
+    ReleaseGateBridgeError,
+    ReleaseGateBridgeRequest,
+    ReleaseGateBridgeResponseError,
+    ReleaseGateBridgeResult,
+    ReleaseGateBridgeTimeout,
+    evaluate_lifecycle_with_release_gate,
+    lifecycle_to_release_gate_request,
+    normalize_grade_result,
+)
 
 
 __all__ = [
@@ -84,6 +97,17 @@ __all__ = [
     "export_data_model_json_schema",
     "export_data_model_sqlish_migration",
     "export_data_model_tenant_index_manifest",
+    "A2_RELEASE_GATE_CONTRACT",
+    "HttpReleaseGateBridgeClient",
+    "LocalReleaseGateBridgeClient",
+    "ReleaseGateBridgeError",
+    "ReleaseGateBridgeRequest",
+    "ReleaseGateBridgeResponseError",
+    "ReleaseGateBridgeResult",
+    "ReleaseGateBridgeTimeout",
+    "evaluate_lifecycle_with_release_gate",
+    "lifecycle_to_release_gate_request",
+    "normalize_grade_result",
     "ValidationError",
     "create_agent_cloud_queue_state",
     "export_run_fixture_from_state",

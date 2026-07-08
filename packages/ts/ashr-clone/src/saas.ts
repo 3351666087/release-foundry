@@ -1,6 +1,6 @@
 import { CloudApiService, NotFoundError, ValidationError } from "./index.js";
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
@@ -40,6 +40,7 @@ const SCOPE_ALIASES: Record<string, string[]> = {
 
 export interface SaaSControlPlaneStore {
   api_keys: Record<string, JsonRecord>;
+  api_key_rate_limits: Record<string, JsonRecord>;
   uploads: Record<string, JsonRecord>;
   trace_batches: Record<string, JsonRecord>;
   sdk_submissions: Record<string, JsonRecord>;
@@ -83,6 +84,7 @@ export interface SaaSClientTransport {
 export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore> = {}): SaaSControlPlaneStore {
   return {
     api_keys: { ...(seed.api_keys ?? {}) },
+    api_key_rate_limits: { ...(seed.api_key_rate_limits ?? {}) },
     uploads: { ...(seed.uploads ?? {}) },
     trace_batches: { ...(seed.trace_batches ?? {}) },
     sdk_submissions: { ...(seed.sdk_submissions ?? {}) },
@@ -109,7 +111,7 @@ export class SaaSControlPlaneService {
     return { schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION, tenant, project, quota: this.cloud.quotaSnapshot(tenant.tenant_id, project.project_id) };
   }
 
-  createApiKey(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string }): JsonRecord {
+  createApiKey(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; revealSecret?: boolean }): JsonRecord {
     const project = this.cloud.getProject(tenantId, projectId);
     if (options.authKeyId !== undefined) {
       this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: API_KEY_ADMIN_SCOPE });
@@ -120,6 +122,10 @@ export class SaaSControlPlaneService {
     }
     this.cloud.quota.consume(project.tenant_id, project.project_id, "api_key.create");
     const keyId = options.keyId ?? newId("key");
+    if (this.store.api_keys[keyId] !== undefined) {
+      throw new ValidationError(`api key already exists: ${keyId}`);
+    }
+    const syntheticSecret = `ashr_local_${keyId}_${randomUUID().replaceAll("-", "")}`;
     const now = utcNow();
     const record: JsonRecord = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -128,7 +134,10 @@ export class SaaSControlPlaneService {
       key_id: keyId,
       name: options.name,
       prefix: "ashr_local_***",
+      secret_hash_sha256: secretHash(syntheticSecret),
       secret_value_present: false,
+      one_time_secret_displayed: options.revealSecret === true,
+      verify_mode: "sha256",
       status: "active",
       scopes,
       created_at: now,
@@ -138,6 +147,9 @@ export class SaaSControlPlaneService {
     this.store.api_keys[keyId] = record;
     const publicRecord = publicApiKey(record);
     this.appendAudit(tenantId, projectId, "api_key.create", { targetId: keyId, apiKeyId: options.authKeyId, after: publicRecord });
+    if (options.revealSecret === true) {
+      return { ...publicRecord, one_time_secret: syntheticSecret, one_time_secret_displayed: true, secret_value_present: true };
+    }
     return publicRecord;
   }
 
@@ -173,6 +185,7 @@ export class SaaSControlPlaneService {
     if (!scopeAllows(record.scopes, requiredScope)) {
       throw new ValidationError(`api key ${options.keyId} missing required scope: ${requiredScope}`);
     }
+    this.consumeApiKeyRate(record, requiredScope);
     record.last_used_at = utcNow();
     return {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -183,6 +196,70 @@ export class SaaSControlPlaneService {
       required_scope: requiredScope,
       api_key: publicApiKey(record),
       secret_value_present: false,
+    };
+  }
+
+  verifyApiKeySecret(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): JsonRecord {
+    const record = this.apiKeyRecord(tenantId, projectId, options.keyId);
+    if (record.status !== "active") {
+      throw new ValidationError(`api key is not active: ${options.keyId}`);
+    }
+    if (secretHash(options.secret) !== record.secret_hash_sha256) {
+      throw new ValidationError("api key secret verification failed");
+    }
+    if (options.scope !== undefined) {
+      return this.authenticateApiKey(tenantId, projectId, { keyId: options.keyId, scope: options.scope });
+    }
+    record.last_used_at = utcNow();
+    return {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      key_id: options.keyId,
+      verified: true,
+      api_key: publicApiKey(record),
+      secret_value_present: false,
+    };
+  }
+
+  configureApiKeyRateLimit(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): JsonRecord {
+    if (options.authKeyId !== undefined) {
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: API_KEY_ADMIN_SCOPE });
+    }
+    const record = this.apiKeyRecord(tenantId, projectId, options.keyId);
+    const limit = Number(options.limit);
+    if (!Number.isFinite(limit) || limit <= 0) {
+      throw new ValidationError("api key rate limit must be positive");
+    }
+    const operation = normalizeScope(options.operation);
+    const period = options.period ?? "local-window";
+    const bucketKey = apiKeyRateKey(tenantId, projectId, options.keyId, operation, period);
+    const bucket: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      key_id: options.keyId,
+      operation,
+      period,
+      limit: Math.trunc(limit),
+      used: 0,
+      remaining: Math.trunc(limit),
+      created_at: utcNow(),
+    };
+    this.store.api_key_rate_limits[bucketKey] = bucket;
+    this.appendAudit(tenantId, projectId, "api_key.rate_limit.configure", { targetId: options.keyId, apiKeyId: options.authKeyId, after: { api_key: publicApiKey(record), rate_limit: bucket } });
+    return cloneJson(bucket) as JsonRecord;
+  }
+
+  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: { keyId?: string } = {}): JsonRecord {
+    const buckets = Object.values(this.store.api_key_rate_limits)
+      .filter((bucket) => bucket.tenant_id === tenantId && bucket.project_id === projectId && (options.keyId === undefined || bucket.key_id === options.keyId));
+    return {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      key_id: options.keyId ?? null,
+      rate_limits: cloneJson(buckets),
     };
   }
 
@@ -397,6 +474,7 @@ export class SaaSControlPlaneService {
       cloud: CloudApiService.fromState(payload.cloud),
       store: {
         api_keys: stateBucket(control, "api_keys"),
+        api_key_rate_limits: stateBucket(control, "api_key_rate_limits"),
         uploads: stateBucket(control, "uploads"),
         trace_batches: stateBucket(control, "trace_batches"),
         sdk_submissions: stateBucket(control, "sdk_submissions"),
@@ -466,6 +544,26 @@ export class SaaSControlPlaneService {
     return cloneJson(record) as JsonRecord;
   }
 
+  private consumeApiKeyRate(record: JsonRecord, operation: string): void {
+    const keyId = String(record.key_id);
+    const tenantId = String(record.tenant_id);
+    const projectId = String(record.project_id);
+    const candidates = Object.values(this.store.api_key_rate_limits)
+      .filter((bucket) => bucket.tenant_id === tenantId && bucket.project_id === projectId && bucket.key_id === keyId && (bucket.operation === operation || bucket.operation === "*"));
+    for (const bucket of candidates) {
+      const used = Number(bucket.used ?? 0);
+      const limit = Number(bucket.limit ?? 0);
+      if (used + 1 > limit) {
+        throw new ValidationError(`api key rate limit exceeded for ${keyId}: ${operation}`);
+      }
+    }
+    for (const bucket of candidates) {
+      bucket.used = Number(bucket.used ?? 0) + 1;
+      bucket.remaining = Math.max(0, Number(bucket.limit ?? 0) - Number(bucket.used ?? 0));
+      bucket.last_used_at = utcNow();
+    }
+  }
+
   private idempotencyLookup(tenantId: string, projectId: string, operation: string, idempotencyKey?: string): JsonRecord | null {
     if (idempotencyKey === undefined) return null;
     const record = this.store.idempotency_keys[idempotencyRecordKey(tenantId, projectId, operation, idempotencyKey)];
@@ -513,13 +611,22 @@ export class SaaSControlPlaneRouter {
         if (!tenantId) throw new ValidationError("tenant_id is required");
         const authKeyId = optionalString(body.auth_key_id ?? body.api_key_id);
         if (upperMethod === "POST" && parts.length === 4 && parts[3] === "api-keys") {
-          return { status_code: 201, body: this.service.createApiKey(tenantId, projectId, { name: String(body.name ?? "API key"), scopes: arrayOfStrings(body.scopes), keyId: optionalString(body.key_id), authKeyId }) };
+          return { status_code: 201, body: this.service.createApiKey(tenantId, projectId, { name: String(body.name ?? "API key"), scopes: arrayOfStrings(body.scopes), keyId: optionalString(body.key_id), authKeyId, revealSecret: Boolean(body.reveal_secret) }) };
         }
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "api-keys") {
           return { status_code: 200, body: { api_keys: this.service.listApiKeys(tenantId, projectId, { authKeyId }) } };
         }
         if (upperMethod === "POST" && parts.length === 6 && parts[3] === "api-keys" && parts[5] === "authenticate") {
           return { status_code: 200, body: this.service.authenticateApiKey(tenantId, projectId, { keyId: parts[4], scope: String(body.scope ?? "") }) };
+        }
+        if (upperMethod === "POST" && parts.length === 6 && parts[3] === "api-keys" && parts[5] === "verify") {
+          return { status_code: 200, body: this.service.verifyApiKeySecret(tenantId, projectId, { keyId: parts[4], secret: String(body.secret ?? ""), scope: optionalString(body.scope) }) };
+        }
+        if (upperMethod === "POST" && parts.length === 6 && parts[3] === "api-keys" && parts[5] === "rate-limit") {
+          return { status_code: 200, body: this.service.configureApiKeyRateLimit(tenantId, projectId, { keyId: parts[4], operation: String(body.operation ?? "*"), limit: Number(body.limit ?? 0), period: optionalString(body.period), authKeyId }) };
+        }
+        if (upperMethod === "GET" && parts.length === 5 && parts[3] === "api-keys" && parts[4] === "rate-limits") {
+          return { status_code: 200, body: this.service.apiKeyRateLimitSnapshot(tenantId, projectId, { keyId: optionalString(body.key_id) }) };
         }
         if (upperMethod === "POST" && parts.length === 6 && parts[3] === "api-keys" && parts[5] === "revoke") {
           return { status_code: 200, body: this.service.revokeApiKey(tenantId, projectId, parts[4], { authKeyId }) };
@@ -638,6 +745,11 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
         post: { operationId: "createApiKey", parameters: [{ name: "project_id", in: "path", required: true, schema: { type: "string" } }], requestBody: { content: json }, responses: { "201": response("API key") } },
       },
       "/v1/projects/{project_id}/api-keys/{key_id}/authenticate": { post: { operationId: "authenticateApiKey", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("Authentication result") } } },
+      "/v1/projects/{project_id}/api-keys/{key_id}/verify": { post: { operationId: "verifyApiKeySecret", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("Secret verification result") } } },
+      "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit": {
+        post: { operationId: "configureApiKeyRateLimit", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("API key rate limit") } },
+      },
+      "/v1/projects/{project_id}/api-keys/rate-limits": { get: { operationId: "apiKeyRateLimitSnapshot", parameters: [{ name: "project_id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": response("API key rate limit snapshot") } } },
       "/v1/projects/{project_id}/api-keys/{key_id}/revoke": { post: { operationId: "revokeApiKey", parameters: pathTenantParameters("key_id"), requestBody: { content: json }, responses: { "200": response("Revocation result") } } },
       "/v1/projects/{project_id}/sdk-submit": { post: { operationId: "sdkSubmit", parameters: [{ name: "project_id", in: "path", required: true, schema: { type: "string" } }], requestBody: { content: json }, responses: { "202": response("Submitted run") } } },
       "/v1/projects/{project_id}/runs/{run_id}/upload": { post: { operationId: "uploadRun", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Uploaded run result") } } },
@@ -715,9 +827,21 @@ export class SaaSIngestionClient {
     return envelope("bootstrap_project", result);
   }
 
-  createApiKey(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; apiKey?: string }): JsonRecord {
+  createApiKey(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): JsonRecord {
     rejectRawApiKey(options.apiKey);
     return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, options));
+  }
+
+  verifyApiKeySecret(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): JsonRecord {
+    return envelope("verify_api_key_secret", this.service.verifyApiKeySecret(tenantId, projectId, options));
+  }
+
+  configureApiKeyRateLimit(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): JsonRecord {
+    return envelope("configure_api_key_rate_limit", this.service.configureApiKeyRateLimit(tenantId, projectId, options));
+  }
+
+  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: { keyId?: string } = {}): JsonRecord {
+    return envelope("api_key_rate_limit_snapshot", this.service.apiKeyRateLimitSnapshot(tenantId, projectId, options));
   }
 
   listApiKeys(tenantId: string, projectId: string, options: { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
@@ -769,10 +893,25 @@ export class SaaSIngestionClient {
     return envelope("artifact_manifests", { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, options) });
   }
 
-  async createApiKeyHttp(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; apiKey?: string }): Promise<JsonRecord> {
+  async createApiKeyHttp(tenantId: string, projectId: string, options: { name: string; scopes: string[]; keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<JsonRecord> {
     rejectRawApiKey(options.apiKey);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: options.name, scopes: options.scopes, key_id: options.keyId, auth_key_id: options.authKeyId });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: options.name, scopes: options.scopes, key_id: options.keyId, auth_key_id: options.authKeyId, reveal_secret: options.revealSecret });
     return envelope("create_api_key", body);
+  }
+
+  async verifyApiKeySecretHttp(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/verify`, { tenant_id: tenantId, secret: options.secret, scope: options.scope });
+    return envelope("verify_api_key_secret", body);
+  }
+
+  async configureApiKeyRateLimitHttp(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/rate-limit`, { tenant_id: tenantId, operation: options.operation, limit: options.limit, period: options.period, auth_key_id: options.authKeyId });
+    return envelope("configure_api_key_rate_limit", body);
+  }
+
+  async apiKeyRateLimitSnapshotHttp(tenantId: string, projectId: string, options: { keyId: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/rate-limits`, { tenant_id: tenantId, key_id: options.keyId });
+    return envelope("api_key_rate_limit_snapshot", body);
   }
 
   async sdkSubmitHttp(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; apiKey?: string; idempotencyKey?: string; requestId?: string }): Promise<JsonRecord> {
@@ -840,13 +979,15 @@ function publicApiKey(record: JsonRecord): JsonRecord {
     key_id: record.key_id,
     name: record.name,
     prefix: record.prefix,
-    secret_hash_present: false,
+    secret_hash_present: Boolean(record.secret_hash_sha256),
     secret_value_present: false,
     status: record.status,
     scopes: Array.isArray(record.scopes) ? [...record.scopes] : [],
     created_at: record.created_at,
     revoked_at: record.revoked_at,
     last_used_at: record.last_used_at,
+    one_time_secret_displayed: Boolean(record.one_time_secret_displayed),
+    verify_mode: record.verify_mode ?? null,
   };
 }
 
@@ -871,6 +1012,14 @@ function scopeAllows(grantedScopes: unknown, requiredScope: string): boolean {
 
 function idempotencyRecordKey(tenantId: string, projectId: string, operation: string, idempotencyKey: string): string {
   return sha256(`${tenantId}:${projectId}:${operation}:${idempotencyKey}`);
+}
+
+function apiKeyRateKey(tenantId: string, projectId: string, keyId: string, operation: string, period: string): string {
+  return sha256(`${tenantId}:${projectId}:${keyId}:${operation}:${period}`);
+}
+
+function secretHash(secret: string): string {
+  return sha256(String(secret));
 }
 
 function sha256(text: string): string {

@@ -2586,7 +2586,7 @@ Growth-Auditor alignment:
 - Growth-Auditor recommended moving from SDK/tooling to an enterprise SaaS control-plane evidence kit covering Usage/Billing, API Keys, Observability, capability matrix, and readiness badge. Implemented those plus the user-requested SaaS surfaces: API key, SDK submit, run upload, trace ingestion, quota ledger, tenant/project/run lifecycle.
 
 Next-round top 20:
-1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run → gated small-batch plan when quota evidence is fresh.
+1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run 鈫?gated small-batch plan when quota evidence is fresh.
 
 Strategy alignment note:
 - The updated active goal requires following `docs/strategy/large-saas-a1-a2-a3-full-plan.md` from GitHub `origin/main`. Local branch did not yet contain the file, so it was read with `git show origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` without switching branches or overwriting A1 work.
@@ -2608,7 +2608,7 @@ Round16 Worker-CLI-Ingestion:
 - Validation: `python -B -m pytest tests/a1/test_saas_control_plane_cli.py tests/a1/test_saas_control_plane.py -q -p no:cacheprovider` => 12 passed.
 - Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` => 223 passed.
 
-## Round16 — A1 SaaS ingestion/control-plane hardening (2026-07-07)
+## Round16 鈥?A1 SaaS ingestion/control-plane hardening (2026-07-07)
 
 Goal baseline:
 - Repo/branch: `C:\Users\33516\Documents\Ashr` on `codex/a1-local-sdk-runner`.
@@ -2643,12 +2643,12 @@ Goal baseline:
 24. `git diff --check` repaired after TS EOF issue.
 
 Real API evidence (private, ignored; no raw key logged):
-- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` — dry-run batch plan.
-- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` — read-only health check.
-- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` — read-only dataset list.
-- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` — read-only run list.
-- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` — read-only request list.
-- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` — read-only agent list.
+- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` 鈥?dry-run batch plan.
+- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` 鈥?read-only health check.
+- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` 鈥?read-only dataset list.
+- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` 鈥?read-only run list.
+- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` 鈥?read-only request list.
+- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` 鈥?read-only agent list.
 
 Validation:
 - `git diff --check`: pass after EOF cleanup.
@@ -2684,7 +2684,7 @@ Growth-Auditor notes:
 - Not yet production-grade: hosted REST, DB, real secret verification, billing-grade ledger, object storage, release gate, webhook, RBAC.
 
 
-## A1 Round17 - hosted/self-host control-plane adapter and main全集校验 (2026-07-07)
+## A1 Round17 - hosted/self-host control-plane adapter and main鍏ㄩ泦鏍￠獙 (2026-07-07)
 
 Round goal: continue the large-SaaS A1 path after PR #14 by moving the local SaaS control plane beyond an in-process router toward a self-hostable API platform surface, while first validating against `origin/main` as the A1/A2/A3 integrated baseline.
 
@@ -2728,12 +2728,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: hosted/self-host adapter usage.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` — plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` 鈥?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` 鈥?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 6 passed.
@@ -2793,12 +2793,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: platform primitive docs.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` — plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` — status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` — status `ok`.
+- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` 鈥?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` 鈥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` 鈥?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_platform.py -q -p no:cacheprovider`: 4 passed.
@@ -2811,3 +2811,83 @@ Known gaps still not production-grade:
 4. Release-gate bridge produces payloads but does not call A2 service.
 5. No dashboard read API endpoints for these new primitives yet.
 6. No TS parity for all platform primitives until worker integration finishes.
+## A1 Round19 - Release evidence backend controls and main baseline (2026-07-08)
+
+Round goal: close a more commercial SaaS backend loop around A1 API-key lifecycle, SDK/CLI/TS parity, release-gate bridge/migrator surfaced by subagents, official API calibration, frontend mirror contract hints, and the user-requested origin/main integrated baseline check.
+
+Baseline / peer changes:
+- Started on codex/a1-local-sdk-runner after git fetch origin all heads/tags/prune.
+- PR #15 remained open/draft; origin/main inspected as A1/A2/A3 integrated baseline via docs/strategy/large-saas-a1-a2-a3-full-plan.md.
+- Worktree included long-lived untracked recon/** and tools/**; they remain excluded from staging.
+- Earlier Round19 worker agents for migrator/webhook/release bridge hit 503/not_found in this runtime; main thread recovered useful files/tests already present in the worktree and recorded the failure as a subagent reliability gap.
+- Subagents completed and were closed: TS API-key parity; origin/main baseline artifact; frontend mirror public contract extraction.
+
+20 Round19 growth points advanced:
+1. API key one-time local secret reveal contract.
+2. API key SHA-256 verify path.
+3. Redacted public API key views with secret_hash_present, one_time_secret_displayed, and verify_mode.
+4. Per-key operation rate-limit buckets.
+5. Rate-limit enforcement before run mutation.
+6. Rate-limit snapshot for quota/admin views.
+7. Python SDK parity for reveal/verify/rate-limit/snapshot.
+8. Python CLI parity for reveal/verify/rate-limit/snapshot.
+9. Hosted/self-host router routes for verify and rate-limit.
+10. OpenAPI route documentation for new key lifecycle controls.
+11. TS SDK/service/router/OpenAPI parity for same controls.
+12. Origin/main baseline validator in isolated temp worktree.
+13. Public baseline evidence record proving main A1 tests still pass.
+14. Release-gate bridge exports/docs/tests retained as A1-to-A2 callable/HTTP bridge.
+15. DB migrator docs/tests retained for sqlite smoke and tenant index validation.
+16. Frontend mirror public contract hints for API/usage/quota/run lifecycle.
+17. Official API dry-run plan evidence for health and request listing.
+18. Official API read-only calibration for health, datasets, runs, requests, agents.
+19. Secret scans across new public docs/fixtures and staged candidates.
+20. Full Python/TS validation matrix updated.
+
+Implemented files / artifacts:
+- services/api/control_plane.py: reveal-secret semantics, verify route, rate-limit route/snapshot, OpenAPI entries.
+- packages/sdk/ashr_clone/saas.py: SDK methods for verify_api_key_secret, configure_api_key_rate_limit, and api_key_rate_limit_snapshot.
+- packages/sdk/ashr_clone/saas_cli.py: CLI commands api-key-verify, api-key-rate-limit, and api-key-rate-limits.
+- tests/a1/test_saas_api_key_secret_rate.py: service + SDK + CLI coverage.
+- packages/ts/ashr-clone/src/saas.ts and packages/ts/ashr-clone/test/saas.test.mjs: TS parity.
+- tests/a1/origin_main_baseline.py: safe temp-worktree baseline validator.
+- docs/a1/saas_ingestion_quickstart.md: lifecycle docs.
+- docs/a1/evidence/round19_frontend_api_usage_quota_lifecycle.md and tests/a1/fixtures/round19_frontend_contract_public.json: mirror-derived public field hints.
+- docs/a1/release_gate_bridge.md, docs/a1/worker_db_migrator.md, services/api/db_migrator.py, services/api/release_gate_bridge.py, related tests were audited and included as Round19 backend closure artifacts.
+- origin/main baseline passed=True commit=f55c8baabdba returncode=0 evidence=a1_round19_origin_main_baseline_20260708_122825.json.
+
+Official API calibration (private, ignored; env key only; no raw key logged):
+- docs/evidence/private_refs/a1_round19_plan_health_20260708_122518.json status blocked plan record.
+- docs/evidence/private_refs/a1_round19_plan_list_requests_20260708_122518.json status blocked plan record.
+- docs/evidence/private_refs/a1_round19_real_health_20260708_122518.json status ok, response keys db,message,status.
+- docs/evidence/private_refs/a1_round19_real_list_datasets_20260708_122518.json status ok, response keys _user,datasets,next_cursor,status.
+- docs/evidence/private_refs/a1_round19_real_list_runs_20260708_122518.json status ok, response keys _user,runs,status.
+- docs/evidence/private_refs/a1_round19_real_list_requests_20260708_122518.json status ok, response keys _user,next_cursor,requests,status.
+- docs/evidence/private_refs/a1_round19_real_list_agents_20260708_122518.json status ok, response keys _user,agents,status.
+
+Validation:
+- python -B -m pytest tests/a1/test_saas_api_key_secret_rate.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py -q -p no:cacheprovider: 16 passed.
+- python -B -m py_compile services/api/control_plane.py services/api/platform.py services/api/data_model.py services/api/db_migrator.py services/api/release_gate_bridge.py services/api/__init__.py: passed.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 259 passed.
+- python -B tests/a1/origin_main_baseline.py --ref origin/main --output docs/evidence/a1_round19_origin_main_baseline_20260708_122825.json: passed; origin/main A1 baseline 230 passed inside temp worktree.
+- git diff --check: passed.
+- npm test --prefix packages/ts/ashr-clone: 187 passed.
+
+Known gaps / next round:
+1. Need to turn DB migrator from sqlite smoke into Postgres-compatible migration runner with rollback/drift checks.
+2. Webhook delivery still needs durable retry/dead-letter store and network dispatch tests if not already in a later worker branch.
+3. Release-gate bridge should become a first-class endpoint in the control-plane runtime, not just callable/HTTP client helpers.
+4. Official mutating calibration remains guarded; next round should use reviewed quota gates for bounded create-request/create-run text-only probes before media expansion.
+5. Frontend mirror hints should drive API response DTOs for usage/quota/API-key pages.
+6. Need tenant/project API-key lifecycle endpoints with audit-log query and dashboard-safe pagination.
+7. Need SaaS evidence packet builder for POST run -> upload artifacts -> complete -> release gate -> webhook -> evidence packet.
+8. Need self-host Docker/dev service wrapper for API + worker + sqlite/postgres profile.
+9. Need API key rotation and one-time-secret non-replay semantics after first verification.
+10. Need TS CLI parity for the new API-key lifecycle commands, not only TS library parity.
+
+Growth-Auditor Round19 closeout:
+- Sellable capability advanced: API-key governance, per-key rate limits, frontend contract hints, release-gate bridge, DB migrator smoke, official API evidence, origin/main baseline.
+- Weak parts to fix next: sqlite-only migrator, helper-only release gate bridge, local-only one-time secret semantics, local-only rate limits, read-only official API calibration, contract-hint frontend evidence.
+- TS lag risk: TS library parity passed, but TS CLI parity for API-key lifecycle is still missing and must be a Round20 priority.
+- Commit risks reviewed: recon/**, tools/**, and docs/evidence/private_refs/** remain unstaged; staged scope audited.
+- Round20 priority: hosted + durable + auditable release-gate endpoint, audit logs, Postgres migrator, DTO parity, TS CLI parity, bounded official mutating probes.
