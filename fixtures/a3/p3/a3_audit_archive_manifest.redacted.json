@@ -2,7 +2,7 @@
   "schema_version": "a3.audit_archive_manifest.v1",
   "generated_at": "2026-07-08T00:00:00.000Z",
   "source": "cli-test",
-  "archive_id": "a3-archive-a3-bundle-local-mock-commercial-gate-run-a3-generated--2c4e2a4b5e28",
+  "archive_id": "a3-archive-a3-bundle-local-mock-commercial-gate-run-a3-generated--a4c2a5106871",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -13,7 +13,7 @@
   "archive_file": null,
   "bundle": {
     "bundle_id": "a3-bundle-local-mock-commercial-gate-run-a3-generated-from-f447ff6e9d1d",
-    "bundle_root_hash": "2c4e2a4b5e285f4eabed3b44755aee92337c2755b724a21ac8acee3a6ebe9b64",
+    "bundle_root_hash": "a4c2a510687168ea255b8b23f5f5f3a8a57ae25e7d2c998a0fa1f7688055e428",
     "bundle_index_file": "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json",
     "release": {
       "run_id": "run_a3_generated_from_a2_g3",
@@ -50,7 +50,7 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "a48412c0fea02fc2d9555fb34c65ade52d6d906bd0f9e830453c4bc892ee38eb",
+      "sha256": "5f02fc4398dbf3cef482327b200fc1a7fb4d7a5077c502c292a00c528e78f0b3",
       "byte_size": 11493,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -62,7 +62,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "042b629fe98b7d663dc645b42455bfacab86da787d96357c67b8757672b2d67d",
+      "sha256": "019a67622342b6abb8cb7d9bc1eba6155dba82009ef2ac05433449999ed1ca6c",
       "byte_size": 2015,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -86,7 +86,7 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "1951e5af1e4db53b0982302c9594fe638a1fc1fedac3c61872581834bf67bbe1",
+      "sha256": "aa1827554400849a99564b55dd28de4e25cfdcae2d0be6bb400b0bcf0f93c2fb",
       "byte_size": 20382,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -98,7 +98,7 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "91666a12fb0731cf3fef56e3552cca31db1a3f46ba8b87c3e534f3c97257ec33",
+      "sha256": "f9a05a1c897efd1d8709d94accd87bb365c2c4b1a736d10597cf19fd4663b53b",
       "byte_size": 2557,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -122,8 +122,8 @@
       "archive_role": "governance_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "92d25d130d7771b36fa28cda6e866d550742298444dee00bdd3e14986365fddf",
-      "byte_size": 1862,
+      "sha256": "b970f83ea3bdc1b54db4ac1d4b16ac301451619eb8dd07b8c7d3d3698e6264f3",
+      "byte_size": 1805,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -134,8 +134,8 @@
       "archive_role": "governance_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "ca8706d89dd5722bffddfa5bffea455f35514f9d088bd685d27326dd8f57aa95",
-      "byte_size": 1798,
+      "sha256": "c4cb4fd461d557a79ec6d5f45b15626c991b8d68741e43c86880630d21e0230b",
+      "byte_size": 1743,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -146,8 +146,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "1cd8523aac6e01b6888667fb52ebf29fd8bcce34a791ee6c4a035c40c8b1cc41",
-      "byte_size": 51795,
+      "sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+      "byte_size": 49867,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -158,8 +158,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "8b2a22eee2e1219f4175b4684f9f1e7764784f94fcedb5a05f9d4691da0669b6",
-      "byte_size": 348942,
+      "sha256": "35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086",
+      "byte_size": 338646,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -170,8 +170,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "7b302746ddc2823153f87c6f5492989be371cd67a548567965125617497d0605",
-      "byte_size": 176739,
+      "sha256": "7319e52307fdd55f97baad6f8cea12180055bc20e526a29231971f3bd18709a2",
+      "byte_size": 171560,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -182,8 +182,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "64a245a6dfc2e59a3cc97eefc05668c7e106a582ef720d317822ddf66dc91143",
-      "byte_size": 438,
+      "sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+      "byte_size": 425,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -201,18 +201,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "150970703b170765daa6fb18a2ff76e0e1a29a42ce1377d06511cb19ddf2bc29",
+  "archive_root_hash": "3b98c88d0576a0c18c381f7fb0b591acf5e7439212fb6d3e07db8f06e72e4f59",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "d1ac336c219219772bba61990ba6118298e9699ed885cced42d48ac79ea89f25",
+    "signed_payload_sha256": "f2d1fb1f04208de8d01ad58d43660a3d122d237d7adcc0fb7ce08a4a9158c826",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPaVdq+uIdIx/GuDzCjyVI0UyBgPJNPpAgOGHq/wE53Q=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAeycW8XVleYV8kB1TbOYJBSQ00imAAJMPTOPRDb1g+kY=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "b0NK9UXKW+EgBarMVy6BICMkkcimDOghOMi58p6M5NoTpWxdp1iRrbL3OCeookqU/pSjkOYJqeDVrOFblqwICA=="
+    "signature_base64": "I2DTnxLkUidlV4XsolFRKFzcvwoYpSuMx0QHogL2zc33l5DXQmrt4pdyboVFm5al7m4nK9AfFQYhJjv0bP3cBw=="
   }
 }
