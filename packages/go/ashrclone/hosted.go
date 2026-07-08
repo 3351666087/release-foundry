@@ -102,6 +102,46 @@ type ArtifactManifestOptions struct {
 	RequestID      string `json:"request_id,omitempty"`
 }
 
+type EnqueueWorkerJobHTTPOptions struct {
+	JobType        string `json:"job_type"`
+	TargetID       string `json:"target_id,omitempty"`
+	JobID          string `json:"job_id,omitempty"`
+	Priority       int    `json:"priority,omitempty"`
+	MaxAttempts    int    `json:"max_attempts,omitempty"`
+	APIKeyID       string `json:"api_key_id,omitempty"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	RequestID      string `json:"request_id,omitempty"`
+}
+
+type LeaseWorkerJobHTTPOptions struct {
+	LeaseOwnerID string `json:"lease_owner_id"`
+	LeaseSeconds int    `json:"lease_seconds,omitempty"`
+	JobType      string `json:"job_type,omitempty"`
+	APIKeyID     string `json:"api_key_id,omitempty"`
+	RequestID    string `json:"request_id,omitempty"`
+}
+
+type WorkerJobLeaseActionHTTPOptions struct {
+	LeaseOwnerID string `json:"lease_owner_id"`
+	LeaseSeconds int    `json:"lease_seconds,omitempty"`
+	APIKeyID     string `json:"api_key_id,omitempty"`
+	RequestID    string `json:"request_id,omitempty"`
+}
+
+type FailWorkerJobHTTPOptions struct {
+	LeaseOwnerID      string `json:"lease_owner_id"`
+	RetryAfterSeconds *int   `json:"retry_after_seconds,omitempty"`
+	APIKeyID          string `json:"api_key_id,omitempty"`
+	RequestID         string `json:"request_id,omitempty"`
+}
+
+type ListWorkerJobsHTTPOptions struct {
+	Status    string `json:"status,omitempty"`
+	JobType   string `json:"job_type,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+	AuthKeyID string `json:"auth_key_id,omitempty"`
+}
+
 func (client *Client) CreateAPIKey(ctx context.Context, tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[JSONMap], error) {
 	if err := rejectRawAPIKey(options.APIKey); err != nil {
 		return Envelope[JSONMap]{}, err
@@ -210,6 +250,45 @@ func (client *Client) CreateArtifactManifestHTTP(ctx context.Context, tenantID, 
 func (client *Client) ListArtifactManifestsHTTP(ctx context.Context, tenantID, projectID, runID string, options AuthKeyOptions) (Envelope[JSONMap], error) {
 	body := JSONMap{"tenant_id": tenantID, "auth_key_id": options.AuthKeyID}
 	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "runs", runID, "artifact-manifests"), "artifact_manifests", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) EnqueueWorkerJobHTTP(ctx context.Context, tenantID, projectID string, payload JSONMap, options EnqueueWorkerJobHTTPOptions) (Envelope[JSONMap], error) {
+	if err := ValidateMediaSafeEnvelope(payload); err != nil {
+		return Envelope[JSONMap]{}, err
+	}
+	body := JSONMap{"tenant_id": tenantID, "job_type": options.JobType, "target_id": options.TargetID, "payload": payload, "job_id": options.JobID, "priority": options.Priority, "max_attempts": options.MaxAttempts, "api_key_id": options.APIKeyID, "idempotency_key": options.IdempotencyKey, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "worker-jobs", "enqueue"), "worker.job.enqueue", body, idemFromHosted(options.IdempotencyKey, options.RequestID, options.APIKeyID))
+}
+
+func (client *Client) LeaseWorkerJobHTTP(ctx context.Context, tenantID, projectID string, options LeaseWorkerJobHTTPOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "lease_owner_id": options.LeaseOwnerID, "lease_seconds": options.LeaseSeconds, "job_type": options.JobType, "api_key_id": options.APIKeyID, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "worker-jobs", "lease"), "worker.job.lease", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, RequestID: options.RequestID, APIKeyID: options.APIKeyID})
+}
+
+func (client *Client) HeartbeatWorkerJobHTTP(ctx context.Context, tenantID, projectID, jobID string, options WorkerJobLeaseActionHTTPOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "lease_owner_id": options.LeaseOwnerID, "lease_seconds": options.LeaseSeconds, "api_key_id": options.APIKeyID, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "worker-jobs", jobID, "heartbeat"), "worker.job.heartbeat", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, RequestID: options.RequestID, APIKeyID: options.APIKeyID})
+}
+
+func (client *Client) CompleteWorkerJobHTTP(ctx context.Context, tenantID, projectID, jobID string, result JSONMap, options WorkerJobLeaseActionHTTPOptions) (Envelope[JSONMap], error) {
+	if err := ValidateMediaSafeEnvelope(result); err != nil {
+		return Envelope[JSONMap]{}, err
+	}
+	body := JSONMap{"tenant_id": tenantID, "lease_owner_id": options.LeaseOwnerID, "result": result, "api_key_id": options.APIKeyID, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "worker-jobs", jobID, "complete"), "worker.job.complete", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, RequestID: options.RequestID, APIKeyID: options.APIKeyID})
+}
+
+func (client *Client) FailWorkerJobHTTP(ctx context.Context, tenantID, projectID, jobID string, failure JSONMap, options FailWorkerJobHTTPOptions) (Envelope[JSONMap], error) {
+	if err := ValidateMediaSafeEnvelope(failure); err != nil {
+		return Envelope[JSONMap]{}, err
+	}
+	body := JSONMap{"tenant_id": tenantID, "lease_owner_id": options.LeaseOwnerID, "error": failure, "retry_after_seconds": options.RetryAfterSeconds, "api_key_id": options.APIKeyID, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "worker-jobs", jobID, "fail"), "worker.job.fail", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, RequestID: options.RequestID, APIKeyID: options.APIKeyID})
+}
+
+func (client *Client) ListWorkerJobsHTTP(ctx context.Context, tenantID, projectID string, options ListWorkerJobsHTTPOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "status": options.Status, "job_type": options.JobType, "limit": options.Limit, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "worker-jobs"), "worker.job.list", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
 }
 
 func (client *Client) hosted(ctx context.Context, method, path, operation string, request JSONMap, options IdempotencyOptions) (Envelope[JSONMap], error) {

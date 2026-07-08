@@ -11,6 +11,7 @@ from services.api.db_migrator import (
     apply_migration_plan,
     apply_to_memory_and_introspect,
     build_ledger_entry,
+    build_go_postgres_vertical_slice_manifest,
     generate_migration_plan,
     introspect_sqlite,
     validate_schema_ledger,
@@ -57,6 +58,27 @@ def test_db_migrator_generates_postgres_compatible_plan_and_ledger_sql():
     assert "applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP" in ledger_sql
     assert "ON CONFLICT (schema_version) DO UPDATE SET" in ledger_sql
     assert plan.checksum in ledger_sql
+
+
+def test_db_migrator_exposes_go_postgres_vertical_slice_contract():
+    manifest = build_go_postgres_vertical_slice_manifest()
+
+    assert manifest["dialect"] == "postgres"
+    assert manifest["tables"] == ["audit_log", "idempotency_keys", "jobs", "runs", "usage_ledger"]
+    assert manifest["functions"] == ["audit_chain_tail", "ensure_idempotency_fingerprint", "rollup_usage"]
+
+    contract = manifest["contract"]
+    assert contract["runs"]["required_columns"] == [
+        "organization_id",
+        "project_id",
+        "status",
+        "request_fingerprint",
+        "created_at",
+        "updated_at",
+    ]
+    assert "idx_runs_project_status" in contract["runs"]["required_indexes"]
+    assert "idx_usage_ledger_idempotency_key_unique" in contract["usage_ledger"]["required_indexes"]
+    assert "idx_jobs_ready_queue" in contract["jobs"]["required_indexes"]
 
 
 def test_db_migrator_rollback_plan_drops_indexes_tables_and_ledger_entry():

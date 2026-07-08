@@ -36,6 +36,7 @@
     "delete_tenant_llm_key",
     "delete_ui_test",
     "evaluate_run",
+    "generate_voice_call_insights",
     "get_account_balance",
     "get_activity_dashboard",
     "get_agent_datasets",
@@ -283,5 +284,90 @@
     "Simulations",
     "Videos",
     "Voice minutes"
+  ],
+  "page_domains": {
+    "datasets": [
+      "list_datasets",
+      "get_dataset",
+      "create_dataset",
+      "list_requests",
+      "get_request",
+      "create_request",
+      "update_request_status"
+    ],
+    "folders": [
+      "list_folders",
+      "create_folder",
+      "update_folder",
+      "delete_folder",
+      "get_folder_datasets",
+      "list_folder_memberships"
+    ],
+    "team": [
+      "list_users",
+      "create_user",
+      "update_user"
+    ],
+    "observability": [
+      "get_voice_analytics_overview",
+      "get_voice_call_insights",
+      "generate_voice_call_insights",
+      "list_voice_sessions",
+      "get_voice_session",
+      "get_voice_session_turns",
+      "list_observability_traces",
+      "get_observability_trace"
+    ],
+    "api_keys": [
+      "list_api_keys",
+      "create_api_key",
+      "revoke_api_key"
+    ],
+    "usage": [
+      "get_usage",
+      "billing_get_status",
+      "billing_create_checkout_session",
+      "billing_create_portal_session"
+    ]
+  },
+  "runtime_schema_public_fixture": "tests/a1/fixtures/round21_frontend_runtime_schema_public.json",
+  "runtime_field_terms": [
+    "agent_id",
+    "api_key_id",
+    "confidence_series",
+    "dataset_count",
+    "dataset_source",
+    "duration_ms",
+    "expires_at",
+    "expires_seconds",
+    "final_confidence",
+    "intent_confidence",
+    "key_prefix",
+    "mos_score",
+    "observations",
+    "pinned_datasets",
+    "policy_name",
+    "request_bytes",
+    "request_id",
+    "request_status",
+    "room_id",
+    "run_count",
+    "status_code",
+    "status_message",
+    "total_cost_usd",
+    "url_path",
+    "user_id",
+    "voice_id"
+  ],
+  "copy_signal_terms": [
+    "Call insights",
+    "Dataset requested - it will appear here once generated.",
+    "Dataset requested - it will appear in this folder once generated.",
+    "Failed to load team members",
+    "Invite Team Member",
+    "No payload recorded.",
+    "No traces for this agent yet.",
+    "No turns recorded for this session.",
+    "Quality score"
   ]
 }

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import { CloudApiService, NotFoundError, ValidationError } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -722,6 +722,7 @@ export class SaaSControlPlaneService {
   }
 
   completeWorkerJob(tenantId: string, projectId: string, jobId: string, result: JsonRecord = {}, options: { leaseOwnerId: string; apiKeyId?: string; requestId?: string }): JsonRecord {
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: WORKER_JOB_WRITE_SCOPE, consumeRate: false });
     const job = this.workerJobRecord(tenantId, projectId, jobId);
     requireWorkerJobLease(job, options.leaseOwnerId);
     const before = cloneJson(job) as JsonRecord;
@@ -737,7 +738,20 @@ export class SaaSControlPlaneService {
     return cloneJson(job) as JsonRecord;
   }
 
+  heartbeatWorkerJob(tenantId: string, projectId: string, jobId: string, options: { leaseOwnerId: string; leaseSeconds?: number; apiKeyId?: string; requestId?: string }): JsonRecord {
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: WORKER_JOB_WRITE_SCOPE, consumeRate: false });
+    const job = this.workerJobRecord(tenantId, projectId, jobId);
+    requireWorkerJobLease(job, options.leaseOwnerId);
+    const before = cloneJson(job) as JsonRecord;
+    const now = utcNow();
+    job.lease_expires_at = leaseExpiresAt(now, options.leaseSeconds ?? 300);
+    job.updated_at = now;
+    this.appendAudit(tenantId, projectId, "worker.job.heartbeat", { targetId: jobId, apiKeyId: options.apiKeyId, requestId: options.requestId, before, after: { job_id: jobId, lease_owner_id: options.leaseOwnerId, lease_expires_at: job.lease_expires_at } });
+    return cloneJson(job) as JsonRecord;
+  }
+
   failWorkerJob(tenantId: string, projectId: string, jobId: string, error: JsonRecord = {}, options: { leaseOwnerId: string; retryAfterSeconds?: number; apiKeyId?: string; requestId?: string }): JsonRecord {
+    if (options.apiKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.apiKeyId, scope: WORKER_JOB_WRITE_SCOPE, consumeRate: false });
     const job = this.workerJobRecord(tenantId, projectId, jobId);
     requireWorkerJobLease(job, options.leaseOwnerId);
     const before = cloneJson(job) as JsonRecord;
@@ -770,8 +784,21 @@ export class SaaSControlPlaneService {
     if (options.status !== undefined) jobs = jobs.filter((job) => job.status === options.status);
     if (options.jobType !== undefined) jobs = jobs.filter((job) => job.job_type === options.jobType);
     jobs = jobs.map((job) => cloneJson(job) as JsonRecord).sort((a, b) => Number(a.priority ?? 100) - Number(b.priority ?? 100) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) || String(a.job_id ?? "").localeCompare(String(b.job_id ?? "")));
-    if (options.limit !== undefined) jobs = jobs.slice(0, positiveInt(options.limit, "limit"));
-    return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, filters: { status: options.status ?? null, job_type: options.jobType ?? null, limit: options.limit ?? null }, jobs, count: jobs.length };
+    const totalCount = jobs.length;
+    const requestedLimit = options.limit === undefined ? undefined : positiveInt(options.limit, "limit");
+    if (requestedLimit !== undefined) jobs = jobs.slice(0, requestedLimit);
+    return {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      filters: { status: options.status ?? null, job_type: options.jobType ?? null, limit: requestedLimit ?? null },
+      jobs,
+      count: jobs.length,
+      returned_count: jobs.length,
+      total_count: totalCount,
+      has_more: requestedLimit !== undefined && totalCount > jobs.length,
+      next_cursor: null,
+    };
   }
 
   snapshotState(): SaaSControlPlaneState {
@@ -959,7 +986,7 @@ export class SaaSControlPlaneRouter {
       if (upperMethod === "GET" && (parts.join("/") === "healthz" || parts.join("/") === "v1/healthz")) {
         return { status_code: 200, body: saasHealthz() };
       }
-      if (upperMethod === "GET" && (parts.join("/") === "openapi.json" || parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi")) {
+      if (upperMethod === "GET" && (parts.join("/") === "openapi.json" || parts.join("/") === "openapi" || parts.join("/") === "healthz/openapi" || parts.join("/") === "v1/openapi" || parts.join("/") === "v1/openapi.json")) {
         return { status_code: 200, body: exportSaaSOpenApiSpec() };
       }
       if (upperMethod === "POST" && parts.join("/") === "v1/bootstrap") {
@@ -1002,6 +1029,27 @@ export class SaaSControlPlaneRouter {
         }
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "audit-log") {
           return { status_code: 200, body: this.service.auditSnapshot(tenantId, projectId, { authKeyId, runId: optionalString(body.run_id), actionPrefix: optionalString(body.action_prefix), limit: body.limit === undefined ? undefined : Number(body.limit) }) };
+        }
+        if (upperMethod === "POST" && parts.length === 5 && parts[3] === "worker-jobs" && parts[4] === "enqueue") {
+          return { status_code: 202, body: this.service.enqueueWorkerJob(tenantId, projectId, { jobType: String(body.job_type ?? ""), targetId: optionalString(body.target_id), payload: isRecord(body.payload) ? body.payload : {}, jobId: optionalString(body.job_id), priority: body.priority === undefined ? undefined : Number(body.priority), maxAttempts: body.max_attempts === undefined ? undefined : Number(body.max_attempts), apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
+        }
+        if (upperMethod === "POST" && parts.length === 5 && parts[3] === "worker-jobs" && parts[4] === "lease") {
+          return { status_code: 200, body: this.service.leaseWorkerJob(tenantId, projectId, { leaseOwnerId: String(body.lease_owner_id ?? ""), leaseSeconds: body.lease_seconds === undefined ? undefined : Number(body.lease_seconds), jobType: optionalString(body.job_type), apiKeyId: authKeyId, requestId: optionalString(body.request_id) }) };
+        }
+        if (upperMethod === "GET" && parts.length === 4 && parts[3] === "worker-jobs") {
+          return { status_code: 200, body: this.service.listWorkerJobs(tenantId, projectId, { status: optionalString(body.status), jobType: optionalString(body.job_type), limit: body.limit === undefined ? undefined : Number(body.limit), authKeyId }) };
+        }
+        if (parts.length === 6 && parts[3] === "worker-jobs") {
+          const jobId = parts[4];
+          if (upperMethod === "POST" && parts[5] === "heartbeat") {
+            return { status_code: 200, body: this.service.heartbeatWorkerJob(tenantId, projectId, jobId, { leaseOwnerId: String(body.lease_owner_id ?? ""), leaseSeconds: body.lease_seconds === undefined ? undefined : Number(body.lease_seconds), apiKeyId: authKeyId, requestId: optionalString(body.request_id) }) };
+          }
+          if (upperMethod === "POST" && parts[5] === "complete") {
+            return { status_code: 200, body: this.service.completeWorkerJob(tenantId, projectId, jobId, isRecord(body.result) ? body.result : {}, { leaseOwnerId: String(body.lease_owner_id ?? ""), apiKeyId: authKeyId, requestId: optionalString(body.request_id) }) };
+          }
+          if (upperMethod === "POST" && parts[5] === "fail") {
+            return { status_code: 200, body: this.service.failWorkerJob(tenantId, projectId, jobId, isRecord(body.error) ? body.error : {}, { leaseOwnerId: String(body.lease_owner_id ?? ""), retryAfterSeconds: body.retry_after_seconds === undefined ? undefined : Number(body.retry_after_seconds), apiKeyId: authKeyId, requestId: optionalString(body.request_id) }) };
+          }
         }
         if (upperMethod === "POST" && parts.length === 5 && parts[3] === "audit-chain" && parts[4] === "verify") {
           return { status_code: 200, body: this.service.verifyAuditChain(tenantId, projectId, { authKeyId, requestId: optionalString(body.request_id) }) };
@@ -1116,6 +1164,7 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
     paths: {
       "/healthz": { get: { operationId: "healthz", responses: { "200": response("Health check") } } },
       "/openapi.json": { get: { operationId: "exportOpenApi", responses: { "200": response("OpenAPI document") } } },
+      "/v1/openapi.json": { get: { operationId: "exportOpenApiV1", responses: { "200": response("OpenAPI document") } } },
       "/healthz/openapi": { get: { operationId: "exportOpenApiLegacy", responses: { "200": response("OpenAPI document") } } },
       "/v1/bootstrap": { post: { operationId: "bootstrapProject", requestBody: { content: json }, responses: { "201": response("Bootstrap result") } } },
       "/v1/projects/{project_id}/api-keys": {
@@ -1138,6 +1187,12 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": { post: { operationId: "verifyReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release evidence packet verification") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
       "/v1/projects/{project_id}/audit-log": { get: { operationId: "auditSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Audit log snapshot") } } },
+      "/v1/projects/{project_id}/worker-jobs": { get: { operationId: "listWorkerJobs", parameters: pathTenantParameters(), responses: { "200": response("Worker jobs") } } },
+      "/v1/projects/{project_id}/worker-jobs/enqueue": { post: { operationId: "enqueueWorkerJob", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "202": response("Enqueued worker job") } } },
+      "/v1/projects/{project_id}/worker-jobs/lease": { post: { operationId: "leaseWorkerJob", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Leased worker job") } } },
+      "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": { post: { operationId: "heartbeatWorkerJob", parameters: pathTenantParameters("job_id"), requestBody: { content: json }, responses: { "200": response("Worker job heartbeat") } } },
+      "/v1/projects/{project_id}/worker-jobs/{job_id}/complete": { post: { operationId: "completeWorkerJob", parameters: pathTenantParameters("job_id"), requestBody: { content: json }, responses: { "200": response("Completed worker job") } } },
+      "/v1/projects/{project_id}/worker-jobs/{job_id}/fail": { post: { operationId: "failWorkerJob", parameters: pathTenantParameters("job_id"), requestBody: { content: json }, responses: { "200": response("Failed worker job") } } },
       "/v1/projects/{project_id}/audit-chain/verify": { post: { operationId: "verifyAuditChain", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Audit chain verification") } } },
       "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests": {
         get: { operationId: "listArtifactManifests", parameters: pathTenantParameters("run_id"), responses: { "200": response("Artifact manifests") } },
@@ -1210,6 +1265,18 @@ export class SaaSIngestionClient {
     return envelope("bootstrap_project", result);
   }
 
+  async bootstrapProjectHttp(options: { tenantName?: string; tenant_name?: string; projectName?: string; project_name?: string; tenantId?: string; tenant_id?: string; projectId?: string; project_id?: string; datasetId?: string; dataset_id?: string; datasetName?: string; dataset_name?: string; cases?: JsonRecord[] }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", "/v1/bootstrap", {
+      tenant_name: clientRequiredString(options, "tenantName", "tenant_name"),
+      project_name: clientRequiredString(options, "projectName", "project_name"),
+      tenant_id: clientString(options, "tenantId", "tenant_id"),
+      project_id: clientString(options, "projectId", "project_id"),
+      dataset_id: clientString(options, "datasetId", "dataset_id"),
+      dataset_name: clientString(options, "datasetName", "dataset_name"),
+      cases: options.cases,
+    });
+    return envelope("bootstrap_project", body);
+  }
   createApiKey(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string } ): JsonRecord {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, {
@@ -1341,6 +1408,10 @@ export class SaaSIngestionClient {
     return envelope("worker_job_lease", this.service.leaseWorkerJob(tenantId, projectId, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), leaseSeconds: Number(options.leaseSeconds ?? options.lease_seconds ?? 300), jobType: clientString(options, "jobType", "job_type"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
   }
 
+  heartbeatWorkerJob(tenantId: string, projectId: string, jobId: string, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; leaseSeconds?: number; lease_seconds?: number; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): JsonRecord {
+    return envelope("worker_job_heartbeat", this.service.heartbeatWorkerJob(tenantId, projectId, jobId, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), leaseSeconds: Number(options.leaseSeconds ?? options.lease_seconds ?? 300), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
+  }
+
   completeWorkerJob(tenantId: string, projectId: string, jobId: string, result: JsonRecord = {}, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): JsonRecord {
     return envelope("worker_job_complete", this.service.completeWorkerJob(tenantId, projectId, jobId, result, { leaseOwnerId: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), requestId: clientString(options, "requestId", "request_id") }));
   }
@@ -1351,6 +1422,37 @@ export class SaaSIngestionClient {
 
   listWorkerJobs(tenantId: string, projectId: string, options: SaaSClientOptions & { status?: string; jobType?: string; job_type?: string; limit?: number; authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
     return envelope("worker_jobs", this.service.listWorkerJobs(tenantId, projectId, { status: clientString(options, "status"), jobType: clientString(options, "jobType", "job_type"), limit: options.limit === undefined ? undefined : Number(options.limit), authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  async enqueueWorkerJobHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { jobType?: string; job_type?: string; targetId?: string; target_id?: string; payload?: JsonRecord; jobId?: string; job_id?: string; priority?: number; maxAttempts?: number; max_attempts?: number; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs/enqueue`, { tenant_id: tenantId, job_type: clientRequiredString(options, "jobType", "job_type"), target_id: clientString(options, "targetId", "target_id"), payload: options.payload ?? {}, job_id: clientString(options, "jobId", "job_id"), priority: options.priority, max_attempts: options.maxAttempts ?? options.max_attempts, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") });
+    return envelope("worker_job_enqueue", body);
+  }
+
+  async leaseWorkerJobHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; leaseSeconds?: number; lease_seconds?: number; jobType?: string; job_type?: string; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs/lease`, { tenant_id: tenantId, lease_owner_id: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), lease_seconds: options.leaseSeconds ?? options.lease_seconds, job_type: clientString(options, "jobType", "job_type"), api_key_id: clientString(options, "apiKeyId", "api_key_id"), request_id: clientString(options, "requestId", "request_id") });
+    return envelope("worker_job_lease", body);
+  }
+
+  async heartbeatWorkerJobHttp(tenantId: string, projectId: string, jobId: string, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; leaseSeconds?: number; lease_seconds?: number; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs/${encodeURIComponent(jobId)}/heartbeat`, { tenant_id: tenantId, lease_owner_id: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), lease_seconds: options.leaseSeconds ?? options.lease_seconds, api_key_id: clientString(options, "apiKeyId", "api_key_id"), request_id: clientString(options, "requestId", "request_id") });
+    return envelope("worker_job_heartbeat", body);
+  }
+
+  async completeWorkerJobHttp(tenantId: string, projectId: string, jobId: string, result: JsonRecord = {}, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs/${encodeURIComponent(jobId)}/complete`, { tenant_id: tenantId, result, lease_owner_id: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), api_key_id: clientString(options, "apiKeyId", "api_key_id"), request_id: clientString(options, "requestId", "request_id") });
+    return envelope("worker_job_complete", body);
+  }
+
+  async failWorkerJobHttp(tenantId: string, projectId: string, jobId: string, error: JsonRecord = {}, options: SaaSClientOptions & { leaseOwnerId?: string; lease_owner_id?: string; retryAfterSeconds?: number; retry_after_seconds?: number; apiKeyId?: string; api_key_id?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs/${encodeURIComponent(jobId)}/fail`, { tenant_id: tenantId, error, lease_owner_id: clientRequiredString(options, "leaseOwnerId", "lease_owner_id"), retry_after_seconds: options.retryAfterSeconds ?? options.retry_after_seconds, api_key_id: clientString(options, "apiKeyId", "api_key_id"), request_id: clientString(options, "requestId", "request_id") });
+    return envelope("worker_job_fail", body);
+  }
+
+  async listWorkerJobsHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { status?: string; jobType?: string; job_type?: string; limit?: number; authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/worker-jobs`, { tenant_id: tenantId, status: clientString(options, "status"), job_type: clientString(options, "jobType", "job_type"), limit: options.limit, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    return envelope("worker_jobs", body);
   }
 
   async createApiKeyHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<JsonRecord> {
@@ -1457,7 +1559,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify"]);
+const SAAS_CLI_COMMANDS = new Set(["api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -1530,6 +1632,45 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
         ? await client.verifyReleaseEvidencePacketHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet, requestId: stringOption(options, "request-id", false) })
         : client.verifyReleaseEvidencePacket(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false), packet, requestId: stringOption(options, "request-id", false) });
       }
+      break;
+    case "job-enqueue":
+      {
+        const payload = await jsonObjectOption(options, "payload", {});
+        result = baseUrl !== undefined
+          ? await client.enqueueWorkerJobHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { jobType: stringOption(options, "job-type", true), targetId: stringOption(options, "target-id", false), payload, jobId: stringOption(options, "job-id", false), priority: optionalNumberOption(options, "priority"), maxAttempts: optionalNumberOption(options, "max-attempts"), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+          : client.enqueueWorkerJob(projectTenant(options).tenantId, projectTenant(options).projectId, { jobType: stringOption(options, "job-type", true), targetId: stringOption(options, "target-id", false), payload, jobId: stringOption(options, "job-id", false), priority: optionalNumberOption(options, "priority"), maxAttempts: optionalNumberOption(options, "max-attempts"), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      }
+      break;
+    case "job-lease":
+      result = baseUrl !== undefined
+        ? await client.leaseWorkerJobHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { leaseOwnerId: stringOption(options, "lease-owner-id", true), leaseSeconds: optionalNumberOption(options, "lease-seconds"), jobType: stringOption(options, "job-type", false), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) })
+        : client.leaseWorkerJob(projectTenant(options).tenantId, projectTenant(options).projectId, { leaseOwnerId: stringOption(options, "lease-owner-id", true), leaseSeconds: optionalNumberOption(options, "lease-seconds"), jobType: stringOption(options, "job-type", false), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "job-heartbeat":
+      result = baseUrl !== undefined
+        ? await client.heartbeatWorkerJobHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), { leaseOwnerId: stringOption(options, "lease-owner-id", true), leaseSeconds: optionalNumberOption(options, "lease-seconds"), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) })
+        : client.heartbeatWorkerJob(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), { leaseOwnerId: stringOption(options, "lease-owner-id", true), leaseSeconds: optionalNumberOption(options, "lease-seconds"), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "job-complete":
+      {
+        const completeResult = await jsonObjectOption(options, "result", {});
+        result = baseUrl !== undefined
+          ? await client.completeWorkerJobHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), completeResult, { leaseOwnerId: stringOption(options, "lease-owner-id", true), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) })
+          : client.completeWorkerJob(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), completeResult, { leaseOwnerId: stringOption(options, "lease-owner-id", true), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) });
+      }
+      break;
+    case "job-fail":
+      {
+        const errorPayload = await jsonObjectOption(options, "error", {});
+        result = baseUrl !== undefined
+          ? await client.failWorkerJobHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), errorPayload, { leaseOwnerId: stringOption(options, "lease-owner-id", true), retryAfterSeconds: optionalNumberOption(options, "retry-after-seconds"), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) })
+          : client.failWorkerJob(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "job-id", true), errorPayload, { leaseOwnerId: stringOption(options, "lease-owner-id", true), retryAfterSeconds: optionalNumberOption(options, "retry-after-seconds"), apiKeyId: stringOption(options, "api-key-id", false), requestId: stringOption(options, "request-id", false) });
+      }
+      break;
+    case "job-list":
+      result = baseUrl !== undefined
+        ? await client.listWorkerJobsHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { status: stringOption(options, "status", false), jobType: stringOption(options, "job-type", false), limit: optionalNumberOption(options, "limit"), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.listWorkerJobs(projectTenant(options).tenantId, projectTenant(options).projectId, { status: stringOption(options, "status", false), jobType: stringOption(options, "job-type", false), limit: optionalNumberOption(options, "limit"), authKeyId: stringOption(options, "auth-key-id", false) });
       break;
     default:
       throw new SecretInputError(`unsupported command: ${command}`);
@@ -1614,12 +1755,31 @@ async function packetOption(options: CliOptions): Promise<JsonRecord | undefined
   return undefined;
 }
 
+async function jsonObjectOption(options: CliOptions, name: string, defaultValue: JsonRecord): Promise<JsonRecord> {
+  const jsonValue = stringOption(options, `${name}-json`, false);
+  const fileValue = stringOption(options, `${name}-file`, false);
+  if (jsonValue !== undefined && fileValue !== undefined) throw new SecretInputError(`provide only one of --${name}-json or --${name}-file`);
+  if (jsonValue !== undefined) {
+    const parsed = JSON.parse(jsonValue) as unknown;
+    if (!isRecord(parsed)) throw new SecretInputError(`--${name}-json must decode to an object`);
+    return parsed;
+  }
+  if (fileValue !== undefined) {
+    assertPublicControlPlanePath(fileValue);
+    const fs = await import("node:fs/promises");
+    const parsed = JSON.parse(await fs.readFile(fileValue, "utf8")) as unknown;
+    if (!isRecord(parsed)) throw new SecretInputError(`--${name}-file must contain a JSON object`);
+    return parsed;
+  }
+  return defaultValue;
+}
+
 function projectTenant(options: CliOptions): { tenantId: string; projectId: string } {
   return { tenantId: stringOption(options, "tenant-id", true), projectId: stringOption(options, "project-id", true) };
 }
 
 function saasCliUsage(): string {
-  return "usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <api-key-create|api-key-list|api-key-verify|api-key-rate-limit|api-key-rate-limits|release-gate|audit-log|audit-chain-verify|release-evidence|release-evidence-verify> [options]";
+  return "usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <api-key-create|api-key-list|api-key-verify|api-key-rate-limit|api-key-rate-limits|release-gate|audit-log|audit-chain-verify|release-evidence|release-evidence-verify|job-enqueue|job-lease|job-heartbeat|job-complete|job-fail|job-list> [options]";
 }
 
 async function mainSaaSCli(): Promise<number> {

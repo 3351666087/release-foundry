@@ -15,6 +15,17 @@ type APIError struct {
 	ErrorKind  string
 }
 
+type NotFoundError struct {
+	Resource string
+}
+
+func (err NotFoundError) Error() string {
+	if strings.TrimSpace(err.Resource) == "" {
+		return "resource not found"
+	}
+	return err.Resource + " not found"
+}
+
 func NewAPIError(statusCode int, body []byte, headers http.Header) APIError {
 	response := JSONMap{}
 	if len(body) > 0 {

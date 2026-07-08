@@ -2586,7 +2586,7 @@ Growth-Auditor alignment:
 - Growth-Auditor recommended moving from SDK/tooling to an enterprise SaaS control-plane evidence kit covering Usage/Billing, API Keys, Observability, capability matrix, and readiness badge. Implemented those plus the user-requested SaaS surfaces: API key, SDK submit, run upload, trace ingestion, quota ledger, tenant/project/run lifecycle.
 
 Next-round top 20:
-1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run éˆ«?gated small-batch plan when quota evidence is fresh.
+1. Real API probe for `get_usage`/`billing_get_status` read-only if safe; 2. API key frontend-static vs local governance matrix; 3. SDK submit CLI command; 4. run upload CLI command; 5. trace ingestion CLI command; 6. SaaS control-plane persistence/state roundtrip; 7. tenant/project RBAC roles; 8. usage billing snapshot to quota ledger bridge; 9. observability summary from real run fixtures; 10. trace ingestion OpenTelemetry adapter; 11. hosted run upload field parity; 12. commercial PR gate report; 13. enterprise audit export bundle; 14. self-host Docker compose for control plane; 15. queue worker multi-tenant lease fairness; 16. API key scoped authorization enforcement; 17. webhook/event stream fixture; 18. run lifecycle old-vs-new diff; 19. official frontend route-assets domain expansion; 20. paid mutating dry-run éˆ?gated small-batch plan when quota evidence is fresh.
 
 Strategy alignment note:
 - The updated active goal requires following `docs/strategy/large-saas-a1-a2-a3-full-plan.md` from GitHub `origin/main`. Local branch did not yet contain the file, so it was read with `git show origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` without switching branches or overwriting A1 work.
@@ -2608,7 +2608,7 @@ Round16 Worker-CLI-Ingestion:
 - Validation: `python -B -m pytest tests/a1/test_saas_control_plane_cli.py tests/a1/test_saas_control_plane.py -q -p no:cacheprovider` => 12 passed.
 - Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` => 223 passed.
 
-## Round16 éˆ¥?A1 SaaS ingestion/control-plane hardening (2026-07-07)
+## Round16 éˆ?A1 SaaS ingestion/control-plane hardening (2026-07-07)
 
 Goal baseline:
 - Repo/branch: `C:\Users\33516\Documents\Ashr` on `codex/a1-local-sdk-runner`.
@@ -2643,12 +2643,12 @@ Goal baseline:
 24. `git diff --check` repaired after TS EOF issue.
 
 Real API evidence (private, ignored; no raw key logged):
-- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` éˆ¥?dry-run batch plan.
-- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` éˆ¥?read-only health check.
-- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` éˆ¥?read-only dataset list.
-- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` éˆ¥?read-only run list.
-- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` éˆ¥?read-only request list.
-- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` éˆ¥?read-only agent list.
+- `docs/evidence/private_refs/a1_round16_plan_list_datasets_20260707_205056.json` éˆ?dry-run batch plan.
+- `docs/evidence/private_refs/a1_round16_real_health_20260707_205056.json` éˆ?read-only health check.
+- `docs/evidence/private_refs/a1_round16_real_list_datasets_20260707_205056.json` éˆ?read-only dataset list.
+- `docs/evidence/private_refs/a1_round16_real_list_runs_20260707_205056.json` éˆ?read-only run list.
+- `docs/evidence/private_refs/a1_round16_real_list_requests_20260707_205056.json` éˆ?read-only request list.
+- `docs/evidence/private_refs/a1_round16_real_list_agents_20260707_205056.json` éˆ?read-only agent list.
 
 Validation:
 - `git diff --check`: pass after EOF cleanup.
@@ -2728,12 +2728,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: hosted/self-host adapter usage.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` éˆ¥?plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` éˆ¥?status `ok`.
+- `docs/evidence/private_refs/a1_round17_plan_list_datasets_20260707_234138.json` éˆ?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round17_real_health_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_datasets_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_runs_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_requests_20260707_234138.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round17_real_list_agents_20260707_234138.json` éˆ?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 6 passed.
@@ -2793,12 +2793,12 @@ Implemented files:
 - `docs/a1/saas_ingestion_quickstart.md`: platform primitive docs.
 
 Real API calibration (private, ignored; env key only; no raw key logged):
-- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` éˆ¥?plan-batch record, status `blocked`.
-- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` éˆ¥?status `ok`.
-- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` éˆ¥?status `ok`.
+- `docs/evidence/private_refs/a1_round18_plan_list_runs_20260708_004726.json` éˆ?plan-batch record, status `blocked`.
+- `docs/evidence/private_refs/a1_round18_real_health_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_datasets_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_runs_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_requests_20260708_004726.json` éˆ?status `ok`.
+- `docs/evidence/private_refs/a1_round18_real_list_agents_20260708_004726.json` éˆ?status `ok`.
 
 Validation so far:
 - `python -B -m pytest tests/a1/test_saas_platform.py -q -p no:cacheprovider`: 4 passed.
@@ -3609,3 +3609,415 @@ Known gaps / next top 20:
 18. Add enterprise audit export with signed evidence bundle index.
 19. Add Rust evidence bundle verification command.
 20. Add A1 commercial readiness report consumed by A3.
+
+## A1 round 2026-07-08 - hosted worker HTTP/SDK parity + API field plan
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel` -> `C:/Users/33516/Documents/Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` succeeded; peer update observed on `origin/dev/g3-a2-calibration`.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 10` -> A1 PR #19 is now merged; A3 PRs #18 and #17 remain open drafts.
+- Untracked `recon/` and `tools/` observed and intentionally left unstaged.
+
+WSL / Docker network probe:
+- `wsl -l -v` -> `docker-desktop` running under WSL2.
+- `docker --version` -> Docker CLI present, version 29.6.1.
+- `docker compose version` -> Compose CLI present, v5.2.0.
+- `docker info --format '{{json .ServerVersion}}'` -> daemon pipe unavailable: `dockerDesktopLinuxEngine` not found. Current status: WSL and CLIs are available, Docker daemon is half-available/unusable for compose-backed runtime tests until Docker Desktop exposes the engine pipe again.
+
+20 growth points carried for this round:
+1. Hosted worker job HTTP routes for enqueue/lease/heartbeat/complete/fail/list.
+2. Hosted worker job OpenAPI path exposure.
+3. Python SaaS SDK worker job methods.
+4. Python SDK HTTP path mapping for job-scoped operations.
+5. Python SDK redaction tests for worker job payload/result material.
+6. TS SaaS service heartbeat parity.
+7. TS router worker job HTTP parity.
+8. TS OpenAPI worker job parity.
+9. TS client local worker job wrappers.
+10. TS client HTTP worker job wrappers.
+11. TS CLI worker lifecycle commands.
+12. TS CLI JSON object helpers for payload/result/error files.
+13. Public-safe official API field parity plan builder.
+14. Calibrator tests for plan schema and guardrails.
+15. Private dry-run evidence for text field parity plan.
+16. Evidence command ledger updates.
+17. Official public site calibration carried from read-only signals: SDK, trace timeline, expected/actual, tool calls, scores/regressions, audio/image/file/PDF multimodal inputs.
+18. GitHub remote/PR refresh after prior network flake.
+19. WSL/Docker availability check after user network change.
+20. Commercial backend direction update: Go must become a primary production backend track while Python/TS SDK/runtime parity continues in parallel.
+
+Implemented files:
+- `services/api/control_plane.py`: added hosted worker-job HTTP/OpenAPI routes for enqueue, lease, heartbeat, complete, fail, and list.
+- `packages/sdk/ashr_clone/saas.py`: added Python SDK worker job methods and hosted HTTP operation path mapping.
+- `packages/ts/ashr-clone/src/saas.ts`: added TS worker heartbeat, router/OpenAPI worker job routes, client wrappers, and CLI lifecycle commands.
+- `packages/sdk/ashr_clone/calibrate.py`: added public-safe official API field parity plan builder.
+- `docs/a1/api_calibration/official_api_field_parity_plan.json`: generated public-safe field parity plan, excluding secrets and private response bodies.
+- `docs/a1/api_calibration/README.md` and `docs/a1/evidence/commands.md`: documented plan generation and dry-run command evidence.
+- `tests/a1/test_saas_control_plane_http.py`, `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_python_calibrator.py`, and `packages/ts/ashr-clone/test/saas.test.mjs`: added hosted worker job, SDK, TS CLI/router/OpenAPI, and calibrator plan coverage.
+
+Subagent outputs:
+- Growth-Auditor: confirmed current A1 is a production-shaped SaaS skeleton but still not hosted-real enough; next drivers are FastAPI/ASGI/OpenAPI, Postgres adapter, Redis quota/idempotency, API-key middleware, object storage, webhook worker, CI/secret scan, and stronger evidence.
+- Worker-HTTP/OpenAPI: implemented and tested hosted worker-job routes and OpenAPI exposure.
+- Worker-API-Calibrator/Evidence: implemented public-safe API field parity plan builder and dry-run evidence path.
+- Worker-TS parity: implemented TS worker job lifecycle parity across service, router, OpenAPI, client, CLI, and tests.
+
+Validation:
+- `npm test --prefix packages/ts/ashr-clone` -> 280 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 282 passed.
+- Earlier focused validation in this round: `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider` -> 40 passed.
+- Worker-HTTP subagent focused validation: 5 HTTP tests passed, then 25 selected SaaS tests passed.
+
+Real API / private evidence:
+- No desktop key files read. No raw API key values logged or committed.
+- This round created a safe dry-run record at ignored private path `docs/evidence/private_refs/a1_python_api_field_parity_dry_run_20260708.json` with `status=planned`; no official API call was made by that dry-run.
+- Next API calibration must use env-only key, dry-run plan -> small batch -> batch, with private evidence under `docs/evidence/private_refs/**` and public redacted summaries only.
+
+Peer changes / impact:
+- `origin/dev/g3-a2-calibration` advanced during fetch; treat as A2 calibration work to inspect read-only next round.
+- A1 PR #19 merged into `main`; current branch has follow-up changes after that merge and should be pushed/opened as a new draft PR if needed.
+- `origin/main` remains integration-sensitive because it contains A2/A3 aggregate work; no blind merge or overwrite performed.
+
+Known gaps / next top 20:
+1. Make Go the primary backend track: implement Go HTTP control plane skeleton for tenant/project/run/job lifecycle.
+2. Add Go SDK/client parity for worker jobs, trace ingestion, API-key lifecycle, and quota ledger.
+3. Add Go OpenAPI generation or typed route contract snapshots.
+4. Add Postgres repository adapter for tenants/projects/runs/API keys/audit/usage/jobs.
+5. Add Redis quota/idempotency adapter and distributed lease guard.
+6. Add object storage signed upload intent/complete/verify flow for text/audio/file/image/video evidence.
+7. Add webhook delivery worker with retry/dead-letter/HMAC metadata.
+8. Add FastAPI/ASGI wrapper or replace with Go-hosted control plane once route surface stabilizes.
+9. Run official API read-only calibration batch using env-only key and private evidence.
+10. Run quota-gated paid small-batch calibration for text first, then audio/file/image/video when planned.
+11. Consume `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip` into public-safe schema/UI behavior notes.
+12. Add official dashboard/usage/error empty-state screenshots or redacted notes via Chrome.
+13. Add deterministic old-vs-new execution diff fixtures for production replay.
+14. Add production trace ingestion endpoint and replay verifier.
+15. Add tenant isolation concurrency tests for API keys, quota, worker jobs, and trace ingestion.
+16. Add CI YAML for Python/TS/Go/Rust/Terraform/SQL gates.
+17. Add staged secret scan script and PR evidence gate.
+18. Add enterprise evidence bundle export with audit hash and signed index.
+19. Add Rust evidence bundle verifier command.
+20. Add A1 commercial readiness report linked to API evidence, run replay, and quota ledger.
+
+## A1 round 2026-07-08 - Go worker backend surge + five-modality calibration + frontend runtime schema
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` succeeded.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 20` -> PR #20 open draft for this branch, PR #19 merged, A3 PRs #18/#17 open drafts.
+- Tracked tree started clean after commit `5893c71`; untracked `recon/` and `tools/` remained unstaged.
+
+20 growth points attacked this round:
+1. Promote Go toward primary backend by adding worker-job control-plane service lifecycle.
+2. Add Go worker-job typed DTOs/statuses/errors/list envelope.
+3. Add Go worker-job hosted HTTP client methods.
+4. Align Go worker enqueue route with Python/TS `/worker-jobs/enqueue` contract.
+5. Add Go worker job retry/dead-letter/lease-expiry tests.
+6. Add Go integration smoke for worker lifecycle.
+7. Add Postgres usage-ledger idempotency partial unique index.
+8. Add migration static tests for required repository contracts.
+9. Expand official API parity plan from text-only to text/audio/file/image/video.
+10. Add explicit real-mutating modality guard in calibrator.
+11. Run one real read-only official API small-batch with env-only key and private evidence.
+12. Add frontend mirror runtime schema evidence from desktop mirror zip.
+13. Capture public-safe frontend signals for datasets, folders, team, observability, API keys, usage.
+14. Add runtime schema fixture/test for frontend mirror evidence.
+15. Update capability matrix artifact after frontend evidence expansion.
+16. Update commercial control-plane kit after capability matrix expansion.
+17. Add worker-job list pagination metadata in Python/TS service surfaces.
+18. Keep legacy worker enqueue route handler while making `/enqueue` the explicit OpenAPI/SDK route.
+19. Re-run Python/TS/Go/migration/frontend tests after integration fixes.
+20. Update evidence/worklog with Growth-Auditor money-grade next directives.
+
+Implemented files:
+- `packages/go/ashrclone/api_error.go`, `types.go`, `service.go`, `hosted.go`, `client_test.go`, `service_test.go`: Go worker-job control-plane lifecycle, hosted methods, typed not-found, retry/dead-letter/lease behavior, route tests.
+- `tests/integration/go/ashrclone_integration_test.go`: Go worker lifecycle integration smoke.
+- `services/api/migrations/001_a1_large_saas_foundation.sql` and `tests/integration/test_a1_large_saas_migration.py`: usage ledger idempotency unique index and static repository-contract coverage.
+- `packages/sdk/ashr_clone/calibrate.py`, `services/runner/api_probe.py`, `tests/a1/test_python_calibrator.py`, `docs/a1/api_calibration/official_api_field_parity_plan.json`: five-modality public-safe API parity plan and explicit modality guard.
+- `services/api/control_plane.py`, `packages/sdk/ashr_clone/saas.py`, `packages/ts/ashr-clone/src/saas.ts`, `packages/ts/ashr-clone/test/saas.test.mjs`, and related Python tests: worker-job pagination metadata and `/worker-jobs/enqueue` contract alignment.
+- `docs/a1/frontend_mirror/frontend_mirror_index.json`, `docs/a1/frontend_mirror/frontend_mirror_runtime_schema.md`, `tests/a1/fixtures/round21_frontend_runtime_schema_public.json`, `tests/a1/test_frontend_runtime_schema.py`: public-safe frontend runtime schema evidence.
+- `docs/a1/commercial/capability_matrix.json` and `docs/a1/commercial/control_plane_kit.json`: regenerated from builders after frontend schema expansion.
+- `docs/a1/api_calibration/README.md`, `docs/a1/evidence/commands.md`: calibration and command evidence updates.
+
+Subagent outputs:
+- Growth-Auditor: A1 is stronger but not yet sellable; next money-grade move is a narrow Go + Postgres + HTTP vertical slice with Python/TS clients calling it.
+- Worker-GoBackend: landed Go worker job service/hosted/integration lifecycle and tests.
+- Worker-PostgresRepo: landed usage-ledger idempotency index and migration static contract tests.
+- Worker-API-Calibrator: expanded five-modality parity plan and real-mutating modality guard.
+- Worker-SDKParity: aligned Python/TS worker route and pagination metadata.
+- Worker-FrontendMirrorSchema: extracted public-safe runtime schema signals from `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip`; source archive SHA-256 `1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793`.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 288 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 280 passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/a1/test_frontend_mirror_index.py tests/a1/test_frontend_dashboard_dtos.py tests/a1/test_frontend_runtime_schema.py -q -p no:cacheprovider` -> 12 passed.
+- `git diff --check` -> passed with CRLF warnings only.
+
+Real API / private evidence:
+- Env presence check showed `ASHR_API_KEY` was present and only its length was displayed; raw key value was not read, printed, logged, or committed.
+- Real read-only small-batch command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_readonly_round_go_backend_20260708.json`.
+- Real API result summary printed: `status=ok`, 5 read steps, 0 mutating steps, 0 quota blocks, 7 estimated calls. Raw records remain under ignored private evidence.
+- Additional dry-run all-modality evidence under `docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run_local_check.json` remains private/unstaged.
+
+Peer changes / impact:
+- No tracked peer files were staged from outside A1 owned lanes.
+- `recon/`, `tools/`, `.secrets/`, and `docs/evidence/private_refs/**` intentionally remain unstaged.
+- PR #20 is the active draft for this branch and should receive this commit after secret scan/push.
+
+Known gaps / next top 20:
+1. Add actual Go HTTP server/router entrypoint for health, submit, upload, trace, usage, audit, worker jobs.
+2. Add Postgres-backed Go repository for projects, runs, idempotency keys, API keys, audit log, usage ledger, and worker jobs.
+3. Add Python SDK hosted-mode integration test against the Go server.
+4. Add TS SDK hosted-mode integration test against the Go server.
+5. Add Go API-key auth middleware with hashed key verification, scopes, revoked/expired status, and last-used metadata.
+6. Add Go quota-before-mutation enforcement and durability tests.
+7. Add Go audit hash-chain append/verify and tamper test.
+8. Add Go worker daemon loop using durable leases and heartbeat.
+9. Add OpenAPI/route manifest generated from Go server and consumed by Python/TS/Go tests.
+10. Add Redis/distributed rate-limit/idempotency adapter once DB path is stable.
+11. Add signed upload intent/complete/verify object-storage adapter for text/audio/file/image/video artifacts.
+12. Add webhook outbox/delivery worker with HMAC, retry, dead-letter, and replay.
+13. Add tenant-isolation adversarial tests through HTTP and DB boundaries.
+14. Add billing-period usage export with CSV/JSON reconciliation fixture.
+15. Add official API quota-gated text mutating small-batch after a plan-batch gate.
+16. Add one media modality official API calibration at a time after text passes.
+17. Add frontend trust-profile DTO fixture once A1 exposes trust-profile state.
+18. Add CI matrix for Python, TS, Go, Rust, migration, Terraform, SQL, and secret scan.
+19. Add staged-diff secret scan script as a repo command instead of ad hoc shell.
+20. Add enterprise self-host deployment path that proves API + worker + DB + object store can boot together.
+
+
+## Worker-ContractEvidence A1 - 2026-07-08
+
+Implemented files:
+- `docs/a1/go_python_route_contract_evidence.json`: public-safe Go/Python ownership, route-family, evidence, and A2/A3 consumer contract artifact based on current tracked code.
+- `docs/a1/schemas/go_python_route_contract_evidence.schema.json`: JSON schema for the route/contract/evidence artifact.
+- `tests/a1/test_go_python_route_contract_evidence.py`: schema-shape, public-safety, path-existence, source-symbol, and A2/A3 handoff validation.
+
+Public-safety notes:
+- Did not read or include `docs/evidence/private_refs/**`, `recon/**`, `tools/**`, or `.secrets/**` content.
+- Artifact includes only repo-relative public paths, owner summaries, route family names, symbol names, and aggregate consumer guidance.
+
+Validation:
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 5 passed.
+
+Known gaps:
+- Go has hosted client/service contracts, but A2/A3 should treat route details as contracted until an executable Go HTTP server/router and generated OpenAPI manifest land.
+- Durable Go repository and cross-SDK hosted-mode integration against that Go server remain future work.
+
+## A1 round 2026-07-08 - Go HTTP server vertical slice closeout
+
+Startup / environment verification:
+- Continued on `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner` after commit `8a39c32`.
+- `git status -sb` showed only A1-owned tracked changes plus untracked `recon/` and `tools/`, which remain unstaged.
+- `Test-Path packages\go\ashrclone\packages` -> `False`; no accidental nested Go package remains.
+- Toolchain check: `Docker version 29.6.1`, `Docker Compose version v5.2.0`, `go version go1.26.5 windows/amd64`, `Python 3.12.7`, `node v24.14.0`, `npm 11.9.0`.
+- Docker daemon check: `docker info` could not connect to `npipe:////./pipe/dockerDesktopLinuxEngine`; `wsl -l -v` showed `docker-desktop` running on WSL2. Containerized follow-up should first repair the daemon pipe, but this did not block the local Go/Python/TS validation.
+
+Implemented / integrated in this closeout:
+- `packages/go/ashrclone/server.go` and `server_test.go`: executable Go HTTP handler over `MemoryService` with health/openapi/bootstrap/sdk-submit/run-submit and worker-job lifecycle routes.
+- `packages/go/ashrclone/cmd/ashr-api/main.go`: local server entrypoint controlled by `ASHR_GO_API_ADDR` with default `127.0.0.1:8787`.
+- `tests/integration/test_a1_go_server_python_sdk.py`: Python `SaaSIngestionClient.from_base_url(...)` smoke against the real Go server process, covering bootstrap, SDK submit, enqueue, lease, complete, and list.
+- `packages/sdk/ashr_clone/saas.py` and `packages/ts/ashr-clone/src/saas.ts`: hosted/base-url clients now target REST-style Go-compatible `/v1/projects/{project_id}/...` routes while preserving local/legacy transports.
+- `docs/a1/go_python_route_contract_evidence.json` and schema/test: updated public-safe route evidence so A2/A3 can see the Go server route families are executable rather than future-only.
+- `services/api/db_migrator.py` and migration tests: durable Postgres manifest validation is now explicit, with live DB tests gated on `A1_POSTGRES_TEST_DSN`.
+- `packages/sdk/ashr_clone/calibrate.py` and API calibration docs/tests: mutating calibration gates now require explicit target binding and modality-aware evidence before paid mutation.
+
+Subagent closeout summary:
+- Growth-Auditor: pushed the main direction toward Go as a live backend owner, not just a typed SDK/client layer.
+- Worker-GoServer: landed the Go HTTP handler and tests.
+- Worker-PostgresPath: landed DB migrator/static/live opt-in migration validation.
+- Worker-SDKCompat: aligned Python and TypeScript hosted clients to Go-compatible route shapes.
+- Worker-APICalibration: added stricter target-bound calibration gates and regenerated five-modality parity plan.
+- Worker-ContractEvidence: added public-safe route contract evidence and validation for A2/A3 handoff.
+
+Validation results:
+- `git diff --check` -> passed with CRLF warnings only.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 296 passed in 19.20s.
+- `npm test --prefix packages/ts/ashr-clone` -> build passed; 281 tests passed.
+- `go test ./...` in `packages/go/ashrclone` -> passed, including `cmd/ashr-api` package discovery.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/integration/test_a1_go_server_python_sdk.py tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> 7 passed, 2 skipped because `A1_POSTGRES_TEST_DSN` is unset.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 5 passed.
+
+Real API / private evidence:
+- Real read-only official API small-batch completed earlier this round with env-only key access and no raw key logging: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_readonly_go_server_20260708.json`.
+- Public summary: status ok; 5 read steps; 0 mutating steps; 0 quota blocks; 7 estimated calls. Raw records stay private and unstaged.
+- Blocked mutating text plan-batch remains private at `docs/evidence/private_refs/a1_worker_api_calibration_text_plan_batch_20260708.json`; it requires reviewed quota/reset evidence before any paid mutation.
+
+Peer changes / staging boundaries:
+- Remote fetch earlier in this round observed peer updates on `origin/codex/a3-audit-evidence-bundle` and `origin/dev/g3-a2-calibration`; no peer files were staged into this A1 commit.
+- `docs/evidence/private_refs/**`, `recon/`, and `tools/` remain unstaged.
+
+Known gaps / next top 20 A1 growth points:
+1. Make Go server Postgres-backed for tenant/project/dataset/run/API-key/usage/audit/worker-job tables.
+2. Add Go API-key auth middleware with scopes, one-time secret reveal, verify, revoke, expiry, last-used, and redacted audit.
+3. Add quota-before-mutation enforcement in Go for sdk submit, run upload, trace ingestion, worker enqueue, and release evidence.
+4. Add trace ingestion HTTP routes in Go for text/audio/file/image/video observations and VM stream frames.
+5. Add artifact upload intent/complete/verify routes across all five first-class modalities.
+6. Add Go release gate and release evidence packet routes with audit hash-chain verification.
+7. Add Python hosted integration smoke for API keys, trace ingestion, quota, and release evidence against Go server.
+8. Add TypeScript hosted integration smoke against Go server, matching Python coverage.
+9. Generate OpenAPI from Go route manifest and have Python/TS tests assert parity from that manifest.
+10. Add durable Go worker daemon with lease heartbeat, reclaim, retry, dead-letter, and graceful shutdown.
+11. Add DB-backed idempotency repository and conflict tests through real HTTP.
+12. Add Docker Compose self-host profile once Docker daemon pipe is repaired.
+13. Add Terraform/HCL skeleton for enterprise self-host network/secret/DB/object-store topology.
+14. Add Rust public evidence verifier for audit hash-chain and release evidence packets.
+15. Add SQL/PLpgSQL functions for usage ledger atomic consume/refund and audit append.
+16. Add official read-only calibration expansion for API keys, runs, usage, datasets, traces, and errors.
+17. Add quota-reviewed text mutating official calibration small-batch, then media modality one at a time.
+18. Add frontend mirror-to-API route map so official UI state drives missing Go routes.
+19. Add A1 CI matrix for Python, TS, Go, SQL migration, Rust verifier, Terraform validate, secret scan.
+20. Add commercial self-host readiness report tying Go backend, SDK parity, official API evidence, quota ledger, and replay into a sellable enterprise story.
+
+## Growth-Auditor closeout after commit 6f4dcc4 - 2026-07-08
+
+Commit / PR:
+- Pushed `6f4dcc4 A1: add Go HTTP server vertical slice` to `codex/a1-local-sdk-runner`.
+- PR #20 remains open draft at `https://github.com/3351666087/ashr-codex-factory/pull/20` with 39 changed files and commits `5893c71`, `8a39c32`, `6f4dcc4`.
+- Commit authorship shown by `gh pr view 20` is `3351666087 / Null3351`.
+
+Growth-Auditor verdict:
+- This round materially moved A1 from Go parity/client layer to a Go HTTP backend vertical slice.
+- Commercially true claim: A1 now has a Go-owned HTTP control-plane vertical slice for bootstrap, run submit, and worker-job lifecycle, with Python SDK compatibility proven.
+- Do not yet claim production Go-primary backend. The server is still `memory_service_v0` and `local_only: true`.
+
+Auditor required evidence gates:
+1. Go server with Postgres backing persists bootstrap/submit/worker state across restart.
+2. Python SDK and TS SDK both run hosted smoke tests against the Go server.
+3. Go server enforces API-key auth, scopes, revoke/expiry, and redacted errors.
+4. Go server enforces quota before every mutating route.
+5. Go server appends/verifies audit hash-chain events for submit, upload, trace, worker job, and release evidence.
+6. Go server supports upload result, trace ingest, lifecycle, usage, release gate, release evidence, and evidence verification routes.
+7. Worker daemon survives restart and handles leases/retries/dead-letter.
+8. Docker/Compose boots API + worker + DB and runs a smoke.
+9. Live Postgres migration smoke runs with `A1_POSTGRES_TEST_DSN` in a controlled environment.
+10. Public-safe evidence packet proves no raw API key, raw media, customer payload, or private calibration evidence leaks.
+
+Auditor next direction:
+- Highest-value next milestone: Go API + Go worker + Postgres + Python/TS clients + Docker smoke.
+- Immediate growth list starts with replacing `MemoryService` behind `cmd/ashr-api` with a repository interface, adding `ASHR_GO_BACKEND=memory|postgres`, implementing Postgres repository slices, TS hosted smoke against Go server, auth/scope/quota middleware, audit chain, trace/upload/release-evidence routes, worker daemon, and reproducible self-host boot evidence.
+
+Resource cleanup:
+- Growth-Auditor and the six execution/review subagents were closed after their outputs were integrated.
+- One repeated `close_agent` call returned `not found` because the target had already been closed; no work remained attached to it.
+
+## Worker-Evidence-Calib A1 round - 2026-07-08
+
+Scope:
+- Ownership respected: edits limited to `docs/a1`, `docs/evidence/worklog.md`, `tests/a1`, and `packages/sdk` calibration code.
+- Existing untracked `recon/` and `tools/` were not touched.
+- Private evidence remains under ignored `docs/evidence/private_refs/` and was not staged or printed.
+
+Public-safe readiness packet:
+- Added `docs/a1/api_calibration/official_api_readiness_packet.json` as the round packet for official API calibration readiness.
+- Added `docs/a1/schemas/api_calibration_readiness_packet.schema.json` and tests in `tests/a1/test_python_calibrator.py`.
+- Packet records public-safe fields only: observed function names/counts, status counts, guardrail commands, private evidence root, and gap IDs. It asserts no raw key material, auth header, raw payload response, or private evidence contents.
+
+Official API calibration gaps summarized:
+- Read-only field map is currently ready for the existing calibrator read steps: `read_only_missing_from_field_map=[]`.
+- Mutating `create_request` remains blocked for real execution until a fresh quota/reset-reviewed plan-batch gate with target binding approves tiny text mutation.
+- Image/audio/file/video paid media probes remain unproven and should wait until text mutation evidence is reviewed, then run one modality per round with `--allow-paid-media`.
+- Hosted commercial surface remains unproven for API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, and webhooks.
+
+Purposeful read-only official API calibration:
+- Environment check: `ASHR_API_KEY` was present; `ASHR_LABS_API_KEY` was absent. No raw key was printed or logged.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+- Result summary only: status `ok`; total steps `5`; read steps `5`; mutating steps `0`; estimated calls `7`; errors `0`; quota blocks `0`.
+- Private manifest: `docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+
+Verification:
+- `python -B -m pytest tests/a1/test_python_calibrator.py` -> 30 passed.
+
+## A1 round 2026-07-08 - Go route expansion, TS hosted smoke, API readiness packet
+
+Startup / peer state:
+- Re-ran baseline: repo `3351666087/ashr-codex-factory`, branch `codex/a1-local-sdk-runner`, PR #20 open draft, `origin/main` at `3738f70`.
+- Worktree initially had only untracked `recon/` and `tools/` after the previous A1 push.
+- During this round a non-A1 local commit `4fb555f A3: redesign dashboard and hosted report frontend visuals` appeared on the current branch. It was saved as `backup/a3-dashboard-local-4fb555f`; current branch was reset back to `origin/codex/a1-local-sdk-runner` while preserving worktree edits. A3 files `apps/dashboard/src/styles.css` and `services/report/a3_shareable_report.mjs` remain unstaged and are not part of A1 staging.
+
+20 growth points attacked:
+1. Expand Go HTTP server beyond submit/workers into run upload.
+2. Add Go trace ingestion route for observations across safe media envelope.
+3. Add Go artifact manifest create/list routes.
+4. Store Go run/upload/trace/artifact evidence as stable hashes/counts, not raw payloads.
+5. Extend Go route manifest with health/openapi aliases and new run-family routes.
+6. Add Go tests for upload, trace, artifact manifest, and unsafe media rejection.
+7. Introduce Go `ControlPlaneBackend` interface so HTTP server is not locked to `MemoryService`.
+8. Add Go backend selection config from env with memory default.
+9. Add explicit Postgres backend skeleton and tests that fail honestly until repository methods are implemented.
+10. Update `cmd/ashr-api` to use backend selection and close hooks.
+11. Add TypeScript SDK smoke against a real compiled Go server binary.
+12. Cover TS hosted calls for bootstrap, sdk submit, upload, trace ingest, artifact manifests, and worker lifecycle.
+13. Add route parity snapshot for Go/Python/TS hosted surfaces.
+14. Add parser-driven tests preventing silent drift between Go route manifest, Python routes, and TS OpenAPI routes.
+15. Add official API readiness packet builder and public-safe packet/schema.
+16. Run another real read-only official API calibration via env-only key.
+17. Record private evidence path without staging or printing raw key material.
+18. Keep A3 dashboard/report changes isolated from A1 commit staging.
+19. Re-run Python A1, TS full package, Go package, and Go integration tests.
+20. Preserve known gaps for Go Postgres durability, auth/quota/audit/release evidence, Docker daemon, and paid mutating calibration.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/types.go`, `service.go`, `server.go`, `server_test.go`: run upload, trace ingestion, artifact manifests, media-safe hashing, route manifest expansion, and route tests.
+- `packages/go/ashrclone/backend.go`, `backend_test.go`, `postgres.go`, `postgres_test.go`, `go.mod`, `go.sum`: backend selector, env config, explicit Postgres repository skeleton, and tests.
+- `packages/go/ashrclone/cmd/ashr-api/main.go`: env-selected backend entrypoint with close hook.
+- `packages/ts/ashr-clone/test/go-server.test.mjs`: TS client smoke against a real compiled Go server binary.
+- `tests/a1/test_go_python_route_contract_evidence.py` and `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`: parser-backed public-safe route parity evidence.
+- `packages/sdk/ashr_clone/calibrate.py`, `tests/a1/test_python_calibrator.py`, `docs/a1/api_calibration/official_api_readiness_packet.json`, `docs/a1/schemas/api_calibration_readiness_packet.schema.json`: official API readiness packet and tests.
+
+Subagent results:
+- Worker-Go-Postgres and Worker-TS-GoSmoke were interrupted by account concurrency limits; their intended work was continued in the main rollout.
+- Worker-Go-Routes completed Go run upload/trace/artifact route expansion and package tests.
+- Reviewer-Contract completed parser-driven Go/Python/TS route contract tests and public route parity snapshot.
+- Worker-Evidence-Calib completed official API readiness packet work and read-only official API calibration.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> build passed; 282 tests passed, including `TS SaaS client drives the real Go HTTP server vertical slice`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 301 passed.
+- Note: one earlier `go test ./...` from repo root failed because the repository root is not a Go module; it was rerun from the correct Go module directories and passed.
+
+Real API / private evidence:
+- `ASHR_API_KEY` was present in env; `ASHR_LABS_API_KEY` absent. No raw key was read into code, prompt, public docs, or logs.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_evidence_calib_readonly_20260708_235624.json`.
+- Public summary: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`.
+- Private evidence remains under ignored `docs/evidence/private_refs/` and must not be staged.
+
+Known gaps / next 20:
+1. Implement actual Postgres repository methods for bootstrap/project/dataset/run/worker/job/upload/trace/artifact.
+2. Add restart durability tests against Postgres once `A1_POSTGRES_TEST_DSN` exists.
+3. Add Go API-key lifecycle routes and middleware.
+4. Add Go scope enforcement per mutating route.
+5. Add Go quota-before-mutation enforcement for submit/upload/trace/artifact/worker.
+6. Add Go audit hash-chain append/verify.
+7. Add Go release gate and release evidence packet/verify routes.
+8. Add Go lifecycle and usage snapshot routes.
+9. Add Go worker daemon loop with durable lease heartbeat/retry/dead-letter.
+10. Add Python SDK smoke for new Go upload/trace/artifact routes, matching TS coverage.
+11. Convert route manifest to generated OpenAPI or a shared manifest consumed by Python/TS tests.
+12. Repair Docker daemon pipe and add API + worker + DB Compose smoke.
+13. Add SQL/PLpgSQL atomic usage consume/refund helpers and tests.
+14. Add Rust evidence verifier over route/evidence packets.
+15. Add Terraform/HCL self-host skeleton and validate command.
+16. Add official text mutation plan-batch with reviewed quota/reset gate.
+17. Then run one paid text mutation calibration; only then consider audio/file/image/video paid probes one at a time.
+18. Expand official API readiness packet to include API keys, usage, traces, artifacts, webhooks once safely probed.
+19. Add public-safe commercial readiness packet tying Go server, TS/Python SDKs, official API evidence, and route parity.
+20. Keep A3 dashboard/report commits isolated from A1 branch history unless deliberately merged by owner.
+
+Growth-Auditor closeout for commit 28faa9e:
+- Verdict: conditional pass, strong local hosted-runtime round, not production-complete.
+- Commercial value: TS SDK now drives a real Go binary; Go runtime covers submit/upload/trace/artifact/worker lifecycle; backend seam exists for durability; evidence hygiene remains public-safe.
+- Risks captured: Postgres backend is selectable but explicitly unimplemented, so it must not be marketed as durable support; health now exposes `backend_ready`/`backend_mode` to avoid over-signaling readiness; official API mutation and hosted commercial parity remain incomplete.
+- Immediate follow-up: durable backend truth, starting with Postgres schema/repository/idempotency ledger, then persisted runs/uploads/traces/artifacts, auth/quota/audit, and Docker/Compose smoke after daemon repair.
+- Hygiene: duplicate untracked TS integration smoke was removed; A3 dashboard/report changes remain unstaged and isolated on backup branch `backup/a3-dashboard-local-4fb555f`.

@@ -1,0 +1,139 @@
+{
+  "commands": {
+    "generate_public_packet": "python -B -c \"from pathlib import Path; import json; from packages.sdk.ashr_clone.calibrate import build_api_calibration_readiness_packet; Path('docs/a1/api_calibration/official_api_readiness_packet.json').write_text(json.dumps(build_api_calibration_readiness_packet(), indent=2, sort_keys=True) + '\\n', encoding='utf-8')\"",
+    "mutating_text_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json",
+    "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json"
+  },
+  "execution_guardrails": {
+    "default_mode": "dry-run",
+    "full_record_stdout_blocked_for_real_or_gate": true,
+    "paid_media_requires": "--allow-paid-media",
+    "real_mutating_requires": [
+      "--include-mutating",
+      "explicit --modality",
+      "fresh quota gate",
+      "private output path"
+    ],
+    "real_read_only_requires": [
+      "--execute",
+      "--small-batch",
+      "--max-retries 0",
+      "private output path"
+    ]
+  },
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "gaps": [
+    {
+      "blocked_by": [
+        "reviewed quota/reset evidence",
+        "fresh target binding",
+        "explicit --modality text"
+      ],
+      "functions": [
+        "create_request"
+      ],
+      "id": "mutating_create_request_quota_gate",
+      "observed_quota_block_count": 11,
+      "severity": "high",
+      "summary": "Real create-request calibration remains blocked until a fresh quota/reset-reviewed plan-batch gate approves the tiny text mutation."
+    },
+    {
+      "blocked_by": [
+        "text small-batch result",
+        "--allow-paid-media acknowledgement",
+        "one modality per round"
+      ],
+      "id": "media_modalities_unproven",
+      "modalities": [
+        "image",
+        "audio",
+        "file",
+        "video"
+      ],
+      "severity": "medium",
+      "summary": "Image, audio, file, and video request envelopes are public-planned but should wait for reviewed text mutation evidence before paid media probes."
+    },
+    {
+      "blocked_by": [
+        "official docs or observed endpoints",
+        "safe read-only probes",
+        "local control-plane implementation parity"
+      ],
+      "functions": [
+        "api_keys",
+        "usage",
+        "trace_events",
+        "artifacts",
+        "release_evidence",
+        "webhooks"
+      ],
+      "id": "hosted_surface_not_commercially_complete",
+      "severity": "medium",
+      "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
+    }
+  ],
+  "generated_at": "2026-07-08T15:42:16Z",
+  "observed_surface": {
+    "function_count": 16,
+    "functions": [
+      "create_request",
+      "create_run",
+      "get_dataset",
+      "get_request",
+      "get_run",
+      "init",
+      "keep_alive",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs",
+      "plan_batch",
+      "poll_request",
+      "poll_run",
+      "unknown",
+      "validate_gate"
+    ],
+    "private_record_count": 368,
+    "quota_block_count": 43,
+    "read_only_manifest_step_count": 5,
+    "read_only_missing_from_field_map": [],
+    "status_counts": {
+      "blocked": 2,
+      "completed": 13,
+      "error": 27,
+      "failed": 1,
+      "ok": 214,
+      "partial": 13,
+      "passed": 11,
+      "planned": 53,
+      "timeout": 1
+    }
+  },
+  "official_api_contract": {
+    "auth_env_vars": [
+      "ASHR_API_KEY",
+      "ASHR_LABS_API_KEY"
+    ],
+    "base_url_env": "ASHR_LABS_BASE_URL",
+    "dispatch": "single POST endpoint with function field",
+    "key_material_logged": false,
+    "key_material_source": "environment at execution time only"
+  },
+  "public_safety": {
+    "auth_header_present": false,
+    "contains_private_evidence_contents": false,
+    "contains_raw_payload_response": false,
+    "private_evidence_references_only": true,
+    "private_evidence_root": "docs/evidence/private_refs",
+    "raw_key_material_present": false
+  },
+  "readiness": {
+    "mutating_small_batch_ready": false,
+    "public_packet_ready": true,
+    "read_only_small_batch_ready": true,
+    "reason_mutating_not_ready": "requires a fresh reviewed plan-batch quota gate and explicit modality before any real create-request call"
+  },
+  "schema_version": "ashr.clone.api_calibration_readiness_packet.v1",
+  "source_evidence_index": "docs/a1/api_calibration/real_api_evidence_index.json",
+  "source_field_map": "docs/a1/api_calibration/real_api_response_field_map.json"
+}

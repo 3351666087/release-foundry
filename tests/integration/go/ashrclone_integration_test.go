@@ -43,6 +43,35 @@ func TestGoSDKRuntimeDTOParitySmoke(t *testing.T) {
 	}
 }
 
+func TestGoSDKWorkerJobControlPlaneLifecycleSmoke(t *testing.T) {
+	service := ashrclone.NewMemoryService()
+	boot, err := service.BootstrapProject("Tenant", "Workers", ashrclone.Dataset{Name: "Dataset"}, "tenant_go", "project_go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := service.EnqueueWorkerJob("tenant_go", "project_go", "release_gate", "run_go", ashrclone.JSONMap{"gate": "candidate"}, ashrclone.EnqueueWorkerJobOptions{JobID: "job_go", MaxAttempts: 2, IdempotencyKey: "idem_worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Result.SchemaVersion != ashrclone.ControlPlaneSchemaVersion || job.Result.TenantID != boot.Result.Tenant.TenantID || job.Result.PayloadSHA256 == "" || job.Result.RawPayloadIncluded {
+		t.Fatalf("unexpected worker job: %#v", job.Result)
+	}
+	lease, err := service.LeaseWorkerJob("tenant_go", "project_go", "worker_go", ashrclone.LeaseWorkerJobOptions{JobType: "release_gate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lease.Result.Leased || lease.Result.Job == nil || lease.Result.Job.JobID != "job_go" {
+		t.Fatalf("unexpected lease: %#v", lease.Result)
+	}
+	completed, err := service.CompleteWorkerJob("tenant_go", "project_go", "job_go", "worker_go", ashrclone.JSONMap{"status": "ok"}, ashrclone.CompleteWorkerJobOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Result.Status != ashrclone.WorkerJobStatusCompleted || completed.Result.ResultSHA256 == "" {
+		t.Fatalf("unexpected completion: %#v", completed.Result)
+	}
+}
+
 func TestGoSDKHostedUploadParityAndMediaSafety(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.EscapedPath() != "/v1/projects/project_go/runs/run_go/upload" {

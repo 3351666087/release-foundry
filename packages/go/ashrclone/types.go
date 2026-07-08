@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
-	AgentInputSchemaVersion = "ashr.clone.agent_input.v1"
-	SaaSClientVersion       = "ashr.clone.saas_ingestion_client.v1"
+	AgentInputSchemaVersion   = "ashr.clone.agent_input.v1"
+	SaaSClientVersion         = "ashr.clone.saas_ingestion_client.v1"
+	ControlPlaneSchemaVersion = "ashr.clone.saas_control_plane.v1"
 )
 
 type JSONMap map[string]any
@@ -69,6 +71,117 @@ type Run struct {
 	AgentRef  string  `json:"agent_ref"`
 	Status    string  `json:"status"`
 	Metadata  JSONMap `json:"metadata,omitempty"`
+}
+
+type RunUpload struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	UploadID           string    `json:"upload_id"`
+	ResultSHA256       string    `json:"result_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type TraceBatch struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	BatchID            string    `json:"batch_id"`
+	ObservationCount   int       `json:"observation_count"`
+	ObservationsSHA256 string    `json:"observations_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type ArtifactManifest struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	RunID              string    `json:"run_id"`
+	ArtifactID         string    `json:"artifact_id"`
+	ManifestSHA256     string    `json:"manifest_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	APIKeyID           string    `json:"api_key_id,omitempty"`
+	RequestID          string    `json:"request_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type ArtifactManifestList struct {
+	SchemaVersion string             `json:"schema_version"`
+	TenantID      string             `json:"tenant_id"`
+	ProjectID     string             `json:"project_id"`
+	RunID         string             `json:"run_id"`
+	Manifests     []ArtifactManifest `json:"manifests"`
+	Count         int                `json:"count"`
+}
+
+const (
+	WorkerJobStatusQueued       = "queued"
+	WorkerJobStatusLeased       = "leased"
+	WorkerJobStatusRetrying     = "retrying"
+	WorkerJobStatusCompleted    = "completed"
+	WorkerJobStatusDeadLettered = "dead_lettered"
+	WorkerJobStatusCancelled    = "cancelled"
+)
+
+type WorkerJob struct {
+	SchemaVersion      string          `json:"schema_version"`
+	JobID              string          `json:"job_id"`
+	TenantID           string          `json:"tenant_id"`
+	ProjectID          string          `json:"project_id"`
+	JobType            string          `json:"job_type"`
+	TargetID           string          `json:"target_id,omitempty"`
+	PayloadSHA256      string          `json:"payload_sha256"`
+	RawPayloadIncluded bool            `json:"raw_payload_included"`
+	Status             string          `json:"status"`
+	Priority           int             `json:"priority"`
+	Attempts           int             `json:"attempts"`
+	MaxAttempts        int             `json:"max_attempts"`
+	LeaseOwnerID       string          `json:"lease_owner_id,omitempty"`
+	LeaseExpiresAt     *time.Time      `json:"lease_expires_at,omitempty"`
+	AvailableAt        *time.Time      `json:"available_at,omitempty"`
+	LastError          *WorkerJobError `json:"last_error,omitempty"`
+	ResultSHA256       string          `json:"result_sha256,omitempty"`
+	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
+	RequestID          string          `json:"request_id,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	CompletedAt        *time.Time      `json:"completed_at,omitempty"`
+	DeadLetteredAt     *time.Time      `json:"dead_lettered_at,omitempty"`
+}
+
+type WorkerJobError struct {
+	SHA256             string    `json:"sha256"`
+	Type               string    `json:"type"`
+	Message            string    `json:"message"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	FailedAt           time.Time `json:"failed_at"`
+}
+
+type WorkerLeaseResult struct {
+	SchemaVersion string     `json:"schema_version"`
+	Status        string     `json:"status"`
+	TenantID      string     `json:"tenant_id"`
+	ProjectID     string     `json:"project_id"`
+	Leased        bool       `json:"leased"`
+	Job           *WorkerJob `json:"job"`
+	CreatedAt     time.Time  `json:"created_at,omitempty"`
+}
+
+type WorkerJobList struct {
+	SchemaVersion string      `json:"schema_version"`
+	TenantID      string      `json:"tenant_id"`
+	ProjectID     string      `json:"project_id"`
+	Filters       JSONMap     `json:"filters"`
+	Jobs          []WorkerJob `json:"jobs"`
+	Count         int         `json:"count"`
 }
 
 type BootstrapResult struct {

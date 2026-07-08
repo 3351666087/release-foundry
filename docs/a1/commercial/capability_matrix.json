@@ -534,6 +534,20 @@
       "local_only": false,
       "local_runtime": false,
       "mutating_planned_or_quota_blocked": false,
+      "name": "generate_voice_call_insights",
+      "real_read_verified": false,
+      "source_notes": [
+        "frontend mirror names this API function"
+      ],
+      "test_covered": false
+    },
+    {
+      "category": "api_function",
+      "evidence": {},
+      "frontend_mirrored": true,
+      "local_only": false,
+      "local_runtime": false,
+      "mutating_planned_or_quota_blocked": false,
       "name": "get_account_balance",
       "real_read_verified": false,
       "source_notes": [
@@ -2035,7 +2049,7 @@
       "api_entrypoints": [
         "https://api.ashr.io/testing-platform-api"
       ],
-      "api_function_count": 106,
+      "api_function_count": 107,
       "public_safe_summary": true,
       "raw_files_committed": false,
       "schema_version": "ashr.clone.frontend_mirror_index.v1"
@@ -2050,16 +2064,16 @@
   },
   "summary": {
     "axis_counts": {
-      "frontend_mirrored": 106,
+      "frontend_mirrored": 107,
       "local_only": 9,
       "mutating_planned_or_quota_blocked": 2,
       "real_read_verified": 9,
       "test_covered": 30
     },
     "categories": {
-      "api_function": 112,
+      "api_function": 113,
       "local_runtime": 9
     },
-    "total_capabilities": 121
+    "total_capabilities": 122
   }
 }

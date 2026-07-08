@@ -54,15 +54,15 @@
         "source": "placeholder_public_safe_no_amounts"
       },
       "error_patterns": [],
-      "frontend_mirrored_capabilities": 106,
+      "frontend_mirrored_capabilities": 107,
       "latency_distribution": {
         "source": "not_computed_in_public_artifact"
       },
-      "median_capabilities_per_domain": 60.5,
+      "median_capabilities_per_domain": 61.0,
       "real_read_verified_capabilities": 9,
       "test_covered_capabilities": 30,
       "tool_reliability": [],
-      "total_capabilities": 121
+      "total_capabilities": 122
     },
     "raw_trace_payloads_included": false,
     "schema_version": "ashr.clone.observability_summary.v1",

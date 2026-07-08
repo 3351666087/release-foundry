@@ -725,9 +725,22 @@ class SaaSControlPlaneService:
         if job_type is not None:
             jobs = [job for job in jobs if job.get("job_type") == str(job_type)]
         jobs = sorted((_jsonable(job) for job in jobs), key=lambda item: (int(item.get("priority", 100) or 100), str(item.get("created_at") or ""), str(item.get("job_id") or "")))
+        total_count = len(jobs)
+        requested_limit = _normalize_positive_int(limit, "limit") if limit is not None else None
         if limit is not None:
-            jobs = jobs[: _normalize_positive_int(limit, "limit")]
-        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"status": status, "job_type": job_type, "limit": limit}, "jobs": jobs, "count": len(jobs)}
+            jobs = jobs[:requested_limit]
+        return {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "filters": {"status": status, "job_type": job_type, "limit": requested_limit},
+            "jobs": jobs,
+            "count": len(jobs),
+            "returned_count": len(jobs),
+            "total_count": total_count,
+            "has_more": requested_limit is not None and total_count > len(jobs),
+            "next_cursor": None,
+        }
 
     def _worker_job_record(self, tenant_id: str, project_id: str, job_id: str) -> JsonDict:
         job = self.store.worker_jobs.get(str(job_id))
@@ -1175,6 +1188,24 @@ def control_plane_openapi_document() -> JsonDict:
             "/v1/projects/{project_id}/sdk-submit": {
                 "post": {"summary": "Submit a run through the SDK control-plane surface", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
             },
+            "/v1/projects/{project_id}/worker-jobs": {
+                "get": {"summary": "List public-safe local worker jobs by status or type", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}},
+            },
+            "/v1/projects/{project_id}/worker-jobs/enqueue": {
+                "post": {"summary": "Enqueue a local worker job without storing raw payloads", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response, "409": json_response}},
+            },
+            "/v1/projects/{project_id}/worker-jobs/lease": {
+                "post": {"summary": "Lease the next available local worker job", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": {
+                "post": {"summary": "Extend an active worker job lease", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/worker-jobs/{job_id}/complete": {
+                "post": {"summary": "Complete a leased worker job and store only result metadata", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/worker-jobs/{job_id}/fail": {
+                "post": {"summary": "Fail a leased worker job and retry or dead-letter it with a redacted error", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
             "/v1/projects/{project_id}/runs/{run_id}/upload": {
                 "post": {"summary": "Upload redacted run result metadata", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
             },
@@ -1373,6 +1404,50 @@ class SaaSControlPlaneRouter:
                     return {"status_code": 200, "body": self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id)}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
+                if len(parts) >= 4 and parts[3] == "worker-jobs":
+                    if method == "GET" and len(parts) == 4:
+                        limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
+                        return {"status_code": 200, "body": self.service.list_worker_jobs(tenant_id, project_id, status=body.get("status"), job_type=body.get("job_type"), limit=limit, auth_key_id=auth_key_id)}
+                    if method == "POST" and ((len(parts) == 4) or (len(parts) == 5 and parts[4] == "enqueue")):
+                        payload = body.get("payload") if isinstance(body.get("payload"), Mapping) else None
+                        return {
+                            "status_code": 202,
+                            "body": self.service.enqueue_worker_job(
+                                tenant_id,
+                                project_id,
+                                job_type=str(body.get("job_type") or ""),
+                                target_id=body.get("target_id"),
+                                payload=payload,
+                                job_id=body.get("job_id"),
+                                priority=int(body.get("priority") or 100),
+                                max_attempts=int(body.get("max_attempts") or 3),
+                                api_key_id=auth_key_id,
+                                idempotency_key=body.get("idempotency_key"),
+                                request_id=body.get("request_id"),
+                            ),
+                        }
+                    if method == "POST" and len(parts) == 5 and parts[4] == "lease":
+                        return {
+                            "status_code": 200,
+                            "body": self.service.lease_worker_job(
+                                tenant_id,
+                                project_id,
+                                lease_owner_id=str(body.get("lease_owner_id") or ""),
+                                lease_seconds=float(body.get("lease_seconds") or 300.0),
+                                job_type=body.get("job_type"),
+                                api_key_id=auth_key_id,
+                                request_id=body.get("request_id"),
+                            ),
+                        }
+                    if method == "POST" and len(parts) == 6 and parts[5] == "heartbeat":
+                        return {"status_code": 200, "body": self.service.heartbeat_worker_job(tenant_id, project_id, parts[4], lease_owner_id=str(body.get("lease_owner_id") or ""), lease_seconds=float(body.get("lease_seconds") or 300.0), api_key_id=auth_key_id, request_id=body.get("request_id"))}
+                    if method == "POST" and len(parts) == 6 and parts[5] == "complete":
+                        result = body.get("result") if isinstance(body.get("result"), Mapping) else None
+                        return {"status_code": 200, "body": self.service.complete_worker_job(tenant_id, project_id, parts[4], result, lease_owner_id=str(body.get("lease_owner_id") or ""), api_key_id=auth_key_id, request_id=body.get("request_id"))}
+                    if method == "POST" and len(parts) == 6 and parts[5] == "fail":
+                        error = body.get("error") if isinstance(body.get("error"), Mapping) else None
+                        retry_after_seconds = float(body["retry_after_seconds"]) if body.get("retry_after_seconds") not in {None, ""} else None
+                        return {"status_code": 200, "body": self.service.fail_worker_job(tenant_id, project_id, parts[4], error, lease_owner_id=str(body.get("lease_owner_id") or ""), retry_after_seconds=retry_after_seconds, api_key_id=auth_key_id, request_id=body.get("request_id"))}
                 if len(parts) >= 6 and parts[3] == "runs":
                     run_id = parts[4]
                     if method == "POST" and len(parts) == 6 and parts[5] == "upload":

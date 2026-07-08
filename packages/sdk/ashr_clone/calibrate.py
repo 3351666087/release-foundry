@@ -22,13 +22,17 @@ from .api_client import (
     MissingAshrApiKeyError,
     elapsed_ms,
     redact_sensitive,
+    summarize_generation_request,
     summarize_quota_error,
     utc_now,
 )
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
+FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
+API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION = "ashr.clone.api_calibration_readiness_packet.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
+API_PROBE_TARGET_BINDING_SCHEMA_VERSION = "ashr.clone.api_probe_target_binding.v1"
 PLAN_BATCH_QUOTA_GATE_DECISIONS = {"go", "stop", "wait"}
 CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request"
 DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60
@@ -36,6 +40,8 @@ MIN_QUOTA_OVERRIDE_REASON_CHARS = 12
 CALIBRATION_MODALITIES = AGENT_INPUT_PART_TYPES
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
+PUBLIC_API_CALIBRATION_DIR = REPO_ROOT / "docs" / "a1" / "api_calibration"
+FIELD_MAP_PATH = PUBLIC_API_CALIBRATION_DIR / "real_api_response_field_map.json"
 
 
 class CalibrationUsageError(ValueError):
@@ -61,6 +67,24 @@ class CalibrationArgs:
     allow_quota_override: bool = False
     quota_override_reason: str | None = None
     allow_nonprivate_output: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ModalitySpec:
+    modality: str
+    accepted_input: str
+    generation_option: str | None
+    sample_asset: str
+    small_batch_phase: str
+
+
+CALIBRATION_MODALITY_SPECS: dict[str, ModalitySpec] = {
+    "text": ModalitySpec("text", "text", None, "one-sentence synthetic prompt", "small-batch"),
+    "image": ModalitySpec("image", "image", "generate_images", "1x1 synthetic PNG-equivalent fixture reference", "media-batch-after-text"),
+    "audio": ModalitySpec("audio", "audio", "generate_audio", "short synthetic tone/transcript fixture reference", "media-batch-after-text"),
+    "file": ModalitySpec("file", "file", "generate_files", "tiny synthetic text file fixture reference", "media-batch-after-text"),
+    "video": ModalitySpec("video", "video", "generate_videos", "single-frame synthetic video fixture reference", "media-batch-after-text"),
+}
 
 
 @dataclass(slots=True)
@@ -170,6 +194,233 @@ def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = No
     return manifest
 
 
+def build_field_parity_plan(args: CalibrationArgs | None = None, *, field_map_path: str | Path = FIELD_MAP_PATH) -> JsonDict:
+    plan_args = args or CalibrationArgs(modalities=("text",))
+    steps = calibration_steps(plan_args)
+    if not plan_args.include_mutating:
+        steps = [step for step in steps if step.kind != "mutate"]
+    field_map = load_json_object(str(field_map_path), "--field-map")
+    functions = field_map.get("functions") if isinstance(field_map.get("functions"), Mapping) else {}
+    parity_steps = [field_parity_step(step, functions) for step in steps]
+    missing_observed = sorted(
+        step["function"]
+        for step in parity_steps
+        if not step.get("observed_response_keys") and step.get("function") != "create_request"
+    )
+    selected_modalities = selected_calibration_modalities(plan_args) if plan_args.include_mutating else ()
+    return redact_sensitive(
+        {
+            "schema_version": FIELD_PARITY_PLAN_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_field_map": _repo_relative_output_path(field_map_path),
+            "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
+            "official_api_contract": {
+                "dispatch": "single POST endpoint with function field",
+                "base_url_env": ASHR_LABS_BASE_URL_ENV_VAR,
+                "auth_env_vars": [ASHR_API_ENV_VAR, ASHR_LABS_API_ENV_VAR],
+                "key_material_source": "environment at execution time only",
+                "key_material_logged": False,
+            },
+            "execution_modes": {
+                "default": "dry-run",
+                "dry_run_calls_real_api": False,
+                "small_batch_requires": ["--execute", "--small-batch", "--max-retries 0"],
+                "mutating_requires": ["--include-mutating", "explicit --modality", "--quota-gate-record", "private output path"],
+                "paid_media_requires": "--allow-paid-media",
+            },
+            "output_policy": {
+                "public_plan_contains": ["field names", "operation names", "call counts", "guardrail commands"],
+                "public_plan_excludes": ["API keys", "raw payload responses", "private evidence contents", "hosted quota values"],
+                "real_or_gate_records_private_root": "docs/evidence/private_refs",
+                "full_record_stdout_blocked_for_real_or_gate": True,
+            },
+            "commands": {
+                "safe_dry_run_text": "python -B -m packages.sdk.ashr_clone.calibrate --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json",
+                "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+                "mutating_text_small_batch_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+            },
+    "quota_gate": {
+        "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+        "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+        "ttl_seconds": DEFAULT_QUOTA_GATE_TTL_SECONDS,
+        "expected_modalities": list(expected_calibration_gate_modalities(plan_args)) if plan_args.include_mutating else [],
+        "request_fingerprints": calibration_request_fingerprints(plan_args) if plan_args.include_mutating else {},
+        "target_bindings": calibration_target_bindings(plan_args) if plan_args.include_mutating else {},
+    },
+            "modality_matrix": [modality_plan_entry(modality) for modality in selected_modalities],
+            "summary": {
+                "steps": len(parity_steps),
+                "read_steps": sum(1 for step in parity_steps if step.get("kind") == "read"),
+                "mutating_steps": sum(1 for step in parity_steps if step.get("kind") == "mutate"),
+                "estimated_calls_dry_run": 0,
+                "estimated_calls_small_batch": sum(step.estimated_calls for step in steps),
+                "modalities": sorted(selected_modalities),
+                "missing_observed_functions": missing_observed,
+            },
+            "steps": parity_steps,
+        }
+    )
+
+
+def build_api_calibration_readiness_packet(
+    args: CalibrationArgs | None = None,
+    *,
+    field_map_path: str | Path = FIELD_MAP_PATH,
+    evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+) -> JsonDict:
+    plan_args = args or CalibrationArgs(modalities=("text",))
+    field_map = load_json_object(str(field_map_path), "--field-map")
+    functions = field_map.get("functions") if isinstance(field_map.get("functions"), Mapping) else {}
+    evidence_index: JsonDict = {}
+    if evidence_index_path is not None and Path(evidence_index_path).exists():
+        evidence_index = load_json_object(str(evidence_index_path), "--evidence-index")
+    plan = build_field_parity_plan(plan_args, field_map_path=field_map_path)
+    observed_functions = sorted(functions)
+    read_only_steps = [step for step in plan.get("steps", []) if isinstance(step, Mapping) and step.get("kind") == "read"]
+    read_only_missing = sorted(str(step.get("function")) for step in read_only_steps if not step.get("observed_response_keys"))
+    return redact_sensitive(
+        {
+            "schema_version": API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_field_map": _repo_relative_output_path(field_map_path),
+            "source_evidence_index": _repo_relative_output_path(evidence_index_path) if evidence_index_path else None,
+            "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
+            "public_safety": {
+                "raw_key_material_present": False,
+                "auth_header_present": False,
+                "contains_raw_payload_response": False,
+                "contains_private_evidence_contents": False,
+                "private_evidence_root": "docs/evidence/private_refs",
+                "private_evidence_references_only": True,
+            },
+            "official_api_contract": plan.get("official_api_contract", {}),
+            "execution_guardrails": {
+                "default_mode": "dry-run",
+                "real_read_only_requires": ["--execute", "--small-batch", "--max-retries 0", "private output path"],
+                "real_mutating_requires": ["--include-mutating", "explicit --modality", "fresh quota gate", "private output path"],
+                "paid_media_requires": "--allow-paid-media",
+                "full_record_stdout_blocked_for_real_or_gate": True,
+            },
+            "observed_surface": {
+                "function_count": len(observed_functions),
+                "functions": observed_functions,
+                "read_only_manifest_step_count": len(read_only_steps),
+                "read_only_missing_from_field_map": read_only_missing,
+                "private_record_count": evidence_index.get("total_records"),
+                "status_counts": evidence_index.get("status_counts", {}),
+                "quota_block_count": evidence_index.get("quota_block_count", 0),
+            },
+            "readiness": {
+                "public_packet_ready": True,
+                "read_only_small_batch_ready": not read_only_missing,
+                "mutating_small_batch_ready": False,
+                "reason_mutating_not_ready": "requires a fresh reviewed plan-batch quota gate and explicit modality before any real create-request call",
+            },
+            "gaps": official_api_calibration_gaps(functions, read_only_missing),
+            "commands": {
+                "generate_public_packet": "python -B -c \"from pathlib import Path; import json; from packages.sdk.ashr_clone.calibrate import build_api_calibration_readiness_packet; Path('docs/a1/api_calibration/official_api_readiness_packet.json').write_text(json.dumps(build_api_calibration_readiness_packet(), indent=2, sort_keys=True) + '\\n', encoding='utf-8')\"",
+                "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json",
+                "mutating_text_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_<timestamp>.json",
+            },
+        }
+    )
+
+
+def official_api_calibration_gaps(observed_functions: Mapping[str, Any], read_only_missing: Sequence[str]) -> list[JsonDict]:
+    gaps: list[JsonDict] = []
+    if read_only_missing:
+        gaps.append(
+            {
+                "id": "read_only_field_map_missing",
+                "severity": "high",
+                "summary": "Read-only calibration steps exist without observed response fields in the public field map.",
+                "blocked_by": ["official API key", "read-only small-batch execution", "private evidence output"],
+                "functions": sorted(read_only_missing),
+            }
+        )
+    for function in ("create_run", "get_run", "list_runs"):
+        if function not in observed_functions:
+            gaps.append(
+                {
+                    "id": f"{function}_limited_or_missing",
+                    "severity": "medium",
+                    "summary": f"{function} coverage is absent from the latest field map and needs a read-only or gated lifecycle follow-up.",
+                    "blocked_by": ["safe target identifiers", "private evidence output"],
+                    "functions": [function],
+                }
+            )
+    create_request = observed_functions.get("create_request") if isinstance(observed_functions.get("create_request"), Mapping) else {}
+    quota_blocks = create_request.get("quota_block_count", 0) if isinstance(create_request, Mapping) else 0
+    gaps.append(
+        {
+            "id": "mutating_create_request_quota_gate",
+            "severity": "high",
+            "summary": "Real create-request calibration remains blocked until a fresh quota/reset-reviewed plan-batch gate approves the tiny text mutation.",
+            "blocked_by": ["reviewed quota/reset evidence", "fresh target binding", "explicit --modality text"],
+            "functions": ["create_request"],
+            "observed_quota_block_count": quota_blocks,
+        }
+    )
+    gaps.append(
+        {
+            "id": "media_modalities_unproven",
+            "severity": "medium",
+            "summary": "Image, audio, file, and video request envelopes are public-planned but should wait for reviewed text mutation evidence before paid media probes.",
+            "blocked_by": ["text small-batch result", "--allow-paid-media acknowledgement", "one modality per round"],
+            "modalities": ["image", "audio", "file", "video"],
+        }
+    )
+    gaps.append(
+        {
+            "id": "hosted_surface_not_commercially_complete",
+            "severity": "medium",
+            "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity.",
+            "blocked_by": ["official docs or observed endpoints", "safe read-only probes", "local control-plane implementation parity"],
+            "functions": ["api_keys", "usage", "trace_events", "artifacts", "release_evidence", "webhooks"],
+        }
+    )
+    return gaps
+
+
+def field_parity_step(step: CalibrationStep, observed_functions: Mapping[str, Any]) -> JsonDict:
+    function_aliases = {"health-check": "keep_alive"}
+    function = function_aliases.get(step.step_id, "create_request" if step.step_id.startswith("create-request-") else step.step_id.replace("-", "_"))
+    observed = observed_functions.get(function) if isinstance(observed_functions.get(function), Mapping) else {}
+    return {
+        "step_id": step.step_id,
+        "kind": step.kind,
+        "function": function,
+        "modality": step.modality,
+        "purpose": step.purpose,
+        "estimated_small_batch_calls": step.estimated_calls,
+        "dry_run_behavior": "writes planned call record only",
+        "observed_response_keys": sorted(str(key) for key in observed.get("response_keys", []) if isinstance(key, str)),
+        "observed_error_keys": sorted(str(key) for key in observed.get("error_keys", []) if isinstance(key, str)),
+        "observed_response_summary_keys": sorted(str(key) for key in observed.get("response_summary_keys", []) if isinstance(key, str)),
+        "observed_top_count_keys": sorted(str(key) for key in observed.get("top_count_keys", []) if isinstance(key, str)),
+        "quota_block_count_observed": observed.get("quota_block_count") if isinstance(observed.get("quota_block_count"), int) else None,
+        "request_shape": modality_plan_entry(step.modality) if step.modality else None,
+        "private_evidence_required_for_raw_payload": True,
+    }
+
+
+def modality_plan_entry(modality: str | None) -> JsonDict | None:
+    if modality is None:
+        return None
+    spec = CALIBRATION_MODALITY_SPECS.get(modality)
+    if spec is None:
+        return None
+    return {
+        "modality": spec.modality,
+        "accepted_input": spec.accepted_input,
+        "generation_option": spec.generation_option,
+        "sample_asset": spec.sample_asset,
+        "small_batch_phase": spec.small_batch_phase,
+        "requires_paid_media_ack": modality != "text",
+        "raw_asset_recorded_publicly": False,
+    }
+
+
 def calibration_steps(args: CalibrationArgs) -> list[CalibrationStep]:
     limit = min(max(1, int(args.limit)), 5)
     steps = [
@@ -207,11 +458,12 @@ def create_request_step(modality: str) -> CalibrationStep:
 
 
 def request_for_modality(modality: str) -> JsonDict:
+    spec = CALIBRATION_MODALITY_SPECS[modality]
     generation_options: JsonDict = {
-        "generate_audio": modality == "audio",
-        "generate_files": modality == "file",
-        "generate_images": modality == "image",
-        "generate_videos": modality == "video",
+        "generate_audio": spec.generation_option == "generate_audio",
+        "generate_files": spec.generation_option == "generate_files",
+        "generate_images": spec.generation_option == "generate_images",
+        "generate_videos": spec.generation_option == "generate_videos",
         "generate_simulations": False,
     }
     accepted_inputs = {
@@ -237,7 +489,13 @@ def request_for_modality(modality: str) -> JsonDict:
             ],
         },
         "context": {"domain": "api calibration", "use_case": f"Validate {modality} request shape and paid generation guardrails.", "scenario_context": "Use tiny synthetic non-sensitive data only."},
-        "metadata": {"dataset_name": f"A1 {modality} API calibration", "description": "Generated by A1 env-gated calibration harness.", "local_secret_policy": "ASHR_API_KEY read from environment only; no key is logged or stored."},
+        "metadata": {
+            "dataset_name": f"A1 {modality} API calibration",
+            "description": "Generated by A1 env-gated calibration harness.",
+            "local_secret_policy": "ASHR_API_KEY read from environment only; no key is logged or stored.",
+            "synthetic_asset": spec.sample_asset,
+            "small_batch_phase": spec.small_batch_phase,
+        },
         "test_config": {"strategy": "focused", "num_variations": 1, "coverage": {"happy_path": True, "edge_cases": False, "error_handling": False}},
         "generation_options": generation_options,
     }
@@ -344,6 +602,8 @@ def validate_calibration_guards(args: CalibrationArgs) -> None:
         raise CalibrationUsageError("mutating real API calibration requires --quota-gate-record from plan-batch or --allow-quota-override with an audit reason")
     if mutating_quota_gate_required(args) and args.allow_quota_override and not valid_quota_override_reason(args.quota_override_reason):
         raise CalibrationUsageError("--allow-quota-override requires --quota-override-reason with at least 12 characters")
+    if mutating_quota_gate_required(args) and not args.modalities:
+        raise CalibrationUsageError("mutating real API calibration requires explicit --modality selection; dry-run may enumerate all modalities")
 
 
 def mutating_quota_gate_required(args: CalibrationArgs) -> bool:
@@ -514,6 +774,8 @@ def quota_gate_plan_binding(plan: Mapping[str, Any], args: CalibrationArgs, issu
 
     if "request_fingerprint" in plan:
         binding.update(validate_request_fingerprint_binding(plan.get("request_fingerprint"), args, issues))
+    if "target_binding" in plan:
+        binding.update(validate_target_binding(plan.get("target_binding"), args, issues))
     return binding
 
 
@@ -605,12 +867,158 @@ def validate_request_fingerprint_binding(value: Any, args: CalibrationArgs, issu
     return redact_sensitive(binding)
 
 
+def validate_target_binding(value: Any, args: CalibrationArgs, issues: list[JsonDict]) -> JsonDict:
+    expected = calibration_target_bindings(args)
+    binding: JsonDict = {"target_binding": target_binding_summary(value), "expected_target_bindings": {key: target_binding_summary(item) for key, item in expected.items()}}
+    if not isinstance(value, Mapping):
+        issues.append({"code": "missing_target_binding", "message": "quota gate target_binding must be an object when present"})
+        return redact_sensitive(binding)
+
+    selected_modalities = selected_calibration_modalities(args)
+    if len(selected_modalities) != 1:
+        issues.append({"code": "target_binding_ambiguous", "message": "quota gate target_binding can only bind one selected calibrator modality; use request_fingerprint modality map for multi-modality gates"})
+        return redact_sensitive(binding)
+
+    expected_binding = expected[selected_modalities[0]]
+    actual_fingerprint = value.get("fingerprint")
+    expected_fingerprint = expected_binding.get("fingerprint")
+    if value.get("schema_version") != API_PROBE_TARGET_BINDING_SCHEMA_VERSION:
+        issues.append({"code": "invalid_target_binding_schema", "message": f"quota gate target_binding.schema_version must be {API_PROBE_TARGET_BINDING_SCHEMA_VERSION}"})
+    if not isinstance(actual_fingerprint, str) or actual_fingerprint != expected_fingerprint:
+        issues.append({"code": "target_binding_mismatch", "message": "quota gate target_binding.fingerprint does not match the current calibrator request payload and execution guardrails"})
+        return redact_sensitive(binding)
+
+    for field in (
+        "target_operation",
+        "request_fingerprint",
+        "request_input_schema_fingerprint",
+        "request_input_schema_source",
+        "allow_media_generation",
+        "allow_non_text_inputs",
+        "max_request_variations",
+        "small_batch_size",
+        "batch_size",
+        "modalities",
+    ):
+        if value.get(field) != expected_binding.get(field):
+            issues.append({"code": "target_binding_field_mismatch", "message": f"quota gate target_binding.{field} does not match the current calibrator request"})
+            break
+    return redact_sensitive(binding)
+
+
 def calibration_request_fingerprints(args: CalibrationArgs) -> JsonDict:
     return {modality: calibration_request_fingerprint(modality) for modality in selected_calibration_modalities(args)}
 
 
 def calibration_request_fingerprint(modality: str) -> str:
     payload = json.dumps(request_for_modality(modality), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def calibration_target_bindings(args: CalibrationArgs) -> JsonDict:
+    return {modality: calibration_target_binding(modality, args) for modality in selected_calibration_modalities(args)}
+
+
+def calibration_target_binding(modality: str, args: CalibrationArgs) -> JsonDict:
+    request = request_for_modality(modality)
+    preflight = summarize_generation_request(request)
+    modality_sequence = calibration_modality_sequence(preflight)
+    modalities = [item["modality"] for item in modality_sequence]
+    media_modalities = [item["modality"] for item in modality_sequence if item.get("kind") != "text"]
+    request_fingerprint = stable_sha256(request)
+    components = {
+        "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+        "request_fingerprint": request_fingerprint,
+        "request_input_schema_fingerprint": None,
+        "request_input_schema_source": "client_default",
+        "allow_media_generation": bool(args.allow_paid_media),
+        "allow_non_text_inputs": True,
+        "max_request_variations": 1,
+        "small_batch_size": 1,
+        "batch_size": 1,
+        "modalities": modalities,
+        "media_modalities": media_modalities,
+        "text_first_small_batch": bool("text" in modalities and media_modalities),
+    }
+    return redact_sensitive(
+        {
+            "schema_version": API_PROBE_TARGET_BINDING_SCHEMA_VERSION,
+            "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+            "binding_scope": "request-payload",
+            "request_fingerprint": request_fingerprint,
+            "request_input_schema_fingerprint": None,
+            "request_input_schema_source": "client_default",
+            "allow_media_generation": bool(args.allow_paid_media),
+            "allow_non_text_inputs": True,
+            "max_request_variations": 1,
+            "small_batch_size": 1,
+            "batch_size": 1,
+            "modalities": modalities,
+            "media_modalities": media_modalities,
+            "text_first_small_batch": bool("text" in modalities and media_modalities),
+            "modality_sequence": modality_sequence,
+            "fingerprint": stable_sha256(components),
+            "fingerprint_fields": sorted(components.keys()),
+            "raw_request_not_recorded": True,
+        }
+    )
+
+
+def calibration_modality_sequence(preflight: Mapping[str, Any]) -> list[JsonDict]:
+    enabled_modalities: dict[str, set[str]] = {}
+    accepted_flags = preflight.get("accepted_input_flags") if isinstance(preflight.get("accepted_input_flags"), Mapping) else {}
+    for modality in ("text", "image", "audio", "file", "video", "conversation"):
+        if accepted_flags.get(modality):
+            enabled_modalities.setdefault(modality, set()).add("accepted_inputs")
+    media_generation = preflight.get("media_generation") if isinstance(preflight.get("media_generation"), Mapping) else {}
+    for generated_name, modality in {"audio": "audio", "files": "file", "images": "image", "videos": "video", "simulations": "simulation"}.items():
+        if media_generation.get(generated_name):
+            enabled_modalities.setdefault(modality, set()).add("media_generation")
+    if not enabled_modalities:
+        enabled_modalities["text"] = {"default"}
+
+    sequence: list[JsonDict] = []
+    for modality in ("text", "image", "audio", "file", "video", "conversation", "simulation"):
+        sources = enabled_modalities.get(modality)
+        if not sources:
+            continue
+        sequence.append(
+            {
+                "order": len(sequence),
+                "modality": modality,
+                "kind": "text" if modality == "text" else "media" if modality in {"image", "audio", "file", "video", "simulation"} else "conversation",
+                "sources": sorted(sources),
+                "phase_gate": "small-batch must pass with text before media/conversation batch execution" if modality != "text" else "first dry-run and small-batch modality",
+                "requires_allowance": modality not in {"text"} and ("accepted_inputs" in sources or "media_generation" in sources),
+            }
+        )
+    return sequence
+
+
+def target_binding_summary(value: Any) -> JsonDict | None:
+    if not isinstance(value, Mapping):
+        return None
+    fields = (
+        "schema_version",
+        "target_operation",
+        "binding_scope",
+        "fingerprint",
+        "request_fingerprint",
+        "request_input_schema_fingerprint",
+        "request_input_schema_source",
+        "allow_media_generation",
+        "allow_non_text_inputs",
+        "max_request_variations",
+        "small_batch_size",
+        "batch_size",
+        "modalities",
+        "raw_request_not_recorded",
+    )
+    return redact_sensitive({field: value.get(field) for field in fields if field in value})
+
+
+def stable_sha256(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

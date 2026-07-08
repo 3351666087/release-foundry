@@ -82,6 +82,57 @@ func TestHostedSubmitRunHTTPUsesParityEnvelopeHeadersAndBody(t *testing.T) {
 	}
 }
 
+func TestHostedWorkerJobHTTPUsesControlPlaneRoutesHeadersAndBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		if r.URL.EscapedPath() != "/v1/projects/project%20go/worker-jobs/enqueue" {
+			t.Fatalf("path = %q", r.URL.EscapedPath())
+		}
+		if got := r.Header.Get("Idempotency-Key"); got != "idem-worker" {
+			t.Fatalf("Idempotency-Key = %q", got)
+		}
+		if got := r.Header.Get("X-Request-ID"); got != "req-worker" {
+			t.Fatalf("X-Request-ID = %q", got)
+		}
+		var body JSONMap
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		payload, ok := body["payload"].(map[string]any)
+		if !ok || payload["action"] != "release_gate" {
+			t.Fatalf("payload = %#v", body["payload"])
+		}
+		for key, want := range map[string]any{"tenant_id": "tenant_go", "job_type": "release_gate", "target_id": "run_go", "job_id": "job_go", "api_key_id": "key_go", "idempotency_key": "idem-worker", "request_id": "req-worker"} {
+			if got := body[key]; got != want {
+				t.Fatalf("%s = %#v, want %#v in %#v", key, got, want, body)
+			}
+		}
+		if body["priority"] != float64(10) || body["max_attempts"] != float64(4) {
+			t.Fatalf("priority/max_attempts = %#v/%#v", body["priority"], body["max_attempts"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"job_id":"job_go","status":"queued","payload_sha256":"abc","raw_payload_included":false}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL))
+	response, err := client.EnqueueWorkerJobHTTP(context.Background(), "tenant_go", "project go", JSONMap{"action": "release_gate"}, EnqueueWorkerJobHTTPOptions{JobType: "release_gate", TargetID: "run_go", JobID: "job_go", Priority: 10, MaxAttempts: 4, APIKeyID: "key_go", IdempotencyKey: "idem-worker", RequestID: "req-worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Operation != "worker.job.enqueue" || response.Result["status"] != "queued" || response.Result["raw_payload_included"] != false {
+		t.Fatalf("unexpected worker envelope: %#v", response)
+	}
+
+	_, err = client.EnqueueWorkerJobHTTP(context.Background(), "tenant_go", "project go", JSONMap{"data_url": "data:image/png;base64,iVBORw0KGgo="}, EnqueueWorkerJobHTTPOptions{JobType: "release_gate", IdempotencyKey: "idem-worker-2"})
+	var mediaErr MediaSafetyError
+	if !errors.As(err, &mediaErr) {
+		t.Fatalf("expected media safety error, got %T %v", err, err)
+	}
+}
+
 func TestClientRetriesRetryableStatusWithIdempotency(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
