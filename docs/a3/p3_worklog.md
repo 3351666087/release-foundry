@@ -2342,3 +2342,38 @@ Safety boundary:
 Remaining production gap:
 
 Branch protection still needs maintainer approval before `Ashr++ Release Gate` is truly required.
+
+## 2026-07-08 - GitHub publish evidence in reports and artifact registry
+
+Continued A3 PR Gate evidence work by binding GitHub publish receipts into report exports and Artifact Registry.
+
+Added:
+
+- `summarizeGithubPublishEvidence(...)`
+- JSON report field `github_publish_evidence`
+- Markdown section `GitHub Publish Evidence`
+- Artifact Registry entries for GitHub check receipt, PR comment receipt, and required-check plan
+- Artifact Registry preset `github_pr_gate_packet`
+- dashboard static fixture loading for GitHub publish evidence
+- dashboard export wiring for `state.githubPublishEvidence`
+- documentation in `docs/a3/p3_github_publish_evidence_registry_2026_07_08.md`
+
+Verification:
+
+```text
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Result: 73 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No token, cookie, email, Authorization header, or raw signed URL committed.
+
+Remaining production gap:
+
+Publish receipts still need audit-bundle hashing, dedicated dashboard cards, and real branch-protection verification.
