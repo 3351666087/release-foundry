@@ -1,6 +1,8 @@
+#!/usr/bin/env node
 import { CloudApiService, NotFoundError, ValidationError } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import type { JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
@@ -29,8 +31,8 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "key:admin": [API_KEY_ADMIN_SCOPE, API_KEY_READ_SCOPE],
   "key:read": [API_KEY_READ_SCOPE],
   "sdk:submit": [RUN_CREATE_SCOPE],
-  "runs:write": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE],
-  "write:runs": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE],
+  "runs:write": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE, "sdk:submit"],
+  "write:runs": [RUN_CREATE_SCOPE, RUN_UPLOAD_SCOPE, "sdk:submit"],
   "traces:write": [TRACE_INGEST_SCOPE],
   "artifact:write": [ARTIFACT_MANIFEST_SCOPE],
   "artifacts:write": [ARTIFACT_MANIFEST_SCOPE],
@@ -437,6 +439,117 @@ export class SaaSControlPlaneService {
     return Object.values(this.store.artifact_manifests).filter((item) => item.tenant_id === tenantId && item.project_id === projectId && (runId === undefined || item.run_id === runId)).map((item) => cloneJson(item) as JsonRecord);
   }
 
+  evaluateReleaseGate(tenantId: string, projectId: string, runId: string, options: { evaluator?: string; minScore?: number; requiredTraceCompleteness?: number; authKeyId?: string; requestId?: string } = {}): JsonRecord {
+    this.cloud.getRun(tenantId, projectId, runId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: AUDIT_READ_SCOPE });
+    const lifecycle = this.lifecycleSnapshot(tenantId, projectId, runId);
+    const uploads = Array.isArray(lifecycle.uploads) ? lifecycle.uploads : [];
+    const traceBatches = Array.isArray(lifecycle.trace_batches) ? lifecycle.trace_batches : [];
+    const observationCount = traceBatches.reduce((total, batch) => total + Number(isRecord(batch) ? batch.observation_count ?? 0 : 0), 0);
+    const uploadStatuses = uploads.map((item) => String(isRecord(item) ? item.status ?? "" : "")).filter(Boolean).sort();
+    const traceCompleteness = uploads.length === 0 ? 0 : Math.min(1, observationCount / Math.max(1, uploads.length));
+    const hasUploadedResult = uploadStatuses.includes("uploaded");
+    const score = Math.min(1, Number((0.35 + Math.min(0.35, observationCount * 0.12) + (hasUploadedResult ? 0.3 : 0)).toFixed(4)));
+    const minScore = options.minScore ?? 0.72;
+    const requiredTraceCompleteness = options.requiredTraceCompleteness ?? 0.95;
+    const blockers = [
+      score >= minScore ? null : "score_below_threshold",
+      traceCompleteness >= requiredTraceCompleteness ? null : "trace_completeness_below_threshold",
+      hasUploadedResult ? null : "missing_run_upload",
+    ].filter((item): item is string => item !== null);
+    const result: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      run_id: runId,
+      evaluator: options.evaluator ?? "local-deterministic-release-gate",
+      decision: blockers.length === 0 ? "pass" : "block",
+      score,
+      min_score: minScore,
+      trace_completeness: Number(traceCompleteness.toFixed(4)),
+      required_trace_completeness: requiredTraceCompleteness,
+      upload_count: uploads.length,
+      trace_batch_count: traceBatches.length,
+      observation_count: observationCount,
+      blockers,
+      local_only: true,
+      ashr_api_used: false,
+      request_id: options.requestId ?? null,
+      created_at: utcNow(),
+    };
+    this.appendAudit(tenantId, projectId, "release_gate.evaluate", { targetId: runId, apiKeyId: options.authKeyId, requestId: options.requestId, after: result });
+    return result;
+  }
+
+  auditSnapshot(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: AUDIT_READ_SCOPE });
+    const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 100)));
+    const events = Object.values(this.store.audit_log)
+      .filter((item) => item.tenant_id === tenantId && item.project_id === projectId)
+      .filter((item) => options.runId === undefined || item.target_id === options.runId || item.target_id === null)
+      .filter((item) => options.actionPrefix === undefined || String(item.action).startsWith(options.actionPrefix))
+      .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)))
+      .slice(-limit)
+      .map((item) => cloneJson(item) as JsonRecord);
+    return {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      run_id: options.runId ?? null,
+      action_prefix: options.actionPrefix ?? null,
+      limit,
+      event_count: events.length,
+      events,
+      raw_payload_included: false,
+      secret_value_present: false,
+    };
+  }
+
+  buildReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { releaseGate?: JsonRecord; authKeyId?: string } = {}): JsonRecord {
+    const lifecycle = this.lifecycleSnapshot(tenantId, projectId, runId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: AUDIT_READ_SCOPE });
+    const releaseGate = options.releaseGate ?? this.evaluateReleaseGate(tenantId, projectId, runId, { authKeyId: options.authKeyId });
+    const artifacts = this.listArtifactManifests(tenantId, projectId, runId);
+    const usage = this.usageSnapshot(tenantId, projectId);
+    const uploads = Array.isArray(lifecycle.uploads) ? lifecycle.uploads : [];
+    const traces = Array.isArray(lifecycle.trace_batches) ? lifecycle.trace_batches : [];
+    const audit = this.auditSnapshot(tenantId, projectId, { runId, limit: 200 });
+    const payload = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
+      packet_schema_version: "ashr.clone.release_evidence_packet.v1",
+      tenant_id: tenantId,
+      project_id: projectId,
+      run_id: runId,
+      generated_at: utcNow(),
+      local_only: true,
+      ashr_api_used: false,
+      lifecycle: {
+        run_status: lifecycle.run_status,
+        run_result_status: lifecycle.run_result_status,
+        status_history_count: Array.isArray(lifecycle.status_history) ? lifecycle.status_history.length : 0,
+      },
+      release_gate: cloneJson(releaseGate),
+      counts: {
+        uploads: uploads.length,
+        trace_batches: traces.length,
+        observations: traces.reduce((total, batch) => total + Number(isRecord(batch) ? batch.observation_count ?? 0 : 0), 0),
+        artifacts: artifacts.length,
+        audit_events: audit.event_count,
+        usage_events: Array.isArray(usage.events) ? usage.events.length : 0,
+      },
+      hashes: {
+        uploads_sha256: sha256(JSON.stringify(sortJson(uploads))),
+        traces_sha256: sha256(JSON.stringify(sortJson(traces))),
+        artifacts_sha256: sha256(JSON.stringify(sortJson(artifacts))),
+        audit_sha256: sha256(JSON.stringify(sortJson(audit.events))),
+      },
+      usage_totals: usage.totals,
+      redaction: { raw_payload_included: false, secret_value_present: false, secret_hash_included: false },
+    };
+    return { ...payload, integrity: { packet_sha256: sha256(JSON.stringify(sortJson(payload))) } };
+  }
+
   snapshotState(): SaaSControlPlaneState {
     const payload = {
       schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
@@ -637,6 +750,9 @@ export class SaaSControlPlaneRouter {
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "usage") {
           return { status_code: 200, body: this.service.usageSnapshot(tenantId, projectId, { authKeyId }) };
         }
+        if (upperMethod === "GET" && parts.length === 4 && parts[3] === "audit-log") {
+          return { status_code: 200, body: this.service.auditSnapshot(tenantId, projectId, { authKeyId, runId: optionalString(body.run_id), actionPrefix: optionalString(body.action_prefix), limit: body.limit === undefined ? undefined : Number(body.limit) }) };
+        }
         if (parts.length === 6 && parts[3] === "runs") {
           const runId = parts[4];
           if (upperMethod === "POST" && parts[5] === "upload") {
@@ -647,6 +763,12 @@ export class SaaSControlPlaneRouter {
           }
           if (upperMethod === "GET" && parts[5] === "lifecycle") {
             return { status_code: 200, body: this.service.lifecycleSnapshot(tenantId, projectId, runId) };
+          }
+          if (upperMethod === "POST" && parts[5] === "release-gate") {
+            return { status_code: 200, body: this.service.evaluateReleaseGate(tenantId, projectId, runId, { evaluator: optionalString(body.evaluator), minScore: body.min_score === undefined ? undefined : Number(body.min_score), requiredTraceCompleteness: body.required_trace_completeness === undefined ? undefined : Number(body.required_trace_completeness), authKeyId, requestId: optionalString(body.request_id) }) };
+          }
+          if (upperMethod === "GET" && parts[5] === "release-evidence") {
+            return { status_code: 200, body: this.service.buildReleaseEvidencePacket(tenantId, projectId, runId, { authKeyId }) };
           }
           if (upperMethod === "POST" && parts[5] === "artifact-manifests") {
             return { status_code: 202, body: this.service.createArtifactManifest(tenantId, projectId, runId, isRecord(body.manifest) ? body.manifest : body, { artifactId: optionalString(body.artifact_id), apiKeyId: authKeyId, idempotencyKey: optionalString(body.idempotency_key), requestId: optionalString(body.request_id) }) };
@@ -755,7 +877,10 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/upload": { post: { operationId: "uploadRun", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Uploaded run result") } } },
       "/v1/projects/{project_id}/runs/{run_id}/trace-events": { post: { operationId: "ingestTrace", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Trace batch") } } },
       "/v1/projects/{project_id}/runs/{run_id}/lifecycle": { get: { operationId: "lifecycle", parameters: pathTenantParameters("run_id"), responses: { "200": response("Run lifecycle") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/release-gate": { post: { operationId: "evaluateReleaseGate", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release gate decision") } } },
+      "/v1/projects/{project_id}/runs/{run_id}/release-evidence": { get: { operationId: "buildReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), responses: { "200": response("Release evidence packet") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
+      "/v1/projects/{project_id}/audit-log": { get: { operationId: "auditSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Audit log snapshot") } } },
       "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests": {
         get: { operationId: "listArtifactManifests", parameters: pathTenantParameters("run_id"), responses: { "200": response("Artifact manifests") } },
         post: { operationId: "createArtifactManifest", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "202": response("Artifact manifest receipt") } },
@@ -885,6 +1010,18 @@ export class SaaSIngestionClient {
     return envelope("usage", this.service.usageSnapshot(tenantId, projectId, options));
   }
 
+  auditLog(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): JsonRecord {
+    return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, options));
+  }
+
+  evaluateReleaseGate(tenantId: string, projectId: string, runId: string, options: { evaluator?: string; minScore?: number; requiredTraceCompleteness?: number; authKeyId?: string; requestId?: string } = {}): JsonRecord {
+    return envelope("release_gate", this.service.evaluateReleaseGate(tenantId, projectId, runId, options));
+  }
+
+  buildReleaseEvidencePacket(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string } = {}): JsonRecord {
+    return envelope("release_evidence", this.service.buildReleaseEvidencePacket(tenantId, projectId, runId, options));
+  }
+
   createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
     return envelope("artifact_manifest", this.service.createArtifactManifest(tenantId, projectId, runId, manifest, options));
   }
@@ -899,6 +1036,11 @@ export class SaaSIngestionClient {
     return envelope("create_api_key", body);
   }
 
+  async listApiKeysHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+    return envelope("list_api_keys", body);
+  }
+
   async verifyApiKeySecretHttp(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): Promise<JsonRecord> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/verify`, { tenant_id: tenantId, secret: options.secret, scope: options.scope });
     return envelope("verify_api_key_secret", body);
@@ -909,7 +1051,7 @@ export class SaaSIngestionClient {
     return envelope("configure_api_key_rate_limit", body);
   }
 
-  async apiKeyRateLimitSnapshotHttp(tenantId: string, projectId: string, options: { keyId: string }): Promise<JsonRecord> {
+  async apiKeyRateLimitSnapshotHttp(tenantId: string, projectId: string, options: { keyId?: string } = {}): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/rate-limits`, { tenant_id: tenantId, key_id: options.keyId });
     return envelope("api_key_rate_limit_snapshot", body);
   }
@@ -942,6 +1084,21 @@ export class SaaSIngestionClient {
     return envelope("usage", body);
   }
 
+  async auditLogHttp(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/audit-log`, { tenant_id: tenantId, run_id: options.runId, action_prefix: options.actionPrefix, auth_key_id: options.authKeyId, limit: options.limit });
+    return envelope("audit_log", body);
+  }
+
+  async evaluateReleaseGateHttp(tenantId: string, projectId: string, runId: string, options: { evaluator?: string; minScore?: number; requiredTraceCompleteness?: number; authKeyId?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/release-gate`, { tenant_id: tenantId, evaluator: options.evaluator, min_score: options.minScore, required_trace_completeness: options.requiredTraceCompleteness, auth_key_id: options.authKeyId, request_id: options.requestId });
+    return envelope("release_gate", body);
+  }
+
+  async buildReleaseEvidencePacketHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/release-evidence`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+    return envelope("release_evidence", body);
+  }
+
   async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
     return envelope("artifact_manifest", body);
@@ -956,6 +1113,156 @@ export const snapshotSaaSControlPlane = (service: SaaSControlPlaneService): SaaS
 export const writeSaaSControlPlaneState = (service: SaaSControlPlaneService, outputPath: string): Promise<string> => service.writeState(outputPath);
 export const saasControlPlaneFromState = (payload: unknown): SaaSControlPlaneService => SaaSControlPlaneService.fromState(payload);
 export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSControlPlaneService> => SaaSControlPlaneService.fromStateFile(inputPath);
+
+type CliOptions = Record<string, string | boolean | string[]>;
+
+const SAAS_CLI_COMMANDS = new Set(["api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "release-gate", "audit-log", "release-evidence"]);
+
+export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
+  const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
+  const command = commandIndex >= 0 ? argv[commandIndex] : "state";
+  const options = parseCliArgs(commandIndex >= 0 ? [...argv.slice(0, commandIndex), ...argv.slice(commandIndex + 1)] : argv);
+  if (options.help || options.h) {
+    return { operation: "help", usage: saasCliUsage() };
+  }
+  const baseUrl = stringOption(options, "base-url", false);
+  const stateInput = stringOption(options, "state-input", false);
+  const stateOutput = stringOption(options, "state-output", false);
+  if (baseUrl !== undefined && stateInput !== undefined) throw new SecretInputError("--base-url cannot be combined with --state-input");
+  if (baseUrl !== undefined && stateOutput !== undefined) throw new SecretInputError("--base-url cannot be combined with --state-output");
+  const client = baseUrl !== undefined ? SaaSIngestionClient.forBaseUrl(baseUrl) : (stateInput !== undefined ? await SaaSIngestionClient.fromStateFile(stateInput) : new SaaSIngestionClient());
+  let result: JsonRecord;
+  switch (command) {
+    case "api-key-create":
+      result = baseUrl !== undefined
+        ? await client.createApiKeyHttp(projectTenant(options).tenantId, projectTenant(options).projectId, {
+          name: stringOption(options, "name", true), scopes: stringListOption(options, "scope", true), keyId: stringOption(options, "key-id", false), authKeyId: stringOption(options, "auth-key-id", false), revealSecret: Boolean(options["reveal-secret"]),
+        })
+        : client.createApiKey(projectTenant(options).tenantId, projectTenant(options).projectId, {
+          name: stringOption(options, "name", true), scopes: stringListOption(options, "scope", true), keyId: stringOption(options, "key-id", false), authKeyId: stringOption(options, "auth-key-id", false), revealSecret: Boolean(options["reveal-secret"]),
+        });
+      break;
+    case "api-key-list":
+      result = baseUrl !== undefined
+        ? await client.listApiKeysHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.listApiKeys(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "api-key-verify":
+      result = baseUrl !== undefined
+        ? await client.verifyApiKeySecretHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) })
+        : client.verifyApiKeySecret(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) });
+      break;
+    case "api-key-rate-limit":
+      result = baseUrl !== undefined
+        ? await client.configureApiKeyRateLimitHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), operation: stringOption(options, "operation", true), limit: numberOption(options, "limit", true), period: stringOption(options, "period", false), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.configureApiKeyRateLimit(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), operation: stringOption(options, "operation", true), limit: numberOption(options, "limit", true), period: stringOption(options, "period", false), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "api-key-rate-limits":
+      result = baseUrl !== undefined
+        ? await client.apiKeyRateLimitSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) })
+        : client.apiKeyRateLimitSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) });
+      break;
+    case "release-gate":
+      result = baseUrl !== undefined
+        ? await client.evaluateReleaseGateHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { evaluator: stringOption(options, "evaluator", false), minScore: optionalNumberOption(options, "min-score"), requiredTraceCompleteness: optionalNumberOption(options, "required-trace-completeness"), authKeyId: stringOption(options, "auth-key-id", false), requestId: stringOption(options, "request-id", false) })
+        : client.evaluateReleaseGate(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { evaluator: stringOption(options, "evaluator", false), minScore: optionalNumberOption(options, "min-score"), requiredTraceCompleteness: optionalNumberOption(options, "required-trace-completeness"), authKeyId: stringOption(options, "auth-key-id", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "audit-log":
+      result = baseUrl !== undefined
+        ? await client.auditLogHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { runId: stringOption(options, "run-id", false), actionPrefix: stringOption(options, "action-prefix", false), authKeyId: stringOption(options, "auth-key-id", false), limit: optionalNumberOption(options, "limit") })
+        : client.auditLog(projectTenant(options).tenantId, projectTenant(options).projectId, { runId: stringOption(options, "run-id", false), actionPrefix: stringOption(options, "action-prefix", false), authKeyId: stringOption(options, "auth-key-id", false), limit: optionalNumberOption(options, "limit") });
+      break;
+    case "release-evidence":
+      result = baseUrl !== undefined
+        ? await client.buildReleaseEvidencePacketHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.buildReleaseEvidencePacket(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    default:
+      throw new SecretInputError(`unsupported command: ${command}`);
+  }
+  if (stateOutput !== undefined) result.state_output = await client.writeState(stateOutput);
+  return result;
+}
+
+function parseCliArgs(args: string[]): CliOptions {
+  const options: CliOptions = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith("--")) throw new SecretInputError(`unexpected argument: ${arg}`);
+    const name = arg.slice(2);
+    const next = args[index + 1];
+    if (next === undefined || next.startsWith("--")) {
+      options[name] = true;
+      continue;
+    }
+    const current = options[name];
+    if (current === undefined) options[name] = next;
+    else if (Array.isArray(current)) current.push(next);
+    else options[name] = [String(current), next];
+    index += 1;
+  }
+  return options;
+}
+
+function stringOption(options: CliOptions, name: string, required: true): string;
+function stringOption(options: CliOptions, name: string, required: false): string | undefined;
+function stringOption(options: CliOptions, name: string, required: boolean): string | undefined {
+  const value = options[name];
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value[value.length - 1];
+  if (required) throw new SecretInputError(`missing required --${name}`);
+  return undefined;
+}
+
+function stringListOption(options: CliOptions, name: string, required: true): string[];
+function stringListOption(options: CliOptions, name: string, required: false): string[] | undefined;
+function stringListOption(options: CliOptions, name: string, required: boolean): string[] | undefined {
+  const value = options[name];
+  const list = Array.isArray(value) ? value.map(String) : (typeof value === "string" ? [value] : []);
+  if (list.length === 0 && required) throw new SecretInputError(`missing required --${name}`);
+  return list.length > 0 ? list : undefined;
+}
+
+function numberOption(options: CliOptions, name: string, required: boolean): number {
+  const raw = options[name];
+  const value = typeof raw === "string" ? raw : (Array.isArray(raw) ? raw[raw.length - 1] : undefined);
+  if (value === undefined) throw new SecretInputError(`missing required --${name}`);
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new SecretInputError(`--${name} must be numeric`);
+  return parsed;
+}
+
+function optionalNumberOption(options: CliOptions, name: string): number | undefined {
+  const raw = options[name];
+  const value = typeof raw === "string" ? raw : (Array.isArray(raw) ? raw[raw.length - 1] : undefined);
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new SecretInputError(`--${name} must be numeric`);
+  return parsed;
+}
+
+function projectTenant(options: CliOptions): { tenantId: string; projectId: string } {
+  return { tenantId: stringOption(options, "tenant-id", true), projectId: stringOption(options, "project-id", true) };
+}
+
+function saasCliUsage(): string {
+  return "usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <api-key-create|api-key-list|api-key-verify|api-key-rate-limit|api-key-rate-limits|release-gate|audit-log|release-evidence> [options]";
+}
+
+async function mainSaaSCli(): Promise<number> {
+  try {
+    process.stdout.write(`${JSON.stringify(await runSaaSCli(), null, 0)}\n`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`saas ingestion cli error: ${message}\n`);
+    return 2;
+  }
+}
+
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  void mainSaaSCli().then((code) => { process.exitCode = code; });
+}
 
 
 function envelope(operation: string, result: JsonRecord): JsonRecord { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }

@@ -1,4 +1,4 @@
-from .runtime import (
+﻿from .runtime import (
     CLOUD_API_SCHEMA_VERSION,
     DEFAULT_QUOTA_LIMITS,
     CloudApiError,
@@ -42,6 +42,7 @@ from .platform import (
     PLATFORM_SCHEMA_VERSION,
     LocalObjectStore,
     WebhookRegistry,
+    build_release_evidence_packet,
     platform_schema_manifest,
     platform_sql_migration_text,
     release_gate_bridge_payload,
@@ -77,6 +78,7 @@ __all__ = [
     "QuotaLedger",
     "QueueRunRequest",
     "usage_billing_rollup",
+    "build_release_evidence_packet",
     "release_gate_bridge_payload",
     "platform_sql_migration_text",
     "platform_schema_manifest",

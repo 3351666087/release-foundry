@@ -2891,3 +2891,132 @@ Growth-Auditor Round19 closeout:
 - TS lag risk: TS library parity passed, but TS CLI parity for API-key lifecycle is still missing and must be a Round20 priority.
 - Commit risks reviewed: recon/**, tools/**, and docs/evidence/private_refs/** remain unstaged; staged scope audited.
 - Round20 priority: hosted + durable + auditable release-gate endpoint, audit logs, Postgres migrator, DTO parity, TS CLI parity, bounded official mutating probes.
+
+## 2026-07-08 A1 Round20 frontend dashboard DTO evidence
+
+- Added public-safe usage/quota/API-key dashboard DTO fixture at `tests/a1/fixtures/round20_frontend_dashboard_dtos_public.json`.
+- Added focused pytest coverage in `tests/a1/test_frontend_dashboard_dtos.py` for frontend mirror field names, quota thresholds/cap badges, API-key empty state, and redaction posture.
+- Added public evidence note at `docs/a1/evidence/round20_frontend_dashboard_dtos.md`.
+- Did not run a live official API probe; inspected Round19 public extraction and private_refs summary/index context without exposing raw private payloads.
+
+## A1 Round20 - Hosted audit, evidence packet, TS CLI, Postgres migration plan (2026-07-08)
+
+Round goal: continue commercial SaaS A1 after Round19 by making the backend more hosted, durable, auditable, and TypeScript-parity complete.
+
+Baseline / peer changes:
+- Started on codex/a1-local-sdk-runner after git fetch origin all heads/tags/prune.
+- Branch was aligned with origin/codex/a1-local-sdk-runner; only long-lived untracked recon/** and tools/** were present and left unstaged.
+- Read origin/main strategy large-saas-a1-a2-a3-full-plan.md and Round19 worklog/Growth-Auditor closeout.
+- Round20 targeted the prior audit gaps: TS CLI parity, hosted release-gate route, audit-log query, Postgres migration planning, frontend DTO parity, bounded official mutating plan evidence, and evidence packet builder.
+
+20 Round20 growth points advanced:
+1. TS SaaS CLI parity for API-key lifecycle.
+2. TS CLI state input/output parity.
+3. TS CLI public path guard and secret safety tests.
+4. Hosted release-gate control-plane route.
+5. Deterministic local release-gate fallback evaluator.
+6. Registered local release-gate evaluator path.
+7. Release-gate audit event append.
+8. Public-safe audit-log query endpoint.
+9. OpenAPI/docs for hosted release gate and audit log.
+10. Postgres-compatible migration plan generation.
+11. Schema checksum and ledger primitives.
+12. SQLite drift validation and ledger recording.
+13. Rollback SQL text for migration plans.
+14. Release evidence packet builder.
+15. Evidence packet integrity digest.
+16. Webhook/artifact/upload/trace summary in evidence packet.
+17. Frontend dashboard DTO public fixture and tests.
+18. Official API read-only calibration refreshed.
+19. Bounded create-request dry-run and plan-batch evidence generated after fixing request-file/BOM issues.
+20. Capability matrix and commercial control-plane kit regenerated for new A1 coverage.
+
+Implemented files / artifacts:
+- services/api/control_plane.py: release-gate evaluator registration, evaluate_release_gate, audit_snapshot, routes and OpenAPI entries.
+- services/api/platform.py: build_release_evidence_packet.
+- services/api/db_migrator.py: Postgres dialect plan, schema checksum/ledger/drift/rollback primitives.
+- services/api/__init__.py: exported release evidence packet builder.
+- packages/ts/ashr-clone/src/saas.ts and packages/ts/ashr-clone/test/saas.test.mjs: TS SaaS CLI parity and tests.
+- tests/a1/test_saas_release_gate_endpoint.py, tests/a1/test_saas_platform.py, tests/a1/test_db_migrator.py, tests/a1/test_frontend_dashboard_dtos.py: new/expanded coverage.
+- docs/a1/release_gate_bridge.md, docs/a1/worker_db_migrator.md, docs/a1/saas_ingestion_quickstart.md: hosted/audit/migration/evidence packet docs.
+- docs/a1/evidence/round20_frontend_dashboard_dtos.md and tests/a1/fixtures/round20_frontend_dashboard_dtos_public.json: frontend DTO parity artifact.
+- docs/a1/commercial/capability_matrix.json and docs/a1/commercial/control_plane_kit.json: regenerated after test coverage grew.
+- docs/evidence/a1_round20_origin_main_baseline_20260708_124335.json: origin/main baseline evidence, passed=True, commit=f55c8baabdba, returncode=0.
+
+Official API calibration (private, ignored; env key only; no raw key logged):
+- Initial create-request --dry-run attempt failed because api_probe uses absence of --execute as dry-run; recorded as command failure, no private output produced.
+- Initial plan-batch --target-operation create-request failed because --request-file is required; recorded as command failure, no private output produced.
+- Initial request config written by PowerShell included UTF-8 BOM and api_probe rejected it; corrected with no-BOM writer.
+- docs/evidence/private_refs/a1_round20_real_health_20260708_124059.json status ok, response keys db,message,status.
+- docs/evidence/private_refs/a1_round20_real_list_requests_20260708_124059.json status ok, response keys _user,next_cursor,requests,status.
+- docs/evidence/private_refs/a1_round20_real_list_runs_20260708_124059.json status ok, response keys _user,runs,status.
+- docs/evidence/private_refs/a1_round20_real_list_datasets_20260708_124059.json status ok, response keys _user,datasets,next_cursor,status.
+- docs/evidence/private_refs/a1_round20_dry_create_request_text_20260708_124212.json status planned for text-only create-request.
+- docs/evidence/private_refs/a1_round20_plan_batch_create_request_20260708_124212.json status blocked quota-gate plan for bounded create-request.
+
+Validation:
+- python -B -m py_compile services/api/control_plane.py services/api/platform.py services/api/db_migrator.py services/api/release_gate_bridge.py services/api/__init__.py: passed.
+- python -B -m pytest tests/a1/test_saas_control_plane_http.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_saas_platform.py -q -p no:cacheprovider: 11 passed.
+- python -B -m pytest tests/a1/test_capability_matrix.py -q -p no:cacheprovider: 4 passed after regenerating capability matrix.
+- python -B -m pytest tests/a1/test_commercial_control_plane.py tests/a1/test_capability_matrix.py -q -p no:cacheprovider: 7 passed after regenerating control-plane kit.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 270 passed.
+- npm test --prefix packages/ts/ashr-clone: 188 passed.
+- python -B tests/a1/origin_main_baseline.py --ref origin/main --output docs/evidence/a1_round20_origin_main_baseline_20260708_124335.json: passed; origin/main A1 baseline recorded.
+- git diff --check: passed during integrated validation.
+
+Known gaps / next round:
+1. Execute a bounded official text-only mutating small batch only after reviewing the quota gate record and recording expected cost.
+2. Make release-gate route use durable request storage and idempotency persistence across service restarts.
+3. Back audit-log and rate limits with DB storage instead of in-memory maps.
+4. Add webhook retry/dead-letter durable queue.
+5. Add Docker/dev service profile for API + worker + sqlite/postgres.
+6. Add TS parity for release evidence packet and Postgres migrator metadata if applicable.
+7. Add OpenAPI snapshot tests for hosted release-gate/audit routes.
+8. Extend dashboard DTOs from synthetic public fixture into runtime response adapters.
+9. Add one-time secret non-replay after verify/reveal.
+10. Add buyer-facing A1 SaaS readiness packet document.
+
+## Round20 TS parity surge - 2026-07-08
+
+Goal / user interrupt:
+- User required TS test/capability volume to catch Python A1, explicitly asking to move from 188 toward/above 270 immediately.
+- Continued on codex/a1-local-sdk-runner after git fetch/status; origin A3 branch update observed, no A1 peer code pulled into this branch. Long-lived recon/**, tools/**, and private_refs/** remain excluded from staging.
+
+Implemented TS parity surface:
+- packages/ts/ashr-clone/package.json: exposed ashr-clone-saas bin.
+- packages/ts/ashr-clone/src/saas.ts: added release gate evaluator, audit snapshot, release evidence packet, hosted routes, OpenAPI paths, local/HTTP client methods, CLI commands, GET query transport handling already verified, and write:runs/runs:write alias parity for sdk-submit.
+- packages/ts/ashr-clone/test/saas-release-parity.test.mjs: added release gate/audit/evidence/CLI/HTTP/OpenAPI/state/redaction coverage.
+- packages/ts/ashr-clone/test/runner-trace-dataset-parity.test.mjs: added adapter, runner, trace VM stream, run fixture, and dataset-source contract coverage.
+- packages/ts/ashr-clone/test/saas-edge-parity.test.mjs: added scope alias, revoke, idempotency, rate limit, state integrity, router, HTTP transport, usage, audit, release evidence, and CLI negative path coverage.
+
+Validation:
+- npm test --prefix packages/ts/ashr-clone: 272 passed. Previous Round20 TS baseline was 188 passed, so TS now exceeds Python A1 count target by 2.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider: 270 passed.
+
+Evidence / outputs:
+- TS release evidence packet remains local_only=true, ashr_api_used=false, raw payloads and secret hashes excluded.
+- Hosted router paths now include POST /v1/projects/{project_id}/runs/{run_id}/release-gate, GET /v1/projects/{project_id}/runs/{run_id}/release-evidence, and GET /v1/projects/{project_id}/audit-log.
+
+Known follow-up gaps discovered during TS surge:
+1. AgentAdapter.respondInput intentionally forces request style, so custom keyword style applies through respond(); a future implementation can expose keyword-style request input explicitly if Python parity requires it.
+2. Runner text extraction does not yet recursively unwrap OpenAI-style content parts nested under choices[0].message.content arrays in every path; current contract supports direct message.content strings and AgentInput parts.
+
+Next candidates:
+- Add TS platform/migrator/capability-matrix builders if the next parity push must go beyond count parity into module parity.
+- Extend official API calibration records for release gate/audit-like hosted behavior where official endpoints expose comparable fields, using env-only keys and private_refs output.
+
+## Round20 Growth-Auditor follow-up - 2026-07-08
+
+Growth-Auditor verdict:
+- Go after final hygiene checks.
+- Commercial value added: TS SaaS release gate, audit log, release evidence packet, API key lifecycle, usage/rate limit/idempotency, hosted router/OpenAPI, ashr-clone-saas bin, and runner/trace/dataset parity tests.
+- Toy risks called out: local deterministic release gate, local state rate-limit/idempotency, broad OpenAPI schemas, body/query tenant binding, no hosted durability proof yet.
+- Required follow-up checks: git diff --check, npm test, python A1, npm pack dry-run, intentional staging allowlist.
+
+Additional validation:
+- npm pack --dry-run --prefix packages/ts/ashr-clone failed because this npm invocation looked for repo-root package.json. Retried from packages/ts/ashr-clone.
+- (cd packages/ts/ashr-clone && npm pack --dry-run): passed; package contents include dist/saas.js, dist/saas.d.ts, package.json bin, src/saas.ts, and new TS tests. Total files 72, package size 225.8 kB.
+
+Staging policy for commit:
+- Include A1 owned code/docs/tests and new public fixtures/evidence.
+- Exclude recon/**, tools/**, docs/evidence/private_refs/**, and any private key material.

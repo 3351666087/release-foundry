@@ -8,6 +8,7 @@ from urllib.parse import parse_qs
 from uuid import uuid4
 
 from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _utc_now
+from .release_gate_bridge import LocalReleaseGateBridgeClient, evaluate_lifecycle_with_release_gate
 
 CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1"
 API_KEY_ADMIN_SCOPE = "api_key:write"
@@ -80,9 +81,19 @@ class SaaSControlPlaneService:
     trace ingestion, quota ledger integration, and tenant/project/run lifecycle.
     """
 
-    def __init__(self, cloud: CloudApiService | None = None, *, store: SaaSControlPlaneStore | None = None) -> None:
+    def __init__(
+        self,
+        cloud: CloudApiService | None = None,
+        *,
+        store: SaaSControlPlaneStore | None = None,
+        release_gate_evaluator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    ) -> None:
         self.cloud = cloud or CloudApiService()
         self.store = store or SaaSControlPlaneStore()
+        self.release_gate_client = LocalReleaseGateBridgeClient(release_gate_evaluator or _deterministic_release_gate_evaluator)
+
+    def register_release_gate_evaluator(self, evaluator: Callable[[Mapping[str, Any]], Mapping[str, Any]]) -> None:
+        self.release_gate_client = LocalReleaseGateBridgeClient(evaluator)
 
     def bootstrap_project(self, *, tenant_name: str, project_name: str, tenant_id: str | None = None, project_id: str | None = None) -> JsonDict:
         tenant = self.cloud.create_tenant(tenant_name, tenant_id=tenant_id)
@@ -337,12 +348,51 @@ class SaaSControlPlaneService:
             totals[operation] = totals.get(operation, 0) + int(event.get("units", 0))
         return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "events": _jsonable(events), "totals": totals, "quota": self.cloud.quota_snapshot(tenant_id, project_id)}
 
-    def audit_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+    def audit_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, action: str | None = None, target_id: str | None = None, api_key_id: str | None = None, limit: int | None = None) -> JsonDict:
         self.cloud.get_project(tenant_id, project_id)
         if auth_key_id is not None:
             self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=AUDIT_READ_SCOPE)
         events = [item for item in self.store.audit_log.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
-        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "events": _jsonable(events)}
+        if action is not None:
+            events = [item for item in events if item.get("action") == str(action)]
+        if target_id is not None:
+            events = [item for item in events if item.get("target_id") == str(target_id)]
+        if api_key_id is not None:
+            events = [item for item in events if item.get("api_key_id") == str(api_key_id)]
+        events = sorted(events, key=lambda item: str(item.get("created_at") or ""))
+        if limit is not None:
+            if limit <= 0:
+                raise ValidationError("audit log limit must be positive")
+            events = events[-int(limit) :]
+        return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "filters": {"action": action, "target_id": target_id, "api_key_id": api_key_id, "limit": limit}, "events": _jsonable(events)}
+
+    def evaluate_release_gate(self, tenant_id: str, project_id: str, run_id: str, *, policy: Mapping[str, Any] | None = None, auth_key_id: str | None = None, request_id: str | None = None, idempotency_key: str | None = None, timeout_seconds: float = 5.0) -> JsonDict:
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope="release_gate:evaluate")
+        lifecycle = self.lifecycle_snapshot(tenant_id, project_id, run_id)
+        result = evaluate_lifecycle_with_release_gate(
+            self.release_gate_client,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            run_id=run_id,
+            lifecycle=lifecycle,
+            policy=policy,
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+            timeout_seconds=timeout_seconds,
+        )
+        grade = result.get("grade_result") if isinstance(result.get("grade_result"), Mapping) else {}
+        self._append_audit(
+            tenant_id,
+            project_id,
+            "release_gate.evaluate",
+            target_id=run_id,
+            api_key_id=auth_key_id,
+            idempotency_key=str(result.get("idempotency_key")) if result.get("idempotency_key") is not None else idempotency_key,
+            request_id=str(result.get("request_id")) if result.get("request_id") is not None else request_id,
+            after={"passed": grade.get("passed"), "score": grade.get("score"), "label": grade.get("label"), "transport": result.get("transport")},
+        )
+        return _jsonable({**result, "schema_version": CONTROL_PLANE_SCHEMA_VERSION, "local_only": True, "ashr_api_used": False})
 
 
     def _consume_usage(self, tenant_id: str, project_id: str, operation: str, *, units: int = 1, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, run_id: str | None = None) -> JsonDict:
@@ -487,6 +537,28 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
     }
 
 
+def _deterministic_release_gate_evaluator(payload: Mapping[str, Any]) -> JsonDict:
+    lifecycle = payload.get("inputs") if isinstance(payload.get("inputs"), Mapping) else {}
+    policy = payload.get("policy") if isinstance(payload.get("policy"), Mapping) else {}
+    minimum_uploads = int(policy.get("minimum_uploads", 1) if policy.get("minimum_uploads") is not None else 1)
+    minimum_trace_batches = int(policy.get("minimum_trace_batches", 1) if policy.get("minimum_trace_batches") is not None else 1)
+    run_status = str(lifecycle.get("run_status") or "")
+    upload_count = int(lifecycle.get("upload_count") or 0)
+    trace_batch_count = int(lifecycle.get("trace_batch_count") or 0)
+    passed = run_status in {"queued", "running", "completed", "succeeded", "accepted"} and upload_count >= minimum_uploads and trace_batch_count >= minimum_trace_batches
+    score = 1.0 if passed else 0.0
+    return {
+        "scenario_id": str(payload.get("run_id") or lifecycle.get("run_id") or "local_release_gate"),
+        "passed": passed,
+        "score": score,
+        "label": "release_gate_pass" if passed else "release_gate_hold",
+        "reason": "Local deterministic release gate accepted lifecycle evidence" if passed else "Local deterministic release gate requires uploaded run evidence",
+        "expected": {"minimum_uploads": minimum_uploads, "minimum_trace_batches": minimum_trace_batches},
+        "actual": {"run_status": run_status, "upload_count": upload_count, "trace_batch_count": trace_batch_count},
+        "metrics": {"target_contract": payload.get("target_contract"), "evaluator": "local_deterministic_stub"},
+    }
+
+
 CONTROL_PLANE_OPENAPI_VERSION = "3.0.3"
 
 
@@ -572,6 +644,9 @@ def control_plane_openapi_document() -> JsonDict:
             "/v1/projects/{project_id}/api-keys/rate-limits": {
                 "get": {"summary": "List per-key operation rate-limit buckets", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
             },
+            "/v1/projects/{project_id}/audit-log": {
+                "get": {"summary": "Query public-safe audit events for API-key, rate-limit, ingestion, and release-gate actions", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
             "/v1/projects/{project_id}/sdk-submit": {
                 "post": {"summary": "Submit a run through the SDK control-plane surface", "requestBody": json_request, "responses": {"202": json_response, "400": json_response, "404": json_response}}
             },
@@ -583,6 +658,9 @@ def control_plane_openapi_document() -> JsonDict:
             },
             "/v1/projects/{project_id}/runs/{run_id}/lifecycle": {
                 "get": {"summary": "Fetch project/run lifecycle snapshot", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
+            },
+            "/v1/projects/{project_id}/runs/{run_id}/release-gate": {
+                "post": {"summary": "Evaluate the local release gate from the lifecycle snapshot", "requestBody": json_request, "responses": {"200": json_response, "400": json_response, "404": json_response}}
             },
         },
     }
@@ -760,6 +838,9 @@ class SaaSControlPlaneRouter:
                     return {"status_code": 200, "body": self.service.configure_api_key_rate_limit(tenant_id, project_id, key_id=parts[4], operation=str(body.get("operation") or "*"), limit=int(body.get("limit") or 0), period=str(body.get("period") or "local-window"), auth_key_id=auth_key_id)}
                 if method == "GET" and len(parts) == 5 and parts[3] == "api-keys" and parts[4] == "rate-limits":
                     return {"status_code": 200, "body": self.service.api_key_rate_limit_snapshot(tenant_id, project_id, key_id=body.get("key_id"))}
+                if method == "GET" and len(parts) == 4 and parts[3] == "audit-log":
+                    limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
+                    return {"status_code": 200, "body": self.service.audit_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=body.get("action"), target_id=body.get("target_id"), api_key_id=body.get("audit_api_key_id"), limit=limit)}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                 if len(parts) >= 6 and parts[3] == "runs":
@@ -772,6 +853,10 @@ class SaaSControlPlaneRouter:
                         return {"status_code": 202, "body": self.service.ingest_trace(tenant_id, project_id, run_id, observations, batch_id=body.get("batch_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                     if method == "GET" and len(parts) == 6 and parts[5] == "lifecycle":
                         return {"status_code": 200, "body": self.service.lifecycle_snapshot(tenant_id, project_id, run_id)}
+                    if method == "POST" and len(parts) == 6 and parts[5] == "release-gate":
+                        policy = body.get("policy") if isinstance(body.get("policy"), Mapping) else None
+                        timeout_seconds = float(body.get("timeout_seconds") or 5.0)
+                        return {"status_code": 200, "body": self.service.evaluate_release_gate(tenant_id, project_id, run_id, policy=policy, auth_key_id=auth_key_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"), timeout_seconds=timeout_seconds)}
             raise ValidationError(f"unsupported route: {method} {path}")
         except Exception as exc:  # Public-safe local router envelope.
             code = getattr(exc, "code", "validation_error")

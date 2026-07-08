@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { SaaSControlPlaneRouter, SaaSControlPlaneService, SaaSIngestionClient, CONTROL_PLANE_SCHEMA_VERSION } from "../dist/saas.js";
 
@@ -232,3 +236,101 @@ test("TS SaaS artifact manifests and usage parity are redacted and idempotent", 
   const usage = service.usageSnapshot("tenant_ts_artifact", "project_ts_artifact");
   assert.equal(usage.totals["artifact.manifest"], 1);
 });
+
+test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "ashr-ts-saas-cli-"));
+  try {
+    const inputState = join(tempDir, "state-input.json");
+    const stateAfterCreate = join(tempDir, "state-create.json");
+    const stateAfterRate = join(tempDir, "state-rate.json");
+    const service = new SaaSControlPlaneService();
+    service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_cli", projectId: "project_ts_cli" });
+    await writeFile(inputState, `${JSON.stringify(service.snapshotState(), null, 2)}\n`, "utf8");
+
+    const created = runSaasCli([
+      "--state-input", inputState,
+      "--state-output", stateAfterCreate,
+      "api-key-create",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+      "--name", "cli key",
+      "--scope", "sdk:submit",
+      "--scope", "run:upload",
+      "--key-id", "key_ts_cli",
+      "--reveal-secret",
+    ]);
+    assert.equal(created.operation, "create_api_key");
+    assert.equal(created.result.key_id, "key_ts_cli");
+    assert.equal(created.result.secret_value_present, true);
+    assert.equal(created.result.one_time_secret_displayed, true);
+    assert.equal(JSON.stringify(created).includes("secret_hash_sha256"), false);
+    const secret = created.result.one_time_secret;
+    assert.equal(typeof secret, "string");
+    assert.equal(secret.startsWith("ashr_local_key_ts_cli_"), true);
+
+    const listed = runSaasCli([
+      "--state-input", stateAfterCreate,
+      "api-key-list",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+    ]);
+    assert.equal(listed.operation, "list_api_keys");
+    assert.equal(listed.result.api_keys[0].secret_value_present, false);
+    assert.equal(JSON.stringify(listed).includes(secret), false);
+    assert.equal(JSON.stringify(listed).includes("secret_hash_sha256"), false);
+
+    const verified = runSaasCli([
+      "--state-input", stateAfterCreate,
+      "api-key-verify",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+      "--key-id", "key_ts_cli",
+      "--secret", secret,
+      "--scope", "sdk:submit",
+    ]);
+    assert.equal(verified.operation, "verify_api_key_secret");
+    assert.equal(verified.result.authenticated, true);
+    assert.equal(verified.result.secret_value_present, false);
+
+    const bucket = runSaasCli([
+      "--state-input", stateAfterCreate,
+      "--state-output", stateAfterRate,
+      "api-key-rate-limit",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+      "--key-id", "key_ts_cli",
+      "--operation", "sdk:submit",
+      "--limit", "3",
+      "--period", "minute",
+    ]);
+    assert.equal(bucket.operation, "configure_api_key_rate_limit");
+    assert.equal(bucket.result.operation, "sdk:submit");
+    assert.equal(bucket.result.limit, 3);
+    assert.equal(bucket.result.period, "minute");
+
+    const snapshot = runSaasCli([
+      "--state-input", stateAfterRate,
+      "api-key-rate-limits",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+    ]);
+    assert.equal(snapshot.operation, "api_key_rate_limit_snapshot");
+    assert.equal(snapshot.result.rate_limits.length, 1);
+    assert.equal(snapshot.result.rate_limits[0].key_id, "key_ts_cli");
+    assert.equal(snapshot.result.rate_limits[0].remaining, 3);
+
+    const persisted = JSON.parse(await readFile(stateAfterRate, "utf8"));
+    assert.equal(Object.keys(persisted.control_plane.api_key_rate_limits).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+function runSaasCli(args) {
+  const child = spawnSync(process.execPath, ["dist/saas.js", ...args], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+  });
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  return JSON.parse(child.stdout);
+}

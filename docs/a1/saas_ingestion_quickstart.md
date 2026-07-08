@@ -1,4 +1,4 @@
-# A1 SaaS ingestion SDK/CLI quickstart
+﻿# A1 SaaS ingestion SDK/CLI quickstart
 
 This quickstart exercises the local A1 SaaS ingestion/control-plane client. It is intentionally local-only: do **not** set or paste real API keys. The client uses public `api_key_id` handles for scoped local auth checks and stores only redacted key metadata plus secret digests in local state.
 
@@ -109,9 +109,30 @@ server = serve_control_plane_http("127.0.0.1", 8080)
 server.serve_forever()
 ```
 
-Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, key secret verification, per-key rate limits, SDK submit, run upload, trace ingestion, and lifecycle snapshots. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
+Public endpoints include `GET /healthz`, `GET /openapi.json`, and the existing `/v1/projects/{project_id}/...` ingestion routes for API key handles, key secret verification, per-key rate limits, SDK submit, run upload, trace ingestion, and lifecycle snapshots. Round20 adds `POST /v1/projects/{project_id}/runs/{run_id}/release-gate`, which evaluates the lifecycle snapshot through a registered local release-gate evaluator or the deterministic local stub, and `GET /v1/projects/{project_id}/audit-log`, which queries public-safe audit events for API-key, rate-limit, ingestion, and release-gate actions. The adapter never reads `ASHR_API_KEY`; auth remains the local `api_key_id` handle contract.
+
+Example local HTTP release-gate and audit calls:
+
+```powershell
+$body = @{ tenant_id = "tenant_cli"; api_key_id = "key_cli_gate"; request_id = "req_cli_gate"; idempotency_key = "idem_cli_gate"; policy = @{ minimum_uploads = 1; minimum_trace_batches = 1 } } | ConvertTo-Json -Depth 8
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8080/v1/projects/project_cli/runs/run_cli/release-gate" -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8080/v1/projects/project_cli/audit-log?tenant_id=tenant_cli&api_key_id=key_cli_gate&action=release_gate.evaluate&target_id=run_cli"
+```
 
 The Python SDK can target the hosted adapter with `SaaSIngestionClient.from_base_url("http://127.0.0.1:8080")`, and the CLI accepts `--base-url` for HTTP JSON transport. `--base-url` is intentionally mutually exclusive with local state file read/write flags.
+
+
+## Release evidence packet
+
+Round20 adds `build_release_evidence_packet(...)` for the commercial release-review loop. It accepts a lifecycle snapshot, artifact manifest, release-gate result, webhook delivery summary, and usage rollup, then emits a public-safe bundle with counts, hashes, usage totals, release-gate status, and an integrity digest. The packet intentionally omits raw run payloads, trace bodies, webhook secrets, and official API private evidence.
+
+Expected flow:
+
+```text
+SDK submit -> run upload -> trace ingest -> artifact manifest -> release gate -> webhook delivery -> release evidence packet
+```
+
+This packet is shaped for A3 review surfaces and enterprise audit export while keeping A2 judge semantics outside A1.
 
 ## SaaS platform primitives
 

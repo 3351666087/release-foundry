@@ -276,3 +276,94 @@ def release_gate_bridge_payload(*, tenant_id: str, project_id: str, run_id: str,
         "raw_payload_included": False,
         "created_at": _utc_now(),
     }
+
+
+def build_release_evidence_packet(
+    *,
+    tenant_id: str,
+    project_id: str,
+    run_id: str,
+    lifecycle: Mapping[str, Any],
+    artifact_manifest: Mapping[str, Any] | None = None,
+    release_gate_result: Mapping[str, Any] | None = None,
+    webhook_delivery: Mapping[str, Any] | None = None,
+    billing_rollup: Mapping[str, Any] | None = None,
+    packet_id: str | None = None,
+) -> JsonDict:
+    """Build a public-safe release evidence packet for A1/A2/A3 handoff.
+
+    The packet is a hash-only bundle: it records run lifecycle counts, artifact
+    hashes, release-gate status, webhook delivery hashes, and usage totals while
+    intentionally omitting raw run payloads, trace bodies, webhook secrets, and
+    private official API responses.
+    """
+
+    uploads = _list_or_empty(lifecycle.get("uploads"))
+    trace_batches = _list_or_empty(lifecycle.get("trace_batches"))
+    artifacts = _list_or_empty((artifact_manifest or {}).get("artifacts"))
+    deliveries = _list_or_empty((webhook_delivery or {}).get("deliveries"))
+    gate = _jsonable(dict(release_gate_result or {}))
+    rollup = _jsonable(dict(billing_rollup or {}))
+    evidence_items = []
+    for artifact in artifacts:
+        evidence_items.append(
+            {
+                "kind": "artifact",
+                "id": artifact.get("artifact_id"),
+                "sha256": artifact.get("sha256"),
+                "content_type": artifact.get("content_type"),
+                "size_bytes": artifact.get("size_bytes"),
+                "redaction_status": artifact.get("redaction_status"),
+            }
+        )
+    for upload in uploads:
+        evidence_items.append({"kind": "run_upload", "id": upload.get("upload_id"), "sha256": upload.get("payload_sha256"), "status": upload.get("status")})
+    for batch in trace_batches:
+        evidence_items.append({"kind": "trace_batch", "id": batch.get("batch_id"), "observation_count": batch.get("observation_count"), "status": batch.get("status")})
+    for delivery in deliveries:
+        evidence_items.append({"kind": "webhook_delivery", "id": delivery.get("delivery_id"), "sha256": delivery.get("payload_sha256"), "status": delivery.get("status")})
+
+    payload = {
+        "schema_version": "ashr.clone.release_evidence_packet.v1",
+        "packet_id": packet_id or _new_id("evidence_packet"),
+        "tenant_id": str(tenant_id),
+        "project_id": str(project_id),
+        "run_id": str(run_id),
+        "run_status": lifecycle.get("run_status"),
+        "counts": {
+            "uploads": len(uploads),
+            "trace_batches": len(trace_batches),
+            "artifacts": len(artifacts),
+            "webhook_deliveries": len(deliveries),
+        },
+        "release_gate": _release_gate_summary(gate),
+        "usage": {
+            "billing_period": rollup.get("billing_period"),
+            "operation_totals": rollup.get("operation_totals", {}),
+            "billable_units": rollup.get("billable_units", 0),
+        },
+        "evidence_items": _jsonable(evidence_items),
+        "raw_payload_included": False,
+        "secret_value_present": False,
+        "ashr_api_used": False,
+        "created_at": _utc_now(),
+    }
+    payload["integrity"] = {"packet_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
+    return _jsonable(payload)
+
+
+def _list_or_empty(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, list) else []
+
+
+def _release_gate_summary(gate: Mapping[str, Any]) -> JsonDict:
+    grade = gate.get("grade_result") if isinstance(gate.get("grade_result"), Mapping) else gate
+    return {
+        "target_contract": gate.get("target_contract") or "A2.release_gate.evaluate",
+        "request_id": gate.get("request_id"),
+        "idempotency_key": gate.get("idempotency_key"),
+        "passed": grade.get("passed") if isinstance(grade, Mapping) else None,
+        "score": grade.get("score") if isinstance(grade, Mapping) else None,
+        "label": grade.get("label") if isinstance(grade, Mapping) else None,
+        "raw_payload_included": False,
+    }

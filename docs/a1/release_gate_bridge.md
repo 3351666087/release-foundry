@@ -71,6 +71,54 @@ result = evaluate_lifecycle_with_release_gate(
 
 The local client caches successful results by `idempotency_key`, so retries do not call the evaluator again.
 
+## Control-plane HTTP route
+
+Round20 exposes release-gate evaluation as a first-class local control-plane route:
+
+```http
+POST /v1/projects/{project_id}/runs/{run_id}/release-gate
+```
+
+Request body/query fields:
+
+```json
+{
+  "tenant_id": "tenant_1",
+  "api_key_id": "key_release_gate",
+  "request_id": "req_123",
+  "idempotency_key": "idem_123",
+  "timeout_seconds": 5,
+  "policy": {"minimum_uploads": 1, "minimum_trace_batches": 1}
+}
+```
+
+The route reads the run lifecycle snapshot, converts it through `lifecycle_to_release_gate_request(...)`, and evaluates it with a registered `LocalReleaseGateBridgeClient` evaluator. If no evaluator is registered, the control plane uses a deterministic local stub that gates only on public lifecycle counts (`upload_count`, `trace_batch_count`) and run status. It does not import A2 judge code, call hosted Ashr APIs, or expose raw lifecycle payloads.
+
+Successful responses keep the normalized bridge envelope and add local control-plane metadata:
+
+```json
+{
+  "schema_version": "ashr.clone.saas_control_plane.v1",
+  "target_contract": "A2.release_gate.evaluate",
+  "transport": "local_callable",
+  "local_only": true,
+  "ashr_api_used": false,
+  "grade_result": {"passed": true, "score": 1.0}
+}
+```
+
+Each evaluation appends a public-safe `release_gate.evaluate` audit event keyed by the run id, request id, and idempotency key.
+
+## Audit query route
+
+Audit events for API-key lifecycle, per-key rate-limit configuration, ingestion, and release-gate evaluation are available through:
+
+```http
+GET /v1/projects/{project_id}/audit-log?tenant_id=tenant_1&action=release_gate.evaluate&target_id=run_1&limit=20
+```
+
+The route accepts `auth_key_id`/`api_key_id` for `audit:read` enforcement, `action`, `target_id`, `audit_api_key_id`, and `limit`. Events include hashes of before/after payloads only; raw secrets, raw uploaded results, and raw trace payloads are not returned.
+
 ## HTTP client
 
 ```python

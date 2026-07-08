@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 
@@ -9,6 +9,7 @@ from services.api.platform import (
     PLATFORM_SCHEMA_VERSION,
     LocalObjectStore,
     WebhookRegistry,
+    build_release_evidence_packet,
     platform_schema_manifest,
     platform_sql_migration_text,
     release_gate_bridge_payload,
@@ -130,3 +131,52 @@ def test_usage_rollup_and_release_gate_bridge_payload():
     assert bridge["decision_hint"] == "pass"
     assert bridge["inputs"]["upload_count"] == 1
     assert bridge["inputs"]["trace_batch_count"] == 1
+
+def test_release_evidence_packet_closes_run_gate_webhook_loop_without_raw_payload():
+    control = SaaSControlPlaneService()
+    control.bootstrap_project(tenant_name="Tenant", project_name="Project", tenant_id="tenant_packet", project_id="project_packet")
+    control.cloud.create_dataset("tenant_packet", "project_packet", name="Dataset", dataset_id="dataset_packet", cases=[{"id": "case-1"}])
+    control.create_api_key("tenant_packet", "project_packet", name="CI", scopes=["sdk:submit", "run:upload", "trace:ingest"], key_id="key_packet")
+    submitted = control.sdk_submit_run("tenant_packet", "project_packet", dataset_id="dataset_packet", agent_ref="mock", run_id="run_packet", api_key_id="key_packet")
+    control.upload_run_result("tenant_packet", "project_packet", submitted["run"]["run_id"], {"status": "completed", "api_key": "tp_should_not_leak"}, upload_id="upload_packet", api_key_id="key_packet")
+    control.ingest_trace("tenant_packet", "project_packet", submitted["run"]["run_id"], [{"observation_id": "obs_packet", "content": "customer secret"}], batch_id="trace_packet", api_key_id="key_packet")
+
+    store = LocalObjectStore()
+    artifact = store.put_artifact(
+        tenant_id="tenant_packet",
+        project_id="project_packet",
+        run_id="run_packet",
+        content=b"private artifact payload",
+        content_type="application/json",
+        artifact_id="artifact_packet",
+        redaction_status="hash_only",
+    )
+    registry = WebhookRegistry()
+    registry.register_endpoint(tenant_id="tenant_packet", project_id="project_packet", url="https://example.invalid/webhook", events=["release_gate.evaluated"], webhook_id="webhook_packet")
+    delivery = registry.deliver(tenant_id="tenant_packet", project_id="project_packet", event_type="release_gate.evaluated", payload={"run_id": "run_packet", "api_key": "tp_delivery_secret"})
+    lifecycle = control.lifecycle_snapshot("tenant_packet", "project_packet", "run_packet")
+    rollup = usage_billing_rollup(list(control.store.usage_ledger.values()), tenant_id="tenant_packet", project_id="project_packet", billing_period="2026-07")
+    packet = build_release_evidence_packet(
+        tenant_id="tenant_packet",
+        project_id="project_packet",
+        run_id="run_packet",
+        lifecycle=lifecycle,
+        artifact_manifest=store.public_manifest("tenant_packet", "project_packet"),
+        release_gate_result={"request_id": "req_packet", "grade_result": {"passed": True, "score": 1.0, "label": "release_gate_pass"}},
+        webhook_delivery=delivery,
+        billing_rollup=rollup,
+        packet_id="packet_round20",
+    )
+
+    text = json.dumps(packet, sort_keys=True)
+    assert packet["packet_id"] == "packet_round20"
+    assert packet["counts"] == {"uploads": 1, "trace_batches": 1, "artifacts": 1, "webhook_deliveries": 1}
+    assert packet["release_gate"]["passed"] is True
+    assert packet["usage"]["operation_totals"]["sdk.submit"] == 1
+    assert packet["evidence_items"][0]["sha256"] == artifact["sha256"]
+    assert packet["integrity"]["packet_sha256"]
+    assert packet["raw_payload_included"] is False
+    assert "tp_should_not_leak" not in text
+    assert "tp_delivery_secret" not in text
+    assert "private artifact payload" not in text
+    assert "customer secret" not in text
