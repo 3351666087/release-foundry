@@ -47,6 +47,15 @@
 - [x] Tests verify dashboard release evidence wiring.
 - [x] GitHub publish receipts remain clearly labeled as dry-run / not posted.
 - [x] No real Ashr, GitHub, billing, auth, or cloud mutation API was called in this display round.
+- [x] API-backed dashboard payload includes sanitized `release_evidence_summary`.
+- [x] Added `GET /api/a3/releases/:releaseId/evidence-summary` response contract.
+- [x] Hosted reports include immutable `release_evidence_snapshot` metadata.
+- [x] Hosted report HTML renders Release Evidence only for active/shareable reports.
+- [x] Denied hosted report pages still do not render report body or case evidence.
+- [x] Report Center manifest includes `release_evidence_summary` artifact evidence.
+- [x] Artifact Registry treats `release_evidence_summary` as a first-class report artifact.
+- [x] SQL migration contract includes `release_evidence_summaries`.
+- [x] SQLite-backed A3 store persists release evidence summary rows.
 
 ## P3 Ashr Calibration
 
@@ -458,3 +467,6 @@
 - [x] Keep GitHub publish evidence downstream of A3 delivery; do not mix it into A1 run inputs or A2 judge inputs.
 - [x] Refresh stale committed Gate CLI/audit-bundle fixtures after latest `main` conflict-resolution artifact changes.
 - [x] Verify A3 Gate CLI after GitHub publish evidence sealing: 21 pass, 0 fail.
+- [x] Move release evidence summary from static display into A3 store/API/hosted-report/Report Center/SQLite paths.
+- [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
+- [ ] Add tenant-scope negative tests for release evidence API after hosted auth/RBAC is available.

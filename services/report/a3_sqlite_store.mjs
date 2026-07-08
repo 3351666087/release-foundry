@@ -126,6 +126,7 @@ export function inspectSqliteA3Store(db) {
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
+      release_evidence_summaries: countRows(db, "release_evidence_summaries"),
       audit_events: countRows(db, "audit_events"),
       usage_ledger: countRows(db, "usage_ledger")
     },
@@ -206,6 +207,7 @@ function clearOperationalRows(db) {
     "audit_events",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
+    "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
     "api_import_receipts",
@@ -300,6 +302,27 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         item.score ?? null,
         item.primary_failure_class || "unknown",
         JSON.stringify(item)
+      );
+    }
+    const releaseEvidenceSummary = dashboard.release_evidence_summary || {};
+    if (releaseEvidenceSummary.available === true) {
+      const releaseId = dashboard.release_evidence_api?.release_id || `${source}-release`;
+      const summaryHash = sha256(JSON.stringify(releaseEvidenceSummary));
+      db.prepare(`
+INSERT INTO release_evidence_summaries (id, organization_id, project_id, release_id, source, summary_schema_version, overall_status, summary_hash, payload, hosted_report_snapshot_id, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+        `res_${summaryHash.slice(0, 16)}`,
+        snapshot.organizationId || "org-local",
+        snapshot.projectId || "project-local",
+        releaseId,
+        source,
+        releaseEvidenceSummary.schema_version || "unknown",
+        releaseEvidenceSummary.overall_status || "unknown",
+        summaryHash,
+        JSON.stringify(releaseEvidenceSummary),
+        null,
+        updatedAt
       );
     }
   }

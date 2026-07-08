@@ -21,6 +21,16 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   const frontendFixture = inputs.frontendSummary || {};
   const frontendMirrorFixture = inputs.frontendMirror || {};
   const frontendCodeCrawlFixture = inputs.frontendCodeCrawl || {};
+  const productConsoleFixture = inputs.productConsole || inputs.product_console || {};
+  const saasAdminFixture = inputs.saasAdmin || inputs.saas_admin_console || {};
+  const a2ReadinessBundle = inputs.a2ReadinessBundle || inputs.a2_readiness_bundle || {};
+  const artifactRegistryFixture = inputs.artifactRegistry || inputs.artifact_registry || {};
+  const reviewWorkflowFixture = inputs.reviewWorkflow || inputs.review_workflow || {};
+  const releaseEvidenceFixture = inputs.releaseEvidence
+    || inputs.release_evidence
+    || inputs.releaseEvidenceSummary
+    || inputs.release_evidence_summary
+    || {};
 
   const jsonReport = buildJsonReport(
     runFixture,
@@ -34,7 +44,13 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     authFixture,
     frontendFixture,
     frontendMirrorFixture,
-    frontendCodeCrawlFixture
+    frontendCodeCrawlFixture,
+    productConsoleFixture,
+    saasAdminFixture,
+    a2ReadinessBundle,
+    artifactRegistryFixture,
+    reviewWorkflowFixture,
+    releaseEvidenceFixture
   );
   const markdownReport = buildMarkdownReport(
     runFixture,
@@ -48,7 +64,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     authFixture,
     frontendFixture,
     frontendMirrorFixture,
-    frontendCodeCrawlFixture
+    frontendCodeCrawlFixture,
+    productConsoleFixture,
+    saasAdminFixture,
+    a2ReadinessBundle,
+    artifactRegistryFixture,
+    releaseEvidenceFixture
   );
 
   const safeEnvelope = redactExport({
@@ -63,6 +84,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     observability_replay_matrix: jsonReport.observability_replay_matrix,
     regression_factory: jsonReport.regression_factory,
     export_redaction_firewall: jsonReport.export_redaction_firewall,
+    release_evidence_summary: jsonReport.release_evidence_summary,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -74,6 +96,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   const shareTokenHash = sha256(shareToken);
   const payloadHash = sha256(stableJson(safeEnvelope.value));
   const blocked = Boolean(safeEnvelope.blocked || jsonReport.export_redaction_firewall?.status === "blocked");
+  const releaseEvidenceSummary = safeEnvelope.value.release_evidence_summary || jsonReport.release_evidence_summary || {};
+  const releaseEvidenceSnapshot = buildReleaseEvidenceSnapshot(releaseEvidenceSummary, {
+    reportId,
+    source: options.source || inputs.source || "unknown",
+    createdAt
+  });
 
   return {
     schema_version: SHAREABLE_REPORT_SCHEMA_VERSION,
@@ -120,13 +148,17 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
       hosted_page_available: !blocked,
       pdf_export_ready: true,
       audit_bundle_ready: Boolean(jsonReport.release_workflow?.audit_bundle),
-      pr_comment_ready: Boolean(jsonReport.release_workflow?.pr_comment_markdown)
+      pr_comment_ready: Boolean(jsonReport.release_workflow?.pr_comment_markdown),
+      release_evidence_ready: releaseEvidenceSummary.available === true
     },
     artifacts: [
       artifactDescriptor("json_report", "application/json", jsonReport),
       artifactDescriptor("markdown_report", "text/markdown", markdownReport),
-      artifactDescriptor("hosted_report", "text/html", safeEnvelope.value)
+      artifactDescriptor("hosted_report", "text/html", safeEnvelope.value),
+      artifactDescriptor("release_evidence_summary", "application/json", releaseEvidenceSummary)
     ],
+    release_evidence_summary: releaseEvidenceSummary,
+    release_evidence_snapshot: releaseEvidenceSnapshot,
     sealed_evidence: {
       payload_hash: payloadHash,
       hash_algorithm: "sha256",
@@ -148,6 +180,7 @@ export function renderShareableReportHtml(report = {}) {
   const payload = report.payload || {};
   const summary = report.summary || payload.summary || {};
   const releaseGate = report.release_gate || payload.release_gate || {};
+  const releaseEvidence = report.release_evidence_summary || payload.release_evidence_summary || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
 
@@ -206,6 +239,8 @@ export function renderShareableReportHtml(report = {}) {
       </p>
       <p class="muted">${escapeHtml(releaseGate.summary || releaseGate.reason || "No release gate summary available.")}</p>
     </section>
+
+    ${renderReleaseEvidenceHtml(releaseEvidence)}
 
     <section style="margin-top: 20px;">
       <h2>Case Evidence</h2>
@@ -277,6 +312,47 @@ function artifactDescriptor(id, contentType, value) {
     sha256: sha256(typeof value === "string" ? value : stableJson(value)),
     redacted: true
   };
+}
+
+function buildReleaseEvidenceSnapshot(summary = {}, options = {}) {
+  const summaryHash = sha256(stableJson(summary || {}));
+  return {
+    schema_version: "a3.release_evidence_snapshot.v1",
+    snapshot_id: `resnap_${summaryHash.slice(0, 12)}`,
+    report_id: options.reportId || "unknown",
+    source: options.source || "unknown",
+    created_at: options.createdAt || null,
+    summary_hash: summaryHash,
+    summary_schema_version: summary.schema_version || "unknown",
+    immutable_in_hosted_report: true,
+    raw_fixture_exposed: false,
+    raw_request_body_exposed: false,
+    raw_share_token_exposed: false
+  };
+}
+
+function renderReleaseEvidenceHtml(releaseEvidence = {}) {
+  if (releaseEvidence.available !== true) {
+    return "";
+  }
+  const rows = [
+    ["Overall", releaseEvidence.overall_status || "unknown"],
+    ["GitHub Check", `${releaseEvidence.github_check_publish?.status || "unknown"} / dry-run ${releaseEvidence.github_check_publish?.dry_run ? "yes" : "no"} / posted ${releaseEvidence.github_check_publish?.posted ? "yes" : "no"}`],
+    ["PR Comment", `${releaseEvidence.github_pr_comment_publish?.status || "unknown"} / dry-run ${releaseEvidence.github_pr_comment_publish?.dry_run ? "yes" : "no"} / posted ${releaseEvidence.github_pr_comment_publish?.posted ? "yes" : "no"}`],
+    ["Required Check", `${releaseEvidence.github_required_check_plan?.check_name || "unknown"} / maintainer approval ${releaseEvidence.github_required_check_plan?.maintainer_approval_required ? "required" : "not required"}`],
+    ["Audit Bundle", `${releaseEvidence.audit_bundle_verification?.status || "unknown"} / root hash ${releaseEvidence.audit_bundle_verification?.root_hash_passed ? "pass" : "missing"}`],
+    ["Audit Archive", `${releaseEvidence.audit_archive_verification?.status || "unknown"} / signature ${releaseEvidence.audit_archive_verification?.signature_passed ? "pass" : "missing"}`],
+    ["Safety", `tokens ${releaseEvidence.safety?.token_included ? "included" : "not included"} / secrets ${releaseEvidence.safety?.contains_secret_values || releaseEvidence.safety?.secret_values_allowed ? "present" : "blocked"}`]
+  ];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Release Evidence</h2>
+      <p class="muted">${escapeHtml(releaseEvidence.commercial_value || "Release evidence is summarized for hosted review.")}</p>
+      <table>
+        <tbody>
+          ${rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </section>`;
 }
 
 function normalizeVisibility(value) {

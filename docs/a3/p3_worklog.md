@@ -1,5 +1,49 @@
 # P3 Worklog
 
+## 2026-07-08 - API-backed release evidence summary
+
+- Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the commercial SaaS roadmap.
+- Followed the team direction:
+  - static -> API-backed
+  - mock fixture -> DB-ready data
+  - report export -> shareable hosted report
+- Added A3 store loading for existing redacted release evidence fixtures.
+- Added sanitized `release_evidence_summary` to API-backed dashboard payloads.
+- Added release evidence API response support:
+  - `GET /api/a3/releases/:releaseId/evidence-summary`
+- Added immutable release evidence snapshots to shareable hosted reports.
+- Added hosted report HTML rendering for Release Evidence.
+- Added Report Center readiness fields for release evidence.
+- Added manifest artifact id `release_evidence_summary`.
+- Added Artifact Registry artifact type `release_evidence_summary`.
+- Added SQL migration table contract `release_evidence_summaries`.
+- Added SQLite persistence for release evidence summary rows.
+- Added documentation:
+  - `docs/a3/p3_api_backed_release_evidence_2026_07_08.md`
+  - `docs/a3/p3_growth_auditor_round_api_backed_release_evidence_2026_07_08.md`
+- Verification:
+  - `node --check services/report/a3_store.mjs`
+  - `node --check services/report/a3_shareable_report.mjs`
+  - `node --check services/report/a3_api_server.mjs`
+  - `node --check services/report/a3_sqlite_store.mjs`
+  - `node --check services/report/a3_sql_migrations.mjs`
+  - `node --test tests/a3/a3_store.test.mjs tests/a3/shareable_report.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/report_center_index.test.mjs tests/a3/report_center_manifest_contract.test.mjs tests/a3/artifact_registry.test.mjs`
+  - `node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")`
+  - `git diff --check`
+  - Result: focused 20 pass / 0 fail; full A3 single-threaded 167 pass / 0 fail; `git diff --check` had no whitespace errors beyond Windows LF/CRLF warnings.
+- Safety:
+  - Did not read or print `.env.local`.
+  - Confirmed `.env.local` is ignored.
+  - Did not call live Ashr APIs.
+  - Did not call live GitHub mutation APIs.
+  - Did not store API keys, tokens, cookies, account emails, raw share tokens, private keys, or live signed URLs.
+  - Secret scan matches were limited to intentional redaction-test strings in A3 tests.
+- Remaining follow-up:
+  - GitHub Check and PR comment readback are still not live-confirmed.
+  - Branch protection is still not configured.
+  - Release evidence summary is SQLite-backed locally, but not production Postgres-backed yet.
+  - Real tenant auth/RBAC enforcement is still future A1/A3 integration work.
+
 ## 2026-07-08 - Release evidence display for publish and verification records
 
 - Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the large-SaaS roadmap.

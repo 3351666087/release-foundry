@@ -80,6 +80,18 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url)));
       }
 
+      const releaseEvidenceMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-summary$/);
+      if (request.method === "GET" && releaseEvidenceMatch) {
+        const summary = await store.getReleaseEvidenceSummary(decodeURIComponent(releaseEvidenceMatch[1]), {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        });
+        return summary
+          ? sendJson(response, 200, summary)
+          : sendJson(response, 404, notFound("release_evidence", releaseEvidenceMatch[1]));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/admin/console") {
         return sendJson(response, 200, await store.getSaasAdminConsole({
           source: sourceFrom(url),

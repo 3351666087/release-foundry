@@ -1,5 +1,62 @@
 # A3 Worklog
 
+## 2026-07-08 - API-backed release evidence summary
+
+### Goal
+
+Continue A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` and move release evidence from a static display into the A3 API/store/hosted-report path.
+
+### Work completed
+
+- Loaded existing redacted release evidence fixtures at the A3 store boundary.
+- Added sanitized release evidence summary output to `/api/a3/dashboard`.
+- Added release evidence API response support for `GET /api/a3/releases/:releaseId/evidence-summary`.
+- Added immutable hosted report release evidence snapshots.
+- Added Release Evidence rendering to active hosted report HTML.
+- Kept denied hosted report pages body-free for revoked, expired, blocked, or missing links.
+- Added release evidence readiness to Report Center summaries and manifests.
+- Added `release_evidence_summary` as a first-class Artifact Registry report artifact.
+- Added `release_evidence_summaries` to the SQL migration contract.
+- Persisted release evidence summary rows in the SQLite-backed A3 store.
+- Added docs artifact:
+  - `docs/a3/p3_api_backed_release_evidence_2026_07_08.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, tool-call, and SDK semantics were not modified.
+- A2 judge, score, pass/fail, and failure taxonomy semantics were not modified.
+- Release evidence stays downstream of A1/A2 output and only packages A3 delivery evidence.
+
+### Verification
+
+```text
+node --check services/report/a3_store.mjs
+node --check services/report/a3_shareable_report.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_sqlite_store.mjs
+node --check services/report/a3_sql_migrations.mjs
+node --test tests/a3/a3_store.test.mjs tests/a3/shareable_report.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/report_center_index.test.mjs tests/a3/report_center_manifest_contract.test.mjs tests/a3/artifact_registry.test.mjs
+node --test --test-concurrency=1 (rg --files tests/a3 -g "*.test.mjs")
+git diff --check
+```
+
+Result:
+
+```text
+Focused: 20 pass, 0 fail
+Full A3 single-threaded: 167 pass, 0 fail
+diff --check: no whitespace errors; Windows LF/CRLF warnings only
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Confirmed `.env.local` is ignored.
+- Did not call live Ashr, GitHub, billing, hosted auth, or cloud mutation APIs.
+- Did not commit API keys, tokens, cookies, emails, raw share tokens, private keys, live signed URLs, or raw account values.
+- Secret scan matches were limited to intentional redaction-test strings in A3 tests.
+- GitHub publish evidence remains dry-run or locally redacted unless a future maintainer-approved live round is run.
+
 ## 2026-07-08 - Release Evidence Display In Dashboard And Reports
 
 ### Goal

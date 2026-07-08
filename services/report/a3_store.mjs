@@ -5,7 +5,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   buildDashboardSummary,
-  normalizeCases
+  normalizeCases,
+  summarizeReleaseEvidenceSummary
 } from "./report_builder.mjs";
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
@@ -114,6 +115,7 @@ export const A3_DB_CONTRACT = {
     "artifact_lifecycle_events",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "release_evidence_summaries",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -145,7 +147,8 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/usage/ledger",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
-    "GET /api/a3/artifacts/registry"
+    "GET /api/a3/artifacts/registry",
+    "GET /api/a3/releases/:releaseId/evidence-summary"
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
@@ -156,6 +159,14 @@ export const A3_DB_CONTRACT = {
 };
 
 const REPO_ROOT = new URL("../../", import.meta.url);
+
+const A3_RELEASE_EVIDENCE_FIXTURES = {
+  githubCheckPublishReceipt: "fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json",
+  githubPrCommentPublishReceipt: "fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json",
+  githubRequiredCheckPlan: "fixtures/a3/p3/a3_github_required_check_plan.redacted.json",
+  auditBundleVerification: "fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json",
+  auditArchiveVerification: "fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json"
+};
 
 export async function loadA3SourceSnapshot(source = "mock", options = {}) {
   const sourceKey = normalizeSourceKey(source);
@@ -197,6 +208,7 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     frontendSummary: await readOptionalJson(root, config.frontendSummary),
     frontendMirror: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json"),
     frontendCodeCrawl: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json"),
+    releaseEvidence: await readReleaseEvidenceFixtures(root),
     storage: {
       mode: "fixture_file",
       db_ready: true,
@@ -598,6 +610,19 @@ export function createMemoryA3Store(seed = {}) {
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId,
         durableStorageReady: true
+      });
+    },
+
+    async getReleaseEvidenceSummary(releaseId = "current", options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (!releaseEvidenceIdMatches(releaseId, canonicalReleaseId, snapshot)) {
+        return null;
+      }
+      return buildReleaseEvidenceApiResponse(snapshot, {
+        releaseId: canonicalReleaseId,
+        storageMode: this.storage_mode,
+        reports: [...reports.values()]
       });
     },
 
@@ -1045,6 +1070,7 @@ function normalizeSnapshot(snapshot = {}) {
     frontendSummary: snapshot.frontendSummary || {},
     frontendMirror: snapshot.frontendMirror || {},
     frontendCodeCrawl: snapshot.frontendCodeCrawl || {},
+    releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -1056,6 +1082,7 @@ function normalizeSnapshot(snapshot = {}) {
 
 function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
+  const releaseEvidenceSummary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
   const usageLedger = buildA3UsageLedger(snapshot, {
     reports: options.reports || [],
     auditEvents: options.auditEvents || [],
@@ -1107,6 +1134,15 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
+    release_evidence: releaseEvidenceSummary,
+    release_evidence_summary: releaseEvidenceSummary,
+    release_evidence_api: {
+      schema_version: "a3.release_evidence_api_link.v1",
+      release_id: releaseEvidenceReleaseId(snapshot),
+      path: `/api/a3/releases/${encodeURIComponent(releaseEvidenceReleaseId(snapshot))}/evidence-summary?source=${encodeURIComponent(snapshot.source)}`,
+      api_backed: true,
+      raw_fixture_exposed: false
+    },
     saas_admin_console: saasAdmin,
     enterprise_readiness: buildEnterpriseReadinessReport({
       runFixture: snapshot.runFixture,
@@ -1146,6 +1182,72 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       primary_failure_class: item.primary_failure_class
     }))
   };
+}
+
+function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
+  const releaseId = options.releaseId || releaseEvidenceReleaseId(snapshot);
+  const summary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
+  const summaryHash = sha256(stableJson(summary));
+  const reports = (options.reports || [])
+    .filter((report) => (report.source || snapshot.source) === snapshot.source)
+    .map((report) => ({
+      report_id: report.report_id,
+      status: reportLifecycleStatus(report),
+      source: report.source || snapshot.source,
+      summary_snapshot_id: report.release_evidence_snapshot?.snapshot_id || null,
+      summary_hash: report.release_evidence_snapshot?.summary_hash || null,
+      sealed_payload_hash_present: Boolean(report.sealed_evidence?.payload_hash),
+      raw_share_token_exposed: false
+    }));
+  return {
+    schema_version: "a3.release_evidence_api_response.v1",
+    release_id: releaseId,
+    summary_id: `res_${summaryHash.slice(0, 16)}`,
+    source: snapshot.source,
+    tenant_scope: {
+      organization_id: snapshot.organizationId,
+      project_id: snapshot.projectId
+    },
+    api_backed: true,
+    storage: {
+      mode: options.storageMode || snapshot.storage?.mode || "memory",
+      db_ready: true,
+      durable_summary_table: "release_evidence_summaries",
+      immutable_hosted_snapshots: reports.some((item) => item.summary_snapshot_id)
+    },
+    release_evidence_summary: summary,
+    hosted_report_snapshots: reports,
+    safety: {
+      raw_fixture_exposed: false,
+      raw_request_body_exposed: false,
+      raw_share_token_exposed: false,
+      raw_secret_values_allowed: false,
+      dry_run_receipts_labeled: summary.github_check_publish?.dry_run === true
+        || summary.github_pr_comment_publish?.dry_run === true
+        || summary.github_required_check_plan?.dry_run === true
+    },
+    next_actions: [
+      "Persist this summary in Postgres with tenant/project/release keys.",
+      "Bind live GitHub readback receipts before claiming required-check enforcement.",
+      "Use hosted report snapshot ids so external reports keep the exact evidence shown at share time."
+    ]
+  };
+}
+
+function releaseEvidenceReleaseId(snapshot = {}) {
+  const direct = snapshot.releaseEvidence?.release_id || snapshot.release_evidence?.release_id;
+  if (direct) {
+    return direct;
+  }
+  return extractRunRecords(snapshot.runFixture)[0]?.run_id || `${snapshot.source || "mock"}-release`;
+}
+
+function releaseEvidenceIdMatches(requestedId, canonicalReleaseId, snapshot = {}) {
+  const value = String(requestedId || "current");
+  if (["current", canonicalReleaseId, snapshot.source].includes(value)) {
+    return true;
+  }
+  return extractRunRecords(snapshot.runFixture).some((run) => run.run_id === value);
 }
 
 function attachAdminActionRequests(adminConsole = {}, requests = [], options = {}) {
@@ -1709,6 +1811,12 @@ async function readOptionalJson(root, relativePath) {
     }
     throw error;
   }
+}
+
+async function readReleaseEvidenceFixtures(root) {
+  const entries = await Promise.all(Object.entries(A3_RELEASE_EVIDENCE_FIXTURES)
+    .map(async ([key, relativePath]) => [key, await readOptionalJson(root, relativePath)]));
+  return Object.fromEntries(entries);
 }
 
 function normalizeSourceKey(source) {

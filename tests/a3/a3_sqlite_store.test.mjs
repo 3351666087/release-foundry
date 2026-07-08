@@ -36,6 +36,7 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.dashboard_snapshots, 1);
     assert.equal(inspection.operational_tables.runs, 1);
     assert.equal(inspection.operational_tables.cases, 32);
+    assert.equal(inspection.operational_tables.release_evidence_summaries, 1);
     assert.equal(inspection.safety.raw_share_tokens_stored, false);
     assert.equal(inspection.safety.state_payload_secret_scan.api_key_assignment_found, false);
 
@@ -139,6 +140,7 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.report_revocations, 1);
     assert.equal(inspection.operational_tables.saas_admin_action_requests, 1);
     assert.equal(inspection.operational_tables.review_workflow_records, 2);
+    assert.equal(inspection.operational_tables.release_evidence_summaries, 1);
     assert.ok(inspection.operational_tables.audit_events >= 2);
     assert.ok(inspection.operational_tables.usage_ledger > 0);
     assert.equal(inspection.safety.state_payload_secret_scan.raw_share_token_hint_found, false);

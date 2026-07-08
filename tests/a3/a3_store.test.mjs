@@ -41,6 +41,9 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.ok(dashboard.enterprise_readiness.enabled_capabilities.length > 0);
   assert.equal(dashboard.storage.db_migrations.schema_version, "a3.sql_migration_plan.v1");
   assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
+  assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
+  assert.equal(dashboard.release_evidence_summary.available, true);
+  assert.equal(dashboard.release_evidence_api.raw_fixture_exposed, false);
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);
@@ -63,6 +66,14 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(report.share_url_path, "/r/unit_store_share_token");
   assert.match(report.internal_url_path, /^\/reports\/a3r_/);
   assert.equal(report.sealed_evidence.secret_free, true);
+  assert.equal(report.release_evidence_summary.available, true);
+  assert.equal(report.release_evidence_snapshot.immutable_in_hosted_report, true);
+
+  const releaseEvidence = await store.getReleaseEvidenceSummary("current", { source: "mock" });
+  assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
+  assert.equal(releaseEvidence.release_evidence_summary.available, true);
+  assert.equal(releaseEvidence.safety.raw_fixture_exposed, false);
+  assert.ok(releaseEvidence.hosted_report_snapshots.some((item) => item.report_id === report.report_id));
 
   const savedReport = await store.getReport(report.report_id);
   assert.equal(savedReport.share_url_path, "/r/[REDACTED_TOKEN]");
@@ -144,12 +155,14 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(reportCenter.summary.shareable_count, 1);
   assert.equal(reportCenter.control_plane.sql_contract_ready, true);
   assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+  assert.equal(reportCenter.summary.release_evidence_ready_count, 1);
   assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
-  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 4);
+  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 5);
 
   const artifactRegistry = await store.getArtifactRegistry({ source: "mock" });
   assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
   assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "product_console_state"));
+  assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
   assert.equal(artifactRegistry.safety.raw_secret_values_allowed, false);
 });
 

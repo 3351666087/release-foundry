@@ -17,6 +17,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
+      "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -311,7 +312,23 @@ CREATE TABLE IF NOT EXISTS review_workflow_records (
   payload ${types.json} NOT NULL,
   created_at ${types.timestamp} NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`)
+CREATE INDEX IF NOT EXISTS idx_review_workflow_records_release ON review_workflow_records(project_id, run_id, release_version, record_type, status);`),
+    statement("010_release_evidence_summaries", ["release_evidence_summaries"], `
+CREATE TABLE IF NOT EXISTS release_evidence_summaries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  summary_schema_version TEXT NOT NULL,
+  overall_status TEXT NOT NULL,
+  summary_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  hosted_report_snapshot_id TEXT,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_project_release ON release_evidence_summaries(project_id, release_id, overall_status);
+CREATE INDEX IF NOT EXISTS idx_release_evidence_summary_hash ON release_evidence_summaries(summary_hash);`)
   ];
 }
 

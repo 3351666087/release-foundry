@@ -27,10 +27,11 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
 
   assert.equal(registry.schema_version, "a3.artifact_registry.v1");
   assert.equal(registry.registry_status, "evidence_available");
-  assert.equal(registry.summary.report_artifact_count, 4);
+  assert.equal(registry.summary.report_artifact_count, 5);
   assert.equal(registry.summary.control_artifact_count, 4);
   assert.equal(registry.summary.billable_meter_count >= 4, true);
   assert.ok(registry.entries.some((item) => item.artifact_type === "hosted_report" && item.lifecycle_state === "shared"));
+  assert.ok(registry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "usage_ledger"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "security_audit_packet"));
   assert.equal(registry.safety.raw_secret_values_allowed, false);

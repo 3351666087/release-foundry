@@ -4,6 +4,7 @@ const REPORT_ARTIFACTS = [
   ["json_report", "application/json", "automation and CI consumers"],
   ["markdown_report", "text/markdown", "PR reviewers and engineering handoff"],
   ["hosted_report", "text/html", "controlled customer-facing share link"],
+  ["release_evidence_summary", "application/json", "API-backed release evidence health and audit handoff"],
   ["report_manifest", "application/json", "audit manifest and bundle verification"]
 ];
 
@@ -178,10 +179,10 @@ function summarizeEntries(entries) {
 
 function buildPacketPresets(entries) {
   return [
-    packetPreset("pr_review_packet", ["json_report", "markdown_report", "report_manifest"], entries),
+    packetPreset("pr_review_packet", ["json_report", "markdown_report", "release_evidence_summary", "report_manifest"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
-    packetPreset("security_audit_packet", ["report_manifest", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
-    packetPreset("customer_safe_packet", ["hosted_report", "report_manifest"], entries)
+    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
+    packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];
 }
 
