@@ -1,0 +1,219 @@
+export const A3_ARTIFACT_REGISTRY_SCHEMA_VERSION = "a3.artifact_registry.v1";
+
+const REPORT_ARTIFACTS = [
+  ["json_report", "application/json", "automation and CI consumers"],
+  ["markdown_report", "text/markdown", "PR reviewers and engineering handoff"],
+  ["hosted_report", "text/html", "controlled customer-facing share link"],
+  ["report_manifest", "application/json", "audit manifest and bundle verification"]
+];
+
+export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
+  const reportCenter = options.reportCenter || inputs.reportCenter || {};
+  const usageLedger = options.usageLedger || inputs.usageLedger || {};
+  const migrationPlan = options.migrationPlan || inputs.migrationPlan || {};
+  const productConsole = options.productConsole || inputs.productConsole || {};
+  const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
+  const source = options.source || inputs.source || reportCenter.source || "unknown";
+  const tenantScope = {
+    organization_id: options.organizationId || inputs.organizationId || reportCenter.tenant_scope?.organization_id || "org-local",
+    project_id: options.projectId || inputs.projectId || reportCenter.tenant_scope?.project_id || "project-local"
+  };
+  const reports = Array.isArray(reportCenter.reports)
+    ? reportCenter.reports
+    : Array.isArray(inputs.reports)
+      ? inputs.reports
+      : [];
+  const reportEntries = reports.flatMap((report) => reportArtifactEntries(report, tenantScope));
+  const controlEntries = controlArtifactEntries({
+    tenantScope,
+    source,
+    usageLedger,
+    migrationPlan,
+    productConsole,
+    saasAdmin
+  });
+  const entries = [...reportEntries, ...controlEntries];
+  const summary = summarizeEntries(entries);
+
+  return {
+    schema_version: A3_ARTIFACT_REGISTRY_SCHEMA_VERSION,
+    source,
+    tenant_scope: tenantScope,
+    registry_status: entries.length ? "evidence_available" : "empty",
+    summary,
+    entries,
+    packet_presets: buildPacketPresets(entries),
+    safety: {
+      raw_secret_values_allowed: false,
+      raw_share_tokens_stored: false,
+      real_cloud_mutations_enabled: false,
+      redaction_fail_closed_required: true,
+      local_absolute_paths_allowed: false
+    },
+    next_actions: buildNextActions(summary, entries)
+  };
+}
+
+function reportArtifactEntries(report = {}, tenantScope) {
+  const redactionStatus = report.redaction?.status || "unknown";
+  const blocked = report.redaction?.blocked === true || report.status === "blocked";
+  const manifestMissing = Array.isArray(report.manifest?.missing) ? report.manifest.missing : [];
+  const hashReady = report.sealed_evidence?.payload_hash_present === true
+    || report.sealed_evidence?.secret_free === true
+    || report.manifest?.redaction_status === "passed";
+  return REPORT_ARTIFACTS.map(([type, contentType, customerValue]) => ({
+    artifact_id: `${report.report_id || "report"}:${type}`,
+    artifact_type: type,
+    content_type: contentType,
+    source: report.source || "unknown",
+    tenant_scope: tenantScope,
+    report_id: report.report_id || "unknown",
+    manifest_join_key: `${report.report_id || "unknown"}:manifest`,
+    lifecycle_state: artifactLifecycleState(report, blocked, type),
+    hash_status: hashReady ? "hash_or_sealed_payload_present" : "pending_hash",
+    redaction_status: redactionStatus,
+    retention_class: report.status === "revoked" || report.status === "expired" ? "audit_retained" : "release_evidence",
+    share_scope: report.share_link?.scope || "private_link",
+    billable_meter: "report_exports",
+    audit_events_required: ["artifact_generated", "redaction_scanned", "report_shared", "report_viewed"],
+    missing_controls: blocked ? ["redaction_blocked"] : manifestMissing,
+    customer_value: customerValue,
+    raw_secret_values_allowed: false,
+    raw_share_token_stored: false
+  }));
+}
+
+function controlArtifactEntries(context) {
+  const entries = [];
+  const usageMeters = Array.isArray(context.usageLedger.meters) ? context.usageLedger.meters : [];
+  entries.push(controlArtifact("usage_ledger", {
+    context,
+    ready: context.usageLedger.schema_version === "a3.usage_ledger.v1",
+    contentType: "application/json",
+    billableMeter: "usage_ledger_events",
+    customerValue: "billing, quota, chargeback, and adoption evidence",
+    missingControls: usageMeters.length ? ["content_hash"] : ["usage_meters", "content_hash"]
+  }));
+  entries.push(controlArtifact("db_migration_plan", {
+    context,
+    ready: context.migrationPlan.schema_version === "a3.sql_migration_plan.v1" && context.migrationPlan.status === "contract_ready",
+    contentType: "application/sql",
+    billableMeter: "self_host_readiness",
+    customerValue: "self-host and enterprise deployment evidence",
+    missingControls: context.migrationPlan.migration_count ? ["applied_migration_receipt"] : ["migration_plan"]
+  }));
+  entries.push(controlArtifact("product_console_state", {
+    context,
+    ready: context.productConsole.schema_version === "a3.product_console.v1",
+    contentType: "application/json",
+    billableMeter: "product_workflow_evidence",
+    customerValue: "onboarding, project readiness, and audit-log state",
+    missingControls: context.productConsole.schema_version ? ["signed_snapshot_hash"] : ["product_console_state"]
+  }));
+  entries.push(controlArtifact("saas_admin_guardrails", {
+    context,
+    ready: context.saasAdmin.schema_version === "a3.saas_admin_console.v1",
+    contentType: "application/json",
+    billableMeter: "admin_governance_evidence",
+    customerValue: "login, team, API-key, usage, trust, and cloud-management safety map",
+    missingControls: context.saasAdmin.schema_version ? ["rbac_enforcement_receipt"] : ["saas_admin_state"]
+  }));
+  return entries;
+}
+
+function controlArtifact(type, options) {
+  return {
+    artifact_id: `control:${type}`,
+    artifact_type: type,
+    content_type: options.contentType,
+    source: options.context.source,
+    tenant_scope: options.context.tenantScope,
+    report_id: null,
+    manifest_join_key: `control:${type}`,
+    lifecycle_state: options.ready ? "generated" : "planned",
+    hash_status: options.ready ? "schema_reference_present" : "pending_source",
+    redaction_status: "metadata_only",
+    retention_class: "control_plane_evidence",
+    share_scope: "internal_admin",
+    billable_meter: options.billableMeter,
+    audit_events_required: ["artifact_generated", "redaction_scanned", "admin_reviewed"],
+    missing_controls: options.missingControls,
+    customer_value: options.customerValue,
+    raw_secret_values_allowed: false,
+    raw_share_token_stored: false
+  };
+}
+
+function artifactLifecycleState(report, blocked, type) {
+  if (blocked) {
+    return "blocked";
+  }
+  if (report.status === "revoked" || report.status === "expired") {
+    return "retained";
+  }
+  if (report.status === "shareable" && type === "hosted_report") {
+    return "shared";
+  }
+  if (report.status === "shareable") {
+    return "generated";
+  }
+  return "planned";
+}
+
+function summarizeEntries(entries) {
+  return {
+    artifact_count: entries.length,
+    report_artifact_count: entries.filter((item) => item.report_id).length,
+    control_artifact_count: entries.filter((item) => !item.report_id).length,
+    ready_count: entries.filter((item) => ["generated", "shared", "retained"].includes(item.lifecycle_state)).length,
+    planned_count: entries.filter((item) => item.lifecycle_state === "planned").length,
+    blocked_count: entries.filter((item) => item.lifecycle_state === "blocked").length,
+    hash_ready_count: entries.filter((item) => !item.hash_status.startsWith("pending")).length,
+    redaction_pass_count: entries.filter((item) => ["passed", "metadata_only"].includes(item.redaction_status)).length,
+    shareable_count: entries.filter((item) => item.lifecycle_state === "shared").length,
+    billable_meter_count: new Set(entries.map((item) => item.billable_meter).filter(Boolean)).size,
+    audit_required_count: entries.filter((item) => item.audit_events_required.length > 0).length
+  };
+}
+
+function buildPacketPresets(entries) {
+  return [
+    packetPreset("pr_review_packet", ["json_report", "markdown_report", "report_manifest"], entries),
+    packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
+    packetPreset("security_audit_packet", ["report_manifest", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
+    packetPreset("customer_safe_packet", ["hosted_report", "report_manifest"], entries)
+  ];
+}
+
+function packetPreset(id, requiredTypes, entries) {
+  const availableTypes = new Set(entries
+    .filter((item) => !["blocked", "planned"].includes(item.lifecycle_state))
+    .map((item) => item.artifact_type));
+  const missing = requiredTypes.filter((type) => !availableTypes.has(type));
+  return {
+    preset_id: id,
+    required_artifact_types: requiredTypes,
+    status: missing.length ? "incomplete" : "ready",
+    missing_artifact_types: missing
+  };
+}
+
+function buildNextActions(summary, entries) {
+  const actions = [];
+  if (!summary.report_artifact_count) {
+    actions.push("Create a hosted report so JSON, Markdown, hosted HTML, and manifest artifacts can enter the registry.");
+  }
+  if (summary.blocked_count) {
+    actions.push("Resolve redaction-blocked artifact entries before sharing customer packets.");
+  }
+  if (entries.some((item) => item.hash_status.startsWith("pending"))) {
+    actions.push("Attach content hashes for all generated artifacts, including PDF and screenshot outputs.");
+  }
+  if (entries.some((item) => item.missing_controls.includes("rbac_enforcement_receipt"))) {
+    actions.push("Back admin artifact entries with hosted RBAC enforcement receipts.");
+  }
+  if (!actions.length) {
+    actions.push("Bind artifact registry entries into PR Gate, audit bundle verification, and usage billing events.");
+  }
+  return actions;
+}

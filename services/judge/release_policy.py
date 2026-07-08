@@ -817,6 +817,10 @@ def summarize_grade_report(grade_report: dict[str, Any]) -> dict[str, Any]:
         "fail_rate": round((failed / denominator) * 100, 4),
         "average_score": round(float(average_score), 4),
         "safety_blocking_count": safety_blocking_count,
+        "usage_quota_blocked": 0,
+        "trust_publishability_blocked": 0,
+        "api_key_boundary_violations": 0,
+        "server_side_grading_stale": 0,
         "failure_class_counts": dict(sorted(counts.items())),
     }
 

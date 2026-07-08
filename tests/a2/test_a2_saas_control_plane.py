@@ -95,6 +95,12 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertTrue(selected_policy["policy_hash_valid"])
         self.assertTrue(report["policy_config"]["waiver_flow_supported"])
 
+        self.assertEqual(report["release_gate"]["a3_action"], "block_release")
+        self.assertTrue(report["release_gate"]["blocks_merge"])
+        self.assertTrue(report["release_gate"]["needs_human_review"])
+        self.assertTrue(report["release_gate"]["pr_gate"]["blocks_merge"])
+        self.assertIn("fixtures/a2/results/a2_release_gate_report.json", report["release_gate"]["pr_gate"]["audit_artifacts"])
+
         self.assertTrue(report["result_persistence"]["public_safe"])
         self.assertTrue(report["result_persistence"]["ready_for_audit_export"])
         self.assertGreaterEqual(report["judge_versioning"]["judge_id_count"], 5)

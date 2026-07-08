@@ -22,6 +22,7 @@
   "blocking_gate_count": 3,
   "evidence_blocker_count": 4,
   "scenario_selection_blocker_count": 0,
+  "a1_output_policy_blocker_count": 0,
   "warning_count": 3,
   "scenario_selection_gate": {
     "status": "ready",
@@ -61,6 +62,27 @@
     "gaps": [],
     "evidence_refs": [
       "fixtures/a2/results/a2_scenario_selection_report.json"
+    ]
+  },
+  "a1_output_policy_gate": {
+    "status": "ready",
+    "ready": true,
+    "source_schema_version": "ashr.clone.evidence_index.v1",
+    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
+    "total_records": 368,
+    "dangerous_counts": {
+      "unsafe_real_nonprivate_override": 0,
+      "private_required_but_not_private": 0
+    },
+    "safe_counts": {
+      "private_required": 5,
+      "private_file": 5,
+      "stdout_full_record_blocked": 5,
+      "present": 5
+    },
+    "evidence_refs": [
+      "docs/a1/api_calibration/real_api_evidence_index.json"
     ]
   },
   "blockers": [
@@ -337,7 +359,8 @@
       "decision",
       "blockers",
       "required_evidence",
-      "scenario_selection_gate"
+      "scenario_selection_gate",
+      "a1_output_policy_gate"
     ],
     "stable_join_keys": [
       "case_id",
@@ -351,7 +374,8 @@
     "fixtures/a2/results/a2_evidence_readiness_report.json",
     "fixtures/a2/results/a2_g3_calibration_matrix.json",
     "fixtures/a2/results/a2_regression_replay_report.json",
-    "fixtures/a2/results/a2_scenario_selection_report.json"
+    "fixtures/a2/results/a2_scenario_selection_report.json",
+    "docs/a1/api_calibration/real_api_evidence_index.json"
   ],
   "metadata": {
     "deterministic": true,
