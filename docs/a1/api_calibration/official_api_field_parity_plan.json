@@ -1,0 +1,212 @@
+{
+  "commands": {
+    "mutating_text_small_batch_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+    "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+    "safe_dry_run_text": "python -B -m packages.sdk.ashr_clone.calibrate --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json"
+  },
+  "execution_modes": {
+    "default": "dry-run",
+    "dry_run_calls_real_api": false,
+    "mutating_requires": [
+      "--include-mutating",
+      "--quota-gate-record",
+      "private output path"
+    ],
+    "paid_media_requires": "--allow-paid-media",
+    "small_batch_requires": [
+      "--execute",
+      "--small-batch",
+      "--max-retries 0"
+    ]
+  },
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "generated_at": "2026-07-08T13:24:50Z",
+  "official_api_contract": {
+    "auth_env_vars": [
+      "ASHR_API_KEY",
+      "ASHR_LABS_API_KEY"
+    ],
+    "base_url_env": "ASHR_LABS_BASE_URL",
+    "dispatch": "single POST endpoint with function field",
+    "key_material_logged": false,
+    "key_material_source": "environment at execution time only"
+  },
+  "output_policy": {
+    "full_record_stdout_blocked_for_real_or_gate": true,
+    "public_plan_contains": [
+      "field names",
+      "operation names",
+      "call counts",
+      "guardrail commands"
+    ],
+    "public_plan_excludes": [
+      "API keys",
+      "raw payload responses",
+      "private evidence contents",
+      "hosted quota values"
+    ],
+    "real_or_gate_records_private_root": "docs/evidence/private_refs"
+  },
+  "quota_gate": {
+    "expected_modalities": [
+      "text"
+    ],
+    "request_fingerprints": {
+      "text": "1428c2b4895feb89bbd11f396193364bd835ccca1428db16cc2a70b673b13f35"
+    },
+    "schema_version": "ashr.clone.api_probe_batch_plan.v1",
+    "target_operation": "create-request",
+    "ttl_seconds": 86400
+  },
+  "schema_version": "ashr.clone.api_field_parity_plan.v1",
+  "source_field_map": "docs/a1/api_calibration/real_api_response_field_map.json",
+  "steps": [
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "init",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "features",
+        "notes",
+        "plan",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Resolve Ashr session context and tenant/user/features shape",
+      "quota_block_count_observed": 0,
+      "step_id": "init"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "keep_alive",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "db",
+        "message",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Check Ashr API reachability and keep_alive shape",
+      "quota_block_count_observed": 0,
+      "step_id": "health-check"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "list_agents",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "agents",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "agents"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List tenant agent fields for SDK adapter parity",
+      "quota_block_count_observed": 0,
+      "step_id": "list-agents"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "list_datasets",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "datasets"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List dataset fields, pagination, and dataset_source envelopes",
+      "quota_block_count_observed": 0,
+      "step_id": "list-datasets"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "list_requests",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "next_cursor",
+        "plan",
+        "requests",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "requests"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List request fields, failure envelopes, and pagination",
+      "quota_block_count_observed": 0,
+      "step_id": "list-requests"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "text",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny text calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "step_id": "create-request-text"
+    }
+  ],
+  "summary": {
+    "estimated_calls_dry_run": 0,
+    "estimated_calls_small_batch": 9,
+    "missing_observed_functions": [],
+    "modalities": [
+      "text"
+    ],
+    "mutating_steps": 1,
+    "read_steps": 5,
+    "steps": 6
+  }
+}

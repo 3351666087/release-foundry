@@ -27,6 +27,7 @@ from .api_client import (
 )
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
+FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
 PLAN_BATCH_QUOTA_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1"
 PLAN_BATCH_QUOTA_GATE_DECISIONS = {"go", "stop", "wait"}
@@ -36,6 +37,8 @@ MIN_QUOTA_OVERRIDE_REASON_CHARS = 12
 CALIBRATION_MODALITIES = AGENT_INPUT_PART_TYPES
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
+PUBLIC_API_CALIBRATION_DIR = REPO_ROOT / "docs" / "a1" / "api_calibration"
+FIELD_MAP_PATH = PUBLIC_API_CALIBRATION_DIR / "real_api_response_field_map.json"
 
 
 class CalibrationUsageError(ValueError):
@@ -168,6 +171,93 @@ def run_calibration(args: CalibrationArgs, *, env: Mapping[str, str] | None = No
     )
     write_json(manifest_path, manifest)
     return manifest
+
+
+def build_field_parity_plan(args: CalibrationArgs | None = None, *, field_map_path: str | Path = FIELD_MAP_PATH) -> JsonDict:
+    plan_args = args or CalibrationArgs(modalities=("text",))
+    steps = calibration_steps(plan_args)
+    if not plan_args.include_mutating:
+        steps = [step for step in steps if step.kind != "mutate"]
+    field_map = load_json_object(str(field_map_path), "--field-map")
+    functions = field_map.get("functions") if isinstance(field_map.get("functions"), Mapping) else {}
+    parity_steps = [field_parity_step(step, functions) for step in steps]
+    missing_observed = sorted(
+        step["function"]
+        for step in parity_steps
+        if not step.get("observed_response_keys") and step.get("function") != "create_request"
+    )
+    selected_modalities = selected_calibration_modalities(plan_args) if plan_args.include_mutating else ()
+    return redact_sensitive(
+        {
+            "schema_version": FIELD_PARITY_PLAN_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_field_map": _repo_relative_output_path(field_map_path),
+            "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
+            "official_api_contract": {
+                "dispatch": "single POST endpoint with function field",
+                "base_url_env": ASHR_LABS_BASE_URL_ENV_VAR,
+                "auth_env_vars": [ASHR_API_ENV_VAR, ASHR_LABS_API_ENV_VAR],
+                "key_material_source": "environment at execution time only",
+                "key_material_logged": False,
+            },
+            "execution_modes": {
+                "default": "dry-run",
+                "dry_run_calls_real_api": False,
+                "small_batch_requires": ["--execute", "--small-batch", "--max-retries 0"],
+                "mutating_requires": ["--include-mutating", "--quota-gate-record", "private output path"],
+                "paid_media_requires": "--allow-paid-media",
+            },
+            "output_policy": {
+                "public_plan_contains": ["field names", "operation names", "call counts", "guardrail commands"],
+                "public_plan_excludes": ["API keys", "raw payload responses", "private evidence contents", "hosted quota values"],
+                "real_or_gate_records_private_root": "docs/evidence/private_refs",
+                "full_record_stdout_blocked_for_real_or_gate": True,
+            },
+            "commands": {
+                "safe_dry_run_text": "python -B -m packages.sdk.ashr_clone.calibrate --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json",
+                "read_only_small_batch": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+                "mutating_text_small_batch_after_gate": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+            },
+            "quota_gate": {
+                "schema_version": PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+                "target_operation": CALIBRATION_QUOTA_GATE_TARGET_OPERATION,
+                "ttl_seconds": DEFAULT_QUOTA_GATE_TTL_SECONDS,
+                "expected_modalities": list(expected_calibration_gate_modalities(plan_args)) if plan_args.include_mutating else [],
+                "request_fingerprints": calibration_request_fingerprints(plan_args) if plan_args.include_mutating else {},
+            },
+            "summary": {
+                "steps": len(parity_steps),
+                "read_steps": sum(1 for step in parity_steps if step.get("kind") == "read"),
+                "mutating_steps": sum(1 for step in parity_steps if step.get("kind") == "mutate"),
+                "estimated_calls_dry_run": 0,
+                "estimated_calls_small_batch": sum(step.estimated_calls for step in steps),
+                "modalities": sorted(selected_modalities),
+                "missing_observed_functions": missing_observed,
+            },
+            "steps": parity_steps,
+        }
+    )
+
+
+def field_parity_step(step: CalibrationStep, observed_functions: Mapping[str, Any]) -> JsonDict:
+    function_aliases = {"health-check": "keep_alive"}
+    function = function_aliases.get(step.step_id, "create_request" if step.step_id.startswith("create-request-") else step.step_id.replace("-", "_"))
+    observed = observed_functions.get(function) if isinstance(observed_functions.get(function), Mapping) else {}
+    return {
+        "step_id": step.step_id,
+        "kind": step.kind,
+        "function": function,
+        "modality": step.modality,
+        "purpose": step.purpose,
+        "estimated_small_batch_calls": step.estimated_calls,
+        "dry_run_behavior": "writes planned call record only",
+        "observed_response_keys": sorted(str(key) for key in observed.get("response_keys", []) if isinstance(key, str)),
+        "observed_error_keys": sorted(str(key) for key in observed.get("error_keys", []) if isinstance(key, str)),
+        "observed_response_summary_keys": sorted(str(key) for key in observed.get("response_summary_keys", []) if isinstance(key, str)),
+        "observed_top_count_keys": sorted(str(key) for key in observed.get("top_count_keys", []) if isinstance(key, str)),
+        "quota_block_count_observed": observed.get("quota_block_count") if isinstance(observed.get("quota_block_count"), int) else None,
+        "private_evidence_required_for_raw_payload": True,
+    }
 
 
 def calibration_steps(args: CalibrationArgs) -> list[CalibrationStep]:

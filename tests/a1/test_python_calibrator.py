@@ -9,9 +9,11 @@ import pytest
 from packages.sdk.ashr_clone.calibrate import (
     CALIBRATION_MANIFEST_SCHEMA_VERSION,
     DEFAULT_QUOTA_GATE_TTL_SECONDS,
+    FIELD_PARITY_PLAN_SCHEMA_VERSION,
     PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
     CalibrationArgs,
     CalibrationUsageError,
+    build_field_parity_plan,
     calibration_request_fingerprint,
     parse_args,
     request_for_modality,
@@ -194,6 +196,32 @@ def test_run_calibration_writes_dry_run_manifest_and_private_step_records(tmp_pa
     assert output.exists()
     for step in manifest["steps"]:
         assert Path(step["private_record_path"]).exists()
+
+
+def test_build_field_parity_plan_is_public_safe_and_env_only():
+    args = CalibrationArgs(include_mutating=True, modalities=("text",))
+    plan = build_field_parity_plan(args)
+    plan_text = json.dumps(plan, sort_keys=True)
+
+    assert plan["schema_version"] == FIELD_PARITY_PLAN_SCHEMA_VERSION
+    assert plan["official_api_contract"]["auth_env_vars"] == ["ASHR_API_KEY", "ASHR_LABS_API_KEY"]
+    assert plan["official_api_contract"]["key_material_source"] == "environment at execution time only"
+    assert plan["official_api_contract"]["key_material_logged"] is False
+    assert plan["execution_modes"]["default"] == "dry-run"
+    assert plan["execution_modes"]["dry_run_calls_real_api"] is False
+    assert plan["quota_gate"]["target_operation"] == "create-request"
+    assert plan["quota_gate"]["request_fingerprints"] == {"text": calibration_request_fingerprint("text")}
+    assert plan["summary"]["read_steps"] == 5
+    assert plan["summary"]["mutating_steps"] == 1
+    assert plan["summary"]["estimated_calls_dry_run"] == 0
+    assert plan["summary"]["missing_observed_functions"] == []
+    assert "Authorization" not in plan_text
+    assert "Bearer" not in plan_text
+    assert "tp_syntheticsecret" not in plan_text
+
+    by_step = {step["step_id"]: step for step in plan["steps"]}
+    assert by_step["init"]["observed_response_keys"]
+    assert "request" in by_step["create-request-text"]["observed_response_keys"]
 
 
 def test_run_calibration_execute_read_only_does_not_require_quota_gate(tmp_path: Path):

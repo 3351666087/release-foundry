@@ -372,6 +372,74 @@ class SaaSIngestionClient:
             return self._request("list_artifact_manifests", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id})
         return _envelope("list_artifact_manifests", {"artifact_manifests": self.service.list_artifact_manifests(tenant_id, project_id, run_id, auth_key_id=auth_key_id)})
 
+    def enqueue_worker_job(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        job_type: str,
+        target_id: str | None = None,
+        payload: Mapping[str, Any] | None = None,
+        job_id: str | None = None,
+        priority: int = 100,
+        max_attempts: int = 3,
+        api_key_id: str | None = None,
+        api_key: str | None = None,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        request_payload = {"tenant_id": tenant_id, "project_id": project_id, "job_type": job_type, "target_id": target_id, "payload": dict(payload or {}), "job_id": job_id, "priority": int(priority), "max_attempts": int(max_attempts), "api_key_id": api_key_id, "idempotency_key": idempotency_key, "request_id": request_id}
+        if self.uses_http:
+            return self._request("enqueue_worker_job", request_payload)
+        return _envelope("enqueue_worker_job", self.service.enqueue_worker_job(tenant_id, project_id, job_type=job_type, target_id=target_id, payload=dict(payload or {}), job_id=job_id, priority=int(priority), max_attempts=int(max_attempts), api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id))
+
+    def lease_worker_job(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        lease_owner_id: str,
+        lease_seconds: float = 300.0,
+        job_type: str | None = None,
+        api_key_id: str | None = None,
+        api_key: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "lease_owner_id": lease_owner_id, "lease_seconds": float(lease_seconds), "job_type": job_type, "api_key_id": api_key_id, "request_id": request_id}
+        if self.uses_http:
+            return self._request("lease_worker_job", payload)
+        return _envelope("lease_worker_job", self.service.lease_worker_job(tenant_id, project_id, lease_owner_id=lease_owner_id, lease_seconds=float(lease_seconds), job_type=job_type, api_key_id=api_key_id, request_id=request_id))
+
+    def heartbeat_worker_job(self, tenant_id: str, project_id: str, job_id: str, *, lease_owner_id: str, lease_seconds: float = 300.0, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "lease_owner_id": lease_owner_id, "lease_seconds": float(lease_seconds), "api_key_id": api_key_id, "request_id": request_id}
+        if self.uses_http:
+            return self._request("heartbeat_worker_job", payload)
+        return _envelope("heartbeat_worker_job", self.service.heartbeat_worker_job(tenant_id, project_id, job_id, lease_owner_id=lease_owner_id, lease_seconds=float(lease_seconds), api_key_id=api_key_id, request_id=request_id))
+
+    def complete_worker_job(self, tenant_id: str, project_id: str, job_id: str, result: Mapping[str, Any] | None = None, *, lease_owner_id: str, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "result": dict(result or {}), "lease_owner_id": lease_owner_id, "api_key_id": api_key_id, "request_id": request_id}
+        if self.uses_http:
+            return self._request("complete_worker_job", payload)
+        return _envelope("complete_worker_job", self.service.complete_worker_job(tenant_id, project_id, job_id, dict(result or {}), lease_owner_id=lease_owner_id, api_key_id=api_key_id, request_id=request_id))
+
+    def fail_worker_job(self, tenant_id: str, project_id: str, job_id: str, error_payload: Mapping[str, Any] | None = None, *, lease_owner_id: str, retry_after_seconds: float | None = None, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "error": dict(error_payload or {}), "lease_owner_id": lease_owner_id, "retry_after_seconds": retry_after_seconds, "api_key_id": api_key_id, "request_id": request_id}
+        if self.uses_http:
+            return self._request("fail_worker_job", payload)
+        return _envelope("fail_worker_job", self.service.fail_worker_job(tenant_id, project_id, job_id, dict(error_payload or {}), lease_owner_id=lease_owner_id, retry_after_seconds=retry_after_seconds, api_key_id=api_key_id, request_id=request_id))
+
+    def list_worker_jobs(self, tenant_id: str, project_id: str, *, status: str | None = None, job_type: str | None = None, limit: int | None = None, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "status": status, "job_type": job_type, "limit": limit, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("list_worker_jobs", payload)
+        return _envelope("list_worker_jobs", self.service.list_worker_jobs(tenant_id, project_id, status=status, job_type=job_type, limit=limit, auth_key_id=auth_key_id))
+
     def verify_audit_chain(
         self,
         tenant_id: str,
@@ -453,6 +521,12 @@ _OPERATION_PATHS = {
     "usage_snapshot": "usage",
     "create_artifact_manifest": "artifact-manifests",
     "list_artifact_manifests": "artifact-manifests/list",
+    "enqueue_worker_job": "worker-jobs",
+    "lease_worker_job": "worker-jobs/lease",
+    "heartbeat_worker_job": "worker-jobs/heartbeat",
+    "complete_worker_job": "worker-jobs/complete",
+    "fail_worker_job": "worker-jobs/fail",
+    "list_worker_jobs": "worker-jobs",
     "verify_audit_chain": "audit-chain/verify",
     "release_evidence": "release-evidence",
     "verify_release_evidence_packet": "release-evidence/verify",
@@ -473,6 +547,16 @@ def _operation_path(operation: str, payload: Mapping[str, Any] | None = None) ->
         }
         suffix = suffixes[operation]
         return f"runs/{run_id}/{suffix}"
+    if operation in {"heartbeat_worker_job", "complete_worker_job", "fail_worker_job"} and payload is not None:
+        job_id = str(payload.get("job_id") or "")
+        if not job_id:
+            raise SaaSClientError("job_id is required for worker-job SaaS operations")
+        suffixes = {
+            "heartbeat_worker_job": "heartbeat",
+            "complete_worker_job": "complete",
+            "fail_worker_job": "fail",
+        }
+        return f"worker-jobs/{job_id}/{suffixes[operation]}"
     return _OPERATION_PATHS.get(operation, operation.replace("_", "-"))
 
 

@@ -3609,3 +3609,95 @@ Known gaps / next top 20:
 18. Add enterprise audit export with signed evidence bundle index.
 19. Add Rust evidence bundle verification command.
 20. Add A1 commercial readiness report consumed by A3.
+
+## A1 round 2026-07-08 - hosted worker HTTP/SDK parity + API field plan
+
+Start-state checks:
+- `pwd` -> `C:\Users\33516\Documents\Ashr`.
+- `git rev-parse --show-toplevel` -> `C:/Users/33516/Documents/Ashr`.
+- Branch -> `codex/a1-local-sdk-runner` tracking `origin/codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` succeeded; peer update observed on `origin/dev/g3-a2-calibration`.
+- `gh repo view` -> `3351666087/ashr-codex-factory`, default branch `main`.
+- `gh pr list --state all --limit 10` -> A1 PR #19 is now merged; A3 PRs #18 and #17 remain open drafts.
+- Untracked `recon/` and `tools/` observed and intentionally left unstaged.
+
+WSL / Docker network probe:
+- `wsl -l -v` -> `docker-desktop` running under WSL2.
+- `docker --version` -> Docker CLI present, version 29.6.1.
+- `docker compose version` -> Compose CLI present, v5.2.0.
+- `docker info --format '{{json .ServerVersion}}'` -> daemon pipe unavailable: `dockerDesktopLinuxEngine` not found. Current status: WSL and CLIs are available, Docker daemon is half-available/unusable for compose-backed runtime tests until Docker Desktop exposes the engine pipe again.
+
+20 growth points carried for this round:
+1. Hosted worker job HTTP routes for enqueue/lease/heartbeat/complete/fail/list.
+2. Hosted worker job OpenAPI path exposure.
+3. Python SaaS SDK worker job methods.
+4. Python SDK HTTP path mapping for job-scoped operations.
+5. Python SDK redaction tests for worker job payload/result material.
+6. TS SaaS service heartbeat parity.
+7. TS router worker job HTTP parity.
+8. TS OpenAPI worker job parity.
+9. TS client local worker job wrappers.
+10. TS client HTTP worker job wrappers.
+11. TS CLI worker lifecycle commands.
+12. TS CLI JSON object helpers for payload/result/error files.
+13. Public-safe official API field parity plan builder.
+14. Calibrator tests for plan schema and guardrails.
+15. Private dry-run evidence for text field parity plan.
+16. Evidence command ledger updates.
+17. Official public site calibration carried from read-only signals: SDK, trace timeline, expected/actual, tool calls, scores/regressions, audio/image/file/PDF multimodal inputs.
+18. GitHub remote/PR refresh after prior network flake.
+19. WSL/Docker availability check after user network change.
+20. Commercial backend direction update: Go must become a primary production backend track while Python/TS SDK/runtime parity continues in parallel.
+
+Implemented files:
+- `services/api/control_plane.py`: added hosted worker-job HTTP/OpenAPI routes for enqueue, lease, heartbeat, complete, fail, and list.
+- `packages/sdk/ashr_clone/saas.py`: added Python SDK worker job methods and hosted HTTP operation path mapping.
+- `packages/ts/ashr-clone/src/saas.ts`: added TS worker heartbeat, router/OpenAPI worker job routes, client wrappers, and CLI lifecycle commands.
+- `packages/sdk/ashr_clone/calibrate.py`: added public-safe official API field parity plan builder.
+- `docs/a1/api_calibration/official_api_field_parity_plan.json`: generated public-safe field parity plan, excluding secrets and private response bodies.
+- `docs/a1/api_calibration/README.md` and `docs/a1/evidence/commands.md`: documented plan generation and dry-run command evidence.
+- `tests/a1/test_saas_control_plane_http.py`, `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_python_calibrator.py`, and `packages/ts/ashr-clone/test/saas.test.mjs`: added hosted worker job, SDK, TS CLI/router/OpenAPI, and calibrator plan coverage.
+
+Subagent outputs:
+- Growth-Auditor: confirmed current A1 is a production-shaped SaaS skeleton but still not hosted-real enough; next drivers are FastAPI/ASGI/OpenAPI, Postgres adapter, Redis quota/idempotency, API-key middleware, object storage, webhook worker, CI/secret scan, and stronger evidence.
+- Worker-HTTP/OpenAPI: implemented and tested hosted worker-job routes and OpenAPI exposure.
+- Worker-API-Calibrator/Evidence: implemented public-safe API field parity plan builder and dry-run evidence path.
+- Worker-TS parity: implemented TS worker job lifecycle parity across service, router, OpenAPI, client, CLI, and tests.
+
+Validation:
+- `npm test --prefix packages/ts/ashr-clone` -> 280 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 282 passed.
+- Earlier focused validation in this round: `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_saas_control_plane_http.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider` -> 40 passed.
+- Worker-HTTP subagent focused validation: 5 HTTP tests passed, then 25 selected SaaS tests passed.
+
+Real API / private evidence:
+- No desktop key files read. No raw API key values logged or committed.
+- This round created a safe dry-run record at ignored private path `docs/evidence/private_refs/a1_python_api_field_parity_dry_run_20260708.json` with `status=planned`; no official API call was made by that dry-run.
+- Next API calibration must use env-only key, dry-run plan -> small batch -> batch, with private evidence under `docs/evidence/private_refs/**` and public redacted summaries only.
+
+Peer changes / impact:
+- `origin/dev/g3-a2-calibration` advanced during fetch; treat as A2 calibration work to inspect read-only next round.
+- A1 PR #19 merged into `main`; current branch has follow-up changes after that merge and should be pushed/opened as a new draft PR if needed.
+- `origin/main` remains integration-sensitive because it contains A2/A3 aggregate work; no blind merge or overwrite performed.
+
+Known gaps / next top 20:
+1. Make Go the primary backend track: implement Go HTTP control plane skeleton for tenant/project/run/job lifecycle.
+2. Add Go SDK/client parity for worker jobs, trace ingestion, API-key lifecycle, and quota ledger.
+3. Add Go OpenAPI generation or typed route contract snapshots.
+4. Add Postgres repository adapter for tenants/projects/runs/API keys/audit/usage/jobs.
+5. Add Redis quota/idempotency adapter and distributed lease guard.
+6. Add object storage signed upload intent/complete/verify flow for text/audio/file/image/video evidence.
+7. Add webhook delivery worker with retry/dead-letter/HMAC metadata.
+8. Add FastAPI/ASGI wrapper or replace with Go-hosted control plane once route surface stabilizes.
+9. Run official API read-only calibration batch using env-only key and private evidence.
+10. Run quota-gated paid small-batch calibration for text first, then audio/file/image/video when planned.
+11. Consume `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip` into public-safe schema/UI behavior notes.
+12. Add official dashboard/usage/error empty-state screenshots or redacted notes via Chrome.
+13. Add deterministic old-vs-new execution diff fixtures for production replay.
+14. Add production trace ingestion endpoint and replay verifier.
+15. Add tenant isolation concurrency tests for API keys, quota, worker jobs, and trace ingestion.
+16. Add CI YAML for Python/TS/Go/Rust/Terraform/SQL gates.
+17. Add staged secret scan script and PR evidence gate.
+18. Add enterprise evidence bundle export with audit hash and signed index.
+19. Add Rust evidence bundle verifier command.
+20. Add A1 commercial readiness report linked to API evidence, run replay, and quota ledger.

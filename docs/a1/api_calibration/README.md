@@ -13,6 +13,17 @@ This folder records public, non-sensitive summaries from subscription-era A1 cal
 - Mutating operations, currently `create-request` and `create-run`, additionally require `--allow-mutate`.
 - Records redact sensitive keys and selected headers; committed docs must contain only field names, counts, command summaries, and private evidence paths.
 
+## Official API Field Parity Plan
+
+`official_api_field_parity_plan.json` is a public-safe calibration plan generated from `packages/sdk/ashr_clone/calibrate.py` and `real_api_response_field_map.json`. It contains only operation names, observed field names, estimated call counts, quota-gate bindings, and guardrail commands.
+
+The plan is intentionally dry-run first:
+
+- Default calibration mode writes planned call records only and makes zero official API calls.
+- Real read-only calibration requires `--execute --small-batch --max-retries 0` and writes under `docs/evidence/private_refs/`.
+- Mutating text calibration requires `--include-mutating`, a fresh `plan-batch` quota gate for `create-request`, and private output.
+- API keys are read only from `ASHR_API_KEY` or `ASHR_LABS_API_KEY` at execution time; the public plan does not contain key material, authorization headers, raw payload responses, or private evidence contents.
+
 ## Probe Surface
 
 Implemented in `packages/sdk/ashr_clone/api_client.py` and `services/runner/api_probe.py`:

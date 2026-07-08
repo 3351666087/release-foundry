@@ -55,6 +55,12 @@ def test_control_plane_wsgi_serves_healthz_and_openapi_without_secret_env(monkey
     assert "post" in openapi["paths"]["/v1/projects/{project_id}/audit-chain/verify"]
     assert "/v1/projects/{project_id}/runs/{run_id}/release-evidence" in openapi["paths"]
     assert "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify" in openapi["paths"]
+    assert "/v1/projects/{project_id}/worker-jobs" in openapi["paths"]
+    assert "get" in openapi["paths"]["/v1/projects/{project_id}/worker-jobs"]
+    assert "post" in openapi["paths"]["/v1/projects/{project_id}/worker-jobs"]
+    assert "/v1/projects/{project_id}/worker-jobs/lease" in openapi["paths"]
+    assert "/v1/projects/{project_id}/worker-jobs/{job_id}/complete" in openapi["paths"]
+    assert "/v1/projects/{project_id}/worker-jobs/{job_id}/fail" in openapi["paths"]
     assert "redacted-http-adapter-marker" not in health_text + openapi_text
     assert "ASHR_API_KEY" not in health_text + openapi_text
 
@@ -221,6 +227,164 @@ def test_control_plane_wsgi_routes_json_requests_and_redacts_outputs(monkeypatch
     assert "usage_operation_totals_mismatch" in {failure["reason"] for failure in stale_verification["failures"]}
     assert "secret_hash_sha256" not in audit_text + built_packet_text + packet_text
     assert "redacted-router-flow-marker" not in key_text + listed_text + uploaded_text + lifecycle_text + audit_text + built_packet_text + packet_text
+
+
+def test_control_plane_wsgi_worker_job_routes_are_auth_scoped_and_public_safe(monkeypatch):
+    monkeypatch.setenv("ASHR_API_KEY", "redacted-worker-http-marker")
+    service = SaaSControlPlaneService()
+    app = create_control_plane_wsgi_app(service=service)
+
+    _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/bootstrap",
+        {
+            "tenant_name": "Worker Tenant",
+            "project_name": "Worker Project",
+            "tenant_id": "tenant_worker_http",
+            "project_id": "project_worker_http",
+        },
+    )
+    _, key, key_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/api-keys",
+        {
+            "tenant_id": "tenant_worker_http",
+            "name": "Worker key",
+            "scopes": ["worker:read", "worker:write", "audit:read"],
+            "key_id": "key_worker_http",
+        },
+    )
+    assert key["secret_value_present"] is False
+
+    unauth_meta, unauth, unauth_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs",
+        {"tenant_id": "tenant_worker_http", "api_key_id": "missing", "job_type": "run.replay"},
+    )
+    assert str(unauth_meta["status"]).startswith("404 ")
+    assert unauth["schema_version"] == CONTROL_PLANE_SCHEMA_VERSION
+    assert unauth["error"]["code"] == "not_found"
+
+    _, enqueued, enqueued_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs",
+        {
+            "tenant_id": "tenant_worker_http",
+            "api_key_id": "key_worker_http",
+            "job_type": "run.replay",
+            "target_id": "run_worker_http",
+            "payload": {"run_id": "run_worker_http", "secret": "must-not-leak"},
+            "job_id": "job_worker_http",
+            "priority": 7,
+            "max_attempts": 2,
+            "idempotency_key": "idem_worker_http",
+        },
+    )
+    assert enqueued["job_id"] == "job_worker_http"
+    assert enqueued["raw_payload_included"] is False
+
+    replay_meta, replay, _ = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs",
+        {
+            "tenant_id": "tenant_worker_http",
+            "api_key_id": "key_worker_http",
+            "job_type": "run.replay",
+            "target_id": "run_worker_http",
+            "payload": {"run_id": "run_worker_http", "secret": "must-not-leak"},
+            "job_id": "job_worker_http",
+            "priority": 7,
+            "max_attempts": 2,
+            "idempotency_key": "idem_worker_http",
+        },
+    )
+    assert str(replay_meta["status"]).startswith("202 ")
+    assert replay["idempotent_replay"] is True
+
+    _, leased, leased_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs/lease",
+        {
+            "tenant_id": "tenant_worker_http",
+            "api_key_id": "key_worker_http",
+            "lease_owner_id": "worker-http-a",
+            "lease_seconds": 30,
+            "job_type": "run.replay",
+        },
+    )
+    assert leased["leased"] is True
+    assert leased["job"]["attempts"] == 1
+
+    _, failed, failed_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs/job_worker_http/fail",
+        {
+            "tenant_id": "tenant_worker_http",
+            "api_key_id": "key_worker_http",
+            "lease_owner_id": "worker-http-a",
+            "retry_after_seconds": 0,
+            "error": {"type": "TransientError", "message": "retryable", "secret": "must-not-leak"},
+        },
+    )
+    assert failed["status"] == "retrying"
+    assert failed["last_error"]["raw_payload_included"] is False
+
+    _, leased_again, _ = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs/lease",
+        {"tenant_id": "tenant_worker_http", "api_key_id": "key_worker_http", "lease_owner_id": "worker-http-b", "lease_seconds": 30},
+    )
+    assert leased_again["job"]["attempts"] == 2
+
+    _, completed, completed_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/worker-jobs/job_worker_http/complete",
+        {
+            "tenant_id": "tenant_worker_http",
+            "api_key_id": "key_worker_http",
+            "lease_owner_id": "worker-http-b",
+            "result": {"ok": True, "secret": "must-not-leak"},
+        },
+    )
+    assert completed["status"] == "completed"
+    assert completed["result_sha256"]
+
+    _, listed, listed_text = _invoke_wsgi(
+        app,
+        "GET",
+        "/v1/projects/project_worker_http/worker-jobs",
+        query="tenant_id=tenant_worker_http&api_key_id=key_worker_http&status=completed&limit=1",
+    )
+    assert listed["count"] == 1
+    assert listed["jobs"][0]["job_id"] == "job_worker_http"
+
+    _, audit, audit_text = _invoke_wsgi(
+        app,
+        "POST",
+        "/v1/projects/project_worker_http/audit-chain/verify",
+        {"tenant_id": "tenant_worker_http", "api_key_id": "key_worker_http"},
+    )
+    assert audit["verification"]["verified"] is True
+    _, audit_log, audit_log_text = _invoke_wsgi(
+        app,
+        "GET",
+        "/v1/projects/project_worker_http/audit-log",
+        query="tenant_id=tenant_worker_http&api_key_id=key_worker_http",
+    )
+    assert {event["action"] for event in audit_log["events"]} >= {"worker.job.enqueue", "worker.job.lease", "worker.job.fail", "worker.job.complete"}
+    combined_text = key_text + unauth_text + enqueued_text + leased_text + failed_text + completed_text + listed_text + audit_text + audit_log_text
+    assert "secret_hash_sha256" not in combined_text
+    assert "must-not-leak" not in combined_text
+    assert "redacted-worker-http-marker" not in combined_text
 
 
 def test_control_plane_wsgi_rejects_invalid_json_with_public_error():

@@ -297,6 +297,14 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
             return {"verification": {"verified": True}, "event_count": 1}
         if url.endswith("/runs/run_http/release-evidence/verify"):
             return {"verified": True, "packet_id": data["packet"]["packet_id"]}
+        if url.endswith("/worker-jobs") and data.get("job_type") == "run.replay":
+            return {"job_id": data["job_id"], "raw_payload_included": False, "payload": data["payload"], "status": "queued"}
+        if url.endswith("/worker-jobs/lease"):
+            return {"status": "leased", "leased": True, "job": {"job_id": "job_http", "attempts": 1, "lease_owner_id": data["lease_owner_id"]}}
+        if url.endswith("/worker-jobs/job_http/fail"):
+            return {"job_id": "job_http", "status": "retrying", "last_error": {"raw_payload_included": False, "message": data["error"]["message"]}}
+        if url.endswith("/worker-jobs") and data.get("status") == "retrying":
+            return {"count": 1, "jobs": [{"job_id": "job_http", "status": "retrying"}]}
         raise AssertionError(url)
 
     client = SaaSIngestionClient.from_base_url("http://127.0.0.1:8765/a1", http_transport=transport)
@@ -339,6 +347,21 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
     assert client.quota_snapshot("tenant_http", "project_http")["result"]["used"]["run.submit"] == 1
     assert client.verify_audit_chain("tenant_http", "project_http", auth_key_id="key_http")["result"]["verification"]["verified"] is True
     assert client.verify_release_evidence_packet("tenant_http", "project_http", "run_http", packet={"packet_id": "packet_http"}, auth_key_id="key_http")["result"]["packet_id"] == "packet_http"
+    enqueued = client.enqueue_worker_job(
+        "tenant_http",
+        "project_http",
+        job_type="run.replay",
+        target_id="run_http",
+        payload={"run_id": "run_http", "api_key": "tp_should_redact"},
+        job_id="job_http",
+        api_key_id="key_http",
+        idempotency_key="idem_job_http",
+    )
+    assert enqueued["result"]["raw_payload_included"] is False
+    assert enqueued["result"]["payload"]["api_key"] == "[redacted]"
+    assert client.lease_worker_job("tenant_http", "project_http", lease_owner_id="worker-http", api_key_id="key_http")["result"]["leased"] is True
+    assert client.fail_worker_job("tenant_http", "project_http", "job_http", {"message": "retry"}, lease_owner_id="worker-http", retry_after_seconds=0, api_key_id="key_http")["result"]["status"] == "retrying"
+    assert client.list_worker_jobs("tenant_http", "project_http", status="retrying", auth_key_id="key_http")["result"]["count"] == 1
     assert [url for url, _payload in calls] == [
         "http://127.0.0.1:8765/a1/runs/submit",
         "http://127.0.0.1:8765/a1/runs/upload",
@@ -346,6 +369,10 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
         "http://127.0.0.1:8765/a1/quota",
         "http://127.0.0.1:8765/a1/audit-chain/verify",
         "http://127.0.0.1:8765/a1/runs/run_http/release-evidence/verify",
+        "http://127.0.0.1:8765/a1/worker-jobs",
+        "http://127.0.0.1:8765/a1/worker-jobs/lease",
+        "http://127.0.0.1:8765/a1/worker-jobs/job_http/fail",
+        "http://127.0.0.1:8765/a1/worker-jobs",
     ]
     assert calls[0][1]["api_key_id"] == "key_http"
 

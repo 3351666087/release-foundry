@@ -365,6 +365,9 @@ test("TS SaaS worker jobs lease retry dead-letter and redact payloads", () => {
   const leased = client.leaseWorkerJob("tenant_ts_worker", "project_ts_worker", { lease_owner_id: "worker-a", lease_seconds: 30, job_type: "run.replay" });
   assert.equal(leased.result.leased, true);
   assert.equal(leased.result.job.attempts, 1);
+  const heartbeat = client.heartbeatWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { lease_owner_id: "worker-a", lease_seconds: 60 });
+  assert.equal(heartbeat.result.status, "leased");
+  assert.equal(heartbeat.result.lease_owner_id, "worker-a");
   assert.throws(() => client.completeWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { ok: true }, { lease_owner_id: "worker-b" }), /lease owner mismatch/);
 
   const failed = client.failWorkerJob("tenant_ts_worker", "project_ts_worker", "job_ts_worker", { type: "TransientError", message: "redacted", raw: "not stored" }, { lease_owner_id: "worker-a", retry_after_seconds: 0 });
@@ -380,7 +383,42 @@ test("TS SaaS worker jobs lease retry dead-letter and redact payloads", () => {
   assert.equal(listed.result.count, 1);
   assert.equal(listed.result.jobs[0].job_id, "job_ts_worker");
   const used = client.service.cloud.quotaSnapshot("tenant_ts_worker", "project_ts_worker").used;
+  assert.equal(used["worker.job.heartbeat"] ?? 0, 0);
   assert.equal(used["worker.job.fail"], 2);
+});
+
+test("TS SaaS router HTTP and OpenAPI expose worker job heartbeat parity", async () => {
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Worker HTTP", projectName: "Worker HTTP Project", tenantId: "tenant_ts_worker_http", projectId: "project_ts_worker_http" });
+  const router = new SaaSControlPlaneRouter(service);
+
+  const spec = router.handle("GET", "/openapi.json");
+  assert.equal(spec.status_code, 200);
+  assert.equal(spec.body.paths["/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"].post.operationId, "heartbeatWorkerJob");
+  assert.equal(spec.body.paths["/v1/projects/{project_id}/worker-jobs/enqueue"].post.operationId, "enqueueWorkerJob");
+
+  const enqueued = router.handle("POST", "/v1/projects/project_ts_worker_http/worker-jobs/enqueue", { tenant_id: "tenant_ts_worker_http", job_type: "run.replay", job_id: "job_ts_worker_http", payload: { secret: "must-not-leak" } });
+  assert.equal(enqueued.status_code, 202);
+  assert.equal(enqueued.body.raw_payload_included, false);
+  assert.equal(JSON.stringify(enqueued).includes("must-not-leak"), false);
+
+  const leased = router.handle("POST", "/v1/projects/project_ts_worker_http/worker-jobs/lease", { tenant_id: "tenant_ts_worker_http", lease_owner_id: "worker-http", lease_seconds: 30 });
+  assert.equal(leased.status_code, 200);
+  assert.equal(leased.body.leased, true);
+
+  const heartbeat = router.handle("POST", "/v1/projects/project_ts_worker_http/worker-jobs/job_ts_worker_http/heartbeat", { tenant_id: "tenant_ts_worker_http", lease_owner_id: "worker-http", lease_seconds: 60 });
+  assert.equal(heartbeat.status_code, 200);
+  assert.equal(heartbeat.body.status, "leased");
+  assert.equal(heartbeat.body.lease_owner_id, "worker-http");
+
+  const list = router.handle("GET", "/v1/projects/project_ts_worker_http/worker-jobs", { tenant_id: "tenant_ts_worker_http", status: "leased" });
+  assert.equal(list.status_code, 200);
+  assert.equal(list.body.count, 1);
+
+  const client = new SaaSIngestionClient({ service });
+  const completed = await client.completeWorkerJobHttp("tenant_ts_worker_http", "project_ts_worker_http", "job_ts_worker_http", { ok: true, raw: "still-hashed" }, { lease_owner_id: "worker-http" });
+  assert.equal(completed.result.status, "completed");
+  assert.equal(JSON.stringify(completed).includes("still-hashed"), false);
 });
 
 test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () => {
@@ -467,6 +505,92 @@ test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () 
 
     const persisted = JSON.parse(await readFile(stateAfterRate, "utf8"));
     assert.equal(Object.keys(persisted.control_plane.api_key_rate_limits).length, 1);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("TS SaaS CLI covers worker job lifecycle and public-safe state", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "ashr-ts-saas-worker-cli-"));
+  try {
+    const inputState = join(tempDir, "state-input.json");
+    const stateAfterEnqueue = join(tempDir, "state-enqueue.json");
+    const stateAfterLease = join(tempDir, "state-lease.json");
+    const stateAfterHeartbeat = join(tempDir, "state-heartbeat.json");
+    const stateAfterComplete = join(tempDir, "state-complete.json");
+    const service = new SaaSControlPlaneService();
+    service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_cli_worker", projectId: "project_ts_cli_worker" });
+    await writeFile(inputState, `${JSON.stringify(service.snapshotState(), null, 2)}\n`, "utf8");
+
+    const enqueued = runSaasCli([
+      "--state-input", inputState,
+      "--state-output", stateAfterEnqueue,
+      "job-enqueue",
+      "--tenant-id", "tenant_ts_cli_worker",
+      "--project-id", "project_ts_cli_worker",
+      "--job-type", "run.replay",
+      "--job-id", "job_ts_cli_worker",
+      "--payload-json", "{\"secret\":\"must-not-leak\"}",
+      "--max-attempts", "2",
+    ]);
+    assert.equal(enqueued.operation, "worker_job_enqueue");
+    assert.equal(enqueued.result.raw_payload_included, false);
+    assert.equal(JSON.stringify(enqueued).includes("must-not-leak"), false);
+
+    const leased = runSaasCli([
+      "--state-input", stateAfterEnqueue,
+      "--state-output", stateAfterLease,
+      "job-lease",
+      "--tenant-id", "tenant_ts_cli_worker",
+      "--project-id", "project_ts_cli_worker",
+      "--lease-owner-id", "worker-cli",
+      "--lease-seconds", "30",
+    ]);
+    assert.equal(leased.operation, "worker_job_lease");
+    assert.equal(leased.result.job.job_id, "job_ts_cli_worker");
+
+    const heartbeat = runSaasCli([
+      "--state-input", stateAfterLease,
+      "--state-output", stateAfterHeartbeat,
+      "job-heartbeat",
+      "--tenant-id", "tenant_ts_cli_worker",
+      "--project-id", "project_ts_cli_worker",
+      "--job-id", "job_ts_cli_worker",
+      "--lease-owner-id", "worker-cli",
+      "--lease-seconds", "60",
+    ]);
+    assert.equal(heartbeat.operation, "worker_job_heartbeat");
+    assert.equal(heartbeat.result.status, "leased");
+
+    const completed = runSaasCli([
+      "--state-input", stateAfterHeartbeat,
+      "--state-output", stateAfterComplete,
+      "job-complete",
+      "--tenant-id", "tenant_ts_cli_worker",
+      "--project-id", "project_ts_cli_worker",
+      "--job-id", "job_ts_cli_worker",
+      "--lease-owner-id", "worker-cli",
+      "--result-json", "{\"raw\":\"do-not-store\"}",
+    ]);
+    assert.equal(completed.operation, "worker_job_complete");
+    assert.equal(completed.result.status, "completed");
+    assert.equal(JSON.stringify(completed).includes("do-not-store"), false);
+
+    const listed = runSaasCli([
+      "--state-input", stateAfterComplete,
+      "job-list",
+      "--tenant-id", "tenant_ts_cli_worker",
+      "--project-id", "project_ts_cli_worker",
+      "--status", "completed",
+    ]);
+    assert.equal(listed.operation, "worker_jobs");
+    assert.equal(listed.result.count, 1);
+    assert.equal(listed.result.jobs[0].result_sha256.length, 64);
+
+    const persisted = JSON.parse(await readFile(stateAfterComplete, "utf8"));
+    assert.equal(persisted.control_plane.worker_jobs.job_ts_cli_worker.raw_payload_included, false);
+    assert.equal(JSON.stringify(persisted).includes("must-not-leak"), false);
+    assert.equal(JSON.stringify(persisted).includes("do-not-store"), false);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
