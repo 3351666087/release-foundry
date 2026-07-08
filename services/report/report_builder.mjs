@@ -3615,6 +3615,69 @@ function summarizeGithubRequiredCheckPlan(plan = {}) {
   };
 }
 
+function summarizeGithubCheckReadbackReceipt(receipt = {}) {
+  return {
+    available: hasReleaseEvidenceObject(receipt),
+    schema_version: receipt.schema_version || "unknown",
+    readback_id: receipt.readback_id || null,
+    readback_status: receipt.readback_status || receipt.status || "missing",
+    readback_confirmed: receipt.readback_confirmed === true || receipt.readback_status === "readback_confirmed",
+    posted: receipt.posted === true,
+    stale: receipt.stale === true || receipt.readback_status === "stale",
+    missing: receipt.missing === true || receipt.readback_status === "missing",
+    deleted: receipt.deleted === true || receipt.readback_status === "deleted",
+    permission_denied: receipt.readback_status === "permission_denied",
+    check_name: receipt.expected?.check_name || receipt.observed?.check_name || "unknown",
+    head_sha_match: receipt.matches?.head_sha ?? null,
+    output_hash_match: receipt.matches?.output_hash ?? null,
+    payload_hash: receipt.payload_hash || null,
+    sanitized_error_class: receipt.sanitized_error_class || null,
+    token_included: receipt.safety?.token_included === true,
+    secret_values_allowed: receipt.safety?.secret_values_allowed === true
+  };
+}
+
+function summarizeGithubPrCommentReadbackReceipt(receipt = {}) {
+  return {
+    available: hasReleaseEvidenceObject(receipt),
+    schema_version: receipt.schema_version || "unknown",
+    readback_id: receipt.readback_id || null,
+    readback_status: receipt.readback_status || receipt.status || "missing",
+    readback_confirmed: receipt.readback_confirmed === true || receipt.readback_status === "readback_confirmed",
+    posted: receipt.posted === true,
+    stale: receipt.stale === true || receipt.readback_status === "stale",
+    missing: receipt.missing === true || receipt.readback_status === "missing",
+    deleted: receipt.deleted === true || receipt.readback_status === "deleted",
+    permission_denied: receipt.readback_status === "permission_denied",
+    pull_number: numberOrNull(receipt.expected?.pull_number),
+    marker_match: receipt.matches?.marker ?? receipt.marker_match ?? null,
+    body_hash_match: receipt.matches?.body_hash ?? receipt.body_hash_match ?? null,
+    payload_hash: receipt.payload_hash || null,
+    sanitized_error_class: receipt.sanitized_error_class || null,
+    token_included: receipt.safety?.token_included === true,
+    secret_values_allowed: receipt.safety?.secret_values_allowed === true
+  };
+}
+
+function summarizeGithubRequiredCheckProof(proof = {}) {
+  return {
+    available: hasReleaseEvidenceObject(proof),
+    schema_version: proof.schema_version || "unknown",
+    proof_id: proof.proof_id || null,
+    readback_status: proof.readback_status || proof.enforcement_readback_status || "plan_only",
+    enforcement_readback_status: proof.enforcement_readback_status || proof.readback_status || "plan_only",
+    enforced: proof.enforced === true,
+    plan_only_must_not_claim_enforcement: proof.plan_only_must_not_claim_enforcement !== false,
+    check_name: proof.check_name || "unknown",
+    branch: proof.branch || "unknown",
+    checked_count: proof.checked_count || 0,
+    payload_hash: proof.payload_hash || null,
+    sanitized_error_class: proof.sanitized_error_class || null,
+    token_included: proof.safety?.token_included === true,
+    secret_values_allowed: proof.safety?.secret_values_allowed === true
+  };
+}
+
 function summarizeAuditBundleVerification(verification = {}) {
   const artifacts = objectOr(verification.artifacts);
   const custody = objectOr(verification.chain_of_custody);
@@ -3679,6 +3742,9 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   const githubCheck = summarizeGithubCheckPublishReceipt(fixture.githubCheckPublishReceipt || fixture.github_check_publish_receipt || fixture.github_check || {});
   const prComment = summarizeGithubPrCommentPublishReceipt(fixture.githubPrCommentPublishReceipt || fixture.github_pr_comment_publish_receipt || fixture.pr_comment || {});
   const requiredCheck = summarizeGithubRequiredCheckPlan(fixture.githubRequiredCheckPlan || fixture.github_required_check_plan || fixture.required_check_plan || {});
+  const githubCheckReadback = summarizeGithubCheckReadbackReceipt(fixture.githubCheckReadback || fixture.github_check_readback || {});
+  const prCommentReadback = summarizeGithubPrCommentReadbackReceipt(fixture.githubPrCommentReadback || fixture.pr_comment_readback || {});
+  const requiredCheckProof = summarizeGithubRequiredCheckProof(fixture.githubRequiredCheckProof || fixture.required_check_proof || {});
   const auditBundle = summarizeAuditBundleVerification(fixture.auditBundleVerification || fixture.audit_bundle_verification || {});
   const auditArchive = summarizeAuditArchiveVerification(fixture.auditArchiveVerification || fixture.audit_archive_verification || {});
   const surfaces = [githubCheck, prComment, requiredCheck, auditBundle, auditArchive];
@@ -3710,6 +3776,9 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
     github_check_publish: githubCheck,
     github_pr_comment_publish: prComment,
     github_required_check_plan: requiredCheck,
+    github_check_readback: githubCheckReadback,
+    pr_comment_readback: prCommentReadback,
+    required_check_proof: requiredCheckProof,
     audit_bundle_verification: auditBundle,
     audit_archive_verification: auditArchive,
     safety,

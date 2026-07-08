@@ -50,21 +50,24 @@ export function buildReleaseEvidenceSummaryV2(summary = {}, context = {}) {
       failure_class_count: numberOrZero(context.a2?.failureClassCount),
       missing_required_fields: arrayOrEmpty(context.a2?.missingRequiredFields)
     },
-    github_check_readback: readbackState(safeSummary.github_check_publish, {
+    github_check_readback: readbackState(context.githubCheckReadback || safeSummary.github_check_readback || safeSummary.github_check_publish, {
       generated_status: safeSummary.github_check_publish?.status,
-      readback_status: safeSummary.github_check_publish?.readback_status || "missing",
+      readback_status: context.githubCheckReadback?.readback_status || safeSummary.github_check_readback?.readback_status || safeSummary.github_check_publish?.readback_status || "missing",
       required_before_enforced: true
     }),
-    pr_comment_readback: readbackState(safeSummary.github_pr_comment_publish, {
+    pr_comment_readback: readbackState(context.prCommentReadback || safeSummary.pr_comment_readback || safeSummary.github_pr_comment_publish, {
       generated_status: safeSummary.github_pr_comment_publish?.status,
-      readback_status: safeSummary.github_pr_comment_publish?.readback_status || "missing"
+      readback_status: context.prCommentReadback?.readback_status || safeSummary.pr_comment_readback?.readback_status || safeSummary.github_pr_comment_publish?.readback_status || "missing"
     }),
     required_check_proof: {
       plan_available: Boolean(safeSummary.github_required_check_plan?.check_name),
-      check_name: safeSummary.github_required_check_plan?.check_name || null,
-      enforcement_readback_status: safeSummary.github_required_check_plan?.enforcement_readback_status || "plan_only",
-      enforced: safeSummary.github_required_check_plan?.enforced === true,
-      plan_only_must_not_claim_enforcement: safeSummary.github_required_check_plan?.enforced !== true
+      check_name: context.requiredCheckProof?.check_name || safeSummary.required_check_proof?.check_name || safeSummary.github_required_check_plan?.check_name || null,
+      proof_id: context.requiredCheckProof?.proof_id || safeSummary.required_check_proof?.proof_id || null,
+      readback_status: context.requiredCheckProof?.readback_status || safeSummary.required_check_proof?.readback_status || safeSummary.github_required_check_plan?.enforcement_readback_status || "plan_only",
+      enforcement_readback_status: context.requiredCheckProof?.enforcement_readback_status || safeSummary.required_check_proof?.enforcement_readback_status || safeSummary.github_required_check_plan?.enforcement_readback_status || "plan_only",
+      enforced: context.requiredCheckProof?.enforced === true || safeSummary.required_check_proof?.enforced === true || safeSummary.github_required_check_plan?.enforced === true,
+      payload_hash: context.requiredCheckProof?.payload_hash || safeSummary.required_check_proof?.payload_hash || null,
+      plan_only_must_not_claim_enforcement: !(context.requiredCheckProof?.enforced === true || safeSummary.required_check_proof?.enforced === true || safeSummary.github_required_check_plan?.enforced === true)
     },
     hosted_report: {
       snapshot_id: context.hostedReportSnapshotId || context.summarySnapshotId || null,
@@ -285,15 +288,24 @@ function action(actionName, reason, label) {
 }
 
 function readbackState(item = {}, defaults = {}) {
+  const readbackStatus = defaults.readback_status || item?.readback_status || item?.status || "missing";
   return {
-    generated_status: defaults.generated_status || item?.status || "missing",
-    posted: item?.posted === true || item?.status === "posted" || item?.status === "readback_confirmed",
-    readback_status: defaults.readback_status || item?.readback_status || "missing",
-    readback_confirmed: item?.status === "readback_confirmed" || item?.readback_status === "confirmed",
-    stale: item?.readback_status === "stale" || item?.stale === true,
-    missing: item?.readback_status === "missing" || item?.missing === true,
-    deleted: item?.readback_status === "deleted" || item?.deleted === true,
+    schema_version: item?.schema_version || null,
+    readback_id: item?.readback_id || null,
+    generated_status: item?.generated_status || defaults.generated_status || item?.status || "missing",
+    posted: item?.posted === true || item?.status === "posted" || readbackStatus === "posted" || readbackStatus === "readback_confirmed",
+    readback_status: readbackStatus,
+    readback_confirmed: item?.readback_confirmed === true || item?.status === "readback_confirmed" || readbackStatus === "confirmed" || readbackStatus === "readback_confirmed",
+    stale: readbackStatus === "stale" || item?.stale === true,
+    missing: readbackStatus === "missing" || item?.missing === true,
+    deleted: readbackStatus === "deleted" || item?.deleted === true,
+    permission_denied: readbackStatus === "permission_denied",
     sanitized_error_class: item?.sanitized_error_class || null,
+    payload_hash: item?.payload_hash || null,
+    external_id_alias: item?.expected?.check_run_id_alias || item?.expected?.comment_id_alias || item?.check_name || null,
+    head_sha_match: item?.matches?.head_sha ?? null,
+    marker_match: item?.matches?.marker ?? item?.marker_match ?? null,
+    body_hash_match: item?.matches?.body_hash ?? item?.body_hash_match ?? null,
     required_before_enforced: defaults.required_before_enforced === true
   };
 }

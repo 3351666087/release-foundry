@@ -91,6 +91,50 @@ test("A3 release evidence v2 authority summary is additive and tenant scoped", (
   assert.doesNotMatch(JSON.stringify(summary), /Bearer should-not-leak|secret_live_value/);
 });
 
+test("A3 release evidence v2 carries GitHub readback and required-check proof without overstating enforcement", () => {
+  const summary = buildReleaseEvidenceSummaryV2(verifiedSummary, {
+    releaseId: "run-readback",
+    source: "mock",
+    githubCheckReadback: {
+      schema_version: "a3.github_check_readback_receipt.v1",
+      readback_id: "ghcrb_unit",
+      readback_status: "readback_confirmed",
+      readback_confirmed: true,
+      posted: true,
+      payload_hash: "hash_check",
+      matches: { head_sha: true, output_hash: true },
+      expected: { check_run_id_alias: 9001 }
+    },
+    prCommentReadback: {
+      schema_version: "a3.github_pr_comment_readback_receipt.v1",
+      readback_id: "ghprb_unit",
+      readback_status: "stale",
+      stale: true,
+      payload_hash: "hash_comment",
+      matches: { marker: true, body_hash: false },
+      expected: { comment_id_alias: 2001 }
+    },
+    requiredCheckProof: {
+      schema_version: "a3.github_required_check_proof.v1",
+      proof_id: "ghrcp_unit",
+      check_name: "Ashr++ Release Gate",
+      enforcement_readback_status: "plan_only",
+      readback_status: "plan_only",
+      enforced: false,
+      payload_hash: "hash_required"
+    }
+  });
+
+  assert.equal(summary.github_check_readback.readback_status, "readback_confirmed");
+  assert.equal(summary.github_check_readback.readback_confirmed, true);
+  assert.equal(summary.github_check_readback.head_sha_match, true);
+  assert.equal(summary.pr_comment_readback.readback_status, "stale");
+  assert.equal(summary.pr_comment_readback.body_hash_match, false);
+  assert.equal(summary.required_check_proof.enforcement_readback_status, "plan_only");
+  assert.equal(summary.required_check_proof.enforced, false);
+  assert.equal(summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
+});
+
 test("A3 release evidence next action drives missing GitHub and archive work", () => {
   assert.equal(computeReleaseEvidenceNextAction({
     ...verifiedSummary,

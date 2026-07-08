@@ -2637,3 +2637,63 @@ Safety boundary:
 Current interpretation:
 
 A3 now has a local SQL-backed place for release evidence v2 snapshots, diffs, and readbacks. This still is not production Postgres/RLS, but it gives A1/A3 a concrete DB contract to implement against.
+
+## 2026-07-08 - GitHub readback and required-check proof contracts
+
+Continued A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` by turning GitHub publish evidence into live-shaped readback evidence.
+
+Implemented:
+
+- Added `buildGitHubCheckReadbackReceipt(...)`.
+- Added `buildPrCommentReadbackReceipt(...)`.
+- Added `buildRequiredCheckProof(...)`.
+- Added live-capable readback helpers:
+  - `readGitHubCheckRun(...)`
+  - `readPrCommentReadback(...)`
+  - `readRequiredCheckProof(...)`
+- Added readback states:
+  - `generated`
+  - `posted`
+  - `readback_confirmed`
+  - `stale`
+  - `missing`
+  - `deleted`
+  - `permission_denied`
+  - `failed`
+- Wired readback receipts into `release_evidence_summary.v1` aggregation and `a3.release_evidence_summary.v2`.
+- Added redacted readback fixtures:
+  - `fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json`
+  - `fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json`
+  - `fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json`
+- Added documentation:
+  - `docs/a3/p3_github_readback_contract_2026_07_08.md`
+
+Verification:
+
+```text
+node --check services/report/a3_github_integration.mjs
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/report_builder.mjs
+node --test tests/a3/a3_github_integration.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs
+```
+
+Result: 40 pass, 0 fail.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, score, pass/fail, failure taxonomy, and policy semantics were not changed.
+- A3 readback evidence stays downstream of A1/A2 and only proves PR/release publication state.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No branch-protection mutation.
+- No token, cookie, email, raw signed URL, Authorization header, or secret value stored.
+- Required-check proof remains `plan_only` unless branch-protection readback confirms enforcement.
+
+Current interpretation:
+
+A3 can now represent the commercial distinction between a generated artifact, a posted artifact, and a readback-confirmed external control. The remaining production step is maintainer-approved live CI/GitHub App integration that actually performs the readback against GitHub.

@@ -3903,3 +3903,72 @@ Result:
 ### Current interpretation
 
 A3 now has both machine-readable Check Run publishing and human-readable PR comment publishing. The remaining commercial gap is enforcing the check through branch protection and proving that setting with maintainer-approved evidence.
+
+## 2026-07-08 - GitHub readback and required-check proof contracts
+
+### Goal
+
+Continue the A3 PR Gate / Release Evidence authority work by adding readback contracts. This lets A3 distinguish "we generated a GitHub artifact" from "GitHub currently has the expected check/comment/required-check state."
+
+### Work completed
+
+- Added GitHub Check readback receipt contract:
+  - generated
+  - posted
+  - readback-confirmed
+  - stale SHA/body
+  - missing
+  - deleted
+  - permission denied
+  - failed
+- Added PR comment readback receipt contract:
+  - marker match
+  - body-hash match
+  - comment id match
+  - stale/missing/deleted/permission-denied states
+- Added required-check proof contract:
+  - branch-protection readback
+  - enforced only when readback confirms the configured check
+  - plan-only cannot claim enforcement
+- Wired readback summaries into:
+  - `services/report/report_builder.mjs`
+  - `services/report/a3_release_evidence.mjs`
+  - `services/report/a3_store.mjs`
+- Added redacted fixture examples under `fixtures/a3/p3`.
+- Added documentation:
+  - `docs/a3/p3_github_readback_contract_2026_07_08.md`
+
+### Verification
+
+```text
+node --check services/report/a3_github_integration.mjs
+node --check services/report/a3_release_evidence.mjs
+node --check services/report/report_builder.mjs
+node --test tests/a3/a3_github_integration.test.mjs tests/a3/a3_release_evidence.test.mjs tests/a3/a3_store.test.mjs
+```
+
+Result:
+
+```text
+40 tests
+40 pass
+0 fail
+```
+
+### A1/A2 calibration
+
+- A1 source data contracts were not changed.
+- A2 judge/policy semantics were not changed.
+- A3 readback evidence wraps the release workflow only, after A1/A2 have produced run and grade evidence.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made.
+- No real branch protection was changed.
+- No GitHub token, API key, cookie, email, Authorization header, raw signed URL, or secret value was committed.
+
+### Current interpretation
+
+This closes a major commercial evidence gap in local code: A3 can now model external GitHub proof instead of only local publish receipts. The next step is maintainer-approved CI or GitHub App integration that performs real readback and persists the receipt.

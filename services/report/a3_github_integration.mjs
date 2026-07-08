@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const DEFAULT_API_BASE_URL = "https://api.github.com";
 const DEFAULT_MARKER_PREFIX = "ashr-plus-plus:release-gate";
 const DEFAULT_GITHUB_API_VERSION = "2022-11-28";
@@ -130,6 +132,294 @@ export function buildBranchProtectionRequiredCheckPlan(options = {}) {
     },
     redacted_summary: `Plan only: require the '${checkName}' check on ${repo.owner}/${repo.repo}@${branch}.`
   };
+}
+
+export function buildGitHubCheckReadbackReceipt(publishReceipt = {}, options = {}) {
+  const expected = expectedCheckRunFields(publishReceipt, options);
+  const observed = sanitizeCheckRunReadback(options.checkRun || options.observedCheckRun || {});
+  const httpStatus = numberOrNull(options.httpStatus);
+  const matches = {
+    check_run_id: expected.check_run_id_alias && observed.check_run_id_alias
+      ? expected.check_run_id_alias === observed.check_run_id_alias
+      : null,
+    name: expected.check_name && observed.check_name ? expected.check_name === observed.check_name : null,
+    head_sha: expected.head_sha_alias && observed.head_sha_alias ? expected.head_sha_alias === observed.head_sha_alias : null,
+    conclusion: expected.conclusion && observed.conclusion ? expected.conclusion === observed.conclusion : null,
+    output_hash: expected.output_hash && observed.output_hash ? expected.output_hash === observed.output_hash : null
+  };
+  const readbackStatus = classifyReadbackStatus({
+    explicitStatus: options.readbackStatus,
+    httpStatus,
+    observedPresent: Boolean(observed.check_run_id_alias),
+    expectedExternalIdPresent: Boolean(expected.check_run_id_alias),
+    hasMismatch: Object.values(matches).some((value) => value === false),
+    posted: publishReceipt.posted === true,
+    dryRun: publishReceipt.dry_run === true || publishReceipt.request?.safety?.dry_run_only === true
+  });
+  const payloadForHash = { expected, observed, matches, readbackStatus, httpStatus };
+  return {
+    schema_version: "a3.github_check_readback_receipt.v1",
+    provider: "github",
+    resource_kind: "check_run",
+    readback_id: `ghcrb_${sha256(stableJson(payloadForHash)).slice(0, 16)}`,
+    readback_status: readbackStatus,
+    readback_confirmed: readbackStatus === "readback_confirmed",
+    posted: publishReceipt.posted === true || readbackStatus === "readback_confirmed",
+    stale: readbackStatus === "stale",
+    missing: readbackStatus === "missing",
+    deleted: readbackStatus === "deleted",
+    http_status: httpStatus,
+    github_request_id: sanitizeGitHubRequestId(options.githubRequestId),
+    expected,
+    observed,
+    matches,
+    sanitized_error_class: errorClassForReadback(readbackStatus, options.errorMessage),
+    payload_hash: sha256(stableJson(payloadForHash)),
+    checked_at: options.checkedAt || null,
+    safety: readbackSafety(options)
+  };
+}
+
+export function buildPrCommentReadbackReceipt(publishReceipt = {}, options = {}) {
+  const expected = expectedPrCommentFields(publishReceipt, options);
+  const observedComment = options.comment || findExistingGateComment(options.comments || [], expected.marker || "");
+  const observed = sanitizePrCommentReadback(observedComment || {});
+  const httpStatus = numberOrNull(options.httpStatus);
+  const markerMatch = expected.marker && observed.body_marker_present !== null
+    ? observed.body_marker_present === true
+    : null;
+  const bodyHashMatch = expected.body_hash && observed.body_hash
+    ? expected.body_hash === observed.body_hash
+    : null;
+  const commentIdMatch = expected.comment_id_alias && observed.comment_id_alias
+    ? expected.comment_id_alias === observed.comment_id_alias
+    : null;
+  const headShaMatch = expected.head_sha_alias && observed.head_sha_alias
+    ? expected.head_sha_alias === observed.head_sha_alias
+    : null;
+  const matches = {
+    comment_id: commentIdMatch,
+    marker: markerMatch,
+    body_hash: bodyHashMatch,
+    head_sha: headShaMatch
+  };
+  const readbackStatus = classifyReadbackStatus({
+    explicitStatus: options.readbackStatus,
+    httpStatus,
+    observedPresent: Boolean(observed.comment_id_alias),
+    expectedExternalIdPresent: Boolean(expected.comment_id_alias),
+    hasMismatch: Object.values(matches).some((value) => value === false),
+    posted: publishReceipt.posted === true,
+    dryRun: publishReceipt.dry_run === true || publishReceipt.plan?.safety?.dry_run_only === true
+  });
+  const payloadForHash = { expected, observed, matches, readbackStatus, httpStatus };
+  return {
+    schema_version: "a3.github_pr_comment_readback_receipt.v1",
+    provider: "github",
+    resource_kind: "pr_comment",
+    readback_id: `ghprb_${sha256(stableJson(payloadForHash)).slice(0, 16)}`,
+    readback_status: readbackStatus,
+    readback_confirmed: readbackStatus === "readback_confirmed",
+    posted: publishReceipt.posted === true || readbackStatus === "readback_confirmed",
+    stale: readbackStatus === "stale",
+    missing: readbackStatus === "missing",
+    deleted: readbackStatus === "deleted",
+    http_status: httpStatus,
+    github_request_id: sanitizeGitHubRequestId(options.githubRequestId),
+    expected,
+    observed,
+    matches,
+    marker_match: markerMatch,
+    body_hash_match: bodyHashMatch,
+    sanitized_error_class: errorClassForReadback(readbackStatus, options.errorMessage),
+    payload_hash: sha256(stableJson(payloadForHash)),
+    checked_at: options.checkedAt || null,
+    safety: readbackSafety(options)
+  };
+}
+
+export function buildRequiredCheckProof(plan = {}, options = {}) {
+  const repo = normalizeRepo(options.repo || repoToString(plan.repo));
+  const branch = options.branch || plan.branch || "main";
+  const checkName = options.checkName || plan.check_name || "Ashr++ Release Gate";
+  const protection = options.branchProtection || options.requiredStatusChecks || {};
+  const checks = Array.isArray(protection.checks) ? protection.checks : [];
+  const contexts = Array.isArray(protection.contexts) ? protection.contexts : [];
+  const matchedCheck = checks.find((item) => (
+    item?.context === checkName
+    || item?.name === checkName
+    || item?.check_name === checkName
+  )) || null;
+  const matchedContext = contexts.includes(checkName) ? checkName : null;
+  const httpStatus = numberOrNull(options.httpStatus);
+  const hasProtectionReadback = Boolean(options.branchProtection || options.requiredStatusChecks);
+  const present = Boolean(matchedCheck || matchedContext);
+  let readbackStatus = options.readbackStatus || "plan_only";
+  if (!options.readbackStatus) {
+    if (httpStatus === 401 || httpStatus === 403) {
+      readbackStatus = "permission_denied";
+    } else if (httpStatus === 404) {
+      readbackStatus = "missing";
+    } else if (httpStatus && httpStatus >= 400) {
+      readbackStatus = "failed";
+    } else if (hasProtectionReadback && present) {
+      readbackStatus = "readback_confirmed";
+    } else if (hasProtectionReadback) {
+      readbackStatus = "missing";
+    }
+  }
+  const enforced = readbackStatus === "readback_confirmed" && present;
+  const payloadForHash = {
+    repo,
+    branch,
+    checkName,
+    readbackStatus,
+    matchedCheck: matchedCheck ? sanitizeRequiredCheckMatch(matchedCheck) : null,
+    matchedContext,
+    httpStatus
+  };
+  return {
+    schema_version: "a3.github_required_check_proof.v1",
+    provider: "github",
+    resource_kind: "required_check",
+    proof_id: `ghrcp_${sha256(stableJson(payloadForHash)).slice(0, 16)}`,
+    plan_available: hasReleasePlan(plan),
+    repo,
+    branch,
+    check_name: checkName,
+    enforcement_readback_status: readbackStatus,
+    readback_status: readbackStatus,
+    enforced,
+    plan_only_must_not_claim_enforcement: !enforced,
+    required_for_commercial_gate: plan.required_for_commercial_gate === true || options.requiredForCommercialGate === true,
+    matched_check: matchedCheck ? sanitizeRequiredCheckMatch(matchedCheck) : null,
+    matched_context: matchedContext,
+    checked_count: checks.length + contexts.length,
+    strict: protection.strict === true,
+    http_status: httpStatus,
+    github_request_id: sanitizeGitHubRequestId(options.githubRequestId),
+    sanitized_error_class: errorClassForReadback(readbackStatus, options.errorMessage),
+    payload_hash: sha256(stableJson(payloadForHash)),
+    checked_at: options.checkedAt || null,
+    safety: {
+      ...readbackSafety(options),
+      maintainer_approval_required: plan.safety?.maintainer_approval_required === true,
+      branch_protection_mutation_performed: false
+    }
+  };
+}
+
+export async function readGitHubCheckRun(publishReceipt = {}, options = {}) {
+  if (options.dryRun !== false) {
+    return buildGitHubCheckReadbackReceipt(publishReceipt, {
+      ...options,
+      readbackStatus: publishReceipt.posted === true ? "posted" : "generated"
+    });
+  }
+  const repo = normalizeRepo(options.repo || repoToString(publishReceipt.request?.repo));
+  const checkRunId = options.checkRunId || publishReceipt.check_run?.id;
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub check readback.");
+  }
+  if (!checkRunId) {
+    throw new Error("checkRunId is required for GitHub check readback.");
+  }
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required for GitHub check readback.");
+  }
+  const response = await githubFetch(fetchImpl, `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/check-runs/${checkRunId}`, {
+    method: "GET",
+    token,
+    githubApiVersion: options.githubApiVersion
+  });
+  return buildGitHubCheckReadbackReceipt(publishReceipt, {
+    ...options,
+    httpStatus: response.status,
+    githubRequestId: response.requestId,
+    checkRun: response.ok ? response.json : null,
+    errorMessage: response.json?.message || response.statusText
+  });
+}
+
+export async function readPrCommentReadback(publishReceipt = {}, options = {}) {
+  if (options.dryRun !== false) {
+    return buildPrCommentReadbackReceipt(publishReceipt, {
+      ...options,
+      readbackStatus: publishReceipt.posted === true ? "posted" : "generated"
+    });
+  }
+  const plan = publishReceipt.plan || {};
+  const repo = normalizeRepo(options.repo || repoToString(plan.repo));
+  const pullNumber = Number(options.pullNumber || plan.pull_number);
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub PR comment readback.");
+  }
+  if (!Number.isInteger(pullNumber) || pullNumber <= 0) {
+    throw new Error("pullNumber must be a positive integer for GitHub PR comment readback.");
+  }
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required for GitHub PR comment readback.");
+  }
+  const url = plan.find_existing?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/issues/${pullNumber}/comments`;
+  const response = await githubFetch(fetchImpl, url, {
+    method: "GET",
+    token,
+    githubApiVersion: options.githubApiVersion
+  });
+  return buildPrCommentReadbackReceipt(publishReceipt, {
+    ...options,
+    httpStatus: response.status,
+    githubRequestId: response.requestId,
+    comments: response.ok && Array.isArray(response.json) ? response.json : [],
+    errorMessage: response.json?.message || response.statusText
+  });
+}
+
+export async function readRequiredCheckProof(plan = {}, options = {}) {
+  if (options.dryRun !== false) {
+    return buildRequiredCheckProof(plan, {
+      ...options,
+      readbackStatus: "plan_only"
+    });
+  }
+  const repo = normalizeRepo(options.repo || repoToString(plan.repo));
+  const branch = options.branch || plan.branch || "main";
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for required-check readback.");
+  }
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required for required-check readback.");
+  }
+  const url = plan.inspect_current?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/branches/${encodeURIComponent(branch)}/protection/required_status_checks`;
+  const response = await githubFetch(fetchImpl, url, {
+    method: "GET",
+    token,
+    githubApiVersion: options.githubApiVersion
+  });
+  return buildRequiredCheckProof(plan, {
+    ...options,
+    repo: `${repo.owner}/${repo.repo}`,
+    branch,
+    httpStatus: response.status,
+    githubRequestId: response.requestId,
+    branchProtection: response.ok ? response.json : null,
+    errorMessage: response.json?.message || response.statusText
+  });
 }
 
 export function buildGitHubActionWorkflowExample(options = {}) {
@@ -475,6 +765,159 @@ function sanitizeErrorMessage(message = "") {
     .slice(0, 500);
 }
 
+function expectedCheckRunFields(publishReceipt = {}, options = {}) {
+  const requestBody = objectOr(publishReceipt.request?.body);
+  const checkRun = objectOr(publishReceipt.check_run);
+  const output = objectOr(requestBody.output);
+  return {
+    repo: options.repo || repoToString(publishReceipt.request?.repo) || "unknown",
+    check_run_id_alias: options.checkRunId || checkRun.id || null,
+    check_name: options.checkName || requestBody.name || checkRun.name || "Ashr++ Release Gate",
+    head_sha_alias: options.headSha || requestBody.head_sha || checkRun.head_sha || null,
+    conclusion: options.conclusion || requestBody.conclusion || checkRun.conclusion || null,
+    output_hash: hashCheckOutput(output)
+  };
+}
+
+function sanitizeCheckRunReadback(value = {}) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const output = objectOr(value.output);
+  return {
+    check_run_id_alias: value.id ?? null,
+    check_name: value.name || null,
+    status: value.status || null,
+    conclusion: value.conclusion || null,
+    head_sha_alias: value.head_sha || null,
+    html_url: value.html_url || null,
+    details_url: value.details_url || null,
+    output_title: output.title || null,
+    output_hash: hashCheckOutput(output),
+    started_at: value.started_at || null,
+    completed_at: value.completed_at || null
+  };
+}
+
+function expectedPrCommentFields(publishReceipt = {}, options = {}) {
+  const plan = objectOr(publishReceipt.plan);
+  const request = objectOr(plan.request);
+  const body = request.body?.body || "";
+  return {
+    repo: options.repo || repoToString(plan.repo) || "unknown",
+    pull_number: numberOrNull(options.pullNumber || plan.pull_number),
+    comment_id_alias: options.commentId || publishReceipt.comment?.id || plan.existing_comment_id || null,
+    marker: options.marker || plan.marker || null,
+    body_hash: body ? sha256(body) : null,
+    head_sha_alias: options.headSha || null
+  };
+}
+
+function sanitizePrCommentReadback(value = {}) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const body = typeof value.body === "string" ? value.body : "";
+  return {
+    comment_id_alias: value.id ?? null,
+    html_url: value.html_url || null,
+    issue_url: value.issue_url || null,
+    created_at: value.created_at || null,
+    updated_at: value.updated_at || null,
+    author_association: value.author_association || null,
+    body_marker_present: body ? /<!--\s*ashr-plus-plus:release-gate:[^>]+-->/.test(body) : null,
+    body_hash: body ? sha256(body) : null,
+    head_sha_alias: extractHeadShaAlias(body)
+  };
+}
+
+function classifyReadbackStatus(options = {}) {
+  if (options.explicitStatus) {
+    return options.explicitStatus;
+  }
+  if (options.httpStatus === 401 || options.httpStatus === 403) {
+    return "permission_denied";
+  }
+  if (options.httpStatus === 410) {
+    return "deleted";
+  }
+  if (options.httpStatus === 404) {
+    return options.expectedExternalIdPresent ? "deleted" : "missing";
+  }
+  if (options.httpStatus && options.httpStatus >= 400) {
+    return "failed";
+  }
+  if (options.observedPresent && options.hasMismatch) {
+    return "stale";
+  }
+  if (options.observedPresent) {
+    return "readback_confirmed";
+  }
+  if (options.httpStatus && options.httpStatus >= 200 && options.httpStatus < 400) {
+    return "missing";
+  }
+  if (options.posted) {
+    return "posted";
+  }
+  return options.dryRun ? "generated" : "missing";
+}
+
+function errorClassForReadback(status, message = "") {
+  if (status === "permission_denied") {
+    return "permission_denied";
+  }
+  if (status === "deleted") {
+    return "deleted";
+  }
+  if (status === "missing") {
+    return "missing";
+  }
+  if (status === "failed") {
+    return sanitizeErrorMessage(message || "readback_failed").slice(0, 80) || "failed";
+  }
+  return null;
+}
+
+function readbackSafety(options = {}) {
+  return {
+    token_included: false,
+    token_source: options.token ? "provided_runtime_option" : options.tokenEnvName ? "environment_variable" : "not_recorded",
+    response_body_sanitized: true,
+    raw_body_stored: false,
+    secret_values_allowed: false,
+    live_mutation_performed: false
+  };
+}
+
+function sanitizeRequiredCheckMatch(value = {}) {
+  return {
+    context: value.context || value.name || value.check_name || null,
+    app_id: value.app_id ?? null
+  };
+}
+
+function hasReleasePlan(plan = {}) {
+  return Boolean(plan?.check_name || plan?.request || plan?.inspect_current);
+}
+
+function sanitizeGitHubRequestId(value) {
+  return typeof value === "string" && value.length <= 120 ? value : null;
+}
+
+function extractHeadShaAlias(body = "") {
+  const match = String(body).match(/\b[0-9a-f]{7,40}\b/i);
+  return match ? match[0] : null;
+}
+
+function hashCheckOutput(output = {}) {
+  const normalized = {
+    title: output.title || "",
+    summary: output.summary || "",
+    text: output.text || ""
+  };
+  return normalized.title || normalized.summary || normalized.text ? sha256(stableJson(normalized)) : null;
+}
+
 function findExistingGateComment(comments = [], marker = "") {
   return comments.find((comment) => (
     Number.isInteger(Number(comment.id))
@@ -513,8 +956,43 @@ function normalizeRepo(repo = "") {
   };
 }
 
+function repoToString(repo = {}) {
+  return repo?.owner && repo?.repo ? `${repo.owner}/${repo.repo}` : "";
+}
+
 function apiBaseUrl(options = {}) {
   return options.apiBaseUrl || DEFAULT_API_BASE_URL;
+}
+
+function objectOr(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function numberOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
+}
+
+function stableJson(value) {
+  return JSON.stringify(sortForStableJson(value));
+}
+
+function sortForStableJson(value) {
+  if (Array.isArray(value)) {
+    return value.map(sortForStableJson);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, sortForStableJson(item)])
+    );
+  }
+  return value;
 }
 
 function positiveInteger(value, fallback) {

@@ -102,6 +102,10 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(releaseEvidenceV2.release_evidence_summary.schema_version, "a3.release_evidence_summary.v2");
   assert.equal(releaseEvidenceV2.release_evidence_summary.a1_evidence.contracts.includes("RunResult"), true);
   assert.equal(releaseEvidenceV2.release_evidence_summary.a2_evidence.contracts.includes("GradeResult"), true);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.github_check_readback.readback_status, "readback_confirmed");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.pr_comment_readback.readback_status, "readback_confirmed");
+  assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.enforced, false);
+  assert.equal(releaseEvidenceV2.release_evidence_summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
   assert.equal(releaseEvidenceV2.release_evidence_summary.usage_ledger.linked_summary_id, releaseEvidenceV2.summary_id);
   assert.equal(releaseEvidenceV2.compatibility.v1_stable, true);
 

@@ -169,6 +169,9 @@ const A3_RELEASE_EVIDENCE_FIXTURES = {
   githubCheckPublishReceipt: "fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json",
   githubPrCommentPublishReceipt: "fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json",
   githubRequiredCheckPlan: "fixtures/a3/p3/a3_github_required_check_plan.redacted.json",
+  githubCheckReadback: "fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json",
+  githubPrCommentReadback: "fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json",
+  githubRequiredCheckProof: "fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json",
   auditBundleVerification: "fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json",
   auditArchiveVerification: "fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json"
 };

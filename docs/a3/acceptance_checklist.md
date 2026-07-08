@@ -483,5 +483,9 @@
 - [x] Add Growth-Auditor money-grade release evidence v2 audit artifact.
 - [x] Add release evidence v2 SQL contract tables for snapshots, diffs, and readbacks.
 - [x] Persist release evidence v2 snapshots, safe diffs, and readback placeholder rows in the SQLite-backed A3 store.
+- [x] Add live-shaped GitHub Check readback contract for confirmed, stale, missing, deleted, permission-denied, and failed states.
+- [x] Add live-shaped PR comment readback contract for marker/body-hash match, stale, missing, deleted, and permission-denied states.
+- [x] Add required-check proof contract where plan-only cannot claim enforcement.
+- [x] Wire GitHub readback receipts into release evidence v2 summaries and SQLite readback rows.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
