@@ -95,17 +95,27 @@ test("TS SaaS wrong secret is rejected", () => {
 
 test("TS SaaS idempotent submit does not double consume usage", () => {
   const item = service();
+  item.createApiKey("tenant_edge", "project_edge", { name: "all", scopes: [ADMIN_ALL_SCOPE], keyId: "key_all" });
   item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_idem", idempotencyKey: "idem" });
-  item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_other", idempotencyKey: "idem" });
-  assert.equal(item.usageSnapshot("tenant_edge", "project_edge").totals["sdk.submit"], 1);
+  const replay = item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_idem", idempotencyKey: "idem", requestId: "retry" });
+  assert.equal(replay.idempotent_replay, true);
+  assert.throws(
+    () => item.sdkSubmitRun("tenant_edge", "project_edge", { datasetId: "dataset_edge", agentRef: "mock", runId: "run_other", idempotencyKey: "idem" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
+  assert.equal(item.usageSnapshot("tenant_edge", "project_edge", { authKeyId: "key_all" }).totals["sdk.submit"], 1);
 });
 
 test("TS SaaS idempotent upload replays original upload id", () => {
   const item = withRun();
   const first = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" }, { uploadId: "u1", idempotencyKey: "u-idem" });
-  const second = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "failed" }, { uploadId: "u2", idempotencyKey: "u-idem" });
+  const second = item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" }, { uploadId: "u1", idempotencyKey: "u-idem", requestId: "retry" });
   assert.equal(second.idempotent_replay, true);
   assert.equal(second.upload_id, first.upload_id);
+  assert.throws(
+    () => item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "failed" }, { uploadId: "u2", idempotencyKey: "u-idem" }),
+    /idempotency key conflict.*request fingerprint mismatch/,
+  );
 });
 
 test("TS SaaS trace ingestion rejects empty observations", () => {
@@ -204,14 +214,14 @@ test("TS SaaS release evidence packet includes audit hash", () => {
   const item = withRun();
   item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" });
   item.ingestTrace("tenant_edge", "project_edge", "run_edge", [{ observation_id: "obs" }]);
-  const packet = item.buildReleaseEvidencePacket("tenant_edge", "project_edge", "run_edge");
+  const packet = item.buildReleaseEvidencePacket("tenant_edge", "project_edge", "run_edge", { authKeyId: "key_all" });
   assert.match(packet.hashes.audit_sha256, /^[a-f0-9]{64}$/);
 });
 
 test("TS SaaS release evidence packet redacts raw payloads", () => {
   const item = withRun();
   item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { api_key: "tp_should_not_leak" });
-  const packet = item.buildReleaseEvidencePacket("tenant_edge", "project_edge", "run_edge");
+  const packet = item.buildReleaseEvidencePacket("tenant_edge", "project_edge", "run_edge", { authKeyId: "key_all" });
   assert.equal(JSON.stringify(packet).includes("tp_should_not_leak"), false);
 });
 
@@ -223,16 +233,16 @@ test("TS SaaS release gate custom evaluator is preserved", () => {
 
 test("TS SaaS list artifact manifests can filter by run", () => {
   const item = withRun();
-  item.createArtifactManifest("tenant_edge", "project_edge", "run_edge", { schema_version: "x" }, { artifactId: "a1" });
-  assert.equal(item.listArtifactManifests("tenant_edge", "project_edge", "run_edge").length, 1);
-  assert.equal(item.listArtifactManifests("tenant_edge", "project_edge", "other").length, 0);
+  item.createArtifactManifest("tenant_edge", "project_edge", "run_edge", { schema_version: "x" }, { artifactId: "a1", apiKeyId: "key_all" });
+  assert.equal(item.listArtifactManifests("tenant_edge", "project_edge", "run_edge", { authKeyId: "key_all" }).length, 1);
+  assert.equal(item.listArtifactManifests("tenant_edge", "project_edge", "other", { authKeyId: "key_all" }).length, 0);
 });
 
 test("TS SaaS usage snapshot totals multiple operations", () => {
   const item = withRun();
   item.uploadRunResult("tenant_edge", "project_edge", "run_edge", { status: "completed" });
   item.ingestTrace("tenant_edge", "project_edge", "run_edge", [{ observation_id: "obs" }]);
-  const totals = item.usageSnapshot("tenant_edge", "project_edge").totals;
+  const totals = item.usageSnapshot("tenant_edge", "project_edge", { authKeyId: "key_all" }).totals;
   assert.equal(totals["sdk.submit"], 1);
   assert.equal(totals["run.upload"], 1);
   assert.equal(totals["trace.ingest"], 1);

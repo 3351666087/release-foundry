@@ -1,6 +1,8 @@
 ﻿from .runtime import (
     CLOUD_API_SCHEMA_VERSION,
+    DEFAULT_QUEUE_MAX_ATTEMPTS,
     DEFAULT_QUOTA_LIMITS,
+    TERMINAL_RUN_STATUSES,
     CloudApiError,
     CloudApiService,
     InMemoryCloudStore,
@@ -68,6 +70,8 @@ __all__ = [
     "CLOUD_API_SCHEMA_VERSION",
     "CloudQueueWorker",
     "DEFAULT_QUOTA_LIMITS",
+    "DEFAULT_QUEUE_MAX_ATTEMPTS",
+    "TERMINAL_RUN_STATUSES",
     "CloudApiError",
     "CloudApiService",
     "CONTROL_PLANE_SCHEMA_VERSION",

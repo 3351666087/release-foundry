@@ -91,8 +91,16 @@ CREATE TABLE runs (
   agent_ref TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT queued,
   runner_id TEXT,
+  attempt INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  lease_owner_id TEXT,
+  lease_expires_at TIMESTAMP,
+  lease_heartbeat_at TIMESTAMP,
+  lease_reclaim_count INTEGER NOT NULL DEFAULT 0,
   started_at TIMESTAMP,
   finished_at TIMESTAMP,
+  last_error JSON,
+  dead_letter_reason TEXT,
   summary JSON DEFAULT {},
   metadata JSON DEFAULT {},
   created_at TIMESTAMP NOT NULL DEFAULT now(),
@@ -102,6 +110,7 @@ CREATE TABLE runs (
 CREATE INDEX runs_project_status_idx ON runs (tenant_id, project_id, status, created_at);
 CREATE INDEX runs_dataset_idx ON runs (tenant_id, dataset_id, created_at);
 CREATE INDEX runs_environment_idx ON runs (tenant_id, environment_id, created_at);
+CREATE INDEX runs_lease_expiry_idx ON runs (tenant_id, status, lease_expires_at) WHERE lease_expires_at IS NOT NULL;
 
 -- Per-case result rows for pass/fail/error rollups, clustering, replay, and evidence lookup.
 CREATE TABLE case_results (

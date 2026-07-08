@@ -7,6 +7,9 @@ from typing import Mapping
 
 import pytest
 
+from services.api.control_plane import IdempotencyConflictError
+from services.api.platform import build_release_evidence_packet
+
 ROOT = Path(__file__).resolve().parents[2]
 SDK_ROOT = ROOT / "packages" / "sdk"
 if str(SDK_ROOT) not in sys.path:
@@ -91,6 +94,96 @@ def test_sdk_saas_client_end_to_end_without_raw_keys(tmp_path: Path):
     assert restored_keys["result"]["api_keys"][0]["key_id"] == "key_sdk_client"
 
 
+def test_sdk_saas_client_exposes_audit_and_release_evidence_verification():
+    client = SaaSIngestionClient()
+    client.bootstrap_project(tenant_name="Tenant", project_name="Project", tenant_id="tenant_verify", project_id="project_verify", dataset_id="dataset_verify")
+    client.create_api_key(
+        "tenant_verify",
+        "project_verify",
+        name="verifier",
+        scopes=["sdk:submit", "run:upload", "trace:ingest", "audit:read", "evidence:read"],
+        key_id="key_verify",
+    )
+    client.sdk_submit("tenant_verify", "project_verify", dataset_id="dataset_verify", agent_ref="mock", run_id="run_verify", api_key_id="key_verify")
+    client.upload_run("tenant_verify", "project_verify", "run_verify", {"status": "completed"}, upload_id="upload_verify", api_key_id="key_verify")
+    client.ingest_trace("tenant_verify", "project_verify", "run_verify", [{"observation_id": "obs_verify", "type": "agent_message"}], batch_id="trace_verify", api_key_id="key_verify")
+
+    audit = client.verify_audit_chain("tenant_verify", "project_verify", auth_key_id="key_verify")
+    assert audit["operation"] == "verify_audit_chain"
+    assert audit["result"]["verification"]["verified"] is True
+    assert audit["result"]["event_count"] >= 3
+
+    packet = client.build_release_evidence_packet("tenant_verify", "project_verify", "run_verify", auth_key_id="key_verify")["result"]
+    verified = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=packet, auth_key_id="key_verify")
+    assert verified["operation"] == "verify_release_evidence_packet"
+    assert verified["result"]["verified"] is True
+    assert verified["result"]["bindings"]["usage"]["operation_totals"]["run.upload"] == 1
+    assert verified["result"]["usage_event_id"].startswith("usage_")
+
+    tampered = json.loads(json.dumps(packet))
+    tampered["project_id"] = "project_other"
+    mismatch = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=tampered, auth_key_id="key_verify")
+    assert mismatch["result"]["verified"] is False
+    assert {failure["reason"] for failure in mismatch["result"]["failures"]} >= {"packet_sha256_mismatch", "project_id_mismatch"}
+    stale = build_release_evidence_packet(
+        tenant_id="tenant_verify",
+        project_id="project_verify",
+        run_id="run_verify",
+        lifecycle=client.lifecycle_snapshot("tenant_verify", "project_verify", "run_verify")["result"],
+        audit_chain=audit["result"]["verification"],
+        packet_id="packet_verify_stale",
+    )
+    stale_result = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=stale, auth_key_id="key_verify")
+    assert stale_result["result"]["verified"] is False
+    assert "usage_operation_totals_mismatch" in {failure["reason"] for failure in stale_result["result"]["failures"]}
+
+
+def test_sdk_saas_client_sdk_submit_idempotency_conflicts_on_changed_fingerprint():
+    client = SaaSIngestionClient()
+    client.bootstrap_project(
+        tenant_name="Tenant",
+        project_name="Project",
+        tenant_id="tenant_sdk_idem",
+        project_id="project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+    )
+    client.create_api_key("tenant_sdk_idem", "project_sdk_idem", name="Submitter", scopes=["sdk:submit"], key_id="key_sdk_idem")
+
+    submitted = client.sdk_submit(
+        "tenant_sdk_idem",
+        "project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+        agent_ref="mock",
+        run_id="run_sdk_idem",
+        api_key_id="key_sdk_idem",
+        idempotency_key="idem_sdk_submit",
+    )
+    replayed = client.sdk_submit(
+        "tenant_sdk_idem",
+        "project_sdk_idem",
+        dataset_id="dataset_sdk_idem",
+        agent_ref="mock",
+        run_id="run_sdk_idem",
+        api_key_id="key_sdk_idem",
+        idempotency_key="idem_sdk_submit",
+    )
+    quota_before = client.quota_snapshot("tenant_sdk_idem", "project_sdk_idem")["result"]["used"]
+
+    assert replayed["result"]["idempotent_replay"] is True
+    assert replayed["result"]["run"]["run_id"] == submitted["result"]["run"]["run_id"]
+    with pytest.raises(IdempotencyConflictError, match="sdk.submit"):
+        client.sdk_submit(
+            "tenant_sdk_idem",
+            "project_sdk_idem",
+            dataset_id="dataset_sdk_idem",
+            agent_ref="changed",
+            run_id="run_sdk_idem_changed",
+            api_key_id="key_sdk_idem",
+            idempotency_key="idem_sdk_submit",
+        )
+    assert client.quota_snapshot("tenant_sdk_idem", "project_sdk_idem")["result"]["used"] == quota_before
+
+
 def test_sdk_saas_client_rejects_raw_api_key_values():
     client = SaaSIngestionClient()
     client.bootstrap_project(tenant_name="Tenant", project_name="Project", tenant_id="tenant_raw", project_id="project_raw")
@@ -122,7 +215,7 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     boot = cli("--state-output", str(state), "bootstrap", "--tenant-name", "Tenant", "--project-name", "Project", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--dataset-id", "dataset_sdk_cli")
     assert boot["operation"] == "bootstrap_project"
 
-    cli("--state-input", str(state), "--state-output", str(state), "api-key-create", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--name", "ingester", "--scope", "sdk:submit", "--scope", "run:upload", "--scope", "trace:ingest", "--key-id", "key_sdk_cli")
+    cli("--state-input", str(state), "--state-output", str(state), "api-key-create", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--name", "ingester", "--scope", "sdk:submit", "--scope", "run:upload", "--scope", "trace:ingest", "--scope", "audit:read", "--scope", "evidence:read", "--key-id", "key_sdk_cli")
     cli("--state-input", str(state), "--state-output", str(state), "sdk-submit", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--dataset-id", "dataset_sdk_cli", "--agent-ref", "mock", "--run-id", "run_sdk_cli", "--api-key-id", "key_sdk_cli")
     uploaded = cli("--state-input", str(state), "--state-output", str(state), "run-upload", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--upload-id", "upload_sdk_cli", "--api-key-id", "key_sdk_cli", "--result-json", '{"status":"completed","api_key":"tp_cli_redact"}')
     assert uploaded["result"]["raw_payload_included"] is False
@@ -130,6 +223,17 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     assert trace["result"]["observation_count"] == 1
     quota = cli("--state-input", str(state), "quota", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")
     assert quota["result"]["used"]["trace.ingest"] == 1
+
+    audit = cli("--state-input", str(state), "audit-chain-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli")
+    assert audit["operation"] == "verify_audit_chain"
+    assert audit["result"]["verification"]["verified"] is True
+
+    packet = cli("--state-input", str(state), "release-evidence", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli")["result"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    verified = cli("--state-input", str(state), "release-evidence-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli", "--packet-file", str(packet_path))
+    assert verified["operation"] == "verify_release_evidence_packet"
+    assert verified["result"]["verified"] is True
     assert "tp_cli_redact" not in state.read_text(encoding="utf-8")
 
 
@@ -140,6 +244,24 @@ def test_sdk_saas_cli_rejects_private_input_paths_without_reading(tmp_path: Path
     private_state.write_text("not json and must not be parsed", encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, "-B", "-m", "ashr_clone.saas_cli", "--state-input", str(private_state), "state"],
+        cwd=str(ROOT),
+        env={**os.environ, "PYTHONPATH": os.pathsep.join([str(SDK_ROOT), str(ROOT)])},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 2
+    assert "refusing to read private_refs or .secrets" in proc.stderr
+    assert "not json" not in proc.stderr
+
+
+def test_sdk_saas_cli_rejects_private_release_packet_paths_without_reading(tmp_path: Path):
+    private_dir = tmp_path / "docs" / "evidence" / "private_refs"
+    private_dir.mkdir(parents=True)
+    private_packet = private_dir / "packet.json"
+    private_packet.write_text("not json and must not be parsed", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "-B", "-m", "ashr_clone.saas_cli", "release-evidence-verify", "--tenant-id", "tenant", "--project-id", "project", "--run-id", "run", "--packet-file", str(private_packet)],
         cwd=str(ROOT),
         env={**os.environ, "PYTHONPATH": os.pathsep.join([str(SDK_ROOT), str(ROOT)])},
         text=True,
@@ -171,6 +293,10 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
             return {"batch_id": data["batch_id"], "observation_count": len(observations)}
         if url.endswith("/quota"):
             return {"used": {"run.submit": 1}}
+        if url.endswith("/audit-chain/verify"):
+            return {"verification": {"verified": True}, "event_count": 1}
+        if url.endswith("/runs/run_http/release-evidence/verify"):
+            return {"verified": True, "packet_id": data["packet"]["packet_id"]}
         raise AssertionError(url)
 
     client = SaaSIngestionClient.from_base_url("http://127.0.0.1:8765/a1", http_transport=transport)
@@ -211,11 +337,15 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
     )
     assert trace["result"]["observation_count"] == 1
     assert client.quota_snapshot("tenant_http", "project_http")["result"]["used"]["run.submit"] == 1
+    assert client.verify_audit_chain("tenant_http", "project_http", auth_key_id="key_http")["result"]["verification"]["verified"] is True
+    assert client.verify_release_evidence_packet("tenant_http", "project_http", "run_http", packet={"packet_id": "packet_http"}, auth_key_id="key_http")["result"]["packet_id"] == "packet_http"
     assert [url for url, _payload in calls] == [
         "http://127.0.0.1:8765/a1/runs/submit",
         "http://127.0.0.1:8765/a1/runs/upload",
         "http://127.0.0.1:8765/a1/traces/ingest",
         "http://127.0.0.1:8765/a1/quota",
+        "http://127.0.0.1:8765/a1/audit-chain/verify",
+        "http://127.0.0.1:8765/a1/runs/run_http/release-evidence/verify",
     ]
     assert calls[0][1]["api_key_id"] == "key_http"
 

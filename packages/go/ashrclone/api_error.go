@@ -1,0 +1,60 @@
+package ashrclone
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+)
+
+type APIError struct {
+	StatusCode int
+	Message    string
+	Response   JSONMap
+	Headers    JSONMap
+	ErrorKind  string
+}
+
+func NewAPIError(statusCode int, body []byte, headers http.Header) APIError {
+	response := JSONMap{}
+	if len(body) > 0 {
+		var parsed any
+		if err := json.Unmarshal(body, &parsed); err == nil {
+			if mapped, ok := RedactSensitive(parsed).(map[string]any); ok {
+				response = JSONMap(mapped)
+			}
+		}
+	}
+	message := errorMessage(response, statusCode, body)
+	return APIError{StatusCode: statusCode, Message: message, Response: response, Headers: selectedHeaders(headers), ErrorKind: "http"}
+}
+
+func (err APIError) Error() string {
+	return fmt.Sprintf("ashr API returned status %d: %s", err.StatusCode, RedactSensitive(err.Message))
+}
+
+func (err APIError) Retryable() bool {
+	return err.StatusCode == http.StatusTooManyRequests || err.StatusCode == http.StatusRequestTimeout || err.StatusCode >= 500
+}
+
+func errorMessage(response JSONMap, statusCode int, body []byte) string {
+	for _, key := range []string{"message", "error", "detail"} {
+		if value, ok := response[key].(string); ok && strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	if len(body) > 0 {
+		return string(RedactSensitive(string(body)).(string))
+	}
+	return fmt.Sprintf("HTTP %d", statusCode)
+}
+
+func selectedHeaders(headers http.Header) JSONMap {
+	output := JSONMap{}
+	for _, key := range []string{"Retry-After", "X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
+		if value := headers.Get(key); value != "" {
+			output[strings.ToLower(strings.ReplaceAll(key, "-", "_"))] = value
+		}
+	}
+	return output
+}

@@ -345,10 +345,92 @@ class SaaSIngestionClient:
             return self._request("quota_snapshot", {"tenant_id": tenant_id, "project_id": project_id})
         return _envelope("quota_snapshot", self.service.cloud.quota_snapshot(tenant_id, project_id))
 
+    def usage_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        if self.uses_http:
+            return self._request("usage_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id})
+        return _envelope("usage_snapshot", self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id))
+
+    def create_artifact_manifest(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        manifest: Mapping[str, Any],
+        *,
+        artifact_id: str | None = None,
+        api_key_id: str | None = None,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "manifest": dict(manifest), "artifact_id": artifact_id, "api_key_id": api_key_id, "idempotency_key": idempotency_key, "request_id": request_id}
+        if self.uses_http:
+            return self._request("create_artifact_manifest", payload)
+        return _envelope("create_artifact_manifest", self.service.create_artifact_manifest(tenant_id, project_id, run_id, dict(manifest), artifact_id=artifact_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id))
+
+    def list_artifact_manifests(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        if self.uses_http:
+            return self._request("list_artifact_manifests", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id})
+        return _envelope("list_artifact_manifests", {"artifact_manifests": self.service.list_artifact_manifests(tenant_id, project_id, run_id, auth_key_id=auth_key_id)})
+
+    def verify_audit_chain(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        auth_key_id: str | None = None,
+        action: str | None = None,
+        target_id: str | None = None,
+        api_key_id: str | None = None,
+        limit: int | None = None,
+        request_id: str | None = None,
+        api_key: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id, "action": action, "target_id": target_id, "audit_api_key_id": api_key_id, "limit": limit, "request_id": request_id}
+        if self.uses_http:
+            return self._request("verify_audit_chain", payload)
+        return _envelope("verify_audit_chain", self.service.verify_audit_chain_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=action, target_id=target_id, api_key_id=api_key_id, limit=limit, request_id=request_id))
+
+    def build_release_evidence_packet(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        if self.uses_http:
+            return self._request("release_evidence", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id})
+        from services.api.platform import build_release_evidence_packet, usage_billing_rollup
+
+        packet = build_release_evidence_packet(
+            tenant_id=tenant_id,
+            project_id=project_id,
+            run_id=run_id,
+            lifecycle=self.service.lifecycle_snapshot(tenant_id, project_id, run_id),
+            artifact_manifest={"artifacts": self.service.list_artifact_manifests(tenant_id, project_id, run_id, auth_key_id=auth_key_id)},
+            billing_rollup=usage_billing_rollup(list(self.service.store.usage_ledger.values()), tenant_id=tenant_id, project_id=project_id, billing_period="local"),
+            audit_chain=self.service.audit_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, target_id=run_id).get("chain", {}),
+        )
+        return _envelope("release_evidence", packet)
+
+    def verify_release_evidence_packet(
+        self,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        *,
+        packet: Mapping[str, Any] | None = None,
+        auth_key_id: str | None = None,
+        request_id: str | None = None,
+        api_key: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "packet": dict(packet) if packet is not None else None, "auth_key_id": auth_key_id, "request_id": request_id}
+        if self.uses_http:
+            return self._request("verify_release_evidence_packet", payload)
+        source = "submitted_packet" if packet is not None else "current_snapshot"
+        if packet is None:
+            packet = self.build_release_evidence_packet(tenant_id, project_id, run_id, auth_key_id=auth_key_id)["result"]
+        return _envelope("verify_release_evidence_packet", {**self.service.verify_release_evidence_packet(tenant_id, project_id, dict(packet), run_id=run_id, auth_key_id=auth_key_id, request_id=request_id), "source": source})
+
     def _request(self, operation: str, payload: Mapping[str, Any]) -> JsonDict:
         if not self.base_url:  # pragma: no cover
             raise SaaSClientError("HTTP transport requested without base_url")
-        url = urljoin(self.base_url, f"{_operation_path(operation)}")
+        url = urljoin(self.base_url, f"{_operation_path(operation, payload)}")
         response = dict(self._http_transport(url, _drop_none(payload)))
         if {"schema_version", "operation", "result"}.issubset(response):
             return redact_sensitive(response)
@@ -368,11 +450,29 @@ _OPERATION_PATHS = {
     "ingest_trace": "traces/ingest",
     "lifecycle_snapshot": "lifecycle",
     "quota_snapshot": "quota",
+    "usage_snapshot": "usage",
+    "create_artifact_manifest": "artifact-manifests",
+    "list_artifact_manifests": "artifact-manifests/list",
+    "verify_audit_chain": "audit-chain/verify",
+    "release_evidence": "release-evidence",
+    "verify_release_evidence_packet": "release-evidence/verify",
     "state": "state",
 }
 
 
-def _operation_path(operation: str) -> str:
+def _operation_path(operation: str, payload: Mapping[str, Any] | None = None) -> str:
+    if operation in {"release_evidence", "verify_release_evidence_packet", "create_artifact_manifest", "list_artifact_manifests"} and payload is not None:
+        run_id = str(payload.get("run_id") or "")
+        if not run_id:
+            raise SaaSClientError("run_id is required for run-scoped SaaS operations")
+        suffixes = {
+            "release_evidence": "release-evidence",
+            "verify_release_evidence_packet": "release-evidence/verify",
+            "create_artifact_manifest": "artifact-manifests",
+            "list_artifact_manifests": "artifact-manifests",
+        }
+        suffix = suffixes[operation]
+        return f"runs/{run_id}/{suffix}"
     return _OPERATION_PATHS.get(operation, operation.replace("_", "-"))
 
 
