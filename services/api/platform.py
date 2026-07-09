@@ -4,8 +4,17 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 from uuid import uuid4
+
+from ashr_clone.storage import (
+    LocalFilesystemObjectStorage,
+    ObjectStorageContractError,
+    build_object_manifest,
+    scoped_object_key,
+    verify_object_bytes,
+)
 
 from .runtime import JsonDict, ValidationError, _jsonable, _utc_now
 
@@ -14,6 +23,16 @@ PLATFORM_SCHEMA_VERSION = "ashr.clone.saas_platform.v1"
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
+
+
+def _suffix_for_content_type(content_type: str) -> str:
+    mapping = {
+        "application/json": ".json",
+        "text/plain": ".txt",
+        "text/markdown": ".md",
+        "text/csv": ".csv",
+    }
+    return mapping.get(str(content_type).split(";", 1)[0].strip().lower(), ".bin")
 
 
 SAAS_TABLES: dict[str, dict[str, Any]] = {
@@ -94,6 +113,7 @@ class LocalObjectStore:
     artifacts: dict[str, JsonDict] = field(default_factory=dict)
     signed_urls: dict[str, JsonDict] = field(default_factory=dict)
     evidence_bundles: dict[str, JsonDict] = field(default_factory=dict)
+    object_root: str | Path | None = None
 
     def put_artifact(
         self,
@@ -114,6 +134,43 @@ class LocalObjectStore:
         artifact_id = artifact_id or _new_id("artifact")
         if artifact_id in self.artifacts:
             raise ValidationError(f"artifact already exists: {artifact_id}")
+        suffix = _suffix_for_content_type(content_type)
+        try:
+            if self.object_root is not None:
+                object_manifest = LocalFilesystemObjectStorage(self.object_root).write_object(
+                    tenant_id=str(tenant_id),
+                    project_id=str(project_id),
+                    run_id=str(run_id or "runless"),
+                    object_id=artifact_id,
+                    content=raw,
+                    content_type=content_type,
+                    category="artifacts",
+                    suffix=suffix,
+                    metadata={"redaction_status": redaction_status, **dict(metadata or {})},
+                )
+            else:
+                object_key = scoped_object_key(
+                    tenant_id=str(tenant_id),
+                    project_id=str(project_id),
+                    run_id=str(run_id or "runless"),
+                    object_id=artifact_id,
+                    category="artifacts",
+                    suffix=suffix,
+                )
+                object_manifest = build_object_manifest(
+                    backend="local-filesystem",
+                    object_key=object_key,
+                    tenant_id=str(tenant_id),
+                    project_id=str(project_id),
+                    run_id=str(run_id or "runless"),
+                    object_id=artifact_id,
+                    content_type=content_type,
+                    size_bytes=len(raw),
+                    sha256=digest,
+                    metadata={"redaction_status": redaction_status, **dict(metadata or {})},
+                )
+        except ObjectStorageContractError as exc:
+            raise ValidationError(str(exc)) from exc
         record = {
             "schema_version": PLATFORM_SCHEMA_VERSION,
             "artifact_id": artifact_id,
@@ -124,7 +181,12 @@ class LocalObjectStore:
             "size_bytes": len(raw),
             "sha256": digest,
             "redaction_status": redaction_status,
+            "object_key": object_manifest["object_key"],
+            "storage_uri": object_manifest["backend_refs"]["storage_uri"],
+            "object_storage": object_manifest,
+            "write_readback_verified": bool(object_manifest.get("write_readback_verification", {}).get("verified")) if self.object_root is not None else None,
             "raw_payload_included": False,
+            "secret_value_present": False,
             "metadata": _jsonable(dict(metadata or {})),
             "created_at": _utc_now(),
         }
@@ -179,11 +241,35 @@ class LocalObjectStore:
             raise ValidationError(f"evidence bundle already exists: {bundle_id}")
         encoded = json.dumps(packet_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         bundle_sha256 = hashlib.sha256(encoded).hexdigest()
-        object_key = "/".join(
-            part.strip("/")
-            for part in [storage_prefix, str(tenant_id), str(project_id), str(run_id), f"{bundle_id}.json"]
-            if str(part).strip("/")
-        )
+        try:
+            object_key = scoped_object_key(tenant_id=str(tenant_id), project_id=str(project_id), run_id=str(run_id), object_id=bundle_id, category=storage_prefix, suffix=".json")
+            if self.object_root is not None:
+                object_manifest = LocalFilesystemObjectStorage(self.object_root).write_object(
+                    tenant_id=str(tenant_id),
+                    project_id=str(project_id),
+                    run_id=str(run_id),
+                    object_id=bundle_id,
+                    content=encoded,
+                    content_type="application/json",
+                    category=storage_prefix,
+                    suffix=".json",
+                    metadata={"packet_id": packet_payload.get("packet_id"), **dict(metadata or {})},
+                )
+            else:
+                object_manifest = build_object_manifest(
+                    backend="local-filesystem",
+                    object_key=object_key,
+                    tenant_id=str(tenant_id),
+                    project_id=str(project_id),
+                    run_id=str(run_id),
+                    object_id=bundle_id,
+                    content_type="application/json",
+                    size_bytes=len(encoded),
+                    sha256=bundle_sha256,
+                    metadata={"packet_id": packet_payload.get("packet_id"), **dict(metadata or {})},
+                )
+        except ObjectStorageContractError as exc:
+            raise ValidationError(str(exc)) from exc
         record = {
             "schema_version": "ashr.clone.evidence_bundle_object.v1",
             "bundle_id": bundle_id,
@@ -194,12 +280,14 @@ class LocalObjectStore:
             "packet_sha256": verification.get("packet_sha256"),
             "bundle_sha256": bundle_sha256,
             "object_key": object_key,
-            "storage_uri": f"local://object-store/{object_key}",
+            "storage_uri": object_manifest["backend_refs"]["storage_uri"],
+            "object_storage": object_manifest,
             "content_type": "application/json",
             "size_bytes": len(encoded),
             "evidence_item_count": len(_list_or_empty(packet_payload.get("evidence_items"))),
             "raw_payload_included": False,
             "secret_value_present": False,
+            "write_readback_verified": bool(object_manifest.get("write_readback_verification", {}).get("verified")) if self.object_root is not None else None,
             "verification": verification,
             "metadata": _jsonable(dict(metadata or {})),
             "created_at": _utc_now(),
@@ -222,6 +310,20 @@ class LocalObjectStore:
             failures.append({"reason": "secret_value_present"})
         if not record.get("object_key") or not str(record.get("storage_uri", "")).startswith("local://object-store/"):
             failures.append({"reason": "storage_reference_missing"})
+        object_manifest = record.get("object_storage") if isinstance(record.get("object_storage"), Mapping) else None
+        if object_manifest is None:
+            failures.append({"reason": "object_manifest_missing"})
+        elif self.object_root is not None:
+            try:
+                readback = LocalFilesystemObjectStorage(self.object_root).verify_object(object_manifest)
+            except (OSError, ObjectStorageContractError) as exc:
+                readback = {"verified": False, "failures": [{"reason": "readback_failed", "detail": str(exc)}]}
+            if not readback.get("verified"):
+                failures.append({"reason": "object_readback_mismatch", "details": readback.get("failures", [])})
+        elif object_manifest is not None:
+            readback = verify_object_bytes(object_manifest, b"") if object_manifest.get("size_bytes") == 0 else None
+        else:
+            readback = None
         return {
             "schema_version": "ashr.clone.evidence_bundle_object_verification.v1",
             "verified": not failures,
@@ -232,6 +334,8 @@ class LocalObjectStore:
             "bundle_sha256": record.get("bundle_sha256"),
             "object_key": record.get("object_key"),
             "storage_uri": record.get("storage_uri"),
+            "object_storage": object_manifest,
+            "readback_verification": readback,
             "failures": failures,
         }
 
@@ -280,7 +384,8 @@ class WebhookRegistry:
                 continue
             delivery_id = _new_id("delivery")
             secret = self._secrets[str(endpoint["webhook_id"])]
-            signature = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
+            signature_digest = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
+            signed_payload_sha = hashlib.sha256(f"{payload_sha}:{signature_digest}".encode("utf-8")).hexdigest()
             record = {
                 "schema_version": PLATFORM_SCHEMA_VERSION,
                 "tenant_id": str(tenant_id),
@@ -291,7 +396,10 @@ class WebhookRegistry:
                 "payload_sha256": payload_sha,
                 "raw_payload_included": False,
                 "status": "simulated",
-                "headers": {"x-ashr-event": str(event_type), "x-ashr-signature-sha256": signature},
+                "headers": {"x-ashr-event": str(event_type), "x-ashr-signature-sha256": "present"},
+                "signature_present": True,
+                "signature_algorithm": "hmac-sha256",
+                "signed_payload_sha256": signed_payload_sha,
                 "created_at": _utc_now(),
             }
             self.deliveries[delivery_id] = record

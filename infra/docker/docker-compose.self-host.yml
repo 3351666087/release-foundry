@@ -5,7 +5,7 @@ x-ashr-runtime-env: &ashr-runtime-env
   ASHR_SECRET_PROVIDER: env-ref
   ASHR_CONTROL_PLANE_BASE_URL: http://api:8080
   ASHR_DATABASE_URL_REF: env:ASHR_DATABASE_URL
-  ASHR_DATABASE_URL: postgresql://ashr@postgres:5432/ashr?sslmode=disable
+  ASHR_DATABASE_URL: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
   ASHR_POSTGRES_DSN_REF: env:ASHR_DATABASE_URL
   ASHR_REDIS_URL: redis://redis:6379/0
   ASHR_REDIS_URL_REF: env:ASHR_REDIS_URL
@@ -63,58 +63,43 @@ services:
       start_period: 10s
 
   worker:
-    image: ashr/a1-python-runtime:local
+    image: ashr/a1-go-runtime:local
     build:
       context: ../..
-      dockerfile: infra/docker/Dockerfile.python-runtime
+      dockerfile: infra/docker/Dockerfile.go-runtime
     profiles: ["worker", "daemon", "commercial"]
     environment:
       <<: *ashr-runtime-env
       ASHR_WORKER_MODE: daemon
       ASHR_WORKER_DAEMON: "true"
       ASHR_WORKER_QUEUE: ashr_worker_jobs
-      ASHR_WORKER_HEALTHCHECK_PATH: /runtime/worker/healthy
+      ASHR_WORKER_HEALTHCHECK_PATH: /runtime/worker/heartbeat
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: worker_self_host
+      ASHR_WORKER_JOB_TYPE: release_gate
       ASHR_WORKER_LEASE_SECONDS: "300"
-      ASHR_WORKER_POLL_INTERVAL_SECONDS: "30"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "30s"
+      ASHR_WORKER_MAX_JOBS: "10"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/worker/heartbeat
       ASHR_WORKER_MAX_ATTEMPTS: "3"
       ASHR_WORKER_EVIDENCE_WRITES: object-store
-      ASHR_REPLAY_STATE_INPUT: /runtime/state/cloud-state.json
-      ASHR_REPLAY_STATE_OUTPUT: /runtime/state/cloud-state.replayed.json
-      ASHR_REPLAY_OUTPUT_DIR: /runtime/replay
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/worker/summary.json
     command:
-      - python
-      - -m
-      - services.api.cli
-      - replay-queued
-      - --state-input
-      - /runtime/state/cloud-state.json
-      - --state-output
-      - /runtime/state/cloud-state.replayed.json
-      - --agent
-      - examples.agents.mock_agent:RespondingMockAgent
-      - --tenant-id
-      - tenant_self_host
-      - --project-id
-      - project_self_host
-      - --dataset-id
-      - dataset_self_host
-      - --summary-output
-      - /runtime/replay/summary.json
-      - --fixture-output-dir
-      - /runtime/replay/fixtures
-      - --run-output-dir
-      - /runtime/replay/runs
-      - --max-runs
-      - "10"
-      - --queue-workers
-      - "4"
-      - --max-workers
-      - "4"
-      - --timeout
-      - "30"
+      - sh
+      - -c
+      - >-
+        while true; do
+          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
+          /usr/local/bin/ashr-worker | tee /runtime/worker/summary.json;
+          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
+          sleep 5;
+        done
     volumes:
       - ashr-runtime-state:/runtime/state
-      - ashr-replay-output:/runtime/replay
       - ashr-worker-health:/runtime/worker
     depends_on:
       api:
@@ -128,7 +113,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - test -f /runtime/worker/healthy || test -d /runtime/replay
+        - test -f /runtime/worker/heartbeat && find /runtime/worker/heartbeat -mmin -2 -type f | grep -q .
       interval: 30s
       timeout: 5s
       retries: 5
@@ -139,9 +124,11 @@ services:
     environment:
       POSTGRES_DB: ashr
       POSTGRES_USER: ashr
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     volumes:
       - ashr-postgres-data:/var/lib/postgresql/data
+    secrets:
+      - postgres_password
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
       interval: 10s
@@ -199,6 +186,8 @@ services:
         mc anonymous set none "local/$${ASHR_OBJECT_STORE_BUCKET}"
 
 secrets:
+  postgres_password:
+    environment: ASHR_POSTGRES_AUTH_SECRET
   minio_root_user:
     environment: ASHR_OBJECT_STORE_ACCESS_KEY
   minio_root_password:

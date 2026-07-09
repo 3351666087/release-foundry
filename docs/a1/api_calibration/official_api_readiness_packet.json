@@ -33,7 +33,7 @@
         "create_request"
       ],
       "id": "mutating_create_request_quota_gate",
-      "observed_quota_block_count": 11,
+      "observed_quota_block_count": 18,
       "severity": "high",
       "summary": "Real create-request calibration remains blocked until a fresh quota/reset-reviewed plan-batch gate approves the tiny text mutation."
     },
@@ -72,7 +72,7 @@
       "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
     }
   ],
-  "generated_at": "2026-07-09T09:59:49Z",
+  "generated_at": "2026-07-09T15:34:35Z",
   "next_read_only_calibration": {
     "acceptance_checks": [
       "real read-only command uses --execute --small-batch --max-retries 0",
@@ -169,7 +169,7 @@
       {
         "id": "quota_shape_refresh",
         "method": "Record quota and rate-limit shape names from normal read-only responses and controlled read-only failures; do not attempt to exhaust quota.",
-        "observed_quota_block_count": 41,
+        "observed_quota_block_count": 48,
         "target_fields": [
           "quota",
           "quota_stop_go",
@@ -242,19 +242,19 @@
       "summary_index_path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
       "total_steps": 5
     },
-    "private_record_count": 368,
-    "quota_block_count": 43,
+    "private_record_count": 399,
+    "quota_block_count": 48,
     "read_only_manifest_step_count": 5,
     "read_only_missing_from_field_map": [],
     "status_counts": {
-      "blocked": 2,
+      "blocked": 3,
       "completed": 13,
-      "error": 27,
+      "error": 32,
       "failed": 1,
-      "ok": 214,
-      "partial": 13,
+      "ok": 219,
+      "partial": 20,
       "passed": 11,
-      "planned": 53,
+      "planned": 65,
       "timeout": 1
     }
   },

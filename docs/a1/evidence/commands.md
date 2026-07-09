@@ -1587,3 +1587,71 @@ Results:
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 406 passed, 1 skipped.
 - Incorrect command note: `go test ./...` from repo root remains invalid for this monorepo; module-root Go commands above are authoritative.
 - Safety: no key files read, no real Ashr API call, no live payment or real card action.
+
+## Round43 executable worker/object storage/API calibration - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree used for this round: `C:/Users/33516/Documents/Ashr_a1_clean_rebase` at `a0453239` on `codex/a1-local-sdk-runner-clean`; push target remains `origin HEAD:codex/a1-local-sdk-runner` for PR #27.
+- A stale sibling workspace `C:/Users/33516/Documents/Ashr` was inspected and found at old lone commit `e8310d2f` with `ahead 1, behind 71`; it was not used for staging or push to avoid reintroducing outdated diffs.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` and `gh pr list --state all --limit 20` were run before implementation. Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`.
+- Strategy still points A1 toward Go main backend, SQL/Postgres/RLS, TypeScript/OpenAPI parity, Docker/YAML/Terraform, object storage, worker daemon, quota, billing, and API calibration.
+
+Round43 growth points landed:
+1. Added runnable Go worker daemon CLI under `packages/go/ashrclone/cmd/ashr-worker`.
+2. Worker daemon reads env aliases for tenant/project/job/lease/timing/request/API-key metadata.
+3. Worker daemon emits public-safe JSON summary and never logs raw payloads or secrets.
+4. Self-host worker compose now builds and runs a Go runtime image instead of the older Python replay command.
+5. Added `infra/docker/Dockerfile.go-runtime` building `ashr-api` and `ashr-worker` binaries.
+6. Fixed Go runtime healthcheck to verify real binaries instead of a nonexistent `ashr-api-healthcheck` command.
+7. Added local filesystem object storage contract helper with tenant/project/run scoped object keys.
+8. Added S3/MinIO-compatible public manifest contract using env refs only, not raw credentials.
+9. Wired artifact uploads to object manifests and checksum/readback metadata in `services/api/platform.py`.
+10. Wired evidence bundle storage to object manifests and verified release evidence packets before storage.
+11. Added object storage tests for scoped keys, tamper detection, redaction, refs-only manifests, and evidence bundle wiring.
+12. Added SQL/RLS static migration checks for protected control-plane, usage/audit, jobs/artifacts, and billing tables.
+13. Added opt-in live Postgres RLS proof using a scratch `NOBYPASSRLS` role when `A1_POSTGRES_TEST_DSN` is available.
+14. Ran official Ashr API read-only small-batch calibration from env key only; no key file was read and no raw key was printed.
+15. Wrote private manifest under ignored `docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json` and committed only public summary metadata.
+16. Refreshed public API evidence index and response field map to include Round43 read-only field observations.
+17. Updated readiness packet; mutating small batch remains not ready without a fresh mutation gate.
+18. Preserved payment/live-card boundary: no Stripe/WeChat/Alipay live payment or real card operation was attempted in this round.
+19. Revalidated commercial self-host compose config after Go daemon wiring.
+20. Revalidated CL hygiene/commercial guards and diff check before staging.
+
+Official API evidence:
+- Env key presence was checked by the user before this round; this round consumed `ASHR_API_KEY` only through process env.
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round43_summary_20260709_233449.json`.
+- Summary result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`; observed response keys for `init`, `keep_alive`, `list_agents`, `list_datasets`, and `list_requests`.
+- Public evidence index after merge: `400` records, `16` functions, historical quota block count preserved at `48`.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_evidence_index.py tests/a1/test_object_storage_contract.py tests/a1/test_saas_platform.py tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `48 passed, 5 skipped`.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Residual risks / next A1 queue:
+- Object storage is local-filesystem plus S3/MinIO manifest contract; no live MinIO/S3 network write was run yet.
+- Go Postgres worker daemon still needs an end-to-end Postgres-backed lease/heartbeat/complete/dead-letter live smoke.
+- Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
+- Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
+
+### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
+
+Bus-Auditor found three blocking issues and all were fixed before commit:
+- Worker daemon compose no longer exits after one bounded run and leaves a stale healthy marker. The commercial worker command now re-enters `/usr/local/bin/ashr-worker` in a loop, refreshes `/runtime/worker/heartbeat`, and the healthcheck requires a recent heartbeat file.
+- Commercial self-host Postgres no longer uses `POSTGRES_HOST_AUTH_METHOD: trust`. It now uses `POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password` backed by Docker secret `ASHR_POSTGRES_AUTH_SECRET`; `self-host.env.example` contains only the secret ref, not a password value. Local `services/runner/docker-compose.a1.yml` remains a local-dev smoke fixture and is separately tested.
+- Webhook deliveries no longer return a reusable concrete HMAC signature value. Public records now carry `x-ashr-signature-sha256: present`, `signature_present`, `signature_algorithm`, and a derived `signed_payload_sha256`; tests assert no `whsec_local_` or concrete header signature leaks.
+
+Additional validation after Bus-Auditor fixes:
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_saas_platform.py -q -p no:cacheprovider` -> `15 passed, 1 skipped`.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed; Docker warned that `ASHR_POSTGRES_AUTH_SECRET` is unset in the current shell, which is expected for a secret-ref compose config and must be supplied by the operator at runtime.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `411 passed, 1 skipped`.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `9 passed, 4 skipped`.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.

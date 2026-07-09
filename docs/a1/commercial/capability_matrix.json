@@ -2056,10 +2056,10 @@
     },
     "public_evidence": {
       "function_count": 15,
-      "label": "a1-real-api-round40-history-plus-paid-media-gate",
+      "label": "a1-real-api-round43-readonly-refresh",
       "quota_block_count": 48,
       "schema_version": "ashr.clone.evidence_index.v1",
-      "total_records": 399
+      "total_records": 400
     }
   },
   "summary": {

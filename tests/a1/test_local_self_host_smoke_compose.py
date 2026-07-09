@@ -147,7 +147,7 @@ def test_a1_compose_keeps_env_boundaries_and_public_secret_hygiene():
     for marker in forbidden_markers:
         assert marker not in compose_text
 
-    assert "POSTGRES_PASSWORD" not in compose_text
+    assert "POSTGRES_PASSWORD:" not in compose_text
     assert "password=" not in compose_text.lower()
     assert "127.0.0.1:" in compose_text
     allowed_container_binds_removed = compose_text.replace("ASHR_GO_API_ADDR: 0.0.0.0:8787", "").replace("ASHR_GO_API_ADDR: 0.0.0.0:8788", "")
@@ -186,9 +186,21 @@ def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
     assert worker_env["ASHR_WORKER_MODE"] == "daemon"
     assert worker_env["ASHR_WORKER_DAEMON"] == "true"
     assert worker_env["ASHR_WORKER_QUEUE"] == "ashr_worker_jobs"
-    assert worker_env["ASHR_WORKER_HEALTHCHECK_PATH"] == "/runtime/worker/healthy"
+    assert worker_env["ASHR_WORKER_HEALTHCHECK_PATH"] == "/runtime/worker/heartbeat"
+    assert worker_env["ASHR_GO_BACKEND"] == "postgres"
+    assert worker_env["ASHR_WORKER_TENANT_ID"] == "tenant_self_host"
+    assert worker_env["ASHR_WORKER_PROJECT_ID"] == "project_self_host"
+    assert worker_env["ASHR_WORKER_LEASE_OWNER_ID"] == "worker_self_host"
     assert worker_env["ASHR_WORKER_EVIDENCE_WRITES"] == "object-store"
+    assert services["worker"]["image"] == "ashr/a1-go-runtime:local"
+    assert services["worker"]["build"]["dockerfile"] == "infra/docker/Dockerfile.go-runtime"
+    assert "/usr/local/bin/ashr-worker" in " ".join(services["worker"]["command"])
+    assert "replay-queued" not in " ".join(services["worker"]["command"])
     assert services["worker"]["healthcheck"]["test"][0] == "CMD-SHELL"
+    assert "while true" in " ".join(services["worker"]["command"])
+    assert "sleep 5" in " ".join(services["worker"]["command"])
+    assert "find /runtime/worker/heartbeat -mmin -2" in services["worker"]["healthcheck"]["test"][1]
+    assert "healthy" not in services["worker"]["healthcheck"]["test"][1]
     assert "ashr-worker-health:/runtime/worker" in services["worker"]["volumes"]
 
 
@@ -203,8 +215,10 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
     minio_init = services["minio-init"]
 
     assert postgres["image"] == "postgres:16-alpine"
-    assert postgres["environment"]["POSTGRES_HOST_AUTH_METHOD"] == "trust"
-    assert "POSTGRES_PASSWORD" not in postgres["environment"]
+    assert "POSTGRES_HOST_AUTH_METHOD" not in postgres["environment"]
+    assert postgres["environment"]["POSTGRES_PASSWORD_FILE"] == "/run/secrets/postgres_password"
+    assert postgres["secrets"] == ["postgres_password"]
+    assert compose["secrets"]["postgres_password"] == {"environment": "ASHR_POSTGRES_AUTH_SECRET"}
     assert postgres["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
 
     assert redis["image"] == "redis:7-alpine"
@@ -232,7 +246,7 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
         "whsec_",
         "ashr_live_",
         "private_refs",
-        "POSTGRES_PASSWORD",
+        "POSTGRES_PASSWORD:",
         "MINIO_ROOT_PASSWORD:",
         "AWS_SECRET_ACCESS_KEY",
         "STRIPE_SECRET_KEY",

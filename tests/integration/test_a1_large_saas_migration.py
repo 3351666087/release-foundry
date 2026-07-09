@@ -7,6 +7,7 @@ from services.api.db_migrator import build_go_postgres_vertical_slice_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "services/api/migrations/001_a1_large_saas_foundation.sql"
+BILLING_MIGRATION = ROOT / "services/api/migrations/002_a1_billing_ledger.sql"
 
 REQUIRED_TABLES = {
     "organizations",
@@ -85,10 +86,21 @@ PROJECT_SCOPED_TABLES = {
     "audit_log",
 }
 
+BILLING_RLS_TABLES = {
+    "billing_accounts",
+    "billing_provider_events",
+    "billing_ledger_events",
+}
+
 
 def _migration_sql() -> str:
     assert MIGRATION.exists(), f"missing migration: {MIGRATION}"
     return MIGRATION.read_text(encoding="utf-8")
+
+
+def _billing_migration_sql() -> str:
+    assert BILLING_MIGRATION.exists(), f"missing migration: {BILLING_MIGRATION}"
+    return BILLING_MIGRATION.read_text(encoding="utf-8")
 
 
 def _normalize(sql: str) -> str:
@@ -104,6 +116,29 @@ def _table_body(sql: str, table: str) -> str:
     match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
     assert match, f"missing CREATE TABLE body for {table}"
     return _normalize(match.group(1))
+
+
+def _policy_body(sql: str, table: str) -> str:
+    policy_name = f"{table}_organization_isolation"
+    pattern = rf"create\s+policy\s+{policy_name}\s+on\s+{table}\s+(.*?);"
+    match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
+    assert match, f"missing RLS policy {policy_name} on {table}"
+    return _normalize(match.group(1))
+
+
+def _assert_organization_rls_contract(sql: str, tables: set[str]) -> None:
+    normalized = _normalize(sql)
+
+    for table in sorted(tables):
+        policy_name = f"{table}_organization_isolation"
+        expected_predicate = "id = a1_current_organization_id()" if table == "organizations" else "organization_id = a1_current_organization_id()"
+        policy = _policy_body(sql, table)
+
+        assert f"alter table {table} enable row level security" in normalized, f"{table} must enable RLS"
+        assert f"alter table {table} force row level security" in normalized, f"{table} must force RLS for owners"
+        assert f"drop policy if exists {policy_name} on {table}" in normalized, f"{table} policy must be idempotent"
+        assert f"using ({expected_predicate})" in policy, f"{policy_name} must filter reads by app tenant"
+        assert f"with check ({expected_predicate})" in policy, f"{policy_name} must reject cross-tenant writes"
 
 
 def test_a1_foundation_migration_declares_required_objects() -> None:
@@ -196,6 +231,60 @@ def test_a1_foundation_migration_has_idempotency_usage_and_audit_guards() -> Non
     assert "prev_hash text" in normalized
     assert "entry_hash text not null" in normalized
     assert "constraint audit_log_entry_hash_key unique (entry_hash)" in normalized
+
+
+def test_a1_foundation_migration_enforces_rls_with_app_organization_setting() -> None:
+    sql = _migration_sql()
+    normalized = _normalize(sql)
+
+    assert "create or replace function a1_current_organization_id()" in normalized
+    assert "current_setting('app.a1_organization_id', true)" in normalized
+    assert "nullif(current_setting('app.a1_organization_id', true), '')::uuid" in normalized
+
+    _assert_organization_rls_contract(sql, REQUIRED_TABLES)
+
+
+def test_a1_foundation_audit_paths_are_tenant_scoped_and_triggered() -> None:
+    normalized = _normalize(_migration_sql())
+
+    for fragment in [
+        "create trigger quota_policies_audit_after_change after insert or update or delete on quota_policies",
+        "for each row execute function audit_quota_policy_change()",
+        "target_policy.organization_id",
+        "target_policy.project_id",
+        "'quota_policy.' || lower(tg_op)",
+        "select audit_chain_tail(target_policy.organization_id, target_policy.project_id)",
+        "insert into audit_log",
+        "p_organization_id",
+        "p_project_id",
+        "'quota.denied'",
+        "encode(digest(coalesce(previous_hash, '')",
+        "audit_payload::text || now()::text, 'sha256'), 'hex')",
+    ]:
+        assert fragment in normalized
+
+
+def test_a1_billing_migration_inherits_forced_rls_contract() -> None:
+    sql = _billing_migration_sql()
+    normalized = _normalize(sql)
+
+    _assert_organization_rls_contract(sql, BILLING_RLS_TABLES)
+
+    for table in sorted(BILLING_RLS_TABLES):
+        body = _table_body(sql, table)
+        assert "organization_id uuid not null" in body
+        assert "project_id uuid not null" in body
+
+    for fragment in [
+        "constraint billing_provider_events_account_scope_fk foreign key (organization_id, project_id, billing_account_id)",
+        "constraint billing_ledger_events_provider_event_scope_fk foreign key (organization_id, project_id, provider_event_id)",
+        "constraint billing_ledger_events_account_scope_fk foreign key (organization_id, project_id, billing_account_id)",
+        "from billing_provider_events",
+        "from billing_ledger_events",
+        "where organization_id = p_organization_id",
+        "and project_id = p_project_id",
+    ]:
+        assert fragment in normalized
 
 
 def test_a1_foundation_migration_has_worker_persistence_repository_contract() -> None:

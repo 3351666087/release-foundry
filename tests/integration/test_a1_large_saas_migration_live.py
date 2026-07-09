@@ -95,6 +95,88 @@ def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> No
     assert "hash-live-a1" in result.stdout
 
 
+def test_a1_foundation_forced_rls_denies_cross_tenant_reads_and_writes_live_opt_in() -> None:
+    dsn = _dsn()
+    _psql(dsn, file=MIGRATION)
+
+    role_sql = """
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_rls_auditor_live') THEN
+        CREATE ROLE a1_rls_auditor_live NOLOGIN NOSUPERUSER NOBYPASSRLS;
+      END IF;
+    END $$;
+    GRANT a1_rls_auditor_live TO CURRENT_USER;
+    GRANT USAGE ON SCHEMA public TO a1_rls_auditor_live;
+    GRANT SELECT, INSERT ON organizations, workspaces, projects, usage_ledger, audit_log TO a1_rls_auditor_live;
+    """
+    role_setup = _psql(dsn, role_sql, check=False)
+    if role_setup.returncode != 0:
+        pytest.skip(f"live RLS role setup requires CREATE ROLE/GRANT privileges: {role_setup.stderr}")
+
+    setup_sql = """
+    INSERT INTO organizations (id, slug, display_name)
+      VALUES
+        ('00000000-0000-0000-0000-000000000401', 'org-live-a1-rls-a', 'Org Live A1 RLS A'),
+        ('00000000-0000-0000-0000-000000000501', 'org-live-a1-rls-b', 'Org Live A1 RLS B')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO workspaces (id, organization_id, slug, display_name)
+      VALUES
+        ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000401', 'ws-live-a1-rls-a', 'Workspace Live A1 RLS A'),
+        ('00000000-0000-0000-0000-000000000502', '00000000-0000-0000-0000-000000000501', 'ws-live-a1-rls-b', 'Workspace Live A1 RLS B')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO projects (id, organization_id, workspace_id, slug, display_name)
+      VALUES
+        ('00000000-0000-0000-0000-000000000403', '00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000402', 'proj-live-a1-rls-a', 'Project Live A1 RLS A'),
+        ('00000000-0000-0000-0000-000000000503', '00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000502', 'proj-live-a1-rls-b', 'Project Live A1 RLS B')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO usage_ledger (id, organization_id, project_id, meter, quantity, unit, source_type, source_id, period_start, period_end)
+      VALUES
+        ('00000000-0000-0000-0000-000000000404', '00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000403', 'runs', 1, 'runs', 'run', 'rls-a', '2026-07-09T00:00:00Z', '2026-07-10T00:00:00Z'),
+        ('00000000-0000-0000-0000-000000000504', '00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000503', 'runs', 1, 'runs', 'run', 'rls-b', '2026-07-09T00:00:00Z', '2026-07-10T00:00:00Z')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO audit_log (id, organization_id, project_id, actor_type, action, resource_type, resource_id, entry_hash)
+      VALUES
+        ('00000000-0000-0000-0000-000000000405', '00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000403', 'system', 'rls.probe', 'project', '00000000-0000-0000-0000-000000000403', 'hash-live-a1-rls-a'),
+        ('00000000-0000-0000-0000-000000000505', '00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000503', 'system', 'rls.probe', 'project', '00000000-0000-0000-0000-000000000503', 'hash-live-a1-rls-b')
+      ON CONFLICT DO NOTHING;
+    """
+    _psql(dsn, setup_sql)
+
+    read_probe = """
+    SET ROLE a1_rls_auditor_live;
+    SELECT set_config('app.a1_organization_id', '00000000-0000-0000-0000-000000000401', false);
+    SELECT 'organizations_visible_for_a=' || count(*) FROM organizations;
+    SELECT 'workspaces_visible_for_a=' || count(*) FROM workspaces;
+    SELECT 'usage_visible_for_a=' || count(*) FROM usage_ledger;
+    SELECT 'audit_visible_for_a=' || count(*) FROM audit_log;
+    SELECT 'org_b_visible_from_a=' || count(*) FROM organizations WHERE id = '00000000-0000-0000-0000-000000000501';
+    SELECT 'workspace_b_visible_from_a=' || count(*) FROM workspaces WHERE organization_id = '00000000-0000-0000-0000-000000000501';
+    SELECT 'usage_b_visible_from_a=' || count(*) FROM usage_ledger WHERE organization_id = '00000000-0000-0000-0000-000000000501';
+    SELECT 'audit_b_visible_from_a=' || count(*) FROM audit_log WHERE organization_id = '00000000-0000-0000-0000-000000000501';
+    RESET ROLE;
+    """
+    reads = _psql(dsn, read_probe)
+    assert "organizations_visible_for_a=1" in reads.stdout
+    assert "workspaces_visible_for_a=1" in reads.stdout
+    assert "usage_visible_for_a=1" in reads.stdout
+    assert "audit_visible_for_a=1" in reads.stdout
+    assert "org_b_visible_from_a=0" in reads.stdout
+    assert "workspace_b_visible_from_a=0" in reads.stdout
+    assert "usage_b_visible_from_a=0" in reads.stdout
+    assert "audit_b_visible_from_a=0" in reads.stdout
+
+    write_probe = """
+    SET ROLE a1_rls_auditor_live;
+    SELECT set_config('app.a1_organization_id', '00000000-0000-0000-0000-000000000401', false);
+    INSERT INTO organizations (id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000601', 'org-live-a1-rls-denied', 'Org Live A1 RLS Denied');
+    """
+    denied = _psql(dsn, write_probe, check=False)
+    assert denied.returncode != 0
+    assert "row-level security" in (denied.stderr + denied.stdout).lower()
+
+
 def test_a1_foundation_idempotency_conflict_is_live_opt_in() -> None:
     dsn = _dsn()
     _psql(dsn, file=MIGRATION)

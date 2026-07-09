@@ -20,11 +20,11 @@
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-real-api-round40-history-plus-paid-media-gate",
+  "label": "a1-real-api-round43-readonly-refresh",
   "output_policy_counts": {
     "by_producer": {},
     "by_record_class": {},
-    "missing": 393,
+    "missing": 394,
     "none": 0,
     "nonprivate_file": 0,
     "nonprivate_override": 0,
@@ -3215,6 +3215,21 @@
       "error_kind": null,
       "function": null,
       "path": "docs/evidence/private_refs/a1_readiness_smoke.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -9363,11 +9378,11 @@
     "completed": 13,
     "error": 32,
     "failed": 1,
-    "ok": 219,
+    "ok": 220,
     "partial": 20,
     "passed": 11,
     "planned": 65,
     "timeout": 1
   },
-  "total_records": 399
+  "total_records": 400
 }

@@ -1,6 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -103,8 +104,14 @@ def test_webhook_registry_signs_delivery_without_exposing_secret_or_payload():
     assert len(delivered["deliveries"]) == 1
     delivery = delivered["deliveries"][0]
     assert delivery["raw_payload_included"] is False
-    assert delivery["headers"]["x-ashr-signature-sha256"]
-    assert "tp_should_not_leak" not in json.dumps(delivered, sort_keys=True)
+    assert delivery["headers"]["x-ashr-signature-sha256"] == "present"
+    assert delivery["signature_present"] is True
+    assert delivery["signature_algorithm"] == "hmac-sha256"
+    assert re.fullmatch(r"[0-9a-f]{64}", delivery["signed_payload_sha256"])
+    delivered_text = json.dumps(delivered, sort_keys=True)
+    assert "tp_should_not_leak" not in delivered_text
+    assert "whsec_local_" not in delivered_text
+    assert delivery["headers"] == {"x-ashr-event": "run.completed", "x-ashr-signature-sha256": "present"}
 
     with pytest.raises(ValidationError):
         registry.register_endpoint(tenant_id="t", project_id="p", url="http://evil.invalid", events=["*"])

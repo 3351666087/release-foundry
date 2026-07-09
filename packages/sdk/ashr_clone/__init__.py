@@ -63,6 +63,16 @@ from .trace import (
     write_run_fixture,
 )
 from .saas import SAAS_CLIENT_VERSION, SaaSIngestionClient, SecretInputError, consume_official_api_mutating_calibration_index
+from .storage import (
+    OBJECT_STORAGE_CONTRACT_VERSION,
+    LocalFilesystemObjectStorage,
+    ObjectStorageContractError,
+    assert_public_object_manifest_safe,
+    build_object_manifest,
+    scoped_object_key,
+    sha256_bytes,
+    verify_object_bytes,
+)
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
 __all__ = [
@@ -125,6 +135,14 @@ __all__ = [
     "SaaSIngestionClient",
     "SecretInputError",
     "consume_official_api_mutating_calibration_index",
+    "OBJECT_STORAGE_CONTRACT_VERSION",
+    "LocalFilesystemObjectStorage",
+    "ObjectStorageContractError",
+    "assert_public_object_manifest_safe",
+    "build_object_manifest",
+    "scoped_object_key",
+    "sha256_bytes",
+    "verify_object_bytes",
     "TraceEvent",
     "TraceRecorder",
     "build_run_fixture",
