@@ -34,20 +34,23 @@ class A2CrossLaneSecurityTests(unittest.TestCase):
         self.assertTrue(actual["a1_route_scope"]["available"])
         self.assertTrue(actual["a1_route_scope"]["ready_for_a2_security_context"])
         self.assertTrue(actual["a2_policy_implications"]["should_add_route_scope_security_cases"])
-        self.assertFalse(actual["a3_auth_rbac_boundary"]["available"])
-        self.assertFalse(actual["a3_fail_closed_rbac"]["available"])
-        self.assertFalse(actual["a3_event_outbox"]["available"])
-        self.assertFalse(actual["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
-        self.assertFalse(actual["a2_policy_implications"]["should_add_fail_closed_write_abuse_cases"])
-        self.assertFalse(actual["a2_policy_implications"]["should_add_event_outbox_integrity_cases"])
+        self.assertTrue(actual["a3_auth_rbac_boundary"]["available"])
+        self.assertTrue(actual["a3_auth_rbac_boundary"]["ready_for_a2_security_context"])
+        self.assertTrue(actual["a3_fail_closed_rbac"]["available"])
+        self.assertTrue(actual["a3_fail_closed_rbac"]["ready_for_a2_security_context"])
+        self.assertTrue(actual["a3_event_outbox"]["available"])
+        self.assertTrue(actual["a3_event_outbox"]["ready_for_a2_security_context"])
+        self.assertTrue(actual["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
+        self.assertTrue(actual["a2_policy_implications"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertTrue(actual["a2_policy_implications"]["should_add_event_outbox_integrity_cases"])
         followup_ids = {item["followup_id"] for item in actual["a2_security_followups"]}
         self.assertEqual(
             followup_ids,
             {
                 "a2-route-scope-tenant-boundary",
-                "wait-for-a3-auth-rbac-boundary-contract",
-                "wait-for-a3-fail-closed-rbac-write-path-contract",
-                "wait-for-a3-event-outbox-contract",
+                "a2-auth-rbac-denied-state-cases",
+                "a2-a3-fail-closed-write-abuse-cases",
+                "a2-a3-event-outbox-integrity-cases",
             },
         )
 

@@ -127,30 +127,31 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertFalse(report["scenario_generation"]["may_mutate_main_pack"])
         self.assertIn("A2-GEN-001", report["scenario_generation"]["candidate_ids"])
         self.assertTrue(report["cross_lane_security"]["a1_route_scope_available"])
-        self.assertFalse(report["cross_lane_security"]["a3_auth_rbac_available"])
-        self.assertFalse(report["cross_lane_security"]["a3_fail_closed_rbac_available"])
-        self.assertFalse(report["cross_lane_security"]["a3_event_outbox_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_auth_rbac_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_fail_closed_rbac_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_event_outbox_available"])
         self.assertTrue(report["cross_lane_security"]["route_scope_ready"])
-        self.assertFalse(report["cross_lane_security"]["auth_rbac_ready"])
-        self.assertFalse(report["cross_lane_security"]["fail_closed_rbac_ready"])
-        self.assertFalse(report["cross_lane_security"]["event_outbox_ready"])
-        self.assertFalse(report["cross_lane_security"]["should_add_fail_closed_write_abuse_cases"])
-        self.assertFalse(report["cross_lane_security"]["should_add_event_outbox_integrity_cases"])
+        self.assertTrue(report["cross_lane_security"]["auth_rbac_ready"])
+        self.assertTrue(report["cross_lane_security"]["fail_closed_rbac_ready"])
+        self.assertTrue(report["cross_lane_security"]["event_outbox_ready"])
+        self.assertTrue(report["cross_lane_security"]["should_add_auth_rbac_abuse_cases"])
+        self.assertTrue(report["cross_lane_security"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertTrue(report["cross_lane_security"]["should_add_event_outbox_integrity_cases"])
         self.assertEqual(report["cross_lane_security"]["followup_count"], 4)
         self.assertIn(
             "a2-route-scope-tenant-boundary",
             report["cross_lane_security"]["followup_ids"],
         )
         self.assertIn(
-            "wait-for-a3-auth-rbac-boundary-contract",
+            "a2-auth-rbac-denied-state-cases",
             report["cross_lane_security"]["followup_ids"],
         )
         self.assertIn(
-            "wait-for-a3-fail-closed-rbac-write-path-contract",
+            "a2-a3-fail-closed-write-abuse-cases",
             report["cross_lane_security"]["followup_ids"],
         )
         self.assertIn(
-            "wait-for-a3-event-outbox-contract",
+            "a2-a3-event-outbox-integrity-cases",
             report["cross_lane_security"]["followup_ids"],
         )
 

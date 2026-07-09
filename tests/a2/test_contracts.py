@@ -1386,75 +1386,86 @@ class A2ContractTests(unittest.TestCase):
             report["a1_real_api_evidence"]["index_path"],
         )
         official_manifest = report["a1_official_api_readonly_manifest"]
-        self.assertFalse(official_manifest["available"])
+        self.assertTrue(official_manifest["available"])
         self.assertEqual(
             official_manifest["path"],
             "docs/a1/evidence/official_api_readonly_manifest_summary.json",
         )
-        self.assertFalse(official_manifest["ready_for_a2_evidence_context"])
+        self.assertTrue(official_manifest["public_safe"])
+        self.assertTrue(official_manifest["ready_for_a2_evidence_context"])
+        self.assertEqual(official_manifest["read_step_count"], 5)
+        self.assertFalse(official_manifest["raw_payload_values_included"])
         mutating_index = report["a1_official_api_mutating_index"]
-        self.assertFalse(mutating_index["available"])
+        self.assertTrue(mutating_index["available"])
         self.assertEqual(
             mutating_index["path"],
             "docs/a1/evidence/official_api_mutating_calibration_index.json",
         )
-        self.assertFalse(mutating_index["ready_for_a2_evidence_context"])
+        self.assertTrue(mutating_index["public_safe"])
+        self.assertTrue(mutating_index["ready_for_a2_evidence_context"])
+        self.assertEqual(mutating_index["mutating_step_count"], 5)
+        self.assertEqual(mutating_index["quota_block_count"], 7)
         self.assertFalse(mutating_index["c3_grading_ready"])
         paid_media_summary = report["a1_official_api_paid_media_summary"]
-        self.assertFalse(paid_media_summary["available"])
+        self.assertTrue(paid_media_summary["available"])
         self.assertEqual(
             paid_media_summary["path"],
             "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
         )
-        self.assertFalse(paid_media_summary["ready_for_a2_evidence_context"])
+        self.assertTrue(paid_media_summary["public_safe"])
+        self.assertTrue(paid_media_summary["ready_for_a2_evidence_context"])
         self.assertFalse(paid_media_summary["safe_for_paid_media_claims"])
         self.assertFalse(paid_media_summary["c3_grading_ready"])
-        self.assertFalse(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
+        self.assertTrue(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
         payment_provider = report["a1_payment_provider_readiness"]
-        self.assertFalse(payment_provider["available"])
+        self.assertTrue(payment_provider["available"])
         self.assertEqual(
             payment_provider["path"],
             "docs/a1/evidence/payment_provider_readiness_public.json",
         )
-        self.assertFalse(payment_provider["ready_for_a2_payment_policy_context"])
-        self.assertFalse(payment_provider["public_safe"])
+        self.assertTrue(payment_provider["ready_for_a2_payment_policy_context"])
+        self.assertTrue(payment_provider["public_safe"])
+        self.assertEqual(payment_provider["provider_count"], 3)
         self.assertFalse(payment_provider["ci_payment_calls_allowed"])
         self.assertFalse(payment_provider["c3_grading_ready"])
         self.assertTrue(
             payment_provider["a2_policy_implications"]["must_not_mark_c3_from_payment_context"]
         )
         billing_replay = report["a1_billing_replay_evidence"]
-        self.assertFalse(billing_replay["available"])
+        self.assertTrue(billing_replay["available"])
         self.assertEqual(
             billing_replay["path"],
             "docs/a1/evidence/billing_replay_fixture_round35.json",
         )
-        self.assertFalse(billing_replay["ready_for_a2_evidence_context"])
-        self.assertFalse(billing_replay["duplicate_idempotency_proven"])
+        self.assertTrue(billing_replay["public_safe"])
+        self.assertTrue(billing_replay["ready_for_a2_evidence_context"])
+        self.assertTrue(billing_replay["duplicate_idempotency_proven"])
         self.assertFalse(billing_replay["c3_grading_ready"])
         self.assertTrue(
             billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
         billing_migration = report["a1_billing_ledger_migration"]
-        self.assertFalse(billing_migration["available"])
+        self.assertTrue(billing_migration["available"])
         self.assertEqual(
             billing_migration["path"],
             "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
         )
-        self.assertFalse(billing_migration["tenant_rls_ready"])
-        self.assertFalse(billing_migration["ready_for_a2_evidence_context"])
+        self.assertTrue(billing_migration["tenant_rls_ready"])
+        self.assertTrue(billing_migration["public_safe"])
+        self.assertTrue(billing_migration["ready_for_a2_evidence_context"])
         self.assertFalse(billing_migration["c3_grading_ready"])
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
         billing_sql = report["a1_billing_sql_semantic_contract"]
-        self.assertFalse(billing_sql["available"])
+        self.assertTrue(billing_sql["available"])
         self.assertEqual(
             billing_sql["path"],
             "docs/a1/evidence/billing_sql_semantic_contract.json",
         )
-        self.assertFalse(billing_sql["ready_for_a2_sql_policy_context"])
-        self.assertFalse(billing_sql["public_safe"])
+        self.assertTrue(billing_sql["ready_for_a2_sql_policy_context"])
+        self.assertTrue(billing_sql["public_safe"])
+        self.assertEqual(billing_sql["raw_payload_column_present_count"], 0)
         self.assertFalse(billing_sql["c3_grading_ready"])
         self.assertTrue(
             billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"]
