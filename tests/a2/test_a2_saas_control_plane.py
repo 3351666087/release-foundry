@@ -128,15 +128,29 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("A2-GEN-001", report["scenario_generation"]["candidate_ids"])
         self.assertTrue(report["cross_lane_security"]["a1_route_scope_available"])
         self.assertFalse(report["cross_lane_security"]["a3_auth_rbac_available"])
+        self.assertFalse(report["cross_lane_security"]["a3_fail_closed_rbac_available"])
+        self.assertFalse(report["cross_lane_security"]["a3_event_outbox_available"])
         self.assertTrue(report["cross_lane_security"]["route_scope_ready"])
         self.assertFalse(report["cross_lane_security"]["auth_rbac_ready"])
-        self.assertEqual(report["cross_lane_security"]["followup_count"], 2)
+        self.assertFalse(report["cross_lane_security"]["fail_closed_rbac_ready"])
+        self.assertFalse(report["cross_lane_security"]["event_outbox_ready"])
+        self.assertFalse(report["cross_lane_security"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertFalse(report["cross_lane_security"]["should_add_event_outbox_integrity_cases"])
+        self.assertEqual(report["cross_lane_security"]["followup_count"], 4)
         self.assertIn(
             "a2-route-scope-tenant-boundary",
             report["cross_lane_security"]["followup_ids"],
         )
         self.assertIn(
             "wait-for-a3-auth-rbac-boundary-contract",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "wait-for-a3-fail-closed-rbac-write-path-contract",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "wait-for-a3-event-outbox-contract",
             report["cross_lane_security"]["followup_ids"],
         )
 
@@ -173,7 +187,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
         self.assertEqual(contract["local_meter"]["scenario_generation_candidate_count"], 12)
-        self.assertEqual(contract["local_meter"]["cross_lane_security_followup_count"], 2)
+        self.assertEqual(contract["local_meter"]["cross_lane_security_followup_count"], 4)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")
 
     def test_release_policy_config_selects_saas_project_without_falling_back(self):

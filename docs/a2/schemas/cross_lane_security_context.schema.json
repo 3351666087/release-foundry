@@ -9,6 +9,8 @@
     "source_refs",
     "a1_route_scope",
     "a3_auth_rbac_boundary",
+    "a3_fail_closed_rbac",
+    "a3_event_outbox",
     "a2_policy_implications",
     "a2_security_followups",
     "metadata"
@@ -19,32 +21,50 @@
     "created_at": { "type": "string", "format": "date-time" },
     "source_refs": {
       "type": "object",
-      "required": ["a1_route_scope", "a3_auth_rbac_boundary", "a3_openapi"],
+      "required": [
+        "a1_route_scope",
+        "a3_auth_rbac_boundary",
+        "a3_openapi",
+        "a3_fail_closed_rbac",
+        "a3_event_outbox"
+      ],
       "properties": {
         "a1_route_scope": { "type": "string" },
         "a3_auth_rbac_boundary": { "type": "string" },
-        "a3_openapi": { "type": "string" }
+        "a3_openapi": { "type": "string" },
+        "a3_fail_closed_rbac": { "type": "string" },
+        "a3_event_outbox": { "type": "string" }
       },
       "additionalProperties": true
     },
     "a1_route_scope": { "$ref": "#/$defs/source_summary" },
     "a3_auth_rbac_boundary": { "$ref": "#/$defs/source_summary" },
+    "a3_fail_closed_rbac": { "$ref": "#/$defs/source_summary" },
+    "a3_event_outbox": { "$ref": "#/$defs/source_summary" },
     "a2_policy_implications": {
       "type": "object",
       "required": [
         "should_block_hosted_mutations_without_a1_auth",
         "should_require_metadata_only_audit_events",
         "should_keep_raw_actor_identity_forbidden",
+        "should_require_fail_closed_a3_writes",
+        "should_require_a3_event_outbox_metadata_only",
         "should_add_route_scope_security_cases",
         "should_add_auth_rbac_abuse_cases",
+        "should_add_fail_closed_write_abuse_cases",
+        "should_add_event_outbox_integrity_cases",
         "release_policy_refs"
       ],
       "properties": {
         "should_block_hosted_mutations_without_a1_auth": { "type": "boolean" },
         "should_require_metadata_only_audit_events": { "type": "boolean" },
         "should_keep_raw_actor_identity_forbidden": { "type": "boolean" },
+        "should_require_fail_closed_a3_writes": { "type": "boolean" },
+        "should_require_a3_event_outbox_metadata_only": { "type": "boolean" },
         "should_add_route_scope_security_cases": { "type": "boolean" },
         "should_add_auth_rbac_abuse_cases": { "type": "boolean" },
+        "should_add_fail_closed_write_abuse_cases": { "type": "boolean" },
+        "should_add_event_outbox_integrity_cases": { "type": "boolean" },
         "release_policy_refs": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true

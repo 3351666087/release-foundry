@@ -312,14 +312,22 @@
     "report_id": "a2_cross_lane_security_context",
     "a1_route_scope_available": true,
     "a3_auth_rbac_available": false,
+    "a3_fail_closed_rbac_available": false,
+    "a3_event_outbox_available": false,
     "route_scope_ready": true,
     "auth_rbac_ready": false,
+    "fail_closed_rbac_ready": false,
+    "event_outbox_ready": false,
     "should_block_hosted_mutations_without_a1_auth": false,
     "should_add_auth_rbac_abuse_cases": false,
-    "followup_count": 2,
+    "should_add_fail_closed_write_abuse_cases": false,
+    "should_add_event_outbox_integrity_cases": false,
+    "followup_count": 4,
     "followup_ids": [
       "a2-route-scope-tenant-boundary",
-      "wait-for-a3-auth-rbac-boundary-contract"
+      "wait-for-a3-auth-rbac-boundary-contract",
+      "wait-for-a3-fail-closed-rbac-write-path-contract",
+      "wait-for-a3-event-outbox-contract"
     ]
   },
   "calibration": {
@@ -461,7 +469,7 @@
       "scenario_count": 60,
       "selected_scenario_count": 12,
       "scenario_generation_candidate_count": 12,
-      "cross_lane_security_followup_count": 2,
+      "cross_lane_security_followup_count": 4,
       "audit_record_count": 163
     },
     "selected_policy_id": "release_policy_prod_strict",

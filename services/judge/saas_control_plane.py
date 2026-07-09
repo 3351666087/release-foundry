@@ -333,6 +333,16 @@ def _cross_lane_security_summary(context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(context.get("a3_auth_rbac_boundary"), dict)
         else {}
     )
+    a3_fail_closed = (
+        context.get("a3_fail_closed_rbac", {})
+        if isinstance(context.get("a3_fail_closed_rbac"), dict)
+        else {}
+    )
+    a3_event_outbox = (
+        context.get("a3_event_outbox", {})
+        if isinstance(context.get("a3_event_outbox"), dict)
+        else {}
+    )
     implications = (
         context.get("a2_policy_implications", {})
         if isinstance(context.get("a2_policy_implications"), dict)
@@ -343,12 +353,22 @@ def _cross_lane_security_summary(context: dict[str, Any]) -> dict[str, Any]:
         "report_id": str(context.get("report_id", "")),
         "a1_route_scope_available": a1.get("available") is True,
         "a3_auth_rbac_available": a3.get("available") is True,
+        "a3_fail_closed_rbac_available": a3_fail_closed.get("available") is True,
+        "a3_event_outbox_available": a3_event_outbox.get("available") is True,
         "route_scope_ready": a1.get("ready_for_a2_security_context") is True,
         "auth_rbac_ready": a3.get("ready_for_a2_security_context") is True,
+        "fail_closed_rbac_ready": a3_fail_closed.get("ready_for_a2_security_context") is True,
+        "event_outbox_ready": a3_event_outbox.get("ready_for_a2_security_context") is True,
         "should_block_hosted_mutations_without_a1_auth": bool(
             implications.get("should_block_hosted_mutations_without_a1_auth")
         ),
         "should_add_auth_rbac_abuse_cases": bool(implications.get("should_add_auth_rbac_abuse_cases")),
+        "should_add_fail_closed_write_abuse_cases": bool(
+            implications.get("should_add_fail_closed_write_abuse_cases")
+        ),
+        "should_add_event_outbox_integrity_cases": bool(
+            implications.get("should_add_event_outbox_integrity_cases")
+        ),
         "followup_count": len(followups),
         "followup_ids": [
             str(item.get("followup_id", ""))

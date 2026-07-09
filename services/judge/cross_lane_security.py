@@ -14,6 +14,8 @@ DEFAULT_CREATED_AT = "2026-07-09T00:00:00Z"
 DEFAULT_A1_ROUTE_SCOPE = Path("docs/a1/evidence/go_python_ts_route_parity_snapshot.json")
 DEFAULT_A3_AUTH_RBAC_DOC = Path("docs/a3/p3_auth_rbac_boundary_2026_07_09.md")
 DEFAULT_A3_OPENAPI = Path("docs/a3/openapi/a3_commercial_api.openapi.json")
+DEFAULT_A3_FAIL_CLOSED_RBAC_DOC = Path("docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md")
+DEFAULT_A3_EVENT_OUTBOX_DOC = Path("docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md")
 
 
 def build_cross_lane_security_context(
@@ -21,12 +23,16 @@ def build_cross_lane_security_context(
     a1_route_scope_path: str | Path = DEFAULT_A1_ROUTE_SCOPE,
     a3_auth_rbac_doc_path: str | Path = DEFAULT_A3_AUTH_RBAC_DOC,
     a3_openapi_path: str | Path = DEFAULT_A3_OPENAPI,
+    a3_fail_closed_rbac_doc_path: str | Path = DEFAULT_A3_FAIL_CLOSED_RBAC_DOC,
+    a3_event_outbox_doc_path: str | Path = DEFAULT_A3_EVENT_OUTBOX_DOC,
     created_at: str = DEFAULT_CREATED_AT,
     report_id: str = DEFAULT_REPORT_ID,
 ) -> dict[str, Any]:
     """Summarize cross-lane auth/RBAC/RLS signals without reading private evidence."""
     a1 = _a1_route_scope_summary(Path(a1_route_scope_path))
     a3 = _a3_auth_rbac_summary(Path(a3_auth_rbac_doc_path), Path(a3_openapi_path))
+    a3_fail_closed_rbac = _a3_fail_closed_rbac_summary(Path(a3_fail_closed_rbac_doc_path))
+    a3_event_outbox = _a3_event_outbox_summary(Path(a3_event_outbox_doc_path))
     return {
         "schema_version": SCHEMA_VERSION,
         "report_id": report_id,
@@ -35,11 +41,15 @@ def build_cross_lane_security_context(
             "a1_route_scope": Path(a1_route_scope_path).as_posix(),
             "a3_auth_rbac_boundary": Path(a3_auth_rbac_doc_path).as_posix(),
             "a3_openapi": Path(a3_openapi_path).as_posix(),
+            "a3_fail_closed_rbac": Path(a3_fail_closed_rbac_doc_path).as_posix(),
+            "a3_event_outbox": Path(a3_event_outbox_doc_path).as_posix(),
         },
         "a1_route_scope": a1,
         "a3_auth_rbac_boundary": a3,
-        "a2_policy_implications": _policy_implications(a1, a3),
-        "a2_security_followups": _security_followups(a1, a3),
+        "a3_fail_closed_rbac": a3_fail_closed_rbac,
+        "a3_event_outbox": a3_event_outbox,
+        "a2_policy_implications": _policy_implications(a1, a3, a3_fail_closed_rbac, a3_event_outbox),
+        "a2_security_followups": _security_followups(a1, a3, a3_fail_closed_rbac, a3_event_outbox),
         "metadata": {
             "public_safe": True,
             "deterministic": True,
@@ -142,7 +152,98 @@ def _a3_auth_rbac_summary(doc_path: Path, openapi_path: Path) -> dict[str, Any]:
     }
 
 
-def _policy_implications(a1: dict[str, Any], a3: dict[str, Any]) -> dict[str, Any]:
+def _a3_fail_closed_rbac_summary(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return _missing_source(
+            path,
+            "A3 fail-closed RBAC write-path contract is not available on this branch yet.",
+        )
+
+    text = path.read_text(encoding="utf-8")
+    text_lower = text.lower()
+    endpoints = sorted(set(re.findall(r"\b(?:GET|POST|PATCH|DELETE) /[A-Za-z0-9_./:{}-]+", text)))
+    safety = {
+        "fail_closed_declared": "fail-closed" in text_lower,
+        "denied_response_schema_declared": "a3.api_authz_denied.v1" in text,
+        "raw_request_body_not_echoed": "raw request body" in text_lower
+        and ("does not echo" in text_lower or "do not echo" in text_lower),
+        "secret_values_forbidden": all(marker in text for marker in ["Bearer", "cookies", "API keys"]),
+        "metadata_only_authz_audit": "metadata-only authz audit event" in text_lower,
+        "hosted_auth_dependency_declared": "A1 hosted auth" in text or "A1 still owns auth/session" in text,
+        "a2_boundary_declared": "A2 still owns Scenario" in text or "A2 still owns" in text,
+    }
+    mutation_endpoints = [
+        endpoint
+        for endpoint in endpoints
+        if endpoint.startswith("POST ") and endpoint != "POST /api/a3/reports/:reportId/view"
+    ]
+    ready = bool(endpoints and all(safety.values()))
+    return {
+        "available": True,
+        "path": path.as_posix(),
+        "schema_version": "a3.fail_closed_rbac_write_paths.doc.v1",
+        "endpoint_count": len(endpoints),
+        "mutation_endpoint_count": len(mutation_endpoints),
+        "endpoints": endpoints,
+        "mutation_endpoints": mutation_endpoints,
+        "added_operation_count": _bullet_count_after_heading(text, "Added Operation Policies"),
+        "local_role_count": _bullet_count_after_heading(text, "Local Demo Roles"),
+        "safety": safety,
+        "ready_for_a2_security_context": ready,
+        "notes": [
+            "A3 owns product-console fail-closed RBAC around local write paths.",
+            "A2 should convert denied-write, waiver/approval, and readback abuse paths into security scenarios.",
+        ],
+    }
+
+
+def _a3_event_outbox_summary(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return _missing_source(
+            path,
+            "A3 event outbox SaaS backbone contract is not available on this branch yet.",
+        )
+
+    text = path.read_text(encoding="utf-8")
+    text_lower = text.lower()
+    endpoints = sorted(set(re.findall(r"\b(?:GET|POST|PATCH|DELETE) /[A-Za-z0-9_./:{}-]+", text)))
+    write_endpoints = [endpoint for endpoint in endpoints if endpoint.startswith("POST ")]
+    safety = {
+        "event_envelope_declared": "ashr.event_envelope.v1" in text,
+        "metadata_only_events": "metadata-only" in text_lower,
+        "raw_payload_not_embedded": "no raw payload body is embedded" in text_lower,
+        "raw_share_token_not_stored": "no raw share token is stored" in text_lower,
+        "secret_values_forbidden": all(marker in text for marker in ["API key", "cookie", "signed media URL", "raw email"]),
+        "payload_hashing_declared": "sha-256" in text_lower or "sha256" in text_lower,
+        "idempotency_declared": "Idempotency" in text,
+        "a1_a2_boundary_declared": "A1 still owns" in text and "A2 still owns" in text,
+    }
+    ready = bool(write_endpoints and all(safety.values()))
+    return {
+        "available": True,
+        "path": path.as_posix(),
+        "schema_version": "a3.event_outbox_saas_backbone.doc.v1",
+        "endpoint_count": len(endpoints),
+        "write_endpoint_count": len(write_endpoints),
+        "endpoints": endpoints,
+        "write_endpoints": write_endpoints,
+        "dashboard_payload_declared": "event_outbox.schema_version" in text,
+        "read_surface_declared": "GET /api/a3/events/outbox" in text,
+        "safety": safety,
+        "ready_for_a2_security_context": ready,
+        "notes": [
+            "A3 event outbox is a metadata-only product-console event stream.",
+            "A2 should verify event integrity, idempotency abuse, and redaction boundaries before release claims.",
+        ],
+    }
+
+
+def _policy_implications(
+    a1: dict[str, Any],
+    a3: dict[str, Any],
+    a3_fail_closed_rbac: dict[str, Any],
+    a3_event_outbox: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "should_block_hosted_mutations_without_a1_auth": bool(
             a3.get("hosted_auth_required_before_live_saas")
@@ -150,8 +251,12 @@ def _policy_implications(a1: dict[str, Any], a3: dict[str, Any]) -> dict[str, An
         ),
         "should_require_metadata_only_audit_events": bool(a3.get("safety", {}).get("metadata_only_audit")),
         "should_keep_raw_actor_identity_forbidden": bool(a3.get("safety", {}).get("raw_identity_redacted")),
+        "should_require_fail_closed_a3_writes": bool(a3_fail_closed_rbac.get("ready_for_a2_security_context")),
+        "should_require_a3_event_outbox_metadata_only": bool(a3_event_outbox.get("ready_for_a2_security_context")),
         "should_add_route_scope_security_cases": bool(a1.get("ready_for_a2_security_context")),
         "should_add_auth_rbac_abuse_cases": bool(a3.get("ready_for_a2_security_context")),
+        "should_add_fail_closed_write_abuse_cases": bool(a3_fail_closed_rbac.get("ready_for_a2_security_context")),
+        "should_add_event_outbox_integrity_cases": bool(a3_event_outbox.get("ready_for_a2_security_context")),
         "release_policy_refs": [
             "fixtures/a2/config/release_policies.json",
             "fixtures/a2/results/a2_release_gate_report.json",
@@ -160,7 +265,12 @@ def _policy_implications(a1: dict[str, Any], a3: dict[str, Any]) -> dict[str, An
     }
 
 
-def _security_followups(a1: dict[str, Any], a3: dict[str, Any]) -> list[dict[str, Any]]:
+def _security_followups(
+    a1: dict[str, Any],
+    a3: dict[str, Any],
+    a3_fail_closed_rbac: dict[str, Any],
+    a3_event_outbox: dict[str, Any],
+) -> list[dict[str, Any]]:
     followups = []
     if a1.get("ready_for_a2_security_context"):
         followups.append(
@@ -197,6 +307,44 @@ def _security_followups(a1: dict[str, Any], a3: dict[str, Any]) -> list[dict[str
                 "Consume A3 Auth/RBAC boundary contract after it reaches this branch or main.",
                 "A2/A3 integration",
                 ["auth_context", "rbac_policy", "authz_decision"],
+            )
+        )
+
+    if a3_fail_closed_rbac.get("ready_for_a2_security_context"):
+        followups.append(
+            _followup(
+                "a2-a3-fail-closed-write-abuse-cases",
+                "Promote A3 fail-closed write-path denials into A2 abuse and release-policy scenarios.",
+                "A2 security verification",
+                ["authz", "write-path", "fail-closed", "review-workflow"],
+            )
+        )
+    else:
+        followups.append(
+            _followup(
+                "wait-for-a3-fail-closed-rbac-write-path-contract",
+                "Consume A3 fail-closed RBAC write-path contract after it reaches this branch or main.",
+                "A2/A3 integration",
+                ["rbac", "write-path", "authz_denied"],
+            )
+        )
+
+    if a3_event_outbox.get("ready_for_a2_security_context"):
+        followups.append(
+            _followup(
+                "a2-a3-event-outbox-integrity-cases",
+                "Promote A3 metadata-only event outbox semantics into A2 audit integrity scenarios.",
+                "A2 evidence verification",
+                ["event_outbox", "metadata-only", "idempotency", "redaction"],
+            )
+        )
+    else:
+        followups.append(
+            _followup(
+                "wait-for-a3-event-outbox-contract",
+                "Consume A3 event outbox SaaS backbone contract after it reaches this branch or main.",
+                "A2/A3 integration",
+                ["event_outbox", "audit", "idempotency"],
             )
         )
     return followups
@@ -268,6 +416,21 @@ def _intentional_difference_count(value: Any) -> int:
 def _contains_any(value: Any, needles: list[str]) -> bool:
     text = json.dumps(value, sort_keys=True).lower()
     return any(needle.lower() in text for needle in needles)
+
+
+def _bullet_count_after_heading(text: str, heading: str) -> int:
+    lines = text.splitlines()
+    count = 0
+    in_section = False
+    for line in lines:
+        if line.strip().startswith("## "):
+            if in_section:
+                break
+            in_section = heading.lower() in line.lower()
+            continue
+        if in_section and line.strip().startswith("- "):
+            count += 1
+    return count
 
 
 def _load_json(path: Path) -> Any:

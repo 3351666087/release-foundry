@@ -5,7 +5,9 @@
   "source_refs": {
     "a1_route_scope": "docs/a1/evidence/go_python_ts_route_parity_snapshot.json",
     "a3_auth_rbac_boundary": "docs/a3/p3_auth_rbac_boundary_2026_07_09.md",
-    "a3_openapi": "docs/a3/openapi/a3_commercial_api.openapi.json"
+    "a3_openapi": "docs/a3/openapi/a3_commercial_api.openapi.json",
+    "a3_fail_closed_rbac": "docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md",
+    "a3_event_outbox": "docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md"
   },
   "a1_route_scope": {
     "available": true,
@@ -41,12 +43,36 @@
       "A3 Auth/RBAC boundary contract is not available on this branch yet."
     ]
   },
+  "a3_fail_closed_rbac": {
+    "available": false,
+    "path": "docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md",
+    "schema_version": "",
+    "ready_for_a2_security_context": false,
+    "reason": "A3 fail-closed RBAC write-path contract is not available on this branch yet.",
+    "notes": [
+      "A3 fail-closed RBAC write-path contract is not available on this branch yet."
+    ]
+  },
+  "a3_event_outbox": {
+    "available": false,
+    "path": "docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md",
+    "schema_version": "",
+    "ready_for_a2_security_context": false,
+    "reason": "A3 event outbox SaaS backbone contract is not available on this branch yet.",
+    "notes": [
+      "A3 event outbox SaaS backbone contract is not available on this branch yet."
+    ]
+  },
   "a2_policy_implications": {
     "should_block_hosted_mutations_without_a1_auth": false,
     "should_require_metadata_only_audit_events": false,
     "should_keep_raw_actor_identity_forbidden": false,
+    "should_require_fail_closed_a3_writes": false,
+    "should_require_a3_event_outbox_metadata_only": false,
     "should_add_route_scope_security_cases": true,
     "should_add_auth_rbac_abuse_cases": false,
+    "should_add_fail_closed_write_abuse_cases": false,
+    "should_add_event_outbox_integrity_cases": false,
     "release_policy_refs": [
       "fixtures/a2/config/release_policies.json",
       "fixtures/a2/results/a2_release_gate_report.json",
@@ -75,6 +101,30 @@
         "auth_context",
         "rbac_policy",
         "authz_decision"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    },
+    {
+      "followup_id": "wait-for-a3-fail-closed-rbac-write-path-contract",
+      "action": "Consume A3 fail-closed RBAC write-path contract after it reaches this branch or main.",
+      "owner": "A2/A3 integration",
+      "tags": [
+        "rbac",
+        "write-path",
+        "authz_denied"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    },
+    {
+      "followup_id": "wait-for-a3-event-outbox-contract",
+      "action": "Consume A3 event outbox SaaS backbone contract after it reaches this branch or main.",
+      "owner": "A2/A3 integration",
+      "tags": [
+        "event_outbox",
+        "audit",
+        "idempotency"
       ],
       "writes_private_evidence": false,
       "requires_user_decision": false

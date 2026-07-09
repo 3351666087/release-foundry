@@ -35,13 +35,19 @@ class A2CrossLaneSecurityTests(unittest.TestCase):
         self.assertTrue(actual["a1_route_scope"]["ready_for_a2_security_context"])
         self.assertTrue(actual["a2_policy_implications"]["should_add_route_scope_security_cases"])
         self.assertFalse(actual["a3_auth_rbac_boundary"]["available"])
+        self.assertFalse(actual["a3_fail_closed_rbac"]["available"])
+        self.assertFalse(actual["a3_event_outbox"]["available"])
         self.assertFalse(actual["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
+        self.assertFalse(actual["a2_policy_implications"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertFalse(actual["a2_policy_implications"]["should_add_event_outbox_integrity_cases"])
         followup_ids = {item["followup_id"] for item in actual["a2_security_followups"]}
         self.assertEqual(
             followup_ids,
             {
                 "a2-route-scope-tenant-boundary",
                 "wait-for-a3-auth-rbac-boundary-contract",
+                "wait-for-a3-fail-closed-rbac-write-path-contract",
+                "wait-for-a3-event-outbox-contract",
             },
         )
 
@@ -68,15 +74,21 @@ class A2CrossLaneSecurityTests(unittest.TestCase):
             a1_path = tmp / "route_scope.json"
             a3_doc_path = tmp / "auth_rbac.md"
             a3_openapi_path = tmp / "openapi.json"
+            a3_fail_closed_path = tmp / "fail_closed_rbac.md"
+            a3_event_outbox_path = tmp / "event_outbox.md"
 
             a1_path.write_text(json.dumps(_a1_route_scope_fixture(), indent=2) + "\n", encoding="utf-8")
             a3_doc_path.write_text(_a3_auth_rbac_doc(), encoding="utf-8")
             a3_openapi_path.write_text(json.dumps(_a3_openapi_fixture(), indent=2) + "\n", encoding="utf-8")
+            a3_fail_closed_path.write_text(_a3_fail_closed_rbac_doc(), encoding="utf-8")
+            a3_event_outbox_path.write_text(_a3_event_outbox_doc(), encoding="utf-8")
 
             payload = build_cross_lane_security_context(
                 a1_route_scope_path=a1_path,
                 a3_auth_rbac_doc_path=a3_doc_path,
                 a3_openapi_path=a3_openapi_path,
+                a3_fail_closed_rbac_doc_path=a3_fail_closed_path,
+                a3_event_outbox_doc_path=a3_event_outbox_path,
             )
 
         self.assertTrue(payload["a1_route_scope"]["available"])
@@ -93,14 +105,37 @@ class A2CrossLaneSecurityTests(unittest.TestCase):
         self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["tokens_forbidden"])
         self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["hosted_mutations_blocked"])
         self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["metadata_only_audit"])
+        self.assertTrue(payload["a3_fail_closed_rbac"]["available"])
+        self.assertTrue(payload["a3_fail_closed_rbac"]["ready_for_a2_security_context"])
+        self.assertEqual(payload["a3_fail_closed_rbac"]["mutation_endpoint_count"], 9)
+        self.assertTrue(payload["a3_fail_closed_rbac"]["safety"]["fail_closed_declared"])
+        self.assertTrue(payload["a3_fail_closed_rbac"]["safety"]["denied_response_schema_declared"])
+        self.assertTrue(payload["a3_fail_closed_rbac"]["safety"]["raw_request_body_not_echoed"])
+        self.assertTrue(payload["a3_event_outbox"]["available"])
+        self.assertTrue(payload["a3_event_outbox"]["ready_for_a2_security_context"])
+        self.assertEqual(payload["a3_event_outbox"]["write_endpoint_count"], 7)
+        self.assertTrue(payload["a3_event_outbox"]["dashboard_payload_declared"])
+        self.assertTrue(payload["a3_event_outbox"]["read_surface_declared"])
+        self.assertTrue(payload["a3_event_outbox"]["safety"]["event_envelope_declared"])
+        self.assertTrue(payload["a3_event_outbox"]["safety"]["metadata_only_events"])
+        self.assertTrue(payload["a3_event_outbox"]["safety"]["payload_hashing_declared"])
         self.assertTrue(payload["a2_policy_implications"]["should_block_hosted_mutations_without_a1_auth"])
         self.assertTrue(payload["a2_policy_implications"]["should_require_metadata_only_audit_events"])
         self.assertTrue(payload["a2_policy_implications"]["should_keep_raw_actor_identity_forbidden"])
+        self.assertTrue(payload["a2_policy_implications"]["should_require_fail_closed_a3_writes"])
+        self.assertTrue(payload["a2_policy_implications"]["should_require_a3_event_outbox_metadata_only"])
         self.assertTrue(payload["a2_policy_implications"]["should_add_route_scope_security_cases"])
         self.assertTrue(payload["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
+        self.assertTrue(payload["a2_policy_implications"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertTrue(payload["a2_policy_implications"]["should_add_event_outbox_integrity_cases"])
         self.assertEqual(
             {item["followup_id"] for item in payload["a2_security_followups"]},
-            {"a2-route-scope-tenant-boundary", "a2-auth-rbac-denied-state-cases"},
+            {
+                "a2-route-scope-tenant-boundary",
+                "a2-auth-rbac-denied-state-cases",
+                "a2-a3-fail-closed-write-abuse-cases",
+                "a2-a3-event-outbox-integrity-cases",
+            },
         )
 
 
@@ -160,6 +195,97 @@ def _a3_openapi_fixture() -> dict:
             "/api/a3/reports": {},
         },
     }
+
+
+def _a3_fail_closed_rbac_doc() -> str:
+    return "\n".join(
+        [
+            "# A3 Fail-Closed RBAC Write Paths",
+            "",
+            "Fail-closed means denied writes return sanitized 403 before state changes.",
+            "",
+            "## Enforced Routes",
+            "",
+            "- POST /api/a3/import/a1-run-result",
+            "- POST /api/a3/import/a2-grade-result",
+            "- POST /api/a3/releases/:releaseId/readbacks",
+            "- POST /api/a3/admin/actions/plan",
+            "- POST /api/a3/admin/actions/submit",
+            "- POST /api/a3/review/waivers",
+            "- POST /api/a3/review/approvals",
+            "- POST /api/a3/reports/share",
+            "- POST /api/a3/reports/:reportId/revoke",
+            "- POST /api/a3/reports/:reportId/view",
+            "- GET /api/a3/events/outbox",
+            "",
+            "## Added Operation Policies",
+            "",
+            "- view_report",
+            "- capture_release_readback",
+            "- read_event_outbox",
+            "- plan_admin_action",
+            "",
+            "## Local Demo Roles",
+            "",
+            "- reviewer: share report",
+            "- owner: admin action",
+            "- auditor: read event outbox",
+            "- developer: import local evidence",
+            "",
+            "Denied responses use a3.api_authz_denied.v1.",
+            "Denied responses do not echo the raw request body.",
+            "Bearer-value strings, cookies, and API keys are forbidden.",
+            "Each denial emits a metadata-only authz audit event.",
+            "A1 hosted auth/session middleware remains the hosted dependency.",
+            "A2 still owns Scenario, Judge, GradeResult, score, pass/fail, and release gate.",
+            "",
+        ]
+    )
+
+
+def _a3_event_outbox_doc() -> str:
+    return "\n".join(
+        [
+            "# A3 Event Outbox SaaS Backbone",
+            "",
+            "Every important A3 control-plane write creates a metadata-only ashr.event_envelope.v1 row.",
+            "",
+            "## Covered Write Paths",
+            "",
+            "- POST /api/a3/reports/share",
+            "- POST /api/a3/reports/:reportId/view",
+            "- POST /api/a3/reports/:reportId/revoke",
+            "- POST /api/a3/admin/actions/submit",
+            "- POST /api/a3/review/waivers",
+            "- POST /api/a3/review/approvals",
+            "- POST /api/a3/releases/:releaseId/readbacks",
+            "",
+            "## New Read Surface",
+            "",
+            "- GET /api/a3/events/outbox",
+            "",
+            "## Dashboard Payload",
+            "",
+            "event_outbox.schema_version = a3.event_outbox_dashboard.v1",
+            "",
+            "## Idempotency",
+            "",
+            "Repeated requests with the same key and same payload return duplicate receipts.",
+            "",
+            "## Safety",
+            "",
+            "No raw payload body is embedded.",
+            "No raw share token is stored.",
+            "No API key is stored.",
+            "No cookie is stored.",
+            "No signed media URL is stored.",
+            "No raw email is stored.",
+            "Event payloads are hashed with SHA-256.",
+            "A1 still owns RunResult, Trace, Observation, ToolCall, runner evidence, and runtime artifacts.",
+            "A2 still owns Scenario, Judge, GradeResult, score, pass/fail, release gate, and failure taxonomy.",
+            "",
+        ]
+    )
 
 
 if __name__ == "__main__":
