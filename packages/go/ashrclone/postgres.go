@@ -751,32 +751,37 @@ func (repository *PostgresRepository) ListArtifactManifests(tenantID, projectID,
 		return Envelope[ArtifactManifestList]{}, err
 	}
 	ctx := context.Background()
-	if err := requireRunWithDB(ctx, repository.db, tenantID, projectID, runID); err != nil {
-		return Envelope[ArtifactManifestList]{}, err
-	}
-	rows, err := repository.db.QueryContext(ctx, `
-SELECT tenant_id, project_id, run_id, artifact_id, manifest_sha256, api_key_id, request_id, created_at
-FROM ashr_artifact_manifests
-WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
-ORDER BY created_at ASC, artifact_id ASC
-`, tenantID, projectID, runID)
+	manifests, err := repository.postgresArtifactManifests(ctx, tenantID, projectID, runID)
 	if err != nil {
-		return Envelope[ArtifactManifestList]{}, fmt.Errorf("list artifact manifests: %w", err)
-	}
-	defer rows.Close()
-	manifests := []ArtifactManifest{}
-	for rows.Next() {
-		manifest, err := scanPostgresArtifactManifest(rows)
-		if err != nil {
-			return Envelope[ArtifactManifestList]{}, err
-		}
-		manifests = append(manifests, manifest)
-	}
-	if err := rows.Err(); err != nil {
-		return Envelope[ArtifactManifestList]{}, fmt.Errorf("iterate artifact manifests: %w", err)
+		return Envelope[ArtifactManifestList]{}, err
 	}
 	result := ArtifactManifestList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Manifests: manifests, Count: len(manifests)}
 	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
+}
+
+func (repository *PostgresRepository) RunLifecycle(tenantID, projectID, runID string) (Envelope[RunLifecycle], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[RunLifecycle]{}, err
+	}
+	ctx := context.Background()
+	run, err := repository.postgresRun(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[RunLifecycle]{}, err
+	}
+	uploads, err := repository.postgresRunUploads(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[RunLifecycle]{}, err
+	}
+	traceBatches, err := repository.postgresTraceBatches(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[RunLifecycle]{}, err
+	}
+	artifacts, err := repository.postgresArtifactManifests(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[RunLifecycle]{}, err
+	}
+	result := RunLifecycle{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Run: run, Uploads: uploads, TraceBatches: traceBatches, Artifacts: artifacts, Counts: JSONMap{"uploads": len(uploads), "trace_batches": len(traceBatches), "artifacts": len(artifacts)}, GeneratedAt: repository.now()}
+	return Envelope[RunLifecycle]{Operation: "lifecycle", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error) {
@@ -1550,6 +1555,34 @@ ORDER BY created_at ASC, batch_id ASC
 		return nil, fmt.Errorf("iterate trace batches: %w", err)
 	}
 	return batches, nil
+}
+
+func (repository *PostgresRepository) postgresArtifactManifests(ctx context.Context, tenantID, projectID, runID string) ([]ArtifactManifest, error) {
+	if err := requireRunWithDB(ctx, repository.db, tenantID, projectID, runID); err != nil {
+		return nil, err
+	}
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, run_id, artifact_id, manifest_sha256, api_key_id, request_id, created_at
+FROM ashr_artifact_manifests
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+ORDER BY created_at ASC, artifact_id ASC
+`, tenantID, projectID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list artifact manifests: %w", err)
+	}
+	defer rows.Close()
+	manifests := []ArtifactManifest{}
+	for rows.Next() {
+		manifest, err := scanPostgresArtifactManifest(rows)
+		if err != nil {
+			return nil, err
+		}
+		manifests = append(manifests, manifest)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate artifact manifests: %w", err)
+	}
+	return manifests, nil
 }
 
 type auditEventScanner interface {

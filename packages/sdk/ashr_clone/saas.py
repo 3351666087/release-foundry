@@ -18,8 +18,9 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "GET /v1/projects/{project_id}/api-keys/rate-limits": (),
     "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("evidence:read",),
-    "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ("run:read",),
+    "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ("run:lifecycle:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ("evidence:read",),
+    "GET /v1/projects/{project_id}/quota": ("usage:read",),
     "GET /v1/projects/{project_id}/usage": ("usage:read",),
     "GET /v1/projects/{project_id}/worker-jobs": ("worker_job:read",),
     "POST /v1/bootstrap": (),
@@ -38,6 +39,50 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": ("worker_job:write",),
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": ("worker_job:write",),
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": ("worker_job:write",),
+}
+
+UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
+    "GET /health": {
+        "reason": "Go exposes a root health alias; the hosted Python client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
+        "replacement_route": "GET /healthz",
+        "consumer_action": "keep unsupported until the generated Go OpenAPI marks root health aliases as public client surface",
+    },
+    "GET /healthz": {
+        "reason": "Hosted route scope parity tracks project-scoped API calls rather than unscoped local health helpers.",
+        "consumer_action": "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+    },
+    "GET /openapi.json": {
+        "reason": "Hosted route scope parity tracks project-scoped API calls rather than unscoped local OpenAPI helpers.",
+        "consumer_action": "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+    },
+    "GET /v1/healthz": {
+        "reason": "Go exposes a versioned health alias that is not part of the TS/Python shared hosted ingestion surface.",
+        "replacement_route": "GET /healthz",
+        "consumer_action": "keep unsupported until versioned health aliases become SDK contract routes",
+    },
+    "GET /v1/openapi.json": {
+        "reason": "Hosted route scope parity tracks project-scoped API calls rather than unscoped local OpenAPI helpers.",
+        "consumer_action": "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+    },
+    "GET /v1/projects/{project_id}/audit-chain/verify": {
+        "reason": "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/audit-chain/verify",
+        "consumer_action": "keep unsupported until Go and hosted clients settle on one audit-chain verification method",
+    },
+    "POST /bootstrap": {
+        "reason": "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
+        "replacement_route": "POST /v1/bootstrap",
+        "consumer_action": "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+    },
+    "POST /v1/projects/{project_id}/api-keys/preflight": {
+        "reason": "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
+        "consumer_action": "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
+    },
+    "POST /v1/projects/{project_id}/runs/submit": {
+        "reason": "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/sdk-submit",
+        "consumer_action": "keep unsupported until run submit is either removed from Go or added to both hosted SDKs deliberately",
+    },
 }
 
 
@@ -736,19 +781,33 @@ def consume_go_route_scope_manifest(manifest: Mapping[str, Any] | str | Path) ->
     go_routes = {str(route) for route in snapshot.get("go_manifest_routes", [])}
     hosted_routes = set(HOSTED_ROUTE_SCOPE_REQUIREMENTS)
     consumable_go_routes = sorted(go_routes & hosted_routes)
+    unsupported_go_routes = sorted(go_routes - hosted_routes)
     return {
         "schema_version": "ashr.clone.go_route_scope_consumption.v1",
         "client": "python",
         "public_safe": True,
         "source_policy": source_policy,
         "consumable_go_routes": consumable_go_routes,
-        "unsupported_go_routes": sorted(go_routes - hosted_routes),
+        "unsupported_go_routes": unsupported_go_routes,
+        "unsupported_go_route_gaps": _validate_unsupported_go_route_gaps(go_routes, hosted_routes),
         "client_only_routes": sorted(hosted_routes - go_routes),
         "route_scopes": [
             {"route": route, "required_scopes": list(HOSTED_ROUTE_SCOPE_REQUIREMENTS[route])}
             for route in consumable_go_routes
         ],
     }
+
+
+def _validate_unsupported_go_route_gaps(go_routes: set[str], hosted_routes: set[str]) -> list[JsonDict]:
+    unsupported_routes = sorted(go_routes - hosted_routes)
+    declared_routes = set(UNSUPPORTED_GO_ROUTE_GAPS)
+    missing_routes = sorted(set(unsupported_routes) - declared_routes)
+    stale_routes = sorted(route for route in declared_routes if route not in go_routes or route in hosted_routes)
+    if missing_routes or stale_routes:
+        missing = ",".join(missing_routes) if missing_routes else "none"
+        stale = ",".join(stale_routes) if stale_routes else "none"
+        raise SaaSClientError(f"Go route/scope gap registry drift: missing={missing}; stale={stale}")
+    return [{"route": route, **UNSUPPORTED_GO_ROUTE_GAPS[route]} for route in unsupported_routes]
 
 
 def _new_service() -> Any:

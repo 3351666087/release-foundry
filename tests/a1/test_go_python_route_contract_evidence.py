@@ -22,6 +22,7 @@ ROUTE_SNAPSHOT = ROOT / "docs" / "a1" / "evidence" / "go_python_ts_route_parity_
 GO_SERVER = ROOT / "packages" / "go" / "ashrclone" / "server.go"
 PY_SAAS = ROOT / "packages" / "sdk" / "ashr_clone" / "saas.py"
 TS_SAAS = ROOT / "packages" / "ts" / "ashr-clone" / "src" / "saas.ts"
+GO_AUTH = ROOT / "packages" / "go" / "ashrclone" / "auth.go"
 
 
 GO_EXECUTABLE_ROUTE_SET = {
@@ -118,6 +119,14 @@ def _go_structured_manifest_entries() -> list[dict]:
         })
     assert entries, "Go structured manifest entries were not parsed"
     return entries
+
+def _go_scope_values() -> dict[str, str]:
+    text = GO_AUTH.read_text(encoding="utf-8")
+    return {
+        match.group("name"): match.group("value")
+        for match in re.finditer(r"(?P<name>Scope[A-Za-z0-9_]+)\s*=\s*\"(?P<value>[^\"]+)\"", text)
+    }
+
 
 def _go_manifest_routes() -> set[str]:
     text = GO_SERVER.read_text(encoding="utf-8")
@@ -266,7 +275,7 @@ def test_python_and_ts_hosted_route_sets_do_not_drift_silently():
     assert set(snapshot["intentional_route_differences"]["python_only"]) == python_routes - ts_routes
     assert set(snapshot["intentional_route_differences"]["ts_only"]) == ts_routes - python_routes
     assert "POST /v1/projects/{project_id}/runs/{run_id}/release-gate" in snapshot["intentional_route_differences"]["ts_only"]
-    assert "GET /v1/projects/{project_id}/quota" in snapshot["intentional_route_differences"]["python_only"]
+    assert "GET /v1/projects/{project_id}/quota" in snapshot["intentional_route_differences"]["shared_all"]
 
 
 def test_python_hosted_client_consumes_go_route_scope_manifest_publicly():
@@ -286,12 +295,45 @@ def test_python_hosted_client_consumes_go_route_scope_manifest_publicly():
     route_scopes = {entry["route"]: tuple(entry["required_scopes"]) for entry in consumption["route_scopes"]}
     assert set(consumption["consumable_go_routes"]) == set(snapshot["go_manifest_routes"]) & manifest_routes
     assert set(consumption["unsupported_go_routes"]) == set(snapshot["go_manifest_routes"]) - manifest_routes
+    assert {entry["route"] for entry in consumption["unsupported_go_route_gaps"]} == set(consumption["unsupported_go_routes"])
+    assert all(entry["reason"] and entry["consumer_action"] for entry in consumption["unsupported_go_route_gaps"])
     assert set(consumption["client_only_routes"]) == manifest_routes - set(snapshot["go_manifest_routes"])
     assert route_scopes["POST /v1/projects/{project_id}/sdk-submit"] == ("sdk:submit",)
     assert route_scopes["POST /v1/projects/{project_id}/worker-jobs/lease"] == ("worker_job:write",)
     assert route_scopes["GET /v1/projects/{project_id}/worker-jobs"] == ("worker_job:read",)
     assert route_scopes["GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"] == ("evidence:read",)
     assert "POST /v1/projects/{project_id}/runs/submit" in consumption["unsupported_go_routes"]
+
+
+def test_python_go_route_consumer_rejects_missing_or_stale_unsupported_gap_records(monkeypatch):
+    from ashr_clone import saas
+
+    snapshot = _load_route_snapshot()
+    original_gaps = dict(saas.UNSUPPORTED_GO_ROUTE_GAPS)
+    unsupported_route = "POST /v1/projects/{project_id}/runs/submit"
+
+    missing_gaps = dict(original_gaps)
+    missing_gaps.pop(unsupported_route)
+    monkeypatch.setattr(saas, "UNSUPPORTED_GO_ROUTE_GAPS", missing_gaps)
+    try:
+        saas.consume_go_route_scope_manifest(snapshot)
+    except saas.SaaSClientError as exc:
+        assert "missing=POST /v1/projects/{project_id}/runs/submit" in str(exc)
+    else:  # pragma: no cover - assertion aid if the drift check stops firing
+        raise AssertionError("missing unsupported Go route gap was accepted")
+
+    stale_gaps = dict(original_gaps)
+    stale_gaps["GET /v1/projects/{project_id}/usage"] = {
+        "reason": "stale fixture",
+        "consumer_action": "should be rejected because the route is hosted",
+    }
+    monkeypatch.setattr(saas, "UNSUPPORTED_GO_ROUTE_GAPS", stale_gaps)
+    try:
+        saas.consume_go_route_scope_manifest(snapshot)
+    except saas.SaaSClientError as exc:
+        assert "stale=GET /v1/projects/{project_id}/usage" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("stale unsupported Go route gap was accepted")
 
 
 def test_go_structured_route_scope_manifest_is_public_safe_and_saas_grade():
@@ -315,5 +357,21 @@ def test_go_structured_route_scope_manifest_is_public_safe_and_saas_grade():
 def test_shared_hosted_routes_are_declared_in_route_scope_manifest():
     from ashr_clone.saas import hosted_route_scope_manifest
 
-    manifest_routes = {entry["route"] for entry in hosted_route_scope_manifest()["routes"]}
-    assert PYTHON_TS_SHARED_HOSTED_ROUTES <= manifest_routes
+    route_scopes = {entry["route"]: entry["required_scopes"] for entry in hosted_route_scope_manifest()["routes"]}
+    assert PYTHON_TS_SHARED_HOSTED_ROUTES <= set(route_scopes)
+    assert all(isinstance(route_scopes[route], list) for route in PYTHON_TS_SHARED_HOSTED_ROUTES)
+
+
+def test_shared_go_python_hosted_routes_have_matching_scope_values():
+    from ashr_clone.saas import hosted_route_scope_manifest
+
+    go_scope_values = _go_scope_values()
+    go_by_route = {entry["route"]: entry for entry in _go_structured_manifest_entries()}
+    python_by_route = {entry["route"]: entry for entry in hosted_route_scope_manifest()["routes"]}
+
+    shared_routes = PYTHON_TS_SHARED_HOSTED_ROUTES & set(go_by_route) & set(python_by_route)
+    assert "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle" in shared_routes
+
+    for route in sorted(shared_routes):
+        go_scope_names = go_by_route[route]["scopes"]
+        go_scopes = sorted(go_scope_values[name] for name in go_scope_names)

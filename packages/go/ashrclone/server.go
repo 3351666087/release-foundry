@@ -35,6 +35,7 @@ type ControlPlaneBackend interface {
 	IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error)
 	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
 	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
+	RunLifecycle(tenantID, projectID, runID string) (Envelope[RunLifecycle], error)
 	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
 	AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error)
 	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
@@ -149,7 +150,7 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		server.handleListWorkerJobs(writer, request, projectID)
 		return
 	}
-	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "usage" {
+	if request.Method == http.MethodGet && len(parts) == 1 && (parts[0] == "usage" || parts[0] == "quota") {
 		server.handleUsageSnapshot(writer, request, projectID)
 		return
 	}
@@ -330,6 +331,15 @@ func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *h
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
 			}
+		case "lifecycle":
+			if request.Method == http.MethodGet {
+				if !server.preflightRequest(writer, auth, projectID, ScopeRunLifecycleRead, "lifecycle") {
+					return
+				}
+				result, err := server.service.RunLifecycle(tenantID, projectID, runID)
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
 		case "release-evidence":
 			if request.Method == http.MethodGet {
 				if !server.preflightRequest(writer, auth, projectID, ScopeEvidenceRead, "release_evidence") {
@@ -464,6 +474,7 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("POST", "/v1/projects/{project_id}/sdk-submit", "sdk_submit", "run", ScopeRunSubmit),
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/submit", "sdk_submit", "run", ScopeRunSubmit),
 		goScopedRoute("GET", "/v1/projects/{project_id}/usage", "usage", "billing", ScopeUsageRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/quota", "usage", "billing", ScopeUsageRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-log", "audit_log", "audit", ScopeAuditRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
@@ -471,6 +482,7 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/trace-events", "ingest_trace", "trace", ScopeTraceIngest),
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "artifact_manifest", "artifact", ScopeArtifactManifestWrite),
 		goScopedRoute("GET", "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "artifact_manifests", "artifact", ScopeArtifactManifestRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/runs/{run_id}/lifecycle", "lifecycle", "run", ScopeRunLifecycleRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/runs/{run_id}/release-evidence", "release_evidence", "release", ScopeEvidenceRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify", "release_evidence.verify", "release", ScopeEvidenceRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/enqueue", "worker.job.enqueue", "worker", ScopeWorkerJobEnqueue),

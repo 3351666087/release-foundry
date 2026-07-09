@@ -7,6 +7,7 @@ const (
 	ScopeRunSubmit             = "run:submit"
 	ScopeRunUpload             = "run:upload"
 	ScopeTraceIngest           = "trace:ingest"
+	ScopeRunLifecycleRead      = "run:lifecycle:read"
 	ScopeUsageRead             = "usage:read"
 	ScopeAuditRead             = "audit:read"
 	ScopeEvidenceRead          = "evidence:read"

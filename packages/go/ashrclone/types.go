@@ -122,6 +122,19 @@ type ArtifactManifestList struct {
 	Count         int                `json:"count"`
 }
 
+type RunLifecycle struct {
+	SchemaVersion string             `json:"schema_version"`
+	TenantID      string             `json:"tenant_id"`
+	ProjectID     string             `json:"project_id"`
+	RunID         string             `json:"run_id"`
+	Run           Run                `json:"run"`
+	Uploads       []RunUpload        `json:"uploads"`
+	TraceBatches  []TraceBatch       `json:"trace_batches"`
+	Artifacts     []ArtifactManifest `json:"artifacts"`
+	Counts        JSONMap            `json:"counts"`
+	GeneratedAt   time.Time          `json:"generated_at"`
+}
+
 type UsageOperationTotal struct {
 	Operation string `json:"operation"`
 	Units     int    `json:"units"`

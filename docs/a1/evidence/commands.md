@@ -1174,3 +1174,48 @@ Results:
 - Multimodal dry-run planned 10 steps across Text/Audio/File/Image/Video, estimated 17 small-batch calls, required no API key, and made no official API calls.
 - Public field parity plan now covers all five modalities, keeps dry-run calls at zero, and records only request-shape/fingerprint metadata.
 - Real mutating execution now requires explicit `--modality` selection before quota-gate validation can proceed; dry-run may still enumerate all modalities safely.
+
+## Round23 public-safe official API evidence workflow - 2026-07-09
+
+```powershell
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet --evidence-index none --output docs/evidence/private_refs/a1_readiness_packet_public_safe_smoke.json
+python -B -m pytest tests/a1/test_python_calibrator.py -q
+```
+
+Results:
+- Public-safe manifest summary CLI completed with `status=missing` because the ignored private manifest was absent in this worktree.
+- Readiness packet CLI completed with `status=ready`; it used tracked/public inputs, did not read desktop key files, and did not call the hosted API.
+- The `--evidence-index none` readiness smoke also completed with `status=ready` to prove the artifact can be generated without private evidence context.
+- Focused calibrator tests: 36 passed.
+
+## Round24 lifecycle/quota parity and real read-only calibration - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+gh pr checks 27
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python scripts/cl_guard.py hygiene
+git diff --check
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "pwd; uname -a; command -v go || true; command -v python3 || true"
+docker version --format '{{.Server.Version}}'
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m pytest tests/a1/test_python_calibrator.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_a1_foundation_migration_manifest.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider
+python -B tests/a1/ts_python_parity_matrix.py --check
+```
+
+Results:
+- PR #27 CL was green before this new slice: Plan/hygiene, Go, Python, TS, and summary passed; A3/Rust jobs were skipped by plan.
+- Go SDK package and Go integration tests passed from their module roots.
+- TS SDK suite passed with 321 tests, including SaaS route/scope, hosted client, CLI, and fixture parity.
+- Python A1 suite passed with 336 tests after adding the migration manifest hook and route-scope hardening.
+- `cl_guard.py hygiene` passed; `git diff --check` produced CRLF normalization warnings only.
+- `Ubuntu-24.04-Ashr` WSL2 started successfully from the D-drive install and reached the current worktree; Python 3 was available. Docker daemon reported server version 29.6.1.
+- Real official API read-only small batch completed with status `ok`: 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls. Raw records stayed only under ignored `docs/evidence/private_refs/`.
+- Public summary was regenerated from the private manifest and records only status/counts/response key names plus private path references. Readiness packet was regenerated without embedding key material or private payloads.

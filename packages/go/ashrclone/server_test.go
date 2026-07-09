@@ -123,7 +123,7 @@ func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
 		"tenant_name": "Tenant", "project_name": "Runs", "tenant_id": "tenant_runs", "project_id": "project_runs", "dataset_id": "dataset_runs", "dataset_name": "Dataset",
 	})
 	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
-		"tenant_id": "tenant_runs", "key_id": "key_runs", "name": "full-run-key", "scopes": []string{ScopeRunSubmit, ScopeRunUpload, ScopeTraceIngest, ScopeArtifactManifestWrite, ScopeArtifactManifestRead, ScopeAuditRead, ScopeEvidenceRead},
+		"tenant_id": "tenant_runs", "key_id": "key_runs", "name": "full-run-key", "scopes": []string{ScopeRunSubmit, ScopeRunUpload, ScopeTraceIngest, ScopeArtifactManifestWrite, ScopeArtifactManifestRead, ScopeRunLifecycleRead, ScopeAuditRead, ScopeEvidenceRead},
 	})
 	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
 		"tenant_id": "tenant_runs", "key_id": "key_runs_no_evidence", "name": "audit-only-key", "scopes": []string{ScopeAuditRead},
@@ -164,6 +164,30 @@ func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
 	}
 	if listed.Operation != "artifact_manifests" || listed.Result["count"].(float64) != 1 {
 		t.Fatalf("unexpected artifact list response: %#v", listed)
+	}
+
+	lifecycle, err := client.LifecycleHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", AuthKeyOptions{AuthKeyID: "key_runs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts, ok := lifecycle.Result["counts"].(map[string]any)
+	if !ok {
+		t.Fatalf("lifecycle counts missing: %#v", lifecycle)
+	}
+	run, ok := lifecycle.Result["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("lifecycle run missing: %#v", lifecycle)
+	}
+	if lifecycle.Operation != "lifecycle" || lifecycle.Result["run_id"] != "run_routes" || run["status"] != "uploaded" || counts["uploads"].(float64) != 1 || counts["trace_batches"].(float64) != 1 || counts["artifacts"].(float64) != 1 {
+		t.Fatalf("unexpected lifecycle response: %#v", lifecycle)
+	}
+	uploadRows, ok := lifecycle.Result["uploads"].([]any)
+	if !ok || len(uploadRows) != 1 {
+		t.Fatalf("unexpected lifecycle uploads: %#v", lifecycle.Result["uploads"])
+	}
+	uploadRow, ok := uploadRows[0].(map[string]any)
+	if !ok || uploadRow["result_sha256"] == "" || uploadRow["raw_payload_included"] != false {
+		t.Fatalf("unexpected lifecycle uploads: %#v", lifecycle.Result["uploads"])
 	}
 
 	audit, err := client.AuditLogHTTP(context.Background(), "tenant_runs", "project_runs", AuditLogOptions{RunID: "run_routes", AuthKeyID: "key_runs", Limit: 3})
@@ -397,6 +421,21 @@ func TestHTTPHandlerUsageAndAuditReadEndpoints(t *testing.T) {
 	}
 	if usage.SchemaVersion != ControlPlaneSchemaVersion || usage.TenantID != "tenant_audit" || usage.ProjectID != "project_audit" {
 		t.Fatalf("unexpected usage snapshot: %#v", usage)
+	}
+	quotaResp, err := http.Get(server.URL + "/v1/projects/project_audit/quota?tenant_id=tenant_audit&auth_key_id=key_audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer quotaResp.Body.Close()
+	if quotaResp.StatusCode != http.StatusOK {
+		t.Fatalf("quota status = %d", quotaResp.StatusCode)
+	}
+	var quota UsageSnapshot
+	if err := json.NewDecoder(quotaResp.Body).Decode(&quota); err != nil {
+		t.Fatal(err)
+	}
+	if quota.SchemaVersion != ControlPlaneSchemaVersion || quota.TenantID != "tenant_audit" || quota.ProjectID != "project_audit" {
+		t.Fatalf("unexpected quota alias snapshot: %#v", quota)
 	}
 
 	auditResp, err := http.Get(server.URL + "/v1/projects/project_audit/audit-chain/verify?tenant_id=tenant_audit&auth_key_id=key_audit")

@@ -19,12 +19,15 @@ from packages.sdk.ashr_clone.calibrate import (
     build_field_parity_plan,
     calibration_request_fingerprint,
     calibration_target_binding,
+    main,
     parse_args,
     public_official_api_manifest_summary,
     public_official_api_manifest_summary_from_file,
     request_for_modality,
     run_calibration,
     selected_calibration_modalities,
+    write_api_calibration_readiness_packet,
+    write_public_official_api_manifest_summary,
 )
 
 
@@ -685,3 +688,82 @@ def test_public_official_api_manifest_summary_from_missing_file_is_public_safe(t
     assert "response_headers" not in payload
     assert "authorization" not in payload.lower()
     assert "bearer " not in payload.lower()
+
+
+def test_parse_public_safe_manifest_summary_command_defaults_to_public_artifact():
+    args = parse_args(["summarize-private-manifest", "--input", "docs/evidence/private_refs/private.json"])
+
+    assert args.command == "summarize-private-manifest"
+    assert args.input_manifest == "docs/evidence/private_refs/private.json"
+    assert args.output.endswith("official_api_readonly_manifest_summary.json")
+
+
+def test_write_public_official_api_manifest_summary_redacts_private_manifest_file(tmp_path: Path):
+    private_manifest = tmp_path / "private_refs" / "manifest.json"
+    public_summary = tmp_path / "official_api_readonly_manifest_summary.json"
+    private_manifest.parent.mkdir()
+    private_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": CALIBRATION_MANIFEST_SCHEMA_VERSION,
+                "mode": "small-batch",
+                "dry_run": False,
+                "status": "ok",
+                "env": {"auth_env_present": ["ASHR_API_KEY"], "base_url": "https://api.ashr.io/testing-platform-api?api_key=tp_syntheticsecret"},
+                "guardrails": {"raw_records_private": True, "output_policy": {"private_output_required": True, "output_is_private": True, "sink": "private_file"}},
+                "summary": {"total_steps": 1, "read_steps": 1, "mutating_steps": 0, "ok_or_planned_steps": 1, "error_steps": 0, "estimated_calls": 1, "modalities": [], "quota_block_count": 0},
+                "steps": [
+                    {
+                        "step_id": "list_agents",
+                        "kind": "read",
+                        "function": "list_agents",
+                        "dry_run": False,
+                        "status": "ok",
+                        "response_keys": ["agents", "private_payload"],
+                        "response": {"private_payload": "customer-private-body", "api_key": "tp_syntheticsecret"},
+                        "private_record_path": "docs/evidence/private_refs/raw_record.json",
+                    }
+                ],
+                "errors": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = write_public_official_api_manifest_summary(input_path=private_manifest, output_path=public_summary)
+    persisted = public_summary.read_text(encoding="utf-8")
+
+    assert summary["source_private_manifest_present"] is True
+    assert summary["summary"]["total_steps"] == 1
+    assert "customer-private-body" not in persisted
+    assert "tp_syntheticsecret" not in persisted
+    assert "ASHR_API_KEY" not in persisted
+    assert "private_record_path" not in persisted
+
+
+def test_write_readiness_packet_command_is_dry_run_public_safe(tmp_path: Path):
+    root = Path(__file__).resolve().parents[2]
+    output = tmp_path / "official_api_readiness_packet.json"
+
+    rc = main(["write-readiness-packet", "--output", str(output), "--evidence-index", "none"])
+    packet = json.loads(output.read_text(encoding="utf-8"))
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert rc == 0
+    assert packet["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+    assert packet["readiness"]["public_packet_ready"] is True
+    assert packet["execution_guardrails"]["default_mode"] == "dry-run"
+    assert packet["public_safety"]["raw_key_material_present"] is False
+    assert packet["source_field_map"] == str((root / "docs" / "a1" / "api_calibration" / "real_api_response_field_map.json").relative_to(root)).replace("\\", "/")
+    assert "tp_syntheticsecret" not in payload
+    assert "Bearer" not in payload
+    assert "api_key=" not in payload.lower()
+
+
+def test_write_api_calibration_readiness_packet_helper_writes_artifact(tmp_path: Path):
+    output = tmp_path / "readiness.json"
+    packet = write_api_calibration_readiness_packet(CalibrationArgs(command="write-readiness-packet"), output_path=output, evidence_index_path=None)
+
+    assert output.exists()
+    assert packet["readiness"]["next_read_only_calibration_ready"] is True
+    assert json.loads(output.read_text(encoding="utf-8"))["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION

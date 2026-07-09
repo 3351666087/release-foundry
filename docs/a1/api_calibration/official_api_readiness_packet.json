@@ -72,7 +72,7 @@
       "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
     }
   ],
-  "generated_at": "2026-07-09T04:19:42Z",
+  "generated_at": "2026-07-09T07:53:52Z",
   "next_read_only_calibration": {
     "acceptance_checks": [
       "real read-only command uses --execute --small-batch --max-retries 0",

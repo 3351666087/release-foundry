@@ -271,6 +271,53 @@ func (service *MemoryService) ListArtifactManifests(tenantID, projectID, runID s
 	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
 }
 
+func (service *MemoryService) RunLifecycle(tenantID, projectID, runID string) (Envelope[RunLifecycle], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	run, ok := service.runs[runKey(tenantID, projectID, runID)]
+	if !ok {
+		return Envelope[RunLifecycle]{}, NotFoundError{Resource: "run"}
+	}
+	uploads := []RunUpload{}
+	for _, upload := range service.runUploads {
+		if upload.TenantID == tenantID && upload.ProjectID == projectID && upload.RunID == runID {
+			uploads = append(uploads, upload)
+		}
+	}
+	sort.Slice(uploads, func(i, j int) bool {
+		if !uploads[i].CreatedAt.Equal(uploads[j].CreatedAt) {
+			return uploads[i].CreatedAt.Before(uploads[j].CreatedAt)
+		}
+		return uploads[i].UploadID < uploads[j].UploadID
+	})
+	traceBatches := []TraceBatch{}
+	for _, batch := range service.traceBatches {
+		if batch.TenantID == tenantID && batch.ProjectID == projectID && batch.RunID == runID {
+			traceBatches = append(traceBatches, batch)
+		}
+	}
+	sort.Slice(traceBatches, func(i, j int) bool {
+		if !traceBatches[i].CreatedAt.Equal(traceBatches[j].CreatedAt) {
+			return traceBatches[i].CreatedAt.Before(traceBatches[j].CreatedAt)
+		}
+		return traceBatches[i].BatchID < traceBatches[j].BatchID
+	})
+	artifacts := []ArtifactManifest{}
+	for _, manifest := range service.artifactManifests {
+		if manifest.TenantID == tenantID && manifest.ProjectID == projectID && manifest.RunID == runID {
+			artifacts = append(artifacts, manifest)
+		}
+	}
+	sort.Slice(artifacts, func(i, j int) bool {
+		if !artifacts[i].CreatedAt.Equal(artifacts[j].CreatedAt) {
+			return artifacts[i].CreatedAt.Before(artifacts[j].CreatedAt)
+		}
+		return artifacts[i].ArtifactID < artifacts[j].ArtifactID
+	})
+	result := RunLifecycle{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Run: run, Uploads: uploads, TraceBatches: traceBatches, Artifacts: artifacts, Counts: JSONMap{"uploads": len(uploads), "trace_batches": len(traceBatches), "artifacts": len(artifacts)}, GeneratedAt: time.Now().UTC()}
+	return Envelope[RunLifecycle]{Operation: "lifecycle", Status: "ok", Result: result}, nil
+}
+
 func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()

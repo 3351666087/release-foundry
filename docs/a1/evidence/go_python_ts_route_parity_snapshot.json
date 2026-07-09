@@ -9,7 +9,9 @@
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
     "GET /v1/projects/{project_id}/audit-chain/verify",
     "GET /v1/projects/{project_id}/audit-log",
+    "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+    "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
     "GET /v1/projects/{project_id}/usage",
     "GET /v1/projects/{project_id}/worker-jobs",
@@ -42,14 +44,14 @@
       "POST /v1/projects/{project_id}/api-keys/preflight",
       "POST /v1/projects/{project_id}/runs/submit"
     ],
-    "python_only": [
-      "GET /v1/projects/{project_id}/quota"
-    ],
+    "python_only": [],
     "shared_all": [
       "GET /v1/projects/{project_id}/api-keys",
       "GET /v1/projects/{project_id}/api-keys/rate-limits",
       "GET /v1/projects/{project_id}/audit-log",
+      "GET /v1/projects/{project_id}/quota",
       "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+      "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
       "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
       "GET /v1/projects/{project_id}/usage",
       "GET /v1/projects/{project_id}/worker-jobs",
@@ -126,6 +128,7 @@
     "GET /v1/projects/{project_id}/api-keys",
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
     "GET /v1/projects/{project_id}/audit-log",
+    "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",

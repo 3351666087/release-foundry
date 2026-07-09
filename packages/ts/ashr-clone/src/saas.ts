@@ -58,8 +58,9 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
   "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
   "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ["evidence:read"],
-  "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ["run:read"],
+  "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ["run:lifecycle:read"],
   "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
+  "GET /v1/projects/{project_id}/quota": [USAGE_READ_SCOPE],
   "GET /v1/projects/{project_id}/usage": [USAGE_READ_SCOPE],
   "GET /v1/projects/{project_id}/worker-jobs": [WORKER_JOB_READ_SCOPE],
   "POST /v1/bootstrap": [],
@@ -80,6 +81,50 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": [WORKER_JOB_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": [WORKER_JOB_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": [WORKER_JOB_WRITE_SCOPE],
+};
+
+export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
+  "GET /health": {
+    reason: "Go exposes a root health alias; the hosted TS client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
+    replacement_route: "GET /healthz",
+    consumer_action: "keep unsupported until the generated Go OpenAPI marks root health aliases as public client surface",
+  },
+  "GET /healthz": {
+    reason: "The TS router exposes this local health helper, but the route/scope manifest tracks project-scoped hosted API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /openapi.json": {
+    reason: "The TS router exposes this local OpenAPI helper, but hosted route scope parity covers project-scoped API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /v1/healthz": {
+    reason: "Go exposes a versioned health alias that is not part of the TS/Python shared hosted ingestion surface.",
+    replacement_route: "GET /healthz",
+    consumer_action: "keep unsupported until versioned health aliases become SDK contract routes",
+  },
+  "GET /v1/openapi.json": {
+    reason: "The TS router exposes this local OpenAPI helper, but hosted route scope parity covers project-scoped API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /v1/projects/{project_id}/audit-chain/verify": {
+    reason: "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
+    replacement_route: "POST /v1/projects/{project_id}/audit-chain/verify",
+    consumer_action: "keep unsupported until Go and hosted clients settle on one audit-chain verification method",
+  },
+  "POST /bootstrap": {
+    reason: "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
+    replacement_route: "POST /v1/bootstrap",
+    consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+  },
+  "POST /v1/projects/{project_id}/api-keys/preflight": {
+    reason: "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
+    consumer_action: "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
+  },
+  "POST /v1/projects/{project_id}/runs/submit": {
+    reason: "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
+    replacement_route: "POST /v1/projects/{project_id}/sdk-submit",
+    consumer_action: "keep unsupported until run submit is either removed from Go or added to both hosted SDKs deliberately",
+  },
 };
 
 export interface SaaSControlPlaneStore {
@@ -1264,6 +1309,7 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/release-gate": { post: { operationId: "evaluateReleaseGate", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release gate decision") } } },
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence": { get: { operationId: "buildReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), responses: { "200": response("Release evidence packet") } } },
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": { post: { operationId: "verifyReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release evidence packet verification") } } },
+      "/v1/projects/{project_id}/quota": { get: { operationId: "quotaSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Quota snapshot") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
       "/v1/projects/{project_id}/audit-log": { get: { operationId: "auditSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Audit log snapshot") } } },
       "/v1/projects/{project_id}/worker-jobs": { get: { operationId: "listWorkerJobs", parameters: pathTenantParameters(), responses: { "200": response("Worker jobs") } } },
@@ -1307,16 +1353,30 @@ export function consumeGoRouteScopeManifest(manifest: JsonRecord | string): Json
   const goRoutes = new Set((Array.isArray(snapshot.go_manifest_routes) ? snapshot.go_manifest_routes : []).map((route) => String(route)));
   const hostedRoutes = new Set(Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS));
   const consumableGoRoutes = [...goRoutes].filter((route) => hostedRoutes.has(route)).sort();
+  const unsupportedGoRoutes = [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort();
+  const unsupportedGoRouteGaps = validateUnsupportedGoRouteGaps(goRoutes, hostedRoutes);
   return {
     schema_version: "ashr.clone.go_route_scope_consumption.v1",
     client: "typescript",
     public_safe: true,
     source_policy: { private_evidence_read: false, raw_payloads_included: false, tokens_included: false },
     consumable_go_routes: consumableGoRoutes,
-    unsupported_go_routes: [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort(),
+    unsupported_go_routes: unsupportedGoRoutes,
+    unsupported_go_route_gaps: unsupportedGoRouteGaps,
     client_only_routes: [...hostedRoutes].filter((route) => !goRoutes.has(route)).sort(),
     route_scopes: consumableGoRoutes.map((route) => ({ route, required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]] })),
   };
+}
+
+function validateUnsupportedGoRouteGaps(goRoutes: Set<string>, hostedRoutes: Set<string>): JsonRecord[] {
+  const unsupportedRoutes = [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort();
+  const declaredRoutes = Object.keys(UNSUPPORTED_GO_ROUTE_GAPS).sort();
+  const missingRoutes = unsupportedRoutes.filter((route) => !Object.prototype.hasOwnProperty.call(UNSUPPORTED_GO_ROUTE_GAPS, route));
+  const staleRoutes = declaredRoutes.filter((route) => !goRoutes.has(route) || hostedRoutes.has(route));
+  if (missingRoutes.length > 0 || staleRoutes.length > 0) {
+    throw new ValidationError(`Go route/scope gap registry drift: missing=${missingRoutes.join(",") || "none"}; stale=${staleRoutes.join(",") || "none"}`);
+  }
+  return unsupportedRoutes.map((route) => ({ route, ...UNSUPPORTED_GO_ROUTE_GAPS[route] }));
 }
 
 function assertPublicManifestPath(inputPath: string): string {

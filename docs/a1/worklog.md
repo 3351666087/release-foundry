@@ -459,3 +459,84 @@ Lifecycle route-scope audit fix:
 - Validation: `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> passed, 12 tests.
 - Validation: `npm test --prefix packages/ts/ashr-clone` -> passed, 318 tests.
 - Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 326 tests.
+
+## Round24 A1 lifecycle/quota parity, route drift hardening, and real API read-only calibration - 2026-07-09
+
+Baseline / peer changes:
+- Repo root: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains `origin/codex/a1-local-sdk-runner` for PR #27.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` completed. PR #27 CL was green before this slice; A3 checks skipped by plan.
+- Peer changes observed on A2/A3 branches and open PR #28, with no A1-owned file impact in this slice. A2/A3 files stay out of this commit.
+- `docs/strategy/large-saas-a1-a2-a3-full-plan.md` was read at round start; current strategy still pushes A1 toward Go API gateway/worker, TS SDK/CLI parity, Python calibration/tooling, SQL/PLpgSQL tenant/RLS, Docker/YAML/Terraform infra, and Rust verifier/security later.
+
+Implemented A1 growth points:
+1. Go hosted API now exposes `GET /v1/projects/{project_id}/runs/{run_id}/lifecycle` with `run:lifecycle:read` scope.
+2. Go hosted API now exposes `GET /v1/projects/{project_id}/quota` as the quota/usage read alias.
+3. Go memory backend returns run lifecycle state without requiring Postgres.
+4. Go Postgres repository can read lifecycle and tenant/project-bound run status.
+5. Go hosted client `LifecycleHTTP` accepts optional auth-key options.
+6. Go server tests cover lifecycle and quota alias behavior.
+7. Python hosted route scope map includes shared quota route coverage.
+8. TS hosted route scope map and OpenAPI exposure include shared quota route coverage.
+9. Python route manifest validation now requires explicit unsupported-Go gap records for Go routes not consumed by hosted SDKs.
+10. TS route manifest validation now rejects missing or stale unsupported-Go gap records.
+11. Python and TS tests assert shared hosted routes cannot drift out of scope coverage silently.
+12. Public Go/Python/TS route parity snapshot was refreshed.
+13. TS/Python parity gap matrix was regenerated and checked after route-scope API changes.
+14. Python calibrator now supports `summarize-private-manifest` for public-safe summaries of ignored private API manifests.
+15. Python calibrator now supports `write-readiness-packet` for dry-run public readiness artifacts.
+16. Public readiness packet records next read-only calibration targets and guardrails without raw key material.
+17. Public official API summary was regenerated from a real read-only private manifest.
+18. SQL/RLS migration manifest hook declares required tables, key columns, indexes, RLS force/enable state, policies, and helper functions.
+19. Migration manifest tests verify the A1 large-SaaS foundation SQL shape without requiring a live DB.
+20. WSL `Ubuntu-24.04-Ashr` and Docker daemon availability were checked and recorded for future Linux/self-host validation.
+
+Real API / private evidence:
+- `ASHR_API_KEY` was confirmed by environment presence only; raw values were never printed, stored in tracked files, or read from desktop key files.
+- Read-only small batch command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json`.
+- Result: status `ok`, 5 read steps, 0 mutating steps, 0 errors, estimated 7 calls.
+- Private raw evidence path: `docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json` (ignored, not staged).
+- Public summary path: `docs/a1/evidence/official_api_readonly_manifest_summary.json`.
+- Public readiness path: `docs/a1/api_calibration/official_api_readiness_packet.json`.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 321 tests.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 336 tests.
+- Focused Python route/calibrator/migration/parity suite -> passed, 54 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Failures / notes:
+- One attempted `summarize-private-manifest --input-manifest ...` command used a stale flag name and failed before reading or writing data. It was rerun correctly with `--input` and passed.
+- `command -v go` inside WSL returned empty in this quick check, while Python 3 was present. Future Go-on-Linux validation should install or expose Go in `Ubuntu-24.04-Ashr` if required.
+- Live Postgres migration tests remain gated by `A1_POSTGRES_TEST_DSN` / `A1_PSQL_BIN` and are not required by default.
+
+Next 20 A1 growth points:
+1. Install/validate Go inside `Ubuntu-24.04-Ashr` and run Go tests under WSL for Linux parity.
+2. Add Docker Compose smoke that boots Go API plus Postgres and runs route-scope health checks.
+3. Add live Postgres RLS validation with a local disposable container and `A1_POSTGRES_TEST_DSN`.
+4. Add Go API key lifecycle endpoints matching TS/Python SaaS capability surface.
+5. Add Go trace ingestion endpoint with media-safe envelopes for text/audio/file/image/video equally.
+6. Add Go artifact upload/download manifest service with hash binding.
+7. Add Go worker lease/heartbeat/dead-letter routes to match TS local control-plane parity.
+8. Add Go release evidence verification route or explicit planned gap with owner/action.
+9. Generate an OpenAPI artifact from the Go route-scope manifest and consume it in TS tests.
+10. Add TS generated client smoke from the OpenAPI artifact.
+11. Add Python generated client or route smoke against the same OpenAPI artifact.
+12. Promote official API read-only calibration into a repeatable public summary index merge without leaking private payloads.
+13. Prepare quota-gated text-only mutating official API calibration with dry-run plan, reviewed gate, and private output.
+14. Add paid media calibration gates for image/audio/file/video after text mutation proves safe.
+15. Add quota ledger rollup SQL view and Go repository method.
+16. Add audit-chain tail verification across Go/Python/TS fixtures.
+17. Add Terraform/HCL skeleton for Postgres/object storage/secret manager with static validation.
+18. Add Rust verifier CLI for release evidence packet hashes and bind it into CI when touched.
+19. Add self-host startup README that uses WSL/Docker paths and fresh setup commands.
+20. Keep A1 commits scoped to A1-owned dirs and continue monitoring peer A2/A3 PRs without staging them.
+
+Growth-Auditor follow-up:
+- Auditor found lifecycle scope drift: Go required `run:lifecycle:read` while Python/TS still declared `run:read`.
+- Fixed by aligning Python and TS hosted route scope requirements to `run:lifecycle:read`.
+- Added `test_shared_go_python_hosted_routes_have_matching_scope_values` so shared Go/Python hosted route scope values cannot drift silently again.
+- Auditor found stale README language saying the public official API summary was `missing`; updated README to match the real read-only private manifest summary (`status=ok`, 5 reads, 7 estimated calls, 0 errors).

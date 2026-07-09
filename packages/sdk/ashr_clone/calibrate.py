@@ -53,6 +53,7 @@ class CalibrationUsageError(ValueError):
 
 @dataclass(slots=True)
 class CalibrationArgs:
+    command: str = "calibrate"
     execute: bool = False
     small_batch: bool = False
     include_mutating: bool = False
@@ -70,6 +71,9 @@ class CalibrationArgs:
     allow_quota_override: bool = False
     quota_override_reason: str | None = None
     allow_nonprivate_output: bool = False
+    input_manifest: str | None = None
+    field_map_path: str | None = None
+    evidence_index_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -728,6 +732,22 @@ def write_public_official_api_manifest_summary(
     return summary
 
 
+def write_api_calibration_readiness_packet(
+    args: CalibrationArgs | None = None,
+    *,
+    output_path: str | Path = PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json",
+    field_map_path: str | Path = FIELD_MAP_PATH,
+    evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+) -> JsonDict:
+    packet = build_api_calibration_readiness_packet(
+        args,
+        field_map_path=field_map_path,
+        evidence_index_path=evidence_index_path,
+    )
+    write_json(output_path, packet)
+    return packet
+
+
 def _public_official_api_step_summary(step: Mapping[str, Any]) -> JsonDict:
     quota = step.get("quota") if isinstance(step.get("quota"), Mapping) else {}
     top_counts = step.get("top_counts") if isinstance(step.get("top_counts"), Mapping) else {}
@@ -837,6 +857,8 @@ def is_call_record(value: Mapping[str, Any]) -> bool:
 
 
 def selected_calibration_modalities(args: CalibrationArgs) -> tuple[str, ...]:
+    if args.command == "write-readiness-packet" and not args.modalities:
+        return ("text",)
     selected = args.modalities or CALIBRATION_MODALITIES
     ordered: list[str] = []
     for modality in CALIBRATION_MODALITIES:
@@ -1375,6 +1397,52 @@ def write_json(path: str | Path, value: Mapping[str, Any]) -> None:
 
 def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser = argparse.ArgumentParser(description="Run Ashr clone Python SDK real API calibration with safe private evidence records.")
+    subparsers = parser.add_subparsers(dest="command")
+    add_calibration_arguments(parser)
+
+    summarize_parser = subparsers.add_parser("summarize-private-manifest", help="Write a public-safe summary from an ignored private calibration manifest.")
+    summarize_parser.add_argument("--input", dest="input_manifest", default=str(DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH), help="Ignored private manifest path under docs/evidence/private_refs.")
+    summarize_parser.add_argument("--output", default=str(DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH), help="Public-safe redacted summary artifact path.")
+    summarize_parser.add_argument("--print-record", action="store_true", help="Print the public-safe summary JSON after writing it.")
+
+    readiness_parser = subparsers.add_parser("write-readiness-packet", help="Write a public-safe dry-run readiness packet without API calls or key reads.")
+    readiness_parser.add_argument("--output", default=str(PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json"), help="Public readiness packet artifact path.")
+    readiness_parser.add_argument("--field-map", dest="field_map_path", default=str(FIELD_MAP_PATH), help="Public field map used to derive readiness.")
+    readiness_parser.add_argument("--evidence-index", dest="evidence_index_path", default=str(PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json"), help="Optional public evidence index path.")
+    readiness_parser.add_argument("--modality", action="append", default=[], help="Comma-separated modality list for planned mutating readiness: text,image,audio,file,video")
+    readiness_parser.add_argument("--include-mutating", action="store_true", help="Include planned mutating calibration targets in the public readiness packet.")
+    readiness_parser.add_argument("--allow-paid-media", action="store_true", help="Allow non-text media request planning in the public readiness packet.")
+    readiness_parser.add_argument("--limit", type=positive_int, default=2)
+    readiness_parser.add_argument("--print-record", action="store_true", help="Print the public-safe readiness packet after writing it.")
+
+    ns = parser.parse_args(argv)
+    command = ns.command or "calibrate"
+    try:
+        if command == "summarize-private-manifest":
+            return CalibrationArgs(command=command, input_manifest=ns.input_manifest, output=ns.output, print_record=ns.print_record)
+        if command == "write-readiness-packet":
+            modalities = parse_modalities(ns.modality)
+            args = CalibrationArgs(
+                command=command,
+                output=ns.output,
+                include_mutating=ns.include_mutating,
+                allow_paid_media=ns.allow_paid_media,
+                limit=ns.limit,
+                modalities=modalities,
+                print_record=ns.print_record,
+                field_map_path=ns.field_map_path,
+                evidence_index_path=ns.evidence_index_path,
+            )
+            validate_calibration_guards(args)
+            return args
+        args = calibration_args_from_namespace(ns, command=command)
+        validate_calibration_guards(args)
+        return args
+    except CalibrationUsageError as exc:
+        parser.error(str(exc))
+
+
+def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--execute", action="store_true", help="Call the real Ashr API. Requires --small-batch and --max-retries 0.")
     parser.add_argument("--small-batch", action="store_true", help="Acknowledge bounded API execution.")
     parser.add_argument("--include-mutating", action="store_true", help="Include create_request calibration steps after read-only steps.")
@@ -1392,9 +1460,11 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     parser.add_argument("--allow-nonprivate-output", action="store_true", help="Allow protected real API or gate evidence outside docs/evidence/private_refs for synthetic tests only.")
-    ns = parser.parse_args(argv)
-    modalities = parse_modalities(ns.modality)
-    args = CalibrationArgs(
+
+
+def calibration_args_from_namespace(ns: argparse.Namespace, *, command: str) -> CalibrationArgs:
+    return CalibrationArgs(
+        command=command,
         execute=ns.execute,
         small_batch=ns.small_batch,
         include_mutating=ns.include_mutating,
@@ -1405,7 +1475,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         max_retries=ns.max_retries,
         retry_backoff_seconds=ns.retry_backoff_seconds,
         limit=ns.limit,
-        modalities=modalities,
+        modalities=parse_modalities(ns.modality),
         print_record=ns.print_record,
         quota_gate_record=ns.quota_gate_record,
         quota_gate_ttl_seconds=ns.quota_gate_ttl_seconds,
@@ -1413,11 +1483,6 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         quota_override_reason=ns.quota_override_reason,
         allow_nonprivate_output=ns.allow_nonprivate_output,
     )
-    try:
-        validate_calibration_guards(args)
-    except CalibrationUsageError as exc:
-        parser.error(str(exc))
-    return args
 
 
 def parse_modalities(values: Sequence[str]) -> tuple[str, ...]:
@@ -1458,7 +1523,23 @@ def non_negative_float(value: str) -> float:
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
-        manifest = run_calibration(args)
+        if args.command == "summarize-private-manifest":
+            manifest = write_public_official_api_manifest_summary(
+                input_path=args.input_manifest or DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH,
+                output_path=args.output or DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
+            )
+        elif args.command == "write-readiness-packet":
+            evidence_index_path: str | Path | None = args.evidence_index_path
+            if evidence_index_path in {"", "none", "None"}:
+                evidence_index_path = None
+            manifest = write_api_calibration_readiness_packet(
+                args,
+                output_path=args.output or PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json",
+                field_map_path=args.field_map_path or FIELD_MAP_PATH,
+                evidence_index_path=evidence_index_path,
+            )
+        else:
+            manifest = run_calibration(args)
     except CalibrationUsageError as exc:
         print(f"calibration usage error: {exc}")
         return 2
@@ -1468,8 +1549,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.print_record:
         print(json.dumps(manifest, indent=2, sort_keys=True))
     else:
-        print(json.dumps({"status": manifest["status"], "output": args.output or default_output_path(args.execute), "summary": manifest["summary"]}, indent=2, sort_keys=True))
-    return 0 if manifest.get("status") in {"ok", "planned"} else 1
+        print(json.dumps(public_cli_result(args, manifest), indent=2, sort_keys=True))
+    return 0 if cli_success(args, manifest) else 1
+
+
+def cli_success(args: CalibrationArgs, manifest: Mapping[str, Any]) -> bool:
+    if args.command == "write-readiness-packet":
+        readiness = manifest.get("readiness") if isinstance(manifest.get("readiness"), Mapping) else {}
+        return readiness.get("public_packet_ready") is True
+    return manifest.get("status") in {"ok", "planned", "missing"}
+
+
+def public_cli_result(args: CalibrationArgs, manifest: Mapping[str, Any]) -> JsonDict:
+    if args.command == "summarize-private-manifest":
+        return redact_sensitive(
+            {
+                "status": manifest.get("status"),
+                "output": args.output or str(DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH),
+                "source_private_manifest_present": manifest.get("source_private_manifest_present") is True,
+                "summary": manifest.get("summary", {}),
+            }
+        )
+    if args.command == "write-readiness-packet":
+        return redact_sensitive(
+            {
+                "status": "ready" if manifest.get("readiness", {}).get("public_packet_ready") is True else "blocked",
+                "output": args.output or str(PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json"),
+                "summary": {
+                    "next_read_only_calibration_ready": manifest.get("readiness", {}).get("next_read_only_calibration_ready") is True,
+                    "read_only_small_batch_ready": manifest.get("readiness", {}).get("read_only_small_batch_ready") is True,
+                    "mutating_small_batch_ready": manifest.get("readiness", {}).get("mutating_small_batch_ready") is True,
+                    "function_count": manifest.get("observed_surface", {}).get("function_count"),
+                },
+            }
+        )
+    return redact_sensitive({"status": manifest.get("status"), "output": args.output or default_output_path(args.execute), "summary": manifest.get("summary", {})})
 
 
 if __name__ == "__main__":
