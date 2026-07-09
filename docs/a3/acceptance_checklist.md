@@ -578,6 +578,14 @@
 - [x] Repair direct hash-link active state so `#console` highlights `Console`.
 - [x] Capture V4 production desktop and mobile screenshots and verify mobile width does not overflow.
 - [x] Keep V4 UI refinement clean-room and preserve A1/A2 dashboard source wiring.
+- [x] Add reviewer denial as the third human review action beside waiver and approval.
+- [x] Add `POST /api/a3/review/denials` with local RBAC, idempotency, audit/event-outbox metadata, and SQLite persistence.
+- [x] Show dashboard human review action controls and receipt state for waiver, approval, and denial.
+- [x] Read usage ledger and billing readiness through A3 API-backed dashboard runtime refresh.
+- [x] Surface billing readiness in the SaaS Runtime panel without enabling real payment mutations.
+- [x] Add reviewer denial to the commercial API contract, OpenAPI artifact, and redacted contract fixture.
+- [x] Preserve existing dry-run/default-safe GitHub Check and PR-comment publishing path without reading tokens or performing live GitHub mutations.
+- [x] Confirm shareable report links remain expirable, revocable, and audit-recorded through the existing A3 API/store path.
 - [x] Add `apps/dashboard/src/visual-shell.mjs` as a data-driven visual rendering layer for primary navigation, SaaS product surfaces, and detailed workspace rails.
 - [x] Reduce the left sidebar to six primary product areas while preserving detailed A3 section access through a horizontal rail.
 - [x] Add product-surface navigation for Workspace, Product Console / Onboarding / Audit, SaaS Admin / Login / Team / Trust, Usage, API Keys, and Trust.

@@ -169,6 +169,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/admin/actions",
     "POST /api/a3/review/waivers",
     "POST /api/a3/review/approvals",
+    "POST /api/a3/review/denials",
     "GET /api/a3/review/workflow",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
@@ -776,6 +777,54 @@ export function createMemoryA3Store(seed = {}) {
       });
       const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
       rememberIdempotentReceipt(idempotencyReceipts, "review_approval_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
+      return receiptWithEvent;
+    },
+
+    async submitReviewDenial(denial, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const idempotencyPayloadHash = sha256(stableJson({
+        record_type: "denial",
+        source: snapshot.source,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        denial: redactPotentialSecret(denial)
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "review_denial_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
+      const record = sanitizeReviewWorkflowRecord({
+        ...buildReviewWorkflowRecord("denial", denial, snapshot, {
+          source: snapshot.source,
+          organizationId: options.organizationId || snapshot.organizationId,
+          projectId: options.projectId || snapshot.projectId,
+          requestedAt: options.requestedAt,
+          generatedAt: options.generatedAt,
+          releaseVersion: options.releaseVersion,
+          environment: options.environment,
+          headSha: options.headSha
+        }),
+        payload: denial
+      });
+      reviewWorkflowRecords.push(record);
+      auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
+      const receipt = reviewWorkflowReceipt(record);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "denial.submitted",
+        resourceType: "review_workflow_record",
+        resourceId: record.record_id,
+        tenantScope: eventTenantScopeFromRecord(record, snapshot),
+        actorHash: record.actor_hash || record.requested_by_hash,
+        createdAt: record.created_at || record.requested_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "review_denials",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "review_denial_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
       return receiptWithEvent;
     },
 
@@ -1568,6 +1617,11 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async submitReviewDenial(denial, options = {}) {
+      const result = await store.submitReviewDenial(denial, options);
+      await persist();
+      return result;
+    },
     async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
       const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
       await persist();
@@ -1673,6 +1727,14 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
+  const billingReadiness = buildA3BillingReadiness({
+    usageLedger,
+    adminConsole: saasAdmin
+  }, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
   const eventOutboxDashboard = buildEventOutboxDashboard(options.eventOutbox || [], {
     source: snapshot.source,
     organizationId: snapshot.organizationId,
@@ -1707,6 +1769,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
     event_outbox: eventOutboxDashboard,
     source_artifacts: sourceArtifacts,
+    billing_readiness: billingReadiness,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

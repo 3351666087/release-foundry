@@ -94,6 +94,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitReviewDenial(denial, options = {}) {
+      const result = await store.submitReviewDenial(denial, options);
+      await persist();
+      return result;
+    },
+
     async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
       const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
       await persist();

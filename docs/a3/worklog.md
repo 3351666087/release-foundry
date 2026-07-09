@@ -1,5 +1,87 @@
 # A3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial And SaaS Runtime Reads
+
+### Goal
+
+Continue the A3 commercial SaaS push from
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and cover the next six product
+requirements:
+
+1. GitHub PR check live publishing.
+2. PR comment live publishing.
+3. Reviewer approve / deny / waiver workflow.
+4. Dashboard-visible human operation records.
+5. Billing/admin pages reading real usage/billing state from the A3 API layer.
+6. Report share links that can expire, revoke, and leave audit evidence.
+
+### Work completed
+
+- Kept the existing GitHub Check and PR-comment publisher path intact:
+  `services/report/a3_github_integration.mjs` remains live-capable while tests
+  and fixtures stay dry-run/redacted by default.
+- Added reviewer denial support beside existing waiver and approval support:
+  - `a3.denial_review.v1`
+  - `POST /api/a3/review/denials`
+  - `denial.submitted` event-outbox rows
+  - `denial_count`, `human_action_count`, and `latest_human_action` summaries
+- Added dashboard buttons for `Record Waiver`, `Record Approval`, and
+  `Record Denial`.
+- Added API-backed dashboard refresh for reviewer workflow, usage ledger, and
+  billing readiness after review/report mutations.
+- Surfaced billing readiness inside the SaaS Runtime panel so the dashboard can
+  show read-only provider/checkout/invoice/quota readiness state.
+- Added denial to the commercial API contract and OpenAPI artifact:
+  - `POST /v1/release-gates/{release_gate_id}/denials`
+  - `POST /api/a3/review/denials`
+- Regenerated the redacted commercial API contract fixture:
+  - `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`
+
+### A1/A2 compatibility
+
+- A1 runner, SDK, trace, tool-call, auth, usage, GitHub, and billing backends
+  were not changed.
+- A2 judge, score, pass/fail, release-gate, failure taxonomy, and policy
+  semantics were not changed.
+- Denial records are A3 governance evidence only: they do not overwrite A2
+  release-gate decisions, and they never unblock a release automatically.
+- Usage/billing state is read-only in A3 and remains downstream of A1 usage
+  ledger ownership.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, customer email, signed URL, payment
+  credential, or live account value was printed or committed.
+- No live GitHub Check, live PR comment, live billing, live team/admin, or live
+  Ashr cloud mutation was performed in this round.
+- Share links remain token-hashed, expirable, revocable, and audit-recorded in
+  the local A3 store/API path.
+
+### Verification
+
+```text
+node --check apps\dashboard\src\app.mjs apps\dashboard\src\api-client.mjs apps\dashboard\src\components\saas-runtime-panel.mjs services\report\a3_review_workflow.mjs services\report\a3_store.mjs services\report\a3_sqlite_store.mjs services\report\a3_api_server.mjs services\report\a3_auth_rbac_boundary.mjs services\report\a3_commercial_api_contract.mjs services\report\report_builder.mjs
+node --test tests\a3\a3_review_workflow.test.mjs tests\a3\a3_store.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sqlite_store.test.mjs tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_api_contract.test.mjs tests\a3\a3_commercial_openapi_contract.test.mjs
+node --test tests\a3\*.mjs
+npm.cmd run test:e2e
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Results:
+
+- Syntax checks passed.
+- Focused A3 tests: 96 passed, 0 failed.
+- Full A3 Node suite: 243 passed, 0 failed.
+- Playwright E2E: 9 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and Playwright transient output remain ignored.
+
 ## 2026-07-09 - Commercial Growth Round 5 Billing And Usage Readiness
 
 ### Goal

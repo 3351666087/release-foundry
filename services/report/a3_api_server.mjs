@@ -352,6 +352,26 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 202, receipt);
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/review/denials") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_denial", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.submitReviewDenial(body.denial || body.denial_record || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          requestedAt: body.requested_at || body.requestedAt,
+          generatedAt: body.generated_at || body.generatedAt,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          headSha: body.head_sha || body.headSha,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return sendJson(response, 202, receipt);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/review/workflow") {
         return sendJson(response, 200, await store.getReviewWorkflow({
           source: sourceFrom(url),

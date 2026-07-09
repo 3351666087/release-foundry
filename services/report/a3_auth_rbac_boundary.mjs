@@ -130,6 +130,11 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     resourceType: "review_approval",
     a2: ["ReleaseGate", "policy evaluation"]
   }),
+  operation("submit_review_denial", "POST /api/a3/review/denials", "release:review", "local_write", {
+    event: "denial.recorded",
+    resourceType: "review_denial",
+    a2: ["ReleaseGate", "policy evaluation"]
+  }),
   operation("submit_admin_action", "POST /api/a3/admin/actions/submit", "admin:plan", "plan_only", {
     event: "admin.action_requested",
     resourceType: "saas_admin_action"

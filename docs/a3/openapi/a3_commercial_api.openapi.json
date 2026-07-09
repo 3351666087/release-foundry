@@ -871,6 +871,70 @@
         }
       }
     },
+    "/api/a3/review/denials": {
+      "post": {
+        "operationId": "submitA3ReviewDenial",
+        "summary": "Submit a denial record that keeps release evidence blocked.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.review_denial_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "planned_actor_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "reviewer_or_owner",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "denial.recorded",
+            "release_gate.denied"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "audit events",
+            "tenant/auth/API gateway"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "policy evaluation"
+          ]
+        },
+        "responses": {
+          "202": {
+            "description": "Denial accepted and release remains blocked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/a3/reports": {
       "get": {
         "operationId": "listA3Reports",

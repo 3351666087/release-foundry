@@ -763,10 +763,12 @@ test("A3 report exports include durable review workflow records", async () => {
   const reviewWorkflow = {
     schema_version: "a3.review_workflow_index.v1",
     source: "mock",
-    record_count: 2,
+    record_count: 3,
     waiver_count: 1,
     approval_count: 1,
-    accepted_count: 2,
+    denial_count: 1,
+    human_action_count: 3,
+    accepted_count: 3,
     durable_storage_ready: true,
     real_cloud_mutations_performed: false,
     records: [{
@@ -787,19 +789,32 @@ test("A3 report exports include durable review workflow records", async () => {
       payload_hash: "c".repeat(64),
       review_hash: "d".repeat(64),
       signature: { status: "hash_sealed_signer_record" }
+    }, {
+      record_id: "rwr_denial_unit",
+      record_type: "denial",
+      status: "valid_denial",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "e".repeat(64),
+      review_hash: "f".repeat(64),
+      subject: { decision: "deny_release" },
+      signature: { status: "hash_sealed_signer_record" }
     }]
   };
 
   const summary = summarizeReviewWorkflowExport(reviewWorkflow);
   assert.equal(summary.available, true);
-  assert.equal(summary.record_count, 2);
+  assert.equal(summary.record_count, 3);
+  assert.equal(summary.denial_count, 1);
+  assert.equal(summary.human_action_count, 3);
   assert.equal(summary.durable_storage_ready, true);
   assert.equal(summary.real_cloud_mutations_performed, false);
 
   const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, reviewWorkflow);
   assert.equal(json.review_workflow.schema_version, "a3.review_workflow_export.v1");
-  assert.equal(json.review_workflow.accepted_count, 2);
-  assert.equal(json.review_workflow.latest_records[1].signature_status, "hash_sealed_signer_record");
+  assert.equal(json.review_workflow.accepted_count, 3);
+  assert.equal(json.review_workflow.denial_count, 1);
+  assert.equal(json.review_workflow.latest_records[2].subject_decision, "deny_release");
 
   const missing = summarizeReviewWorkflowExport({});
   assert.equal(missing.available, false);

@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 29 commercial endpoints, including:
+The contract currently maps 30 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -37,6 +37,7 @@ The contract currently maps 29 commercial endpoints, including:
 - `POST /v1/release-gates/evaluate`
 - `POST /v1/release-gates/{release_gate_id}/waivers`
 - `POST /v1/release-gates/{release_gate_id}/approvals`
+- `POST /v1/release-gates/{release_gate_id}/denials`
 - `GET /v1/evidence-bundles/{bundle_id}`
 - `GET /v1/reports`
 - `POST /v1/reports/{report_id}/share`
@@ -153,6 +154,7 @@ Commercial artifact types referenced by the endpoint map include:
 - `release_gate_report`
 - `waiver_request`
 - `approval_record`
+- `denial_record`
 - `hosted_report`
 - `redaction_report`
 - `usage_ledger`

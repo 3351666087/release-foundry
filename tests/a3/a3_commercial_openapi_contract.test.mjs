@@ -58,6 +58,7 @@ test("A3 commercial OpenAPI artifact has the expected schema version and focus s
     "/api/a3/reports",
     "/api/a3/reports/share",
     "/api/a3/admin/console",
+    "/api/a3/review/denials",
     "/api/a3/billing/readiness",
     "/api/a3/usage/ledger",
     "/api/a3/enterprise/readiness"
@@ -116,6 +117,7 @@ test("A3 commercial OpenAPI artifact preserves A1/A2 source authority references
     "GET /api/a3/dashboard",
     "GET /api/a3/runs/:runId",
     "GET /api/a3/releases/:releaseId/evidence-summary",
+    "POST /api/a3/review/denials",
     "POST /api/a3/reports/share",
     "GET /api/a3/admin/console",
     "GET /api/a3/billing/readiness",

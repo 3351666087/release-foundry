@@ -5858,6 +5858,8 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
     record_count: reviewWorkflowFixture.record_count || records.length,
     waiver_count: reviewWorkflowFixture.waiver_count || records.filter((item) => item.record_type === "waiver").length,
     approval_count: reviewWorkflowFixture.approval_count || records.filter((item) => item.record_type === "approval").length,
+    denial_count: reviewWorkflowFixture.denial_count || records.filter((item) => item.record_type === "denial").length,
+    human_action_count: reviewWorkflowFixture.human_action_count || records.length,
     accepted_count: reviewWorkflowFixture.accepted_count || records.filter((item) => item.accepted === true).length,
     durable_storage_ready: reviewWorkflowFixture.durable_storage_ready === true,
     real_cloud_mutations_performed: reviewWorkflowFixture.real_cloud_mutations_performed === true,
@@ -5869,6 +5871,7 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
       run_id: item.run_id,
       payload_hash: item.payload_hash,
       review_hash: item.review_hash,
+      subject_decision: item.subject?.decision || null,
       signature_status: item.signature?.status || "unknown"
     })),
     recommendation: "Use durable Review Workflow records as the enterprise sign-off layer above the local reviewer board and PR gate."

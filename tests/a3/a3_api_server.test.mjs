@@ -227,9 +227,26 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(approvalReceipt.status, "valid_exception_approval");
     assert.equal(approvalReceipt.accepted, true);
 
+    const denialResponse = await fetch(`${url}/api/a3/review/denials?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        denial: buildDenialFixture(),
+        generated_at: "2026-07-07T12:00:00.000Z",
+        release_version: "local-mock-commercial-gate",
+        environment: "staging",
+        head_sha: "local-demo-head-sha"
+      })
+    });
+    assert.equal(denialResponse.status, 202);
+    const denialReceipt = await denialResponse.json();
+    assert.equal(denialReceipt.status, "valid_denial");
+    assert.equal(denialReceipt.accepted, true);
+
     const reviewWorkflow = await getJson(`${url}/api/a3/review/workflow?source=mock`);
     assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
-    assert.equal(reviewWorkflow.record_count, 2);
+    assert.equal(reviewWorkflow.record_count, 3);
+    assert.equal(reviewWorkflow.denial_count, 1);
     assert.equal(reviewWorkflow.durable_storage_ready, true);
 
     const productConsole = await getJson(`${url}/api/a3/product/console?source=mock`);
@@ -489,6 +506,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
       "admin.action_requested",
       "waiver.submitted",
       "approval.submitted",
+      "denial.submitted",
       "report.share_link_created",
       "report.viewed",
       "report.share_link_viewed",
@@ -655,4 +673,30 @@ async function getJson(url) {
   const response = await fetch(url);
   assert.equal(response.ok, true, `${url} returned ${response.status}`);
   return response.json();
+}
+
+function buildDenialFixture() {
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: "denial-local-blocked-001",
+    decision: "deny_release",
+    reason: "Release remains blocked until failed A1 traces and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "api-test",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_gate_cli_report",
+        path: "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+        sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ]
+  };
 }

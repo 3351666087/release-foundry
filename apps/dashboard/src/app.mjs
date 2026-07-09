@@ -40,8 +40,13 @@ import {
   fetchA3ReportCenter,
   fetchA3ReviewWorkflow,
   fetchA3SchemaDriftRadar,
+  fetchA3UsageLedger,
+  fetchA3BillingReadiness,
   planA3AdminAction,
   submitA3AdminAction,
+  submitA3ReviewWaiver,
+  submitA3ReviewApproval,
+  submitA3ReviewDenial,
   revokeShareableA3Report,
   isA3ApiSource
 } from "./api-client.mjs";
@@ -79,6 +84,7 @@ const state = {
   enterpriseReadiness: {},
   productConsole: {},
   usageLedger: {},
+  billingReadiness: {},
   reportCenter: {},
   artifactRegistry: {},
   schemaDriftRadar: {},
@@ -89,6 +95,7 @@ const state = {
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
+  selectedReviewReceipt: null,
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -1034,10 +1041,48 @@ function renderReviewWorkflowRecords() {
     miniRow("Records", String(workflow.record_count || records.length || 0)),
     miniRow("Waivers", String(workflow.waiver_count || 0)),
     miniRow("Approvals", String(workflow.approval_count || 0)),
+    miniRow("Denials", String(workflow.denial_count || 0)),
     miniRow("Accepted", String(workflow.accepted_count || 0)),
     miniRow("Storage", workflow.durable_storage_ready ? "durable-ready" : "not durable"),
+    reviewWorkflowActionBar(),
+    reviewWorkflowReceiptRow(),
     ...recordRows
   );
+}
+
+function reviewWorkflowActionBar() {
+  const node = document.createElement("div");
+  node.className = "action-row review-action-row";
+  node.innerHTML = `
+    <button class="button subtle" type="button" data-review-action="waiver">Record Waiver</button>
+    <button class="button subtle" type="button" data-review-action="approval">Record Approval</button>
+    <button class="button subtle" type="button" data-review-action="denial">Record Denial</button>
+  `;
+  for (const button of node.querySelectorAll("[data-review-action]")) {
+    button.addEventListener("click", () => submitReviewWorkflowAction(button.dataset.reviewAction));
+  }
+  return node;
+}
+
+function reviewWorkflowReceiptRow() {
+  const receipt = state.selectedReviewReceipt || {};
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = receipt.schema_version
+    ? `
+      <div class="matrix-head">
+        <strong>${escapeHtml(receipt.record_type || "review")}</strong>
+        <span class="badge ${receipt.accepted ? "pass" : "warn"}">${escapeHtml(receipt.status || "unknown")}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(receipt.record_id || "no record")}</span>
+        <span>${escapeHtml(receipt.event_envelope?.event_type || "no event")}</span>
+        <span>${receipt.real_cloud_mutation_performed ? "real write" : "no real cloud write"}</span>
+      </div>
+      <div class="muted">payload ${escapeHtml(shortHash(receipt.payload_hash))} / review ${escapeHtml(shortHash(receipt.review_hash))}</div>
+    `
+    : `<div class="muted">Use Record Waiver / Approval / Denial in API-backed mode to create a durable human review record.</div>`;
+  return node;
 }
 
 function matrixKicker(label) {
@@ -2514,6 +2559,109 @@ async function revokeHostedReport(report) {
   }
 }
 
+async function submitReviewWorkflowAction(action) {
+  if (!isA3ApiSource(state.source)) {
+    state.selectedReviewReceipt = {
+      schema_version: "a3.review_workflow_receipt.v1",
+      record_id: "static_fixture_preview",
+      record_type: action,
+      status: "api_required",
+      accepted: false,
+      payload_hash: null,
+      review_hash: null,
+      real_cloud_mutation_performed: false
+    };
+    renderReviewerWorkflowBoard();
+    return;
+  }
+
+  try {
+    const base = {
+      source: state.source,
+      baseUrl: getA3ApiBaseUrl(),
+      generatedAt: "2026-07-07T12:00:00.000Z",
+      releaseVersion: "local-mock-commercial-gate",
+      environment: "staging",
+      headSha: "local-demo-head-sha"
+    };
+    if (action === "waiver") {
+      state.selectedReviewReceipt = await submitA3ReviewWaiver({
+        ...base,
+        record: await loadJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json")
+      });
+    } else if (action === "approval") {
+      const waiver = await loadJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+      state.selectedReviewReceipt = await submitA3ReviewApproval({
+        ...base,
+        waiver,
+        record: await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json")
+      });
+    } else {
+      state.selectedReviewReceipt = await submitA3ReviewDenial({
+        ...base,
+        record: buildDashboardDenialRecord()
+      });
+    }
+    await refreshReviewWorkflowEvidence();
+  } catch (error) {
+    state.selectedReviewReceipt = {
+      schema_version: "a3.review_workflow_receipt.v1",
+      record_id: "submit_failed",
+      record_type: action,
+      status: "failed",
+      accepted: false,
+      payload_hash: null,
+      review_hash: null,
+      real_cloud_mutation_performed: false,
+      error_message: error.message
+    };
+    console.error(error);
+    renderReviewerWorkflowBoard();
+  }
+}
+
+function buildDashboardDenialRecord() {
+  const summary = buildDashboardSummary(state.runs, state.grades);
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: `denial-${summary.lastRunId || "local"}-dashboard`,
+    decision: "deny_release",
+    reason: "Human reviewer keeps this release blocked until failed A1 trace and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: summary.lastRunId || "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "dashboard-demo",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_dashboard_report",
+        path: "apps/dashboard",
+        sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      {
+        id: "a2_release_gate_report",
+        path: "fixtures/a2/results/a2_release_gate_report.json",
+        sha256: "2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    ]
+  };
+}
+
+async function refreshReviewWorkflowEvidence() {
+  state.reviewWorkflow = await fetchA3ReviewWorkflow({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  await refreshReportEvidence();
+  renderReviewerWorkflowBoard();
+  renderPrintReport();
+}
+
 async function refreshReportEvidence() {
   state.reportCenter = await fetchA3ReportCenter({
     source: state.source,
@@ -2531,10 +2679,21 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.usageLedger = await fetchA3UsageLedger({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.billingReadiness = await fetchA3BillingReadiness({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.saasRuntime.usage_ledger = state.usageLedger;
+  state.saasRuntime.billing_readiness = state.billingReadiness;
   renderReportCenter();
   renderProductConsole();
   renderReviewerWorkflowBoard();
   renderReleaseEvidenceSummary();
+  renderSaasRuntime();
   renderPrintReport();
 }
 
@@ -2580,6 +2739,7 @@ function applyApiDashboardPayload(payload) {
   state.enterpriseReadiness = payload.enterprise_readiness || {};
   state.productConsole = payload.product_console || {};
   state.usageLedger = payload.usage_ledger || {};
+  state.billingReadiness = payload.billing_readiness || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.reviewWorkflow = payload.review_workflow || {};
@@ -2600,6 +2760,9 @@ function applyApiDashboardPayload(payload) {
     source_label: payload.source_label,
     summary: payload.summary,
     usage_ledger: payload.usage_ledger
+      || state.usageLedger,
+    billing_readiness: payload.billing_readiness
+      || state.billingReadiness
   };
 }
 
@@ -2623,7 +2786,10 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/admin/actions",
         "POST /api/a3/review/waivers",
         "POST /api/a3/review/approvals",
+        "POST /api/a3/review/denials",
         "GET /api/a3/review/workflow",
+        "GET /api/a3/usage/ledger",
+        "GET /api/a3/billing/readiness",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",
@@ -2641,7 +2807,8 @@ function resetSaasRuntime(mode = "static_fixture") {
       migration_count: 0,
       statements: []
     },
-    usage_ledger: state.usageLedger || {}
+    usage_ledger: state.usageLedger || {},
+    billing_readiness: state.billingReadiness || {}
   };
 }
 
@@ -2679,6 +2846,7 @@ function refreshLocalUsageLedger() {
     ]
   };
   state.saasRuntime.usage_ledger = state.usageLedger;
+  state.saasRuntime.billing_readiness = state.billingReadiness;
 }
 
 function renderSaasAdmin() {
@@ -2870,6 +3038,10 @@ async function loadDataSource(source) {
         }
       };
     }
+    state.usageLedger = await fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() });
+    state.billingReadiness = await fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() });
+    state.saasRuntime.usage_ledger = state.usageLedger;
+    state.saasRuntime.billing_readiness = state.billingReadiness;
   } else if (source === "p3-media") {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");
@@ -3011,6 +3183,7 @@ function resetCalibrationState() {
   state.reportCenter = {};
   state.artifactRegistry = {};
   state.reviewWorkflow = {};
+  state.billingReadiness = {};
   state.releaseEvidence = {};
   state.releaseEvidenceReadbacks = {};
   state.githubPublishEvidence = {};

@@ -459,6 +459,15 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("POST /v1/release-gates/{release_gate_id}/denials", "A2/A3", "review_workflow", "POST /api/a3/review/denials", {
+    status: "implemented",
+    rbac: "reviewer_or_owner",
+    db: ["denials", "review_workflow_records", "audit_events"],
+    events: ["denial.recorded", "release_gate.denied"],
+    artifacts: ["denial_record", "denial_review"],
+    usage: ["api_requests"],
+    dependencies: ["A2 release policy", "A3 reviewer workflow"]
+  }),
   endpoint("GET /v1/evidence-bundles/{bundle_id}", "A1/A3", "audit_export", "GET /api/a3/artifacts/registry", {
     status: "read_only",
     rbac: "auditor",

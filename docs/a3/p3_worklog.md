@@ -1,5 +1,60 @@
 # P3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial / Human Action / Runtime Reads
+
+Continued A3 from the commercial SaaS strategy bus and focused on the next
+review/governance/runtime requirements.
+
+Implemented this round:
+
+- Added denial as the third reviewer action beside waiver and approval.
+- Added `POST /api/a3/review/denials` in the local A3 API server.
+- Added memory/file/SQLite store support for denial records.
+- Added `denial.submitted` metadata-only event-outbox evidence.
+- Added dashboard controls to record waiver, approval, and denial in API-backed
+  mode.
+- Added dashboard display of review receipts and human action counts.
+- Added API-backed usage ledger and billing readiness reads into dashboard
+  runtime refresh.
+- Added billing readiness rows to the SaaS Runtime panel.
+- Added denial to `a3.commercial_api_contract.v1`, OpenAPI, and the redacted
+  commercial API contract fixture.
+
+A1/A2 calibration:
+
+- A1 RunResult, TraceEvent, ToolCall, usage, auth, billing, and GitHub
+  publisher semantics were not modified.
+- A2 ReleaseGate and judge semantics remain authoritative. A3 denial records
+  describe human governance only and do not rewrite score/pass/fail/failure
+  classes.
+- GitHub publishing remains live-capable through the existing publisher module
+  but default-safe in this round: no live token was read and no live mutation was
+  performed.
+- Billing remains read-only in A3. No checkout, invoice, provider, quota, or
+  customer payment mutation was enabled.
+
+Verification:
+
+```text
+node --check apps\dashboard\src\app.mjs apps\dashboard\src\api-client.mjs apps\dashboard\src\components\saas-runtime-panel.mjs services\report\a3_review_workflow.mjs services\report\a3_store.mjs services\report\a3_sqlite_store.mjs services\report\a3_api_server.mjs services\report\a3_auth_rbac_boundary.mjs services\report\a3_commercial_api_contract.mjs services\report\report_builder.mjs
+node --test tests\a3\*.mjs
+npm.cmd run test:e2e
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+
+- Syntax checks passed.
+- Focused A3 tests: 96 passed, 0 failed.
+- Full A3 Node suite: 243 passed, 0 failed.
+- Playwright E2E: 9 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and Playwright transient output remain ignored.
+
 ## 2026-07-09 - Commercial Growth Round 5 Billing/Usage Readiness Contract
 
 Continued from PR #25 / `codex/a3-commercial-growth-round4` after syncing

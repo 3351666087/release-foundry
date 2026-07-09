@@ -133,8 +133,16 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
       waiver,
       generatedAt: "2026-07-07T12:00:00.000Z"
     });
+    const denialReceipt = await store.submitReviewDenial(buildDenialFixture(), {
+      source: "mock",
+      generatedAt: "2026-07-07T12:00:00.000Z",
+      releaseVersion: "local-mock-commercial-gate",
+      environment: "staging",
+      headSha: "local-demo-head-sha"
+    });
     assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
     assert.equal(approvalReceipt.status, "valid_exception_approval");
+    assert.equal(denialReceipt.status, "valid_denial");
 
     const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
     const readbackReceipt = await store.submitReleaseEvidenceReadback("current", {
@@ -158,7 +166,7 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(inspection.operational_tables.report_view_events, 1);
     assert.equal(inspection.operational_tables.report_revocations, 1);
     assert.equal(inspection.operational_tables.saas_admin_action_requests, 1);
-    assert.equal(inspection.operational_tables.review_workflow_records, 2);
+    assert.equal(inspection.operational_tables.review_workflow_records, 3);
     assert.equal(inspection.operational_tables.release_evidence_summaries, 1);
     assert.equal(inspection.operational_tables.release_evidence_snapshots, 1);
     assert.equal(inspection.operational_tables.release_evidence_diffs, 1);
@@ -193,8 +201,9 @@ test("A3 SQLite store persists A1/A2 imports, reports, audit events, and usage r
     assert.equal(savedAdminActions.summary.request_count, 1);
     assert.doesNotMatch(JSON.stringify(savedAdminActions), new RegExp(["trust-admin", "example.com"].join("@")));
     const savedReviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
-    assert.equal(savedReviewWorkflow.record_count, 2);
-    assert.equal(savedReviewWorkflow.accepted_count, 2);
+    assert.equal(savedReviewWorkflow.record_count, 3);
+    assert.equal(savedReviewWorkflow.denial_count, 1);
+    assert.equal(savedReviewWorkflow.accepted_count, 3);
     const savedReadbacks = await store.listReleaseEvidenceReadbacks("current", { source: "mock" });
     assert.equal(savedReadbacks.readback_count, 1);
     assert.equal(savedReadbacks.readbacks[0].readback_id, "ghcrb_sqlite_captured");
@@ -265,4 +274,30 @@ async function getJson(url) {
   const response = await fetch(url);
   assert.equal(response.ok, true, `${url} returned ${response.status}`);
   return response.json();
+}
+
+function buildDenialFixture() {
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: "denial-local-blocked-001",
+    decision: "deny_release",
+    reason: "Release remains blocked until failed A1 traces and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "sqlite-test",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_gate_cli_report",
+        path: "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+        sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ]
+  };
 }

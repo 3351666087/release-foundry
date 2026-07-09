@@ -42,6 +42,7 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "GET /v1/runs/{run_id}",
     "POST /v1/release-gates/evaluate",
     "POST /v1/release-gates/{release_gate_id}/approvals",
+    "POST /v1/release-gates/{release_gate_id}/denials",
     "POST /v1/reports/{report_id}/share",
     "GET /v1/usage",
     "POST /v1/billing/checkout"
@@ -101,6 +102,7 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
     assert.equal(payload.tenant_scope.project_id, "project-local");
     assert.equal(payload.tenant_scope.environment_id, "staging");
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.route === "GET /v1/usage"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/review/denials"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/billing/readiness"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("payload_hash"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("tenant_id"), true);

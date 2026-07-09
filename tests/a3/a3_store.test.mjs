@@ -252,11 +252,22 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(approvalReceipt.status, "valid_exception_approval");
   assert.equal(approvalReceipt.accepted, true);
 
+  const denialReceipt = await store.submitReviewDenial(buildDenialFixture(), {
+    source: "mock",
+    generatedAt: "2026-07-07T12:00:00.000Z",
+    releaseVersion: "local-mock-commercial-gate",
+    environment: "staging",
+    headSha: "local-demo-head-sha"
+  });
+  assert.equal(denialReceipt.status, "valid_denial");
+  assert.equal(denialReceipt.accepted, true);
+
   const reviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
   assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
-  assert.equal(reviewWorkflow.record_count, 2);
+  assert.equal(reviewWorkflow.record_count, 3);
   assert.equal(reviewWorkflow.waiver_count, 1);
   assert.equal(reviewWorkflow.approval_count, 1);
+  assert.equal(reviewWorkflow.denial_count, 1);
   assert.equal(reviewWorkflow.durable_storage_ready, true);
 
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
@@ -459,8 +470,17 @@ test("A3 store records metadata-only event outbox rows for SaaS write paths", as
     generatedAt: "2026-07-09T08:25:00.000Z",
     idempotencyKey: "idem-outbox-approval-1"
   });
+  const denialReceipt = await store.submitReviewDenial(buildDenialFixture(), {
+    source: "mock",
+    generatedAt: "2026-07-09T08:27:00.000Z",
+    releaseVersion: "local-mock-commercial-gate",
+    environment: "staging",
+    headSha: "local-demo-head-sha",
+    idempotencyKey: "idem-outbox-denial-1"
+  });
   assert.equal(waiverReceipt.event_envelope.event_type, "waiver.submitted");
   assert.equal(approvalReceipt.event_envelope.event_type, "approval.submitted");
+  assert.equal(denialReceipt.event_envelope.event_type, "denial.submitted");
 
   const readback = await importJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
   const readbackReceipt = await store.submitReleaseEvidenceReadback("current", readback, {
@@ -473,11 +493,12 @@ test("A3 store records metadata-only event outbox rows for SaaS write paths", as
 
   const outbox = await store.listEventOutbox({ source: "mock" });
   assert.equal(outbox.schema_version, "a3.event_outbox_list.v1");
-  assert.equal(outbox.event_count, 7);
+  assert.equal(outbox.event_count, 8);
   assert.equal(outbox.safety.metadata_only, true);
   assert.deepEqual(Object.keys(outbox.event_type_counts).sort(), [
     "admin.action_requested",
     "approval.submitted",
+    "denial.submitted",
     "release_evidence.readback_captured",
     "report.revoked",
     "report.share_link_created",
@@ -490,7 +511,7 @@ test("A3 store records metadata-only event outbox rows for SaaS write paths", as
 
   const dashboard = await store.getDashboardSnapshot("mock");
   assert.equal(dashboard.event_outbox.schema_version, "a3.event_outbox_dashboard.v1");
-  assert.equal(dashboard.event_outbox.event_count, 7);
+  assert.equal(dashboard.event_outbox.event_count, 8);
   assert.match(dashboard.event_outbox.a1_a2_boundary, /A1 RunResult/);
 });
 
@@ -613,3 +634,29 @@ test("A3 file-backed store persists shareable report metadata without a real DB 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function buildDenialFixture() {
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: "denial-local-blocked-001",
+    decision: "deny_release",
+    reason: "Release remains blocked until failed A1 traces and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "unit-test",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_gate_cli_report",
+        path: "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+        sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ]
+  };
+}
