@@ -1655,3 +1655,11 @@ Additional validation after Bus-Auditor fixes:
 - `python scripts/cl_guard.py hygiene` -> passed, no findings.
 - `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
 - `git diff --check` -> passed with CRLF normalization warnings only.
+
+### Round43 CI fixture refresh - 2026-07-10T01:05:00Z
+
+- GitHub Actions run `29031592365` failed only in `Python A1/A2 contracts`; Go and TypeScript were green.
+- Failure cause: A1 public evidence index advanced from `a1-real-api-round40-history-plus-paid-media-gate` / `399` records to `a1-real-api-round43-readonly-refresh` / `400` records, so generated A2 reports consuming A1 evidence were stale.
+- Fix: ran `python scripts/a2_regenerate_fixtures.py --write`, then staged only the four generated report files with real content diffs: `a2_commercial_readiness_report.json`, `a2_evidence_readiness_report.json`, `a2_release_gate_report.json`, and `a2_result_persistence_manifest.json`.
+- Verification: `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match; `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> `52 passed`.
+- No A2 judge semantics or source code changed; this is generated fixture alignment required by the A1 evidence label refresh.
