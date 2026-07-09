@@ -1126,3 +1126,50 @@ Next 20 A1 growth points:
 18. Add official Ashr mutating text baseline after quota reset or plan change, then paid image/audio/file/video one modality at a time.
 19. Add GitHub/Google OAuth user/session schema slice with state/nonce storage and no client secrets.
 20. Add commercial evidence report tying release gate, billing ledger, usage, and audit chain for enterprise review.
+
+
+## Round36 durable billing ledger migration - 2026-07-09T13:16:57Z
+
+Baseline and peer impact:
+- Started after PR #27 head `f8ee9564` was pushed. GitHub CL Gate for that head passed Plan/hygiene, Go SDK/integration, Python A1/A2, and TypeScript SDK parity; summary was queued at the first check and then expected to settle.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed A3 branch `origin/codex/a3-commercial-growth-round4` advance; no A2/A3 files were modified or staged by A1.
+- Local C: drive reached 0 bytes free during this slice. Reclaimed only regenerateable project/tool caches (`node_modules`, `dist`, `__pycache__`, `.pytest_cache`, npm logs). No source, evidence, private refs, or project-external important data was deleted.
+
+Implemented:
+- Added `services/api/migrations/002_a1_billing_ledger.sql`, a durable Postgres migration for A1 billing accounts, provider webhook replay/idempotency rows, immutable billing ledger rows, RLS policies, indexes, and helper functions.
+- Added `docs/a1/schemas/a1_billing_ledger_migration_manifest.json` documenting the migration contract, supported providers/modes/currencies/events, replay semantics, and public-safety posture.
+- Added `tests/a1/test_billing_ledger_migration_manifest.py` to statically verify table order, required columns/indexes/constraints, forced RLS, provider event duplicate/conflict function fragments, ledger summary fragments, and absence of raw provider payload/secret/card columns.
+
+Commercial value:
+- Moves billing from in-memory SDK contract toward a real SaaS backend substrate: tenant-scoped billing accounts, replay-safe provider event ingestion, append-only revenue/usage ledger, and SQL-level secret/payload guardrails.
+- Still does not execute real payment providers or handle card data. Live payment remains blocked until provider onboarding, endpoint setup, and human-confirmed live execution plan exist.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py -q -p no:cacheprovider` -> `5 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> `16 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider` -> `15 passed` after local cache cleanup.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+- TS full local rerun was not possible after local cache cleanup because C: had only a few MB free and reinstalling `packages/ts/ashr-clone/node_modules` failed with `ENOSPC`. This slice does not modify TS files; PR #27 previous head TS CI was green and GitHub CI should remain the authoritative TS validation for pushed SQL/Python-only changes.
+
+Next 20 A1 growth points:
+1. Add live Postgres opt-in test applying migrations 001+002 and exercising `ingest_billing_provider_event` duplicate/conflict paths.
+2. Add RLS live tenant A/B negative proof for `billing_accounts`, `billing_provider_events`, and `billing_ledger_events`.
+3. Add Go repository methods for billing account upsert, provider event ingest, and ledger summary using migration 002.
+4. Add Go HTTP routes for billing checkout plan, portal plan, webhook ingest, and ledger readback.
+5. Add OpenAPI schemas/scopes for `billing:read`, `billing:write`, and `billing:webhook`.
+6. Add Python hosted SDK methods for billing routes once route contract lands.
+7. Add TS hosted client billing route wrappers after Go OpenAPI pin.
+8. Add worker daemon step that normalizes provider webhook rows into ledger rows with retry/dead-letter semantics.
+9. Add billing ledger evidence bundle object storage linkage.
+10. Add release evidence packet reference to billing evidence snapshot hash.
+11. Add refund/cancel out-of-order SQL tests.
+12. Add stale timestamp and signature-shape provider event guardrails.
+13. Add WeChat Pay API v3 signer contract using fake private-key ref only.
+14. Add Alipay signer contract using fake app-private-key ref only.
+15. Add Stripe test-mode executor dry-run plan and explicit env-only credential presence probe.
+16. Add CLI billing dry-run/readback commands.
+17. Add Terraform/HCL billing secret refs/webhook endpoint skeleton.
+18. Move local TS dependency/cache strategy to D: or a junction so C: ENOSPC stops blocking local full TS validation.
+19. Add official Ashr read-only calibration comparison against dashboard/usage copy if exposed.
+20. After Ashr quota reset or plan change, run successful text mutation then paid media probes one modality at a time.

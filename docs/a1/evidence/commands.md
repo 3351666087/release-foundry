@@ -1475,3 +1475,15 @@ Results:
 - `git diff --check`: pass.
 - `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json`: official Ashr API read-only small batch succeeded, 5 read steps, no mutating steps, raw record private/ignored.
 - `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json --output docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json`: wrote public-safe summary.
+
+
+## Round36 commands - 2026-07-09T13:16:57Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: fetched remote branches; observed A3 branch update only.
+- `gh pr view 27 --json ...` / `gh pr checks 27 --watch=false`: PR #27 head `f8ee9564`; Plan/hygiene, Go, Python, and TypeScript passed; summary queued at inspection time.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py -q -p no:cacheprovider`: `5 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: `16 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider`: `15 passed`.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- Environment note: `Get-PSDrive` showed C: at 0 bytes free. Removed regenerateable workspace/tool caches only. Reinstalling TS package dependencies with npm cache on D: still failed because `node_modules` target remains on C:. No source/evidence/private refs were deleted.

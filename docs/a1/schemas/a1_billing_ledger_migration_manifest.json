@@ -1,0 +1,54 @@
+{
+  "schema_version": "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+  "version": 2,
+  "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+  "commercial_purpose": "Durable provider webhook idempotency and append-only billing ledger for A1 SaaS backend readiness.",
+  "tables": [
+    {
+      "name": "billing_accounts",
+      "tenant_column": "organization_id",
+      "rls_policy": "billing_accounts_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "provider", "mode", "customer_ref", "account_ref", "status", "metadata", "created_at", "updated_at", "deleted_at"],
+      "required_indexes": ["idx_billing_accounts_scope"],
+      "required_constraints": ["billing_accounts_provider_customer_key", "billing_accounts_no_raw_secret"]
+    },
+    {
+      "name": "billing_provider_events",
+      "tenant_column": "organization_id",
+      "rls_policy": "billing_provider_events_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "billing_account_id", "provider", "mode", "provider_event_id", "provider_event_type", "payload_sha256", "signature_verified", "replay_status", "ledger_event_id", "raw_payload_included", "metadata", "created_at"],
+      "required_indexes": ["idx_billing_provider_events_scope_created", "idx_billing_provider_events_replay"],
+      "required_constraints": ["billing_provider_events_event_key", "billing_provider_events_no_raw_secret"]
+    },
+    {
+      "name": "billing_ledger_events",
+      "tenant_column": "organization_id",
+      "rls_policy": "billing_ledger_events_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "billing_account_id", "provider_event_id", "event_type", "provider", "mode", "provider_event_ref", "customer_ref", "invoice_ref", "amount_minor", "currency", "usage_units", "metadata", "created_at"],
+      "required_indexes": ["idx_billing_ledger_events_scope_created", "idx_billing_ledger_events_type_currency"],
+      "required_constraints": ["billing_ledger_events_amount_check", "billing_ledger_events_no_raw_secret"]
+    }
+  ],
+  "provider_event_types": ["checkout.session.completed", "checkout.session.async_payment_succeeded", "invoice.paid", "charge.refunded", "refund.created", "customer.subscription.deleted", "wechat_pay.transaction.success", "wechat_pay.refund.success", "alipay.trade.success", "alipay.trade.refund.success", "ashr.usage.reconciled"],
+  "ledger_event_types": ["checkout_created", "invoice_paid", "refund_created", "subscription_canceled", "usage_reconciled"],
+  "providers": ["stripe", "wechat_pay", "alipay"],
+  "modes": ["test", "live"],
+  "currencies": ["usd", "cny"],
+  "required_functions": {
+    "normalize_billing_event_type": {
+      "must_contain": ["invoice.paid", "invoice_paid", "wechat_pay.transaction.success", "alipay.trade.success"]
+    },
+    "ingest_billing_provider_event": {
+      "must_contain": ["payload_sha256 must be a sha256 hex digest", "replay_status := 'duplicate'", "replay_status := 'conflict'", "ledger_mutation_count := 1", "billing metadata must not contain raw provider secrets"]
+    },
+    "summarize_billing_ledger": {
+      "must_contain": ["SUM(l.amount_minor)", "SUM(l.usage_units)", "provider_event_count"]
+    }
+  },
+  "public_safety": {
+    "raw_provider_payload_stored": false,
+    "raw_provider_secret_stored": false,
+    "raw_card_data_stored": false,
+    "provider_calls_executed": false
+  }
+}
