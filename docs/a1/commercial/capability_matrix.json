@@ -221,10 +221,10 @@
           "status_code"
         ],
         "planned_count": 18,
-        "quota_block_count": 13,
-        "real_error_count": 15,
+        "quota_block_count": 14,
+        "real_error_count": 16,
         "real_ok_count": 2,
-        "records": 35,
+        "records": 36,
         "response_keys": [
           "_user",
           "plan",
@@ -235,7 +235,7 @@
           200
         ],
         "status_counts": {
-          "error": 15,
+          "error": 16,
           "ok": 2,
           "planned": 18
         }
@@ -1740,17 +1740,17 @@
       "category": "api_function",
       "evidence": {
         "error_keys": [],
-        "planned_count": 3,
+        "planned_count": 4,
         "quota_block_count": 0,
         "real_error_count": 0,
         "real_ok_count": 0,
-        "records": 3,
+        "records": 4,
         "response_keys": [
           "plan"
         ],
         "status_codes": [],
         "status_counts": {
-          "blocked": 2,
+          "blocked": 3,
           "planned": 1
         }
       },
@@ -2042,10 +2042,10 @@
     },
     "public_evidence": {
       "function_count": 15,
-      "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
-      "quota_block_count": 43,
+      "label": "a2-real-api-2026-07-09-readonly-and-quota-gated-create-request",
+      "quota_block_count": 44,
       "schema_version": "ashr.clone.evidence_index.v1",
-      "total_records": 368
+      "total_records": 370
     }
   },
   "summary": {

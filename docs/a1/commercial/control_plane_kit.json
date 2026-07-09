@@ -96,7 +96,7 @@
   "schema_version": "ashr.clone.commercial_control_plane.v1",
   "source_labels": {
     "capability_matrix": "ashr.clone.capability_matrix.v1",
-    "evidence_index": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "evidence_index": "a2-real-api-2026-07-09-readonly-and-quota-gated-create-request",
     "frontend_mirror": "ashr.clone.frontend_mirror_index.v1"
   },
   "usage_billing_snapshot": {
