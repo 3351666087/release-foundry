@@ -203,3 +203,52 @@ def test_release_evidence_packet_closes_run_gate_webhook_loop_without_raw_payloa
     leaked["evidence_items"].append({"name": "bad", "api_key": "redacted-by-test"})
     leaked_verification = verify_release_evidence_packet(leaked)
     assert any(failure["reason"] == "suspicious_field_present" and failure["path"].endswith(".api_key") for failure in leaked_verification["failures"])
+
+    bundle = store.put_evidence_bundle(
+        tenant_id="tenant_packet",
+        project_id="project_packet",
+        run_id="run_packet",
+        packet=packet,
+        bundle_id="bundle_packet",
+        metadata={"release_gate": "passed", "retention": "enterprise_audit"},
+    )
+    bundle_text = json.dumps(bundle, sort_keys=True)
+    assert bundle["schema_version"] == "ashr.clone.evidence_bundle_object.v1"
+    assert bundle["bundle_id"] == "bundle_packet"
+    assert bundle["packet_sha256"] == packet["integrity"]["packet_sha256"]
+    assert bundle["object_key"] == "evidence-bundles/tenant_packet/project_packet/run_packet/bundle_packet.json"
+    assert bundle["storage_uri"] == "local://object-store/evidence-bundles/tenant_packet/project_packet/run_packet/bundle_packet.json"
+    assert bundle["evidence_item_count"] == len(packet["evidence_items"])
+    assert bundle["raw_payload_included"] is False
+    assert bundle["secret_value_present"] is False
+    assert "private artifact payload" not in bundle_text
+    assert "customer secret" not in bundle_text
+    assert "tp_delivery_secret" not in bundle_text
+
+    stored_verification = store.verify_stored_evidence_bundle(
+        tenant_id="tenant_packet",
+        project_id="project_packet",
+        bundle_id="bundle_packet",
+        expected_packet_sha256=packet["integrity"]["packet_sha256"],
+    )
+    assert stored_verification["verified"] is True
+    assert stored_verification["object_key"] == bundle["object_key"]
+
+    wrong_tenant = store.verify_stored_evidence_bundle(tenant_id="tenant_other", project_id="project_packet", bundle_id="bundle_packet")
+    assert wrong_tenant["verified"] is False
+    assert wrong_tenant["failures"][0]["reason"] == "tenant_project_mismatch"
+
+    wrong_hash = store.verify_stored_evidence_bundle(
+        tenant_id="tenant_packet",
+        project_id="project_packet",
+        bundle_id="bundle_packet",
+        expected_packet_sha256="0" * 64,
+    )
+    assert wrong_hash["verified"] is False
+    assert wrong_hash["failures"][0]["reason"] == "packet_sha256_mismatch"
+
+    manifest_after_bundle = store.public_manifest("tenant_packet", "project_packet")
+    assert manifest_after_bundle["evidence_bundles"][0]["bundle_id"] == "bundle_packet"
+
+    with pytest.raises(ValidationError):
+        store.put_evidence_bundle(tenant_id="tenant_packet", project_id="project_packet", run_id="run_packet", packet=tampered)

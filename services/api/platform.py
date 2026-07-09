@@ -93,6 +93,7 @@ def platform_sql_migration_text() -> str:
 class LocalObjectStore:
     artifacts: dict[str, JsonDict] = field(default_factory=dict)
     signed_urls: dict[str, JsonDict] = field(default_factory=dict)
+    evidence_bundles: dict[str, JsonDict] = field(default_factory=dict)
 
     def put_artifact(
         self,
@@ -153,7 +154,86 @@ class LocalObjectStore:
 
     def public_manifest(self, tenant_id: str, project_id: str) -> JsonDict:
         artifacts = [item for item in self.artifacts.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
-        return {"schema_version": PLATFORM_SCHEMA_VERSION, "tenant_id": str(tenant_id), "project_id": str(project_id), "artifacts": _jsonable(artifacts)}
+        bundles = [item for item in self.evidence_bundles.values() if item.get("tenant_id") == str(tenant_id) and item.get("project_id") == str(project_id)]
+        return {"schema_version": PLATFORM_SCHEMA_VERSION, "tenant_id": str(tenant_id), "project_id": str(project_id), "artifacts": _jsonable(artifacts), "evidence_bundles": _jsonable(bundles)}
+
+    def put_evidence_bundle(
+        self,
+        *,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        packet: Mapping[str, Any],
+        bundle_id: str | None = None,
+        storage_prefix: str = "evidence-bundles",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        packet_payload = _jsonable(dict(packet))
+        verification = verify_release_evidence_packet(packet_payload)
+        if not verification["verified"]:
+            raise ValidationError("release evidence packet must verify before storage")
+        if str(packet_payload.get("tenant_id")) != str(tenant_id) or str(packet_payload.get("project_id")) != str(project_id) or str(packet_payload.get("run_id")) != str(run_id):
+            raise ValidationError("release evidence packet tenant/project/run does not match storage target")
+        bundle_id = bundle_id or _new_id("bundle")
+        if bundle_id in self.evidence_bundles:
+            raise ValidationError(f"evidence bundle already exists: {bundle_id}")
+        encoded = json.dumps(packet_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        bundle_sha256 = hashlib.sha256(encoded).hexdigest()
+        object_key = "/".join(
+            part.strip("/")
+            for part in [storage_prefix, str(tenant_id), str(project_id), str(run_id), f"{bundle_id}.json"]
+            if str(part).strip("/")
+        )
+        record = {
+            "schema_version": "ashr.clone.evidence_bundle_object.v1",
+            "bundle_id": bundle_id,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "run_id": str(run_id),
+            "packet_id": packet_payload.get("packet_id"),
+            "packet_sha256": verification.get("packet_sha256"),
+            "bundle_sha256": bundle_sha256,
+            "object_key": object_key,
+            "storage_uri": f"local://object-store/{object_key}",
+            "content_type": "application/json",
+            "size_bytes": len(encoded),
+            "evidence_item_count": len(_list_or_empty(packet_payload.get("evidence_items"))),
+            "raw_payload_included": False,
+            "secret_value_present": False,
+            "verification": verification,
+            "metadata": _jsonable(dict(metadata or {})),
+            "created_at": _utc_now(),
+        }
+        self.evidence_bundles[bundle_id] = record
+        return _jsonable(record)
+
+    def verify_stored_evidence_bundle(self, *, tenant_id: str, project_id: str, bundle_id: str, expected_packet_sha256: str | None = None) -> JsonDict:
+        record = self.evidence_bundles.get(bundle_id)
+        failures: list[JsonDict] = []
+        if record is None:
+            raise ValidationError(f"evidence bundle not found: {bundle_id}")
+        if record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
+            failures.append({"reason": "tenant_project_mismatch"})
+        if expected_packet_sha256 is not None and record.get("packet_sha256") != expected_packet_sha256:
+            failures.append({"reason": "packet_sha256_mismatch", "expected": expected_packet_sha256, "actual": record.get("packet_sha256")})
+        if record.get("raw_payload_included"):
+            failures.append({"reason": "raw_payload_included"})
+        if record.get("secret_value_present"):
+            failures.append({"reason": "secret_value_present"})
+        if not record.get("object_key") or not str(record.get("storage_uri", "")).startswith("local://object-store/"):
+            failures.append({"reason": "storage_reference_missing"})
+        return {
+            "schema_version": "ashr.clone.evidence_bundle_object_verification.v1",
+            "verified": not failures,
+            "bundle_id": bundle_id,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "packet_sha256": record.get("packet_sha256"),
+            "bundle_sha256": record.get("bundle_sha256"),
+            "object_key": record.get("object_key"),
+            "storage_uri": record.get("storage_uri"),
+            "failures": failures,
+        }
 
 
 @dataclass(slots=True)

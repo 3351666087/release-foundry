@@ -1020,3 +1020,55 @@ Next 20 A1 growth points:
 18. Add official API successful text mutation baseline after quota reset/plan update.
 19. Add paid image/audio/file/video calibration, one modality per audited batch after text success.
 20. Add release evidence bundle storage/readback path wired to quota/audit.
+
+
+## Round34 Python Bearer/object storage/billing readiness - 2026-07-09T12:40:07Z
+
+Baseline and peer impact:
+- Worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains PR #27 branch `codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed remote A3 update `codex/a3-commercial-growth-round4` only; no peer files were staged or modified by A1.
+- `gh pr checks 27 --watch=false` for prior head `bac5eca3` was green: CL Gate summary, Go SDK/integration, Python A1/A2, TypeScript SDK parity, Plan/hygiene passed; A3/Rust skipped by rule.
+- Growth-Auditor read-only review confirmed current A1 diff aligns with Python Bearer parity and object evidence storage first; billing is acceptable only as A1 backend contract/test-mode readiness, not live payment activation.
+
+Implemented:
+- Python SaaS SDK hosted Bearer parity: `api_key_secret` / `bearer_api_key` options send `Authorization: Bearer ...` through HTTP headers only, reject ambiguous options, reject Bearer options in local mode, and keep raw `api_key=` body material blocked.
+- A1 platform object storage now records and verifies public-safe release evidence bundles with packet hash, object key, storage URI, redaction flags, and tenant/project/run checks.
+- Added provider-neutral billing contract module for hosted Stripe Checkout/Billing Portal and hosted WeChat Pay/Alipay plans. It supports test/live modes, live-mode ack guardrails, `secret_ref` indirection, webhook envelope hash verification, provider manifest, and raw card/raw secret rejection.
+- Exported billing contract APIs from `services.api` without adding A3 UI or touching real payment providers.
+
+Official/payment calibration:
+- Consulted current official docs for Stripe API keys/authentication, Stripe payment method support for Checkout/Alipay/WeChat Pay, WeChat Pay Native `/v3/pay/transactions/native`, and Alipay trade APIs.
+- No Stripe/WeChat/Alipay provider API call was made; this round intentionally stays plan-only because real payment onboarding, account verification, webhook endpoint setup, and any real-card/live charge require explicit human-controlled provider actions.
+- No Ashr official mutating call was repeated in this sub-slice; previous private evidence already records a quota boundary on first text mutation, so this round avoided duplicate failed paid/media attempts.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_platform.py tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `47 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `365 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `328 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass after trimming `services/api/__init__.py` EOF whitespace.
+- A mistaken `go test ./...` from repository root failed with the known multi-module error `directory prefix . does not contain main module`; reran the two Go modules directly and both passed.
+
+Next 20 A1 growth points:
+1. Add billing ledger table/schema slice for checkout-created, invoice-paid, refund, cancellation, and usage meter reconciliation.
+2. Add billing webhook idempotency store with duplicate provider event replay tests.
+3. Add Stripe test-mode executor behind explicit env-only provider credentials, still defaulting to dry-run.
+4. Add WeChat Pay API v3 request signer contract and fake-signature verifier tests.
+5. Add Alipay request signer contract and fake-signature verifier tests.
+6. Add Go billing API routes for plan checkout, portal plan, webhook ingest, and ledger readback.
+7. Add Postgres RLS tests for billing accounts/provider events/ledger rows tenant isolation.
+8. Add OpenAPI billing schemas and scope manifest entries for `billing:read`, `billing:write`, `billing:webhook`.
+9. Add TS billing client parity for the Python billing contract.
+10. Add CLI `ashr billing plan-checkout` dry-run command with public-safe output.
+11. Add object storage backing for signed billing evidence bundle attachments.
+12. Add worker job for provider webhook normalization into usage/billing ledger.
+13. Add quota-to-invoice rollup proof from existing usage ledger snapshots.
+14. Add tenant/project/customer lifecycle mapping with customer refs and provider account refs.
+15. Add official Ashr API read-only usage/quota calibration if exposed in dashboard/API.
+16. After Ashr quota reset or plan change, rerun one successful official text mutation baseline, then paid image/audio/file/video one modality at a time.
+17. Add OAuth/session schema slice for GitHub/Google identity linking without secrets.
+18. Add Docker compose service profile with API, Postgres, Redis/Valkey, MinIO, and worker.
+19. Add Terraform/HCL skeleton for Postgres/object storage/secret refs, no real credentials.
+20. Add release evidence packet link from billing ledger to run/release audit chain.

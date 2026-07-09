@@ -15,7 +15,7 @@ BLOCKED_CONTROL_PLANE_PATH_PARTS = {".secrets", "private_refs"}
 
 HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "GET /v1/projects/{project_id}/api-keys": ("api_key:read",),
-    "GET /v1/projects/{project_id}/api-keys/rate-limits": (),
+    "GET /v1/projects/{project_id}/api-keys/rate-limits": ("api_key:read",),
     "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("evidence:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ("run:lifecycle:read",),
@@ -211,8 +211,11 @@ class SaaSIngestionClient:
         auth_key_id: str | None = None,
         reveal_secret: bool = False,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
             return self._request(
                 "create_api_key",
@@ -225,7 +228,9 @@ class SaaSIngestionClient:
                     "auth_key_id": auth_key_id,
                     "reveal_secret": bool(reveal_secret),
                 },
+                headers=auth_headers,
             )
+        _reject_hosted_bearer_headers(auth_headers)
         result = self.service.create_api_key(
             tenant_id,
             project_id,
@@ -237,16 +242,20 @@ class SaaSIngestionClient:
         )
         return _envelope("create_api_key", result)
 
-    def list_api_keys(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
+    def list_api_keys(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
-            return self._request("list_api_keys", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id})
+            return self._request("list_api_keys", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("list_api_keys", {"api_keys": self.service.list_api_keys(tenant_id, project_id, auth_key_id=auth_key_id)})
 
-    def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str, *, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
+    def revoke_api_key(self, tenant_id: str, project_id: str, key_id: str, *, auth_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
-            return self._request("revoke_api_key", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "auth_key_id": auth_key_id})
+            return self._request("revoke_api_key", {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("revoke_api_key", self.service.revoke_api_key(tenant_id, project_id, key_id, auth_key_id=auth_key_id))
 
     def verify_api_key_secret(
@@ -273,13 +282,18 @@ class SaaSIngestionClient:
         period: str = "local-window",
         auth_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
             return self._request(
                 "configure_api_key_rate_limit",
                 {"tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "operation": operation, "limit": int(limit), "period": period, "auth_key_id": auth_key_id},
+                headers=auth_headers,
             )
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope(
             "configure_api_key_rate_limit",
             self.service.configure_api_key_rate_limit(tenant_id, project_id, key_id=key_id, operation=operation, limit=int(limit), period=period, auth_key_id=auth_key_id),
@@ -301,10 +315,13 @@ class SaaSIngestionClient:
         metadata: Mapping[str, Any] | None = None,
         api_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
             return self._request(
                 "sdk_submit",
@@ -319,7 +336,9 @@ class SaaSIngestionClient:
                     "idempotency_key": idempotency_key,
                     "request_id": request_id,
                 },
+                headers=auth_headers,
             )
+        _reject_hosted_bearer_headers(auth_headers)
         result = self.service.sdk_submit_run(
             tenant_id,
             project_id,
@@ -343,10 +362,13 @@ class SaaSIngestionClient:
         upload_id: str | None = None,
         api_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
             return self._request(
                 "upload_run",
@@ -360,7 +382,9 @@ class SaaSIngestionClient:
                     "idempotency_key": idempotency_key,
                     "request_id": request_id,
                 },
+                headers=auth_headers,
             )
+        _reject_hosted_bearer_headers(auth_headers)
         upload = self.service.upload_run_result(
             tenant_id,
             project_id,
@@ -383,10 +407,13 @@ class SaaSIngestionClient:
         batch_id: str | None = None,
         api_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
             return self._request(
                 "ingest_trace",
@@ -400,7 +427,9 @@ class SaaSIngestionClient:
                     "idempotency_key": idempotency_key,
                     "request_id": request_id,
                 },
+                headers=auth_headers,
             )
+        _reject_hosted_bearer_headers(auth_headers)
         result = self.service.ingest_trace(
             tenant_id,
             project_id,
@@ -423,9 +452,11 @@ class SaaSIngestionClient:
             return self._request("quota_snapshot", {"tenant_id": tenant_id, "project_id": project_id})
         return _envelope("quota_snapshot", self.service.cloud.quota_snapshot(tenant_id, project_id))
 
-    def usage_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+    def usage_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
-            return self._request("usage_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id})
+            return self._request("usage_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("usage_snapshot", self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id))
 
     def audit_log(
@@ -441,8 +472,11 @@ class SaaSIngestionClient:
         api_key_id: str | None = None,
         limit: int | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {
             "tenant_id": tenant_id,
             "project_id": project_id,
@@ -455,7 +489,8 @@ class SaaSIngestionClient:
             "limit": limit,
         }
         if self.uses_http:
-            return self._request("audit_log", payload)
+            return self._request("audit_log", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         snapshot = dict(
             self.service.audit_snapshot(
                 tenant_id,
@@ -479,17 +514,23 @@ class SaaSIngestionClient:
         *,
         artifact_id: str | None = None,
         api_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "manifest": dict(manifest), "artifact_id": artifact_id, "api_key_id": api_key_id, "idempotency_key": idempotency_key, "request_id": request_id}
         if self.uses_http:
-            return self._request("create_artifact_manifest", payload)
+            return self._request("create_artifact_manifest", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("create_artifact_manifest", self.service.create_artifact_manifest(tenant_id, project_id, run_id, dict(manifest), artifact_id=artifact_id, api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id))
 
-    def list_artifact_manifests(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+    def list_artifact_manifests(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
-            return self._request("list_artifact_manifests", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id})
+            return self._request("list_artifact_manifests", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("list_artifact_manifests", {"artifact_manifests": self.service.list_artifact_manifests(tenant_id, project_id, run_id, auth_key_id=auth_key_id)})
 
     def enqueue_worker_job(
@@ -505,13 +546,17 @@ class SaaSIngestionClient:
         max_attempts: int = 3,
         api_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         request_payload = {"tenant_id": tenant_id, "project_id": project_id, "job_type": job_type, "target_id": target_id, "payload": dict(payload or {}), "job_id": job_id, "priority": int(priority), "max_attempts": int(max_attempts), "api_key_id": api_key_id, "idempotency_key": idempotency_key, "request_id": request_id}
         if self.uses_http:
-            return self._request("enqueue_worker_job", request_payload)
+            return self._request("enqueue_worker_job", request_payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("enqueue_worker_job", self.service.enqueue_worker_job(tenant_id, project_id, job_type=job_type, target_id=target_id, payload=dict(payload or {}), job_id=job_id, priority=int(priority), max_attempts=int(max_attempts), api_key_id=api_key_id, idempotency_key=idempotency_key, request_id=request_id))
 
     def lease_worker_job(
@@ -524,40 +569,52 @@ class SaaSIngestionClient:
         job_type: str | None = None,
         api_key_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
         request_id: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "lease_owner_id": lease_owner_id, "lease_seconds": float(lease_seconds), "job_type": job_type, "api_key_id": api_key_id, "request_id": request_id}
         if self.uses_http:
-            return self._request("lease_worker_job", payload)
+            return self._request("lease_worker_job", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("lease_worker_job", self.service.lease_worker_job(tenant_id, project_id, lease_owner_id=lease_owner_id, lease_seconds=float(lease_seconds), job_type=job_type, api_key_id=api_key_id, request_id=request_id))
 
-    def heartbeat_worker_job(self, tenant_id: str, project_id: str, job_id: str, *, lease_owner_id: str, lease_seconds: float = 300.0, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+    def heartbeat_worker_job(self, tenant_id: str, project_id: str, job_id: str, *, lease_owner_id: str, lease_seconds: float = 300.0, api_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None, request_id: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "lease_owner_id": lease_owner_id, "lease_seconds": float(lease_seconds), "api_key_id": api_key_id, "request_id": request_id}
         if self.uses_http:
-            return self._request("heartbeat_worker_job", payload)
+            return self._request("heartbeat_worker_job", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("heartbeat_worker_job", self.service.heartbeat_worker_job(tenant_id, project_id, job_id, lease_owner_id=lease_owner_id, lease_seconds=float(lease_seconds), api_key_id=api_key_id, request_id=request_id))
 
-    def complete_worker_job(self, tenant_id: str, project_id: str, job_id: str, result: Mapping[str, Any] | None = None, *, lease_owner_id: str, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+    def complete_worker_job(self, tenant_id: str, project_id: str, job_id: str, result: Mapping[str, Any] | None = None, *, lease_owner_id: str, api_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None, request_id: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "result": dict(result or {}), "lease_owner_id": lease_owner_id, "api_key_id": api_key_id, "request_id": request_id}
         if self.uses_http:
-            return self._request("complete_worker_job", payload)
+            return self._request("complete_worker_job", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("complete_worker_job", self.service.complete_worker_job(tenant_id, project_id, job_id, dict(result or {}), lease_owner_id=lease_owner_id, api_key_id=api_key_id, request_id=request_id))
 
-    def fail_worker_job(self, tenant_id: str, project_id: str, job_id: str, error_payload: Mapping[str, Any] | None = None, *, lease_owner_id: str, retry_after_seconds: float | None = None, api_key_id: str | None = None, api_key: str | None = None, request_id: str | None = None) -> JsonDict:
+    def fail_worker_job(self, tenant_id: str, project_id: str, job_id: str, error_payload: Mapping[str, Any] | None = None, *, lease_owner_id: str, retry_after_seconds: float | None = None, api_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None, request_id: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "job_id": job_id, "error": dict(error_payload or {}), "lease_owner_id": lease_owner_id, "retry_after_seconds": retry_after_seconds, "api_key_id": api_key_id, "request_id": request_id}
         if self.uses_http:
-            return self._request("fail_worker_job", payload)
+            return self._request("fail_worker_job", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("fail_worker_job", self.service.fail_worker_job(tenant_id, project_id, job_id, dict(error_payload or {}), lease_owner_id=lease_owner_id, retry_after_seconds=retry_after_seconds, api_key_id=api_key_id, request_id=request_id))
 
-    def list_worker_jobs(self, tenant_id: str, project_id: str, *, status: str | None = None, job_type: str | None = None, limit: int | None = None, auth_key_id: str | None = None, api_key: str | None = None) -> JsonDict:
+    def list_worker_jobs(self, tenant_id: str, project_id: str, *, status: str | None = None, job_type: str | None = None, limit: int | None = None, auth_key_id: str | None = None, api_key: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "status": status, "job_type": job_type, "limit": limit, "auth_key_id": auth_key_id}
         if self.uses_http:
-            return self._request("list_worker_jobs", payload)
+            return self._request("list_worker_jobs", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("list_worker_jobs", self.service.list_worker_jobs(tenant_id, project_id, status=status, job_type=job_type, limit=limit, auth_key_id=auth_key_id))
 
     def verify_audit_chain(
@@ -572,16 +629,22 @@ class SaaSIngestionClient:
         limit: int | None = None,
         request_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id, "action": action, "target_id": target_id, "audit_api_key_id": api_key_id, "limit": limit, "request_id": request_id}
         if self.uses_http:
-            return self._request("verify_audit_chain", payload)
+            return self._request("verify_audit_chain", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         return _envelope("verify_audit_chain", self.service.verify_audit_chain_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=action, target_id=target_id, api_key_id=api_key_id, limit=limit, request_id=request_id))
 
-    def build_release_evidence_packet(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+    def build_release_evidence_packet(self, tenant_id: str, project_id: str, run_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         if self.uses_http:
-            return self._request("release_evidence", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id})
+            return self._request("release_evidence", {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         from services.api.platform import build_release_evidence_packet, usage_billing_rollup
 
         packet = build_release_evidence_packet(
@@ -605,17 +668,21 @@ class SaaSIngestionClient:
         auth_key_id: str | None = None,
         request_id: str | None = None,
         api_key: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
     ) -> JsonDict:
         _reject_raw_api_key(api_key)
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "run_id": run_id, "packet": dict(packet) if packet is not None else None, "auth_key_id": auth_key_id, "request_id": request_id}
         if self.uses_http:
-            return self._request("verify_release_evidence_packet", payload)
+            return self._request("verify_release_evidence_packet", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
         source = "submitted_packet" if packet is not None else "current_snapshot"
         if packet is None:
             packet = self.build_release_evidence_packet(tenant_id, project_id, run_id, auth_key_id=auth_key_id)["result"]
         return _envelope("verify_release_evidence_packet", {**self.service.verify_release_evidence_packet(tenant_id, project_id, dict(packet), run_id=run_id, auth_key_id=auth_key_id, request_id=request_id), "source": source})
 
-    def _request(self, operation: str, payload: Mapping[str, Any]) -> JsonDict:
+    def _request(self, operation: str, payload: Mapping[str, Any], *, headers: Mapping[str, str] | None = None) -> JsonDict:
         if not self.base_url:  # pragma: no cover
             raise SaaSClientError("HTTP transport requested without base_url")
         method, path = _operation_route(operation, payload)
@@ -623,7 +690,7 @@ class SaaSIngestionClient:
         url = urljoin(self.base_url, path.lstrip("/"))
         if method == "GET" and body:
             url = f"{url}?{urlencode(body)}"
-        response = dict(_call_http_transport(self._http_transport, method, url, {} if method == "GET" else body))
+        response = dict(_call_http_transport(self._http_transport, method, url, {} if method == "GET" else body, headers=headers))
         if {"schema_version", "operation", "result"}.issubset(response):
             return redact_sensitive(response)
         return _remote_envelope(operation, response)
@@ -714,26 +781,35 @@ def _drop_none(payload: Mapping[str, Any]) -> JsonDict:
     return {key: value for key, value in payload.items() if value is not None}
 
 
-def _call_http_transport(transport: Callable[..., Mapping[str, Any]], method: str, url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+def _call_http_transport(transport: Callable[..., Mapping[str, Any]], method: str, url: str, payload: Mapping[str, Any], *, headers: Mapping[str, str] | None = None) -> Mapping[str, Any]:
+    request_headers = dict(headers or {})
     try:
-        return transport(url, payload, method=method)
+        return transport(url, payload, method=method, headers=request_headers)
     except TypeError as exc:
         try:
-            signature(transport).bind(url, payload, method=method)
+            signature(transport).bind(url, payload, method=method, headers=request_headers)
         except TypeError:
-            return transport(url, payload)
+            try:
+                return transport(url, payload, method=method)
+            except TypeError as method_exc:
+                try:
+                    signature(transport).bind(url, payload, method=method)
+                except TypeError:
+                    return transport(url, payload)
+                else:
+                    raise method_exc
         else:
             raise
         raise exc
 
 
-def _post_json(url: str, payload: Mapping[str, Any], *, method: str = "POST") -> Mapping[str, Any]:
+def _post_json(url: str, payload: Mapping[str, Any], *, method: str = "POST", headers: Mapping[str, str] | None = None) -> Mapping[str, Any]:
     upper_method = method.upper()
     body = None if upper_method == "GET" else json.dumps(payload, sort_keys=True).encode("utf-8")
-    headers = {"Accept": "application/json"}
+    request_headers = {"Accept": "application/json", **dict(headers or {})}
     if body is not None:
-        headers["Content-Type"] = "application/json"
-    req = request.Request(url, data=body, headers=headers, method=upper_method)
+        request_headers["Content-Type"] = "application/json"
+    req = request.Request(url, data=body, headers=request_headers, method=upper_method)
     try:
         with request.urlopen(req, timeout=30) as resp:  # nosec - caller supplied local hosted adapter URL.
             raw = resp.read().decode("utf-8")
@@ -979,6 +1055,24 @@ def _envelope(operation: str, result: Mapping[str, Any]) -> JsonDict:
 def _reject_raw_api_key(api_key: str | None) -> None:
     if api_key:
         raise SecretInputError("raw API key values are not accepted; use a local api_key_id handle")
+
+
+def _bearer_auth_headers(*, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> dict[str, str]:
+    values = [value.strip() for value in (api_key_secret, bearer_api_key) if isinstance(value, str) and value.strip()]
+    if len(values) > 1:
+        raise SecretInputError("provide only one hosted bearer API key option")
+    if not values:
+        return {}
+    secret = values[0]
+    token = secret[7:].strip() if secret.lower().startswith("bearer ") else secret
+    if not token:
+        return {}
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _reject_hosted_bearer_headers(headers: Mapping[str, str]) -> None:
+    if headers:
+        raise SecretInputError("hosted bearer API keys are only supported with base_url HTTP transport")
 
 
 def _assert_public_control_plane_path(path: str | Path) -> None:

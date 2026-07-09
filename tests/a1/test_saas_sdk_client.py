@@ -414,6 +414,81 @@ def test_sdk_saas_client_base_url_rejects_raw_api_key_before_transport():
     assert called is False
 
 
+def test_sdk_saas_client_base_url_sends_bearer_secret_as_authorization_header_only():
+    captured: dict[str, object] = {}
+
+    def transport(url: str, payload: Mapping[str, object], *, method: str, headers: Mapping[str, str]) -> Mapping[str, object]:
+        captured["url"] = url
+        captured["payload"] = dict(payload)
+        captured["method"] = method
+        captured["headers"] = dict(headers)
+        return {"schema_version": "remote.v1", "operation": "sdk_submit", "result": {"accepted": True}}
+
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=transport)
+    result = client.sdk_submit(
+        "tenant",
+        "project",
+        dataset_id="dataset",
+        agent_ref="mock",
+        api_key_secret="tp_hosted_secret",
+    )
+
+    assert result["result"] == {"accepted": True}
+    assert captured["method"] == "POST"
+    assert captured["url"] == "http://localhost:9000/v1/projects/project/sdk-submit"
+    assert captured["headers"] == {"Authorization": "Bearer tp_hosted_secret"}
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert "api_key" not in payload
+    assert "api_key_secret" not in payload
+    assert "bearer_api_key" not in payload
+    assert "tp_hosted_secret" not in json.dumps(payload, sort_keys=True)
+    assert "tp_hosted_secret" not in json.dumps(result, sort_keys=True)
+
+
+def test_sdk_saas_client_base_url_accepts_bearer_api_key_alias_and_normalizes_prefix():
+    captured: dict[str, object] = {}
+
+    def transport(url: str, payload: Mapping[str, object], *, method: str, headers: Mapping[str, str]) -> Mapping[str, object]:
+        captured["payload"] = dict(payload)
+        captured["headers"] = dict(headers)
+        return {"used": {"run.submit": 1}}
+
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=transport)
+    result = client.usage_snapshot("tenant", "project", bearer_api_key="Bearer tp_alias_secret")
+
+    assert result["result"]["used"] == {"run.submit": 1}
+    assert captured["headers"] == {"Authorization": "Bearer tp_alias_secret"}
+    assert "tp_alias_secret" not in json.dumps(captured["payload"], sort_keys=True)
+
+
+def test_sdk_saas_client_bearer_secret_options_are_mutually_exclusive():
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=lambda *_args, **_kwargs: {})
+
+    with pytest.raises(SecretInputError, match="provide only one hosted bearer API key option"):
+        client.sdk_submit(
+            "tenant",
+            "project",
+            dataset_id="dataset",
+            agent_ref="mock",
+            api_key_secret="tp_one",
+            bearer_api_key="tp_two",
+        )
+
+
+def test_sdk_saas_client_bearer_secret_options_require_http_transport():
+    client = SaaSIngestionClient()
+
+    with pytest.raises(SecretInputError, match="only supported with base_url HTTP transport"):
+        client.sdk_submit(
+            "tenant",
+            "project",
+            dataset_id="dataset",
+            agent_ref="mock",
+            api_key_secret="tp_hosted_secret",
+        )
+
+
 
 def test_sdk_saas_cli_base_url_selects_http_client(monkeypatch):
     from ashr_clone import saas_cli
