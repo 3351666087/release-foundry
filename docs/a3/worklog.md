@@ -4821,3 +4821,52 @@ Safety:
   or committed.
 - No token, cookie, account value, email, signed URL, payment secret, or raw
   private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Concepts V2 and Stronger SaaS Style
+
+Responded to feedback that the first production visual polish still looked too
+plain. Created a second round of clean-room visual directions based on public
+SaaS product language and applied the strongest fit to the real dashboard.
+
+Added:
+
+- `apps/dashboard/ui-concepts-v2.html`
+- `docs/a3/a3_ui_visual_concepts_v2_2026_07_09.md`
+- `docs/screenshots/a3-ui-concepts-v2-overview-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-linear-vercel-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-supabase-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-ledger-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-retool-2026-07-09.png`
+
+Applied to production dashboard:
+
+- Reworked `apps/dashboard/src/styles.css` toward Concept E, a clean-room
+  Linear / Vercel style release console.
+- Darkened the sidebar and release-context topbar.
+- Made the metric cards cleaner with subtle state borders instead of heavy top
+  bars.
+- Preserved readable white evidence panels for A1 trace and A2 judge data.
+- Kept the mobile horizontal nav and confirmed no page-level horizontal
+  overflow.
+
+Why Concept E:
+
+- A3 is mainly a release evidence review console, not a pure DB studio, billing
+  dashboard, or internal admin table.
+- The dark navigation plus white evidence cards makes the product feel closer to
+  a commercial SaaS console while keeping long expected/actual and trace text
+  readable.
+
+A1/A2 calibration:
+
+- A1 runner/trace/tool-call logic was not changed.
+- A2 judge/score/pass-fail/failure-taxonomy logic was not changed.
+- Dashboard source options for A1/A2/API-backed/P3 demo data remain intact.
+
+Safety:
+
+- Public products were used as visual references only.
+- No external source code, private frontend code, screenshots, logos, or assets
+  were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.

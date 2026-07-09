@@ -565,6 +565,10 @@
 - [x] Fix narrow-screen dashboard overflow by converting the long A3 nav into a horizontal mobile scroller.
 - [x] Capture production visual-polish screenshots for desktop and mobile dashboard states.
 - [x] Verify the visual-polish round with dashboard/API Node tests, Playwright E2E, commercial CL, hygiene CL, and `git diff --check`.
+- [x] Add second-round clean-room visual concepts inspired by current SaaS product directions.
+- [x] Apply the stronger Linear / Vercel style release-console direction to the production dashboard.
+- [x] Capture V2 concept screenshots and production V2 dashboard desktop/mobile screenshots.
+- [x] Keep the second-round visual work limited to A3 dashboard/docs/screenshots without changing A1/A2 semantics.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
