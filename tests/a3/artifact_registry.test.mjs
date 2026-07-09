@@ -49,6 +49,7 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
   assert.ok(registry.entries.some((item) => item.artifact_type === "github_pr_comment_publish_receipt"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "github_required_check_plan"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "github_pr_gate_packet"));
+  assert.ok(registry.packet_presets.some((item) => item.preset_id === "source_evidence_packet"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "security_audit_packet"));
   assert.equal(registry.safety.raw_secret_values_allowed, false);
   assert.equal(registry.safety.raw_share_tokens_stored, false);
@@ -92,4 +93,39 @@ test("A3 artifact registry includes GitHub publish evidence controls", async () 
   assert.equal(required.raw_secret_values_allowed, false);
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "github_pr_gate_packet"));
   assert.doesNotMatch(JSON.stringify(registry), /Authorization|Bearer|gh[pousr]_|C:\\Users/);
+});
+
+test("A3 artifact registry can register A1/A2 source artifact hashes", () => {
+  const registry = buildA3ArtifactRegistry({
+    source: "unit",
+    sourceArtifacts: {
+      schema_version: "a3.source_artifacts.v1",
+      artifacts: [
+        {
+          source_artifact_id: "unit:a1_run_result:abc",
+          artifact_type: "a1_run_result",
+          source_lane: "A1",
+          source_contracts: ["RunResult"],
+          content_hash: "a".repeat(64),
+          record_count: 1,
+          redaction_status: "hash_only"
+        },
+        {
+          source_artifact_id: "unit:a2_grade_result:def",
+          artifact_type: "a2_grade_result",
+          source_lane: "A2",
+          source_contracts: ["GradeResult"],
+          content_hash: "b".repeat(64),
+          record_count: 2,
+          redaction_status: "hash_only"
+        }
+      ]
+    }
+  });
+
+  const sourceEntries = registry.entries.filter((item) => item.retention_class === "source_evidence");
+  assert.equal(sourceEntries.length, 2);
+  assert.equal(sourceEntries.every((item) => item.hash_status === "content_hash_present"), true);
+  assert.equal(sourceEntries.every((item) => item.raw_payload_embedded === false), true);
+  assert.ok(registry.packet_presets.some((item) => item.preset_id === "source_evidence_packet"));
 });

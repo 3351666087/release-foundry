@@ -86,11 +86,15 @@ The A3 DB contract now includes:
 
 ```text
 commercial_api_contracts
+source_artifacts
+event_outbox
 ```
 
 The SQL migration contract includes a tenant-scoped table with:
 
 - `organization_id`
+- `tenant_id`
+- `workspace_id`
 - `project_id`
 - `environment_id`
 - `contract_schema_version`
@@ -111,7 +115,10 @@ The contract declares `ashr.event_envelope.v1` with:
 - `event_type`
 - `schema_version`
 - `organization_id`
+- `tenant_id`
+- `workspace_id`
 - `project_id`
+- `environment_id`
 - `actor_id`
 - `request_id`
 - `trace_id`
@@ -123,7 +130,9 @@ The contract declares `ashr.event_envelope.v1` with:
 - `redaction_status`
 
 A3 only models this envelope in this round. Durable event publication remains
-A1-owned, and judge/policy event correctness remains A2-owned.
+A1-owned, and judge/policy event correctness remains A2-owned. The local
+contract module is `services/report/a3_event_envelope.mjs`; the future durable
+outbox table is `event_outbox`.
 
 ## Artifact Contract
 
@@ -150,11 +159,23 @@ Commercial artifact types referenced by the endpoint map include:
 - `billing_readiness_snapshot`
 - `audit_bundle_index`
 
+This round also introduces source-artifact hash summaries for A1/A2 inputs:
+
+- `a1_run_result`
+- `a1_trace_event_batch`
+- `a1_tool_call_batch`
+- `a2_grade_result`
+- `a2_release_gate`
+
+These entries store ids, counts, source contracts, redaction status, and
+SHA-256 content hashes only. They do not embed raw A1 traces, raw A2 judge
+payloads, secrets, cookies, tokens, emails, or signed URLs.
+
 ## Tenant/Auth/RBAC/Usage/Audit
 
 ANCHOR: TENANT_AUTH_RBAC_USAGE_AUDIT
 
-- Tenant: every endpoint is scoped by organization/project/environment.
+- Tenant: every endpoint is scoped by organization/tenant/workspace/project/environment.
 - Auth: A3 stays read-only or plan-only until A1 hosted auth exists.
 - RBAC: roles are declared, but live enforcement belongs to A1 middleware.
 - Usage: A3 records read-only meters; A1 billing ledger is the future source of truth.

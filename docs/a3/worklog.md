@@ -4574,3 +4574,65 @@ commercial API map instead of only dashboard panels and scattered docs.
 - No Ashr API key, GitHub token, cookie, real email, raw signed URL, payment
   secret, or account value was written.
 - No live Ashr, GitHub, billing, auth, or cloud mutation was performed.
+
+## 2026-07-09 - Commercial SaaS Contract Round 7: OpenAPI, Tenant Scope, Event Envelope, Source Artifacts
+
+Continued from latest `origin/main` and `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+
+Implemented:
+
+- Added A3 commercial OpenAPI artifact:
+  - `docs/a3/openapi/a3_commercial_api.openapi.json`
+  - `tests/a3/a3_commercial_openapi_contract.test.mjs`
+- Added tenant scope helper:
+  - `services/report/a3_tenant_scope.mjs`
+- Added metadata-only event envelope:
+  - `services/report/a3_event_envelope.mjs`
+- Added A1/A2 source artifact hash builder:
+  - `services/report/a3_source_artifacts.mjs`
+- Wired source artifact hashes into:
+  - API-backed dashboard payload
+  - release evidence v2
+  - artifact registry
+- Updated commercial API contract fixture/docs for:
+  - `tenant_id`
+  - `workspace_id`
+  - `source_artifacts`
+  - `event_outbox`
+- Updated SQL migration contract with:
+  - `source_artifacts`
+  - `event_outbox`
+- Added A1/A2 live alignment doc:
+  - `docs/a3/p3_a1_a2_live_alignment_2026_07_09.md`
+- Added Growth-Auditor Round 7:
+  - `docs/a3/p3_growth_auditor_money_grade_round7_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A3 still does not mutate A1 runner, SDK, trace, tool-call, artifact, auth,
+  usage, or event semantics.
+- A3 still does not change A2 judge score, pass/fail, release-gate, policy, or
+  failure taxonomy semantics.
+- A3 now carries A1/A2 source hashes so reports and release evidence can prove
+  their upstream evidence source without embedding raw private payloads.
+
+Verification:
+
+```text
+node --test tests/a3/*.mjs
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+```
+
+Results:
+
+- A3 Node contracts: 229 pass, 0 fail.
+- Commercial CL: passed.
+- Hygiene CL: passed.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr/GitHub/API/billing/cloud mutation.
+- No secret, token, cookie, real account value, email, raw signed URL, or
+  payment secret committed.

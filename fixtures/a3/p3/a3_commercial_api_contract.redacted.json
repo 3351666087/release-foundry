@@ -5,6 +5,8 @@
   "source": "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
   "tenant_scope": {
     "organization_id": "org-local",
+    "tenant_id": "tenant-local",
+    "workspace_id": "workspace-local",
     "project_id": "project-local",
     "environment_id": "staging"
   },
@@ -1050,7 +1052,10 @@
       "event_type",
       "schema_version",
       "organization_id",
+      "tenant_id",
+      "workspace_id",
       "project_id",
+      "environment_id",
       "actor_id",
       "request_id",
       "trace_id",
@@ -1062,6 +1067,8 @@
       "redaction_status"
     ],
     "a3_current_state": "modeled_as_contract; persisted audit_events exist only in local A3 store",
+    "local_contract_module": "services/report/a3_event_envelope.mjs",
+    "durable_outbox_table": "event_outbox",
     "a1_dependency": "A1 owns durable API gateway, auth middleware, usage source, and worker event publication.",
     "a2_dependency": "A2 owns judge/policy events and verifier correctness for grade/release evidence."
   },
@@ -1225,5 +1232,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "fe3e8aa9cdf2307ccb5d5a878fe7d448861b964d5ba0a57f08c6014ffaaf1244"
+  "contract_hash": "840f120f3584a7c714b68e31db98dfd079065cfea1c12a25ad1e493889885296"
 }

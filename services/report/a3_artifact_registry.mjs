@@ -20,9 +20,12 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const productConsole = options.productConsole || inputs.productConsole || {};
   const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
   const githubPublishEvidence = options.githubPublishEvidence || inputs.githubPublishEvidence || {};
+  const sourceArtifacts = options.sourceArtifacts || inputs.sourceArtifacts || {};
   const source = options.source || inputs.source || reportCenter.source || "unknown";
   const tenantScope = {
     organization_id: options.organizationId || inputs.organizationId || reportCenter.tenant_scope?.organization_id || "org-local",
+    tenant_id: options.tenantId || inputs.tenantId || reportCenter.tenant_scope?.tenant_id || "tenant-local",
+    workspace_id: options.workspaceId || inputs.workspaceId || reportCenter.tenant_scope?.workspace_id || "workspace-local",
     project_id: options.projectId || inputs.projectId || reportCenter.tenant_scope?.project_id || "project-local"
   };
   const reports = Array.isArray(reportCenter.reports)
@@ -41,7 +44,10 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     saasAdmin,
     githubPublishEvidence
   });
-  const entries = [...reportEntries, ...controlEntries];
+  const entries = [...reportEntries, ...controlEntries, ...sourceArtifactEntries(sourceArtifacts, {
+    tenantScope,
+    source
+  })];
   const summary = summarizeEntries(entries);
 
   return {
@@ -245,8 +251,38 @@ function buildPacketPresets(entries) {
     packetPreset("github_pr_gate_packet", ["github_check_publish_receipt", "github_pr_comment_publish_receipt", "github_required_check_plan"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
     packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
+    packetPreset("source_evidence_packet", ["a1_run_result", "a1_trace_event_batch", "a2_grade_result", "a2_release_gate"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];
+}
+
+function sourceArtifactEntries(sourceArtifacts = {}, context = {}) {
+  const artifacts = Array.isArray(sourceArtifacts.artifacts) ? sourceArtifacts.artifacts : [];
+  return artifacts.map((artifact) => ({
+    artifact_id: artifact.source_artifact_id,
+    artifact_type: artifact.artifact_type,
+    content_type: "application/json",
+    source: context.source,
+    tenant_scope: artifact.tenant_scope || context.tenantScope,
+    report_id: null,
+    manifest_join_key: `source:${artifact.artifact_type}`,
+    lifecycle_state: artifact.record_count > 0 ? "generated" : "planned",
+    hash_status: artifact.content_hash ? "content_hash_present" : "pending_source",
+    redaction_status: artifact.redaction_status || "hash_only",
+    retention_class: "source_evidence",
+    share_scope: "internal_audit",
+    billable_meter: artifact.artifact_type?.startsWith("a1_") ? "run_evidence_sources" : "judge_evidence_sources",
+    audit_events_required: ["source_artifact_registered", "redaction_scanned", "bundle_reseal_checked"],
+    missing_controls: artifact.record_count > 0 ? [] : ["source_payload_missing"],
+    customer_value: `${artifact.source_lane || "source"} ${artifact.source_contracts?.join("/") || "contract"} hash evidence`,
+    source_lane: artifact.source_lane,
+    source_contracts: artifact.source_contracts || [],
+    content_hash: artifact.content_hash || null,
+    record_count: artifact.record_count || 0,
+    raw_secret_values_allowed: false,
+    raw_share_token_stored: false,
+    raw_payload_embedded: false
+  }));
 }
 
 function packetPreset(id, requiredTypes, entries) {

@@ -3325,3 +3325,115 @@ Publish note:
 - Local git HTTPS push was unavailable during this round, so the already-tested
   A3 commit was published through the GitHub Git Data API with a fast-forward
   parent and redacted file set only. No secret-bearing files were included.
+
+## 2026-07-09 - Commercial SaaS Contract Round 7: OpenAPI, Tenant Scope, Event Envelope, Source Artifacts
+
+Continued from latest `origin/main` after the group lead refreshed main with
+latest A1/README sync work. This round followed
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and focused on making A3 less
+like a dashboard-only demo and more like a commercial SaaS contract consumer.
+
+Twenty growth points considered and advanced:
+
+1. OpenAPI artifact for A3 commercial API surfaces.
+2. Tenant scope helper with organization/tenant/workspace/project/environment.
+3. Metadata-only event envelope builder.
+4. Future `event_outbox` SQL contract.
+5. A1 RunResult source artifact hash.
+6. A1 trace event batch source artifact hash.
+7. A1 tool-call batch source artifact hash.
+8. A2 GradeResult source artifact hash.
+9. A2 ReleaseGate source artifact hash.
+10. Source artifacts in release evidence v2.
+11. Source artifacts in artifact registry.
+12. Source artifacts in API-backed dashboard payload.
+13. Commercial API fixture refresh after tenant/workspace fields.
+14. Commercial API docs update for event outbox and source artifacts.
+15. OpenAPI test for tenant/auth/RBAC/usage/audit notes.
+16. Tenant/event/source-artifact unit tests.
+17. A1/A2 live alignment documentation.
+18. Growth-Auditor Money-Grade Round 7.
+19. Full A3 Node contract test run.
+20. Commercial and hygiene CL guard run.
+
+Implemented:
+
+- Added `services/report/a3_tenant_scope.mjs`.
+- Added `services/report/a3_event_envelope.mjs`.
+- Added `services/report/a3_source_artifacts.mjs`.
+- Added `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- Added `tests/a3/a3_commercial_openapi_contract.test.mjs`.
+- Added `tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`.
+- Updated `a3.commercial_api_contract.v1` with `tenant_id`, `workspace_id`,
+  `environment_id`, event outbox notes, and refreshed redacted fixture.
+- Updated `a3.release_evidence_summary.v2` so source artifact hashes travel with
+  release evidence without embedding raw A1/A2 payloads.
+- Updated Artifact Registry so it can include A1/A2 source evidence entries.
+- Updated SQL migration contract with `source_artifacts` and `event_outbox`.
+- Added Integration-Agent output:
+  - `docs/a3/p3_a1_a2_live_alignment_2026_07_09.md`
+- Added Growth-Auditor output:
+  - `docs/a3/p3_growth_auditor_money_grade_round7_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains source of truth for RunResult, TraceEvent, Observation, ToolCall,
+  tenant/auth/API gateway, durable usage, artifact storage, and event
+  publication.
+- A2 remains source of truth for Scenario, GradeResult, Judge, ReleaseGate,
+  failure taxonomy, policy, and verifier semantics.
+- A3 now records source artifact ids, counts, source contracts, and SHA-256
+  hashes so dashboard/report/release evidence can prove which A1/A2 evidence it
+  consumed without changing that evidence.
+
+API / DB / Event / Artifact contract:
+
+- API docs: `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- DB: `commercial_api_contracts`, `source_artifacts`, `event_outbox`.
+- Event: `services/report/a3_event_envelope.mjs` models
+  `ashr.event_envelope.v1`; durable event outbox remains future backend work.
+- Artifact: source artifact hash summaries for A1/A2 evidence are now carried by
+  release evidence v2 and artifact registry.
+
+Tenant/auth/RBAC/usage/audit:
+
+- Tenant fields now preserve `organization_id`, `tenant_id`, `workspace_id`,
+  `project_id`, and `environment_id`.
+- Auth/RBAC live enforcement remains blocked until A1 hosted auth/RBAC exists.
+- Usage remains read-only and downstream of the A1 usage ledger.
+- Audit events and source artifacts are metadata/hash only; no raw payloads are
+  embedded.
+
+Verification:
+
+```text
+node --check services\report\a3_tenant_scope.mjs
+node --check services\report\a3_event_envelope.mjs
+node --check services\report\a3_source_artifacts.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_release_evidence.mjs
+node --check services\report\a3_artifact_registry.mjs
+node --test tests\a3\a3_tenant_event_source_artifact_contract.test.mjs tests\a3\a3_release_evidence.test.mjs tests\a3\artifact_registry.test.mjs tests\a3\a3_commercial_api_contract.test.mjs tests\a3\a3_commercial_openapi_contract.test.mjs
+node --test tests\a3\*.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check -- services/report tests/a3 docs/a3/openapi docs/a3/p3_commercial_api_contract_2026_07_09.md fixtures/a3/p3/a3_commercial_api_contract.redacted.json
+```
+
+Results:
+
+- Focused tenant/event/source-artifact/OpenAPI tests passed: 19 pass, 0 fail.
+- Full A3 Node tests passed: 229 pass, 0 fail.
+- Commercial CL passed: 0 blockers, 0 advisories.
+- Hygiene CL passed with no findings.
+- Diff whitespace check passed for touched A3 files.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No real auth, billing, team, API-key, Trust, object-storage, branch
+  protection, or cloud mutation.
+- No API key, token, cookie, real account value, email, raw signed URL, or
+  payment secret was written.

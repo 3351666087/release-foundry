@@ -540,6 +540,16 @@
 - [x] Add Growth-Auditor Money-Grade Round 5 artifact with 30+ next commercial growth points.
 - [x] Redact Round 4 evidence note identity placeholders so generated A3 docs pass the export firewall.
 - [x] Add `a3.commercial_api_contract.v1` with 29 mapped `/v1` SaaS endpoints, A1/A2 owner boundaries, event envelope, usage/audit/RBAC notes, API route, fixture, SQL table, and tests.
+- [x] Add A3 commercial OpenAPI 3.1 artifact under `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- [x] Add tenant scope helper preserving `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id`.
+- [x] Add metadata-only `ashr.event_envelope.v1` builder and validation guard for future `event_outbox`.
+- [x] Add A1/A2 source artifact hash summaries for A1 RunResult/Trace/ToolCall and A2 GradeResult/ReleaseGate.
+- [x] Add `source_artifacts` and `event_outbox` to the A3 SQL migration contract.
+- [x] Wire source artifact summaries into API-backed dashboard, release evidence v2, and artifact registry.
+- [x] Add A1/A2 live alignment doc for latest `origin/main` and A3 consumption rules.
+- [x] Add Growth-Auditor Money-Grade Round 7 artifact with 30 next commercial growth points.
+- [x] Verify A3 tenant/event/source-artifact/OpenAPI round with `node --test tests/a3/*.mjs`: 229 pass, 0 fail.
+- [x] Verify commercial and hygiene CL guards after tenant/event/source-artifact round.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

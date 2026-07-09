@@ -385,6 +385,8 @@ CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release ON release_evi
 CREATE TABLE IF NOT EXISTS commercial_api_contracts (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
   project_id TEXT NOT NULL,
   environment_id TEXT NOT NULL,
   contract_schema_version TEXT NOT NULL,
@@ -398,6 +400,48 @@ CREATE TABLE IF NOT EXISTS commercial_api_contracts (
 );
 CREATE INDEX IF NOT EXISTS idx_commercial_api_contracts_project ON commercial_api_contracts(project_id, environment_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_api_contracts_hash ON commercial_api_contracts(project_id, contract_hash);`)
+    ,
+    statement("013_source_artifacts_and_event_outbox", ["source_artifacts", "event_outbox"], `
+CREATE TABLE IF NOT EXISTS source_artifacts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source_lane TEXT NOT NULL,
+  artifact_type TEXT NOT NULL,
+  source_contracts ${types.json} NOT NULL,
+  content_hash TEXT NOT NULL,
+  record_count INTEGER NOT NULL,
+  redaction_status TEXT NOT NULL DEFAULT 'hash_only',
+  raw_payload_embedded BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_source_artifacts_project ON source_artifacts(project_id, source_lane, artifact_type, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_source_artifacts_hash ON source_artifacts(project_id, artifact_type, content_hash);
+CREATE TABLE IF NOT EXISTS event_outbox (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  event_schema_version TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  trace_id TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  payload_ref TEXT,
+  payload_hash TEXT NOT NULL,
+  redaction_status TEXT NOT NULL,
+  delivery_status TEXT NOT NULL DEFAULT 'pending',
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_outbox_project ON event_outbox(project_id, event_type, delivery_status, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_outbox_resource_hash ON event_outbox(project_id, resource_type, resource_id, payload_hash);`)
   ];
 }
 

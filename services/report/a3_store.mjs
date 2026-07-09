@@ -30,6 +30,12 @@ import { buildA3BillingReadiness } from "./a3_billing_readiness.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
 import { buildA3CommercialApiContract } from "./a3_commercial_api_contract.mjs";
+import { buildA3SourceArtifacts } from "./a3_source_artifacts.mjs";
+import {
+  buildA3TenantScope,
+  tenantScopeMatches,
+  tenantScopeToSnapshotFields
+} from "./a3_tenant_scope.mjs";
 import {
   buildReviewWorkflowIndex,
   buildReviewWorkflowRecord
@@ -98,7 +104,7 @@ export const A3_DB_CONTRACT = {
   recommended_primary_db: "postgres",
   mysql_compatible: true,
   local_dev_store: "memory_or_file",
-  tenant_columns_required: ["organization_id", "project_id"],
+  tenant_columns_required: ["organization_id", "tenant_id", "workspace_id", "project_id"],
   tables: [
     "organizations",
     "users",
@@ -130,7 +136,9 @@ export const A3_DB_CONTRACT = {
     "api_import_receipts",
     "audit_events",
     "usage_ledger",
-    "commercial_api_contracts"
+    "commercial_api_contracts",
+    "source_artifacts",
+    "event_outbox"
   ],
   api_surfaces: [
     "GET /api/a3/dashboard",
@@ -499,6 +507,8 @@ export function createMemoryA3Store(seed = {}) {
       return buildA3CommercialApiContract({
         source: "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
         organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
         projectId: scopedSnapshot.projectId,
         environmentId: options.environmentId || "staging"
       });
@@ -961,7 +971,17 @@ export function createMemoryA3Store(seed = {}) {
       return buildA3ArtifactRegistry({
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
         projectId: scopedSnapshot.projectId,
+        sourceArtifacts: buildA3SourceArtifacts(scopedSnapshot, {
+          source: snapshot.source,
+          organizationId: scopedSnapshot.organizationId,
+          tenantId: scopedSnapshot.tenantId,
+          workspaceId: scopedSnapshot.workspaceId,
+          projectId: scopedSnapshot.projectId,
+          environmentId: scopedSnapshot.environmentId
+        }),
         reportCenter,
         usageLedger,
         migrationPlan,
@@ -1288,12 +1308,17 @@ function normalizeSnapshot(snapshot = {}) {
   const runFixture = snapshot.runFixture || snapshot.runs || {};
   const gradeFixture = snapshot.gradeFixture || snapshot.grades || {};
   const cases = normalizeCases(runFixture, gradeFixture);
+  const tenantScope = buildA3TenantScope(snapshot);
   return {
     schema_version: "a3.dashboard_snapshot.v1",
     source,
     source_label: snapshot.source_label || A3_SOURCE_FIXTURES[source]?.label || source,
-    organizationId: snapshot.organizationId || "org-local",
-    projectId: snapshot.projectId || "project-local",
+    organizationId: tenantScope.organization_id,
+    tenantId: tenantScope.tenant_id,
+    workspaceId: tenantScope.workspace_id,
+    projectId: tenantScope.project_id,
+    environmentId: tenantScope.environment_id,
+    tenant_scope: tenantScope,
     runFixture,
     gradeFixture,
     coverage: snapshot.coverage || {},
@@ -1318,6 +1343,14 @@ function normalizeSnapshot(snapshot = {}) {
 function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
   const releaseEvidenceSummary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
+  const sourceArtifacts = buildA3SourceArtifacts(snapshot, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    tenantId: snapshot.tenantId,
+    workspaceId: snapshot.workspaceId,
+    projectId: snapshot.projectId,
+    environmentId: snapshot.environmentId
+  });
   const releaseId = releaseEvidenceReleaseId(snapshot);
   const releaseEvidenceReadbackHistory = buildReleaseEvidenceReadbackDashboardHistory(options.releaseEvidenceReadbacks || [], {
     source: snapshot.source,
@@ -1388,6 +1421,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
+    source_artifacts: sourceArtifacts,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,
@@ -1407,7 +1441,11 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     artifact_registry: buildA3ArtifactRegistry({
       source: snapshot.source,
       organizationId: snapshot.organizationId,
+      tenantId: snapshot.tenantId,
+      workspaceId: snapshot.workspaceId,
       projectId: snapshot.projectId,
+      environmentId: snapshot.environmentId,
+      sourceArtifacts,
       reportCenter,
       usageLedger,
       releaseEvidenceReadbacks: options.releaseEvidenceReadbacks || [],
@@ -1418,6 +1456,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     commercial_api_contract: buildA3CommercialApiContract({
       source: "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
       organizationId: snapshot.organizationId,
+      tenantId: snapshot.tenantId,
+      workspaceId: snapshot.workspaceId,
       projectId: snapshot.projectId
     }),
     review_workflow: buildReviewWorkflowIndex(filterReviewWorkflowRecords(options.reviewWorkflowRecords || [], {
@@ -1478,6 +1518,14 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
     projectId: snapshot.projectId
   });
   const releaseStats = buildReleaseEvidenceV2Stats(snapshot);
+  const sourceArtifacts = buildA3SourceArtifacts(snapshot, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    tenantId: snapshot.tenantId,
+    workspaceId: snapshot.workspaceId,
+    projectId: snapshot.projectId,
+    environmentId: snapshot.environmentId
+  });
   const latestReadbacks = latestReleaseEvidenceReadbacks(options.releaseEvidenceReadbacks || [], {
     source: snapshot.source,
     releaseId,
@@ -1490,6 +1538,8 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
     source: snapshot.source,
     sourceSnapshotId: `${snapshot.source}:${summaryHash.slice(0, 12)}`,
     organizationId: snapshot.organizationId,
+    tenantId: snapshot.tenantId,
+    workspaceId: snapshot.workspaceId,
     projectId: snapshot.projectId,
     storageMode: options.storageMode || snapshot.storage?.mode || "memory",
     hostedReportSnapshotId: primarySnapshot.summary_snapshot_id,
@@ -1499,6 +1549,7 @@ function buildReleaseEvidenceApiResponse(snapshot, options = {}) {
     prCommentReadback: latestReadbacks.pr_comment,
     requiredCheckProof: latestReadbacks.required_check,
     health,
+    sourceArtifacts,
     ...releaseStats
   });
   if (releaseEvidenceVersion(options) === "v2") {
@@ -1612,13 +1663,7 @@ function releaseEvidenceIdMatches(requestedId, canonicalReleaseId, snapshot = {}
 }
 
 function snapshotMatchesTenantScope(snapshot = {}, options = {}) {
-  if (options.organizationId && options.organizationId !== snapshot.organizationId) {
-    return false;
-  }
-  if (options.projectId && options.projectId !== snapshot.projectId) {
-    return false;
-  }
-  return true;
+  return tenantScopeMatches(snapshot, options);
 }
 
 function reportMatchesSnapshotScope(report = {}, snapshot = {}) {
@@ -1664,10 +1709,11 @@ function reportTenantScope(report = {}) {
 }
 
 function snapshotWithScope(snapshot = {}, options = {}) {
+  const fields = tenantScopeToSnapshotFields(buildA3TenantScope(options, snapshot));
   return {
     ...snapshot,
-    organizationId: options.organizationId || snapshot.organizationId || "org-local",
-    projectId: options.projectId || snapshot.projectId || "project-local"
+    ...fields,
+    tenant_scope: buildA3TenantScope(fields)
   };
 }
 

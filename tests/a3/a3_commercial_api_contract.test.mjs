@@ -70,6 +70,7 @@ test("A3 commercial API contract fixture and docs are generated and secret-free"
     "GET /api/a3/commercial-api/contract",
     "POST /v1/release-gates/evaluate",
     "commercial_api_contracts",
+    "event_outbox",
     "ashr.event_envelope.v1",
     "tenant",
     "auth",
@@ -95,11 +96,15 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
     const payload = await response.json();
     assert.equal(payload.schema_version, "a3.commercial_api_contract.v1");
     assert.equal(payload.tenant_scope.organization_id, "org-local");
+    assert.equal(payload.tenant_scope.tenant_id, "tenant-local");
+    assert.equal(payload.tenant_scope.workspace_id, "workspace-local");
     assert.equal(payload.tenant_scope.project_id, "project-local");
     assert.equal(payload.tenant_scope.environment_id, "staging");
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.route === "GET /v1/usage"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/billing/readiness"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("payload_hash"), true);
+    assert.equal(payload.event_envelope_contract.required_fields.includes("tenant_id"), true);
+    assert.equal(payload.event_envelope_contract.durable_outbox_table, "event_outbox");
     assert.deepEqual(findCommercialApiContractLeaks(payload), []);
   } finally {
     await new Promise((resolve) => server.close(resolve));

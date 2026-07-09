@@ -43,6 +43,8 @@ export function buildA3CommercialApiContract(options = {}) {
     source: options.source || "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
     tenant_scope: {
       organization_id: options.organizationId || "org-local",
+      tenant_id: options.tenantId || "tenant-local",
+      workspace_id: options.workspaceId || "workspace-local",
       project_id: options.projectId || "project-local",
       environment_id: options.environmentId || "staging"
     },
@@ -57,7 +59,10 @@ export function buildA3CommercialApiContract(options = {}) {
         "event_type",
         "schema_version",
         "organization_id",
+        "tenant_id",
+        "workspace_id",
         "project_id",
+        "environment_id",
         "actor_id",
         "request_id",
         "trace_id",
@@ -69,6 +74,8 @@ export function buildA3CommercialApiContract(options = {}) {
         "redaction_status"
       ],
       a3_current_state: "modeled_as_contract; persisted audit_events exist only in local A3 store",
+      local_contract_module: "services/report/a3_event_envelope.mjs",
+      durable_outbox_table: "event_outbox",
       a1_dependency: "A1 owns durable API gateway, auth middleware, usage source, and worker event publication.",
       a2_dependency: "A2 owns judge/policy events and verifier correctness for grade/release evidence."
     },
