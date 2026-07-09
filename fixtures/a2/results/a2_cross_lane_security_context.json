@@ -8,13 +8,27 @@
     "a3_openapi": "docs/a3/openapi/a3_commercial_api.openapi.json"
   },
   "a1_route_scope": {
-    "available": false,
+    "available": true,
     "path": "docs/a1/evidence/go_python_ts_route_parity_snapshot.json",
-    "schema_version": "",
-    "ready_for_a2_security_context": false,
-    "reason": "A1 route scope / RLS parity snapshot is not available on this branch yet.",
+    "schema_version": "ashr.clone.go_python_ts_route_parity_snapshot.v1",
+    "route_count": 37,
+    "api_key_route_count": 16,
+    "release_gate_route_count": 1,
+    "tenant_route_count": 29,
+    "has_python_routes": true,
+    "has_ts_routes": true,
+    "has_go_routes": true,
+    "intentional_difference_count": 34,
+    "rls_or_tenant_hardening_observed": true,
+    "source_paths": [
+      "packages/go/ashrclone/server.go",
+      "packages/sdk/ashr_clone/saas.py",
+      "packages/ts/ashr-clone/src/saas.ts"
+    ],
+    "ready_for_a2_security_context": true,
     "notes": [
-      "A1 route scope / RLS parity snapshot is not available on this branch yet."
+      "A1 remains source of truth for backend route scope, tenant isolation, hosted auth, and RLS enforcement.",
+      "A2 consumes this only as public-safe security verification context."
     ]
   },
   "a3_auth_rbac_boundary": {
@@ -31,7 +45,7 @@
     "should_block_hosted_mutations_without_a1_auth": false,
     "should_require_metadata_only_audit_events": false,
     "should_keep_raw_actor_identity_forbidden": false,
-    "should_add_route_scope_security_cases": false,
+    "should_add_route_scope_security_cases": true,
     "should_add_auth_rbac_abuse_cases": false,
     "release_policy_refs": [
       "fixtures/a2/config/release_policies.json",
@@ -41,13 +55,14 @@
   },
   "a2_security_followups": [
     {
-      "followup_id": "wait-for-a1-route-scope-public-snapshot",
-      "action": "Consume A1 route scope / RLS snapshot after it reaches this branch or main.",
-      "owner": "A1/A2 integration",
+      "followup_id": "a2-route-scope-tenant-boundary",
+      "action": "Add route-scope tenant isolation abuse cases once A1 route parity is merged.",
+      "owner": "A2 security verification",
       "tags": [
-        "route parity",
+        "tenant_id",
+        "project_id",
         "RLS",
-        "tenant isolation"
+        "route scope"
       ],
       "writes_private_evidence": false,
       "requires_user_decision": false

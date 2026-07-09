@@ -310,15 +310,15 @@
   },
   "cross_lane_security": {
     "report_id": "a2_cross_lane_security_context",
-    "a1_route_scope_available": false,
+    "a1_route_scope_available": true,
     "a3_auth_rbac_available": false,
-    "route_scope_ready": false,
+    "route_scope_ready": true,
     "auth_rbac_ready": false,
     "should_block_hosted_mutations_without_a1_auth": false,
     "should_add_auth_rbac_abuse_cases": false,
     "followup_count": 2,
     "followup_ids": [
-      "wait-for-a1-route-scope-public-snapshot",
+      "a2-route-scope-tenant-boundary",
       "wait-for-a3-auth-rbac-boundary-contract"
     ]
   },

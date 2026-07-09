@@ -126,13 +126,13 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(report["scenario_generation"]["policy_experiment_count"], 3)
         self.assertFalse(report["scenario_generation"]["may_mutate_main_pack"])
         self.assertIn("A2-GEN-001", report["scenario_generation"]["candidate_ids"])
-        self.assertFalse(report["cross_lane_security"]["a1_route_scope_available"])
+        self.assertTrue(report["cross_lane_security"]["a1_route_scope_available"])
         self.assertFalse(report["cross_lane_security"]["a3_auth_rbac_available"])
-        self.assertFalse(report["cross_lane_security"]["route_scope_ready"])
+        self.assertTrue(report["cross_lane_security"]["route_scope_ready"])
         self.assertFalse(report["cross_lane_security"]["auth_rbac_ready"])
         self.assertEqual(report["cross_lane_security"]["followup_count"], 2)
         self.assertIn(
-            "wait-for-a1-route-scope-public-snapshot",
+            "a2-route-scope-tenant-boundary",
             report["cross_lane_security"]["followup_ids"],
         )
         self.assertIn(

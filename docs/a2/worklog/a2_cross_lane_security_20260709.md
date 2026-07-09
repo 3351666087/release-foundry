@@ -32,17 +32,21 @@ The added context stays within that boundary. It does not copy A1/A3 branch file
 
 ## Current Branch Status
 
-The current A2 branch does not yet contain:
+After the next heartbeat pass, this branch was aligned with the public A1 route parity snapshot already present on `origin/main`:
 
 - `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`
+
+The current A2 branch still does not yet contain:
+
 - `docs/a3/p3_auth_rbac_boundary_2026_07_09.md`
 - `docs/a3/openapi/a3_commercial_api.openapi.json`
 
-Therefore the generated public fixture intentionally records:
+Therefore the generated public fixture records:
 
-- A1 route scope unavailable;
+- A1 route scope available and ready for A2 security context;
 - A3 Auth/RBAC boundary unavailable;
-- two followups waiting for upstream public-safe contracts.
+- one A2 route-scope tenant-boundary followup;
+- one followup waiting for the A3 Auth/RBAC public-safe contract.
 
 When those contracts arrive from A1/A3/main, A2 will require:
 

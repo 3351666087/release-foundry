@@ -25,21 +25,22 @@ def load_json(path: Path) -> dict:
 
 
 class A2CrossLaneSecurityTests(unittest.TestCase):
-    def test_default_fixture_matches_builder_and_waits_for_upstream_contracts(self):
+    def test_default_fixture_matches_builder_and_consumes_main_a1_route_scope(self):
         actual = build_cross_lane_security_context()
         expected = load_json(FIXTURE)
 
         self.assertEqual(actual, expected)
         self.assertEqual(actual["schema_version"], "a2.cross_lane_security_context.v1")
-        self.assertFalse(actual["a1_route_scope"]["available"])
+        self.assertTrue(actual["a1_route_scope"]["available"])
+        self.assertTrue(actual["a1_route_scope"]["ready_for_a2_security_context"])
+        self.assertTrue(actual["a2_policy_implications"]["should_add_route_scope_security_cases"])
         self.assertFalse(actual["a3_auth_rbac_boundary"]["available"])
-        self.assertFalse(actual["a2_policy_implications"]["should_add_route_scope_security_cases"])
         self.assertFalse(actual["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
         followup_ids = {item["followup_id"] for item in actual["a2_security_followups"]}
         self.assertEqual(
             followup_ids,
             {
-                "wait-for-a1-route-scope-public-snapshot",
+                "a2-route-scope-tenant-boundary",
                 "wait-for-a3-auth-rbac-boundary-contract",
             },
         )
