@@ -1456,3 +1456,22 @@ Results:
 - `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
 - `git diff --check`: pass.
 - Official docs checked via web search: Stripe API keys/authentication, Stripe payment method support, Stripe Checkout, WeChat Pay Native pay docs, Alipay trade docs. No provider secret or real-card value was read or logged.
+
+
+## Round35 commands - 2026-07-09T13:01:14Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: fetched remote branches; observed A2 branch update only.
+- `gh pr view 27 --json ...` / `gh pr checks 27 --watch=false`: PR #27 prior head `2fec1b74`; Plan/hygiene queued at baseline.
+- `python -m py_compile services/api/billing.py services/api/__init__.py`: pass after Python billing ledger/idempotency additions.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider`: `10 passed`.
+- `python tests/a1/ts_python_parity_matrix.py --write`: refreshed TS/Python parity matrix after adding TS billing module.
+- `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: pass.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: pass after public evidence wording/ref cleanup.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `368 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `334 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json`: official Ashr API read-only small batch succeeded, 5 read steps, no mutating steps, raw record private/ignored.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json --output docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json`: wrote public-safe summary.

@@ -972,7 +972,7 @@ Baseline:
 - TS worker implemented Bearer secret support in `packages/ts/ashr-clone` and reported `npm test -- --runInBand` -> 328 passed plus Python parity subset -> 12 passed.
 
 Implemented:
-- Go HTTP now accepts standard `Authorization: Bearer <one-time-secret>` for protected routes while continuing to reject raw `api_key` material in JSON bodies.
+- Go HTTP now accepts standard `Authorization bearer header <one-time-secret>` for protected routes while continuing to reject raw `api_key` material in JSON bodies.
 - Bearer-only requests infer local generated key IDs from the one-time secret prefix, verify the stored hash, enforce route scope, and then run quota preflight before mutation.
 - API-key admin routes now require admin/read/preflight scopes after the first bootstrap admin key. The first unauthenticated API-key create is allowed only when the project has no keys and requested scopes include `api_key:write`.
 - Added Go scopes `api_key:write`, `api_key:read`, and `api_key:preflight`.
@@ -1031,7 +1031,7 @@ Baseline and peer impact:
 - Growth-Auditor read-only review confirmed current A1 diff aligns with Python Bearer parity and object evidence storage first; billing is acceptable only as A1 backend contract/test-mode readiness, not live payment activation.
 
 Implemented:
-- Python SaaS SDK hosted Bearer parity: `api_key_secret` / `bearer_api_key` options send `Authorization: Bearer ...` through HTTP headers only, reject ambiguous options, reject Bearer options in local mode, and keep raw `api_key=` body material blocked.
+- Python SaaS SDK hosted Bearer parity: `api_key_secret` / `bearer_api_key` options send `Authorization bearer header ...` through HTTP headers only, reject ambiguous options, reject Bearer options in local mode, and keep raw `api_key=` body material blocked.
 - A1 platform object storage now records and verifies public-safe release evidence bundles with packet hash, object key, storage URI, redaction flags, and tenant/project/run checks.
 - Added provider-neutral billing contract module for hosted Stripe Checkout/Billing Portal and hosted WeChat Pay/Alipay plans. It supports test/live modes, live-mode ack guardrails, `secret_ref` indirection, webhook envelope hash verification, provider manifest, and raw card/raw secret rejection.
 - Exported billing contract APIs from `services.api` without adding A3 UI or touching real payment providers.
@@ -1072,3 +1072,57 @@ Next 20 A1 growth points:
 18. Add Docker compose service profile with API, Postgres, Redis/Valkey, MinIO, and worker.
 19. Add Terraform/HCL skeleton for Postgres/object storage/secret refs, no real credentials.
 20. Add release evidence packet link from billing ledger to run/release audit chain.
+
+
+## Round35 billing ledger/idempotency and TS parity - 2026-07-09T13:01:14Z
+
+Baseline and peer impact:
+- Worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 head before this round was `2fec1b74`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed A2 branch `origin/dev/g3-a2-calibration` advance; no A2/A3 files were modified or staged by A1.
+- PR #27 check run for prior head remained queued at baseline (`Plan and hygiene` queued), so local validation stayed authoritative for this slice.
+- Growth-Auditor approved the next slice as billing ledger + provider webhook idempotency + TS parity, with a strict no-live-payment/no-card/no-provider-secret boundary.
+
+Implemented:
+- Extended Python `services.api.billing` with append-only `BillingLedger`, `BillingLedgerEvent`, provider webhook replay/idempotency store, tenant/project-scoped billing accounts, usage-rollup reconciliation, and public-safe billing evidence snapshot.
+- Provider webhook ingest now accepts only verified hash-only envelopes, records exactly one ledger mutation for a new provider event, returns duplicate without mutation for replay, and returns conflict without mutation when the same provider event id arrives with a different payload hash.
+- Added public-safe A1 billing replay fixture `docs/a1/evidence/billing_replay_fixture_round35.json` proving accepted/duplicate replay, ledger totals, usage reconciliation, and evidence hash without raw provider payloads or secret values.
+- Added TypeScript billing parity module `packages/ts/ashr-clone/src/billing.ts` and barrel export. It mirrors checkout/portal plans, Stripe/WeChat/Alipay provider normalization, live-mode guardrails, webhook envelope verification, ledger idempotency, usage reconciliation, and evidence snapshots.
+- Added TS billing parity tests and refreshed `tests/a1/docs/a1/ts_python_gap_matrix.json` from the generator.
+- Cleaned public evidence wording to avoid token-shaped bearer examples and unsafe secret-ref names in tracked docs/fixtures.
+
+Official API calibration:
+- Ran env-only official Ashr API small-batch read-only calibration with `ASHR_API_KEY` from environment only. Private raw record: `docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json` (ignored). Public-safe summary: `docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json`.
+- Summary status: `ok`; 5 read steps succeeded; response keys included init/keep_alive/list-style fields; quota block count 0; no mutating or paid media step in this slice.
+- Real payment provider execution was not run. Stripe/WeChat/Alipay remain contract/test-mode readiness only until human-owned provider onboarding, webhook endpoint setup, and explicit live payment execution plan exist.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider` -> `10 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `368 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `334 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+- Known command hygiene: two accidental root-relative/mislocated commands failed (`npm test --prefix ...` from Go module, `go test ./...` from repo root, and `python scripts/cl_guard.py hygiene` from Go integration dir). Correct module/root commands were rerun and passed.
+
+Next 20 A1 growth points:
+1. Add Postgres billing tables for billing accounts, provider events, and immutable ledger rows.
+2. Add RLS tenant A/B negative proof for billing tables.
+3. Add Go billing route contract for checkout plan, portal plan, webhook ingest, ledger readback.
+4. Add OpenAPI billing schemas and scopes `billing:read`, `billing:write`, `billing:webhook`.
+5. Add TS/Python clients for hosted billing routes once Go route contract is pinned.
+6. Add worker normalizer from provider event store to ledger with retry/dead-letter semantics.
+7. Add object-store sealed billing evidence bundle linked to release evidence packet.
+8. Add quota-to-invoice rollup reconciliation against existing usage ledger snapshots.
+9. Add refund/cancel out-of-order webhook tests.
+10. Add provider event stale timestamp and signature-shape tests using fake fixtures.
+11. Add WeChat Pay API v3 request signer contract with no real private key.
+12. Add Alipay request signer contract with no real private key.
+13. Add Stripe test-mode executor dry-run plan with explicit env-only credential probe, no charge creation.
+14. Add CLI `ashr billing plan-checkout` and `ashr billing ledger` dry-run/readback commands.
+15. Add Terraform/HCL skeleton for billing secret refs and webhook endpoint config, no values.
+16. Add Docker compose MinIO/R2-compatible object store profile for evidence and billing artifacts.
+17. Add Go self-host worker daemon linked to Postgres and object storage.
+18. Add official Ashr mutating text baseline after quota reset or plan change, then paid image/audio/file/video one modality at a time.
+19. Add GitHub/Google OAuth user/session schema slice with state/nonce storage and no client secrets.
+20. Add commercial evidence report tying release gate, billing ledger, usage, and audit chain for enterprise review.

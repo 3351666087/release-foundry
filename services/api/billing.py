@@ -296,7 +296,7 @@ def _provider_checkout_request(config: BillingProviderConfig, price: BillingPric
 
 def _coerce_provider_config(value: BillingProviderConfig | Mapping[str, Any] | None) -> BillingProviderConfig:
     if value is None:
-        return BillingProviderConfig(provider="stripe", mode="test", secret_ref="env:STRIPE_SECRET_KEY_TEST").normalized()
+        return BillingProviderConfig(provider="stripe", mode="test", secret_ref="env:STRIPE_TEST_REF").normalized()
     if isinstance(value, BillingProviderConfig):
         return value.normalized()
     return BillingProviderConfig(
@@ -450,3 +450,300 @@ def _minor_to_major(value: int) -> str:
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
+
+LEDGER_EVENT_TYPES = {
+    "checkout_created",
+    "invoice_paid",
+    "refund_created",
+    "subscription_canceled",
+    "usage_reconciled",
+}
+PROVIDER_EVENT_TYPES: dict[str, str] = {
+    "checkout.session.completed": "checkout_created",
+    "checkout.session.async_payment_succeeded": "checkout_created",
+    "invoice.paid": "invoice_paid",
+    "charge.refunded": "refund_created",
+    "refund.created": "refund_created",
+    "customer.subscription.deleted": "subscription_canceled",
+    "wechat_pay.transaction.success": "invoice_paid",
+    "wechat_pay.refund.success": "refund_created",
+    "alipay.trade.success": "invoice_paid",
+    "alipay.trade.refund.success": "refund_created",
+    "ashr.usage.reconciled": "usage_reconciled",
+}
+
+
+@dataclass(frozen=True)
+class BillingLedgerEvent:
+    tenant_id: str
+    project_id: str
+    event_type: str
+    amount_minor: int = 0
+    currency: str = "usd"
+    provider: str | None = None
+    mode: str = "test"
+    provider_event_id: str | None = None
+    customer_ref: str | None = None
+    invoice_ref: str | None = None
+    usage_units: int = 0
+    metadata: Mapping[str, Any] | None = None
+    ledger_event_id: str | None = None
+
+
+class BillingLedger:
+    """Append-only billing event ledger plus provider-webhook replay store."""
+
+    def __init__(self) -> None:
+        self.ledger_events: list[JsonDict] = []
+        self.provider_events: dict[str, JsonDict] = {}
+        self.billing_accounts: dict[str, JsonDict] = {}
+
+    def upsert_billing_account(
+        self,
+        *,
+        tenant_id: str,
+        project_id: str,
+        customer_ref: str,
+        provider: str,
+        mode: str = "test",
+        account_ref: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        provider_name = _normalize_provider(provider)
+        normalized_mode = _normalize_mode(mode)
+        _validate_tenant_project(tenant_id, project_id)
+        _reject_sensitive_payload({"customer_ref": customer_ref, "account_ref": account_ref, "metadata": metadata})
+        key = _account_key(tenant_id, project_id, provider_name, normalized_mode, customer_ref)
+        record = {
+            "schema_version": BILLING_SCHEMA_VERSION,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "provider": provider_name,
+            "mode": normalized_mode,
+            "customer_ref": str(customer_ref),
+            "account_ref": account_ref,
+            "metadata": _public_metadata(metadata),
+            "created_at": self.billing_accounts.get(key, {}).get("created_at") or _utc_now(),
+            "updated_at": _utc_now(),
+            "raw_secret_present": False,
+            "raw_payload_included": False,
+        }
+        self.billing_accounts[key] = _assert_public_safe(record)
+        return dict(record)
+
+    def get_billing_account(self, *, tenant_id: str, project_id: str, provider: str, customer_ref: str, mode: str = "test") -> JsonDict:
+        key = _account_key(tenant_id, project_id, _normalize_provider(provider), _normalize_mode(mode), customer_ref)
+        record = self.billing_accounts.get(key)
+        if not record:
+            raise BillingContractError("billing account not found")
+        return dict(record)
+
+    def append_ledger_event(self, event: BillingLedgerEvent | Mapping[str, Any]) -> JsonDict:
+        event_obj = _coerce_ledger_event(event)
+        _validate_tenant_project(event_obj.tenant_id, event_obj.project_id)
+        event_type = _normalize_ledger_event_type(event_obj.event_type)
+        provider = _normalize_provider(event_obj.provider or "stripe")
+        mode = _normalize_mode(event_obj.mode)
+        currency = str(event_obj.currency).lower()
+        if currency not in SUPPORTED_CURRENCIES:
+            raise BillingContractError(f"unsupported currency: {event_obj.currency}")
+        if event_obj.amount_minor < 0 and event_type not in {"refund_created"}:
+            raise BillingContractError("negative amounts are only allowed for refunds")
+        _reject_sensitive_payload({"customer_ref": event_obj.customer_ref, "invoice_ref": event_obj.invoice_ref, "metadata": event_obj.metadata})
+        ledger_event_id = event_obj.ledger_event_id or _ledger_event_id(event_obj.tenant_id, event_obj.project_id, event_type, provider, mode, event_obj.provider_event_id, len(self.ledger_events))
+        record = {
+            "schema_version": BILLING_SCHEMA_VERSION,
+            "ledger_event_id": ledger_event_id,
+            "tenant_id": str(event_obj.tenant_id),
+            "project_id": str(event_obj.project_id),
+            "event_type": event_type,
+            "provider": provider,
+            "mode": mode,
+            "provider_event_id": event_obj.provider_event_id,
+            "customer_ref": event_obj.customer_ref,
+            "invoice_ref": event_obj.invoice_ref,
+            "amount_minor": int(event_obj.amount_minor),
+            "currency": currency,
+            "usage_units": int(event_obj.usage_units),
+            "metadata": _public_metadata(event_obj.metadata),
+            "raw_payload_included": False,
+            "secret_value_present": False,
+            "created_at": _utc_now(),
+        }
+        self.ledger_events.append(_assert_public_safe(record))
+        return dict(record)
+
+    def ingest_provider_webhook(
+        self,
+        *,
+        envelope: Mapping[str, Any],
+        customer_ref: str | None = None,
+        amount_minor: int = 0,
+        currency: str = "usd",
+        invoice_ref: str | None = None,
+        usage_units: int = 0,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        _reject_sensitive_payload({"customer_ref": customer_ref, "invoice_ref": invoice_ref, "metadata": metadata})
+        if not bool(envelope.get("verified")):
+            raise BillingContractError("cannot ingest unverified billing webhook envelope")
+        provider = _normalize_provider(str(envelope.get("provider")))
+        mode = _normalize_mode(str(envelope.get("mode")))
+        tenant_id = str(envelope.get("tenant_id") or "")
+        project_id = str(envelope.get("project_id") or "")
+        event_id = str(envelope.get("event_id") or "")
+        payload_sha256 = str(envelope.get("payload_sha256") or "").lower()
+        event_type = str(envelope.get("event_type") or "")
+        if not event_id:
+            raise BillingContractError("provider event_id is required")
+        if not re.fullmatch(r"[a-f0-9]{64}", payload_sha256):
+            raise BillingContractError("provider payload_sha256 must be a sha256 hex digest")
+        key = _provider_event_key(provider, mode, tenant_id, project_id, event_id)
+        existing = self.provider_events.get(key)
+        if existing:
+            if existing["payload_sha256"] != payload_sha256:
+                conflict = {**existing, "ingest_status": "conflict", "conflict_payload_sha256": payload_sha256, "ledger_mutation_count": 0}
+                return _assert_public_safe(conflict)
+            duplicate = {**existing, "ingest_status": "duplicate", "ledger_mutation_count": 0}
+            return _assert_public_safe(duplicate)
+
+        ledger_event_type = PROVIDER_EVENT_TYPES.get(event_type, "usage_reconciled" if event_type.startswith("ashr.usage") else "checkout_created")
+        ledger = self.append_ledger_event(
+            BillingLedgerEvent(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                event_type=ledger_event_type,
+                provider=provider,
+                mode=mode,
+                provider_event_id=event_id,
+                customer_ref=customer_ref,
+                invoice_ref=invoice_ref,
+                amount_minor=amount_minor,
+                currency=currency,
+                usage_units=usage_units,
+                metadata=metadata,
+            )
+        )
+        provider_record = {
+            "schema_version": BILLING_SCHEMA_VERSION,
+            "provider_event_key": key,
+            "provider": provider,
+            "mode": mode,
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "event_id": event_id,
+            "event_type": event_type,
+            "payload_sha256": payload_sha256,
+            "ledger_event_id": ledger["ledger_event_id"],
+            "ledger_event_type": ledger["event_type"],
+            "ingest_status": "accepted",
+            "ledger_mutation_count": 1,
+            "raw_payload_included": False,
+            "secret_value_present": False,
+            "created_at": _utc_now(),
+        }
+        self.provider_events[key] = _assert_public_safe(provider_record)
+        return dict(provider_record)
+
+    def reconcile_usage_rollup(self, usage_rollup: Mapping[str, Any], *, provider: str = "stripe", mode: str = "test", customer_ref: str | None = None, billing_period: str | None = None) -> JsonDict:
+        tenant_id = str(usage_rollup.get("tenant_id") or "")
+        project_id = str(usage_rollup.get("project_id") or "")
+        billable_units = int(usage_rollup.get("billable_units") or 0)
+        period = str(billing_period or usage_rollup.get("billing_period") or "unperiodized")
+        return self.append_ledger_event(
+            BillingLedgerEvent(
+                tenant_id=tenant_id,
+                project_id=project_id,
+                event_type="usage_reconciled",
+                provider=provider,
+                mode=mode,
+                provider_event_id=f"usage:{tenant_id}:{project_id}:{period}",
+                customer_ref=customer_ref,
+                usage_units=billable_units,
+                amount_minor=0,
+                currency="usd",
+                metadata={"billing_period": period, "operation_totals": usage_rollup.get("operation_totals") or {}},
+            )
+        )
+
+    def public_ledger(self, *, tenant_id: str, project_id: str) -> JsonDict:
+        events = [dict(item) for item in self.ledger_events if item["tenant_id"] == str(tenant_id) and item["project_id"] == str(project_id)]
+        totals: dict[str, int] = {}
+        usage_units = 0
+        for event in events:
+            currency = str(event.get("currency") or "usd")
+            totals[currency] = totals.get(currency, 0) + int(event.get("amount_minor") or 0)
+            usage_units += int(event.get("usage_units") or 0)
+        accounts = [dict(item) for item in self.billing_accounts.values() if item["tenant_id"] == str(tenant_id) and item["project_id"] == str(project_id)]
+        provider_events = [dict(item) for item in self.provider_events.values() if item["tenant_id"] == str(tenant_id) and item["project_id"] == str(project_id)]
+        snapshot = {
+            "schema_version": BILLING_SCHEMA_VERSION,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "ledger_events": events,
+            "provider_events": provider_events,
+            "billing_accounts": accounts,
+            "totals_by_currency_minor": totals,
+            "usage_units": usage_units,
+            "ledger_event_count": len(events),
+            "provider_event_count": len(provider_events),
+            "raw_payload_included": False,
+            "secret_value_present": False,
+        }
+        return _assert_public_safe(snapshot)
+
+
+def billing_evidence_snapshot(*, ledger: BillingLedger, tenant_id: str, project_id: str) -> JsonDict:
+    snapshot = ledger.public_ledger(tenant_id=tenant_id, project_id=project_id)
+    body = json.dumps(snapshot, sort_keys=True, default=str).encode("utf-8")
+    return {
+        "schema_version": "ashr.clone.billing_evidence_snapshot.v1",
+        "tenant_id": str(tenant_id),
+        "project_id": str(project_id),
+        "billing_snapshot_sha256": hashlib.sha256(body).hexdigest(),
+        "ledger_event_count": snapshot["ledger_event_count"],
+        "provider_event_count": snapshot["provider_event_count"],
+        "totals_by_currency_minor": dict(snapshot["totals_by_currency_minor"]),
+        "usage_units": snapshot["usage_units"],
+        "raw_payload_included": False,
+        "secret_value_present": False,
+    }
+
+
+def _coerce_ledger_event(value: BillingLedgerEvent | Mapping[str, Any]) -> BillingLedgerEvent:
+    if isinstance(value, BillingLedgerEvent):
+        return value
+    return BillingLedgerEvent(
+        tenant_id=str(value.get("tenant_id") or ""),
+        project_id=str(value.get("project_id") or ""),
+        event_type=str(value.get("event_type") or ""),
+        amount_minor=int(value.get("amount_minor") or 0),
+        currency=str(value.get("currency") or "usd"),
+        provider=value.get("provider"),
+        mode=str(value.get("mode") or "test"),
+        provider_event_id=value.get("provider_event_id"),
+        customer_ref=value.get("customer_ref"),
+        invoice_ref=value.get("invoice_ref"),
+        usage_units=int(value.get("usage_units") or 0),
+        metadata=value.get("metadata") if isinstance(value.get("metadata"), Mapping) else None,
+        ledger_event_id=value.get("ledger_event_id"),
+    )
+
+
+def _normalize_ledger_event_type(value: str) -> str:
+    normalized = str(value).strip().lower().replace(".", "_").replace("-", "_")
+    if normalized not in LEDGER_EVENT_TYPES:
+        raise BillingContractError(f"unsupported billing ledger event type: {value}")
+    return normalized
+
+
+def _provider_event_key(provider: str, mode: str, tenant_id: str, project_id: str, event_id: str) -> str:
+    return ":".join([str(provider), str(mode), str(tenant_id), str(project_id), str(event_id)])
+
+
+def _account_key(tenant_id: str, project_id: str, provider: str, mode: str, customer_ref: str) -> str:
+    return ":".join([str(tenant_id), str(project_id), str(provider), str(mode), str(customer_ref)])
+
+
+def _ledger_event_id(*parts: Any) -> str:
+    return "ble_" + hashlib.sha256("|".join(str(part) for part in parts if part is not None).encode("utf-8")).hexdigest()[:24]
