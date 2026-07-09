@@ -1547,3 +1547,17 @@ Results:
 - `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> pass.
 - Targeted secret scan over A1 public dirs found only expected synthetic fixtures and guardrail regexes; no raw API key/provider key/card/webhook secret was added.
 - Incorrect command note: `go test ./...` from repo root and pytest from `tests/integration/go` cwd are invalid in this monorepo; corrected module-root commands above were used as authoritative validation.
+
+## Round41 commands - 2026-07-09T23:10:00Z
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; git branch --show-current; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb; gh repo view ...; gh pr list ...`: confirmed `C:/Users/33516/Documents/Ashr_a1_clean_rebase`, branch `codex/a1-local-sdk-runner-clean`, PR #27 open, peer A3 branch updated.
+- `python scripts/a2_regenerate_fixtures.py --write`: wrote 52 deterministic A2 generated fixture files as a CL unblock after A1 evidence index label/count changes.
+- `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider`: 52 passed.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: 1 passed.
+- `python scripts/cl_guard.py hygiene`: passed, findings empty.
+- `git diff --check`: passed with CRLF normalization warnings only.
+- `python scripts/a2_regenerate_fixtures.py --check`: all 52 A2 generated fixture files match committed output.
+- `python scripts/cl_guard.py commercial`: passed, no blockers/advisories.
+- `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
+- Safety: no secret/key file read, no Ashr API call, no live billing/auth/team/API-key/storage mutation in this CI-unblock slice.
+- Environment note: `bash -lc ...` through the current WSL relay failed with `/bin/bash` missing; revisit Linux shell availability before daemon/container-heavy follow-up.

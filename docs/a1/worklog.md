@@ -1,3 +1,23 @@
+## Round41 CL fixture unblock - 2026-07-09T23:10:00Z
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner-clean` / PR #27 after commit `8164156` pushed.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed peer movement on `origin/codex/a3-commercial-growth-round4`; PR #27 still targets `codex/a1-local-sdk-runner`.
+- CI failure root cause was A2 generated fixture drift after A1 real API evidence index label/count updates in Round40, not judge semantic drift.
+- WSL/bash check during this round returned `/bin/bash` missing from the current WSL relay; treat Linux shell availability as an environment item to revisit before daemon/container work.
+
+Implemented:
+- Ran `python scripts/a2_regenerate_fixtures.py --write` as a CL unblock exception and refreshed the generated A2 fixture snapshot set under `fixtures/a2`.
+- No secret files were read; no Ashr API call was made in this CI-unblock slice.
+
+Validation:
+- `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> 52 passed.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> 1 passed.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Next:
+- Commit/push the fixture unblock, watch PR #27 checks, then return to A1 large-SaaS growth: Go runtime daemon, SQL/RLS quota ledger, TS parity, provider webhook/OAuth/login scaffolds, object storage bundle persistence, and purposeful official API calibration.
 # A1 Worklog
 
 ## 2026-07-09 - Go ingress auth handle enforcement and TS/Python parity gate

@@ -68,18 +68,18 @@
     "status": "ready",
     "ready": true,
     "source_schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "label": "a1-real-api-round40-history-plus-paid-media-gate",
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
-    "total_records": 368,
+    "total_records": 399,
     "dangerous_counts": {
       "unsafe_real_nonprivate_override": 0,
       "private_required_but_not_private": 0
     },
     "safe_counts": {
       "private_required": 5,
-      "private_file": 5,
+      "private_file": 6,
       "stdout_full_record_blocked": 5,
-      "present": 5
+      "present": 6
     },
     "evidence_refs": [
       "docs/a1/api_calibration/real_api_evidence_index.json"
@@ -203,7 +203,7 @@
       "type": "quota_risk",
       "severity": "medium",
       "summary": "Real API quota gate is currently blocking mutating request calibration.",
-      "count": 13,
+      "count": 18,
       "evidence_refs": [
         "docs/a1/api_calibration/real_api_evidence_index.json"
       ]
@@ -212,7 +212,7 @@
       "type": "api_probe_gate_validation",
       "severity": "medium",
       "summary": "A1 API probe quota gate validation evidence needs review before mutating release calibration.",
-      "count": 3,
+      "count": 4,
       "evidence_refs": [
         "docs/a1/api_calibration/real_api_evidence_index.json",
         "docs/a1/schemas/api_probe_quota_gate.schema.json"
