@@ -5224,3 +5224,52 @@ Safety:
 - The schema drift API embeds hashes and compatibility findings, not raw schemas.
 - `git fetch origin` was retried during this round but failed with a network
   reset; existing local remote refs were used for compatibility inspection.
+
+## 2026-07-09 - A3 A2 Security and SQL Store Report Consumers
+
+Continued the A1/A2 compatibility thread after the schema drift commit by adding
+optional A3 consumers for A2's newer cross-lane security and SQL store report
+shapes. This moves A3 farther from "static dashboard" toward SaaS evidence
+plumbing: security policy context and DB-backed judge history can now appear in
+reports when A2 provides them.
+
+Changed:
+
+- Added `summarizeA2CrossLaneSecurityContext(...)` for
+  `a2.cross_lane_security_context.v1`.
+- Added `summarizeA2SqlStoreReport(...)` for `a2.sql_store_report.v1`.
+- Added `a2_cross_lane_security_context` and `a2_sql_store_report` to the A3
+  JSON report export.
+- Added Markdown report sections for A2 cross-lane security context and A2 SQL
+  store reports.
+- Extended A3 source-artifact hashing with
+  `a2_cross_lane_security_context` and `a2_sql_store_report`.
+- Added focused report/source-artifact tests with synthetic public-safe fixtures.
+
+Validation so far:
+
+- `node --check services/report/report_builder.mjs`
+- `node --check services/report/a3_source_artifacts.mjs`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs tests/a3/a1_a2_compatibility_contract.test.mjs`
+- Focused result: 49 tests passed, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 242 tests, 0
+  failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- A3 still consumes these as optional A2-owned evidence reports.
+- No A1 runner or A2 judge semantics changed.
+- Cross-lane security context is treated as policy/audit evidence, not as an
+  A3 authority to change A1 hosted auth or A2 policy.
+- SQL store report is treated as DB evidence shape for future SaaS reporting,
+  not as a live database migration.
+
+Safety:
+
+- No live database, hosted auth, Ashr API, billing provider, or cloud mutation
+  was executed.
+- Synthetic test fixtures are public-safe and do not include raw keys, tokens,
+  account identifiers, or private evidence.

@@ -14,8 +14,10 @@ import {
   filterCases,
   getFilterOptions,
   normalizeCases,
+  summarizeA2CrossLaneSecurityContext,
   summarizeA2ReleaseUnblockChecklist,
   summarizeA2ResultPersistence,
+  summarizeA2SqlStoreReport,
   summarizeCommercialReadiness,
   summarizeArtifactRegistryExport,
   summarizeCoverage,
@@ -2044,4 +2046,125 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   assert.match(markdown, /## A2 Release Unblock Checklist/);
   assert.match(markdown, /Blocking gates: C3, C4, C5/);
   assert.match(markdown, /Required reviewers: A2 evidence reviewer, A2 case-book owner/);
+});
+
+test("A3 report builder preserves A2 cross-lane security and SQL store summaries", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const crossLaneSecurityContext = {
+    schema_version: "a2.cross_lane_security_context.v1",
+    report_id: "a2_cross_lane_security_context_unit",
+    source_refs: {
+      a1_route_scope: "docs/a1/route_scope.md",
+      a3_auth_rbac_boundary: "docs/a3/auth_rbac.md",
+      a3_openapi: "docs/a3/openapi/a3_commercial_api.openapi.json"
+    },
+    a1_route_scope: {
+      available: true,
+      schema_version: "a1.route_scope.v1",
+      ready_for_a2_security_context: true
+    },
+    a3_auth_rbac_boundary: {
+      available: true,
+      schema_version: "a3.rbac_policy.v1",
+      ready_for_a2_security_context: true
+    },
+    a2_policy_implications: {
+      should_block_hosted_mutations_without_a1_auth: true,
+      should_require_metadata_only_audit_events: true,
+      should_keep_raw_actor_identity_forbidden: true,
+      should_add_route_scope_security_cases: true,
+      should_add_auth_rbac_abuse_cases: true,
+      release_policy_refs: ["release_gate.auth_boundary"]
+    },
+    a2_security_followups: [{
+      followup_id: "security-followup-1",
+      action: "Add hosted mutation abuse case.",
+      owner: "A2 security reviewer",
+      tags: ["auth", "rbac"],
+      writes_private_evidence: false,
+      requires_user_decision: false
+    }],
+    metadata: {
+      public_safe: true,
+      deterministic: true,
+      requires_network: false,
+      requires_ashr_api_key: false,
+      does_not_execute_live_calls: true,
+      does_not_read_private_evidence: true,
+      raw_private_evidence_not_recorded: true,
+      secrets_not_recorded: true
+    }
+  };
+  const sqlStoreReport = {
+    schema_version: "a2.sql_store_report.v1",
+    report_id: "a2_sql_store_unit",
+    database: {
+      engine: "sqlite",
+      reference_dialect: "sqlite",
+      production_target: "postgres",
+      ddl_version: "a2.sql_store.sqlite.v1",
+      ddl_ref: "services/judge/sql/a2.sql"
+    },
+    table_counts: {
+      a2_eval_runs: 1,
+      a2_judge_results: 160,
+      a2_calibration_cases: 6
+    },
+    write_counts: {
+      a2_judge_results: 160,
+      a2_calibration_cases: 6
+    },
+    query_checks: {
+      failure_class_counts: { missing_required_tool: 3 },
+      golden_failure_class_counts: { wrong_arguments: 1 },
+      calibration_missing_ashr_count: 6,
+      calibration_disagreement_count: 1,
+      regression_replay_status_counts: { blocked: 3 },
+      can_join_case_level_history: true
+    },
+    source_refs: {
+      grade_report: "fixtures/a2/results/a2_g3_grade_results.json",
+      ddl: "services/judge/sql/a2.sql"
+    },
+    metadata: {
+      public_safe: true,
+      uses_python_stdlib_sqlite: true,
+      does_not_require_external_database: true,
+      does_not_execute_live_calls: true,
+      raw_private_evidence_not_recorded: true,
+      secrets_not_recorded: true,
+      intended_consumers: ["A3 reporting", "SaaS audit export"]
+    }
+  };
+
+  const securitySummary = summarizeA2CrossLaneSecurityContext(crossLaneSecurityContext);
+  assert.equal(securitySummary.available, true);
+  assert.equal(securitySummary.should_block_hosted_mutations_without_a1_auth, true);
+  assert.equal(securitySummary.followup_count, 1);
+  assert.equal(securitySummary.safety.secrets_not_recorded, true);
+
+  const sqlSummary = summarizeA2SqlStoreReport(sqlStoreReport);
+  assert.equal(sqlSummary.available, true);
+  assert.equal(sqlSummary.production_target, "postgres");
+  assert.equal(sqlSummary.table_count_total, 167);
+  assert.equal(sqlSummary.write_count_total, 166);
+  assert.equal(sqlSummary.can_join_case_level_history, true);
+
+  const bundle = {
+    crossLaneSecurityContext,
+    sqlStoreReport
+  };
+  const json = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.equal(json.a2_cross_lane_security_context.report_id, "a2_cross_lane_security_context_unit");
+  assert.equal(json.a2_sql_store_report.database_engine, "sqlite");
+  assert.equal(json.a2_sql_store_report.table_count_total, 167);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.match(markdown, /## A2 Cross-Lane Security Context/);
+  assert.match(markdown, /Block hosted mutations without A1 auth: yes/);
+  assert.match(markdown, /## A2 SQL Store Report/);
+  assert.match(markdown, /DB: sqlite \/ target postgres/);
 });

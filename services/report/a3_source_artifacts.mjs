@@ -12,6 +12,8 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
   const evidenceReadiness = snapshot.evidenceReadiness || snapshot.evidence_readiness || {};
   const resultPersistence = snapshot.resultPersistence || snapshot.result_persistence || snapshot.resultPersistenceManifest || snapshot.result_persistence_manifest || {};
   const releaseUnblockChecklist = snapshot.releaseUnblockChecklist || snapshot.release_unblock_checklist || {};
+  const crossLaneSecurityContext = snapshot.crossLaneSecurityContext || snapshot.cross_lane_security_context || {};
+  const sqlStoreReport = snapshot.sqlStoreReport || snapshot.sql_store_report || {};
   const officialReadonlyManifest = snapshot.a1OfficialApiReadonlyManifest
     || snapshot.a1_official_api_readonly_manifest
     || evidenceReadiness.a1_official_api_readonly_manifest
@@ -101,6 +103,22 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
       tenantScope,
       recordCount: Array.isArray(releaseUnblockChecklist.gate_items) ? releaseUnblockChecklist.gate_items.length : 1,
       requiredBy: ["review_workflow", "release_war_room", "report_export"]
+    }));
+  }
+  if (hasPayload(crossLaneSecurityContext)) {
+    artifacts.push(sourceArtifact("a2_cross_lane_security_context", "A2", ["CrossLaneSecurityContext"], crossLaneSecurityContext, {
+      source,
+      tenantScope,
+      recordCount: Array.isArray(crossLaneSecurityContext.a2_security_followups) ? crossLaneSecurityContext.a2_security_followups.length : 1,
+      requiredBy: ["auth_rbac_boundary", "security_audit", "release_policy"]
+    }));
+  }
+  if (hasPayload(sqlStoreReport)) {
+    artifacts.push(sourceArtifact("a2_sql_store_report", "A2", ["SqlStoreReport"], sqlStoreReport, {
+      source,
+      tenantScope,
+      recordCount: Object.values(sqlStoreReport.table_counts || {}).reduce((sum, value) => sum + (Number(value) || 0), 0) || 1,
+      requiredBy: ["db_backed_reports", "failure_analytics", "audit_export"]
     }));
   }
 

@@ -86,9 +86,10 @@ A3 also inspected the newer remote A2 schema shapes for:
 - cross-lane security context
 - SQL store reports
 
-Only the fields that directly affect A3 report/export/source-artifact behavior
-were implemented in this round. Cross-lane security and SQL store reports remain
-next-step dashboard/report consumers.
+The first schema drift commit implemented the fields that directly affect A3
+report/export/source-artifact behavior. The follow-up compatibility commit also
+added optional A3 report/source-artifact consumers for cross-lane security
+context and SQL store reports.
 
 ## Safety
 
@@ -131,6 +132,7 @@ git diff --check: passed
    ready.
 7. Link drift changes to bundle reseal impact.
 8. Add CI guard mode so schema drift blocks risky A3 changes.
-9. Add A3 summaries for A2 cross-lane security context.
-10. Add A3 summaries for A2 SQL store reports once A2's DB persistence shape is
-    merged into main.
+9. Surface A2 cross-lane security context in the live dashboard once A2 lands a
+   public fixture in main.
+10. Surface A2 SQL store report in the live dashboard once A2 lands a public
+    fixture in main.

@@ -808,6 +808,98 @@ export function summarizeA2ReleaseUnblockChecklist(unblockFixture = {}) {
   };
 }
 
+export function summarizeA2CrossLaneSecurityContext(securityFixture = {}) {
+  const available = isObject(securityFixture) && Object.keys(securityFixture).length > 0;
+  const a1RouteScope = objectOr(securityFixture.a1_route_scope);
+  const a3AuthRbac = objectOr(securityFixture.a3_auth_rbac_boundary);
+  const policy = objectOr(securityFixture.a2_policy_implications);
+  const followups = Array.isArray(securityFixture.a2_security_followups) ? securityFixture.a2_security_followups : [];
+  const metadata = objectOr(securityFixture.metadata);
+
+  return {
+    available,
+    schema_version: available ? securityFixture.schema_version || "unknown" : "none",
+    report_id: securityFixture.report_id || "none",
+    source_refs: objectOr(securityFixture.source_refs),
+    a1_route_scope_available: a1RouteScope.available === true,
+    a1_route_scope_ready_for_a2_security_context: a1RouteScope.ready_for_a2_security_context === true,
+    a1_route_scope_schema_version: a1RouteScope.schema_version || "unknown",
+    a3_auth_rbac_available: a3AuthRbac.available === true,
+    a3_auth_rbac_ready_for_a2_security_context: a3AuthRbac.ready_for_a2_security_context === true,
+    a3_auth_rbac_schema_version: a3AuthRbac.schema_version || "unknown",
+    should_block_hosted_mutations_without_a1_auth: policy.should_block_hosted_mutations_without_a1_auth === true,
+    should_require_metadata_only_audit_events: policy.should_require_metadata_only_audit_events === true,
+    should_keep_raw_actor_identity_forbidden: policy.should_keep_raw_actor_identity_forbidden === true,
+    should_add_route_scope_security_cases: policy.should_add_route_scope_security_cases === true,
+    should_add_auth_rbac_abuse_cases: policy.should_add_auth_rbac_abuse_cases === true,
+    release_policy_refs: Array.isArray(policy.release_policy_refs) ? policy.release_policy_refs : [],
+    followup_count: followups.length,
+    blocking_followup_count: followups.filter((item) => item.requires_user_decision === true).length,
+    followups: followups.slice(0, 5).map((item) => ({
+      followup_id: item.followup_id,
+      action: item.action,
+      owner: item.owner,
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      writes_private_evidence: item.writes_private_evidence === true,
+      requires_user_decision: item.requires_user_decision === true
+    })),
+    safety: {
+      public_safe: metadata.public_safe === true,
+      deterministic: metadata.deterministic === true,
+      requires_network: metadata.requires_network === true,
+      requires_ashr_api_key: metadata.requires_ashr_api_key === true,
+      does_not_execute_live_calls: metadata.does_not_execute_live_calls === true,
+      does_not_read_private_evidence: metadata.does_not_read_private_evidence === true,
+      raw_private_evidence_not_recorded: metadata.raw_private_evidence_not_recorded === true,
+      secrets_not_recorded: metadata.secrets_not_recorded === true
+    },
+    recommendation: available
+      ? "Use this A2 cross-lane security context to keep A3 hosted mutations, audit events, actor redaction, and RBAC abuse cases aligned with A1/A2 security evidence."
+      : "Attach A2 cross-lane security context before claiming A3 SaaS write paths are security-reviewed across lanes."
+  };
+}
+
+export function summarizeA2SqlStoreReport(sqlFixture = {}) {
+  const available = isObject(sqlFixture) && Object.keys(sqlFixture).length > 0;
+  const database = objectOr(sqlFixture.database);
+  const queryChecks = objectOr(sqlFixture.query_checks);
+  const metadata = objectOr(sqlFixture.metadata);
+
+  return {
+    available,
+    schema_version: available ? sqlFixture.schema_version || "unknown" : "none",
+    report_id: sqlFixture.report_id || "none",
+    database_engine: database.engine || "unknown",
+    reference_dialect: database.reference_dialect || "unknown",
+    production_target: database.production_target || "unknown",
+    ddl_version: database.ddl_version || "unknown",
+    ddl_ref: database.ddl_ref || "",
+    table_counts: objectOr(sqlFixture.table_counts),
+    write_counts: objectOr(sqlFixture.write_counts),
+    source_refs: objectOr(sqlFixture.source_refs),
+    failure_class_counts: objectOr(queryChecks.failure_class_counts),
+    golden_failure_class_counts: objectOr(queryChecks.golden_failure_class_counts),
+    calibration_missing_ashr_count: queryChecks.calibration_missing_ashr_count || 0,
+    calibration_disagreement_count: queryChecks.calibration_disagreement_count || 0,
+    regression_replay_status_counts: objectOr(queryChecks.regression_replay_status_counts),
+    can_join_case_level_history: queryChecks.can_join_case_level_history === true,
+    table_count_total: Object.values(objectOr(sqlFixture.table_counts)).reduce((sum, value) => sum + (Number(value) || 0), 0),
+    write_count_total: Object.values(objectOr(sqlFixture.write_counts)).reduce((sum, value) => sum + (Number(value) || 0), 0),
+    safety: {
+      public_safe: metadata.public_safe === true,
+      uses_python_stdlib_sqlite: metadata.uses_python_stdlib_sqlite === true,
+      does_not_require_external_database: metadata.does_not_require_external_database === true,
+      does_not_execute_live_calls: metadata.does_not_execute_live_calls === true,
+      raw_private_evidence_not_recorded: metadata.raw_private_evidence_not_recorded === true,
+      secrets_not_recorded: metadata.secrets_not_recorded === true,
+      intended_consumers: Array.isArray(metadata.intended_consumers) ? metadata.intended_consumers : []
+    },
+    recommendation: available
+      ? "Use this A2 SQL store report as the bridge from mock fixture evidence toward DB-backed judge history, failure analytics, and SaaS audit export."
+      : "Attach A2 SQL store report before claiming A2 judge evidence is queryable as durable DB data."
+  };
+}
+
 function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageApiProbe = {}, bundle = {}, releaseGateCandidate = {}) {
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const schema = (value) => isObject(value) ? String(value.schema_version || "") : "";
@@ -824,7 +916,9 @@ function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageA
     commercialReadinessFixture: explicit.commercialReadiness || explicit.commercial_readiness || (legacyA2Args ? usageApiProbe : {}),
     releaseGateFixture: explicit.releaseGate || explicit.release_gate || (legacyA2Args ? releaseGateCandidate : {}),
     resultPersistenceFixture: explicit.resultPersistence || explicit.result_persistence || explicit.resultPersistenceManifest || explicit.result_persistence_manifest || {},
-    releaseUnblockChecklistFixture: explicit.releaseUnblockChecklist || explicit.release_unblock_checklist || {}
+    releaseUnblockChecklistFixture: explicit.releaseUnblockChecklist || explicit.release_unblock_checklist || {},
+    crossLaneSecurityContextFixture: explicit.crossLaneSecurityContext || explicit.cross_lane_security_context || {},
+    sqlStoreReportFixture: explicit.sqlStoreReport || explicit.sql_store_report || {}
   };
 }
 
@@ -848,6 +942,10 @@ function isA2ReadinessBundle(value = {}) {
     || isObject(value.result_persistence_manifest)
     || isObject(value.releaseUnblockChecklist)
     || isObject(value.release_unblock_checklist)
+    || isObject(value.crossLaneSecurityContext)
+    || isObject(value.cross_lane_security_context)
+    || isObject(value.sqlStoreReport)
+    || isObject(value.sql_store_report)
   );
 }
 
@@ -4887,6 +4985,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const commercialReadiness = summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture);
   const resultPersistence = summarizeA2ResultPersistence(a2Readiness.resultPersistenceFixture);
   const releaseUnblockChecklist = summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture);
+  const a2CrossLaneSecurityContext = summarizeA2CrossLaneSecurityContext(a2Readiness.crossLaneSecurityContextFixture);
+  const a2SqlStoreReport = summarizeA2SqlStoreReport(a2Readiness.sqlStoreReportFixture);
   const requestProvenance = summarizeRequestProvenance(requestFixture);
   const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
   const billingUsage = summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe);
@@ -5402,6 +5502,39 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("");
   }
 
+  if (a2CrossLaneSecurityContext.available) {
+    lines.push(
+      "## A2 Cross-Lane Security Context",
+      "",
+      `- Report: ${a2CrossLaneSecurityContext.report_id}`,
+      `- A1 route scope ready: ${a2CrossLaneSecurityContext.a1_route_scope_ready_for_a2_security_context ? "yes" : "no"}`,
+      `- A3 auth/RBAC ready: ${a2CrossLaneSecurityContext.a3_auth_rbac_ready_for_a2_security_context ? "yes" : "no"}`,
+      `- Block hosted mutations without A1 auth: ${a2CrossLaneSecurityContext.should_block_hosted_mutations_without_a1_auth ? "yes" : "no"}`,
+      `- Metadata-only audit events required: ${a2CrossLaneSecurityContext.should_require_metadata_only_audit_events ? "yes" : "no"}`,
+      `- Raw actor identity forbidden: ${a2CrossLaneSecurityContext.should_keep_raw_actor_identity_forbidden ? "yes" : "no"}`,
+      `- Security followups: ${a2CrossLaneSecurityContext.followup_count}`,
+      `- Safety: public ${a2CrossLaneSecurityContext.safety.public_safe ? "yes" : "no"}, no live calls ${a2CrossLaneSecurityContext.safety.does_not_execute_live_calls ? "yes" : "no"}`,
+      ""
+    );
+  }
+
+  if (a2SqlStoreReport.available) {
+    lines.push(
+      "## A2 SQL Store Report",
+      "",
+      `- Report: ${a2SqlStoreReport.report_id}`,
+      `- DB: ${a2SqlStoreReport.database_engine} / target ${a2SqlStoreReport.production_target}`,
+      `- DDL: ${a2SqlStoreReport.ddl_version}`,
+      `- Table rows: ${a2SqlStoreReport.table_count_total}`,
+      `- Writes: ${a2SqlStoreReport.write_count_total}`,
+      `- Calibration missing Ashr: ${a2SqlStoreReport.calibration_missing_ashr_count}`,
+      `- Calibration disagreements: ${a2SqlStoreReport.calibration_disagreement_count}`,
+      `- Case-level history join: ${a2SqlStoreReport.can_join_case_level_history ? "ready" : "not ready"}`,
+      `- Safety: public ${a2SqlStoreReport.safety.public_safe ? "yes" : "no"}, external DB required ${a2SqlStoreReport.safety.does_not_require_external_database ? "no" : "unknown"}`,
+      ""
+    );
+  }
+
   if (requestProvenance.available) {
     const latest = requestProvenance.latest_request;
     lines.push(
@@ -5775,6 +5908,8 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     commercial_readiness: summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture),
     a2_result_persistence: summarizeA2ResultPersistence(a2Readiness.resultPersistenceFixture),
     a2_release_unblock_checklist: summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture),
+    a2_cross_lane_security_context: summarizeA2CrossLaneSecurityContext(a2Readiness.crossLaneSecurityContextFixture),
+    a2_sql_store_report: summarizeA2SqlStoreReport(a2Readiness.sqlStoreReportFixture),
     request_provenance: summarizeRequestProvenance(requestFixture),
     usage_quota: summarizeUsageQuota(usageFixture, usageApiProbe),
     billing_usage_summary: summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe),

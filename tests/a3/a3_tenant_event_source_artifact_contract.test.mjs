@@ -155,15 +155,32 @@ test("A3 source artifacts include optional G3 A1/A2 calibration inputs when pres
       schema_version: "a2.release_unblock_checklist.v1",
       overall_status: "blocked",
       gate_items: [{ gate: "C3", blocks_release: true }]
+    },
+    crossLaneSecurityContext: {
+      schema_version: "a2.cross_lane_security_context.v1",
+      a2_security_followups: [
+        { followup_id: "security-followup", writes_private_evidence: false }
+      ],
+      metadata: { public_safe: true }
+    },
+    sqlStoreReport: {
+      schema_version: "a2.sql_store_report.v1",
+      table_counts: {
+        a2_eval_runs: 1,
+        a2_judge_results: 2
+      },
+      metadata: { public_safe: true }
     }
   });
 
   const byType = Object.fromEntries(sourceArtifacts.artifacts.map((artifact) => [artifact.artifact_type, artifact]));
-  assert.equal(sourceArtifacts.source_artifact_count, 10);
+  assert.equal(sourceArtifacts.source_artifact_count, 12);
   assert.equal(byType.a1_official_api_readonly_manifest.record_count, 4);
   assert.equal(byType.a1_official_api_mutating_index.record_count, 3);
   assert.equal(byType.a1_official_api_paid_media_summary.source_lane, "A1");
   assert.equal(byType.a2_result_persistence_manifest.source_lane, "A2");
   assert.equal(byType.a2_release_unblock_checklist.record_count, 1);
+  assert.equal(byType.a2_cross_lane_security_context.record_count, 1);
+  assert.equal(byType.a2_sql_store_report.record_count, 3);
   assert.doesNotMatch(JSON.stringify(sourceArtifacts), /should-not-leak|Bearer|Cookie|owner@example\.com|sk-[A-Za-z0-9]/);
 });
