@@ -5065,3 +5065,45 @@ Page model note:
 - A3 is still implemented as one static/API-backed single-page app shell today.
 - The new sidebar groups now describe the future route split: overview,
   evaluate, review, reports, admin, and trust.
+
+## 2026-07-09 - A3 Event Outbox SaaS Backbone
+
+Continued the large-SaaS goal after the UI became acceptable. This round
+focused on the non-visual commercial backbone from
+`docs/a3/a3_slim_operating_index_2026_07_09.md`: executable event envelopes,
+event outbox exposure, and idempotent mutation receipts.
+
+Changed:
+
+- Wired metadata-only `ashr.event_envelope.v1` rows into A3 write paths:
+  report share, report view, report revoke, SaaS admin action request, review
+  waiver submit, review approval submit, and release evidence readback capture.
+- Added local store `eventOutbox` state and exported it through
+  `listEventOutbox`.
+- Added `GET /api/a3/events/outbox`.
+- Added `event_outbox` summary to the dashboard API payload.
+- Added idempotency replay/conflict behavior for A3 mutation-like write paths
+  beyond the existing A1/A2 import and release-readback paths.
+- Added event outbox store/API tests that assert event types, duplicate replay,
+  metadata-only payloads, and no token/email/Bearer leakage.
+- Added `docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`
+- Result: 12 tests passed, 0 failed.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, release gate, or
+  failure taxonomy logic changed.
+- Event outbox rows are downstream A3 control-plane metadata only.
+
+Safety:
+
+- No `.env.local`, API key, token, cookie, email, signed URL, payment secret, or
+  raw share token was written.
+- Event rows store metadata, hashes, safe actor IDs, and delivery status only.
+- Raw A1/A2 payloads remain separate source evidence and are not embedded in
+  outbox rows.

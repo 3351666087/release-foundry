@@ -37,6 +37,10 @@ import {
   tenantScopeToSnapshotFields
 } from "./a3_tenant_scope.mjs";
 import {
+  buildA3EventEnvelope,
+  validateA3EventEnvelope
+} from "./a3_event_envelope.mjs";
+import {
   buildReviewWorkflowIndex,
   buildReviewWorkflowRecord
 } from "./a3_review_workflow.mjs";
@@ -172,6 +176,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/usage/ledger",
     "GET /api/a3/billing/readiness",
     "GET /api/a3/commercial-api/contract",
+    "GET /api/a3/events/outbox",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
     "GET /api/a3/artifacts/registry",
@@ -258,6 +263,7 @@ export function createMemoryA3Store(seed = {}) {
   const shareLinks = new Map();
   const idempotencyReceipts = new Map();
   const auditEvents = [];
+  const eventOutbox = [];
   const adminActionRequests = [];
   const reviewWorkflowRecords = [];
   const releaseEvidenceReadbacks = [];
@@ -283,6 +289,9 @@ export function createMemoryA3Store(seed = {}) {
   }
   for (const event of seed.auditEvents || []) {
     auditEvents.push(event);
+  }
+  for (const event of seed.eventOutbox || []) {
+    eventOutbox.push(sanitizeEventOutboxRow(event));
   }
   for (const request of seed.adminActionRequests || []) {
     adminActionRequests.push(request);
@@ -310,6 +319,7 @@ export function createMemoryA3Store(seed = {}) {
       return buildDashboardPayload(snapshot, this.storage_mode, {
         reports: filterReportsForSnapshot([...reports.values()], snapshot),
         auditEvents,
+        eventOutbox,
         adminActionRequests,
         reviewWorkflowRecords,
         releaseEvidenceReadbacks,
@@ -553,6 +563,19 @@ export function createMemoryA3Store(seed = {}) {
       const actorHash = options.actor
         ? sha256(String(options.actor)).slice(0, 16)
         : options.actorHash || "actor_[REDACTED_HASH]";
+      const idempotencyPayloadHash = sha256(stableJson({
+        action: plan.action,
+        source: snapshot.source,
+        organization_id: plan.organization_id,
+        project_id: plan.project_id,
+        actor_hash: actorHash,
+        reason: options.reason || plan.reason || "",
+        target: sanitizeAdminActionTarget(options.target)
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "saas_admin_action_request", snapshot.source, options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       const requestHash = sha256(stableJson({
         action: plan.action,
         source: snapshot.source,
@@ -598,7 +621,7 @@ export function createMemoryA3Store(seed = {}) {
         created_at: storedRequest.requested_at,
         redacted: true
       });
-      return {
+      const receipt = {
         schema_version: "a3.saas_admin_action_receipt.v1",
         request_id: storedRequest.request_id,
         action: storedRequest.action,
@@ -614,6 +637,29 @@ export function createMemoryA3Store(seed = {}) {
         safety: storedRequest.safety,
         next_step: storedRequest.next_step
       };
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "admin.action_requested",
+        resourceType: "saas_admin_action_request",
+        resourceId: storedRequest.request_id,
+        tenantScope: {
+          organization_id: storedRequest.organization_id,
+          tenant_id: snapshot.tenantId,
+          workspace_id: snapshot.workspaceId,
+          project_id: storedRequest.project_id,
+          environment_id: snapshot.environmentId
+        },
+        actorHash: storedRequest.actor_hash,
+        createdAt: storedRequest.requested_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "admin_action_requests",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "saas_admin_action_request", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
+      return receiptWithEvent;
     },
 
     async listSaasAdminActionRequests(options = {}) {
@@ -633,6 +679,17 @@ export function createMemoryA3Store(seed = {}) {
 
     async submitReviewWaiver(waiver, options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const idempotencyPayloadHash = sha256(stableJson({
+        record_type: "waiver",
+        source: snapshot.source,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        waiver: redactPotentialSecret(waiver)
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "review_waiver_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       const record = sanitizeReviewWorkflowRecord({
         ...buildReviewWorkflowRecord("waiver", waiver, snapshot, {
         source: snapshot.source,
@@ -648,11 +705,40 @@ export function createMemoryA3Store(seed = {}) {
       });
       reviewWorkflowRecords.push(record);
       auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
-      return reviewWorkflowReceipt(record);
+      const receipt = reviewWorkflowReceipt(record);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "waiver.submitted",
+        resourceType: "review_workflow_record",
+        resourceId: record.record_id,
+        tenantScope: eventTenantScopeFromRecord(record, snapshot),
+        actorHash: record.actor_hash || record.requested_by_hash,
+        createdAt: record.created_at || record.requested_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "review_waivers",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "review_waiver_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
+      return receiptWithEvent;
     },
 
     async submitReviewApproval(approval, options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const idempotencyPayloadHash = sha256(stableJson({
+        record_type: "approval",
+        source: snapshot.source,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        approval: redactPotentialSecret(approval),
+        waiver: redactPotentialSecret(options.waiver || {})
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "review_approval_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       const waiverRecord = options.waiver
         ? { payload: options.waiver }
         : [...reviewWorkflowRecords].reverse().find((item) => item.record_type === "waiver" && item.subject?.waiver_id === approval?.waiver_id);
@@ -672,7 +758,24 @@ export function createMemoryA3Store(seed = {}) {
       });
       reviewWorkflowRecords.push(record);
       auditEvents.push(reviewWorkflowAuditEvent(record, auditEvents.length));
-      return reviewWorkflowReceipt(record);
+      const receipt = reviewWorkflowReceipt(record);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "approval.submitted",
+        resourceType: "review_workflow_record",
+        resourceId: record.record_id,
+        tenantScope: eventTenantScopeFromRecord(record, snapshot),
+        actorHash: record.actor_hash || record.requested_by_hash,
+        createdAt: record.created_at || record.requested_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "review_approvals",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "review_approval_submit", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
+      return receiptWithEvent;
     },
 
     async getReviewWorkflow(options = {}) {
@@ -738,8 +841,29 @@ export function createMemoryA3Store(seed = {}) {
         raw_body_stored: false,
         real_cloud_mutation_performed: false
       };
-      rememberIdempotentReceipt(idempotencyReceipts, "release_evidence_readback_capture", snapshot.source, options.idempotencyKey, payloadHash, receipt);
-      return receipt;
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "release_evidence.readback_captured",
+        resourceType: "release_evidence_readback",
+        resourceId: storedReadback.readback_id,
+        tenantScope: {
+          organization_id: storedReadback.organization_id,
+          tenant_id: snapshot.tenantId,
+          workspace_id: snapshot.workspaceId,
+          project_id: storedReadback.project_id,
+          environment_id: snapshot.environmentId
+        },
+        actorHash: storedReadback.actor_hash,
+        createdAt: storedReadback.captured_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "release_evidence_readbacks",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachEventEnvelopeReceipt(receipt, outboxRow);
+      rememberIdempotentReceipt(idempotencyReceipts, "release_evidence_readback_capture", snapshot.source, options.idempotencyKey, payloadHash, receiptWithEvent);
+      return receiptWithEvent;
     },
 
     async listReleaseEvidenceReadbacks(releaseId = "current", options = {}) {
@@ -845,6 +969,20 @@ export function createMemoryA3Store(seed = {}) {
 
     async createShareableReport(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
+      const idempotencyPayloadHash = sha256(stableJson({
+        source: snapshot.source,
+        title: options.title,
+        visibility: options.visibility,
+        created_by: safeActorId(options.createdBy),
+        expires_at: options.expiresAt,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        share_token_hash: options.shareToken ? sha256(options.shareToken) : null
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "report_share_create", snapshot.source, options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       const report = buildShareableReportPayload(snapshot, {
         source: snapshot.source,
         title: options.title,
@@ -858,7 +996,24 @@ export function createMemoryA3Store(seed = {}) {
       });
       reports.set(report.report_id, sanitizeStoredReport(report));
       registerShareLink(shareLinks, report);
-      return report;
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "report.share_link_created",
+        resourceType: "shareable_report",
+        resourceId: report.report_id,
+        tenantScope: reportTenantScope(report),
+        actorId: safeActorId(options.createdBy || report.created_by),
+        createdAt: report.created_at,
+        payload: shareReportEventPayload(report),
+        usageMeter: {
+          meter: "shareable_reports",
+          quantity: 1
+        }
+      });
+      const reportWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(report, outboxRow), options.idempotencyKey);
+      const replayReceipt = attachIdempotencyReceipt(sanitizeReportForRead(sanitizeStoredReport(reportWithEvent)), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "report_share_create", snapshot.source, options.idempotencyKey, idempotencyPayloadHash, replayReceipt);
+      return reportWithEvent;
     },
 
     async getReport(reportId, options = {}) {
@@ -1037,6 +1192,17 @@ export function createMemoryA3Store(seed = {}) {
       }
       const now = options.viewedAt || new Date().toISOString();
       const status = reportLifecycleStatus(report, now);
+      const idempotencyPayloadHash = sha256(stableJson({
+        report_id: reportId,
+        source: report.source,
+        viewer: safeActorId(options.viewer),
+        status,
+        tenant_scope: reportTenantScope(report)
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "report_view", report.source || "mock", options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       if (status === "shareable") {
         const reportScope = reportTenantScope(report);
         const event = {
@@ -1051,17 +1217,35 @@ export function createMemoryA3Store(seed = {}) {
           redacted: true
         };
         auditEvents.push(event);
+        const outboxRow = recordEventOutbox(eventOutbox, {
+          source: report.source,
+          eventType: "report.viewed",
+          resourceType: "shareable_report",
+          resourceId: reportId,
+          tenantScope: reportScope,
+          actorId: safeActorId(options.viewer),
+          createdAt: now,
+          payload: reportViewEventPayload(event),
+          usageMeter: {
+            meter: "report_views",
+            quantity: 1
+          }
+        });
         report.view_audit = {
           ...(report.view_audit || {}),
           view_count: (report.view_audit?.view_count || 0) + 1,
           last_viewed_at: now,
-          last_event_id: event.event_id
+          last_event_id: event.event_id,
+          last_event_outbox_id: outboxRow.event_id
         };
       }
-      return {
+      const viewedReport = {
         ...report,
-        status
+        status,
+        idempotency: idempotencyState(options.idempotencyKey)
       };
+      rememberIdempotentReceipt(idempotencyReceipts, "report_view", report.source || "mock", options.idempotencyKey, idempotencyPayloadHash, viewedReport);
+      return viewedReport;
     },
 
     async getReportForShareToken(shareToken, options = {}) {
@@ -1106,14 +1290,31 @@ export function createMemoryA3Store(seed = {}) {
           viewedAt: now,
           viewer: options.viewer || "share_link"
         });
+        const reportScope = reportTenantScope(report);
+        const outboxRow = recordEventOutbox(eventOutbox, {
+          source: report.source,
+          eventType: "report.share_link_viewed",
+          resourceType: "shareable_report",
+          resourceId: report.report_id,
+          tenantScope: reportScope,
+          actorId: safeActorId(options.viewer || "share_link"),
+          createdAt: now,
+          payload: reportViewEventPayload(event),
+          usageMeter: {
+            meter: "report_views",
+            quantity: 1
+          }
+        });
         report.view_audit = {
           ...(report.view_audit || {}),
           view_count: (report.view_audit?.view_count || 0) + 1,
           last_viewed_at: now,
-          last_event_id: event.event_id
+          last_event_id: event.event_id,
+          last_event_outbox_id: outboxRow.event_id
         };
         link.last_viewed_at = now;
         link.last_event_id = event.event_id;
+        link.last_event_outbox_id = outboxRow.event_id;
         return {
           ...report,
           status: "shareable",
@@ -1141,6 +1342,17 @@ export function createMemoryA3Store(seed = {}) {
       }
       const revokedAt = options.revokedAt || new Date().toISOString();
       const reportScope = reportTenantScope(report);
+      const idempotencyPayloadHash = sha256(stableJson({
+        report_id: reportId,
+        source: report.source,
+        reason: options.reason || "manual_revoke",
+        revoked_by: safeActorId(options.revokedBy || "a3-api"),
+        tenant_scope: reportScope
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "report_revoke", report.source || "mock", options.idempotencyKey, idempotencyPayloadHash);
+      if (replay) {
+        return replay;
+      }
       const revoked = {
         ...report,
         status: "revoked",
@@ -1165,7 +1377,7 @@ export function createMemoryA3Store(seed = {}) {
         reason: revoked.revocation_reason,
         redacted: true
       });
-      return {
+      const receipt = {
         schema_version: "a3.report_revoke_receipt.v1",
         report_id: reportId,
         organization_id: reportScope.organizationId,
@@ -1174,6 +1386,61 @@ export function createMemoryA3Store(seed = {}) {
         revoked_at: revokedAt,
         revoked_by: revoked.revoked_by,
         reason: revoked.revocation_reason
+      };
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: report.source,
+        eventType: "report.revoked",
+        resourceType: "shareable_report",
+        resourceId: reportId,
+        tenantScope: reportScope,
+        actorId: safeActorId(revoked.revoked_by),
+        createdAt: revokedAt,
+        payload: receipt,
+        usageMeter: {
+          meter: "report_revocations",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(receipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "report_revoke", report.source || "mock", options.idempotencyKey, idempotencyPayloadHash, receiptWithEvent);
+      return receiptWithEvent;
+    },
+
+    async listEventOutbox(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const rows = filterEventOutboxRows(eventOutbox, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
+        projectId: scopedSnapshot.projectId,
+        environmentId: scopedSnapshot.environmentId,
+        eventType: options.eventType,
+        deliveryStatus: options.deliveryStatus
+      });
+      return {
+        schema_version: "a3.event_outbox_list.v1",
+        source: snapshot.source,
+        tenant_scope: {
+          organization_id: scopedSnapshot.organizationId,
+          tenant_id: scopedSnapshot.tenantId,
+          workspace_id: scopedSnapshot.workspaceId,
+          project_id: scopedSnapshot.projectId,
+          environment_id: scopedSnapshot.environmentId
+        },
+        event_count: rows.length,
+        status_counts: countBy(rows, "delivery_status"),
+        event_type_counts: countBy(rows, "event_type"),
+        events: rows,
+        safety: {
+          metadata_only: true,
+          raw_payload_embedded: false,
+          raw_secret_values_allowed: false,
+          raw_cookie_values_allowed: false,
+          raw_signed_urls_allowed: false,
+          raw_actor_identity_exposed: false
+        }
       };
     },
 
@@ -1204,6 +1471,7 @@ export function createMemoryA3Store(seed = {}) {
         shareLinks: [...shareLinks.values()],
         idempotencyReceipts: [...idempotencyReceipts.entries()].map(([key, value]) => ({ key, ...value })),
         auditEvents,
+        eventOutbox,
         adminActionRequests,
         reviewWorkflowRecords,
         releaseEvidenceReadbacks
@@ -1404,6 +1672,14 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
+  const eventOutboxDashboard = buildEventOutboxDashboard(options.eventOutbox || [], {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    tenantId: snapshot.tenantId,
+    workspaceId: snapshot.workspaceId,
+    projectId: snapshot.projectId,
+    environmentId: snapshot.environmentId
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -1428,6 +1704,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
+    event_outbox: eventOutboxDashboard,
     source_artifacts: sourceArtifacts,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
@@ -1753,6 +2030,233 @@ function filterReleaseEvidenceReadbacks(readbacks = [], options = {}) {
     && (item.organization_id || "org-local") === organizationId
     && (item.project_id || "project-local") === projectId
   ));
+}
+
+function recordEventOutbox(eventOutbox, input = {}) {
+  const createdAt = input.createdAt || input.created_at || new Date().toISOString();
+  const resourceType = input.resourceType || input.resource_type || "unknown";
+  const resourceId = input.resourceId || input.resource_id || "unknown";
+  const eventType = input.eventType || input.event_type || "unknown.event";
+  const eventSeed = stableJson({
+    eventType,
+    resourceType,
+    resourceId,
+    createdAt,
+    source: input.source || "unknown"
+  });
+  const envelope = buildA3EventEnvelope({
+    event_type: eventType,
+    resource_type: resourceType,
+    resource_id: resourceId,
+    tenant_scope: input.tenantScope || input.tenant_scope || {},
+    actor_id: input.actorId || input.actor_id || safeActorId(input.actor || input.actorHash || input.actor_hash),
+    request_id: input.requestId || input.request_id || `req_${sha256(eventSeed).slice(0, 12)}`,
+    trace_id: input.traceId || input.trace_id || `trace_${sha256(`${eventSeed}:trace`).slice(0, 12)}`,
+    created_at: createdAt,
+    payload_ref: input.payloadRef || input.payload_ref || null,
+    payload: redactPotentialSecret(input.payload || {}),
+    usage_meter: input.usageMeter || input.usage_meter || null
+  });
+  const validation = validateA3EventEnvelope(envelope);
+  if (!validation.valid) {
+    throw new A3StoreValidationError("A3 event envelope failed validation.", validation.errors.map((issue) => ({
+      field: "event_outbox",
+      issue
+    })), {
+      requestType: "event_outbox_record",
+      source: input.source || "unknown",
+      statusCode: 500,
+      error: "event_outbox_validation_error"
+    });
+  }
+  const row = sanitizeEventOutboxRow({
+    source: input.source,
+    envelope,
+    delivery_status: input.deliveryStatus || input.delivery_status || "pending",
+    delivery_attempts: input.deliveryAttempts || input.delivery_attempts || 0,
+    next_attempt_at: input.nextAttemptAt || input.next_attempt_at || null,
+    last_error_class: input.lastErrorClass || input.last_error_class || null
+  });
+  eventOutbox.push(row);
+  return row;
+}
+
+function sanitizeEventOutboxRow(row = {}) {
+  const envelope = row.envelope || row.event_envelope || row;
+  return {
+    schema_version: "a3.event_outbox_row.v1",
+    id: row.id || envelope.event_id,
+    event_id: envelope.event_id,
+    source: normalizeSourceKey(row.source || envelope.source || "mock"),
+    event_type: envelope.event_type,
+    event_schema_version: envelope.schema_version,
+    organization_id: envelope.organization_id || "org-local",
+    tenant_id: envelope.tenant_id || "tenant-local",
+    workspace_id: envelope.workspace_id || "workspace-local",
+    project_id: envelope.project_id || "project-local",
+    environment_id: envelope.environment_id || "staging",
+    actor_id: safeActorId(envelope.actor_id),
+    request_id: safeIdentifier(envelope.request_id, "req"),
+    trace_id: safeIdentifier(envelope.trace_id, "trace"),
+    resource_type: envelope.resource_type || "unknown",
+    resource_id: safeIdentifier(envelope.resource_id, "resource"),
+    payload_ref: envelope.payload_ref || null,
+    payload_hash: envelope.payload_hash,
+    payload_inline: false,
+    payload_schema_version: envelope.payload_schema_version || null,
+    redaction_status: envelope.redaction_status || "metadata_only",
+    usage_meter: redactPotentialSecret(envelope.usage_meter || null),
+    delivery_status: row.delivery_status || "pending",
+    delivery_attempts: row.delivery_attempts || 0,
+    next_attempt_at: row.next_attempt_at || null,
+    last_error_class: row.last_error_class || null,
+    created_at: envelope.created_at || row.created_at || new Date().toISOString(),
+    envelope: {
+      ...envelope,
+      actor_id: safeActorId(envelope.actor_id),
+      request_id: safeIdentifier(envelope.request_id, "req"),
+      trace_id: safeIdentifier(envelope.trace_id, "trace"),
+      resource_id: safeIdentifier(envelope.resource_id, "resource"),
+      payload_inline: false
+    },
+    safety: {
+      metadata_only: true,
+      raw_payload_embedded: false,
+      raw_secret_values_allowed: false,
+      raw_cookie_values_allowed: false,
+      raw_signed_urls_allowed: false,
+      raw_actor_identity_exposed: false
+    }
+  };
+}
+
+function filterEventOutboxRows(rows = [], options = {}) {
+  const source = options.source ? normalizeSourceKey(options.source) : null;
+  return (Array.isArray(rows) ? rows : []).filter((row) => (
+    (!source || normalizeSourceKey(row.source || "unknown") === source)
+    && (!options.organizationId || row.organization_id === options.organizationId)
+    && (!options.tenantId || row.tenant_id === options.tenantId)
+    && (!options.workspaceId || row.workspace_id === options.workspaceId)
+    && (!options.projectId || row.project_id === options.projectId)
+    && (!options.environmentId || row.environment_id === options.environmentId)
+    && (!options.eventType || row.event_type === options.eventType)
+    && (!options.deliveryStatus || row.delivery_status === options.deliveryStatus)
+  ));
+}
+
+function buildEventOutboxDashboard(rows = [], options = {}) {
+  const events = filterEventOutboxRows(rows, options);
+  return {
+    schema_version: "a3.event_outbox_dashboard.v1",
+    source: options.source || "unknown",
+    tenant_scope: {
+      organization_id: options.organizationId || "org-local",
+      tenant_id: options.tenantId || "tenant-local",
+      workspace_id: options.workspaceId || "workspace-local",
+      project_id: options.projectId || "project-local",
+      environment_id: options.environmentId || "staging"
+    },
+    available: events.length > 0,
+    event_count: events.length,
+    status_counts: countBy(events, "delivery_status"),
+    event_type_counts: countBy(events, "event_type"),
+    latest_events: events.slice(-8).map((event) => ({
+      event_id: event.event_id,
+      event_type: event.event_type,
+      resource_type: event.resource_type,
+      resource_id: event.resource_id,
+      delivery_status: event.delivery_status,
+      created_at: event.created_at,
+      payload_hash_prefix: typeof event.payload_hash === "string" ? event.payload_hash.slice(0, 16) : null
+    })),
+    a1_a2_boundary: "Outbox records A3 control-plane actions only; A1 RunResult and A2 GradeResult remain source-of-truth evidence.",
+    safety: {
+      metadata_only: true,
+      raw_payload_embedded: false,
+      raw_secret_values_allowed: false,
+      raw_actor_identity_exposed: false
+    }
+  };
+}
+
+function attachEventEnvelopeReceipt(receipt = {}, row = {}) {
+  return {
+    ...receipt,
+    event_outbox_id: row.event_id || null,
+    event_outbox_delivery_status: row.delivery_status || "pending",
+    event_envelope: row.envelope || null
+  };
+}
+
+function attachIdempotencyReceipt(receipt = {}, idempotencyKey) {
+  return {
+    ...receipt,
+    idempotency: idempotencyState(idempotencyKey)
+  };
+}
+
+function idempotencyState(idempotencyKey) {
+  return {
+    key_present: Boolean(idempotencyKey),
+    duplicate: false,
+    status: idempotencyKey ? "recorded" : "not_provided"
+  };
+}
+
+function shareReportEventPayload(report = {}) {
+  return {
+    schema_version: "a3.shareable_report_event_payload.v1",
+    report_id: report.report_id,
+    source: report.source,
+    title: report.title,
+    status: report.status,
+    visibility: report.visibility || "private_link",
+    share_url_path: "/r/[REDACTED_TOKEN]",
+    token_hash_prefix: report.share_link?.token_hash_prefix || null,
+    sealed_payload_hash_present: Boolean(report.sealed_evidence?.payload_hash),
+    release_evidence_summary_available: report.release_evidence_summary?.available === true,
+    raw_share_token_included: false
+  };
+}
+
+function reportViewEventPayload(event = {}) {
+  return {
+    schema_version: "a3.report_view_event_payload.v1",
+    event_id: event.event_id,
+    report_id: event.report_id,
+    event_type: event.event_type,
+    access_result: event.access_result || "allowed",
+    viewed_at: event.viewed_at,
+    viewer: safeActorId(event.viewer),
+    token_hash_prefix: event.token_hash_prefix || null,
+    raw_share_token_included: false
+  };
+}
+
+function eventTenantScopeFromRecord(record = {}, snapshot = {}) {
+  return {
+    organization_id: record.organization_id || snapshot.organizationId,
+    tenant_id: record.tenant_id || snapshot.tenantId,
+    workspace_id: record.workspace_id || snapshot.workspaceId,
+    project_id: record.project_id || snapshot.projectId,
+    environment_id: record.environment_id || snapshot.environmentId
+  };
+}
+
+function safeActorId(value) {
+  const text = String(value || "actor-system");
+  if (/Bearer\s+|Cookie:|@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|sk-|ghp_|github_pat_|ashr_/i.test(text)) {
+    return `actor_${sha256(text).slice(0, 16)}`;
+  }
+  return text.replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 80) || "actor-system";
+}
+
+function safeIdentifier(value, prefix = "id") {
+  const text = String(value || `${prefix}-unknown`);
+  if (/Bearer\s+|Cookie:|@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|sk-|ghp_|github_pat_|ashr_/i.test(text)) {
+    return `${prefix}_${sha256(text).slice(0, 16)}`;
+  }
+  return text.replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 120) || `${prefix}-unknown`;
 }
 
 function latestReleaseEvidenceReadbacks(readbacks = [], options = {}) {

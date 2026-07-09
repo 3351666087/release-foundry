@@ -107,6 +107,8 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboardAfterCapture.release_evidence_readbacks.readback_count, 1);
     assert.equal(dashboardAfterCapture.release_evidence_summary.readback_status_counts.readback_confirmed, 1);
     assert.equal(dashboardAfterCapture.release_evidence_summary.readback_records[0].resource_kind, "github_check");
+    assert.equal(dashboardAfterCapture.event_outbox.schema_version, "a3.event_outbox_dashboard.v1");
+    assert.equal(dashboardAfterCapture.event_outbox.event_type_counts["release_evidence.readback_captured"], 1);
     assert.doesNotMatch(JSON.stringify(dashboardAfterCapture.release_evidence_readbacks), /should-not-leak|release-owner@example.com|Bearer/);
 
     const usageAfterReadback = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
@@ -477,6 +479,30 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const revokedHostedHtml = await revokedHostedReport.text();
     assert.match(revokedHostedHtml, /A3 report is not available/);
     assert.doesNotMatch(revokedHostedHtml, /Case Evidence/);
+
+    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock`);
+    assert.equal(outbox.schema_version, "a3.event_outbox_list.v1");
+    assert.equal(outbox.safety.metadata_only, true);
+    assert.ok(outbox.event_count >= 7);
+    for (const eventType of [
+      "release_evidence.readback_captured",
+      "admin.action_requested",
+      "waiver.submitted",
+      "approval.submitted",
+      "report.share_link_created",
+      "report.viewed",
+      "report.share_link_viewed",
+      "report.revoked"
+    ]) {
+      assert.ok(outbox.event_type_counts[eventType] >= 1, `${eventType} should be present`);
+    }
+    assert.ok(outbox.events.every((event) => event.event_schema_version === "ashr.event_envelope.v1"));
+    assert.ok(outbox.events.every((event) => event.payload_inline === false));
+    assert.doesNotMatch(JSON.stringify(outbox), /release-owner@example.com|owner@example.com|teammate@example.com|Bearer|should-not-leak|a3s_[A-Za-z0-9]/);
+
+    const revokedOutbox = await getJson(`${url}/api/a3/events/outbox?source=mock&event_type=report.revoked`);
+    assert.equal(revokedOutbox.event_count, 1);
+    assert.equal(revokedOutbox.events[0].event_type, "report.revoked");
 
     const missingShareToken = await fetch(`${url}/r/missing-share-token`);
     assert.equal(missingShareToken.status, 404);

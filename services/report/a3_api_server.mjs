@@ -107,6 +107,19 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/events/outbox") {
+        return sendJson(response, 200, await store.listEventOutbox({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined,
+          eventType: url.searchParams.get("event_type") || undefined,
+          deliveryStatus: url.searchParams.get("delivery_status") || undefined
+        }));
+      }
+
       if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
         const body = await readJsonBody(request);
         const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {
@@ -247,7 +260,8 @@ export function createA3ApiHandler(options = {}) {
           actorHash: body.actor_hash,
           reason: body.reason,
           target: body.target,
-          requestedAt: body.requested_at || body.requestedAt
+          requestedAt: body.requested_at || body.requestedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
@@ -270,7 +284,8 @@ export function createA3ApiHandler(options = {}) {
           generatedAt: body.generated_at || body.generatedAt,
           releaseVersion: body.release_version,
           environment: body.environment,
-          headSha: body.head_sha || body.headSha
+          headSha: body.head_sha || body.headSha,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
@@ -286,7 +301,8 @@ export function createA3ApiHandler(options = {}) {
           releaseVersion: body.release_version,
           environment: body.environment,
           headSha: body.head_sha || body.headSha,
-          waiver: body.waiver
+          waiver: body.waiver,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
@@ -332,7 +348,8 @@ export function createA3ApiHandler(options = {}) {
           createdBy: body.created_by || body.createdBy || "a3-api",
           expiresAt: body.expires_at || body.expiresAt,
           organizationId: body.organization_id,
-          projectId: body.project_id
+          projectId: body.project_id,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 201, report);
       }
@@ -384,6 +401,7 @@ export function createA3ApiHandler(options = {}) {
           reason: body.reason,
           revokedBy: body.revoked_by || body.revokedBy || "a3-api",
           revokedAt: body.revoked_at || body.revokedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body),
           ...reportScopeFrom(url, body)
         });
         return receipt
@@ -397,6 +415,7 @@ export function createA3ApiHandler(options = {}) {
         const report = await store.getReportForView(decodeURIComponent(reportViewMatch[1]), {
           viewer: body.viewer || "api",
           viewedAt: body.viewed_at || body.viewedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body),
           ...reportScopeFrom(url, body)
         });
         return report

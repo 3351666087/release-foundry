@@ -589,6 +589,12 @@
 - [x] Add overview anchors for product surfaces, workspace shortcuts, and run metrics so sidebar subsections target real page areas.
 - [x] Fix overview action layout so the data source selector and export buttons do not crowd each other.
 - [x] Verify desktop/mobile navigation and button text do not overflow with a Playwright layout probe.
+- [x] Wire metadata-only `ashr.event_envelope.v1` rows into A3 report share/view/revoke, admin action, review waiver/approval, and release readback write paths.
+- [x] Add local A3 store `eventOutbox` state and expose it through `GET /api/a3/events/outbox`.
+- [x] Add dashboard API `event_outbox` summary with event counts, delivery status counts, latest events, and A1/A2 boundary note.
+- [x] Add idempotency replay/conflict behavior to A3 mutation-like write paths without storing raw idempotency keys.
+- [x] Verify event outbox rows are metadata-only and do not leak raw share tokens, emails, Bearer values, cookies, API keys, or signed URLs.
+- [x] Document the A3 event outbox SaaS backbone in `docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
