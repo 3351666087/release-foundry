@@ -29,6 +29,9 @@ gradient, and invests in detail:
 - Subtle state strips instead of large colorful cards.
 - Smooth anchor scrolling.
 - Nav active-state updates on click and while scrolling.
+- Direct hash-link active-state repair for links such as `#console`.
+- Non-floating overview topbar so anchor navigation does not hide section
+  content.
 - Lightweight section focus animation after navigation.
 - Button, panel, case, and triage hover transitions.
 - Reduced-motion support.
@@ -39,6 +42,19 @@ gradient, and invests in detail:
 - `apps/dashboard/src/app.mjs`
 - `docs/screenshots/a3-dashboard-visual-polish-v4-2026-07-09.png`
 - `docs/screenshots/a3-dashboard-visual-polish-v4-mobile-2026-07-09.png`
+- `docs/screenshots/a3-dashboard-v4-console-anchor-no-overlap-2026-07-09.png`
+
+## Anchor Navigation Fix
+
+User testing showed the previous sticky overview topbar could cover the top of
+the target section after clicking sidebar links. V4 now keeps the overview
+topbar in normal document flow and sets a smaller section scroll margin.
+
+Playwright evidence:
+
+- Opening `?source=p3-official-demo#console` places `#console` at the top of the
+  viewport without overview-topbar overlap.
+- The active sidebar item becomes `Console` on direct hash load.
 
 ## A1 / A2 Safety
 

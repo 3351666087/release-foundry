@@ -574,6 +574,8 @@
 - [x] Keep V3 visual polish clean-room and preserve A1/A2 dashboard source wiring.
 - [x] Replace V3 loud color treatment with a refined V4 premium console style after broader web reference scan.
 - [x] Add nav click active-state animation, scroll-aware active nav, section focus animation, and reduced-motion support.
+- [x] Fix sticky overview topbar overlap so sidebar anchor navigation does not hide target sections.
+- [x] Repair direct hash-link active state so `#console` highlights `Console`.
 - [x] Capture V4 production desktop and mobile screenshots and verify mobile width does not overflow.
 - [x] Keep V4 UI refinement clean-room and preserve A1/A2 dashboard source wiring.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.

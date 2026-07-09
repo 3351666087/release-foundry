@@ -3017,6 +3017,19 @@ function setupSectionNavigation() {
   for (const section of sections) {
     observer.observe(section);
   }
+
+  const initialHash = window.location.hash.slice(1);
+  if (initialHash && sections.some((section) => section.id === initialHash)) {
+    setActiveLink(initialHash);
+  }
+
+  window.addEventListener("hashchange", () => {
+    const id = window.location.hash.slice(1);
+    const section = sections.find((item) => item.id === id);
+    if (!section) return;
+    setActiveLink(id);
+    focusSection(section);
+  });
 }
 
 async function init() {

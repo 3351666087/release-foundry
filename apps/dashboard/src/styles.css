@@ -174,7 +174,7 @@ select {
 }
 
 .content > section {
-  scroll-margin-top: 92px;
+  scroll-margin-top: 18px;
 }
 
 .content > section:not(.topbar) {
@@ -224,9 +224,8 @@ select {
   flex-wrap: wrap;
   gap: 18px;
   padding: 18px;
-  position: sticky;
-  top: 12px;
-  z-index: 10;
+  position: relative;
+  z-index: 1;
 }
 
 .topbar > div:first-child {

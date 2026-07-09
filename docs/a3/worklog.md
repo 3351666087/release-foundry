@@ -4926,10 +4926,16 @@ Changed:
 - Added smooth anchor scrolling and section focus animations.
 - Added nav active-state updates on click and while scrolling in
   `apps/dashboard/src/app.mjs`.
+- Fixed the sticky overview topbar overlap: the topbar now stays in normal
+  document flow so `#console`, `#saas-admin`, and other anchors are not hidden
+  behind it.
+- Added direct hash-load and hash-change active-state repair so URLs such as
+  `#console` highlight the correct sidebar item.
 - Added reduced-motion handling for users who disable animation.
 - Captured V4 screenshots:
   - `docs/screenshots/a3-dashboard-visual-polish-v4-2026-07-09.png`
   - `docs/screenshots/a3-dashboard-visual-polish-v4-mobile-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-v4-console-anchor-no-overlap-2026-07-09.png`
 - Added `docs/a3/a3_ui_visual_polish_v4_2026_07_09.md`.
 
 Reference scan:
@@ -4945,6 +4951,9 @@ Interaction evidence:
 
 - Playwright click check confirmed clicking `SaaS Admin` updates the active nav
   item to `SaaS Admin`.
+- Playwright direct-hash check confirmed opening `#console` makes the active nav
+  item `Console` and does not hide the Console section behind the overview
+  topbar.
 - Mobile screenshot width check confirmed `bodyScrollWidth` equals viewport
   width, so there is no page-level horizontal overflow.
 
