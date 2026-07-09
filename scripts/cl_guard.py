@@ -21,7 +21,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -70,6 +70,189 @@ PINNED_A3_ARTIFACT_PREFIXES = (
     "fixtures/a3/p3/a3_audit_archive_",
 )
 PINNED_A3_ARTIFACT_SUFFIXES = (".json", ".md")
+
+
+class CommercialAnchor(NamedTuple):
+    anchor_id: str
+    path: str
+    contains: tuple[str, ...]
+    lane: str
+    purpose: str
+
+
+COMMERCIAL_ANCHORS: tuple[CommercialAnchor, ...] = (
+    CommercialAnchor(
+        "strategy-agent-release-os",
+        "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+        ("Agent Release OS", "TypeScript + React + Next.js", "Playwright", "Postgres"),
+        "A1/A2/A3",
+        "Keeps every CL tied to the commercial SaaS endgame instead of isolated demos.",
+    ),
+    CommercialAnchor(
+        "cl-workflow-selective-matrix",
+        ".github/workflows/cl-gate.yml",
+        ("python-a1-a2", "a3-node", "typescript-sdk", "go-sdk", "evidence-gate"),
+        "A1/A2/A3",
+        "Ensures CI still routes A1, A2, A3, TypeScript, Go, and evidence checks.",
+    ),
+    CommercialAnchor(
+        "dashboard-webapp-split",
+        "apps/dashboard/index.html",
+        ("./src/styles.css", "./src/app.mjs"),
+        "A3",
+        "Prevents regression back to a giant HTML blob.",
+    ),
+    CommercialAnchor(
+        "dashboard-api-backed-state",
+        "apps/dashboard/src/app.mjs",
+        ("fetchA3DashboardSnapshot", "renderReportCenter", "renderReleaseEvidenceSummary", "releaseEvidenceReadbacks"),
+        "A3",
+        "Keeps dashboard wired to API-backed report/release evidence surfaces.",
+    ),
+    CommercialAnchor(
+        "dashboard-typed-api-client",
+        "apps/dashboard/src/api-client.mjs",
+        ("fetchA3DashboardSnapshot", "fetchA3ReportCenter", "createShareableA3Report", "fetchA3AdminConsole"),
+        "A3",
+        "Keeps browser UI calls centralized instead of ad hoc fetch blobs.",
+    ),
+    CommercialAnchor(
+        "typescript-sdk-mainline",
+        "packages/ts/ashr-clone/package.json",
+        ('"build": "tsc -p tsconfig.json"', '"test": "npm run build && node --test test/*.test.mjs"'),
+        "A1/A3",
+        "Keeps TypeScript as a typed SDK/client mainline with a build gate.",
+    ),
+    CommercialAnchor(
+        "a3-api-commercial-routes",
+        "services/report/a3_api_server.mjs",
+        ("/api/a3/import/a1-run-result", "/api/a3/import/a2-grade-result", "/api/a3/reports/share", "api\\/a3\\/releases"),
+        "A3",
+        "Keeps A3 API-backed ingestion, hosted reports, and release evidence online.",
+    ),
+    CommercialAnchor(
+        "a3-store-commercial-contract",
+        "services/report/a3_store.mjs",
+        ("A3_DB_CONTRACT", "release_evidence_readbacks", "POST /api/a3/import/a1-run-result", "GET /api/a3/usage/ledger"),
+        "A3",
+        "Keeps DB/API/event contract anchors for tenant-scoped SaaS state.",
+    ),
+    CommercialAnchor(
+        "a3-report-commercial-export",
+        "services/report/report_builder.mjs",
+        ("summarizeReleaseGate", "summarizeReleaseEvidenceSummary", "summarizeCommercialReadiness", "buildJsonReport"),
+        "A3",
+        "Keeps release gate, evidence, commercial readiness, and exports linked.",
+    ),
+    CommercialAnchor(
+        "a3-release-evidence-authority",
+        "services/report/a3_release_evidence.mjs",
+        ("a3.release_evidence_summary.v2", "buildReleaseEvidenceHealth", "diffReleaseEvidenceSummaries"),
+        "A3",
+        "Keeps release evidence as an authority object, not a static UI label.",
+    ),
+    CommercialAnchor(
+        "a3-readback-worker",
+        "services/report/a3_readback_capture_cli.mjs",
+        ("--submit", "--output-receipt", "releaseReadbackEndpoint", "sanitizeReadback"),
+        "A3",
+        "Keeps the CI/worker path for external release-control readback.",
+    ),
+    CommercialAnchor(
+        "a1-runtime-evidence-schema",
+        "docs/a1/schemas/evidence_index.schema.json",
+        ("schema_version", "status_counts", "function_counts", "records"),
+        "A1",
+        "Keeps A3 evidence claims grounded in A1 runtime evidence contracts.",
+    ),
+    CommercialAnchor(
+        "a1-worker-data-model",
+        "docs/a1/schemas/worker_data_model.schema.json",
+        ("tenant", "worker", "usage"),
+        "A1",
+        "Keeps SaaS ingestion and worker durability visible to CL.",
+    ),
+    CommercialAnchor(
+        "a2-grade-contract",
+        "docs/a2/schemas/grade_results.schema.json",
+        ("GradeResult", "score", "passed", "primary_failure_class"),
+        "A2",
+        "Keeps A3 dashboard/report claims grounded in A2 judge output.",
+    ),
+    CommercialAnchor(
+        "a2-commercial-readiness-contract",
+        "docs/a2/schemas/commercial_readiness.schema.json",
+        ("commercial_readiness", "ready_for_commercial_gate", "gate_status"),
+        "A2",
+        "Keeps commercial gating tied to A2 policy evidence.",
+    ),
+    CommercialAnchor(
+        "a3-api-server-tests",
+        "tests/a3/a3_api_server.test.mjs",
+        ("dashboard", "readback", "usage", "shareable"),
+        "A3",
+        "Keeps API-backed A3 routes covered by tests.",
+    ),
+    CommercialAnchor(
+        "a3-dashboard-wiring-tests",
+        "tests/a3/dashboard_wiring.test.mjs",
+        ("releaseEvidenceReadbacks", "raw A1", "raw A2", "SaaS admin"),
+        "A3",
+        "Keeps UI wiring tied to A1/A2 sources and SaaS surfaces.",
+    ),
+    CommercialAnchor(
+        "a3-report-builder-tests",
+        "tests/a3/report_builder.test.mjs",
+        ("Commercial Readiness", "Release Evidence Summary", "A2 G3", "raw A1"),
+        "A3",
+        "Keeps exported report evidence calibrated to A1/A2 and commercial readiness.",
+    ),
+    CommercialAnchor(
+        "a3-sqlite-store-tests",
+        "tests/a3/a3_sqlite_store.test.mjs",
+        ("SQLite", "A1/A2", "usage", "readback"),
+        "A3",
+        "Keeps local DB path from drifting away from API/report evidence.",
+    ),
+    CommercialAnchor(
+        "a3-acceptance-commercial-ledger",
+        "docs/a3/acceptance_checklist.md",
+        ("API-backed", "A1/A2", "Release Evidence", "usage"),
+        "A3",
+        "Keeps completed commercial acceptance items discoverable.",
+    ),
+)
+
+COMMERCIAL_ADVISORIES: tuple[CommercialAnchor, ...] = (
+    CommercialAnchor(
+        "playwright-ts-e2e-mainline",
+        "playwright.config.ts",
+        ("@playwright/test", "apps/dashboard"),
+        "A3",
+        "A3 needs a Playwright TS E2E lane for login, dashboard, review, billing, and report flows.",
+    ),
+    CommercialAnchor(
+        "tailwind-product-system",
+        "tailwind.config.ts",
+        ("content", "apps/dashboard"),
+        "A3",
+        "A3 should move visual density and product styling toward Tailwind or an equivalent design-system layer.",
+    ),
+    CommercialAnchor(
+        "mobile-expo-client-surface",
+        "apps/mobile/package.json",
+        ("expo", "react-native"),
+        "A3",
+        "Mobile approval/release alert surfaces should use React Native / Expo when they become active scope.",
+    ),
+    CommercialAnchor(
+        "wechat-mini-program-client-surface",
+        "apps/wechat-miniprogram/project.config.json",
+        ("appid", "miniprogramRoot"),
+        "A3",
+        "China commercial entry should have an explicit WeChat mini program surface when it becomes active scope.",
+    ),
+)
 
 @dataclass
 class Plan:
@@ -259,6 +442,62 @@ def check_private_paths_tracked() -> list[dict[str, object]]:
     ]
 
 
+def check_anchor(anchor: CommercialAnchor) -> dict[str, object] | None:
+    path = ROOT / anchor.path
+    if not path.exists():
+        return {
+            "anchor_id": anchor.anchor_id,
+            "path": anchor.path,
+            "lane": anchor.lane,
+            "purpose": anchor.purpose,
+            "issue": "missing_file",
+            "missing": [anchor.path],
+        }
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError as error:
+        return {
+            "anchor_id": anchor.anchor_id,
+            "path": anchor.path,
+            "lane": anchor.lane,
+            "purpose": anchor.purpose,
+            "issue": "unreadable_file",
+            "error": str(error),
+        }
+    missing = [needle for needle in anchor.contains if needle not in text]
+    if missing:
+        return {
+            "anchor_id": anchor.anchor_id,
+            "path": anchor.path,
+            "lane": anchor.lane,
+            "purpose": anchor.purpose,
+            "issue": "missing_anchor_text",
+            "missing": missing,
+        }
+    return None
+
+
+def check_commercial_anchors() -> dict[str, object]:
+    blockers = [finding for anchor in COMMERCIAL_ANCHORS if (finding := check_anchor(anchor))]
+    advisories = [finding for anchor in COMMERCIAL_ADVISORIES if (finding := check_anchor(anchor))]
+    return {
+        "status": "failed" if blockers else "passed",
+        "schema_version": "ashr.cl_guard.commercial.v1",
+        "blocker_count": len(blockers),
+        "advisory_count": len(advisories),
+        "checked_blocker_count": len(COMMERCIAL_ANCHORS),
+        "checked_advisory_count": len(COMMERCIAL_ADVISORIES),
+        "blockers": blockers,
+        "advisories": advisories,
+        "commercial_summary": {
+            "a3_mainline": "Product Console / Review Workflow / Report Center / GitHub Gate / Commercial UI",
+            "typescript_mainline": True,
+            "a1_a2_calibration_required": True,
+            "advisories_block_pr": False,
+        },
+    }
+
+
 def write_github_outputs(plan: dict[str, object], output_path: str) -> None:
     keys = ("full", "python", "a3", "typescript", "go", "rust", "integration", "evidence")
     with open(output_path, "a", encoding="utf-8") as fh:
@@ -307,6 +546,12 @@ def command_hygiene(_: argparse.Namespace) -> int:
     return 0
 
 
+def command_commercial(_: argparse.Namespace) -> int:
+    result = check_commercial_anchors()
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["status"] == "passed" else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Ashr selective CL gate")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -322,10 +567,12 @@ def main(argv: list[str] | None = None) -> int:
     hygiene_parser = subparsers.add_parser("hygiene", help="Run high-confidence repository blockers")
     hygiene_parser.set_defaults(func=command_hygiene)
 
+    commercial_parser = subparsers.add_parser("commercial", help="Run commercial SaaS anchor checks")
+    commercial_parser.set_defaults(func=command_commercial)
+
     args = parser.parse_args(argv)
     return int(args.func(args))
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

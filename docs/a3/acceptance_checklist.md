@@ -503,5 +503,13 @@
 - [x] Add tests proving dashboard/report/store/API readback visibility does not leak tokens, emails, Authorization headers, or raw secret values.
 - [x] Document that readback evidence is downstream of A1/A2 and does not replace A1 RunResult or A2 GradeResult proof.
 - [x] Document readback worker and visibility round in `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`.
+- [x] Add CL commercial anchor gate in `scripts/cl_guard.py commercial`.
+- [x] Wire CL commercial anchor gate into `.github/workflows/cl-gate.yml`.
+- [x] Add CL guard tests for A3 commercial anchors, A3/TypeScript/evidence routing, and missing-anchor failures.
+- [x] Ensure the TypeScript SDK CI job installs Go before running cross-stack TS-to-Go vertical-slice tests.
+- [x] Document A1/A2/A3 CL contract alignment in `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`.
+- [x] Document TypeScript, Tailwind/CSS, Playwright, mobile, and WeChat CL gaps in `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`.
+- [x] Add Growth-Auditor CL gate report in `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`.
+- [x] Keep Playwright, Tailwind, Expo, and WeChat checks advisory-only until their toolchains exist.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.

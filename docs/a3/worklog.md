@@ -4121,6 +4121,90 @@ Result:
 
 A3 now has the local path needed for a future CI worker: collect a redacted GitHub readback receipt, submit it through the A3 API, persist it, and show it in customer-facing dashboard/report surfaces. The remaining commercial step is a maintainer-approved live GitHub App or GitHub Actions worker plus hosted auth/RBAC and production Postgres/RLS.
 
+## 2026-07-09 - Commercial CL Gate Anchors
+
+### Goal
+
+Continue A3 from latest `main` and make every future PR harder to regress away from the commercial SaaS endgame. This round follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`: A3 owns Product Console, Review Workflow, Report Center, GitHub Gate, Commercial UI, and client workflows, while staying calibrated to A1 runtime evidence and A2 judge evidence.
+
+### Work completed
+
+- Added `python scripts/cl_guard.py commercial`.
+- Wired the new commercial gate into `.github/workflows/cl-gate.yml`.
+- Added 20 blocker anchors across:
+  - main strategy file
+  - CL workflow and guard
+  - dashboard webapp split
+  - dashboard API client
+  - TypeScript SDK package
+  - A3 API routes
+  - A3 store DB/API contract
+  - report builder exports
+  - release evidence v2 authority
+  - readback worker CLI
+  - A1 evidence/worker schemas
+  - A2 grade/commercial readiness schemas
+  - A3 API/dashboard/report/SQLite tests
+  - A3 acceptance ledger
+- Added advisory-only checks for missing future surfaces:
+  - Playwright TS E2E
+  - Tailwind product styling pipeline
+  - React Native / Expo mobile client
+  - WeChat mini program client surface
+- Added `tests/a1/test_cl_guard.py`.
+- Added Contract-Agent artifact:
+  - `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`
+- Added UI/TS/Playwright artifact:
+  - `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`
+
+### Verification
+
+```text
+python -m py_compile scripts/cl_guard.py tests/a1/test_cl_guard.py
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+python -B -m pytest tests/a1/test_cl_guard.py -q -p no:cacheprovider
+```
+
+Additional validation before commit:
+
+```text
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/a3_review_workflow.test.mjs
+npm test --prefix packages/ts/ashr-clone
+git diff --check
+```
+
+Result:
+
+- CL commercial anchor gate passed with 20/20 blocker anchors and 0 blockers.
+- Hygiene gate passed with no secret findings.
+- CL guard pytest passed: 3 pass, 0 fail.
+- A3 Node contracts passed: 37 pass, 0 fail.
+- `packages/ts/ashr-clone` dependency install passed with 0 vulnerabilities.
+- Local full `npm test` is blocked by the Windows workstation missing `go`; the TypeScript test suite includes a real Go HTTP server vertical slice.
+- `.github/workflows/cl-gate.yml` now installs Go in the `typescript-sdk` job so CI can run that vertical slice intentionally.
+- Attempted local portable Go install under the user local tools directory, but `go.dev` download failed from this machine with a remote connection error.
+
+### A1/A2 calibration
+
+- A1 runtime/worker/evidence schema anchors are now part of the commercial CL gate.
+- A2 grade/commercial readiness schema anchors are now part of the commercial CL gate.
+- A3 API/dashboard/report tests remain the consumer-side proof that A1/A2 evidence is not replaced by A3 UI claims.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub mutation was made.
+- No billing, auth, team, API-key, Trust, object-storage, database, or cloud mutation was made.
+- Playwright/Tailwind/mobile/WeChat are advisory-only until their actual toolchains exist.
+
+### Current interpretation
+
+This is not a new product screen; it is a durability upgrade for the whole project. Future CLs now have a low-noise commercial anchor gate, so A3 is less likely to drift back into isolated demo work. The strongest next build remains a real Playwright TS E2E lane for dashboard/admin/review/report flows, followed by typed dashboard DTOs and a Tailwind/design-system migration.
+
 - No branch-protection mutation was made.
 - No token, cookie, email, Authorization header, raw signed URL, or local absolute user path was committed.
 

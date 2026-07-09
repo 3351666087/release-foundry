@@ -2827,6 +2827,66 @@ Current interpretation:
 
 This closes the gap between "A3 can store readback" and "A3 can be fed by a worker and show readback to users." Production still needs a live GitHub App/GitHub Actions worker, hosted auth/RBAC, and production Postgres/RLS before readback can enforce a real customer release gate.
 
+## 2026-07-09 - Commercial CL gate anchors
+
+Continued from latest `main` after A3 readback work was merged. This round upgrades the CL gate so A3 cannot quietly drift away from the commercial SaaS endgame.
+
+Implemented:
+
+- Added `commercial` subcommand to `scripts/cl_guard.py`.
+- Added commercial anchor gate to `.github/workflows/cl-gate.yml`.
+- Added 20 blocker anchors covering strategy, CL workflow, A3 dashboard/API/report/store/release evidence/readback, A1 schemas, A2 schemas, and A3 tests.
+- Added 4 advisory-only gaps for future A3 toolchains:
+  - Playwright TS E2E
+  - Tailwind/CSS product system
+  - React Native / Expo mobile surface
+  - WeChat mini program surface
+- Added tests:
+  - `tests/a1/test_cl_guard.py`
+- Added Contract-Agent artifact:
+  - `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`
+- Added UI/TS/Playwright artifact:
+  - `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`
+
+Verification:
+
+```text
+python -m py_compile scripts/cl_guard.py tests/a1/test_cl_guard.py
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+python -B -m pytest tests/a1/test_cl_guard.py -q -p no:cacheprovider
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/a3_review_workflow.test.mjs
+npm ci  # in packages/ts/ashr-clone
+```
+
+Results:
+
+- CL guard pytest passed: 3 pass, 0 fail.
+- A3 Node contracts passed: 37 pass, 0 fail.
+- TypeScript package dependency install passed with 0 vulnerabilities.
+- Local full TypeScript SDK test is blocked by missing Go on this Windows workstation because the TS suite intentionally builds and drives the Go API server.
+- Added Go setup to the `typescript-sdk` CI job so the cross-stack TypeScript-to-Go vertical slice can run in GitHub Actions.
+
+A1/A2 calibration:
+
+- A1 evidence and worker schema anchors now participate in the CL gate.
+- A2 grade and commercial-readiness schema anchors now participate in the CL gate.
+- A3 still consumes A1/A2 evidence downstream through API/dashboard/report tests; it does not redefine A1/A2 semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub mutation.
+- No billing/auth/team/API-key/Trust/cloud mutation.
+- Missing Playwright/Tailwind/mobile/WeChat surfaces are advisories, not false blockers.
+
+Current interpretation:
+
+This round makes A3 more durable rather than more flashy. It gives the repo a low-noise commercial regression gate: if future work removes the release evidence path, A1/A2 contract anchors, TypeScript mainline, dashboard webapp split, or A3 API/report/store evidence spine, CL can stop it.
+
 - No token, cookie, email, Authorization header, or raw signed URL committed.
 
 Remaining production gap:
