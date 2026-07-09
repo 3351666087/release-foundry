@@ -72,6 +72,35 @@ CREATE TABLE IF NOT EXISTS ashr_idempotency_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS ashr_runs_dataset_idx ON ashr_runs (tenant_id, project_id, dataset_id);
+
+CREATE TABLE IF NOT EXISTS ashr_worker_jobs (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    job_type TEXT NOT NULL,
+    target_id TEXT NOT NULL DEFAULT '',
+    payload_sha256 TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 100,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    lease_owner_id TEXT NOT NULL DEFAULT '',
+    lease_expires_at TIMESTAMPTZ,
+    available_at TIMESTAMPTZ,
+    last_error JSONB,
+    result_sha256 TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    dead_lettered_at TIMESTAMPTZ,
+    PRIMARY KEY (tenant_id, project_id, job_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_worker_jobs_lease_idx ON ashr_worker_jobs (tenant_id, project_id, status, job_type, priority, available_at, created_at);
+CREATE INDEX IF NOT EXISTS ashr_worker_jobs_status_idx ON ashr_worker_jobs (tenant_id, project_id, status, updated_at);
 `
 
 type PostgresRepository struct {

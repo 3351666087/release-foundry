@@ -87,3 +87,22 @@ Known gaps / next 20 A1 growth points:
 18. Expand media envelope tests across text/audio/file/image/video equally.
 19. Add old-vs-new run diff API and fixture.
 20. Keep A3 files out of A1 commits except explicit CL unblock emergencies.
+
+## 2026-07-09 - A1 worker_jobs SQL contract expansion
+
+Goal:
+- Apply the language/platform decision that Go owns worker runtime while SQL/PLpgSQL owns durable tenant-isolated backend state. This subround strengthens the Postgres schema before implementing the full Go worker queue persistence path.
+
+Implemented:
+- Added `ashr_worker_jobs` to `PostgresSchemaSQL` with tenant/project scoped primary key, job type, target id, payload hash, status, priority, attempts, lease owner/expires, available_at, last_error JSONB, result hash, idempotency key, request id, and lifecycle timestamps.
+- Added worker lease/status indexes: `ashr_worker_jobs_lease_idx` and `ashr_worker_jobs_status_idx`.
+- Extended `docs/a1/schemas/a1_control_plane_postgres_migration.sql` with the same table/index contract plus updated_at trigger, RLS enablement, and `ashr_worker_jobs_tenant_isolation` policy.
+- Extended `tests/a1/test_a1_control_plane_postgres_migration.py` to verify worker_jobs table, indexes, trigger, RLS, and policy remain aligned with Go schema.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_a1_control_plane_postgres_migration.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider` -> 5 passed.
+
+Next:
+- Implement Go Postgres `EnqueueWorkerJob`, `LeaseWorkerJob`, heartbeat, complete, fail, and list using this table.
+- Add PLpgSQL quota ledger consume/refund before worker mutations.

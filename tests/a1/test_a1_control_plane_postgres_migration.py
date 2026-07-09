@@ -13,6 +13,7 @@ REQUIRED_TABLES = (
     "ashr_datasets",
     "ashr_runs",
     "ashr_idempotency_ledger",
+    "ashr_worker_jobs",
 )
 
 REQUIRED_FUNCTIONS = (
@@ -25,6 +26,7 @@ REQUIRED_TRIGGERS = (
     "ashr_projects_set_updated_at",
     "ashr_datasets_set_updated_at",
     "ashr_runs_set_updated_at",
+    "ashr_worker_jobs_set_updated_at",
 )
 
 REQUIRED_POLICIES = (
@@ -33,6 +35,7 @@ REQUIRED_POLICIES = (
     "ashr_datasets_tenant_isolation",
     "ashr_runs_tenant_isolation",
     "ashr_idempotency_ledger_tenant_isolation",
+    "ashr_worker_jobs_tenant_isolation",
 )
 
 
@@ -68,8 +71,9 @@ def test_a1_postgres_migration_preserves_go_control_plane_first_slice():
         go_statement = _extract_statement(go_schema_sql, f"CREATE TABLE IF NOT EXISTS {table}")
         assert _normalize_sql(go_statement) in migration_sql
 
-    go_runs_index = _extract_statement(go_schema_sql, "CREATE INDEX IF NOT EXISTS ashr_runs_dataset_idx")
-    assert _normalize_sql(go_runs_index) in migration_sql
+    for index_name in ("ashr_runs_dataset_idx", "ashr_worker_jobs_lease_idx", "ashr_worker_jobs_status_idx"):
+        go_index = _extract_statement(go_schema_sql, f"CREATE INDEX IF NOT EXISTS {index_name}")
+        assert _normalize_sql(go_index) in migration_sql
 
 
 def test_a1_postgres_migration_declares_static_rls_and_audit_contract():
