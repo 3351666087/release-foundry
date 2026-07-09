@@ -52,6 +52,7 @@ import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mj
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "../../../services/report/a3_artifact_registry.mjs";
+import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
   runs: null,
@@ -2975,10 +2976,10 @@ function resetCalibrationState() {
 }
 
 function setupSectionNavigation() {
-  const navLinks = [...document.querySelectorAll(".nav a[href^='#']")];
-  const sections = navLinks
+  const navLinks = [...document.querySelectorAll(visualNavigationSelector)];
+  const sections = [...new Set(navLinks
     .map((link) => document.querySelector(link.getAttribute("href")))
-    .filter(Boolean);
+    .filter(Boolean))];
 
   const setActiveLink = (id) => {
     for (const link of navLinks) {
@@ -3033,6 +3034,7 @@ function setupSectionNavigation() {
 }
 
 async function init() {
+  setupVisualShell();
   const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
   const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";

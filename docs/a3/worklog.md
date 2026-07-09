@@ -4969,3 +4969,56 @@ Safety:
   or brand tokens were copied.
 - No API key, token, cookie, account value, email, signed URL, payment secret,
   or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Rendering Architecture V5
+
+Responded to feedback that the left sidebar was still too long/dry and that the
+dashboard needed a broader product console structure, including login, team,
+API keys, usage, trust, and admin-style SaaS surfaces.
+
+Changed:
+
+- Added `apps/dashboard/src/visual-shell.mjs` as a data-driven visual
+  information architecture layer.
+- Reduced the sidebar from a long section directory to six primary product
+  areas: Overview, Evaluate, Review, Reports, Admin, and Trust.
+- Added a product surface strip for Workspace, Product Console / Onboarding /
+  Audit, SaaS Admin / Login / Team / Trust, Usage, API Keys, and Trust.
+- Added a horizontal workspace rail for detailed A3 panels across workflow,
+  platform, calibration, release, and output.
+- Updated navigation active-state logic so the sidebar, product surfaces, and
+  rail chips stay synchronized.
+- Reworked the dashboard shell to a lighter academic SaaS console style with
+  restrained cyan, blue, pink, amber, purple, and green accents.
+- Updated dashboard wiring tests so they understand the new visual-shell
+  module instead of assuming every navigation target lives in static HTML.
+- Captured V5 screenshots:
+  - `docs/screenshots/a3-dashboard-visual-rendering-v5-first-viewport-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-rendering-v5-mobile-first-viewport-2026-07-09.png`
+- Added `docs/a3/a3_visual_rendering_architecture_v5_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/dashboard_wiring.test.mjs`
+- `node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/p3_ashr_mapper.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py hygiene`
+- `python scripts/cl_guard.py commercial`
+- `git diff --check`
+- Playwright screenshot probe confirmed desktop/mobile page width does not
+  overflow and the rendered shell has 6 primary nav links, 6 product surfaces,
+  and 26 rail chips.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, or failure taxonomy
+  logic changed.
+- Existing A3 panel ids and A1/A2 data rendering surfaces remain intact.
+
+Safety:
+
+- No external source code, private frontend code, logos, assets, media, brand
+  copy, account data, cookies, or tokens were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.

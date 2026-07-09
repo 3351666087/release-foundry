@@ -578,6 +578,13 @@
 - [x] Repair direct hash-link active state so `#console` highlights `Console`.
 - [x] Capture V4 production desktop and mobile screenshots and verify mobile width does not overflow.
 - [x] Keep V4 UI refinement clean-room and preserve A1/A2 dashboard source wiring.
+- [x] Add `apps/dashboard/src/visual-shell.mjs` as a data-driven visual rendering layer for primary navigation, SaaS product surfaces, and detailed workspace rails.
+- [x] Reduce the left sidebar to six primary product areas while preserving detailed A3 section access through a horizontal rail.
+- [x] Add product-surface navigation for Workspace, Product Console / Onboarding / Audit, SaaS Admin / Login / Team / Trust, Usage, API Keys, and Trust.
+- [x] Synchronize active navigation state across sidebar, product surface strip, and workspace rail.
+- [x] Rework the dashboard shell into a lighter academic SaaS console style without changing A1 runner or A2 judge semantics.
+- [x] Capture V5 visual-rendering screenshots for desktop, mobile, and first-viewport review.
+- [x] Verify V5 dashboard wiring with `node --test tests/a3/dashboard_wiring.test.mjs`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

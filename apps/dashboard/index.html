@@ -10,36 +10,13 @@
     <div class="shell">
       <aside class="sidebar">
         <div class="brand"><span class="brand-mark">A3</span><span>Ashr A3</span></div>
-        <div class="subtitle">Product console for run triage, evidence review, and report export.</div>
-        <nav class="nav" aria-label="Dashboard sections">
-          <a href="#summary" class="active">Overview</a>
-          <a href="#console">Console</a>
-          <a href="#saas-runtime">SaaS Runtime</a>
-          <a href="#product-console">Product Console</a>
-          <a href="#saas-admin">SaaS Admin</a>
-          <a href="#enterprise-readiness">Enterprise Readiness</a>
-          <a href="#media-readiness">Media</a>
-          <a href="#cloud-shell">Cloud Shell</a>
-          <a href="#official-gap">Official Gap</a>
-          <a href="#official-mirror">Frontend Mirror</a>
-          <a href="#official-code-crawl">Code Crawl</a>
-          <a href="#official-roadmap">Parity Roadmap</a>
-          <a href="#release-gate">Release Gate</a>
-          <a href="#war-room">War Room</a>
-          <a href="#incident-replay">Incident Replay</a>
-          <a href="#observability-replay">Observability Replay</a>
-          <a href="#regression-factory">Regression Factory</a>
-          <a href="#reviewer-workflow">Reviewer Workflow</a>
-          <a href="#pr-gate">PR Gate</a>
-          <a href="#release-evidence">Release Evidence</a>
-          <a href="#export-redaction">Export Safety</a>
-          <a href="#operations">Operations</a>
-          <a href="#report-preview">Report</a>
-          <a href="#runs">Run List</a>
-          <a href="#detail">Case Detail</a>
-          <a href="#timeline">Trace Timeline</a>
-          <a href="#clusters">Failure Clusters</a>
-        </nav>
+        <div class="subtitle">Evaluation console for run triage, evidence review, SaaS admin, and report export.</div>
+        <nav class="nav" data-visual-shell="primary-nav" aria-label="Primary product areas"></nav>
+        <div class="sidebar-card" aria-label="A1 and A2 alignment">
+          <span class="sidebar-card-kicker">A1/A2 aligned</span>
+          <strong>Trace + grade evidence stays read-only.</strong>
+          <span>Dashboard changes do not alter runner or judge semantics.</span>
+        </div>
       </aside>
 
       <main class="content">
@@ -71,6 +48,10 @@
             <button class="button subtle" data-print type="button">Print Report</button>
           </div>
         </section>
+
+        <section class="product-surface-strip" data-visual-shell="surface-strip" aria-label="Product surfaces"></section>
+
+        <section class="section-rail" data-visual-shell="section-rail" aria-label="A3 workspace shortcuts"></section>
 
         <section class="metrics" aria-label="Run summary metrics">
           <div class="metric info" id="metric-runs-card"><label>Runs</label><strong id="metric-runs">0</strong><span>execution batches</span></div>
