@@ -891,3 +891,57 @@ Next 20 A1 growth points:
 18. Add successful official mutating text baseline after quota reset.
 19. Add paid image/audio/file/video probes after text success, one modality per audited batch.
 20. Keep PR #27 draft until live Postgres HTTP/auth/quota evidence is present.
+
+
+## Round31 live Postgres API key proof - 2026-07-09T11:22:10Z
+
+Baseline:
+- Started from clean worktree after commit `4a68408b`; PR #27 CL Gate run `29014318715` completed green across Plan/hygiene, Go, Python, TypeScript, and summary. A3/Rust checks were skipped by rule.
+- Targeted Growth-Auditor P1: static durable API key implementation needed live Postgres proof.
+
+Implemented:
+- Added opt-in Go integration test `TestPostgresAPIKeyLifecycleLiveOptIn` under `tests/integration/go` gated by `A1_POSTGRES_TEST_DSN`.
+- The live test migrates a fresh Postgres repository, bootstraps tenant/project/dataset, creates a durable API key, lists redacted keys, verifies the one-time secret by hash, checks scope denial, configures a normalized `sdk_submit`/`sdk.submit` rate limit, submits a run, proves rate-limit denial after one mutation, reads snapshot usage, revokes the key, and proves revoked preflight denial.
+- Fixed API key rate-limit normalization so public route operation `sdk_submit` and durable mutation operation `sdk.submit` share the same Postgres counter.
+- Fixed local durable key fallback consumption so non-UUID key handles do not attempt UUID casts against the commercial `api_keys` table inside an active transaction.
+
+Live evidence:
+- Disposable Docker Postgres command started `postgres:16-alpine` on local port `55433` and set `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55433/ashr?sslmode=disable` for the test process only.
+- `go test ./... -run TestPostgresAPIKeyLifecycleLiveOptIn -count=1 -v` from `tests/integration/go` -> pass.
+- Container was removed after the test. No secrets or private official API payloads were involved.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "route|Go OpenAPI|route_scope"` -> `327 passed` because the current Node test runner still executes all package tests with this invocation.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+
+Known command note:
+- `go test ./...` from repo root is not a valid entrypoint because this repository contains multiple Go modules and no root `go.mod`; it reports `directory prefix . does not contain main module`. Correct Go validation is module-scoped.
+
+Next 20 A1 growth points:
+1. Add Go HTTP live test against Postgres repository, not just repository methods.
+2. Add bearer auth route contract with hashed secret verification and TS/Python parity.
+3. Add no-side-effect-after-denial proof for submit/upload/trace/artifact/worker routes.
+4. Add RLS tenant A/B live negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log`.
+5. Add restart durability proof that opens a second Postgres repository after key creation and still verifies/snapshots/revokes.
+6. Add explicit audit event for API key revoke and rate-limit configure.
+7. Add rate-limit concurrency test for simultaneous submit attempts.
+8. Add HTTP usage readback proving API key limit and usage quota denial share public-safe schema.
+9. Add OpenAPI bearer auth scheme and generated key/quota schemas.
+10. Add TS hosted client methods for Go key/rate-limit routes if missing.
+11. Add Python hosted client methods for Go key/rate-limit routes if missing.
+12. Add self-host compose profile running Go API plus Postgres and a smoke command.
+13. Add Terraform/HCL service skeleton for Go API plus managed Postgres.
+14. Add billing export from usage/rate-limit counters.
+15. Add webhook event for `api_key.revoked` and `quota.denied`.
+16. Add private evidence digest builder for live Postgres proof.
+17. Add release-gate blocker when durable auth proof is stale.
+18. Re-run official mutating text once quota resets.
+19. Run paid image/audio/file/video after successful text baseline.
+20. Keep monitoring peer branches and avoid A2/A3 staging.

@@ -1167,6 +1167,7 @@ func (repository *PostgresRepository) ConfigureAPIKeyRateLimit(tenantID, project
 	if strings.TrimSpace(operation) == "" {
 		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("operation is required")
 	}
+	operation = NormalizeQuotaOperation(operation)
 	if limit < 0 {
 		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("limit must be non-negative")
 	}
@@ -1399,6 +1400,7 @@ func scanPostgresAPIKeyRateLimit(scanner apiKeyRateLimitScanner) (APIKeyRateLimi
 }
 
 func (repository *PostgresRepository) loadPostgresAPIKeyRateLimit(ctx context.Context, tenantID, projectID, keyID, operation string) (APIKeyRateLimit, error) {
+	operation = NormalizeQuotaOperation(operation)
 	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(operation) == "" {
 		return APIKeyRateLimit{}, sql.ErrNoRows
 	}
@@ -1414,6 +1416,7 @@ WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3 AND operation = $4
 }
 
 func consumeLocalPostgresAPIKeyRateLimit(ctx context.Context, tx *sql.Tx, tenantID, projectID, keyID, operation string, units int, now time.Time) error {
+	operation = NormalizeQuotaOperation(operation)
 	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(operation) == "" {
 		return nil
 	}
@@ -1445,14 +1448,20 @@ WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3 AND operation = $4
 	if err != nil {
 		return fmt.Errorf("consume api key rate limit: %w", err)
 	}
-	_, _ = tx.ExecContext(ctx, `
+	if looksLikeUUID(tenantID) && looksLikeUUID(projectID) && looksLikeUUID(keyID) {
+		if _, err := tx.ExecContext(ctx, `
 UPDATE api_keys SET last_used_at = $4
 WHERE organization_id::text = $1 AND project_id::text = $2 AND id::text = $3
-`, tenantID, projectID, keyID, now)
-	_, _ = tx.ExecContext(ctx, `
+`, tenantID, projectID, keyID, now); err != nil && !postgresRelationMissing(err) {
+			return fmt.Errorf("touch api key after consume: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `
 UPDATE ashr_api_keys SET last_used_at = $4
 WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3
-`, tenantID, projectID, keyID, now)
+`, tenantID, projectID, keyID, now); err != nil && !postgresRelationMissing(err) {
+		return fmt.Errorf("touch local api key after consume: %w", err)
+	}
 	return nil
 }
 
@@ -1565,7 +1574,8 @@ func (repository *PostgresRepository) PreflightAPIKey(options PreflightOptions) 
 	if !scopeAllowed(record.Scopes, options.Scope) {
 		return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, AuthzError{Code: "scope_denied", Message: "api key handle does not grant required scope"}
 	}
-	quota, err := repository.loadPostgresAPIKeyRateLimit(context.Background(), options.TenantID, options.ProjectID, options.KeyID, options.Operation)
+	normalizedOperation := NormalizeQuotaOperation(options.Operation)
+	quota, err := repository.loadPostgresAPIKeyRateLimit(context.Background(), options.TenantID, options.ProjectID, options.KeyID, normalizedOperation)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Envelope[AuthPreflight]{}, err
 	}
@@ -1576,7 +1586,7 @@ func (repository *PostgresRepository) PreflightAPIKey(options PreflightOptions) 
 		}
 		result.Quota = &quota
 		if quota.Limit >= 0 && quota.Used+units > quota.Limit {
-			return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, QuotaExceededError{Operation: options.Operation, Limit: quota.Limit, Used: quota.Used, Requested: units}
+			return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, QuotaExceededError{Operation: normalizedOperation, Limit: quota.Limit, Used: quota.Used, Requested: units}
 		}
 	}
 	result.Allowed = true

@@ -1399,3 +1399,23 @@ Results:
 - `python scripts/cl_guard.py hygiene`: passed with zero findings.
 - `git diff --check`: pass.
 - Official API note: no duplicate mutating call in this sub-slice because Round29 already proved hosted quota boundary with env-only key; next paid/API calibration should wait for quota reset or plan change to produce a successful text baseline before media writes.
+
+
+## Round31 live Postgres API key proof - 2026-07-09T11:22:10Z
+
+- `gh pr checks 27`: commit `4a68408b` CL Gate green; Go, Python, TS, Plan/hygiene, and summary passed; A3/Rust skipped by rule.
+- Added `tests/integration/go/postgres_api_key_live_test.go`, gated by `A1_POSTGRES_TEST_DSN` so CI without a live DB skips it safely.
+- `go test ./...` from `tests/integration/go` without DSN: pass; live test skipped.
+- Disposable live proof: `docker run --rm -d --name ashr-a1-go-live-pg -e POSTGRES_USER=ashr -e POSTGRES_PASSWORD=ashr -e POSTGRES_DB=ashr -p 55433:5432 postgres:16-alpine`; set process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55433/ashr?sslmode=disable`; `go test ./... -run TestPostgresAPIKeyLifecycleLiveOptIn -count=1 -v` from `tests/integration/go` -> pass; container removed.
+- The first live attempt failed because API key rate-limit configuration used public route operation `sdk_submit` while Postgres mutation evidence used durable operation `sdk.submit`; fixed by normalizing operation names in configure/preflight/load/consume paths.
+- The second live attempt failed because non-UUID local key handles touched the commercial UUID `api_keys` table inside a transaction; fixed by skipping commercial table updates for non-UUID tenant/project/key handles.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "route|Go OpenAPI|route_scope"`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: pass.
+- `go test ./...` from repository root is a known invalid command for this multi-module repo and reports `directory prefix . does not contain main module`; correct Go test entrypoints are module-scoped and passed.
