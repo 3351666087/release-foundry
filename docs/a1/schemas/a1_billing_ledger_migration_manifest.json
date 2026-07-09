@@ -50,5 +50,27 @@
     "raw_provider_secret_stored": false,
     "raw_card_data_stored": false,
     "provider_calls_executed": false
+  },
+  "semantic_contracts": {
+    "provider_config": {
+      "durable_storage_policy": "hash_or_reference_only",
+      "durable_provider_config_object_stored": false,
+      "allowed_public_response_boundary": "Go/Python plan objects may expose redacted provider_config references for preview, but migration 002 must not persist raw provider_config JSON.",
+      "forbidden_durable_columns": ["provider_config", "provider_secret", "client_secret", "raw_payload", "payload", "card_number"],
+      "required_hash_columns": ["billing_provider_events.payload_sha256"]
+    },
+    "replay_semantics": {
+      "accepted_ledger_mutation_count": 1,
+      "duplicate_ledger_mutation_count": 0,
+      "conflict_ledger_mutation_count": 0,
+      "duplicate_match_key": ["organization_id", "project_id", "provider", "mode", "provider_event_id", "payload_sha256"],
+      "conflict_match_key": ["organization_id", "project_id", "provider", "mode", "provider_event_id"]
+    },
+    "object_evidence_linkage": {
+      "billing_provider_event_to_ledger_pointer": "billing_provider_events.ledger_event_id -> billing_ledger_events.id",
+      "ledger_provider_event_fk": "billing_ledger_events.provider_event_id -> billing_provider_events.id",
+      "go_postgres_hash_only_sources": ["ashr_run_uploads.result_sha256", "ashr_trace_batches.observations_sha256", "ashr_artifact_manifests.manifest_sha256"],
+      "raw_object_payload_stored_in_public_contract": false
+    }
   }
 }

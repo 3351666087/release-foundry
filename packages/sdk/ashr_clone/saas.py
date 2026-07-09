@@ -500,7 +500,8 @@ class SaaSIngestionClient:
         _reject_hosted_bearer_headers(auth_headers)
         from services.api.billing import build_checkout_session_plan
 
-        return _envelope("billing_checkout_plan", build_checkout_session_plan(**payload))
+        local_payload = _drop_none({k: v for k, v in payload.items() if k != "auth_key_id"})
+        return _envelope("billing_checkout_plan", build_checkout_session_plan(**local_payload))
 
     def billing_portal_plan(
         self,
@@ -530,7 +531,8 @@ class SaaSIngestionClient:
         _reject_hosted_bearer_headers(auth_headers)
         from services.api.billing import build_billing_portal_plan
 
-        return _envelope("billing_portal_plan", build_billing_portal_plan(**payload))
+        local_payload = _drop_none({k: v for k, v in payload.items() if k != "auth_key_id"})
+        return _envelope("billing_portal_plan", build_billing_portal_plan(**local_payload))
 
     def billing_webhook_ingest(
         self,
@@ -582,9 +584,22 @@ class SaaSIngestionClient:
 
         if self._billing_ledger is None:
             self._billing_ledger = BillingLedger()
-        envelope_result = verify_billing_webhook_envelope(**payload)
+        envelope_keys = {
+            "tenant_id",
+            "project_id",
+            "provider",
+            "mode",
+            "event_type",
+            "event_id",
+            "payload_sha256",
+            "signature_header_present",
+            "webhook_secret_ref",
+            "livemode",
+        }
+        envelope_payload = _drop_none({k: v for k, v in payload.items() if k in envelope_keys})
+        envelope_result = verify_billing_webhook_envelope(**envelope_payload)
         result = self._billing_ledger.ingest_provider_webhook(
-            envelope_result,
+            envelope=envelope_result,
             customer_ref=customer_ref,
             amount_minor=int(amount_minor),
             currency=currency,
@@ -945,12 +960,29 @@ def _call_http_transport(transport: Callable[..., Mapping[str, Any]], method: st
             signature(transport).bind(url, payload, method=method, headers=request_headers)
         except TypeError:
             try:
+                return transport(method, url, payload, headers=request_headers)
+            except TypeError as positional_exc:
+                try:
+                    signature(transport).bind(method, url, payload, headers=request_headers)
+                except TypeError:
+                    pass
+                else:
+                    raise positional_exc
+            try:
                 return transport(url, payload, method=method)
             except TypeError as method_exc:
                 try:
                     signature(transport).bind(url, payload, method=method)
                 except TypeError:
-                    return transport(url, payload)
+                    try:
+                        return transport(method, url, payload)
+                    except TypeError as positional_no_headers_exc:
+                        try:
+                            signature(transport).bind(method, url, payload)
+                        except TypeError:
+                            return transport(url, payload)
+                        else:
+                            raise positional_no_headers_exc
                 else:
                     raise method_exc
         else:

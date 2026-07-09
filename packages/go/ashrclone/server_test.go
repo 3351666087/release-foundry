@@ -604,32 +604,38 @@ func TestHTTPHandlerBillingContractRoutesAreDeterministicAndPublicSafe(t *testin
 	})
 
 	checkout := postJSONForTest[BillingCheckoutPlan](t, server.URL+"/v1/projects/project_billing/billing/checkout-plan", JSONMap{
-		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "Startup", "billing_cycle": "annual", "idempotency_key": "idem_checkout", "metadata": JSONMap{"source": "test", "token": "synthetic-secret-fixture"},
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "Startup", "billing_cycle": "annual", "idempotency_key": "idem_checkout", "customer_ref": "cus_public", "success_url": "https://app.example/success", "cancel_url": "https://app.example/cancel", "price": JSONMap{"lookup_key": "startup_usd_monthly", "unit_amount_minor": 9900, "currency": "usd"}, "provider_config": JSONMap{"provider": "Stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF", "raw_secret": "sk_test_synthetic_fixture"}, "metadata": JSONMap{"source": "test", "token": "synthetic-secret-fixture"},
 	})
-	if checkout.PlanID != "startup" || checkout.BillingCycle != "yearly" || checkout.Provider != "local_contract" || !checkout.PublicSafe || checkout.RawSecretsIncluded || !strings.HasPrefix(checkout.CheckoutURL, "https://billing.local.ashr.invalid/checkout/") {
+	if checkout.PlanID != "startup" || checkout.BillingCycle != "yearly" || checkout.Provider != "stripe" || checkout.Mode != "test" || !checkout.PublicSafe || checkout.ProviderCalled || checkout.RealChargePossible || checkout.RawPayloadIncluded || checkout.RawSecretsIncluded || checkout.SecretValuePresent || !strings.HasPrefix(checkout.CheckoutURL, "https://billing.local.ashr.invalid/checkout/") {
 		t.Fatalf("unexpected checkout contract: %#v", checkout)
+	}
+	if checkout.CustomerRef != "cus_public" || checkout.SuccessURL != "https://app.example/success" || checkout.CancelURL != "https://app.example/cancel" || checkout.Price["lookup_key"] != "startup_usd_monthly" || checkout.ProviderConfig["secret_ref"] != "env:STRIPE_TEST_REF" || checkout.ProviderConfig["raw_secret"] != Redacted || checkout.ProviderConfig["raw_secret_present"] != false {
+		t.Fatalf("checkout semantic fields were not preserved safely: %#v", checkout)
+	}
+	if checkout.SideEffects["provider_called"] != false || checkout.SideEffects["real_charge_possible"] != false {
+		t.Fatalf("checkout side effects were not public-safe: %#v", checkout.SideEffects)
 	}
 	if checkout.Metadata["token"] != Redacted {
 		t.Fatalf("checkout metadata was not redacted: %#v", checkout.Metadata)
 	}
 	checkoutAgain := postJSONForTest[BillingCheckoutPlan](t, server.URL+"/v1/projects/project_billing/billing/checkout-plan", JSONMap{
-		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "startup", "billing_cycle": "yearly", "idempotency_key": "idem_checkout",
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "startup", "billing_cycle": "yearly", "idempotency_key": "idem_checkout", "customer_ref": "cus_public", "success_url": "https://app.example/success", "cancel_url": "https://app.example/cancel", "price": JSONMap{"lookup_key": "startup_usd_monthly", "unit_amount_minor": 9900, "currency": "usd"}, "provider_config": JSONMap{"provider": "Stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF", "raw_secret": "sk_test_synthetic_fixture"},
 	})
 	if checkoutAgain.CheckoutID != checkout.CheckoutID || checkoutAgain.CheckoutURL != checkout.CheckoutURL {
 		t.Fatalf("checkout route is not deterministic: first=%#v second=%#v", checkout, checkoutAgain)
 	}
 
 	portal := postJSONForTest[BillingPortalPlan](t, server.URL+"/v1/projects/project_billing/billing/portal-plan", JSONMap{
-		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "developer", "idempotency_key": "idem_portal",
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "developer", "customer_ref": "cus_public", "return_url": "https://app.example/account", "provider_config": JSONMap{"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}, "idempotency_key": "idem_portal",
 	})
-	if portal.PlanID != "developer" || portal.RawSecretsIncluded || !strings.HasPrefix(portal.PortalURL, "https://billing.local.ashr.invalid/portal/") {
+	if portal.PlanID != "developer" || portal.Provider != "stripe" || portal.CustomerRef != "cus_public" || portal.ReturnURL != "https://app.example/account" || portal.ProviderCalled || portal.RealChargePossible || portal.RawPayloadIncluded || portal.RawSecretsIncluded || portal.SecretValuePresent || !strings.HasPrefix(portal.PortalURL, "https://billing.local.ashr.invalid/portal/") {
 		t.Fatalf("unexpected portal contract: %#v", portal)
 	}
 
 	webhook := postJSONForTest[BillingWebhookIngest](t, server.URL+"/v1/projects/project_billing/billing/webhooks/ingest", JSONMap{
-		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "event_type": "subscription.updated", "provider": "Stripe", "plan_id": "Startup", "status": "Active", "metadata": JSONMap{"customer_ref": "cus_public", "card_number": "synthetic-card-fixture", "authorization": "synthetic-auth-fixture"},
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "event_type": "subscription.updated", "event_id": "evt_public", "provider": "Stripe", "mode": "test", "plan_id": "Startup", "customer_ref": "cus_public", "status": "Active", "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature_header_present": true, "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF", "livemode": false, "metadata": JSONMap{"customer_ref": "cus_public", "card_number": "synthetic-card-fixture", "authorization": "synthetic-auth-fixture"},
 	})
-	if webhook.EventID == "" || webhook.Provider != "stripe" || webhook.PlanID != "startup" || webhook.Status != "active" || webhook.RawPayloadIncluded || webhook.PayloadSHA256 == "" {
+	if webhook.EventID != "evt_public" || webhook.Provider != "stripe" || webhook.Mode != "test" || webhook.PlanID != "startup" || webhook.CustomerRef != "cus_public" || webhook.Status != "active" || webhook.RawPayloadIncluded || webhook.SecretValuePresent || webhook.PayloadSHA256 != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || !webhook.SignatureHeaderPresent || webhook.WebhookSecretRef != "env:STRIPE_WEBHOOK_REF" || !webhook.Verified || len(webhook.Failures) != 0 {
 		t.Fatalf("unexpected webhook ingest: %#v", webhook)
 	}
 	if webhook.Metadata["authorization"] != Redacted || webhook.Metadata["customer_ref"] != "cus_public" {
@@ -641,7 +647,7 @@ func TestHTTPHandlerBillingContractRoutesAreDeterministicAndPublicSafe(t *testin
 		t.Fatal(err)
 	}
 	ledger := doJSONForTest[BillingLedger](t, req, http.StatusOK)
-	if ledger.Count != 1 || len(ledger.Events) != 1 || ledger.Events[0].EventID != webhook.EventID || ledger.Events[0].RawPayloadIncluded {
+	if ledger.Count != 1 || len(ledger.Events) != 1 || ledger.Events[0].EventID != webhook.EventID || ledger.Events[0].RawPayloadIncluded || ledger.Events[0].SecretValuePresent || ledger.Events[0].PayloadSHA256 != webhook.PayloadSHA256 {
 		t.Fatalf("unexpected billing ledger: %#v", ledger)
 	}
 	encoded, err := json.Marshal(ledger)

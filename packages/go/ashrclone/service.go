@@ -398,8 +398,12 @@ func (service *MemoryService) CreateBillingCheckoutPlan(tenantID, projectID stri
 		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing plan_id is required")
 	}
 	cycle := normalizeBillingCycle(request.BillingCycle)
-	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "billing_cycle": cycle, "idempotency_key": options.Key})
-	result := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, BillingCycle: cycle, CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: "deterministic_contract", Provider: "local_contract", PublicSafe: true, RawSecretsIncluded: false, Metadata: sanitizedBillingMetadata(request.Metadata), CreatedAt: time.Now().UTC()}
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	provider := billingProviderFromConfig(providerConfig)
+	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
+	price := sanitizedBillingMetadata(request.Price)
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "billing_cycle": cycle, "provider": provider, "mode": mode, "customer_ref": request.CustomerRef, "price": price, "success_url": request.SuccessURL, "cancel_url": request.CancelURL, "idempotency_key": options.Key})
+	result := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, BillingCycle: cycle, CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: mode, Provider: provider, ProviderConfig: providerConfig, CustomerRef: strings.TrimSpace(request.CustomerRef), Price: price, SuccessURL: strings.TrimSpace(request.SuccessURL), CancelURL: strings.TrimSpace(request.CancelURL), SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, Metadata: sanitizedBillingMetadata(request.Metadata), CreatedAt: time.Now().UTC()}
 	service.appendAuditEventLocked(tenantID, projectID, "billing.checkout_plan", result.CheckoutID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"checkout_id": result.CheckoutID, "plan_id": planID, "billing_cycle": cycle, "provider": result.Provider}, result.CreatedAt)
 	return Envelope[BillingCheckoutPlan]{Operation: "billing.checkout_plan", Status: "ok", Result: result}, nil
 }
@@ -411,8 +415,11 @@ func (service *MemoryService) CreateBillingPortalPlan(tenantID, projectID string
 		return Envelope[BillingPortalPlan]{}, NotFoundError{Resource: "project"}
 	}
 	planID := normalizeBillingPlanID(request.PlanID)
-	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "idempotency_key": options.Key})
-	result := BillingPortalPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, PortalSessionID: "portal_" + fingerprint[:16], PortalURL: "https://billing.local.ashr.invalid/portal/" + fingerprint[:24], Mode: "deterministic_contract", Provider: "local_contract", PublicSafe: true, RawSecretsIncluded: false, CreatedAt: time.Now().UTC()}
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	provider := billingProviderFromConfig(providerConfig)
+	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "provider": provider, "mode": mode, "customer_ref": request.CustomerRef, "return_url": request.ReturnURL, "idempotency_key": options.Key})
+	result := BillingPortalPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, PortalSessionID: "portal_" + fingerprint[:16], PortalURL: "https://billing.local.ashr.invalid/portal/" + fingerprint[:24], Mode: mode, Provider: provider, ProviderConfig: providerConfig, CustomerRef: strings.TrimSpace(request.CustomerRef), ReturnURL: strings.TrimSpace(request.ReturnURL), SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, CreatedAt: time.Now().UTC()}
 	service.appendAuditEventLocked(tenantID, projectID, "billing.portal_plan", result.PortalSessionID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"portal_session_id": result.PortalSessionID, "plan_id": planID, "provider": result.Provider}, result.CreatedAt)
 	return Envelope[BillingPortalPlan]{Operation: "billing.portal_plan", Status: "ok", Result: result}, nil
 }
@@ -431,12 +438,21 @@ func (service *MemoryService) IngestBillingWebhook(tenantID, projectID string, e
 		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook event_type is required")
 	}
 	event.Provider = normalizeBillingProvider(event.Provider)
+	event.Mode = normalizeBillingMode(event.Mode)
 	event.PlanID = normalizeBillingPlanID(event.PlanID)
+	event.CustomerRef = strings.TrimSpace(event.CustomerRef)
 	event.Status = normalizeBillingStatus(event.Status)
 	event.Metadata = sanitizedBillingMetadata(event.Metadata)
 	event.RawPayloadIncluded = false
-	payloadFingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType, "provider": event.Provider, "plan_id": event.PlanID, "status": event.Status, "metadata": event.Metadata})
+	event.SecretValuePresent = false
+	event.WebhookSecretRef = strings.TrimSpace(event.WebhookSecretRef)
+	payloadFingerprint := strings.ToLower(strings.TrimSpace(event.PayloadSHA256))
+	if payloadFingerprint == "" {
+		payloadFingerprint = mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType, "provider": event.Provider, "mode": event.Mode, "plan_id": event.PlanID, "customer_ref": event.CustomerRef, "status": event.Status, "metadata": event.Metadata})
+	}
 	event.PayloadSHA256 = payloadFingerprint
+	event.Failures = billingWebhookFailures(event)
+	event.Verified = len(event.Failures) == 0
 	if strings.TrimSpace(event.EventID) == "" {
 		event.EventID = "billing_evt_" + payloadFingerprint[:16]
 	}
@@ -1173,6 +1189,67 @@ func normalizeBillingProvider(provider string) string {
 		return "local_contract"
 	}
 	return provider
+}
+
+func normalizeBillingMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		return "test"
+	}
+	return mode
+}
+
+func publicBillingProviderConfig(config JSONMap) JSONMap {
+	if len(config) == 0 {
+		return nil
+	}
+	public := JSONMap{}
+	for key, value := range config {
+		normalizedKey := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+		if normalizedKey == "secret_ref" || normalizedKey == "webhook_secret_ref" || normalizedKey == "account_ref" {
+			public[key] = RedactSensitive(value)
+			continue
+		}
+		if isSensitiveKey(key) {
+			public[key] = Redacted
+			continue
+		}
+		public[key] = RedactSensitive(value)
+	}
+	public["raw_secret_present"] = false
+	return public
+}
+
+func billingProviderFromConfig(config JSONMap) string {
+	if config == nil {
+		return "local_contract"
+	}
+	return normalizeBillingProvider(stringFromAny(config["provider"]))
+}
+
+func billingModeFromConfig(config JSONMap, fallback string) string {
+	if config == nil {
+		return fallback
+	}
+	return normalizeBillingMode(stringFromAny(config["mode"]))
+}
+
+func billingSafeSideEffects() JSONMap {
+	return JSONMap{"provider_called": false, "checkout_or_portal_called": false, "real_charge_possible": false}
+}
+
+func billingWebhookFailures(event BillingWebhookIngest) []JSONMap {
+	failures := []JSONMap{}
+	if !event.SignatureHeaderPresent {
+		failures = append(failures, JSONMap{"reason": "missing_signature_header"})
+	}
+	if event.Mode == "live" && event.WebhookSecretRef == "" {
+		failures = append(failures, JSONMap{"reason": "missing_live_webhook_secret_ref"})
+	}
+	if event.Mode == "test" && event.Livemode {
+		failures = append(failures, JSONMap{"reason": "live_event_received_in_test_mode"})
+	}
+	return failures
 }
 
 func normalizeBillingStatus(status string) string {

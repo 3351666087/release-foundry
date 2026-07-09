@@ -1266,3 +1266,61 @@ Known gaps / next 20 growth points:
 18. Official Ashr API small-batch calibration for billing/usage fields if public API exposes them.
 19. Paid mutating Ashr API calibration remains planned but must use dry-run plan -> small batch -> bounded batch and never log raw key.
 20. A1 push gate should include root-safe command matrix to avoid invalid monorepo `go test ./...` from root.
+## Round39 billing provider semantic parity + paid-media API gate - 2026-07-09T14:25:00Z
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner-clean` / PR #27 after prior head `5c4bc83` was green for CL Gate summary, Plan/hygiene, Go, Python, and TypeScript.
+- Recovered baseline fetch after C: space exhaustion by removing regenerateable caches only; TS dependencies were restored with npm cache on `D:/codex-cache/npm`.
+- Peer branch updates observed: `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no A2/A3 files were modified this round.
+- Frontend mirror archive `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` was inspected read-only. Public-safe evidence at `docs/a1/evidence/frontend_mirror_billing_usage_fields_20260709_221430.json` records API key, usage, billing status, and billing portal field markers without raw payloads or tokens.
+
+Implemented:
+- Expanded Go billing provider semantics for checkout plan, portal plan, webhook ingest, and ledger readback. Go accepts provider config/customer/price/URL/hash/signature fields and returns public-safe side-effect flags (`provider_called=false`, `real_charge_possible=false`, `raw_payload_included=false`, `secret_value_present=false`).
+- Added Python SDK billing parity for richer local and hosted route payloads, including a more tolerant HTTP transport adapter shape for `(method, url, payload)` transports.
+- Added shared billing SDK parity fixture and Python/TS tests that pin operation names, routes, wrapper names, required public fields, and forbidden public fragments.
+- Added SQL semantic evidence/schema for migration 002 hash/reference-only provider storage, duplicate/conflict replay zero-mutation semantics, and billing ledger/provider event linkage.
+- Tightened billing provider contract tests for duplicate/conflict snapshots and public-safe raw-payload/secret/card denial.
+
+Official/API calibration:
+- `ASHR_API_KEY` was present in env for this process; only presence/length was observed, raw key was not read or logged.
+- Dry-run paid-media plan wrote private ignored evidence `docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json`: 5 modalities planned, 5 read steps + 5 mutating steps, estimated 17 calls.
+- Small-batch paid-media execution wrote private ignored evidence `docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json`: 5 read steps succeeded; text mutating step returned an API/quota-blocked partial result; non-text paid media did not proceed past quota gate. Public-safe summary at `docs/a1/evidence/official_api_paid_media_round39_summary_20260709_222232.json` records only status, response keys, and quota-block flags.
+- Follow-up: do not retry failing paid-media mutation blindly. Next real API growth should first create or verify a quota/usage gate record for the intended modality, then run one modality at a time.
+
+Subagents:
+- Worker-GoBillingSemantic implemented Go billing semantic parity in `packages/go/ashrclone` and verified `go test ./...` in that module.
+- Worker-TSPythonBillingParity added the shared fixture and Python/TS parity tests; focused tests and package TS tests passed.
+- Worker-SQLBillingEvidence added billing SQL semantic evidence/schema and static migration tests; focused tests passed.
+- Bus-Auditor approved the direction with cautions: claim provider-backed plan contract, not live payment integration; revalidate TS explicitly; keep public evidence field-readiness only; run secret scan and full validation before commit.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_sdk_parity.py tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider` -> `17 passed` after transport/test assertion fixes.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `384 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone` with `npm_config_cache=D:/codex-cache/npm` -> `337 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass; one CRLF normalization warning for an existing touched Python test.
+- Targeted secret/payment scan found only intentional guardrail regexes and synthetic test fixtures; no raw Ashr API key, provider key, card, webhook secret, or bearer value was added.
+
+Next 20 A1 growth points:
+1. Add Stripe test-mode adapter skeleton behind env-only refs and no-live-charge gate.
+2. Add WeChat Pay and Alipay hosted rail signer contracts with fake key refs only.
+3. Add quota/usage gate creation/readback path so paid-media official probes can proceed one modality at a time.
+4. Add Go Postgres billing repository methods for migration 002 ingest/readback.
+5. Add live Postgres migration test for billing RLS and duplicate/conflict replay when Docker/DSN is responsive.
+6. Add Stripe webhook signature verifier test with synthetic signatures and hash-only payload storage.
+7. Add billing worker daemon that normalizes provider events into ledger events with retry/dead-letter semantics.
+8. Add object-storage evidence bundle linkage for billing events and provider request summaries.
+9. Add billing CLI commands for checkout plan, portal plan, webhook ingest, and ledger readback.
+10. Add TypeScript generated client/OpenAPI schemas for billing DTOs beyond route shells.
+11. Add OAuth login skeleton for GitHub/Google sessions without storing provider secrets.
+12. Add tenant/project/user/session durable Postgres schema and RLS tests for auth boundary.
+13. Add API key create/revoke/rate-limit integration around billing route scopes.
+14. Add quota ledger rollup for text/audio/file/image/video as equal first-class resources.
+15. Add release evidence packet references to billing SQL and official API summaries.
+16. Add Terraform/HCL secret-ref and webhook endpoint skeleton.
+17. Add Docker compose profile for API + worker + Postgres + object storage smoke.
+18. Add Rust verifier hook for signed billing evidence bundle manifests.
+19. Re-run official read-only + one successful mutating text probe after quota gate is available.
+20. Only after human-controlled provider setup, add live-mode payment smoke with explicit no-card-data logging proof.

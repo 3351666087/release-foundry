@@ -5,12 +5,25 @@ import re
 from pathlib import Path
 from typing import Any
 
+try:
+    from jsonschema import Draft202012Validator
+except ImportError:  # pragma: no cover - jsonschema is optional in the light test env
+    Draft202012Validator = None
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / "docs" / "a1" / "schemas" / "a1_billing_ledger_migration_manifest.json"
+SEMANTIC_EVIDENCE_PATH = ROOT / "docs" / "a1" / "evidence" / "billing_sql_semantic_contract.json"
+SEMANTIC_SCHEMA_PATH = ROOT / "docs" / "a1" / "schemas" / "billing_sql_semantic_contract.schema.json"
+GO_POSTGRES_PATH = ROOT / "packages" / "go" / "ashrclone" / "postgres.go"
+GO_TYPES_PATH = ROOT / "packages" / "go" / "ashrclone" / "types.go"
 
 
 def _manifest() -> dict[str, Any]:
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+
+def _semantic_evidence() -> dict[str, Any]:
+    return json.loads(SEMANTIC_EVIDENCE_PATH.read_text(encoding="utf-8"))
 
 
 def _sql() -> str:
@@ -113,9 +126,88 @@ def test_billing_ledger_migration_functions_cover_replay_conflict_and_rollup():
 
 def test_billing_ledger_migration_never_stores_raw_provider_payload_or_secret_columns():
     sql = _normalize(_sql())
-    forbidden_columns = ["raw_payload jsonb", "payload jsonb", "secret_value", "card_number", "client_secret", "provider_secret"]
+    forbidden_columns = ["raw_payload jsonb", "payload jsonb", "secret_value", "card_number", "client_secret", "provider_secret", "provider_config"]
     for forbidden in forbidden_columns:
         assert forbidden not in sql
     assert "raw_payload_included boolean not null default false check (raw_payload_included = false)" in sql
     for marker in ["sk_live_", "sk_test_", "rk_live_", "rk_test_", "whsec_", "bearer[[:space:]]"]:
         assert marker in sql
+
+
+def test_billing_sql_semantic_contract_evidence_matches_schema_and_manifest():
+    evidence = _semantic_evidence()
+    schema = json.loads(SEMANTIC_SCHEMA_PATH.read_text(encoding="utf-8"))
+    manifest_contract = _manifest()["semantic_contracts"]
+
+    if Draft202012Validator is not None:
+        Draft202012Validator(schema).validate(evidence)
+
+    assert evidence["public_safe"] is True
+    assert evidence["provider_config_storage"]["durable_policy"] == manifest_contract["provider_config"]["durable_storage_policy"]
+    assert evidence["provider_config_storage"]["provider_config_column_present"] is False
+    assert evidence["provider_config_storage"]["provider_config_object_persisted"] is False
+    assert evidence["provider_config_storage"]["hash_columns"] == manifest_contract["provider_config"]["required_hash_columns"]
+    assert evidence["replay_semantics"]["accepted"]["ledger_mutation_count"] == 1
+    assert evidence["replay_semantics"]["duplicate"]["ledger_mutation_count"] == 0
+    assert evidence["replay_semantics"]["conflict"]["ledger_mutation_count"] == 0
+
+    text = json.dumps(evidence, sort_keys=True)
+    for forbidden in ("sk_test_", "sk_live_", "rk_test_", "rk_live_", "whsec_", "Bearer "):
+        assert forbidden not in text
+    assert re.search(r"(?:\d[ -]*?){13,19}", text) is None
+
+
+def test_billing_provider_config_is_hash_or_reference_only_in_durable_sql():
+    sql = _normalize(_sql())
+    evidence = _semantic_evidence()
+
+    assert "payload_sha256 text not null check (payload_sha256 ~ '^[a-f0-9]{64}$')" in sql
+    assert "p_payload_sha256 !~ '^[a-f0-9]{64}$'" in sql
+    for forbidden in evidence["provider_config_storage"]["forbidden_durable_columns"]:
+        if forbidden == "raw_payload":
+            assert "raw_payload jsonb" not in sql
+            continue
+        if forbidden == "payload":
+            assert "payload jsonb" not in sql
+            continue
+        assert forbidden.lower() not in sql
+    for reference in evidence["provider_config_storage"]["reference_only_fields"]:
+        _, column = reference.split(".", 1)
+        assert column.lower() in sql
+
+
+def test_billing_replay_duplicate_and_conflict_are_zero_mutation_in_sql_and_python_fixture():
+    sql = _normalize(_function_statement(_sql(), "ingest_billing_provider_event"))
+    evidence = _semantic_evidence()["replay_semantics"]
+
+    assert "replay_status := 'duplicate'" in sql
+    assert "replay_status := 'conflict'" in sql
+    assert sql.count("ledger_mutation_count := 0") >= 2
+    assert "ledger_mutation_count := 1" in sql
+    assert evidence["duplicate"]["payload_sha256_relation"] == "same_provider_event_same_hash"
+    assert evidence["conflict"]["payload_sha256_relation"] == "same_provider_event_different_hash"
+
+
+def test_billing_object_evidence_linkage_is_hash_only_across_sql_and_go_stubs():
+    sql = _normalize(_sql())
+    go_postgres = _normalize(GO_POSTGRES_PATH.read_text(encoding="utf-8"))
+    go_types = GO_TYPES_PATH.read_text(encoding="utf-8")
+    evidence = _semantic_evidence()["object_evidence_linkage"]
+
+    assert "ledger_event_id uuid" in sql
+    assert "provider_event_id uuid" in sql
+    assert re.search(r"foreign key \([^)]*provider_event_id[^)]*\)\s*references billing_provider_events\s*\(", sql)
+    assert "ledger_event_id = inserted_ledger.id" in sql
+
+    for item in evidence["go_postgres_hash_only_objects"]:
+        table_name = item["table"]
+        table_start = go_postgres.index(f"create table if not exists {table_name}")
+        table_end = go_postgres.find(");", table_start)
+        table_sql = go_postgres[table_start:table_end]
+        assert item["object_id_column"] in table_sql
+        assert item["sha256_column"] in table_sql
+        assert " jsonb" not in table_sql
+
+    assert "ProviderConfig     JSONMap" in go_types
+    assert "RawPayloadIncluded bool" in go_types
+    assert "RawSecretsIncluded bool" in go_types

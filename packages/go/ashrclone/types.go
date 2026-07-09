@@ -152,13 +152,18 @@ type UsageSnapshot struct {
 }
 
 type BillingPlanRequest struct {
-	SchemaVersion string  `json:"schema_version"`
-	TenantID      string  `json:"tenant_id"`
-	ProjectID     string  `json:"project_id"`
-	PlanID        string  `json:"plan_id"`
-	BillingCycle  string  `json:"billing_cycle,omitempty"`
-	ReturnURL     string  `json:"return_url,omitempty"`
-	Metadata      JSONMap `json:"metadata,omitempty"`
+	SchemaVersion  string  `json:"schema_version"`
+	TenantID       string  `json:"tenant_id"`
+	ProjectID      string  `json:"project_id"`
+	PlanID         string  `json:"plan_id"`
+	BillingCycle   string  `json:"billing_cycle,omitempty"`
+	ProviderConfig JSONMap `json:"provider_config,omitempty"`
+	CustomerRef    string  `json:"customer_ref,omitempty"`
+	Price          JSONMap `json:"price,omitempty"`
+	SuccessURL     string  `json:"success_url,omitempty"`
+	CancelURL      string  `json:"cancel_url,omitempty"`
+	ReturnURL      string  `json:"return_url,omitempty"`
+	Metadata       JSONMap `json:"metadata,omitempty"`
 }
 
 type BillingCheckoutPlan struct {
@@ -171,8 +176,18 @@ type BillingCheckoutPlan struct {
 	CheckoutURL        string    `json:"checkout_url"`
 	Mode               string    `json:"mode"`
 	Provider           string    `json:"provider"`
+	ProviderConfig     JSONMap   `json:"provider_config,omitempty"`
+	CustomerRef        string    `json:"customer_ref,omitempty"`
+	Price              JSONMap   `json:"price,omitempty"`
+	SuccessURL         string    `json:"success_url,omitempty"`
+	CancelURL          string    `json:"cancel_url,omitempty"`
+	SideEffects        JSONMap   `json:"side_effects,omitempty"`
+	ProviderCalled     bool      `json:"provider_called"`
+	RealChargePossible bool      `json:"real_charge_possible"`
 	PublicSafe         bool      `json:"public_safe"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
 	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	SecretValuePresent bool      `json:"secret_value_present"`
 	Metadata           JSONMap   `json:"metadata,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
@@ -186,24 +201,40 @@ type BillingPortalPlan struct {
 	PortalURL          string    `json:"portal_url"`
 	Mode               string    `json:"mode"`
 	Provider           string    `json:"provider"`
+	ProviderConfig     JSONMap   `json:"provider_config,omitempty"`
+	CustomerRef        string    `json:"customer_ref,omitempty"`
+	ReturnURL          string    `json:"return_url,omitempty"`
+	SideEffects        JSONMap   `json:"side_effects,omitempty"`
+	ProviderCalled     bool      `json:"provider_called"`
+	RealChargePossible bool      `json:"real_charge_possible"`
 	PublicSafe         bool      `json:"public_safe"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
 	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	SecretValuePresent bool      `json:"secret_value_present"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 
 type BillingWebhookIngest struct {
-	SchemaVersion      string    `json:"schema_version"`
-	TenantID           string    `json:"tenant_id"`
-	ProjectID          string    `json:"project_id"`
-	EventID            string    `json:"event_id"`
-	EventType          string    `json:"event_type"`
-	Provider           string    `json:"provider"`
-	PlanID             string    `json:"plan_id,omitempty"`
-	Status             string    `json:"status"`
-	PayloadSHA256      string    `json:"payload_sha256"`
-	RawPayloadIncluded bool      `json:"raw_payload_included"`
-	Metadata           JSONMap   `json:"metadata,omitempty"`
-	ReceivedAt         time.Time `json:"received_at"`
+	SchemaVersion          string    `json:"schema_version"`
+	TenantID               string    `json:"tenant_id"`
+	ProjectID              string    `json:"project_id"`
+	EventID                string    `json:"event_id"`
+	EventType              string    `json:"event_type"`
+	Provider               string    `json:"provider"`
+	Mode                   string    `json:"mode,omitempty"`
+	PlanID                 string    `json:"plan_id,omitempty"`
+	CustomerRef            string    `json:"customer_ref,omitempty"`
+	Status                 string    `json:"status"`
+	PayloadSHA256          string    `json:"payload_sha256"`
+	SignatureHeaderPresent bool      `json:"signature_header_present"`
+	WebhookSecretRef       string    `json:"webhook_secret_ref,omitempty"`
+	Livemode               bool      `json:"livemode,omitempty"`
+	Verified               bool      `json:"verified"`
+	Failures               []JSONMap `json:"failures,omitempty"`
+	RawPayloadIncluded     bool      `json:"raw_payload_included"`
+	SecretValuePresent     bool      `json:"secret_value_present"`
+	Metadata               JSONMap   `json:"metadata,omitempty"`
+	ReceivedAt             time.Time `json:"received_at"`
 }
 
 type BillingLedger struct {

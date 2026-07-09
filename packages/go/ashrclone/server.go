@@ -1011,11 +1011,11 @@ func stringFromAny(value any) string {
 func mapValue(body JSONMap, key string) JSONMap { return jsonMapFromAny(body[key]) }
 
 func billingPlanRequestFromBody(tenantID, projectID string, body JSONMap) BillingPlanRequest {
-	return BillingPlanRequest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: stringValue(body, "plan_id"), BillingCycle: stringValue(body, "billing_cycle"), ReturnURL: stringValue(body, "return_url"), Metadata: mapValue(body, "metadata")}
+	return BillingPlanRequest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: stringValue(body, "plan_id"), BillingCycle: stringValue(body, "billing_cycle"), ProviderConfig: mapValue(body, "provider_config"), CustomerRef: stringValue(body, "customer_ref"), Price: mapValue(body, "price"), SuccessURL: stringValue(body, "success_url"), CancelURL: stringValue(body, "cancel_url"), ReturnURL: stringValue(body, "return_url"), Metadata: mapValue(body, "metadata")}
 }
 
 func billingWebhookFromBody(tenantID, projectID string, body JSONMap) BillingWebhookIngest {
-	return BillingWebhookIngest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, EventID: stringValue(body, "event_id"), EventType: stringValue(body, "event_type"), Provider: stringValue(body, "provider"), PlanID: stringValue(body, "plan_id"), Status: stringValue(body, "status"), Metadata: mapValue(body, "metadata")}
+	return BillingWebhookIngest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, EventID: stringValue(body, "event_id"), EventType: stringValue(body, "event_type"), Provider: stringValue(body, "provider"), Mode: stringValue(body, "mode"), PlanID: stringValue(body, "plan_id"), CustomerRef: stringValue(body, "customer_ref"), Status: stringValue(body, "status"), PayloadSHA256: stringValue(body, "payload_sha256"), SignatureHeaderPresent: boolValue(body, "signature_header_present"), WebhookSecretRef: stringValue(body, "webhook_secret_ref"), Livemode: boolValue(body, "livemode"), Metadata: mapValue(body, "metadata")}
 }
 
 func jsonMapFromAny(value any) JSONMap {

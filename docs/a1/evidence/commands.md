@@ -1512,3 +1512,20 @@ Results:
 - `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_billing_provider_contract.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider` -> 51 passed.
 - `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 378 passed, 1 skipped; Docker daemon probe timed out and skipped compose validation.
 - `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json` -> status ok, 5 read steps, 0 mutating steps; public summary at `docs/a1/evidence/official_api_readonly_round38_summary_20260709_215947.json`.
+
+## Round39 commands - 2026-07-09T14:25:00Z
+
+- `git status -sb; git diff --name-only; git log --oneline -5`: confirmed branch `codex/a1-local-sdk-runner-clean`, previous PR head `5c4bc83`, and dirty A1 billing/provider files only.
+- `python -B -m pytest tests/a1/test_billing_sdk_parity.py tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider`: first run found Python transport and SQL assertion mismatches; after fixes, `17 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `384 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone` with `npm_config_cache=D:/codex-cache/npm`: `337 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass; Git emitted a CRLF normalization warning for `tests/a1/test_billing_provider_contract.py`.
+- Targeted scan: `rg -n "sk_live_|sk_test_|rk_live_|rk_test_|whsec_|Bearer [A-Za-z0-9._-]+|4242[ -]?4242|card_number|cvv|cvc|client_secret|api_key_secret" ...` found only expected SQL guardrail regexes, synthetic tests, and SDK parameter names; no raw key/card/provider secret was added.
+- Frontend mirror inspection from `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` wrote `docs/a1/evidence/frontend_mirror_billing_usage_fields_20260709_221430.json`, public-safe markers only.
+- `Get-ChildItem Env:ASHR_API_KEY,Env:ASHR_LABS_API_KEY`: `ASHR_API_KEY=present(length=46)`; raw value was not printed.
+- `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --limit 12 --output docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json`: planned 5 read + 5 mutating modality steps, estimated 17 calls.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --allow-quota-override --quota-override-reason user_authorized_paid_media_calibration_round39_bounded_once --max-retries 0 --modality text,image,audio,file,video --limit 8 --output docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json`: partial; 5 read steps ok, text mutating step quota/API blocked, non-text paid media did not proceed past gate.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json --output docs/a1/evidence/official_api_paid_media_round39_summary_20260709_222232.json --print-record`: wrote public-safe summary and returned non-zero because source status was partial; summary contains only response keys/status/quota flags.

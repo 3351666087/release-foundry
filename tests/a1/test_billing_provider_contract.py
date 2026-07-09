@@ -225,12 +225,19 @@ def test_billing_ledger_appends_provider_events_idempotently_and_detects_conflic
     assert duplicate["ledger_mutation_count"] == 0
     assert conflict["ingest_status"] == "conflict"
     assert conflict["ledger_mutation_count"] == 0
+    assert duplicate["ledger_event_id"] == accepted["ledger_event_id"]
+    assert conflict["ledger_event_id"] == accepted["ledger_event_id"]
+    assert conflict["conflict_payload_sha256"] == "d" * 64
 
     public = ledger.public_ledger(tenant_id="tenant_bill", project_id="project_bill")
     assert public["ledger_event_count"] == 1
     assert public["provider_event_count"] == 1
     assert public["totals_by_currency_minor"] == {"usd": 9900}
+    assert public["provider_events"][0]["payload_sha256"] == "c" * 64
+    assert public["provider_events"][0]["raw_payload_included"] is False
+    assert "provider_config" not in json.dumps(public, sort_keys=True)
     evidence = billing_evidence_snapshot(ledger=ledger, tenant_id="tenant_bill", project_id="project_bill")
+    assert len(evidence["billing_snapshot_sha256"]) == 64
     assert evidence["ledger_event_count"] == 1
     assert evidence["provider_event_count"] == 1
     assert evidence["raw_payload_included"] is False
