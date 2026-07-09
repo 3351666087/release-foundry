@@ -245,15 +245,14 @@ Implemented / integrated files:
 - packages/go/ashrclone/server.go: added GET /audit-log, GET /runs/{run_id}/release-evidence, POST /runs/{run_id}/release-evidence/verify, scope preflights, and manifest routes.
 - packages/go/ashrclone/service_test.go and packages/go/ashrclone/server_test.go: added audit filtering, release evidence roundtrip/tamper, manifest, and scoped evidence rejection coverage.
 - packages/sdk/ashr_clone/saas.py and packages/sdk/ashr_clone/saas_cli.py: added Python `audit_log` hosted route/CLI parity and release verify aliasing.
-- 	ests/a1/test_saas_sdk_client.py, 	ests/a1/test_ts_python_gap_matrix.py, 	ests/a1/ts_python_parity_matrix.py, 	ests/a1/docs/a1/ts_python_gap_matrix.json: refreshed required hosted-route parity.
+- `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_ts_python_gap_matrix.py`, `tests/a1/ts_python_parity_matrix.py`, `tests/a1/docs/a1/ts_python_gap_matrix.json`: refreshed required hosted-route parity.
 - docs/a1/evidence/go_python_ts_route_parity_snapshot.json: refreshed public-safe route evidence after Go audit/release routes landed.
 - docs/a1/evidence/round21_worker_evidence_api.md: recorded D-drive Ubuntu WSL and official read-only API calibration evidence.
 
 Validation / command results:
 - go test ./... in packages/go/ashrclone -> passed.
-- go test ./... in 	ests/integration/go -> passed.
-- 
-pm test in packages/ts/ashr-clone -> passed, 316 tests.
+- go test ./... in tests/integration/go -> passed.
+- npm test in packages/ts/ashr-clone -> passed, 316 tests.
 - python -B tests/a1/ts_python_parity_matrix.py --check -> passed.
 - python -B -m pytest tests/a1 -q -p no:cacheprovider -> passed, 314 tests.
 - docker compose -f services/runner/docker-compose.a1.yml config -> passed.
@@ -290,3 +289,72 @@ Known gaps / next 20:
 18. Add Rust verifier fixture coverage against Go release evidence packets.
 19. Add Terraform/self-host validation to A1 gate.
 20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.
+
+### 2026-07-09 A1 public-safe official API manifest summary
+
+- Added a public-safe private official API manifest summarizer in `packages/sdk/ashr_clone/calibrate.py`.
+- The summarizer reads only an explicitly provided/private ignored manifest path and emits redacted summary fields: status/counts, step statuses, response key names, top-level list counts, quota-block booleans, and guardrail booleans.
+- Generated tracked evidence artifact `docs/a1/evidence/official_api_readonly_manifest_summary.json` for the default private manifest path `docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`; that ignored file is absent in this worktree, so the public artifact records `status: missing` with zero counts.
+- Added Python calibrator tests covering fake raw API keys, bearer strings, auth headers, request params, private record paths, and private payload bodies to ensure they do not leak into public summaries.
+- Validation: `python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider` -> passed, 32 tests.
+- No desktop key file was read. No official API calls were run in this summarizer subround.
+
+## 2026-07-09 - A1 release evidence verifier hardening and public API summary artifact
+
+Round goal:
+- Continue PR #27 on a clean `origin/main` base while keeping A1 scope tight.
+- Harden Go release evidence verification so submitted packets fail closed instead of accepting incomplete audit evidence.
+- Add a repeatable public-safe official API manifest summary helper/artifact that never copies private records or raw keys into tracked docs.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/service.go`: release evidence verification now requires core packet fields and `audit_verification.verified == true` before hash verification can pass.
+- `packages/go/ashrclone/service_test.go`: added negative coverage for missing `audit_verification`, false audit verification, missing `packet_sha256`, missing core fields, tampered scope with recomputed hash, and tampered content/hash mismatch.
+- `packages/sdk/ashr_clone/calibrate.py`: added public-safe official API private-manifest summarizer and writer helpers.
+- `tests/a1/test_python_calibrator.py`: added tests proving the public summary omits raw response bodies, request parameters, auth header names/values, raw key material, and private record locations.
+- `docs/a1/evidence/official_api_readonly_manifest_summary.json`: generated public-safe summary artifact. In the clean worktree the private manifest is absent, so the summary records `status=missing` with zero steps and no private values.
+- `docs/a1/worklog.md`: fixed previous PowerShell escape artifacts in path/test command evidence.
+
+Validation / command results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_python_calibrator.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> passed, 52 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `git diff --check` -> passed.
+- `python -c "from packages.sdk.ashr_clone.calibrate import write_public_official_api_manifest_summary; ..."` -> wrote `docs/a1/evidence/official_api_readonly_manifest_summary.json` with schema `ashr.clone.public_official_api_manifest_summary.v1`, `source_private_manifest_present=false`, and `status=missing`.
+
+PR / CI status:
+- PR #27 remains open/draft and cleanly scoped to A1 files. Existing CL Gate execution has Plan/Python/Go success with A3/TS/Rust skipped by selective plan; `CL Gate summary` is still queued on GitHub `ubuntu-latest` runner, not failed.
+
+Known gaps / next 20:
+1. Re-run public manifest summary in a workspace where the ignored private official API manifest exists and commit only the redacted summary artifact.
+2. Add CLI flag for writing the public official API manifest summary from `calibrate.py`.
+3. Add generated Go route/scope manifest instead of static route list.
+4. Add Go `GET /quota` alias or document usage/quota divergence.
+5. Add Go `GET /runs/{run_id}/lifecycle` route parity.
+6. Add Python SDK smoke against compiled Go server.
+7. Add live Postgres release evidence build/verify tests gated by `A1_POSTGRES_TEST_DSN`.
+8. Add Postgres API-key secret hash persistence tests.
+9. Add RLS tenant isolation tests for quota/audit/artifact/worker tables.
+10. Add migration checksum/version ledger.
+11. Add quota ledger entries for audit-log and release evidence reads if commercially billable.
+12. Add Rust verifier fixture coverage for Go release evidence packets.
+13. Add release evidence JSON schema fixture under A1 tests.
+14. Add audit-log pagination/cursor and exact action/API-key/request-id filters.
+15. Add per-route auth matrix tests for missing/wrong/revoked/scopeless keys.
+16. Add official read-only usage/quota/error-shape probe when hosted endpoints expose them.
+17. Prepare quota-gated paid text mutation calibration with zero retries.
+18. Expand paid media calibration one modality at a time: image, audio, file, video.
+19. Add Terraform/self-host validation to A1 gate.
+20. Convert A1 worklog/evidence entries into stricter release packet format with independent verifier result.
+
+Post-handoff verification addendum:
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 319 tests.
+- `npm install` in `packages/ts/ashr-clone` repaired the local clean-worktree TypeScript toolchain; no package metadata changed.
+- `npm test` in `packages/ts/ashr-clone` -> passed, 316 tests.
+- `docker compose -f services/runner/docker-compose.a1.yml config` -> passed.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config` -> passed.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> passed, 20 tests.
+- `go test ./...` at repository root -> expected setup failure because repo root is not a Go module; reran in `packages/go/ashrclone` and passed.
+- `wsl.exe -d Ubuntu-24.04-Ashr -e /bin/bash -lc 'pwd; uname -a; echo bash-ok'` -> passed; D-drive Ubuntu WSL2 distro is available for future rounds.
+- `ASHR_API_KEY` is present in the process environment by length check only; no key value was read or written.

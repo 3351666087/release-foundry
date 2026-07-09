@@ -228,12 +228,98 @@ func TestMemoryServiceAuditLogAndReleaseEvidencePacket(t *testing.T) {
 	if !verified.Result.Verified || verified.Result.PacketSHA256 == "" {
 		t.Fatalf("expected packet to verify: %#v", verified.Result)
 	}
-	mapped["run_id"] = "run_tampered"
-	tampered, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", mapped)
-	if err != nil {
-		t.Fatal(err)
+
+	rehashed := func(packet JSONMap) JSONMap {
+		packet["packet_sha256"] = releaseEvidencePacketMapSHA(packet)
+		return packet
 	}
-	if tampered.Result.Verified || tampered.Result.Reason == "" {
-		t.Fatalf("expected tampered packet to fail verification: %#v", tampered.Result)
+	tests := []struct {
+		name   string
+		mutate func(JSONMap) JSONMap
+	}{
+		{
+			name: "missing audit_verification",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "audit_verification")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "audit_verification false",
+			mutate: func(packet JSONMap) JSONMap {
+				verification := jsonMapFromAny(packet["audit_verification"])
+				verification["verified"] = false
+				packet["audit_verification"] = verification
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing packet_sha256",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "packet_sha256")
+				return packet
+			},
+		},
+		{
+			name: "missing schema_version",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "schema_version")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing tenant_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "tenant_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing project_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "project_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing run_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "run_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing packet_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "packet_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "tampered scope with recomputed hash",
+			mutate: func(packet JSONMap) JSONMap {
+				packet["run_id"] = "run_tampered"
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "tampered hash",
+			mutate: func(packet JSONMap) JSONMap {
+				packet["artifact_manifests"] = []any{}
+				return packet
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := cloneMap(mapped)
+			tampered, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", test.mutate(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tampered.Result.Verified || tampered.Result.Reason == "" {
+				t.Fatalf("expected packet to fail verification: %#v", tampered.Result)
+			}
+		})
 	}
 }

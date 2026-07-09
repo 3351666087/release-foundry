@@ -1096,15 +1096,17 @@ func sortAuditEvents(events []AuditEvent) {
 
 func verifyReleaseEvidencePacketMap(tenantID, projectID, runID string, packet JSONMap, checkedAt time.Time) ReleaseEvidenceVerification {
 	result := ReleaseEvidenceVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, PacketID: stringFromAny(packet["packet_id"]), CheckedAt: checkedAt}
+	for _, field := range []string{"schema_version", "tenant_id", "project_id", "run_id", "packet_id", "packet_sha256"} {
+		if stringFromAny(packet[field]) == "" {
+			result.Reason = field + " is required"
+			return result
+		}
+	}
 	if stringFromAny(packet["tenant_id"]) != tenantID || stringFromAny(packet["project_id"]) != projectID || stringFromAny(packet["run_id"]) != runID {
 		result.Reason = "packet scope does not match requested tenant/project/run"
 		return result
 	}
 	packetSHA := stringFromAny(packet["packet_sha256"])
-	if packetSHA == "" {
-		result.Reason = "packet_sha256 is required"
-		return result
-	}
 	computed := releaseEvidencePacketMapSHA(packet)
 	result.PacketSHA256 = computed
 	if computed != packetSHA {
@@ -1112,8 +1114,9 @@ func verifyReleaseEvidencePacketMap(tenantID, projectID, runID string, packet JS
 		return result
 	}
 	verification := jsonMapFromAny(packet["audit_verification"])
-	if verified, ok := verification["verified"].(bool); ok && !verified {
-		result.Reason = "audit chain verification is false"
+	verified, ok := verification["verified"].(bool)
+	if !ok || !verified {
+		result.Reason = "audit_verification.verified must be true"
 		return result
 	}
 	result.Verified = true

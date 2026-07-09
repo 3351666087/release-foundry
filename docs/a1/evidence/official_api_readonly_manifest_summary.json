@@ -1,0 +1,29 @@
+{
+  "error_summaries": [],
+  "generated_at": "2026-07-09T06:43:17Z",
+  "public_safety": {
+    "auth_env_names_included": false,
+    "header_values_included": false,
+    "private_payload_contents_present": false,
+    "raw_key_material_present": false,
+    "raw_payload_values_included": false,
+    "redacted_summary_fields_only": true,
+    "request_parameter_values_included": false,
+    "step_record_locations_included": false
+  },
+  "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+  "source_private_manifest": "docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json",
+  "source_private_manifest_present": false,
+  "status": "missing",
+  "step_summaries": [],
+  "summary": {
+    "error_steps": 0,
+    "estimated_calls": 0,
+    "modalities": [],
+    "mutating_steps": 0,
+    "ok_or_planned_steps": 0,
+    "quota_block_count": 0,
+    "read_steps": 0,
+    "total_steps": 0
+  }
+}

@@ -28,6 +28,7 @@ from .api_client import (
 )
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
+PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION = "ashr.clone.public_official_api_manifest_summary.v1"
 FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
 API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION = "ashr.clone.api_calibration_readiness_packet.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
@@ -42,6 +43,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
 PUBLIC_API_CALIBRATION_DIR = REPO_ROOT / "docs" / "a1" / "api_calibration"
 FIELD_MAP_PATH = PUBLIC_API_CALIBRATION_DIR / "real_api_response_field_map.json"
+DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH = REPO_ROOT / "docs" / "a1" / "evidence" / "official_api_readonly_manifest_summary.json"
+DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH = PRIVATE_EVIDENCE_DIR / "a1_worker_evidence_api_readonly_20260709_133939.json"
 
 
 class CalibrationUsageError(ValueError):
@@ -610,6 +613,178 @@ def summarize_step(step: CalibrationStep, record: Mapping[str, Any], output_path
     if quota:
         summary["quota"] = quota
     return redact_sensitive(summary)
+
+
+def public_official_api_manifest_summary(manifest: Mapping[str, Any], *, source_path: str | Path | None = None) -> JsonDict:
+    steps = manifest.get("steps") if isinstance(manifest.get("steps"), list) else []
+    errors = manifest.get("errors") if isinstance(manifest.get("errors"), list) else []
+    summary = manifest.get("summary") if isinstance(manifest.get("summary"), Mapping) else {}
+    guardrails = manifest.get("guardrails") if isinstance(manifest.get("guardrails"), Mapping) else {}
+    output_policy_value = guardrails.get("output_policy") if isinstance(guardrails.get("output_policy"), Mapping) else {}
+    env_value = manifest.get("env") if isinstance(manifest.get("env"), Mapping) else {}
+    step_summaries = [_public_official_api_step_summary(step) for step in steps if isinstance(step, Mapping)]
+    error_summaries = [_public_official_api_error_summary(error) for error in errors if isinstance(error, Mapping)]
+    payload = {
+        "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+        "generated_at": utc_now(),
+        "source_private_manifest": _repo_relative_output_path(source_path) if source_path is not None else None,
+        "source_private_manifest_present": True,
+        "source_schema_version": manifest.get("schema_version") if isinstance(manifest.get("schema_version"), str) else None,
+        "mode": manifest.get("mode") if isinstance(manifest.get("mode"), str) else None,
+        "dry_run": manifest.get("dry_run") if isinstance(manifest.get("dry_run"), bool) else None,
+        "status": manifest.get("status") if isinstance(manifest.get("status"), str) else None,
+        "field_map_version": manifest.get("field_map_version") if isinstance(manifest.get("field_map_version"), str) else None,
+        "started_at_present": isinstance(manifest.get("started_at"), str),
+        "ended_at_present": isinstance(manifest.get("ended_at"), str),
+        "duration_ms_present": isinstance(manifest.get("duration_ms"), int),
+        "env": {
+            "auth_env_present_count": len(env_value.get("auth_env_present")) if isinstance(env_value.get("auth_env_present"), list) else 0,
+            "base_url_host": _url_host(env_value.get("base_url")),
+        },
+        "guardrails": {
+            "raw_records_private": guardrails.get("raw_records_private") is True,
+            "execute_requires_small_batch": guardrails.get("execute_requires_small_batch") is True,
+            "mutating_requires_include_mutating": guardrails.get("mutating_requires_include_mutating") is True,
+            "paid_media_requires_allow_paid_media": guardrails.get("paid_media_requires_allow_paid_media") is True,
+            "mutating_execute_requires_quota_gate": guardrails.get("mutating_execute_requires_quota_gate") is True,
+            "quota_gate_present": isinstance(guardrails.get("quota_gate"), Mapping),
+            "output_policy": {
+                "private_output_required": output_policy_value.get("private_output_required") is True,
+                "output_is_private": output_policy_value.get("output_is_private") is True,
+                "sink": output_policy_value.get("sink") if isinstance(output_policy_value.get("sink"), str) else None,
+                "private_root": output_policy_value.get("private_root") if isinstance(output_policy_value.get("private_root"), str) else "docs/evidence/private_refs",
+                "full_record_stdout_blocked": output_policy_value.get("full_record_stdout_blocked") is True,
+            },
+        },
+        "summary": {
+            "total_steps": _int_or_zero(summary.get("total_steps"), len(step_summaries)),
+            "read_steps": _int_or_zero(summary.get("read_steps"), sum(1 for step in step_summaries if step.get("kind") == "read")),
+            "mutating_steps": _int_or_zero(summary.get("mutating_steps"), sum(1 for step in step_summaries if step.get("kind") == "mutate")),
+            "ok_or_planned_steps": _int_or_zero(summary.get("ok_or_planned_steps"), sum(1 for step in step_summaries if step.get("status") in {"ok", "planned"})),
+            "error_steps": _int_or_zero(summary.get("error_steps"), len(error_summaries)),
+            "estimated_calls": _int_or_zero(summary.get("estimated_calls"), sum(_int_or_zero(step.get("estimated_calls"), 0) for step in step_summaries)),
+            "modalities": sorted(str(modality) for modality in summary.get("modalities", []) if isinstance(modality, str)) if isinstance(summary.get("modalities"), list) else [],
+            "quota_block_count": _int_or_zero(summary.get("quota_block_count"), sum(1 for step in step_summaries if step.get("quota_blocked") is True)),
+        },
+        "step_summaries": step_summaries,
+        "error_summaries": error_summaries,
+        "public_safety": {
+            "redacted_summary_fields_only": True,
+            "raw_payload_values_included": False,
+            "header_values_included": False,
+            "request_parameter_values_included": False,
+            "step_record_locations_included": False,
+            "auth_env_names_included": False,
+            "raw_key_material_present": False,
+            "private_payload_contents_present": False,
+        },
+    }
+    return redact_sensitive(payload)
+
+
+def public_official_api_manifest_summary_from_file(path: str | Path = DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH) -> JsonDict:
+    source = Path(path)
+    if not source.exists():
+        return {
+            "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_private_manifest": _repo_relative_output_path(source),
+            "source_private_manifest_present": False,
+            "status": "missing",
+            "summary": {
+                "total_steps": 0,
+                "read_steps": 0,
+                "mutating_steps": 0,
+                "ok_or_planned_steps": 0,
+                "error_steps": 0,
+                "estimated_calls": 0,
+                "modalities": [],
+                "quota_block_count": 0,
+            },
+            "step_summaries": [],
+            "error_summaries": [],
+            "public_safety": {
+                "redacted_summary_fields_only": True,
+                "raw_payload_values_included": False,
+                "header_values_included": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "auth_env_names_included": False,
+                "raw_key_material_present": False,
+                "private_payload_contents_present": False,
+            },
+        }
+    manifest = load_json_object(str(source), "--private-official-api-manifest")
+    return public_official_api_manifest_summary(manifest, source_path=source)
+
+
+def write_public_official_api_manifest_summary(
+    *,
+    input_path: str | Path = DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH,
+    output_path: str | Path = DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
+) -> JsonDict:
+    summary = public_official_api_manifest_summary_from_file(input_path)
+    write_json(output_path, summary)
+    return summary
+
+
+def _public_official_api_step_summary(step: Mapping[str, Any]) -> JsonDict:
+    quota = step.get("quota") if isinstance(step.get("quota"), Mapping) else {}
+    top_counts = step.get("top_counts") if isinstance(step.get("top_counts"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "step_id": step.get("step_id") if isinstance(step.get("step_id"), str) else None,
+            "kind": step.get("kind") if isinstance(step.get("kind"), str) else None,
+            "modality": step.get("modality") if isinstance(step.get("modality"), str) else None,
+            "function": step.get("function") if isinstance(step.get("function"), str) else None,
+            "dry_run": step.get("dry_run") if isinstance(step.get("dry_run"), bool) else None,
+            "status": step.get("status") if isinstance(step.get("status"), str) else None,
+            "status_code": step.get("status_code") if isinstance(step.get("status_code"), int) else None,
+            "attempts": step.get("attempts") if isinstance(step.get("attempts"), int) else None,
+            "estimated_calls": step.get("estimated_calls") if isinstance(step.get("estimated_calls"), int) else None,
+            "response_keys": sorted(str(key) for key in step.get("response_keys", []) if isinstance(key, str)) if isinstance(step.get("response_keys"), list) else [],
+            "response_status": step.get("response_status") if isinstance(step.get("response_status"), str) else None,
+            "response_summary_keys": sorted(str(key) for key in step.get("response_summary_keys", []) if isinstance(key, str)) if isinstance(step.get("response_summary_keys"), list) else [],
+            "top_counts": {str(key): value for key, value in top_counts.items() if isinstance(key, str) and isinstance(value, int)},
+            "next_cursor_present": step.get("next_cursor") is not None,
+            "error_keys": sorted(str(key) for key in step.get("error_keys", []) if isinstance(key, str)) if isinstance(step.get("error_keys"), list) else [],
+            "error_kind": step.get("error_kind") if isinstance(step.get("error_kind"), str) else None,
+            "quota_blocked": quota.get("blocked") is True,
+            "quota_resource": quota.get("resource") if isinstance(quota.get("resource"), str) else None,
+            "quota_remaining_present": quota.get("remaining") is not None,
+        }
+    )
+
+
+def _public_official_api_error_summary(error: Mapping[str, Any]) -> JsonDict:
+    quota = error.get("quota") if isinstance(error.get("quota"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "step_id": error.get("step_id") if isinstance(error.get("step_id"), str) else None,
+            "status": error.get("status") if isinstance(error.get("status"), str) else None,
+            "status_code": error.get("status_code") if isinstance(error.get("status_code"), int) else None,
+            "error_kind": error.get("error_kind") if isinstance(error.get("error_kind"), str) else None,
+            "error_keys": sorted(str(key) for key in error.get("error_keys", []) if isinstance(key, str)) if isinstance(error.get("error_keys"), list) else [],
+            "quota_blocked": quota.get("blocked") is True,
+            "quota_resource": quota.get("resource") if isinstance(quota.get("resource"), str) else None,
+            "quota_remaining_present": quota.get("remaining") is not None,
+        }
+    )
+
+
+def _int_or_zero(value: Any, fallback: int) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return fallback
+
+
+def _url_host(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    return parsed.netloc or None
 
 
 def attach_quota_gate_evidence(record: Mapping[str, Any], quota_gate_summary: Mapping[str, Any]) -> JsonDict:
