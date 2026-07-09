@@ -52,6 +52,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
                 "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
                 "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
                 "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
+                "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
                 "release_policy_config": "fixtures/a2/config/release_policies.json",
             },
         )
@@ -127,6 +128,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(payload_keys["a2ControlPlane"], "fixtures/a2/results/a2_saas_control_plane_report.json")
         self.assertEqual(payload_keys["resultPersistence"], "fixtures/a2/results/a2_result_persistence_manifest.json")
         self.assertEqual(payload_keys["judgeVersions"], "fixtures/a2/results/a2_judge_versions.json")
+        self.assertEqual(payload_keys["sqlStore"], "fixtures/a2/results/a2_sql_store_report.json")
         self.assertEqual(
             payload_keys["releaseUnblockChecklist"],
             "fixtures/a2/results/a2_release_unblock_checklist.json",
@@ -134,6 +136,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("judge version and policy hash audit", contract["dashboard_can_show"])
         self.assertIn("judge registry pins and migration readiness", contract["dashboard_can_show"])
         self.assertIn("release unblock checklist owner actions", contract["dashboard_can_show"])
+        self.assertIn("SQL-readable eval/calibration/golden/regression history", contract["dashboard_can_show"])
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")

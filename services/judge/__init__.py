@@ -17,6 +17,7 @@ from .saas_control_plane import build_saas_control_plane_report
 from .scenario_selection import build_project_scenario_selection, build_scenario_selection_report
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
+from .sql_store import build_sql_store_report, initialize_sql_store
 from .unblock_checklist import build_release_unblock_checklist
 from .service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
@@ -73,9 +74,11 @@ __all__ = [
     "build_scenario_selection_report",
     "build_sdk_parity_report",
     "build_semantic_harness_report",
+    "build_sql_store_report",
     "handle_internal_request",
     "import_ashr_grading_observations",
     "import_semantic_judge_observations",
+    "initialize_sql_store",
     "judge_batch",
     "judge_case",
     "judge_run",

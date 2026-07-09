@@ -389,6 +389,7 @@
       "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
       "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
       "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
+      "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
       "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json"
     },
     "dashboard_can_show": [
@@ -399,6 +400,7 @@
       "release policy decision and blocker counts",
       "release unblock checklist owner actions",
       "public-safe persistence record counts",
+      "SQL-readable eval/calibration/golden/regression history",
       "calibration source coverage and live evidence gaps"
     ],
     "local_meter": {
@@ -428,6 +430,7 @@
     "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
     "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
     "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
+    "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
     "release_policy_config": "fixtures/a2/config/release_policies.json"
   },
   "metadata": {

@@ -87,6 +87,7 @@ def build_saas_control_plane_report(
             "release_unblock_checklist": source_refs.get("release_unblock_checklist", ""),
             "result_persistence": source_refs.get("result_persistence", ""),
             "judge_versions": source_refs.get("judge_versions", ""),
+            "sql_store": source_refs.get("sql_store", ""),
             "release_policy_config": source_refs.get("release_policy_config", ""),
         },
         "metadata": {
@@ -385,6 +386,7 @@ def _a3_dashboard_contract(
             "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
             "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
             "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
+            "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
             "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json",
         },
         "dashboard_can_show": [
@@ -395,6 +397,7 @@ def _a3_dashboard_contract(
             "release policy decision and blocker counts",
             "release unblock checklist owner actions",
             "public-safe persistence record counts",
+            "SQL-readable eval/calibration/golden/regression history",
             "calibration source coverage and live evidence gaps",
         ],
         "local_meter": {

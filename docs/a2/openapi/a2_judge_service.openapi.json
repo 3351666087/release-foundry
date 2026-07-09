@@ -513,7 +513,8 @@
     "implementation_language": "Python",
     "contract_format": "OpenAPI JSON",
     "hosted_server_in_scope": false,
-    "sql_in_scope": false,
+    "sql_in_scope": true,
+    "sql_scope": "Python sqlite reference adapter for eval results, calibration data, golden cases, and regression history.",
     "typescript_runtime_in_scope": false,
     "intended_consumers": ["A1 worker/API mounting", "A3 dashboard/report consumption", "CI release gate checks"]
   }

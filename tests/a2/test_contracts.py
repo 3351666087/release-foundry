@@ -332,6 +332,7 @@ class A2ContractTests(unittest.TestCase):
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
+        sql_store_schema = json.loads((schema_dir / "sql_store_report.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -350,6 +351,7 @@ class A2ContractTests(unittest.TestCase):
         unblock_checklist = json.loads((ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
+        sql_store = json.loads((ROOT / "fixtures/a2/results/a2_sql_store_report.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -398,6 +400,10 @@ class A2ContractTests(unittest.TestCase):
             scenario_selection_schema["properties"]["schema_version"]["const"],
             scenario_selection["schema_version"],
         )
+        self.assertEqual(
+            sql_store_schema["properties"]["schema_version"]["const"],
+            sql_store["schema_version"],
+        )
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
@@ -427,6 +433,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
         self.assertLessEqual(set(unblock_checklist_schema["required"]), set(unblock_checklist))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
+        self.assertLessEqual(set(sql_store_schema["required"]), set(sql_store))
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])

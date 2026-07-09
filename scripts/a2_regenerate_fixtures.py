@@ -29,6 +29,7 @@ from services.judge.scenario_selection import build_scenario_selection_report  #
 from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
+from services.judge.sql_store import build_sql_store_report  # noqa: E402
 from services.judge.unblock_checklist import build_release_unblock_checklist  # noqa: E402
 from services.judge.versioning import build_judge_version_registry  # noqa: E402
 
@@ -62,6 +63,7 @@ DEFAULT_RESULT_PERSISTENCE_MANIFEST = DEFAULT_RESULT_DIR / "a2_result_persistenc
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_SAAS_CONTROL_PLANE = DEFAULT_RESULT_DIR / "a2_saas_control_plane_report.json"
 DEFAULT_JUDGE_VERSIONS = DEFAULT_RESULT_DIR / "a2_judge_versions.json"
+DEFAULT_SQL_STORE = DEFAULT_RESULT_DIR / "a2_sql_store_report.json"
 
 
 def main() -> int:
@@ -99,6 +101,7 @@ def main() -> int:
     parser.add_argument("--release-policy-config", default=DEFAULT_RELEASE_POLICY_CONFIG.as_posix())
     parser.add_argument("--saas-control-plane", default=DEFAULT_SAAS_CONTROL_PLANE.as_posix())
     parser.add_argument("--judge-versions", default=DEFAULT_JUDGE_VERSIONS.as_posix())
+    parser.add_argument("--sql-store", default=DEFAULT_SQL_STORE.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -135,6 +138,7 @@ def main() -> int:
         release_policy_config_path=Path(args.release_policy_config),
         saas_control_plane_path=Path(args.saas_control_plane),
         judge_versions_path=Path(args.judge_versions),
+        sql_store_path=Path(args.sql_store),
     )
 
     if args.check:
@@ -176,6 +180,7 @@ def generate_outputs(
     release_policy_config_path: Path,
     saas_control_plane_path: Path,
     judge_versions_path: Path,
+    sql_store_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -287,6 +292,7 @@ def generate_outputs(
         outputs[regression_promotion_queue_path],
     )
     scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
+    golden_payload = json.loads(golden_path.read_text(encoding="utf-8"))
     result_persistence_manifest = build_result_persistence_manifest(
         outputs[grade_report_path],
         release_gate,
@@ -309,6 +315,13 @@ def generate_outputs(
         grade_report=outputs[grade_report_path],
     )
     outputs[judge_versions_path] = judge_version_registry
+    sql_store_report = build_sql_store_report(
+        outputs[grade_report_path],
+        calibration_matrix,
+        golden_payload,
+        regression_replay,
+    )
+    outputs[sql_store_path] = sql_store_report
     release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
     outputs[saas_control_plane_path] = build_saas_control_plane_report(
         grade_report=outputs[grade_report_path],
@@ -328,6 +341,7 @@ def generate_outputs(
             "release_unblock_checklist": release_unblock_checklist_path.as_posix(),
             "result_persistence": result_persistence_manifest_path.as_posix(),
             "judge_versions": judge_versions_path.as_posix(),
+            "sql_store": sql_store_path.as_posix(),
             "release_policy_config": release_policy_config_path.as_posix(),
         },
     )

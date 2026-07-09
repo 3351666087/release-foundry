@@ -81,7 +81,8 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         boundary = contract["x-a2-boundary"]
         self.assertEqual(boundary["implementation_language"], "Python")
         self.assertFalse(boundary["hosted_server_in_scope"])
-        self.assertFalse(boundary["sql_in_scope"])
+        self.assertTrue(boundary["sql_in_scope"])
+        self.assertIn("sqlite reference adapter", boundary["sql_scope"])
         self.assertFalse(boundary["typescript_runtime_in_scope"])
         envelope = contract["components"]["schemas"]["InternalServiceEnvelope"]
         self.assertEqual(
