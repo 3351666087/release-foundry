@@ -43,6 +43,37 @@ A1 trace semantics, A2 judge semantics, A2 scores, or A2 failure taxonomy.
 - Tests now understand both old HTML navigation targets and new configuration
   driven navigation targets.
 
+## Page Model
+
+The current A3 dashboard is still a single-page app shell because the local A3
+data flow is static and fixture/API backed. It behaves like multiple product
+areas through section anchors today, but the rendering architecture now makes a
+future route split straightforward:
+
+- `/overview` for source health and metrics
+- `/evaluate` for runs, scenarios, and media readiness
+- `/review` for case detail, trace timeline, and failure clusters
+- `/reports` for hosted/exportable reports and release evidence
+- `/admin` for login, team, API keys, usage, and reviewer workflow
+- `/trust` for enterprise readiness, PR gate, and audit posture
+
+## V6 Sidebar Accordion Follow-Up
+
+After V5, the sidebar was improved again so each primary area can expand into
+subsections. The sidebar now acts like a product navigation tree instead of a
+flat directory:
+
+- `Overview`: source/export state, product surfaces, shortcuts, metrics
+- `Evaluate`: console, product console, media readiness, official gap
+- `Review`: run list, case detail, trace timeline, failure clusters
+- `Reports`: report preview, report center, export safety, release evidence
+- `Admin`: login/team, API keys, usage/quota, reviewer workflow
+- `Trust`: enterprise posture, release gate, PR gate, war room
+
+The top overview action area was also changed from a flexible row to a stable
+two-column action grid. The data selector now owns a full row, so long source
+names and export buttons do not collide.
+
 ## Clean-Room Design Inputs
 
 The visual rhythm used only sanitized layout principles from the local
@@ -70,6 +101,8 @@ clean-room video portal notes:
 
 - `docs/screenshots/a3-dashboard-visual-rendering-v5-first-viewport-2026-07-09.png`
 - `docs/screenshots/a3-dashboard-visual-rendering-v5-mobile-first-viewport-2026-07-09.png`
+- `docs/screenshots/a3-dashboard-accordion-nav-v6-first-viewport-2026-07-09.png`
+- `docs/screenshots/a3-dashboard-accordion-nav-v6-mobile-first-viewport-2026-07-09.png`
 
 ## Validation
 

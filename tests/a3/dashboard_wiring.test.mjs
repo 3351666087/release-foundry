@@ -30,6 +30,9 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   assert.match(html, /data-visual-shell="primary-nav"/);
   assert.match(html, /export const primaryAreas/);
   assert.match(html, /export const workspaceRailGroups/);
+  assert.match(html, /className = "nav-group"/);
+  assert.match(html, /className = "nav-sublist"/);
+  assert.match(html, /function syncExpandedNavigation\(id\)/);
 });
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {

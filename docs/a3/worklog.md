@@ -5022,3 +5022,46 @@ Safety:
   copy, account data, cookies, or tokens were copied.
 - No API key, token, cookie, account value, email, signed URL, payment secret,
   or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Sidebar Accordion And Overview Layout Fix
+
+Responded to feedback that the dashboard still felt like one overloaded page,
+that the left navigation should contain collapsible subsections, and that the
+overview data selector/export actions had text crowding.
+
+Changed:
+
+- Extended `apps/dashboard/src/visual-shell.mjs` so each primary sidebar area
+  owns a `children` list.
+- Rendered the sidebar as accordion groups with nested subsection links.
+- Added new overview anchors for product surfaces, workspace shortcuts, and run
+  metrics so accordion links can target real page areas.
+- Updated navigation sync so clicking a parent or child link expands the
+  matching sidebar group and keeps other groups collapsed.
+- Added a short navigation lock so scroll observation does not immediately steal
+  the active state after a user clicks a sidebar group.
+- Reworked the overview action area into a stable grid: the data selector owns a
+  full row and export/print actions sit in two clean columns.
+- Updated mobile rules so accordion groups, sublinks, buttons, and source
+  selector do not overflow.
+- Captured V6 screenshots:
+  - `docs/screenshots/a3-dashboard-accordion-nav-v6-first-viewport-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-accordion-nav-v6-mobile-first-viewport-2026-07-09.png`
+
+Validation so far:
+
+- `node --test tests/a3/dashboard_wiring.test.mjs`
+- `node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/p3_ashr_mapper.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py hygiene`
+- `python scripts/cl_guard.py commercial`
+- `git diff --check`
+- Playwright layout probe confirmed no desktop/mobile page-level overflow and
+  no detected text overflow for buttons, nav links, rail chips, or product
+  surface labels.
+
+Page model note:
+
+- A3 is still implemented as one static/API-backed single-page app shell today.
+- The new sidebar groups now describe the future route split: overview,
+  evaluate, review, reports, admin, and trust.

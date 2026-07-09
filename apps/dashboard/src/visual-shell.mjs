@@ -5,12 +5,72 @@ export const visualNavigationSelector = [
 ].join(", ");
 
 export const primaryAreas = [
-  { href: "#summary", label: "Overview", meta: "health" },
-  { href: "#console", label: "Evaluate", meta: "runs" },
-  { href: "#runs", label: "Review", meta: "cases" },
-  { href: "#report-preview", label: "Reports", meta: "export" },
-  { href: "#saas-admin", label: "Admin", meta: "access" },
-  { href: "#enterprise-readiness", label: "Trust", meta: "audit" }
+  {
+    href: "#summary",
+    label: "Overview",
+    meta: "health",
+    children: [
+      { href: "#summary", label: "Source & exports" },
+      { href: "#product-surfaces", label: "Product surfaces" },
+      { href: "#workspace-shortcuts", label: "Workspace shortcuts" },
+      { href: "#metrics", label: "Run metrics" }
+    ]
+  },
+  {
+    href: "#console",
+    label: "Evaluate",
+    meta: "runs",
+    children: [
+      { href: "#console", label: "Console" },
+      { href: "#product-console", label: "Product console" },
+      { href: "#media-readiness", label: "Media readiness" },
+      { href: "#official-gap", label: "Official gap" }
+    ]
+  },
+  {
+    href: "#runs",
+    label: "Review",
+    meta: "cases",
+    children: [
+      { href: "#runs", label: "Run list" },
+      { href: "#detail", label: "Case detail" },
+      { href: "#timeline", label: "Trace timeline" },
+      { href: "#clusters", label: "Failure clusters" }
+    ]
+  },
+  {
+    href: "#report-preview",
+    label: "Reports",
+    meta: "export",
+    children: [
+      { href: "#report-preview", label: "Report preview" },
+      { href: "#operations", label: "Report center" },
+      { href: "#export-redaction", label: "Export safety" },
+      { href: "#release-evidence", label: "Release evidence" }
+    ]
+  },
+  {
+    href: "#saas-admin",
+    label: "Admin",
+    meta: "access",
+    children: [
+      { href: "#saas-admin", label: "Login / team" },
+      { href: "#cloud-shell", label: "API keys" },
+      { href: "#saas-runtime", label: "Usage / quota" },
+      { href: "#reviewer-workflow", label: "Reviewer workflow" }
+    ]
+  },
+  {
+    href: "#enterprise-readiness",
+    label: "Trust",
+    meta: "audit",
+    children: [
+      { href: "#enterprise-readiness", label: "Enterprise posture" },
+      { href: "#release-gate", label: "Release gate" },
+      { href: "#pr-gate", label: "PR gate" },
+      { href: "#war-room", label: "War room" }
+    ]
+  }
 ];
 
 export const productSurfaces = [
@@ -109,16 +169,36 @@ export function setupVisualShell(root = document) {
 function renderPrimaryNav(container) {
   if (!container) return;
   container.replaceChildren(...primaryAreas.map((item, index) => {
-    const link = anchor(item.href, "nav-link");
+    const group = document.createElement("div");
+    group.className = "nav-group";
+    group.dataset.navGroup = item.label.toLowerCase();
+    group.classList.toggle("expanded", index === 0);
+
+    const link = anchor(item.href, "nav-link nav-parent");
+    link.dataset.navParent = item.label.toLowerCase();
     link.classList.toggle("active", index === 0);
 
     const label = document.createElement("span");
     label.textContent = item.label;
     const meta = document.createElement("small");
     meta.textContent = item.meta;
+    const arrow = document.createElement("span");
+    arrow.className = "nav-arrow";
+    arrow.setAttribute("aria-hidden", "true");
 
-    link.append(label, meta);
-    return link;
+    link.append(label, meta, arrow);
+
+    const sublist = document.createElement("div");
+    sublist.className = "nav-sublist";
+    sublist.setAttribute("aria-label", `${item.label} subsections`);
+    sublist.replaceChildren(...item.children.map((child) => {
+      const childLink = anchor(child.href, "nav-subitem");
+      childLink.textContent = child.label;
+      return childLink;
+    }));
+
+    group.append(link, sublist);
+    return group;
   }));
 }
 

@@ -2980,11 +2980,13 @@ function setupSectionNavigation() {
   const sections = [...new Set(navLinks
     .map((link) => document.querySelector(link.getAttribute("href")))
     .filter(Boolean))];
+  let navigationLockUntil = 0;
 
   const setActiveLink = (id) => {
     for (const link of navLinks) {
       link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
     }
+    syncExpandedNavigation(id);
   };
 
   const focusSection = (section) => {
@@ -2996,6 +2998,7 @@ function setupSectionNavigation() {
     link.addEventListener("click", () => {
       const section = document.querySelector(link.getAttribute("href"));
       if (!section) return;
+      navigationLockUntil = Date.now() + 750;
       setActiveLink(section.id);
       focusSection(section);
     });
@@ -3004,6 +3007,7 @@ function setupSectionNavigation() {
   if (!("IntersectionObserver" in window)) return;
 
   const observer = new IntersectionObserver((entries) => {
+    if (Date.now() < navigationLockUntil) return;
     const visible = entries
       .filter((entry) => entry.isIntersecting)
       .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -3031,6 +3035,14 @@ function setupSectionNavigation() {
     setActiveLink(id);
     focusSection(section);
   });
+}
+
+function syncExpandedNavigation(id) {
+  const targetHref = `#${id}`;
+  for (const group of document.querySelectorAll(".nav-group")) {
+    const containsTarget = Boolean(group.querySelector(`a[href="${targetHref}"]`));
+    group.classList.toggle("expanded", containsTarget);
+  }
 }
 
 async function init() {

@@ -585,6 +585,10 @@
 - [x] Rework the dashboard shell into a lighter academic SaaS console style without changing A1 runner or A2 judge semantics.
 - [x] Capture V5 visual-rendering screenshots for desktop, mobile, and first-viewport review.
 - [x] Verify V5 dashboard wiring with `node --test tests/a3/dashboard_wiring.test.mjs`.
+- [x] Convert the left sidebar into accordion groups with subsection links for Overview, Evaluate, Review, Reports, Admin, and Trust.
+- [x] Add overview anchors for product surfaces, workspace shortcuts, and run metrics so sidebar subsections target real page areas.
+- [x] Fix overview action layout so the data source selector and export buttons do not crowd each other.
+- [x] Verify desktop/mobile navigation and button text do not overflow with a Playwright layout probe.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
