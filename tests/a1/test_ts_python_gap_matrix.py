@@ -39,7 +39,7 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "media text/audio/file/image/video parity",
         "official API calibration SDK import surface",
     }
-    assert by_area["CLI commands"]["status"] == "partial"
+    assert by_area["CLI commands"]["status"] in {"parity", "typescript_leads"}
     assert by_area["media text/audio/file/image/video parity"]["status"] == "parity"
     assert by_area["official API calibration SDK import surface"]["status"] == "parity"
 
@@ -51,8 +51,8 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     cli = matrix["generated_contract"]["cli"]
     assert "bootstrap" in cli["python_commands"]["ashr_clone.saas_cli"]
     assert "release-gate" in cli["typescript_commands"]["saas"]
-    assert cli["python_only_saas_command_names"]
-    assert cli["typescript_only_saas_command_names"]
+    assert cli["python_only_saas_command_names"] == []
+    assert "job-lease" in cli["typescript_only_saas_command_names"]
 
     routes = matrix["generated_contract"]["routes"]
     assert "/v1/bootstrap" in routes["shared_route_literals"]

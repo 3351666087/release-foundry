@@ -10,6 +10,7 @@ from uuid import uuid4
 from .runtime import CloudApiService, JsonDict, NotFoundError, ValidationError, _jsonable, _lease_expired, _lease_expires_at, _utc_now
 from .release_gate_bridge import LocalReleaseGateBridgeClient, evaluate_lifecycle_with_release_gate
 from .platform import verify_release_evidence_packet as _verify_release_evidence_packet
+from .billing import BillingContractError, BillingProviderConfig, SECRET_REF_PREFIXES, verify_billing_webhook_envelope
 
 CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1"
 API_KEY_ADMIN_SCOPE = "api_key:write"
@@ -23,6 +24,8 @@ USAGE_READ_SCOPE = "usage:read"
 AUDIT_READ_SCOPE = "audit:read"
 WORKER_JOB_WRITE_SCOPE = "worker_job:write"
 WORKER_JOB_READ_SCOPE = "worker_job:read"
+COMMERCIAL_CONFIG_WRITE_SCOPE = "commercial_config:write"
+COMMERCIAL_CONFIG_READ_SCOPE = "commercial_config:read"
 ADMIN_ALL_SCOPE = "admin:all"
 CONTROL_PLANE_SCOPES = {
     "project:read",
@@ -43,6 +46,8 @@ CONTROL_PLANE_SCOPES = {
     AUDIT_READ_SCOPE,
     WORKER_JOB_READ_SCOPE,
     WORKER_JOB_WRITE_SCOPE,
+    COMMERCIAL_CONFIG_READ_SCOPE,
+    COMMERCIAL_CONFIG_WRITE_SCOPE,
     ADMIN_ALL_SCOPE,
 }
 API_KEY_SCOPE_ALIASES = {
@@ -59,6 +64,10 @@ API_KEY_SCOPE_ALIASES = {
     "worker:write": {WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE},
     "queue:read": {WORKER_JOB_READ_SCOPE},
     "queue:write": {WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE},
+    "commercial:read": {COMMERCIAL_CONFIG_READ_SCOPE},
+    "commercial:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
+    "oauth:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
+    "payment:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
     API_KEY_ADMIN_SCOPE: {API_KEY_READ_SCOPE},
     ADMIN_ALL_SCOPE: set(CONTROL_PLANE_SCOPES),
 }
@@ -102,6 +111,10 @@ class SaaSControlPlaneStore:
     idempotency_keys: dict[str, JsonDict] = field(default_factory=dict)
     artifact_manifests: dict[str, JsonDict] = field(default_factory=dict)
     worker_jobs: dict[str, JsonDict] = field(default_factory=dict)
+    oauth_provider_configs: dict[str, JsonDict] = field(default_factory=dict)
+    oauth_sessions: dict[str, JsonDict] = field(default_factory=dict)
+    commercial_provider_configs: dict[str, JsonDict] = field(default_factory=dict)
+    payment_mode_boundaries: dict[str, JsonDict] = field(default_factory=dict)
 
 
 class SaaSControlPlaneService:
@@ -252,6 +265,274 @@ class SaaSControlPlaneService:
     def api_key_rate_limit_snapshot(self, tenant_id: str, project_id: str, *, key_id: str | None = None) -> JsonDict:
         buckets = [bucket for bucket in self.store.api_key_rate_limits.values() if bucket.get("tenant_id") == str(tenant_id) and bucket.get("project_id") == str(project_id) and (key_id is None or bucket.get("key_id") == str(key_id))]
         return {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "tenant_id": tenant_id, "project_id": project_id, "key_id": key_id, "rate_limits": _jsonable(buckets)}
+
+    def configure_oauth_provider(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        client_id_ref: str,
+        client_secret_ref: str,
+        redirect_uris: list[str],
+        scopes: list[str],
+        config_id: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "oauth.provider.configure")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "oauth.provider.configure")
+        else:
+            auth = None
+            linked_rate_limit = None
+        normalized_provider = _normalize_oauth_provider(provider)
+        if not redirect_uris:
+            raise ValidationError("oauth redirect_uris must not be empty")
+        if not scopes:
+            raise ValidationError("oauth scopes must not be empty")
+        for uri in redirect_uris:
+            if not str(uri).startswith("https://") and not str(uri).startswith("http://localhost"):
+                raise ValidationError("oauth redirect_uri must be https or localhost")
+        _validate_secret_ref("client_id_ref", client_id_ref)
+        _validate_secret_ref("client_secret_ref", client_secret_ref)
+        config_id = config_id or _new_id("oauthcfg")
+        now = _utc_now()
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": project["tenant_id"],
+            "project_id": project["project_id"],
+            "config_id": config_id,
+            "provider": normalized_provider,
+            "client_id_ref": str(client_id_ref),
+            "client_secret_ref": str(client_secret_ref),
+            "redirect_uris": [str(uri) for uri in redirect_uris],
+            "scopes": [str(scope) for scope in scopes],
+            "enabled": True,
+            "secret_value_present": False,
+            "created_at": now,
+            "updated_at": now,
+            "configured_by_api_key_id": auth_key_id,
+            "linked_rate_limit": linked_rate_limit,
+        }
+        self.store.oauth_provider_configs[config_id] = record
+        public = _public_oauth_provider_config(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "oauth.provider.configure", target_id=config_id, api_key_id=auth_key_id, after=public)
+        return {**public, "auth": auth}
+
+    def create_oauth_session(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        subject_ref: str,
+        session_id: str | None = None,
+        provider_config_id: str | None = None,
+        access_token_ref: str | None = None,
+        refresh_token_ref: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "oauth.session.create")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "oauth.session.create")
+        else:
+            auth = None
+            linked_rate_limit = None
+        normalized_provider = _normalize_oauth_provider(provider)
+        if provider_config_id is not None:
+            config = self._oauth_provider_config_record(project["tenant_id"], project["project_id"], provider_config_id)
+            if config.get("provider") != normalized_provider:
+                raise ValidationError("oauth session provider must match provider config")
+        _validate_public_ref("subject_ref", subject_ref)
+        if access_token_ref is not None:
+            _validate_secret_ref("access_token_ref", access_token_ref)
+        if refresh_token_ref is not None:
+            _validate_secret_ref("refresh_token_ref", refresh_token_ref)
+        session_id = session_id or _new_id("oauthsess")
+        now = _utc_now()
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": project["tenant_id"],
+            "project_id": project["project_id"],
+            "session_id": session_id,
+            "provider": normalized_provider,
+            "provider_config_id": provider_config_id,
+            "subject_ref": str(subject_ref),
+            "access_token_ref": access_token_ref,
+            "refresh_token_ref": refresh_token_ref,
+            "status": "active",
+            "secret_value_present": False,
+            "created_at": now,
+            "revoked_at": None,
+            "created_by_api_key_id": auth_key_id,
+            "linked_rate_limit": linked_rate_limit,
+        }
+        self.store.oauth_sessions[session_id] = record
+        public = _public_oauth_session(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "oauth.session.create", target_id=session_id, api_key_id=auth_key_id, after=public)
+        return {**public, "auth": auth}
+
+    def revoke_oauth_session(self, tenant_id: str, project_id: str, session_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(tenant_id, project_id, auth_key_id), "oauth.session.revoke")
+        record = self._oauth_session_record(tenant_id, project_id, session_id)
+        before = _public_oauth_session(record)
+        record["status"] = "revoked"
+        record["revoked_at"] = _utc_now()
+        public = _public_oauth_session(record)
+        self._append_audit(tenant_id, project_id, "oauth.session.revoke", target_id=session_id, api_key_id=auth_key_id, before=before, after=public)
+        return public
+
+    def configure_commercial_provider(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        purpose: str,
+        mode: str = "test",
+        secret_ref: str | None = None,
+        webhook_secret_ref: str | None = None,
+        account_ref: str | None = None,
+        live_mode_ack: bool = False,
+        allowed_payment_methods: list[str] | None = None,
+        config_id: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "commercial.provider.configure")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "commercial.provider.configure")
+        else:
+            auth = None
+            linked_rate_limit = None
+        if purpose != "payment":
+            raise ValidationError("commercial provider purpose must be payment for this increment")
+        try:
+            billing_config = BillingProviderConfig(
+                provider=provider,
+                mode=mode,
+                secret_ref=secret_ref,
+                webhook_secret_ref=webhook_secret_ref,
+                account_ref=account_ref,
+                live_mode_ack=live_mode_ack,
+                allowed_payment_methods=tuple(allowed_payment_methods or ()),
+            ).normalized()
+        except BillingContractError as exc:
+            raise ValidationError(str(exc)) from exc
+        config_id = config_id or _new_id("commercialcfg")
+        now = _utc_now()
+        public_config = billing_config.to_public_dict()
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": project["tenant_id"],
+            "project_id": project["project_id"],
+            "config_id": config_id,
+            "purpose": "payment",
+            **public_config,
+            "live_mode_enabled": False,
+            "test_live_boundary_enforced": True,
+            "provider_called": False,
+            "checkout_or_portal_called": False,
+            "real_charge_possible": False,
+            "secret_value_present": False,
+            "created_at": now,
+            "updated_at": now,
+            "configured_by_api_key_id": auth_key_id,
+            "linked_rate_limit": linked_rate_limit,
+        }
+        self.store.commercial_provider_configs[config_id] = record
+        public = _public_commercial_provider_config(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "commercial.provider.configure", target_id=config_id, api_key_id=auth_key_id, after=public)
+        return {**public, "auth": auth}
+
+    def record_payment_mode_boundary(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        mode: str,
+        event_type: str,
+        event_id_ref: str,
+        payload_sha256: str,
+        signature_header_present: bool,
+        webhook_secret_ref: str,
+        livemode: bool | None = None,
+        boundary_id: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "payment.mode_boundary.record")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "payment.mode_boundary.record")
+        else:
+            auth = None
+            linked_rate_limit = None
+        _validate_public_ref("event_id_ref", event_id_ref)
+        try:
+            envelope = verify_billing_webhook_envelope(
+                tenant_id=project["tenant_id"],
+                project_id=project["project_id"],
+                provider=provider,
+                mode=mode,
+                event_type=event_type,
+                event_id=event_id_ref,
+                payload_sha256=payload_sha256,
+                signature_header_present=signature_header_present,
+                webhook_secret_ref=webhook_secret_ref,
+                livemode=livemode,
+            )
+        except BillingContractError as exc:
+            raise ValidationError(str(exc)) from exc
+        if not envelope.get("verified", False):
+            reasons = ",".join(str(item.get("reason")) for item in envelope.get("failures", []) if isinstance(item, Mapping))
+            raise ValidationError(reasons or "payment mode boundary verification failed")
+        boundary_id = boundary_id or _new_id("paybound")
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": project["tenant_id"],
+            "project_id": project["project_id"],
+            "boundary_id": boundary_id,
+            "envelope": envelope,
+            "provider_called": False,
+            "checkout_or_portal_called": False,
+            "real_charge_possible": False,
+            "raw_payload_included": False,
+            "secret_value_present": False,
+            "created_at": _utc_now(),
+            "recorded_by_api_key_id": auth_key_id,
+            "linked_rate_limit": linked_rate_limit,
+        }
+        self.store.payment_mode_boundaries[boundary_id] = record
+        public = _public_payment_mode_boundary(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "payment.mode_boundary.record", target_id=boundary_id, api_key_id=auth_key_id, after=public)
+        return {**public, "auth": auth}
+
+    def commercial_auth_payment_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None) -> JsonDict:
+        self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            self.authenticate_api_key(tenant_id, project_id, key_id=auth_key_id, scope=COMMERCIAL_CONFIG_READ_SCOPE)
+        return {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "oauth_provider_configs": [_public_oauth_provider_config(record) for record in self.store.oauth_provider_configs.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
+            "oauth_sessions": [_public_oauth_session(record) for record in self.store.oauth_sessions.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
+            "commercial_provider_configs": [_public_commercial_provider_config(record) for record in self.store.commercial_provider_configs.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
+            "payment_mode_boundaries": [_public_payment_mode_boundary(record) for record in self.store.payment_mode_boundaries.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
+            "secret_value_present": False,
+            "raw_payload_included": False,
+            "provider_called": False,
+            "real_charge_possible": False,
+        }
 
     def sdk_submit_run(self, tenant_id: str, project_id: str, *, dataset_id: str, agent_ref: str, run_id: str | None = None, metadata: Mapping[str, Any] | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None) -> JsonDict:
         if api_key_id is not None:
@@ -818,6 +1099,13 @@ class SaaSControlPlaneService:
             bucket["remaining"] = max(0, int(bucket.get("limit") or 0) - int(bucket.get("used") or 0))
             bucket["last_used_at"] = _utc_now()
 
+    def _linked_rate_limit_snapshot(self, tenant_id: str, project_id: str, key_id: str, operation: str) -> JsonDict | None:
+        candidates = [bucket for bucket in self.store.api_key_rate_limits.values() if bucket.get("tenant_id") == str(tenant_id) and bucket.get("project_id") == str(project_id) and bucket.get("key_id") == str(key_id) and bucket.get("operation") in {operation, "*"}]
+        if not candidates:
+            return None
+        bucket = candidates[0]
+        return {"key_id": bucket.get("key_id"), "operation": bucket.get("operation"), "period": bucket.get("period"), "limit": bucket.get("limit"), "used": bucket.get("used"), "remaining": bucket.get("remaining")}
+
     def _idempotency_lookup(self, tenant_id: str, project_id: str, operation: str, idempotency_key: str | None, *, request_fingerprint: str | None = None) -> JsonDict | None:
         if not idempotency_key:
             return None
@@ -853,6 +1141,18 @@ class SaaSControlPlaneService:
         record = self.store.api_keys.get(str(key_id))
         if not record or record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
             raise NotFoundError("api key not found for project")
+        return record
+
+    def _oauth_provider_config_record(self, tenant_id: str, project_id: str, config_id: str) -> JsonDict:
+        record = self.store.oauth_provider_configs.get(str(config_id))
+        if not record or record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
+            raise NotFoundError("oauth provider config not found for project")
+        return record
+
+    def _oauth_session_record(self, tenant_id: str, project_id: str, session_id: str) -> JsonDict:
+        record = self.store.oauth_sessions.get(str(session_id))
+        if not record or record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
+            raise NotFoundError("oauth session not found for project")
         return record
 
 
@@ -1064,6 +1364,119 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
         "one_time_secret_displayed": bool(record.get("one_time_secret_displayed", False)),
         "verify_mode": record.get("verify_mode"),
     }
+
+
+def _public_oauth_provider_config(record: Mapping[str, Any]) -> JsonDict:
+    return {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "tenant_id": record.get("tenant_id"),
+        "project_id": record.get("project_id"),
+        "config_id": record.get("config_id"),
+        "provider": record.get("provider"),
+        "client_id_ref": record.get("client_id_ref"),
+        "client_secret_ref": record.get("client_secret_ref"),
+        "redirect_uris": list(record.get("redirect_uris", [])),
+        "scopes": list(record.get("scopes", [])),
+        "enabled": bool(record.get("enabled", False)),
+        "secret_value_present": False,
+        "configured_by_api_key_id": record.get("configured_by_api_key_id"),
+        "linked_rate_limit": _jsonable(record.get("linked_rate_limit")) if record.get("linked_rate_limit") else None,
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _public_oauth_session(record: Mapping[str, Any]) -> JsonDict:
+    return {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "tenant_id": record.get("tenant_id"),
+        "project_id": record.get("project_id"),
+        "session_id": record.get("session_id"),
+        "provider": record.get("provider"),
+        "provider_config_id": record.get("provider_config_id"),
+        "subject_ref": record.get("subject_ref"),
+        "access_token_ref": record.get("access_token_ref"),
+        "refresh_token_ref": record.get("refresh_token_ref"),
+        "status": record.get("status"),
+        "secret_value_present": False,
+        "created_by_api_key_id": record.get("created_by_api_key_id"),
+        "linked_rate_limit": _jsonable(record.get("linked_rate_limit")) if record.get("linked_rate_limit") else None,
+        "created_at": record.get("created_at"),
+        "revoked_at": record.get("revoked_at"),
+    }
+
+
+def _public_commercial_provider_config(record: Mapping[str, Any]) -> JsonDict:
+    return {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "tenant_id": record.get("tenant_id"),
+        "project_id": record.get("project_id"),
+        "config_id": record.get("config_id"),
+        "purpose": record.get("purpose"),
+        "provider": record.get("provider"),
+        "mode": record.get("mode"),
+        "secret_ref": record.get("secret_ref"),
+        "webhook_secret_ref": record.get("webhook_secret_ref"),
+        "account_ref": record.get("account_ref"),
+        "live_mode_ack": bool(record.get("live_mode_ack", False)),
+        "live_mode_enabled": False,
+        "allowed_payment_methods": list(record.get("allowed_payment_methods", [])),
+        "test_live_boundary_enforced": True,
+        "provider_called": False,
+        "checkout_or_portal_called": False,
+        "real_charge_possible": False,
+        "raw_secret_present": False,
+        "secret_value_present": False,
+        "configured_by_api_key_id": record.get("configured_by_api_key_id"),
+        "linked_rate_limit": _jsonable(record.get("linked_rate_limit")) if record.get("linked_rate_limit") else None,
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _public_payment_mode_boundary(record: Mapping[str, Any]) -> JsonDict:
+    envelope = record.get("envelope") if isinstance(record.get("envelope"), Mapping) else {}
+    return {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "tenant_id": record.get("tenant_id"),
+        "project_id": record.get("project_id"),
+        "boundary_id": record.get("boundary_id"),
+        "envelope": _jsonable(envelope),
+        "provider_called": False,
+        "checkout_or_portal_called": False,
+        "real_charge_possible": False,
+        "raw_payload_included": False,
+        "secret_value_present": False,
+        "recorded_by_api_key_id": record.get("recorded_by_api_key_id"),
+        "linked_rate_limit": _jsonable(record.get("linked_rate_limit")) if record.get("linked_rate_limit") else None,
+        "created_at": record.get("created_at"),
+    }
+
+
+def _normalize_oauth_provider(provider: str) -> str:
+    normalized = str(provider).strip().lower().replace("-", "_")
+    if normalized not in {"github", "google"}:
+        raise ValidationError("oauth provider must be github or google")
+    return normalized
+
+
+def _validate_secret_ref(ref_name: str, value: str | None) -> None:
+    if not value:
+        raise ValidationError(f"{ref_name} is required")
+    _validate_public_ref(ref_name, value)
+    if not str(value).startswith(SECRET_REF_PREFIXES):
+        allowed = ", ".join(SECRET_REF_PREFIXES)
+        raise ValidationError(f"{ref_name} must use a secret reference prefix: {allowed}")
+
+
+def _validate_public_ref(ref_name: str, value: str | None) -> None:
+    if value is None or str(value).strip() == "":
+        raise ValidationError(f"{ref_name} must not be empty")
+    text = str(value)
+    lower = text.lower()
+    forbidden = ("secret=", "client_secret=", "access_token=", "refresh_token=", "bearer ", "-----begin", "sk_test_", "sk_live_", "rk_live_", "whsec_", "card[number]", "cvc")
+    if any(marker in lower for marker in forbidden):
+        raise ValidationError(f"{ref_name} must be a public-safe reference, not raw sensitive material")
 
 
 def _deterministic_release_gate_evaluator(payload: Mapping[str, Any]) -> JsonDict:
@@ -1394,6 +1807,19 @@ class SaaSControlPlaneRouter:
                     return {"status_code": 200, "body": self.service.configure_api_key_rate_limit(tenant_id, project_id, key_id=parts[4], operation=str(body.get("operation") or "*"), limit=int(body.get("limit") or 0), period=str(body.get("period") or "local-window"), auth_key_id=auth_key_id)}
                 if method == "GET" and len(parts) == 5 and parts[3] == "api-keys" and parts[4] == "rate-limits":
                     return {"status_code": 200, "body": self.service.api_key_rate_limit_snapshot(tenant_id, project_id, key_id=body.get("key_id"))}
+                if len(parts) >= 4 and parts[3] == "commercial-auth-payment":
+                    if method == "GET" and len(parts) == 4:
+                        return {"status_code": 200, "body": self.service.commercial_auth_payment_snapshot(tenant_id, project_id, auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "oauth-providers" and parts[5] == "configure":
+                        return {"status_code": 200, "body": self.service.configure_oauth_provider(tenant_id, project_id, provider=str(body.get("provider") or ""), client_id_ref=str(body.get("client_id_ref") or ""), client_secret_ref=str(body.get("client_secret_ref") or ""), redirect_uris=list(body.get("redirect_uris") or []), scopes=list(body.get("scopes") or []), config_id=body.get("config_id"), auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "oauth-sessions" and parts[5] == "create":
+                        return {"status_code": 201, "body": self.service.create_oauth_session(tenant_id, project_id, provider=str(body.get("provider") or ""), subject_ref=str(body.get("subject_ref") or ""), session_id=body.get("session_id"), provider_config_id=body.get("provider_config_id"), access_token_ref=body.get("access_token_ref"), refresh_token_ref=body.get("refresh_token_ref"), auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 7 and parts[4] == "oauth-sessions" and parts[6] == "revoke":
+                        return {"status_code": 200, "body": self.service.revoke_oauth_session(tenant_id, project_id, parts[5], auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "providers" and parts[5] == "configure":
+                        return {"status_code": 200, "body": self.service.configure_commercial_provider(tenant_id, project_id, provider=str(body.get("provider") or ""), purpose=str(body.get("purpose") or "payment"), mode=str(body.get("mode") or "test"), secret_ref=body.get("secret_ref"), webhook_secret_ref=body.get("webhook_secret_ref"), account_ref=body.get("account_ref"), live_mode_ack=bool(body.get("live_mode_ack", False)), allowed_payment_methods=list(body.get("allowed_payment_methods") or []), config_id=body.get("config_id"), auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "payments" and parts[5] == "mode-boundary":
+                        return {"status_code": 200, "body": self.service.record_payment_mode_boundary(tenant_id, project_id, provider=str(body.get("provider") or ""), mode=str(body.get("mode") or ""), event_type=str(body.get("event_type") or ""), event_id_ref=str(body.get("event_id_ref") or ""), payload_sha256=str(body.get("payload_sha256") or ""), signature_header_present=bool(body.get("signature_header_present", False)), webhook_secret_ref=str(body.get("webhook_secret_ref") or ""), livemode=body.get("livemode"), boundary_id=body.get("boundary_id"), auth_key_id=auth_key_id)}
                 if method == "GET" and len(parts) == 4 and parts[3] == "audit-log":
                     limit = int(body["limit"]) if body.get("limit") not in {None, ""} else None
                     return {"status_code": 200, "body": self.service.audit_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=body.get("action"), target_id=body.get("target_id"), api_key_id=body.get("audit_api_key_id"), limit=limit)}
@@ -1527,6 +1953,10 @@ def snapshot_control_plane(service: SaaSControlPlaneService) -> JsonDict:
             "idempotency_keys": _jsonable(service.store.idempotency_keys),
             "artifact_manifests": _jsonable(service.store.artifact_manifests),
             "worker_jobs": _jsonable(service.store.worker_jobs),
+            "oauth_provider_configs": _jsonable(service.store.oauth_provider_configs),
+            "oauth_sessions": _jsonable(service.store.oauth_sessions),
+            "commercial_provider_configs": _jsonable(service.store.commercial_provider_configs),
+            "payment_mode_boundaries": _jsonable(service.store.payment_mode_boundaries),
         },
     }
     payload["integrity"] = {"payload_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
@@ -1562,6 +1992,10 @@ def control_plane_from_state(payload: Mapping[str, Any]) -> SaaSControlPlaneServ
         idempotency_keys=dict(control_payload.get("idempotency_keys") or {}),
         artifact_manifests=dict(control_payload.get("artifact_manifests") or {}),
         worker_jobs=dict(control_payload.get("worker_jobs") or {}),
+        oauth_provider_configs=dict(control_payload.get("oauth_provider_configs") or {}),
+        oauth_sessions=dict(control_payload.get("oauth_sessions") or {}),
+        commercial_provider_configs=dict(control_payload.get("commercial_provider_configs") or {}),
+        payment_mode_boundaries=dict(control_payload.get("payment_mode_boundaries") or {}),
     )
     return SaaSControlPlaneService(cloud, store=store)
 

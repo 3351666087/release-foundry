@@ -747,6 +747,7 @@ func (service *MemoryService) EnqueueWorkerJob(tenantID, projectID, jobType, tar
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.enqueue", 1, now)
 	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobEnqueue, 1)
+	service.appendAuditEventLocked(tenantID, projectID, "worker.job.enqueue", jobID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"job_id": jobID, "job_type": jobType, "target_id": targetID, "payload_sha256": payloadSHA, "status": job.Status}, now)
 	response := Envelope[WorkerJob]{Operation: "worker.job.enqueue", Status: "ok", Result: job}
 	service.storeIdempotencyLocked("worker.job.enqueue", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -801,6 +802,7 @@ func (service *MemoryService) LeaseWorkerJob(tenantID, projectID, leaseOwnerID s
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.lease", 1, now)
 	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobLease, 1)
+	service.appendAuditEventLocked(tenantID, projectID, "worker.job.lease", job.JobID, options.APIKeyID, job.IdempotencyKey, options.RequestID, JSONMap{"job_id": job.JobID, "job_type": job.JobType, "target_id": job.TargetID, "status": job.Status, "attempts": job.Attempts}, now)
 	resultJob := job
 	result := WorkerLeaseResult{SchemaVersion: ControlPlaneSchemaVersion, Status: "leased", TenantID: tenantID, ProjectID: projectID, Leased: true, Job: &resultJob}
 	return Envelope[WorkerLeaseResult]{Operation: "worker.job.lease", Status: "ok", Result: result}, nil
@@ -854,6 +856,7 @@ func (service *MemoryService) CompleteWorkerJob(tenantID, projectID, jobID, leas
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.complete", 1, now)
 	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobComplete, 1)
+	service.appendAuditEventLocked(tenantID, projectID, "worker.job.complete", job.JobID, options.APIKeyID, job.IdempotencyKey, options.RequestID, JSONMap{"job_id": job.JobID, "job_type": job.JobType, "target_id": job.TargetID, "status": job.Status, "attempts": job.Attempts, "result_sha256": resultSHA}, now)
 	return Envelope[WorkerJob]{Operation: "worker.job.complete", Status: "ok", Result: job}, nil
 }
 
@@ -898,6 +901,7 @@ func (service *MemoryService) FailWorkerJob(tenantID, projectID, jobID, leaseOwn
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.fail", 1, now)
 	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobFail, 1)
+	service.appendAuditEventLocked(tenantID, projectID, "worker.job.fail", job.JobID, options.APIKeyID, job.IdempotencyKey, options.RequestID, JSONMap{"job_id": job.JobID, "job_type": job.JobType, "target_id": job.TargetID, "status": job.Status, "attempts": job.Attempts, "error_sha256": failureSHA}, now)
 	return Envelope[WorkerJob]{Operation: "worker.job.fail", Status: "ok", Result: job}, nil
 }
 

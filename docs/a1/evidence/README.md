@@ -74,6 +74,28 @@ Boundary notes:
 
 Detailed scaffold evidence: `docs/a1/evidence/self_host_commercial_runtime_scaffold_20260709.md`.
 
+## Commercial self-host daemon profile increment
+
+`infra/docker/docker-compose.self-host.yml` carries the Python runtime deployment profile for commercial self-host wiring. It now exposes explicit `api`, `worker`, `daemon`, and `commercial` Compose profiles, with Postgres, Redis, MinIO, and a `minio-init` bucket bootstrap service behind health checks.
+
+Run the commercial profile from the repository root after providing local object-store values through the operator environment or an ignored env file:
+
+```powershell
+docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet
+docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial up --build
+```
+
+Worker daemon contract:
+- `worker` runs under the `worker`, `daemon`, and `commercial` profiles with `ASHR_WORKER_MODE=daemon`, `ASHR_WORKER_QUEUE=ashr_worker_jobs`, `ASHR_WORKER_LEASE_SECONDS`, `ASHR_WORKER_POLL_INTERVAL_SECONDS`, `ASHR_WORKER_MAX_ATTEMPTS`, and `ASHR_WORKER_EVIDENCE_WRITES=object-store`.
+- The worker depends on healthy `api`, `postgres`, `redis`, and `minio` services and has a container-local healthcheck based on `/runtime/worker/healthy` or replay output readiness.
+- MinIO credentials are mounted through Compose secrets sourced from environment names only: `ASHR_OBJECT_STORE_ACCESS_KEY` and `ASHR_OBJECT_STORE_SECRET_KEY`. The tracked env example records `*_REF` names and local endpoints, not real credentials.
+
+Static validation:
+
+```powershell
+python -m pytest tests/a1/test_local_self_host_smoke_compose.py -q
+```
+
 ## 2026-07-09 - A1 Postgres / SQL / Compose backend slice
 
 Goal:

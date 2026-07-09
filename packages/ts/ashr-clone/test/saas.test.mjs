@@ -628,8 +628,22 @@ test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () 
     assert.equal(snapshot.result.rate_limits[0].key_id, "key_ts_cli");
     assert.equal(snapshot.result.rate_limits[0].remaining, 3);
 
-    const persisted = JSON.parse(await readFile(stateAfterRate, "utf8"));
+    const stateAfterRevoke = join(tempDir, "state-revoke.json");
+    const revoked = runSaasCli([
+      "--state-input", stateAfterRate,
+      "--state-output", stateAfterRevoke,
+      "api-key-revoke",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+      "--key-id", "key_ts_cli",
+    ]);
+    assert.equal(revoked.operation, "revoke_api_key");
+    assert.equal(revoked.result.status, "revoked");
+    assert.equal(revoked.result.secret_value_present, false);
+
+    const persisted = JSON.parse(await readFile(stateAfterRevoke, "utf8"));
     assert.equal(Object.keys(persisted.control_plane.api_key_rate_limits).length, 1);
+    assert.equal(persisted.control_plane.api_keys.key_ts_cli.status, "revoked");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

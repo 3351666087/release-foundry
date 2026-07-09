@@ -118,3 +118,25 @@ def test_real_card_testing_boundary_is_human_controlled_and_non_storing():
     assert boundary["stored_card_data_allowed"] is False
     assert any("Automation must stop" in control for control in boundary["operator_controls"])
     assert any("refund" in evidence.lower() or "void" in evidence.lower() for evidence in boundary["evidence_allowed"])
+
+
+def test_payment_provider_readiness_covers_commercial_auth_payment_safety_increment():
+    packet = _load_json(PACKET_PATH)
+    safety = packet["commercial_auth_payment_safety"]
+
+    assert safety["local_only"] is True
+    assert safety["provider_called"] is False
+    assert safety["checkout_or_portal_called"] is False
+    assert safety["real_charge_possible"] is False
+    assert safety["secret_value_present"] is False
+    assert safety["payment_provider_config"]["live_mode_ack_required"] is True
+    assert safety["payment_provider_config"]["live_mode_enabled"] is False
+    assert {provider["provider"] for provider in safety["oauth_providers"]} == {"github", "google"}
+    assert all(provider["secret_value_present"] is False for provider in safety["oauth_providers"])
+    assert {
+        "oauth.provider.configure",
+        "oauth.session.create",
+        "oauth.session.revoke",
+        "commercial.provider.configure",
+        "payment.mode_boundary.record",
+    } <= set(safety["api_key_linkage"]["rate_limit_operations"])

@@ -16,7 +16,13 @@
   },
   "provider_secret_policy": {
     "raw_secret_values_allowed": false,
-    "secret_reference_prefixes": ["env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:"],
+    "secret_reference_prefixes": [
+      "env:",
+      "vault:",
+      "kms:",
+      "provider-ref:",
+      "dashboard-ref:"
+    ],
     "forbidden_material": [
       "Stripe secret keys or restricted keys",
       "Stripe webhook signing secrets",
@@ -30,36 +36,65 @@
   },
   "provider_mode_matrix": {
     "stripe": {
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "stripe_checkout_and_billing_portal",
       "secret_ref_policy": "secret_ref required in test and live; approved reference prefix only; raw API keys forbidden",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; mode-specific signing secret reference only",
-      "webhook_signature_headers": ["stripe-signature"],
-      "allowed_payment_methods": ["card", "alipay", "wechat_pay"],
+      "webhook_signature_headers": [
+        "stripe-signature"
+      ],
+      "allowed_payment_methods": [
+        "card",
+        "alipay",
+        "wechat_pay"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
       "raw_card_data_allowed": false
     },
     "wechat_pay": {
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "wechat_pay_native_qr_handoff",
       "secret_ref_policy": "secret_ref required in test and live; merchant private key/API material must stay behind approved references",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; API v3 notification verification material reference only",
-      "webhook_signature_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
-      "allowed_payment_methods": ["wechat_pay"],
+      "webhook_signature_headers": [
+        "wechatpay-signature",
+        "wechatpay-timestamp",
+        "wechatpay-nonce",
+        "wechatpay-serial"
+      ],
+      "allowed_payment_methods": [
+        "wechat_pay"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
       "raw_card_data_allowed": false
     },
     "alipay": {
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "alipay_trade_page_pay_handoff",
       "secret_ref_policy": "secret_ref required in test and live; app private key material must stay behind approved references",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; Alipay public-key verification material reference only",
-      "webhook_signature_headers": ["sign", "sign_type", "app_id", "trade_no"],
-      "allowed_payment_methods": ["alipay"],
+      "webhook_signature_headers": [
+        "sign",
+        "sign_type",
+        "app_id",
+        "trade_no"
+      ],
+      "allowed_payment_methods": [
+        "alipay"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
@@ -69,12 +104,21 @@
   "providers": [
     {
       "provider": "stripe",
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "Stripe-hosted Checkout and Billing Portal plans only",
-      "payment_methods": ["card", "alipay", "wechat_pay"],
+      "payment_methods": [
+        "card",
+        "alipay",
+        "wechat_pay"
+      ],
       "secret_ref_policy": "secret_ref required in test and live; approved reference prefix only; raw API keys forbidden",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; mode-specific signing secret reference only",
-      "webhook_signature_headers": ["stripe-signature"],
+      "webhook_signature_headers": [
+        "stripe-signature"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
@@ -105,12 +149,22 @@
     },
     {
       "provider": "wechat_pay",
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "Hosted WeChat Pay/NATIVE QR provider handoff contract",
-      "payment_methods": ["wechat_pay"],
+      "payment_methods": [
+        "wechat_pay"
+      ],
       "secret_ref_policy": "secret_ref required in test and live; merchant private key/API material must stay behind approved references",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; API v3 notification verification material reference only",
-      "webhook_signature_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+      "webhook_signature_headers": [
+        "wechatpay-signature",
+        "wechatpay-timestamp",
+        "wechatpay-nonce",
+        "wechatpay-serial"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
@@ -141,12 +195,22 @@
     },
     {
       "provider": "alipay",
-      "modes": ["test", "live"],
+      "modes": [
+        "test",
+        "live"
+      ],
       "hosted_surface": "Hosted Alipay trade page/provider handoff contract",
-      "payment_methods": ["alipay"],
+      "payment_methods": [
+        "alipay"
+      ],
       "secret_ref_policy": "secret_ref required in test and live; app private key material must stay behind approved references",
       "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; Alipay public-key verification material reference only",
-      "webhook_signature_headers": ["sign", "sign_type", "app_id", "trade_no"],
+      "webhook_signature_headers": [
+        "sign",
+        "sign_type",
+        "app_id",
+        "trade_no"
+      ],
       "requires_live_mode_ack": true,
       "test_live_boundary_enforced": true,
       "raw_secret_values_allowed": false,
@@ -205,8 +269,12 @@
       "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "signature_header_present": true,
       "signature_header_shape": {
-        "expected_headers": ["stripe-signature"],
-        "provided_headers": ["stripe-signature"],
+        "expected_headers": [
+          "stripe-signature"
+        ],
+        "provided_headers": [
+          "stripe-signature"
+        ],
         "missing_headers": [],
         "valid": true,
         "raw_header_values_included": false
@@ -237,8 +305,18 @@
       "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "signature_header_present": true,
       "signature_header_shape": {
-        "expected_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
-        "provided_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+        "expected_headers": [
+          "wechatpay-signature",
+          "wechatpay-timestamp",
+          "wechatpay-nonce",
+          "wechatpay-serial"
+        ],
+        "provided_headers": [
+          "wechatpay-signature",
+          "wechatpay-timestamp",
+          "wechatpay-nonce",
+          "wechatpay-serial"
+        ],
         "missing_headers": [],
         "valid": true,
         "raw_header_values_included": false
@@ -269,8 +347,18 @@
       "payload_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "signature_header_present": true,
       "signature_header_shape": {
-        "expected_headers": ["sign", "sign_type", "app_id", "trade_no"],
-        "provided_headers": ["sign", "sign_type", "app_id", "trade_no"],
+        "expected_headers": [
+          "sign",
+          "sign_type",
+          "app_id",
+          "trade_no"
+        ],
+        "provided_headers": [
+          "sign",
+          "sign_type",
+          "app_id",
+          "trade_no"
+        ],
         "missing_headers": [],
         "valid": true,
         "raw_header_values_included": false
@@ -301,8 +389,12 @@
       "payload_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "signature_header_present": true,
       "signature_header_shape": {
-        "expected_headers": ["stripe-signature"],
-        "provided_headers": ["stripe-signature"],
+        "expected_headers": [
+          "stripe-signature"
+        ],
+        "provided_headers": [
+          "stripe-signature"
+        ],
         "missing_headers": [],
         "valid": true,
         "raw_header_values_included": false
@@ -382,6 +474,61 @@
       "card security code field names",
       "truthy provider-called markers",
       "truthy real-charge markers"
+    ]
+  },
+  "commercial_auth_payment_safety": {
+    "schema_version": "ashr.clone.a1.commercial_auth_payment_safety.v1",
+    "local_only": true,
+    "provider_called": false,
+    "checkout_or_portal_called": false,
+    "real_charge_possible": false,
+    "raw_secret_values_allowed": false,
+    "raw_card_data_allowed": false,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "oauth_providers": [
+      {
+        "provider": "github",
+        "client_id_ref": "env:GITHUB_CLIENT_ID_REF",
+        "client_secret_ref": "vault:github/oauth/client_secret_ref",
+        "redirect_uri_policy": "https or localhost only",
+        "session_token_policy": "access and refresh tokens are stored as refs only",
+        "secret_value_present": false
+      },
+      {
+        "provider": "google",
+        "client_id_ref": "env:GOOGLE_CLIENT_ID_REF",
+        "client_secret_ref": "kms:google/oauth/client_secret_ref",
+        "redirect_uri_policy": "https or localhost only",
+        "session_token_policy": "access and refresh tokens are stored as refs only",
+        "secret_value_present": false
+      }
+    ],
+    "api_key_linkage": {
+      "create_returns_one_time_secret_only": true,
+      "public_snapshots_include_secret_hash": false,
+      "public_snapshots_include_secret_value": false,
+      "revocation_supported": true,
+      "rate_limit_operations": [
+        "oauth.provider.configure",
+        "oauth.session.create",
+        "oauth.session.revoke",
+        "commercial.provider.configure",
+        "payment.mode_boundary.record"
+      ]
+    },
+    "payment_provider_config": {
+      "stripe_test_config_ref": "provider-ref:stripe/test/config",
+      "stripe_live_config_ref": "provider-ref:stripe/live/config/manual_only",
+      "live_mode_ack_required": true,
+      "live_mode_enabled": false,
+      "test_live_boundary_enforced": true,
+      "secret_refs_only": true
+    },
+    "evidence_paths": [
+      "services/api/control_plane.py",
+      "packages/sdk/ashr_clone/saas.py",
+      "tests/a1/test_payment_oauth_safety.py"
     ]
   }
 }

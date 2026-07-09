@@ -33,6 +33,14 @@ Stripe test readiness is covered by hosted Checkout and Billing Portal plan cont
 
 Stripe live readiness is limited to a control boundary: `live_mode_ack` must be explicit in the provider config, secrets must be referenced indirectly, redirect URLs must be HTTPS, and execution must be a human-controlled operational run outside CI. Public evidence may record dashboard object references and hash envelopes, but not raw live payloads or card details.
 
+## Commercial Auth And Payment Safety Increment
+
+The local control plane now models non-live commercial auth/payment safety records for GitHub OAuth, Google OAuth, payment provider configuration, and payment mode-boundary envelopes. These records are configuration and evidence only: they do not call GitHub, Google, Stripe, WeChat Pay, Alipay, or Ashr hosted APIs.
+
+OAuth provider records store `client_id_ref`, `client_secret_ref`, redirect URIs, scopes, and provider names for `github` and `google`. OAuth session records store provider subject references and optional token references only. Payment provider records store `secret_ref`, `webhook_secret_ref`, `account_ref`, mode, `live_mode_ack`, and `live_mode_enabled: false`. Boundary records reuse the hash-only webhook envelope contract and preserve `provider_called: false`, `checkout_or_portal_called: false`, and `real_charge_possible: false`.
+
+API-key lifecycle safety is linked to these records through scoped keys and per-operation rate-limit buckets for configuration writes. Public snapshots expose key IDs and rate-limit counters, but never raw API keys, OAuth tokens, client secrets, provider secrets, card data, or raw webhook payloads.
+
 ## Hosted WeChat Pay And Alipay
 
 WeChat Pay and Alipay readiness is scoped to hosted provider handoff contracts. A1 may document provider mode, merchant/application reference, hosted payment method, amount/currency, event type mapping, required webhook header names, and hash-only webhook envelope shape. It must not store merchant private keys, API keys, certificates, access tokens, buyer identity data, wallet credentials, or raw provider notification bodies.

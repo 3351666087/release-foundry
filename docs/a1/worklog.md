@@ -1,3 +1,38 @@
+## Round42 commercial SaaS backend growth - 2026-07-09T23:55:00Z
+
+Baseline:
+- Started after PR #27 CL was green on head `9891881`: Plan/hygiene, Go, Python A1/A2, TypeScript, and CL summary passed; A3/Rust skipped by gate policy.
+- A2/A3 fixture exception was closed; this round returned to A1-owned commercial backend/SDK/infra scope.
+- Growth-Auditor verdict: A1 is a strong local-commercial foundation but not money-grade SaaS; next spine should be Go/Postgres/OpenAPI/object storage/billing provider paths.
+
+Implemented:
+- Added Go `WorkerDaemon` library loop for bounded lease/handle/complete/fail with optional heartbeat and public-safe failure conversion.
+- Added memory-service worker audit-chain events for enqueue, lease, heartbeat, complete, and fail so worker mutations are enterprise-auditable in local and Go contract tests.
+- Expanded self-host Docker commercial profile with API/worker/daemon profiles, Postgres/Redis/MinIO wiring, MinIO bucket bootstrap, healthchecks, and secret-ref-only env example.
+- Added payment/OAuth commercial safety surfaces in the Python control plane and SDK: GitHub/Google OAuth provider refs, OAuth sessions, commercial provider configs, Stripe test/live mode boundary evidence, and commercial auth/payment snapshot route.
+- Added TS commercial control-plane evidence kit and exported it from the TS SDK barrel.
+- Closed a TS CLI parity gap by exposing `api-key-revoke` in the TS SaaS CLI and HTTP client; refreshed `tests/a1/docs/a1/ts_python_gap_matrix.json` so Python-only SaaS CLI commands are now empty.
+
+Validation:
+- `gh pr checks 27 --watch=false` before this round -> CL green.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `go test ./...` from `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 342 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 406 passed, 1 skipped.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> 26 passed, 1 skipped.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed.
+
+Safety and evidence:
+- No desktop key file was read; no raw API key/provider secret/card data was written.
+- No real Ashr API call was made in this implementation slice; Round39 paid-media quota/API gate remains the latest mutating calibration evidence, so next paid API work should first run a fresh quota/usage gate or a bounded read-only batch.
+- Live Stripe/real card/merchant/OAuth account actions remain human-confirmed steps; code currently records safety contracts and ref-only configuration.
+
+Next top A1 growth points:
+1. Wire Go `WorkerDaemon` into a CLI/process entrypoint and self-host daemon command.
+2. Promote Go/Postgres as canonical API backend for commercial auth/payment and worker daemon paths.
+3. Add object storage upload-url/complete/read contract backed by MinIO/S3 refs.
+4. Add SQL RLS/audit trigger coverage for OAuth/payment/provider config and worker daemon mutations.
+5. Run purposeful official Ashr read-only small-batch plus fresh quota-gated mutating probe only after gate record is reviewed.
 ## Round41 CL fixture unblock - 2026-07-09T23:10:00Z
 
 Baseline:

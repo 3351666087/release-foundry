@@ -15,6 +15,8 @@ except ImportError:  # pragma: no cover - exercised only in minimal environments
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
+INFRA_DOCKER_COMPOSE = ROOT / "infra" / "docker" / "docker-compose.self-host.yml"
+INFRA_DOCKER_ENV_EXAMPLE = ROOT / "infra" / "docker" / "self-host.env.example"
 HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
 TERRAFORM_SELF_HOST = ROOT / "infra" / "terraform" / "self-host"
 EVIDENCE_README = ROOT / "docs" / "a1" / "evidence" / "README.md"
@@ -30,6 +32,14 @@ def _compose_model() -> dict:
     if yaml is None:
         pytest.skip("PyYAML is not installed in this environment")
     loaded = yaml.safe_load(_read_compose_text())
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _infra_docker_compose_model() -> dict:
+    if yaml is None:
+        pytest.skip("PyYAML is not installed in this environment")
+    loaded = yaml.safe_load(INFRA_DOCKER_COMPOSE.read_text(encoding="utf-8"))
     assert isinstance(loaded, dict)
     return loaded
 
@@ -142,6 +152,128 @@ def test_a1_compose_keeps_env_boundaries_and_public_secret_hygiene():
     assert "127.0.0.1:" in compose_text
     allowed_container_binds_removed = compose_text.replace("ASHR_GO_API_ADDR: 0.0.0.0:8787", "").replace("ASHR_GO_API_ADDR: 0.0.0.0:8788", "")
     assert "0.0.0.0:" not in allowed_container_binds_removed
+
+
+def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
+    compose = _infra_docker_compose_model()
+    services = compose["services"]
+
+    assert {"api", "worker", "postgres", "redis", "minio", "minio-init"}.issubset(services)
+    assert services["api"]["profiles"] == ["api", "commercial"]
+    assert services["worker"]["profiles"] == ["worker", "daemon", "commercial"]
+
+    api_env = services["api"]["environment"]
+    worker_env = services["worker"]["environment"]
+    for env in (api_env, worker_env):
+        assert env["ASHR_RUNTIME_ENV"] == "self-host"
+        assert env["ASHR_SECRET_PROVIDER"] == "env-ref"
+        assert env["ASHR_DATABASE_URL_REF"] == "env:ASHR_DATABASE_URL"
+        assert env["ASHR_POSTGRES_DSN_REF"] == "env:ASHR_DATABASE_URL"
+        assert env["ASHR_REDIS_URL"] == "redis://redis:6379/0"
+        assert env["ASHR_REDIS_URL_REF"] == "env:ASHR_REDIS_URL"
+        assert env["ASHR_OBJECT_STORE_ENDPOINT"] == "http://minio:9000"
+        assert env["ASHR_OBJECT_STORE_ENDPOINT_REF"] == "env:ASHR_OBJECT_STORE_ENDPOINT"
+        assert env["ASHR_OBJECT_STORE_ACCESS_KEY_REF"] == "env:ASHR_OBJECT_STORE_ACCESS_KEY"
+        assert env["ASHR_OBJECT_STORE_SECRET_KEY_REF"] == "env:ASHR_OBJECT_STORE_SECRET_KEY"
+        assert env["ASHR_OBJECT_STORE_BUCKET"] == "ashr-local-artifacts"
+        assert env["ASHR_OBJECT_EVIDENCE_PREFIX"] == "evidence/a1/self-host"
+        assert env["ASHR_QUOTA_LEDGER_TABLE"] == "ashr_quota_ledger"
+        assert env["ASHR_ARTIFACT_MANIFEST_TABLE"] == "ashr_artifact_manifests"
+        assert env["ASHR_WORKER_JOBS_TABLE"] == "ashr_worker_jobs"
+        assert env["ASHR_BILLING_PROVIDER_SECRET_REF"] == "env:ASHR_BILLING_PROVIDER_SECRET"
+        assert env["ASHR_BILLING_WEBHOOK_SECRET_REF"] == "env:ASHR_BILLING_WEBHOOK_SECRET"
+
+    assert worker_env["ASHR_WORKER_MODE"] == "daemon"
+    assert worker_env["ASHR_WORKER_DAEMON"] == "true"
+    assert worker_env["ASHR_WORKER_QUEUE"] == "ashr_worker_jobs"
+    assert worker_env["ASHR_WORKER_HEALTHCHECK_PATH"] == "/runtime/worker/healthy"
+    assert worker_env["ASHR_WORKER_EVIDENCE_WRITES"] == "object-store"
+    assert services["worker"]["healthcheck"]["test"][0] == "CMD-SHELL"
+    assert "ashr-worker-health:/runtime/worker" in services["worker"]["volumes"]
+
+
+def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secret_literals():
+    compose_text = INFRA_DOCKER_COMPOSE.read_text(encoding="utf-8")
+    compose = _infra_docker_compose_model()
+    services = compose["services"]
+
+    postgres = services["postgres"]
+    redis = services["redis"]
+    minio = services["minio"]
+    minio_init = services["minio-init"]
+
+    assert postgres["image"] == "postgres:16-alpine"
+    assert postgres["environment"]["POSTGRES_HOST_AUTH_METHOD"] == "trust"
+    assert "POSTGRES_PASSWORD" not in postgres["environment"]
+    assert postgres["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
+
+    assert redis["image"] == "redis:7-alpine"
+    assert redis["healthcheck"]["test"] == ["CMD", "redis-cli", "ping"]
+
+    assert minio["image"].startswith("minio/minio:")
+    assert minio["environment"] == {
+        "MINIO_ROOT_USER_FILE": "/run/secrets/minio_root_user",
+        "MINIO_ROOT_PASSWORD_FILE": "/run/secrets/minio_root_password",
+    }
+    assert minio["secrets"] == ["minio_root_user", "minio_root_password"]
+    assert "mc" in minio["healthcheck"]["test"]
+    assert minio_init["image"].startswith("minio/mc:")
+    assert "mc mb --ignore-existing" in " ".join(minio_init["entrypoint"])
+    assert compose["secrets"]["minio_root_user"] == {"environment": "ASHR_OBJECT_STORE_ACCESS_KEY"}
+    assert compose["secrets"]["minio_root_password"] == {"environment": "ASHR_OBJECT_STORE_SECRET_KEY"}
+
+    forbidden_markers = [
+        "ASHR_API_KEY",
+        "ASHR_LABS_API_KEY",
+        "Authorization:",
+        "Bearer ",
+        "sk-",
+        "rk_",
+        "whsec_",
+        "ashr_live_",
+        "private_refs",
+        "POSTGRES_PASSWORD",
+        "MINIO_ROOT_PASSWORD:",
+        "AWS_SECRET_ACCESS_KEY",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+    ]
+    for marker in forbidden_markers:
+        assert marker not in compose_text
+
+
+def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
+    env_example = INFRA_DOCKER_ENV_EXAMPLE.read_text(encoding="utf-8")
+
+    for marker in (
+        "ASHR_DATABASE_URL_REF=env:ASHR_DATABASE_URL",
+        "ASHR_OBJECT_STORE_ACCESS_KEY_REF=env:ASHR_OBJECT_STORE_ACCESS_KEY",
+        "ASHR_OBJECT_STORE_SECRET_KEY_REF=env:ASHR_OBJECT_STORE_SECRET_KEY",
+        "ASHR_BILLING_PROVIDER_SECRET_REF=env:ASHR_BILLING_PROVIDER_SECRET",
+        "ASHR_BILLING_WEBHOOK_SECRET_REF=env:ASHR_BILLING_WEBHOOK_SECRET",
+        "ASHR_WORKER_MODE=daemon",
+        "ASHR_WORKER_EVIDENCE_WRITES=object-store",
+        "ASHR_OBJECT_STORE_ENDPOINT=http://minio:9000",
+    ):
+        assert marker in env_example
+
+    forbidden_markers = [
+        "ASHR_API_KEY=",
+        "ASHR_LABS_API_KEY=",
+        "Authorization:",
+        "Bearer ",
+        "sk-",
+        "rk_",
+        "whsec_",
+        "ashr_live_",
+        "POSTGRES_PASSWORD=",
+        "MINIO_ROOT_PASSWORD=",
+        "AWS_SECRET_ACCESS_KEY=",
+        "STRIPE_SECRET_KEY=",
+        "STRIPE_WEBHOOK_SECRET=",
+    ]
+    for marker in forbidden_markers:
+        assert marker not in env_example
 
 
 def test_a1_self_host_terraform_contract_tracks_runtime_services_public_safely():

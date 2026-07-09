@@ -1570,3 +1570,20 @@ Results:
 - `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
 - `python scripts/cl_guard.py hygiene`: passed, findings empty.
 - `git diff --check`: passed with CRLF normalization warning only.
+
+## Round42 commands - 2026-07-09T23:55:00Z
+
+- `gh pr checks 27 --watch=false`: confirmed PR #27 CL green before A1 growth resumed.
+- `npm run build --prefix packages/ts/ashr-clone`: passed after adding TS SaaS CLI revoke and HTTP revoke.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "SaaS CLI covers API key"`: passed; Node runner executed full package suite, 338 passed at that point.
+- `python -B tests/a1/ts_python_parity_matrix.py --write`; `python -B tests/a1/ts_python_parity_matrix.py --check`; `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: refreshed and verified TS/Python parity matrix after TS CLI revoke.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: 11 passed, 1 skipped.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet`: passed.
+- `go test ./...` from `packages/go/ashrclone`: passed after adding worker daemon and audit events.
+- `go test ./...` from `tests/integration/go`: passed.
+- `python -B -m pytest tests/a1/test_payment_oauth_safety.py -q -p no:cacheprovider`: 3 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 342 passed.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 26 passed, 1 skipped.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 406 passed, 1 skipped.
+- Incorrect command note: `go test ./...` from repo root remains invalid for this monorepo; module-root Go commands above are authoritative.
+- Safety: no key files read, no real Ashr API call, no live payment or real card action.

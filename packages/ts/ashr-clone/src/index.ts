@@ -2,6 +2,7 @@ export * from "./api-client.js";
 export * from "./billing.js";
 export * from "./calibrate.js";
 export * from "./cloud-queue.js";
+export * from "./commercial.js";
 export * from "./dataset-adapter.js";
 export * from "./evidence.js";
 export * from "./runner.js";

@@ -1933,6 +1933,12 @@ export class SaaSIngestionClient {
     return envelope("verify_api_key_secret", body);
   }
 
+  async revokeApiKeyHttp(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/revoke`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    return envelope("revoke_api_key", body);
+  }
+
   async configureApiKeyRateLimitHttp(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): Promise<JsonRecord> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/rate-limit`, { tenant_id: tenantId, operation: options.operation, limit: options.limit, period: options.period, auth_key_id: options.authKeyId });
     return envelope("configure_api_key_rate_limit", body);
@@ -2044,7 +2050,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
+const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -2084,6 +2090,11 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       result = baseUrl !== undefined
         ? await client.verifyApiKeySecretHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) })
         : client.verifyApiKeySecret(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) });
+      break;
+    case "api-key-revoke":
+      result = baseUrl !== undefined
+        ? await client.revokeApiKeyHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "key-id", true), { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.revokeApiKey(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "key-id", true), { authKeyId: stringOption(options, "auth-key-id", false) });
       break;
     case "api-key-rate-limit":
       result = baseUrl !== undefined

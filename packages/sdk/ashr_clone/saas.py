@@ -536,6 +536,116 @@ class SaaSIngestionClient:
         local_payload = _drop_none({k: v for k, v in payload.items() if k != "auth_key_id"})
         return _envelope("billing_checkout_plan", build_checkout_session_plan(**local_payload))
 
+    def configure_oauth_provider(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        client_id_ref: str,
+        client_secret_ref: str,
+        redirect_uris: Sequence[str],
+        scopes: Sequence[str],
+        config_id: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "provider": provider, "client_id_ref": client_id_ref, "client_secret_ref": client_secret_ref, "redirect_uris": list(redirect_uris), "scopes": list(scopes), "config_id": config_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("configure_oauth_provider", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("configure_oauth_provider", self.service.configure_oauth_provider(tenant_id, project_id, provider=provider, client_id_ref=client_id_ref, client_secret_ref=client_secret_ref, redirect_uris=list(redirect_uris), scopes=list(scopes), config_id=config_id, auth_key_id=auth_key_id))
+
+    def create_oauth_session(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        subject_ref: str,
+        session_id: str | None = None,
+        provider_config_id: str | None = None,
+        access_token_ref: str | None = None,
+        refresh_token_ref: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "provider": provider, "subject_ref": subject_ref, "session_id": session_id, "provider_config_id": provider_config_id, "access_token_ref": access_token_ref, "refresh_token_ref": refresh_token_ref, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("create_oauth_session", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("create_oauth_session", self.service.create_oauth_session(tenant_id, project_id, provider=provider, subject_ref=subject_ref, session_id=session_id, provider_config_id=provider_config_id, access_token_ref=access_token_ref, refresh_token_ref=refresh_token_ref, auth_key_id=auth_key_id))
+
+    def revoke_oauth_session(self, tenant_id: str, project_id: str, session_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "session_id": session_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("revoke_oauth_session", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("revoke_oauth_session", self.service.revoke_oauth_session(tenant_id, project_id, session_id, auth_key_id=auth_key_id))
+
+    def configure_commercial_provider(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        purpose: str = "payment",
+        mode: str = "test",
+        secret_ref: str | None = None,
+        webhook_secret_ref: str | None = None,
+        account_ref: str | None = None,
+        live_mode_ack: bool = False,
+        allowed_payment_methods: Sequence[str] | None = None,
+        config_id: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "provider": provider, "purpose": purpose, "mode": mode, "secret_ref": secret_ref, "webhook_secret_ref": webhook_secret_ref, "account_ref": account_ref, "live_mode_ack": bool(live_mode_ack), "allowed_payment_methods": list(allowed_payment_methods or []), "config_id": config_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("configure_commercial_provider", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("configure_commercial_provider", self.service.configure_commercial_provider(tenant_id, project_id, provider=provider, purpose=purpose, mode=mode, secret_ref=secret_ref, webhook_secret_ref=webhook_secret_ref, account_ref=account_ref, live_mode_ack=live_mode_ack, allowed_payment_methods=list(allowed_payment_methods or []), config_id=config_id, auth_key_id=auth_key_id))
+
+    def record_payment_mode_boundary(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        mode: str,
+        event_type: str,
+        event_id_ref: str,
+        payload_sha256: str,
+        signature_header_present: bool,
+        webhook_secret_ref: str,
+        livemode: bool | None = None,
+        boundary_id: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "provider": provider, "mode": mode, "event_type": event_type, "event_id_ref": event_id_ref, "payload_sha256": payload_sha256, "signature_header_present": bool(signature_header_present), "webhook_secret_ref": webhook_secret_ref, "livemode": livemode, "boundary_id": boundary_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("record_payment_mode_boundary", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("record_payment_mode_boundary", self.service.record_payment_mode_boundary(tenant_id, project_id, provider=provider, mode=mode, event_type=event_type, event_id_ref=event_id_ref, payload_sha256=payload_sha256, signature_header_present=signature_header_present, webhook_secret_ref=webhook_secret_ref, livemode=livemode, boundary_id=boundary_id, auth_key_id=auth_key_id))
+
+    def commercial_auth_payment_snapshot(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("commercial_auth_payment_snapshot", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("commercial_auth_payment_snapshot", self.service.commercial_auth_payment_snapshot(tenant_id, project_id, auth_key_id=auth_key_id))
+
     def billing_portal_plan(
         self,
         tenant_id: str,
@@ -893,6 +1003,7 @@ class SaaSIngestionClient:
 _GET_OPERATIONS = {
     "list_api_keys",
     "api_key_rate_limit_snapshot",
+    "commercial_auth_payment_snapshot",
     "lifecycle_snapshot",
     "quota_snapshot",
     "usage_snapshot",
@@ -922,6 +1033,19 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/api-keys/{_quote_path(key_id)}/{suffix}"
     if operation == "api_key_rate_limit_snapshot":
         return method, f"{project_path}/api-keys/rate-limits"
+    if operation == "commercial_auth_payment_snapshot":
+        return method, f"{project_path}/commercial-auth-payment"
+    if operation in {"configure_oauth_provider", "create_oauth_session", "configure_commercial_provider", "record_payment_mode_boundary"}:
+        suffix = {
+            "configure_oauth_provider": "commercial-auth-payment/oauth-providers/configure",
+            "create_oauth_session": "commercial-auth-payment/oauth-sessions/create",
+            "configure_commercial_provider": "commercial-auth-payment/providers/configure",
+            "record_payment_mode_boundary": "commercial-auth-payment/payments/mode-boundary",
+        }[operation]
+        return method, f"{project_path}/{suffix}"
+    if operation == "revoke_oauth_session":
+        session_id = _required_route_value(payload, "session_id", operation)
+        return method, f"{project_path}/commercial-auth-payment/oauth-sessions/{_quote_path(session_id)}/revoke"
     if operation == "sdk_submit":
         return method, f"{project_path}/sdk-submit"
     if operation in {"upload_run", "ingest_trace", "lifecycle_snapshot", "create_artifact_manifest", "list_artifact_manifests", "release_evidence", "release_evidence_verify", "verify_release_evidence_packet"}:
