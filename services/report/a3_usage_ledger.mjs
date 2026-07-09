@@ -1,6 +1,7 @@
 import {
   buildDashboardSummary,
-  normalizeCases
+  normalizeCases,
+  summarizeBillingUsage
 } from "./report_builder.mjs";
 
 export const A3_USAGE_LEDGER_SCHEMA_VERSION = "a3.usage_ledger.v1";
@@ -12,6 +13,8 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
   const auditEvents = Array.isArray(options.auditEvents) ? options.auditEvents : [];
   const releaseEvidenceReadbacks = Array.isArray(options.releaseEvidenceReadbacks) ? options.releaseEvidenceReadbacks : [];
   const importReceipts = Array.isArray(options.importReceipts) ? options.importReceipts : [];
+  const usageFixture = inputs.usageFixture || inputs.usage || {};
+  const usageApiProbe = inputs.usageApiProbe || inputs.usageProbe || {};
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const periodStart = options.periodStart || "local";
@@ -31,6 +34,14 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     meter("release_evidence_readbacks", releaseEvidenceReadbacks.length || auditEvents.filter((item) => item.event_type === "release_evidence.readback_captured").length, "GitHub Check, PR comment, and required-check readback receipts"),
     meter("api_imports", importReceipts.length, "A1/A2 API import receipts")
   ];
+  const billingUsageSummary = summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe, {
+    meters,
+    plan: options.plan || inputs.plan || inputs.billingPlan,
+    quota: options.quota || inputs.quota,
+    billingPeriod: options.billingPeriod,
+    currency: options.currency,
+    overageEnabled: options.overageEnabled
+  });
 
   return {
     schema_version: A3_USAGE_LEDGER_SCHEMA_VERSION,
@@ -44,21 +55,33 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     },
     status: "read_only_meter",
     billing_mutations_enabled: false,
+    plan: billingUsageSummary.plan,
+    quota: billingUsageSummary.quota,
     meters,
-    billable_unit_count: meters.reduce((sum, item) => sum + item.quantity, 0),
+    billable_meter: billingUsageSummary.billable_meter,
+    billable_meters: billingUsageSummary.billable_meters,
+    billable_unit_count: billingUsageSummary.billable_unit_count,
+    overage_risk: billingUsageSummary.overage_risk,
+    evidence_counts: billingUsageSummary.evidence_counts,
+    billing_usage_summary: billingUsageSummary,
     high_value_meters: meters
       .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "release_evidence_readbacks", "api_imports"].includes(item.meter))
       .map((item) => item.meter),
-    commercial_note: "Usage ledger is read-only until hosted billing, RBAC, and customer plan controls exist."
+    commercial_note: "Usage ledger is read-only until hosted billing, RBAC, customer plan controls, and quota enforcement exist."
   };
 }
 
 function meter(name, quantity, description) {
+  const normalizedQuantity = Number(quantity || 0);
+  const billable = !["failed_cases", "trace_events", "tool_call_cases"].includes(name);
   return {
     meter: name,
-    quantity: Number(quantity || 0),
+    quantity: normalizedQuantity,
+    unit: "unit",
     description,
-    billable: !["failed_cases"].includes(name)
+    billable,
+    billable_units: billable ? normalizedQuantity : 0,
+    billable_weight: 1
   };
 }
 

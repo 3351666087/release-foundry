@@ -32,6 +32,7 @@ import {
   summarizeProductConsoleExport,
   summarizeReviewWorkflowExport,
   summarizeSaasAdminExport,
+  summarizeBillingUsage,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
@@ -43,6 +44,7 @@ import {
   summarizeRequestProvenance,
   summarizeUsageQuota
 } from "../../services/report/report_builder.mjs";
+import { buildA3UsageLedger } from "../../services/report/a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "../../services/report/a3_artifact_registry.mjs";
 import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
@@ -1317,13 +1319,92 @@ test("A3 report builder summarizes P3 Ashr usage and quota calibration", async (
   assert.ok(summary.frontend_source_functions.includes("get_usage"));
   assert.match(summary.guidance, /OAuth-gated/);
 
+  const billing = summarizeBillingUsage(runs, grades, usageSample, usageApiProbe, {
+    plan: {
+      plan_id: "plan-growth",
+      plan_name: "Growth",
+      included_unit_count: 10,
+      overage_enabled: true
+    }
+  });
+  assert.equal(billing.schema_version, "a3.billing_usage_summary.v1");
+  assert.equal(billing.plan.plan_name, "Growth");
+  assert.equal(billing.quota.included_units, 10);
+  assert.ok(billing.billable_meters.some((item) => item.meter === "cases" && item.billable));
+  assert.equal(billing.overage_risk.status, "over_quota");
+  assert.equal(billing.evidence_counts.a1.runs, 1);
+  assert.equal(billing.evidence_counts.a1.cases, 32);
+  assert.ok(billing.evidence_counts.a2.judge_results > 0);
+
   const json = buildJsonReport(runs, grades, {}, {}, {}, usageSample, usageApiProbe);
   assert.equal(json.usage_quota.available, true);
   assert.equal(json.usage_quota.direct_api_accessible, false);
+  assert.equal(json.billing_usage_summary.available, true);
+  assert.equal(json.billing_usage_summary.plan.plan_name, "frontend-observed-plan");
+  assert.equal(json.billing_usage_summary.billing_mutations_enabled, false);
+  assert.equal(json.billing_usage_summary.evidence_counts.a1.cases, 32);
 
   const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, usageSample, usageApiProbe);
   assert.match(markdown, /## Usage \/ Quota/);
   assert.match(markdown, /OAuth-gated functions: billing_get_status, get_usage/);
+  assert.match(markdown, /## Billing \/ Usage Summary/);
+  assert.match(markdown, /A1 evidence: runs 1, cases 32/);
+});
+
+test("A3 usage ledger exposes read-only plan, quota, billable meters, overage risk, and A1/A2 evidence counts", () => {
+  const ledger = buildA3UsageLedger({
+    runFixture: {
+      runs: [{
+        run_id: "run-billing-ledger",
+        cases: [{
+          case_id: "case-billing-ledger",
+          status: "failed",
+          trace_events: [{ event_type: "tool_call" }, { event_type: "observation" }],
+          observations: [{ event_type: "artifact.write" }],
+          actual: { tool_calls: [{ name: "refund_order" }] }
+        }]
+      }]
+    },
+    gradeFixture: {
+      grade_results: [{
+        case_id: "case-billing-ledger",
+        passed: false,
+        score: 0.2,
+        primary_failure_class: "wrong_tool",
+        judge_results: [
+          { judge_mode: "deterministic", passed: false },
+          { judge_mode: "semantic", passed: false }
+        ]
+      }]
+    }
+  }, {
+    plan: {
+      plan_id: "plan-starter",
+      plan_name: "Starter",
+      included_unit_count: 4,
+      overage_enabled: true
+    },
+    reports: [{ report_id: "a3r_billing" }],
+    auditEvents: [{ event_type: "report_view" }, { event_type: "report_revoke" }],
+    releaseEvidenceReadbacks: [{ readback_id: "rerb_billing", readback_status: "readback_confirmed" }],
+    importReceipts: [
+      { schema_version: "a3.a1_run_result_ingest.v1" },
+      { schema_version: "a3.a2_grade_result_ingest.v1" }
+    ]
+  });
+
+  assert.equal(ledger.schema_version, "a3.usage_ledger.v1");
+  assert.equal(ledger.billing_mutations_enabled, false);
+  assert.equal(ledger.plan.plan_name, "Starter");
+  assert.equal(ledger.quota.included_units, 4);
+  assert.ok(ledger.billable_unit_count > ledger.quota.included_units);
+  assert.equal(ledger.overage_risk.status, "over_quota");
+  assert.ok(ledger.billable_meters.some((item) => item.meter === "judge_results" && item.billable_units === 2));
+  assert.equal(ledger.evidence_counts.a1.runs, 1);
+  assert.equal(ledger.evidence_counts.a1.trace_events, 3);
+  assert.equal(ledger.evidence_counts.a2.judge_results, 2);
+  assert.deepEqual(ledger.evidence_counts.a2.failure_classes, ["wrong_tool"]);
+  assert.equal(ledger.billing_usage_summary.schema_version, "a3.billing_usage_summary.v1");
 });
 
 test("A3 report builder summarizes official Ashr product gap", async () => {

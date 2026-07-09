@@ -1,5 +1,104 @@
 # A3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 5 Billing And Usage Readiness
+
+### Goal
+
+Continue A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` and push the
+SaaS/commercial axis from "usage is visible" toward "usage can become a
+customer-facing billing contract." This round stays read-only: no checkout,
+payment provider, quota mutation, team mutation, or real billing call is
+enabled.
+
+### Work completed
+
+- Added `services/report/a3_billing_readiness.mjs`.
+- Added `GET /api/a3/billing/readiness`.
+- Added `a3.billing_readiness.v1`.
+- Added `a3.billing_usage_summary.v1` in `services/report/report_builder.mjs`.
+- Extended `a3.usage_ledger.v1` in `services/report/a3_usage_ledger.mjs` with:
+  - plan
+  - quota
+  - billable meter(s)
+  - billable unit count
+  - overage risk
+  - A1/A2 evidence counts
+- Added billing/usage summary to JSON reports.
+- Added `Billing / Usage Summary` to Markdown reports.
+- Added focused tests:
+  - `tests/a3/a3_billing_readiness.test.mjs`
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/a3_sql_usage_report_center.test.mjs`
+- Added docs:
+  - `docs/a3/a3_billing_usage_summary_2026_07_09.md`
+  - `docs/a3/p3_billing_readiness_contract_2026_07_09.md`
+  - `docs/a3/p3_growth_auditor_money_grade_round5_2026_07_09.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, artifact, auth, quota, and billing backend logic were not
+  changed.
+- A3 explicitly treats `a3.usage_ledger.v1` as a read-only derived meter, not
+  the A1 production billing ledger or quota source of truth.
+- A2 judge, score, pass/fail, release-gate, failure taxonomy, and cost policy
+  semantics were not changed.
+- A3 counts A2 judge results for commercial visibility without turning A2
+  evaluation output into a billing mutation.
+
+### API / DB / Event / Artifact Contract
+
+- API added:
+  - `GET /api/a3/billing/readiness`
+- DB contracts named for future production integration:
+  - `usage_events`
+  - `usage_rollups`
+  - `quota_policies`
+  - `billing_customers`
+  - `billing_subscriptions`
+  - `billing_invoices`
+  - `audit_events`
+- Events named for future A1/A3 handoff:
+  - `usage.recorded`
+  - `quota.exceeded`
+  - `billing.subscription_changed`
+  - `audit_event.created`
+- Artifact impact:
+  - Billing readiness is now a report/control-plane artifact candidate.
+  - No real invoice or provider receipt artifact is generated yet.
+
+### Verification
+
+```text
+node --check services\report\a3_billing_readiness.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_api_server.mjs
+node --check services\report\report_builder.mjs
+node --test tests\a3\a3_billing_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sql_usage_report_center.test.mjs tests\a3\report_builder.test.mjs
+```
+
+Result:
+
+- Focused billing/API/report/usage tests: 51 passed, 0 failed.
+- Syntax checks passed for new and touched modules.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, customer email, raw signed URL, payment
+  provider secret, or account value was read or committed.
+- No live Ashr API call was made.
+- No real billing, checkout, provider webhook, team invite, API-key, Trust,
+  object-storage, or cloud mutation was performed.
+- Billing mutations remain disabled in both report and API output.
+
+### Current interpretation
+
+This round makes A3 more sellable, but not by pretending billing is done. It
+creates the commercial connective tissue: A1/A2 evidence becomes billable usage
+shape, A3 can explain plan/quota/overage risk to a customer, and future A1
+billing ledger work has a clearer UI/API consumer.
+
 ## 2026-07-09 - Commercial Growth Round 4 API-Backed Governance E2E
 
 ### Goal

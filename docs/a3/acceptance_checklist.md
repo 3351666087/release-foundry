@@ -533,8 +533,14 @@
 - [x] Add reviewer waiver and approval API-backed Playwright E2E with durable review-record assertions.
 - [x] Add hosted report revoked/missing denied-state Playwright E2E with no case-evidence leakage.
 - [x] Document A3 Commercial Growth Round 4 review/admin/denied-state evidence and A1/A2 safety boundary.
+- [x] Add `a3.billing_usage_summary.v1` to JSON and Markdown report exports.
+- [x] Extend `a3.usage_ledger.v1` with read-only plan, quota, billable meter, overage risk, and A1/A2 evidence counts.
+- [x] Add `GET /api/a3/billing/readiness` as a read-only billing readiness contract.
+- [x] Test billing readiness and usage/billing report exports without enabling real payment mutations.
+- [x] Add Growth-Auditor Money-Grade Round 5 artifact with 30+ next commercial growth points.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
+- [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
 
 ## Money-Grade Audit Round 2 - 2026-07-09
 

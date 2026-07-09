@@ -1,5 +1,136 @@
 # P3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 5 Billing/Usage Readiness Contract
+
+Continued from PR #25 / `codex/a3-commercial-growth-round4` after syncing
+`origin/main` and checking open PR state. This round followed
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and moved A3 one step closer
+to a commercial SaaS billing surface without enabling real payment or cloud
+mutations.
+
+Twenty growth points considered:
+
+1. Billing readiness API.
+2. Usage ledger plan fields.
+3. Usage ledger quota fields.
+4. Billable meter classification.
+5. Overage risk classification.
+6. JSON report billing summary.
+7. Markdown report billing summary.
+8. A1 run/trace evidence counts in billing output.
+9. A2 judge/failure evidence counts in billing output.
+10. Invoice preview without real amounts.
+11. Provider boundary for Stripe/WeChat Pay/Alipay/manual invoice.
+12. Paid-action blocker summary from SaaS Admin.
+13. Tenant-scoped billing readiness.
+14. Future DB contract names for billing customers/subscriptions/invoices.
+15. Event names for usage/quota/billing changes.
+16. Secret-free billing report assertions.
+17. Growth-Auditor Money-Grade Round 5.
+18. A1 Postgres/auth/usage branch calibration.
+19. A2 commercial readiness calibration.
+20. PR #25 CI/readiness check continuation.
+
+Implemented this round:
+
+- Added `services/report/a3_billing_readiness.mjs`.
+- Added `GET /api/a3/billing/readiness`.
+- Added `a3.billing_readiness.v1`.
+- Extended `a3.usage_ledger.v1` with:
+  - `plan`
+  - `quota`
+  - `billable_meter`
+  - `billable_meters`
+  - `billable_unit_count`
+  - `overage_risk`
+  - `evidence_counts`
+  - `billing_usage_summary`
+- Added `a3.billing_usage_summary.v1` to JSON report exports.
+- Added `Billing / Usage Summary` to Markdown report exports.
+- Added billing readiness tests:
+  - `tests/a3/a3_billing_readiness.test.mjs`
+- Updated API tests:
+  - `tests/a3/a3_api_server.test.mjs`
+- Added implementation docs:
+  - `docs/a3/p3_billing_readiness_contract_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_money_grade_round5_2026_07_09.md`
+
+Verification:
+
+```text
+node --check services\report\a3_billing_readiness.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_api_server.mjs
+node --check services\report\report_builder.mjs
+node --test tests\a3\a3_billing_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sql_usage_report_center.test.mjs tests\a3\report_builder.test.mjs
+```
+
+Results:
+
+- Focused billing/API/report/usage tests passed: 51 pass, 0 fail.
+- Syntax checks passed for new and touched report/API modules.
+
+A1/A2 calibration:
+
+- A1: billing readiness treats A3 usage meters as read-only derived evidence.
+  It does not claim to replace A1's future Postgres `usage_events`,
+  `usage_rollups`, quota ledger, auth handles, or billing webhooks.
+- A2: `judge_results`, failed cases, and failure classes are counted for billing
+  visibility without changing A2 judge, score, pass/fail, release-gate, or
+  failure taxonomy semantics.
+- A3: owns the product/billing surface and readiness explanation, not payment
+  provider mutations.
+
+API / DB / event / artifact contract:
+
+- API added: `GET /api/a3/billing/readiness`.
+- DB contracts named for future A1/A3 handoff:
+  - `usage_ledger`
+  - `usage_events`
+  - `usage_rollups`
+  - `quota_policies`
+  - `billing_customers`
+  - `billing_subscriptions`
+  - `billing_invoices`
+  - `audit_events`
+- Events named:
+  - `usage.recorded`
+  - `quota.exceeded`
+  - `billing.subscription_changed`
+  - `audit_event.created`
+- Artifact impact:
+  - Billing readiness is a control-plane report artifact candidate.
+  - No customer invoice or payment provider artifact is generated yet.
+
+Tenant/auth/RBAC/usage/audit:
+
+- Tenant scope is included in billing readiness output.
+- Auth/RBAC remains read-only/plan-only until hosted auth exists.
+- Usage is derived from A1/A2-backed A3 meters.
+- Audit states no raw private payload, customer email, token, API key, or payment
+  secret is required in UI/report output.
+
+Safety boundary:
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, raw account value, signed URL, customer
+  email, or payment secret was read or committed.
+- No live Ashr API call was made.
+- No live GitHub mutation beyond the already-open PR branch was made.
+- No real payment provider, billing, team, API-key, Trust, object-storage, or
+  cloud mutation was performed.
+
+Remaining gaps:
+
+- Production billing still requires A1-owned usage events, usage rollups,
+  provider webhooks, hosted auth/RBAC, billing-admin approval, and invoice
+  export.
+- A3 billing readiness is a contract and customer-facing explanation layer; it
+  is not a production billing ledger.
+- A1 open branch `origin/codex/a1-local-sdk-runner` shows active Postgres/auth
+  direction, but it was not merged into this A3 branch.
+
 ## 2026-07-09 - Commercial Growth Round 4 Review/Admin/Denied-State E2E
 
 Continued from latest `origin/main` after PR #24 was merged. This round follows

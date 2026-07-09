@@ -135,6 +135,16 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(usageLedger.schema_version, "a3.usage_ledger.v1");
     assert.equal(usageLedger.billing_mutations_enabled, false);
 
+    const billingReadiness = await getJson(`${url}/api/a3/billing/readiness?source=mock`);
+    assert.equal(billingReadiness.schema_version, "a3.billing_readiness.v1");
+    assert.equal(billingReadiness.billing_mutations_enabled, false);
+    assert.equal(billingReadiness.provider_boundary.checkout_enabled, false);
+    assert.equal(billingReadiness.a1_a2_alignment.a1_usage_source_ready, true);
+    assert.equal(billingReadiness.a1_a2_alignment.a2_judge_meter_ready, true);
+    assert.ok(billingReadiness.required_db_contracts.includes("billing_invoices"));
+    assert.ok(billingReadiness.required_events.includes("billing.subscription_changed"));
+    assert.doesNotMatch(JSON.stringify(billingReadiness), /Bearer|sk-|ghp_|owner@example.com/);
+
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");
     assert.equal(admin.login.session.cookie_storage, "not_read_or_saved");

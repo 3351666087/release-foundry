@@ -26,6 +26,7 @@ import { buildReportCenterIndex } from "./a3_report_center.mjs";
 import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
+import { buildA3BillingReadiness } from "./a3_billing_readiness.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
 import {
@@ -153,6 +154,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
+    "GET /api/a3/billing/readiness",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
     "GET /api/a3/artifacts/registry",
@@ -463,6 +465,28 @@ export function createMemoryA3Store(seed = {}) {
         projectId: scopedSnapshot.projectId,
         periodStart: options.periodStart,
         periodEnd: options.periodEnd
+      });
+    },
+
+    async getBillingReadiness(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const usageLedger = await this.getUsageLedger(options);
+      const adminConsole = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      }), adminActionRequests, {
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
+      return buildA3BillingReadiness({
+        usageLedger,
+        adminConsole
+      }, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
       });
     },
 

@@ -875,6 +875,46 @@ export function summarizeUsageQuota(usageFixture = {}, usageApiProbe = {}) {
   };
 }
 
+export function summarizeBillingUsage(runFixture = {}, gradeFixture = {}, usageFixture = {}, usageApiProbe = {}, options = {}) {
+  const summary = buildDashboardSummary(runFixture, gradeFixture);
+  const cases = normalizeCases(runFixture, gradeFixture);
+  const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
+  const evidenceCounts = buildBillingEvidenceCounts(summary, cases);
+  const defaultMeters = buildBillingUsageMeters(summary, cases);
+  const optionMeters = Array.isArray(options.meters) ? options.meters : [];
+  const meters = mergeBillingMeters(defaultMeters, optionMeters);
+  const billableMeters = meters.filter((item) => item.billable);
+  const billableUnitCount = billableMeters.reduce((sum, item) => sum + item.billable_units, 0);
+  const plan = resolveBillingPlan(usageFixture, usageQuota, options);
+  const quota = resolveBillingQuota(usageFixture, options, billableUnitCount, plan);
+  const overageRisk = classifyOverageRisk(quota, plan);
+  const primaryBillableMeter = billableMeters.find((item) => item.meter === "cases")
+    || billableMeters.find((item) => item.quantity > 0)
+    || null;
+
+  return {
+    schema_version: "a3.billing_usage_summary.v1",
+    available: summary.totalRuns > 0 || summary.totalCases > 0 || usageQuota.available || optionMeters.length > 0,
+    status: "read_only_commercial_summary",
+    billing_mutations_enabled: false,
+    plan,
+    quota,
+    billable_meter: primaryBillableMeter,
+    billable_meters: billableMeters,
+    billable_unit_count: billableUnitCount,
+    meter_count: meters.length,
+    meters,
+    overage_risk: overageRisk,
+    usage_quota_observed: usageQuota.available,
+    usage_quota_direct_api_accessible: usageQuota.direct_api_accessible,
+    oauth_only_functions: usageQuota.oauth_only_functions,
+    evidence_counts: evidenceCounts,
+    commercial_guidance: overageRisk.status === "over_quota"
+      ? "Usage is over the included quota; keep A3 in read-only display mode until A1 billing enforcement and customer plan controls are live."
+      : "Show plan, quota, and billable usage as customer-visible read-only evidence; do not mutate billing state from A3."
+  };
+}
+
 export function summarizeMediaReadiness(runFixture = {}, gradeFixture = {}, usageFixture = {}, mediaSignedUrlFixture = {}) {
   const cases = normalizeCases(runFixture, gradeFixture);
   const mediaCases = cases.filter(hasMediaEvidence);
@@ -1496,6 +1536,15 @@ export function summarizeReleaseWorkflow(runFixture = {}, gradeFixture = {}, cov
   const waiverAllowed = gate.decision === "needs_review";
   const blockWaiverExceptional = gate.decision === "block_release";
   const requiredApprovers = gate.required_approvers.length ? gate.required_approvers : [owner];
+  const reviewerGate = buildPrGateReviewerProjection(runFixture, gradeFixture, coverageFixture, mediaSignedUrlFixture, gate, options);
+  const nextActions = unique([
+    ...buildReleaseNextActions(gate),
+    reviewerGate.pr_gate_next_action
+  ]);
+  checkTextLines.splice(7, 0,
+    `PR gate next action: ${reviewerGate.pr_gate_next_action}`,
+    `Sign-off risk: ${reviewerGate.sign_off_risk.level}`
+  );
 
   return {
     available: gate.available,
@@ -1516,7 +1565,8 @@ export function summarizeReleaseWorkflow(runFixture = {}, gradeFixture = {}, cov
     pr_comment_markdown: buildReleasePrCommentMarkdown(gate, summary, {
       release_version: releaseVersion,
       environment,
-      owner
+      owner,
+      reviewerGate
     }),
     waiver_policy: {
       required: gate.decision !== "approve_release",
@@ -1546,10 +1596,16 @@ export function summarizeReleaseWorkflow(runFixture = {}, gradeFixture = {}, cov
         gate.failed_checks.includes("required_tool_coverage") ? "Runner/tooling owner" : null,
         gate.failed_checks.includes("coverage_minimums") ? "Judge owner" : null,
         gate.failed_checks.includes("trace_evidence") ? "Evidence owner" : null,
-        "A3 triage owner"
+        "A3 triage owner",
+        ...reviewerGate.reviewer_lanes.map((lane) => lane.lane)
       ]),
-      next_actions: buildReleaseNextActions(gate)
+      next_actions: nextActions,
+      pr_gate_next_action: reviewerGate.pr_gate_next_action,
+      sign_off_risk: reviewerGate.sign_off_risk,
+      a1_evidence: reviewerGate.a1_evidence,
+      a2_release_gate: reviewerGate.a2_release_gate
     },
+    reviewer_gate: reviewerGate,
     audit_bundle: {
       manifest_version: "a3.audit_bundle.v1",
       redaction_policy: "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in exported artifacts.",
@@ -1570,6 +1626,334 @@ export function summarizeReleaseWorkflow(runFixture = {}, gradeFixture = {}, cov
     },
     commercial_value: "Turns A3 output into a PR gate, reviewer workflow, waiver policy, and audit bundle that can sit in an enterprise release process."
   };
+}
+
+function buildPrGateReviewerProjection(runFixture = {}, gradeFixture = {}, coverageFixture = {}, mediaSignedUrlFixture = {}, gate = {}, options = {}) {
+  const a2ReleaseGateFixture = selectA2ReleaseGateFixture(options);
+  const a2ReleaseGate = isA2ReleaseGateFixture(a2ReleaseGateFixture)
+    ? summarizeA2ReleaseGate(a2ReleaseGateFixture)
+    : emptyA2ReleaseGateSummary();
+  const a2Blockers = summarizeA2BlockersForReview(a2ReleaseGateFixture);
+  const a2Warnings = summarizeA2WarningsForReview(a2ReleaseGateFixture);
+  const requiredEvidence = summarizeA2RequiredEvidenceForReview(a2ReleaseGateFixture);
+  const incidentReplay = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 8 });
+  const a1Evidence = summarizeA1EvidenceForPrGate(incidentReplay);
+  const reviewerLanes = buildPrGateReviewerLanes({
+    gate,
+    a2ReleaseGate,
+    a2Blockers,
+    a2Warnings,
+    requiredEvidence,
+    a1Evidence
+  });
+  const signOffRisk = buildSignOffRisk({
+    gate,
+    a2ReleaseGate,
+    a2Blockers,
+    a2Warnings,
+    a1Evidence,
+    requiredBeforeUnblock: readA2RequiredBeforeUnblock(a2ReleaseGateFixture)
+  });
+  const prGateNextAction = buildPrGateNextAction({
+    gate,
+    a2ReleaseGate,
+    a2Blockers,
+    a1Evidence,
+    signOffRisk
+  });
+
+  return {
+    schema_version: "a3.pr_gate_reviewer_projection.v1",
+    available: gate.available === true || a2ReleaseGate.available === true || a1Evidence.top_risk_case_count > 0,
+    source_semantics_preserved: true,
+    source_mutation_performed: false,
+    pr_gate_next_action: prGateNextAction,
+    sign_off_risk: signOffRisk,
+    reviewer_lanes: reviewerLanes,
+    a2_release_gate: {
+      available: a2ReleaseGate.available,
+      schema_version: a2ReleaseGate.schema_version,
+      decision: a2ReleaseGate.decision,
+      blocks_release: a2ReleaseGate.blocks_release === true,
+      risk_score: a2ReleaseGate.risk_score,
+      current_commercial_gate: a2ReleaseGate.current_commercial_gate,
+      blocker_count: a2Blockers.length,
+      warning_count: a2Warnings.length,
+      blocker_gates: a2ReleaseGate.blocker_gates || [],
+      blocker_types: a2ReleaseGate.blocker_types || [],
+      required_sources: a2ReleaseGate.required_sources || [],
+      required_evidence: requiredEvidence,
+      blockers: a2Blockers.slice(0, 10),
+      warnings: a2Warnings.slice(0, 5),
+      ci_mode: a2ReleaseGate.ci_mode,
+      evidence_refs: a2ReleaseGate.evidence_refs || []
+    },
+    a1_evidence: a1Evidence,
+    safety: {
+      secret_values_included: false,
+      private_evidence_values_included: false,
+      private_input_refs_exposed: false,
+      raw_a1_trace_payloads_mutated: false,
+      raw_a2_gate_semantics_mutated: false,
+      real_cloud_mutation_performed: false
+    },
+    commercial_value: "Turns A2 release blockers and A1 trace/tool-call evidence into owned reviewer lanes, PR gate next action, and explicit sign-off risk."
+  };
+}
+
+function selectA2ReleaseGateFixture(options = {}) {
+  const candidate = options.a2ReleaseGate
+    || options.a2_release_gate
+    || options.releaseGateFixture
+    || options.release_gate_fixture
+    || {};
+  return isA2ReleaseGateFixture(candidate) ? candidate : {};
+}
+
+function emptyA2ReleaseGateSummary() {
+  return {
+    available: false,
+    schema_version: "none",
+    decision: "none",
+    blocks_release: false,
+    risk_score: 0,
+    current_commercial_gate: "none",
+    blocker_gates: [],
+    blocker_types: [],
+    required_sources: [],
+    ci_mode: "none",
+    evidence_refs: []
+  };
+}
+
+function summarizeA2BlockersForReview(releaseGateFixture = {}) {
+  const blockers = Array.isArray(releaseGateFixture.blockers) ? releaseGateFixture.blockers : [];
+  return blockers.map((blocker, index) => {
+    const gate = blocker.gate || "unknown_gate";
+    const type = blocker.type || "unknown";
+    return {
+      blocker_id: `${gate}:${type}:${index + 1}`,
+      source: "a2.release_gate.blockers",
+      gate,
+      type,
+      status: blocker.status || "unknown",
+      severity: blocker.severity || "unknown",
+      summary: blocker.summary || "",
+      required_action: blocker.required_action || "Resolve the A2 release gate blocker before sign-off.",
+      missing_count: Number.isFinite(Number(blocker.missing_count)) ? Number(blocker.missing_count) : 0,
+      evidence_refs: Array.isArray(blocker.evidence_refs) ? blocker.evidence_refs : []
+    };
+  });
+}
+
+function summarizeA2WarningsForReview(releaseGateFixture = {}) {
+  const warnings = Array.isArray(releaseGateFixture.warnings) ? releaseGateFixture.warnings : [];
+  return warnings.map((warning, index) => ({
+    warning_id: `warning:${warning.type || "unknown"}:${index + 1}`,
+    source: "a2.release_gate.warnings",
+    type: warning.type || "unknown",
+    severity: warning.severity || "unknown",
+    summary: warning.summary || "",
+    count: warning.count || 0,
+    evidence_refs: Array.isArray(warning.evidence_refs) ? warning.evidence_refs : []
+  }));
+}
+
+function summarizeA2RequiredEvidenceForReview(releaseGateFixture = {}) {
+  const requiredEvidence = Array.isArray(releaseGateFixture.required_evidence) ? releaseGateFixture.required_evidence : [];
+  return requiredEvidence.map((item) => ({
+    source: item.source || "unknown",
+    required_count: item.required_count || 0,
+    current_available: item.current_available || 0,
+    missing_count: Math.max(0, Number(item.required_count || 0) - Number(item.current_available || 0)),
+    collection_packet_ref: item.collection_packet_ref || "",
+    command_count: Array.isArray(item.commands) ? item.commands.length : 0,
+    private_input_ref_present: Boolean(item.private_input_ref),
+    private_input_ref_exposed: false
+  }));
+}
+
+function readA2RequiredBeforeUnblock(releaseGateFixture = {}) {
+  const workflow = objectOr(releaseGateFixture.review_workflow);
+  return Array.isArray(workflow.required_before_unblock) ? workflow.required_before_unblock : [];
+}
+
+function summarizeA1EvidenceForPrGate(incidentReplay = {}) {
+  const queue = Array.isArray(incidentReplay.queue) ? incidentReplay.queue : [];
+  const missingTraceCases = queue.filter((item) => !item.trace_ready);
+  const toolDiffCases = queue.filter((item) => item.tool_diff_count > 0);
+  return {
+    source: "a1.normalized_trace_and_tool_call_evidence",
+    top_risk_case_count: queue.length,
+    trace_ready_count: incidentReplay.trace_ready_count || queue.filter((item) => item.trace_ready).length,
+    missing_trace_count: missingTraceCases.length,
+    tool_diff_ready_count: incidentReplay.tool_diff_ready_count || toolDiffCases.length,
+    judge_evidence_ready_count: incidentReplay.judge_evidence_ready_count || 0,
+    media_evidence_ready_count: incidentReplay.media_evidence_ready_count || 0,
+    release_blocker_case_count: incidentReplay.blocker_count || queue.filter((item) => item.release_blocker).length,
+    evidence_cases: queue.slice(0, 5).map((item) => ({
+      case_id: item.case_id,
+      owner_lane: item.owner_lane,
+      trace_ready: item.trace_ready === true,
+      tool_diff_count: item.tool_diff_count || 0,
+      judge_evidence_count: item.judge_evidence_count || 0,
+      release_blocker: item.release_blocker === true,
+      next_action: item.trace_ready
+        ? "Replay A1 trace and inspect expected-vs-actual tool-call evidence before sign-off."
+        : "Collect A1 trace evidence before sign-off."
+    }))
+  };
+}
+
+function buildPrGateReviewerLanes({
+  gate = {},
+  a2ReleaseGate = {},
+  a2Blockers = [],
+  a2Warnings = [],
+  requiredEvidence = [],
+  a1Evidence = {}
+} = {}) {
+  const a2BlockerLanes = groupA2BlockersByGate(a2Blockers).map(([gateId, blockers]) => ({
+    lane: `${gateId} A2 release blocker`,
+    owner: a2ReviewerOwnerForGate(gateId, blockers),
+    source: "a2.release_gate",
+    status: "blocked",
+    item_count: blockers.length,
+    blocker_count: blockers.length,
+    warning_count: a2Warnings.filter((warning) => blockers.some((blocker) => blocker.type === warning.type)).length,
+    required_sources: requiredEvidence.map((item) => item.source).filter(Boolean),
+    evidence_refs: uniqueSorted(blockers.flatMap((blocker) => blocker.evidence_refs)),
+    next_action: blockers[0]?.required_action || `Resolve ${gateId} A2 release blocker before sign-off.`,
+    required_actions: uniqueSorted(blockers.map((blocker) => blocker.required_action))
+  }));
+
+  const a1Lane = {
+    lane: "A1 trace/tool-call evidence",
+    owner: "A1 API/runtime owner",
+    source: "a1.trace_tool_call_evidence",
+    status: a1Evidence.missing_trace_count > 0 ? "needs_evidence" : a1Evidence.top_risk_case_count > 0 ? "ready" : "standby",
+    item_count: a1Evidence.top_risk_case_count || 0,
+    blocker_count: a1Evidence.release_blocker_case_count || 0,
+    trace_ready_count: a1Evidence.trace_ready_count || 0,
+    tool_diff_ready_count: a1Evidence.tool_diff_ready_count || 0,
+    next_action: a1Evidence.top_risk_case_count > 0
+      ? `Replay ${a1Evidence.trace_ready_count || 0} A1 trace-ready case(s) and inspect ${a1Evidence.tool_diff_ready_count || 0} tool-call diff packet(s).`
+      : "Stand by for A1 trace/tool-call evidence when the PR gate has failed cases."
+  };
+
+  const a3Lane = {
+    lane: "A3 PR gate action",
+    owner: "A3 dashboard/report owner",
+    source: "a3.release_workflow",
+    status: a2ReleaseGate.blocks_release || gate.pr_gate?.blocks_merge
+      ? "blocked"
+      : gate.pr_gate?.warning_only
+        ? "review"
+        : "ready",
+    item_count: 1,
+    blocker_count: a2ReleaseGate.blocks_release || gate.pr_gate?.blocks_merge ? 1 : 0,
+    next_action: "Publish the PR gate next action with the report, then require reviewer disposition before merge."
+  };
+
+  return [...a2BlockerLanes, a1Lane, a3Lane];
+}
+
+function groupA2BlockersByGate(blockers = []) {
+  const groups = new Map();
+  for (const blocker of blockers) {
+    const gate = blocker.gate || "unknown_gate";
+    if (!groups.has(gate)) {
+      groups.set(gate, []);
+    }
+    groups.get(gate).push(blocker);
+  }
+  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+}
+
+function a2ReviewerOwnerForGate(gateId = "", blockers = []) {
+  if (gateId === "C3") {
+    return "A2 calibration owner";
+  }
+  if (gateId === "C4") {
+    return "A2 semantic judge owner";
+  }
+  if (gateId === "C5") {
+    return "A2 regression owner";
+  }
+  if (blockers.some((blocker) => blocker.type === "evidence_gate")) {
+    return "A2 evidence reviewer";
+  }
+  return "A2 owner";
+}
+
+function buildSignOffRisk({
+  gate = {},
+  a2ReleaseGate = {},
+  a2Blockers = [],
+  a2Warnings = [],
+  a1Evidence = {},
+  requiredBeforeUnblock = []
+} = {}) {
+  const reasons = unique([
+    a2ReleaseGate.blocks_release ? `A2 release gate decision=${a2ReleaseGate.decision} blocks release.` : "",
+    gate.pr_gate?.blocks_merge ? `A3 PR gate decision=${gate.decision} blocks merge.` : "",
+    gate.pr_gate?.warning_only ? `A3 PR gate decision=${gate.decision} requires review.` : "",
+    a1Evidence.release_blocker_case_count > 0 ? `${a1Evidence.release_blocker_case_count} A1 replay case(s) are release blockers.` : "",
+    a1Evidence.missing_trace_count > 0 ? `${a1Evidence.missing_trace_count} replay case(s) lack A1 trace evidence.` : "",
+    a2Warnings.length > 0 ? `${a2Warnings.length} A2 warning(s) remain open.` : ""
+  ]);
+  const level = a2ReleaseGate.blocks_release || gate.pr_gate?.blocks_merge
+    ? "blocked"
+    : gate.pr_gate?.warning_only || a1Evidence.missing_trace_count > 0
+      ? "high"
+      : a2Warnings.length > 0
+        ? "medium"
+        : "low";
+  const baseScore = Math.max(Number(gate.risk_score || 0), Number(a2ReleaseGate.risk_score || 0));
+  const score = Math.min(100, Math.round(
+    baseScore
+    + (a2Blockers.length > 0 ? Math.min(20, a2Blockers.length * 3) : 0)
+    + (a1Evidence.missing_trace_count > 0 ? 10 : 0)
+    + Math.min(10, a2Warnings.length * 2)
+  ));
+  const requiredBeforeSignOff = unique([
+    ...requiredBeforeUnblock,
+    ...a2Blockers.slice(0, 5).map((blocker) => blocker.required_action),
+    a1Evidence.top_risk_case_count > 0 ? "Replay A1 trace/tool-call evidence for top-risk cases and record reviewer disposition." : ""
+  ]);
+
+  return {
+    level,
+    score,
+    can_sign_off: level === "low" && gate.decision === "approve_release" && a2ReleaseGate.blocks_release !== true,
+    risk_acceptance_required: level !== "low",
+    executive_exception_required: level === "blocked",
+    reasons,
+    required_before_sign_off: requiredBeforeSignOff
+  };
+}
+
+function buildPrGateNextAction({
+  gate = {},
+  a2ReleaseGate = {},
+  a2Blockers = [],
+  a1Evidence = {},
+  signOffRisk = {}
+} = {}) {
+  const blockerGates = uniqueSorted(a2Blockers.map((blocker) => blocker.gate));
+  if (a2ReleaseGate.blocks_release) {
+    const a1Clause = a1Evidence.top_risk_case_count > 0
+      ? `; replay ${a1Evidence.trace_ready_count || 0} A1 trace-ready case(s) and ${a1Evidence.tool_diff_ready_count || 0} tool-call diff packet(s)`
+      : "";
+    return `Block merge: resolve A2 release gate blocker(s) ${blockerGates.join(", ") || "unknown"} before sign-off${a1Clause}.`;
+  }
+  if (gate.pr_gate?.blocks_merge) {
+    return `Block merge: resolve A3 failed check(s) ${(gate.failed_checks || []).join(", ") || "unknown"} before sign-off.`;
+  }
+  if (gate.pr_gate?.warning_only || signOffRisk.level === "high") {
+    return "Require reviewer disposition: attach A1 replay evidence and A3 audit artifacts before merge.";
+  }
+  return "Merge may proceed after JSON, Markdown, and audit artifacts are attached to the release record.";
 }
 
 export function summarizeReleaseWarRoom(
@@ -1728,7 +2112,8 @@ export function summarizeReviewerWorkflowBoard(runFixture = {}, gradeFixture = {
   const incidentReplay = summarizeIncidentReplayQueue(runFixture, gradeFixture, mediaSignedUrlFixture, { limit: options.limit || 8 });
   const requiredApprovers = releaseWorkflow.reviewer_workflow?.required_approvers || [];
   const items = incidentReplay.queue.map((item) => buildReviewerWorkflowItem(item, releaseWorkflow));
-  const lanes = buildReviewerWorkflowLanes(items, requiredApprovers);
+  const reviewerGate = releaseWorkflow.reviewer_gate || {};
+  const lanes = buildReviewerWorkflowLanes(items, requiredApprovers, reviewerGate.reviewer_lanes || []);
   const blockerCount = items.filter((item) => item.review_state === "blocked").length;
   const needsEvidenceCount = items.filter((item) => item.review_state === "needs_evidence").length;
   const waiverBlockedCount = items.filter((item) => item.waiver_state === "executive_exception_required").length;
@@ -1766,6 +2151,9 @@ export function summarizeReviewerWorkflowBoard(runFixture = {}, gradeFixture = {
     needs_evidence_count: needsEvidenceCount,
     waiver_blocked_count: waiverBlockedCount,
     approval_ready_count: approvalReadyCount,
+    pr_gate_next_action: reviewerGate.pr_gate_next_action || releaseWorkflow.reviewer_workflow?.pr_gate_next_action || "",
+    sign_off_risk: reviewerGate.sign_off_risk || releaseWorkflow.reviewer_workflow?.sign_off_risk || {},
+    reviewer_gate: reviewerGate,
     lanes,
     items,
     a1_a2_calibration: {
@@ -1851,37 +2239,49 @@ function buildReviewerWorkflowItem(item = {}, releaseWorkflow = {}) {
   };
 }
 
-function buildReviewerWorkflowLanes(items = [], requiredApprovers = []) {
+function buildReviewerWorkflowLanes(items = [], requiredApprovers = [], gateLanes = []) {
   const laneNames = uniqueSorted([
     ...requiredApprovers,
-    ...items.map((item) => item.owner_lane)
+    ...items.map((item) => item.owner_lane),
+    ...gateLanes.map((lane) => lane.lane)
   ]);
   return laneNames.map((lane) => {
     const laneItems = items.filter((item) => item.owner_lane === lane);
+    const gateLane = gateLanes.find((item) => item.lane === lane) || {};
     const blockedItems = laneItems.filter((item) => item.review_state === "blocked");
     const missingItems = laneItems.filter((item) => item.review_state === "needs_evidence");
     const approvalReadyItems = laneItems.filter((item) => item.approval_ready);
-    const status = blockedItems.length
+    const status = gateLane.status === "blocked"
       ? "blocked"
-      : missingItems.length
+      : blockedItems.length
+      ? "blocked"
+      : gateLane.status === "needs_evidence" || missingItems.length
         ? "needs_evidence"
         : laneItems.length
           ? "needs_review"
-          : "standby";
-    const nextAction = laneItems[0]?.next_action
+          : gateLane.status || "standby";
+    const itemCount = laneItems.length || gateLane.item_count || 0;
+    const blockedCount = blockedItems.length || gateLane.blocker_count || 0;
+    const missingEvidenceCount = missingItems.length || (gateLane.status === "needs_evidence" ? gateLane.item_count || 1 : 0);
+    const approvalReadyCount = approvalReadyItems.length || gateLane.approval_ready_count || 0;
+    const nextAction = gateLane.next_action
+      || laneItems[0]?.next_action
       || (lane === "Release owner"
         ? "Confirm release gate outcome and collect reviewer sign-off."
         : "Stand by for assigned incident replay or approval request.");
 
     return {
       lane,
-      owner: lane,
-      item_count: laneItems.length,
-      blocked_count: blockedItems.length,
-      missing_evidence_count: missingItems.length,
-      approval_ready_count: approvalReadyItems.length,
+      owner: gateLane.owner || lane,
+      item_count: itemCount,
+      blocked_count: blockedCount,
+      missing_evidence_count: missingEvidenceCount,
+      approval_ready_count: approvalReadyCount,
       status,
-      next_action: nextAction
+      next_action: nextAction,
+      source: gateLane.source || "a3.reviewer_workflow_board",
+      evidence_refs: gateLane.evidence_refs || [],
+      required_actions: gateLane.required_actions || []
     };
   });
 }
@@ -2430,6 +2830,7 @@ function numberOrDefault(value, fallback) {
 }
 
 function buildReleasePrCommentMarkdown(gate, summary, options = {}) {
+  const reviewerGate = options.reviewerGate || {};
   const lines = [
     "## Ashr++ Release Gate",
     "",
@@ -2446,6 +2847,8 @@ function buildReleasePrCommentMarkdown(gate, summary, options = {}) {
     `| Average score | ${summary.avgScore} |`,
     `| Trace completeness | ${summary.traceCompleteness}% |`,
     `| Failed checks | ${gate.failed_checks.join(", ") || "none"} |`,
+    `| PR gate next action | ${reviewerGate.pr_gate_next_action || "Follow release gate decision."} |`,
+    `| Sign-off risk | ${reviewerGate.sign_off_risk?.level || "unknown"} |`,
     "",
     "### Required Reviewers",
     "",
@@ -2457,6 +2860,21 @@ function buildReleasePrCommentMarkdown(gate, summary, options = {}) {
       ? gate.top_risk_cases.map((item) => `- \`${item.case_id}\`: ${item.primary_failure_class} / ${item.severity} / ${item.score} - ${item.summary}`)
       : ["- none"])
   ];
+  if (reviewerGate.available) {
+    lines.push(
+      "",
+      "### Reviewer Gate",
+      "",
+      `- Next action: ${reviewerGate.pr_gate_next_action}`,
+      `- Sign-off risk: ${reviewerGate.sign_off_risk.level} (${reviewerGate.sign_off_risk.score})`,
+      `- A2 blockers: ${reviewerGate.a2_release_gate?.blocker_gates?.join(", ") || "none"}`,
+      `- A1 trace/tool-call evidence: trace ${reviewerGate.a1_evidence?.trace_ready_count || 0}, tool diffs ${reviewerGate.a1_evidence?.tool_diff_ready_count || 0}`,
+      "",
+      "### Reviewer Lanes",
+      "",
+      ...reviewerGate.reviewer_lanes.map((lane) => `- ${lane.lane}: ${lane.status} / ${lane.owner} - ${lane.next_action}`)
+    );
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -3035,6 +3453,258 @@ function countObjectValues(value = {}) {
 
 function uniqueSorted(values = []) {
   return [...new Set(values.filter(Boolean))].sort();
+}
+
+function buildBillingEvidenceCounts(summary = {}, cases = []) {
+  const traceEventCount = cases.reduce((sum, item) => sum + (Array.isArray(item.trace_events) ? item.trace_events.length : 0), 0);
+  const observationCount = cases.reduce((sum, item) => sum + (Array.isArray(item.observations) ? item.observations.length : 0), 0);
+  const judgeResultCount = cases.reduce((sum, item) => sum + countCaseJudgeResults(item), 0);
+  const failureClasses = uniqueSorted(cases
+    .map((item) => item.primary_failure_class)
+    .filter((item) => item && item !== "none"));
+  const scoreBandCounts = cases.reduce((counts, item) => ({
+    ...counts,
+    [item.score_band]: (counts[item.score_band] || 0) + 1
+  }), {});
+
+  return {
+    a1: {
+      runs: summary.totalRuns || 0,
+      cases: summary.totalCases || 0,
+      trace_events: traceEventCount,
+      observations: observationCount,
+      trace_ready_cases: cases.filter((item) => item.trace_ready).length,
+      tool_call_cases: cases.filter(hasCaseToolCalls).length,
+      media_evidence_cases: summary.mediaEvidenceCases || 0
+    },
+    a2: {
+      graded_cases: cases.filter((item) => isObject(item.grade) && Object.keys(item.grade).length > 0).length,
+      judge_results: judgeResultCount,
+      failed_cases: summary.failed || 0,
+      failure_class_count: failureClasses.length,
+      failure_classes: failureClasses,
+      score_band_counts: scoreBandCounts
+    }
+  };
+}
+
+function buildBillingUsageMeters(summary = {}, cases = []) {
+  const evidenceCounts = buildBillingEvidenceCounts(summary, cases);
+  return [
+    billingMeter("runs", summary.totalRuns, "run", "A1 submitted run batches", { billable: true }),
+    billingMeter("cases", summary.totalCases, "case", "Normalized A3 evaluation cases", { billable: true }),
+    billingMeter("failed_cases", summary.failed, "case", "Failed cases requiring reviewer triage", { billable: false }),
+    billingMeter("trace_events", evidenceCounts.a1.trace_events + evidenceCounts.a1.observations, "event", "A1 trace and observation evidence events", { billable: false }),
+    billingMeter("tool_call_cases", evidenceCounts.a1.tool_call_cases, "case", "Cases containing expected or actual tool calls", { billable: false }),
+    billingMeter("judge_results", evidenceCounts.a2.judge_results, "judge_result", "A2 judge result entries", { billable: true }),
+    billingMeter("media_evidence_cases", evidenceCounts.a1.media_evidence_cases, "case", "Cases with media evidence metadata", { billable: true })
+  ];
+}
+
+function billingMeter(name, quantity, unit, description, options = {}) {
+  const normalizedQuantity = Number(quantity || 0);
+  const weight = typeof options.weight === "number" && !Number.isNaN(options.weight) ? options.weight : 1;
+  const billable = options.billable !== false;
+  return {
+    meter: name,
+    quantity: normalizedQuantity,
+    unit,
+    description,
+    billable,
+    billable_units: billable ? Math.round(normalizedQuantity * weight * 1000) / 1000 : 0,
+    billable_weight: weight
+  };
+}
+
+function mergeBillingMeters(defaultMeters = [], optionMeters = []) {
+  const byName = new Map(defaultMeters.map((item) => [item.meter, item]));
+  for (const meter of optionMeters) {
+    if (!meter || !meter.meter) {
+      continue;
+    }
+    const previous = byName.get(meter.meter) || {};
+    byName.set(meter.meter, normalizeBillingMeter({
+      ...previous,
+      ...meter,
+      description: meter.description || previous.description
+    }));
+  }
+  return [...byName.values()].map(normalizeBillingMeter);
+}
+
+function normalizeBillingMeter(meter = {}) {
+  const quantity = Number(meter.quantity || 0);
+  const weight = typeof meter.billable_weight === "number" && !Number.isNaN(meter.billable_weight)
+    ? meter.billable_weight
+    : typeof meter.weight === "number" && !Number.isNaN(meter.weight)
+      ? meter.weight
+      : 1;
+  const billable = meter.billable !== false;
+  return {
+    meter: meter.meter || "unknown_meter",
+    quantity,
+    unit: meter.unit || "unit",
+    description: meter.description || "Usage meter",
+    billable,
+    billable_units: billable ? Math.round(quantity * weight * 1000) / 1000 : 0,
+    billable_weight: weight
+  };
+}
+
+function resolveBillingPlan(usageFixture = {}, usageQuota = {}, options = {}) {
+  const optionPlan = options.plan || options.billingPlan || {};
+  const planFixture = usageFixture.billing_plan || usageFixture.current_plan || usageFixture.plan || {};
+  const planObject = typeof optionPlan === "string"
+    ? { plan_name: optionPlan }
+    : isObject(optionPlan)
+      ? optionPlan
+      : typeof planFixture === "string"
+        ? { plan_name: planFixture }
+        : objectOr(planFixture);
+  const apiPaths = objectOr(usageFixture.api_paths);
+  const observedPlanPath = Boolean(apiPaths["init.tenant.plan"]);
+  const planName = firstText(
+    planObject.plan_name,
+    planObject.name,
+    planObject.plan,
+    planObject.id,
+    observedPlanPath ? "frontend-observed-plan" : "local-readonly"
+  );
+  const includedUnits = firstNumber(
+    planObject.included_unit_count,
+    planObject.included_units,
+    planObject.quota_units,
+    planObject.quota?.included_units,
+    options.quota?.included_units,
+    options.quota?.included_unit_count
+  );
+
+  return {
+    plan_id: firstText(planObject.plan_id, planObject.id, planName.toLowerCase().replaceAll(" ", "-")),
+    plan_name: planName,
+    source: planObject.source || (observedPlanPath || usageQuota.available ? "usage_quota_observation" : "a3_local_default"),
+    billing_period: firstText(planObject.billing_period, options.billingPeriod, "monthly"),
+    currency: firstText(planObject.currency, options.currency, "USD"),
+    included_unit_count: includedUnits,
+    overage_enabled: planObject.overage_enabled === true || options.overageEnabled === true,
+    mutation_allowed: false
+  };
+}
+
+function resolveBillingQuota(usageFixture = {}, options = {}, billableUnitCount = 0, plan = {}) {
+  const optionQuota = options.quota || {};
+  const fixtureQuota = usageFixture.quota || usageFixture.usage_quota || {};
+  const quotaObject = isObject(optionQuota)
+    ? optionQuota
+    : isObject(fixtureQuota)
+      ? fixtureQuota
+      : {};
+  const includedUnits = firstNumber(
+    quotaObject.included_units,
+    quotaObject.included_unit_count,
+    quotaObject.limit,
+    quotaObject.monthly_limit,
+    plan.included_unit_count
+  );
+  const usedUnits = firstNumber(
+    quotaObject.used_units,
+    quotaObject.used,
+    quotaObject.quantity,
+    billableUnitCount
+  );
+  const remainingUnits = typeof includedUnits === "number"
+    ? Math.max(0, includedUnits - usedUnits)
+    : null;
+
+  return {
+    unit: firstText(quotaObject.unit, quotaObject.meter_unit, "billable_unit"),
+    included_units: includedUnits,
+    used_units: usedUnits,
+    remaining_units: remainingUnits,
+    overage_units: typeof includedUnits === "number" ? Math.max(0, usedUnits - includedUnits) : 0,
+    enforcement: "read_only",
+    source: quotaObject.source || (typeof includedUnits === "number" ? "plan_quota" : "a3_metered_without_limit")
+  };
+}
+
+function classifyOverageRisk(quota = {}, plan = {}) {
+  if (typeof quota.included_units !== "number" || quota.included_units <= 0) {
+    return {
+      status: "unknown_limit",
+      risk_level: "unknown",
+      usage_ratio: null,
+      remaining_units: quota.remaining_units,
+      overage_units: quota.overage_units || 0,
+      reason: "No included quota limit was available in the read-only inputs."
+    };
+  }
+
+  const ratio = quota.used_units / quota.included_units;
+  const usageRatio = Math.round(ratio * 1000) / 1000;
+  if (quota.used_units > quota.included_units) {
+    return {
+      status: "over_quota",
+      risk_level: plan.overage_enabled ? "high" : "blocked",
+      usage_ratio: usageRatio,
+      remaining_units: 0,
+      overage_units: quota.used_units - quota.included_units,
+      reason: plan.overage_enabled
+        ? "Usage exceeds included quota and would enter overage billing on a live plan."
+        : "Usage exceeds included quota and should block plan-limited actions until upgraded."
+    };
+  }
+  if (ratio >= 0.9) {
+    return {
+      status: "near_quota",
+      risk_level: "high",
+      usage_ratio: usageRatio,
+      remaining_units: quota.remaining_units,
+      overage_units: 0,
+      reason: "Usage is at least 90% of included quota."
+    };
+  }
+  if (ratio >= 0.75) {
+    return {
+      status: "watch",
+      risk_level: "medium",
+      usage_ratio: usageRatio,
+      remaining_units: quota.remaining_units,
+      overage_units: 0,
+      reason: "Usage is at least 75% of included quota."
+    };
+  }
+  return {
+    status: "within_quota",
+    risk_level: "low",
+    usage_ratio: usageRatio,
+    remaining_units: quota.remaining_units,
+    overage_units: 0,
+    reason: "Usage is below the configured quota watch threshold."
+  };
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+  return null;
+}
+
+function countCaseJudgeResults(item = {}) {
+  if (Array.isArray(item.judge_results) && item.judge_results.length) {
+    return item.judge_results.length;
+  }
+  return item.grade && Object.keys(objectOr(item.grade)).length > 0 ? 1 : 0;
+}
+
+function hasCaseToolCalls(item = {}) {
+  return (item.expected?.tool_calls || []).length > 0
+    || (item.actual?.tool_calls || []).length > 0;
 }
 
 function extractRequestObjects(input = {}) {
@@ -4130,19 +4800,23 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const releaseUnblockChecklist = summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture);
   const requestProvenance = summarizeRequestProvenance(requestFixture);
   const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
+  const billingUsage = summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe);
   const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture);
   const cloudConsoleShell = summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe);
   const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
   const officialFrontendMirror = summarizeOfficialFrontendMirror(frontendMirrorFixture);
   const officialCodeCrawlParity = summarizeOfficialCodeCrawlParity(frontendCodeCrawlFixture);
   const officialParityRoadmap = summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture);
+  const releaseWorkflowOptions = isA2ReleaseGateFixture(a2Readiness.releaseGateFixture)
+    ? { a2ReleaseGate: a2Readiness.releaseGateFixture }
+    : {};
   const releaseGate = isA2ReleaseGateFixture(a2Readiness.releaseGateFixture)
     ? summarizeReleaseGate(a2Readiness.releaseGateFixture)
     : summarizeReleaseGate(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
-  const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
-  const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture);
+  const releaseWorkflow = summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, releaseWorkflowOptions);
+  const releaseWarRoom = summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture, releaseWorkflowOptions);
   const incidentReplayQueue = summarizeIncidentReplayQueue(runFixture, gradeFixture, reportMediaSignedUrlFixture);
-  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture);
+  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, releaseWorkflowOptions);
   const observabilityReplayMatrix = summarizeObservabilityReplayMatrix(runFixture, gradeFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
   const regressionFactory = summarizeRegressionFactory(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
   const exportRedactionFirewall = summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
@@ -4664,6 +5338,22 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     );
   }
 
+  if (billingUsage.available) {
+    lines.push(
+      "## Billing / Usage Summary",
+      "",
+      `- Plan: ${billingUsage.plan.plan_name} (${billingUsage.plan.billing_period})`,
+      `- Billable units: ${billingUsage.billable_unit_count}`,
+      `- Primary billable meter: ${billingUsage.billable_meter?.meter || "none"}`,
+      `- Quota: ${billingUsage.quota.used_units}/${billingUsage.quota.included_units ?? "unknown"} ${billingUsage.quota.unit}`,
+      `- Overage risk: ${billingUsage.overage_risk.status} (${billingUsage.overage_risk.risk_level})`,
+      `- A1 evidence: runs ${billingUsage.evidence_counts.a1.runs}, cases ${billingUsage.evidence_counts.a1.cases}, trace events ${billingUsage.evidence_counts.a1.trace_events}`,
+      `- A2 evidence: graded cases ${billingUsage.evidence_counts.a2.graded_cases}, judge results ${billingUsage.evidence_counts.a2.judge_results}, failed cases ${billingUsage.evidence_counts.a2.failed_cases}`,
+      `- Billing mutations enabled: ${billingUsage.billing_mutations_enabled ? "yes" : "no"}`,
+      ""
+    );
+  }
+
   if (mediaReadiness.available) {
     lines.push(
       "## Media Readiness",
@@ -4993,6 +5683,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     a2_release_unblock_checklist: summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture),
     request_provenance: summarizeRequestProvenance(requestFixture),
     usage_quota: summarizeUsageQuota(usageFixture, usageApiProbe),
+    billing_usage_summary: summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe),
     media_readiness: summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture),
     cloud_console_shell: summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe),
     official_ashr_gap: summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe),
