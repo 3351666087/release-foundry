@@ -314,3 +314,55 @@ Known gaps / next 20:
 18. Add controlled paid text mutation calibration with explicit quota gate and no retries.
 19. Expand paid media calibration for audio/file/image/video one modality at a time after text evidence.
 20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.
+
+## 2026-07-09 - A1 Go ingress auth handle enforcement and TS/Python parity gate
+
+Goal:
+- Move the Go control-plane boundary away from anonymous protected routes while making TS-vs-Python parity an explicit A1 evidence artifact instead of a subjective line-count discussion.
+
+Implemented:
+- `packages/go/ashrclone/auth.go`: added public-safe auth/scope constants and handle DTOs for the local Go control-plane boundary.
+- `packages/go/ashrclone/server.go`: protected submit, run upload, trace ingestion, artifact manifest, worker job, usage, and audit-chain routes with `api_key_id` / `auth_key_id` handle enforcement. Raw `api_key` bodies and `Authorization` headers are rejected with `secret_input_rejected`; tenant/key handle mismatches are rejected before service mutation.
+- `packages/go/ashrclone/server_test.go`: added negative tests for missing handles, raw key input, tenant mismatch, and key mismatch across submit/upload/trace/usage/audit routes; updated happy paths to send non-secret key handles.
+- `packages/ts/ashr-clone/test/go-server.test.mjs`: extended the real compiled Go HTTP server vertical slice to carry one public key handle through submit/upload/trace/artifact/usage/audit/worker calls.
+- `tests/a1/docs/a1/ts_python_gap_matrix.json` and `tests/a1/test_ts_python_gap_matrix.py`: added a public-safe TS/Python parity matrix and guard test covering exports, API calibration, SaaS control plane, CLI, adapter/runner/trace, and text/audio/file/image/video parity.
+
+Validation:
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 283 tests.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 314 tests.
+- `python -m pytest tests/a1/test_ts_python_gap_matrix.py -q` -> passed as part of the full A1 suite and separately in the TS/Python parity worker.
+
+Real API / private evidence:
+- `ASHR_API_KEY` was present in the environment; no raw key was read from disk, printed, logged, staged, or committed.
+- One PowerShell command attempt failed before execution because it used Bash heredoc syntax; no API request was sent by that failed command.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_go_auth_ts_parity_readonly_20260709_115427.json`.
+- Result: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; response key sets observed for user/health/agents/datasets/requests families.
+- Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_go_auth_ts_parity_readonly_20260709_115427.json`.
+
+Peer changes / impact:
+- Start-of-round PR #22 was open, draft, mergeable, and CL-green. Remote A3 branches `codex/a3-commercial-cl-gate` and `codex/a3-commercial-growth-round2` exist; no A3 file is intentionally staged for this A1 round.
+- Existing unrelated local dirty paths remain excluded: `docs/a3/acceptance_checklist.md`, `docs/a3/worklog.md`, untracked `recon/`, and untracked `tools/`.
+
+Known gaps / next 20:
+1. Replace handle-only Go ingress with hashed API-key storage, one-time reveal, revocation, last-used metadata, and project binding.
+2. Enforce route scopes in Go for submit/upload/trace/artifact/worker/usage/audit instead of only naming scope constants.
+3. Add quota hard limits before Go business mutations and return billing-grade `429` envelopes.
+4. Persist auth, usage, audit, and idempotency through Postgres with live tests gated by `A1_POSTGRES_TEST_DSN`.
+5. Add Postgres RLS tenant-isolation live tests and migration checksum/version ledger.
+6. Add audit-read events so usage/audit reads are themselves auditable.
+7. Add Go audit-log listing and release-evidence packet routes to match richer TS local SaaS surface.
+8. Generate a shared OpenAPI/scope manifest from Go and pin TS/Python clients to it.
+9. Promote the TS/Python gap matrix from static artifact to generated symbol/CLI/route diff.
+10. Close Python-led calibration gaps in TS, especially readiness packets and modality-bound quota gates.
+11. Close TS-led runtime export gaps in Python or document intentional service-only ownership.
+12. Add Python SDK smoke against the compiled Go server for usage/audit/worker and auth-negative paths.
+13. Add TS negative auth tests for Go hosted routes, not only happy-path handle flow.
+14. Expand official read-only calibration to usage/quota/error shapes when the official API exposes them safely.
+15. Add controlled paid text mutation calibration with dry-run plan, small batch, zero retries, and private evidence.
+16. Expand paid media calibration for audio/file/image/video only after modality-specific quota gate evidence.
+17. Add Docker Compose live smoke for Go API + Postgres + worker daemon.
+18. Add Terraform/HCL hardened self-host profile with secret-reference validation.
+19. Extend Rust verifier to signed multi-file bundles and audit tail verification.
+20. Keep A2/A3 files out of A1 commits unless an explicit CL emergency requires cross-lane repair.
