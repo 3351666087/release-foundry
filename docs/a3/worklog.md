@@ -5153,3 +5153,74 @@ Safety:
   cookies, API keys, signed URLs, or private evidence.
 - No live Ashr, GitHub, billing, team, API-key, Trust, or cloud mutation was
   performed.
+
+## 2026-07-09 - A3 A1/A2 Schema Drift Radar and G3 Field Preservation
+
+Continued the commercial SaaS compatibility work by closing the previous
+unfinished A1/A2 schema drift radar round and extending A3 report/source-artifact
+consumers for the newer G3 A2 calibration fields seen on remote A1/A2 branches.
+This keeps A3 aligned with upstream runner/judge evidence without changing A1
+runner behavior or A2 judge semantics.
+
+Changed:
+
+- Added executable A3 schema drift radar:
+  `services/report/a3_schema_drift_radar.mjs`.
+- Added RBAC-protected API route: `GET /api/a3/a1-a2/schema-drift`.
+- Added `read_schema_drift` operation requiring `audit:read`.
+- Added schema drift tests covering hash-only output, critical field loss, and
+  viewer-denied/auditor-allowed API behavior.
+- Extended `summarizeEvidenceReadiness(...)` to preserve G3 A2 readiness fields
+  for A1 official API readonly manifests, mutating API indexes, and paid media
+  summaries.
+- Extended Markdown and JSON reports so these official API/media readiness
+  fields remain visible to A3 release reviewers.
+- Extended `summarizeA2ResultPersistence(...)` to preserve
+  `release_unblock_checklist` and `a1_ingestion_digest` record types plus
+  unblock fields such as `overall_status`, `release_gate_decision`,
+  `blocked_gate_count`, `gate_count`, and `private_evidence_required`.
+- Extended source-artifact hashing so optional A1/A2 calibration inputs can be
+  represented as hash-only audit sources:
+  `a1_official_api_readonly_manifest`,
+  `a1_official_api_mutating_index`,
+  `a1_official_api_paid_media_summary`,
+  `a2_result_persistence_manifest`, and
+  `a2_release_unblock_checklist`.
+- Updated `docs/a3/a3_a1_a2_schema_drift_radar_2026_07_09.md`.
+
+Validation so far:
+
+- `node --check services/report/report_builder.mjs`
+- `node --check services/report/a3_source_artifacts.mjs`
+- `node --check services/report/a3_schema_drift_radar.mjs`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs tests/a3/a3_schema_drift_radar.test.mjs tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_api_server.test.mjs`
+- Focused result: 59 tests passed, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 241 tests, 0
+  failed.
+- E2E result: `npm.cmd run test:e2e` passed with 9 tests, 0 failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- Current branch still contains `origin/main` as an ancestor.
+- Local remote refs show `origin/codex/a1-local-sdk-runner` and
+  `origin/dev/g3-a2-calibration`.
+- This round inspected remote A2 schema shapes for official API readonly,
+  official API mutating, paid media evidence, result persistence, cross-lane
+  security context, and SQL store reports.
+- A3 consumes those fields additively and does not require them before they land
+  in main.
+- No A1 runner, SDK, trace, observation, or tool-call production logic changed.
+- No A2 scenario, judge, score, pass/fail, release-gate, or failure taxonomy
+  semantics changed.
+
+Safety:
+
+- No `.env.local`, API key, token, cookie, email, signed URL, private evidence,
+  or raw official API payload was read into docs or fixtures.
+- Source artifacts remain hash-only and metadata-only.
+- The schema drift API embeds hashes and compatibility findings, not raw schemas.
+- `git fetch origin` was retried during this round but failed with a network
+  reset; existing local remote refs were used for compatibility inspection.

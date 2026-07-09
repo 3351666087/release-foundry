@@ -118,3 +118,52 @@ test("A3 source artifacts hash A1/A2 inputs without embedding raw payloads", () 
     assert.equal(artifact.a3_mutates_source_semantics, false);
   }
 });
+
+test("A3 source artifacts include optional G3 A1/A2 calibration inputs when present", () => {
+  const sourceArtifacts = buildA3SourceArtifacts({
+    ...snapshot,
+    evidenceReadiness: {
+      a1_official_api_readonly_manifest: {
+        schema_version: "a1.official_api_readonly_manifest.v1",
+        available: true,
+        read_step_count: 4,
+        raw_payload_values_included: false
+      },
+      a1_official_api_mutating_index: {
+        schema_version: "a1.official_api_mutating_index.v1",
+        available: true,
+        record_count: 3,
+        secret_values_included: false
+      },
+      a1_official_api_paid_media_summary: {
+        schema_version: "a1.official_api_paid_media_summary.v1",
+        available: true,
+        total_step_count: 2,
+        safe_for_paid_media_claims: true
+      }
+    },
+    resultPersistence: {
+      schema_version: "a2.result_persistence_manifest.v1",
+      record_count: 2,
+      records: [
+        { record_type: "judge_result", output_hash: "sha256:unit" },
+        { record_type: "release_unblock_checklist", output_hash: "sha256:unit-unblock" }
+      ],
+      metadata: { public_safe: true }
+    },
+    releaseUnblockChecklist: {
+      schema_version: "a2.release_unblock_checklist.v1",
+      overall_status: "blocked",
+      gate_items: [{ gate: "C3", blocks_release: true }]
+    }
+  });
+
+  const byType = Object.fromEntries(sourceArtifacts.artifacts.map((artifact) => [artifact.artifact_type, artifact]));
+  assert.equal(sourceArtifacts.source_artifact_count, 10);
+  assert.equal(byType.a1_official_api_readonly_manifest.record_count, 4);
+  assert.equal(byType.a1_official_api_mutating_index.record_count, 3);
+  assert.equal(byType.a1_official_api_paid_media_summary.source_lane, "A1");
+  assert.equal(byType.a2_result_persistence_manifest.source_lane, "A2");
+  assert.equal(byType.a2_release_unblock_checklist.record_count, 1);
+  assert.doesNotMatch(JSON.stringify(sourceArtifacts), /should-not-leak|Bearer|Cookie|owner@example\.com|sk-[A-Za-z0-9]/);
+});

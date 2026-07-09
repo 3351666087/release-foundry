@@ -9,6 +9,21 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
   const runFixture = snapshot.runFixture || snapshot.runs || {};
   const gradeFixture = snapshot.gradeFixture || snapshot.grades || {};
   const releaseEvidence = snapshot.releaseEvidence || snapshot.release_evidence || {};
+  const evidenceReadiness = snapshot.evidenceReadiness || snapshot.evidence_readiness || {};
+  const resultPersistence = snapshot.resultPersistence || snapshot.result_persistence || snapshot.resultPersistenceManifest || snapshot.result_persistence_manifest || {};
+  const releaseUnblockChecklist = snapshot.releaseUnblockChecklist || snapshot.release_unblock_checklist || {};
+  const officialReadonlyManifest = snapshot.a1OfficialApiReadonlyManifest
+    || snapshot.a1_official_api_readonly_manifest
+    || evidenceReadiness.a1_official_api_readonly_manifest
+    || {};
+  const officialMutatingIndex = snapshot.a1OfficialApiMutatingIndex
+    || snapshot.a1_official_api_mutating_index
+    || evidenceReadiness.a1_official_api_mutating_index
+    || {};
+  const officialPaidMediaSummary = snapshot.a1OfficialApiPaidMediaSummary
+    || snapshot.a1_official_api_paid_media_summary
+    || evidenceReadiness.a1_official_api_paid_media_summary
+    || {};
   const cases = normalizeCases(runFixture, gradeFixture);
   const grades = extractGradeResults(gradeFixture);
   const tenantScope = buildA3TenantScope(options, snapshot);
@@ -48,6 +63,46 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
       requiredBy: ["release_war_room", "github_pr_gate", "audit_export"]
     })
   ];
+  if (hasPayload(officialReadonlyManifest)) {
+    artifacts.push(sourceArtifact("a1_official_api_readonly_manifest", "A1", ["OfficialApiReadonlyManifest"], officialReadonlyManifest, {
+      source,
+      tenantScope,
+      recordCount: officialReadonlyManifest.read_step_count || 1,
+      requiredBy: ["official_api_calibration", "evidence_readiness", "audit_export"]
+    }));
+  }
+  if (hasPayload(officialMutatingIndex)) {
+    artifacts.push(sourceArtifact("a1_official_api_mutating_index", "A1", ["OfficialApiMutatingIndex"], officialMutatingIndex, {
+      source,
+      tenantScope,
+      recordCount: officialMutatingIndex.record_count || officialMutatingIndex.total_steps || 1,
+      requiredBy: ["official_api_calibration", "quota_triage", "audit_export"]
+    }));
+  }
+  if (hasPayload(officialPaidMediaSummary)) {
+    artifacts.push(sourceArtifact("a1_official_api_paid_media_summary", "A1", ["OfficialApiPaidMediaSummary"], officialPaidMediaSummary, {
+      source,
+      tenantScope,
+      recordCount: officialPaidMediaSummary.total_step_count || officialPaidMediaSummary.estimated_call_count || 1,
+      requiredBy: ["media_evidence", "paid_media_claims", "audit_export"]
+    }));
+  }
+  if (hasPayload(resultPersistence)) {
+    artifacts.push(sourceArtifact("a2_result_persistence_manifest", "A2", ["ResultPersistenceManifest"], resultPersistence, {
+      source,
+      tenantScope,
+      recordCount: resultPersistence.record_count || (Array.isArray(resultPersistence.records) ? resultPersistence.records.length : 1),
+      requiredBy: ["report_export", "artifact_registry", "audit_export"]
+    }));
+  }
+  if (hasPayload(releaseUnblockChecklist)) {
+    artifacts.push(sourceArtifact("a2_release_unblock_checklist", "A2", ["ReleaseUnblockChecklist"], releaseUnblockChecklist, {
+      source,
+      tenantScope,
+      recordCount: Array.isArray(releaseUnblockChecklist.gate_items) ? releaseUnblockChecklist.gate_items.length : 1,
+      requiredBy: ["review_workflow", "release_war_room", "report_export"]
+    }));
+  }
 
   return {
     schema_version: A3_SOURCE_ARTIFACTS_SCHEMA_VERSION,
@@ -114,6 +169,10 @@ function extractGradeResults(gradeFixture = {}) {
     return [gradeFixture];
   }
   return [];
+}
+
+function hasPayload(value = {}) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
 function sanitizeForHash(value = {}) {

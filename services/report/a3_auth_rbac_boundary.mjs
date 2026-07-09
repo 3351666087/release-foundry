@@ -148,6 +148,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "event_outbox.read",
     resourceType: "event_outbox"
   }),
+  operation("read_schema_drift", "GET /api/a3/a1-a2/schema-drift", "audit:read", "read_only", {
+    event: "schema_drift.read",
+    resourceType: "a1_a2_schema_drift_radar",
+    a1: ["RunResult", "TraceEvent", "Observation", "ToolCall schemas"],
+    a2: ["GradeResult", "ReleaseGate", "result persistence schemas"]
+  }),
   operation("read_usage", "GET /api/a3/usage/ledger", "usage:read", "read_only", {
     event: "usage.read",
     resourceType: "usage_ledger",

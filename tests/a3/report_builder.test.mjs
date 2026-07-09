@@ -1256,16 +1256,99 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
   assert.ok(summary.never_commit.includes("raw prompts"));
 
+  const readinessWithOfficialApi = {
+    ...readiness,
+    a1_official_api_readonly_manifest: {
+      available: true,
+      status: "ready",
+      read_step_count: 7,
+      ok_or_planned_step_count: 6,
+      error_step_count: 1,
+      quota_block_count: 0,
+      modalities: ["text", "image"],
+      step_ids: ["list_runs", "get_run"],
+      public_safe: true,
+      redacted_summary_fields_only: true,
+      raw_payload_values_included: false,
+      ready_for_a2_evidence_context: true
+    },
+    a1_official_api_mutating_index: {
+      available: true,
+      public_safe: true,
+      raw_payloads_included: false,
+      secret_values_included: false,
+      record_count: 4,
+      status_counts: { ok: 2, blocked: 2 },
+      modalities: ["text", "audio"],
+      mutating_step_ids: ["create_request", "create_run"],
+      observed_error_kinds: ["quota"],
+      total_steps: 8,
+      read_step_count: 4,
+      mutating_step_count: 4,
+      quota_block_count: 2,
+      private_manifest_count: 2,
+      ready_for_a2_evidence_context: true,
+      c3_grading_ready: false
+    },
+    a1_official_api_paid_media_summary: {
+      available: true,
+      status: "quota_blocked",
+      mode: "small_batch",
+      public_safe: true,
+      redacted_summary_fields_only: true,
+      raw_payload_values_included: false,
+      guardrails: {
+        quota_gate_present: true,
+        raw_records_private: true
+      },
+      total_step_count: 5,
+      read_step_count: 2,
+      mutating_step_count: 3,
+      ok_or_planned_step_count: 3,
+      error_step_count: 2,
+      quota_block_count: 2,
+      estimated_call_count: 5,
+      modalities: ["image", "audio"],
+      step_ids: ["media-image-smoke", "media-audio-smoke"],
+      mutating_functions: ["create_request"],
+      mutating_modalities: ["image"],
+      quota_blocked_step_ids: ["media-image-smoke"],
+      quota_remaining_observed: true,
+      status_code_counts: { 200: 2, 429: 2 },
+      ready_for_a2_evidence_context: true,
+      safe_for_paid_media_claims: false,
+      c3_grading_ready: false
+    }
+  };
+  const officialSummary = summarizeEvidenceReadiness(readinessWithOfficialApi);
+  assert.equal(officialSummary.official_api_readonly_available, true);
+  assert.equal(officialSummary.official_api_readonly_ready_for_a2_evidence_context, true);
+  assert.deepEqual(officialSummary.official_api_readonly_modalities, ["text", "image"]);
+  assert.equal(officialSummary.official_api_mutating_record_count, 4);
+  assert.equal(officialSummary.official_api_mutating_secret_values_included, false);
+  assert.equal(officialSummary.official_api_mutating_quota_block_count, 2);
+  assert.equal(officialSummary.official_api_paid_media_status, "quota_blocked");
+  assert.equal(officialSummary.official_api_paid_media_estimated_call_count, 5);
+  assert.equal(officialSummary.official_api_paid_media_safe_for_paid_media_claims, false);
+  assert.equal(officialSummary.official_api_paid_media_guardrails.raw_records_private, true);
+
   const json = buildJsonReport(runs, grades, coverage, readiness);
   assert.equal(json.evidence_readiness.available, true);
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+  const officialJson = buildJsonReport(runs, grades, coverage, readinessWithOfficialApi);
+  assert.equal(officialJson.evidence_readiness.official_api_mutating_record_count, 4);
+  assert.equal(officialJson.evidence_readiness.official_api_paid_media_quota_block_count, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
   assert.match(markdown, /## Evidence Readiness/);
   assert.match(markdown, /Status: awaiting_private_evidence/);
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /SDK languages covered: python, typescript/);
+  const officialMarkdown = buildMarkdownReport(runs, grades, coverage, readinessWithOfficialApi);
+  assert.match(officialMarkdown, /Official API readonly: ready \/ A2 context ready/);
+  assert.match(officialMarkdown, /Official API mutating: records 4, quota blocks 2, raw payloads not included/);
+  assert.match(officialMarkdown, /Official paid media: quota_blocked \/ safe claims no \/ estimated calls 5/);
 });
 
 test("A3 report builder summarizes P3 Ashr request provenance", async () => {
@@ -1870,6 +1953,54 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   assert.equal(persistenceSummary.secrets_not_recorded, true);
   assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_gate" || record.record_type === "scenario_selection"));
 
+  const extendedPersistence = {
+    ...resultPersistence,
+    record_count: resultPersistence.records.length + 1,
+    record_type_counts: {
+      ...resultPersistence.record_type_counts,
+      release_unblock_checklist: 1
+    },
+    source_refs: {
+      ...resultPersistence.source_refs,
+      release_unblock_checklist: "fixtures/a2/results/a2_release_unblock_checklist.json"
+    },
+    records: [
+      ...resultPersistence.records,
+      {
+        schema_version: "a2.result_persistence_record.v1",
+        record_type: "release_unblock_checklist",
+        tenant_id: "org_local_demo",
+        org: "org_local_demo",
+        project: "a2_g3_calibration",
+        run: "a2_g3_grade_results",
+        case: "release-unblock-checklist",
+        case_id: "release-unblock-checklist",
+        scenario_id: null,
+        judge_id: "release_unblock_checklist_builder",
+        judge_version: "a2.release_unblock_checklist.v1",
+        policy_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        input_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+        output_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+        created_at: "2026-07-09T00:00:00Z",
+        overall_status: "blocked",
+        blocked_gate_count: 3,
+        release_gate_decision: "block",
+        release_gate_risk_score: 100,
+        gate_count: 3,
+        private_evidence_required: true,
+        result_schema_version: "a2.release_unblock_checklist.v1"
+      }
+    ]
+  };
+  const extendedPersistenceSummary = summarizeA2ResultPersistence(extendedPersistence);
+  const latestUnblockRecord = extendedPersistenceSummary.latest_records.at(-1);
+  assert.equal(extendedPersistenceSummary.release_unblock_checklist_record_count, 1);
+  assert.equal(latestUnblockRecord.record_type, "release_unblock_checklist");
+  assert.equal(latestUnblockRecord.overall_status, "blocked");
+  assert.equal(latestUnblockRecord.release_gate_decision, "block");
+  assert.equal(latestUnblockRecord.release_gate_risk_score, 100);
+  assert.equal(latestUnblockRecord.private_evidence_required, true);
+
   const unblockSummary = summarizeA2ReleaseUnblockChecklist(releaseUnblockChecklist);
   assert.equal(unblockSummary.available, true);
   assert.equal(unblockSummary.schema_version, "a2.release_unblock_checklist.v1");
@@ -1893,11 +2024,23 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   assert.equal(json.a2_result_persistence.record_count, 162);
   assert.equal(json.a2_release_unblock_checklist.overall_status, "blocked");
   assert.deepEqual(json.a2_release_unblock_checklist.blocking_gate_ids, ["C3", "C4", "C5"]);
+  const extendedJson = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
+    ...bundle,
+    resultPersistence: extendedPersistence
+  });
+  assert.equal(extendedJson.a2_result_persistence.release_unblock_checklist_record_count, 1);
+  assert.equal(extendedJson.a2_result_persistence.latest_records.at(-1).overall_status, "blocked");
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
   assert.match(markdown, /## A2 Result Persistence/);
   assert.match(markdown, /Records: 162/);
   assert.match(markdown, /Safety blocking results: 4/);
+  assert.match(markdown, /Release unblock checklist records: 0/);
+  const extendedMarkdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
+    ...bundle,
+    resultPersistence: extendedPersistence
+  });
+  assert.match(extendedMarkdown, /Release unblock checklist records: 1/);
   assert.match(markdown, /## A2 Release Unblock Checklist/);
   assert.match(markdown, /Blocking gates: C3, C4, C5/);
   assert.match(markdown, /Required reviewers: A2 evidence reviewer, A2 case-book owner/);

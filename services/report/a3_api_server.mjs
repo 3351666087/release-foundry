@@ -13,6 +13,7 @@ import {
   buildA3RbacPolicy
 } from "./a3_auth_rbac_boundary.mjs";
 import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
+import { buildA1A2SchemaDriftRadar } from "./a3_schema_drift_radar.mjs";
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
@@ -104,6 +105,18 @@ export function createA3ApiHandler(options = {}) {
           organizationId: url.searchParams.get("organization_id") || undefined,
           projectId: url.searchParams.get("project_id") || undefined,
           environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/a1-a2/schema-drift") {
+        const authz = authorizeRequest(request, url, "read_schema_drift");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await buildA1A2SchemaDriftRadar({
+          repoRoot: options.repoRoot,
+          repoRef: url.searchParams.get("repo_ref") || undefined,
+          comparedAgainst: url.searchParams.get("compared_against") || undefined
         }));
       }
 

@@ -176,6 +176,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/usage/ledger",
     "GET /api/a3/billing/readiness",
     "GET /api/a3/commercial-api/contract",
+    "GET /api/a3/a1-a2/schema-drift",
     "GET /api/a3/events/outbox",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",

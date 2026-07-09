@@ -601,6 +601,12 @@
 - [x] Verify unauthorized share/readback/admin/review/revoke/outbox attempts return 403 and do not create extra outbox rows.
 - [x] Keep local dashboard demo flows working by sending explicit local role headers from the API client and Playwright tests.
 - [x] Document the fail-closed RBAC write-path round in `docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md`.
+- [x] Add executable A3 schema drift radar for current A1/A2 source schemas with hash-only output.
+- [x] Protect `GET /api/a3/a1-a2/schema-drift` behind `audit:read` RBAC.
+- [x] Preserve newer G3 A2 evidence-readiness fields for A1 official API readonly, mutating, and paid-media summaries in A3 JSON/Markdown reports.
+- [x] Preserve newer A2 result-persistence record fields for `release_unblock_checklist` and `a1_ingestion_digest` without changing A2 judge semantics.
+- [x] Extend A3 source-artifact hashing for optional A1/A2 calibration inputs while keeping raw payloads out of reports.
+- [x] Verify schema drift and G3 field-preservation round with focused Node tests, full A3 Node tests, E2E, commercial CL, hygiene CL, and diff check.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

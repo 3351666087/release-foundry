@@ -480,6 +480,10 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
   const ashr = mapping(evidenceFixture.ashr_grading_preflight);
   const realApi = mapping(evidenceFixture.a1_real_api_evidence);
   const realQuotaGate = mapping(realApi.real_quota_gate);
+  const officialReadonly = mapping(evidenceFixture.a1_official_api_readonly_manifest);
+  const officialMutating = mapping(evidenceFixture.a1_official_api_mutating_index);
+  const officialPaidMedia = mapping(evidenceFixture.a1_official_api_paid_media_summary);
+  const officialPaidMediaGuardrails = mapping(officialPaidMedia.guardrails);
   const officialSdkSmoke = mapping(evidenceFixture.official_sdk_smoke);
   const ashrMergeGate = mapping(evidenceFixture.ashr_public_merge_gate);
   const semantic = mapping(evidenceFixture.semantic_judge_preflight);
@@ -512,6 +516,58 @@ export function summarizeEvidenceReadiness(evidenceFixture = {}) {
     real_api_create_request_blocked: realQuotaGate.create_request_blocked === true,
     real_api_quota_blocked_functions: missing(realQuotaGate.blocked_functions),
     real_api_quota_public_action: realQuotaGate.public_action || "",
+    official_api_readonly_available: officialReadonly.available === true,
+    official_api_readonly_status: officialReadonly.status || "unknown",
+    official_api_readonly_read_step_count: officialReadonly.read_step_count || 0,
+    official_api_readonly_ok_or_planned_step_count: officialReadonly.ok_or_planned_step_count || 0,
+    official_api_readonly_error_step_count: officialReadonly.error_step_count || 0,
+    official_api_readonly_quota_block_count: officialReadonly.quota_block_count || 0,
+    official_api_readonly_public_safe: officialReadonly.public_safe === true,
+    official_api_readonly_redacted_summary_fields_only: officialReadonly.redacted_summary_fields_only === true,
+    official_api_readonly_raw_payload_values_included: officialReadonly.raw_payload_values_included === true,
+    official_api_readonly_ready_for_a2_evidence_context: officialReadonly.ready_for_a2_evidence_context === true,
+    official_api_readonly_modalities: missing(officialReadonly.modalities),
+    official_api_readonly_step_ids: missing(officialReadonly.step_ids),
+    official_api_mutating_available: officialMutating.available === true,
+    official_api_mutating_public_safe: officialMutating.public_safe === true,
+    official_api_mutating_raw_payloads_included: officialMutating.raw_payloads_included === true,
+    official_api_mutating_secret_values_included: officialMutating.secret_values_included === true,
+    official_api_mutating_record_count: officialMutating.record_count || 0,
+    official_api_mutating_status_counts: mapping(officialMutating.status_counts),
+    official_api_mutating_modalities: missing(officialMutating.modalities),
+    official_api_mutating_step_ids: missing(officialMutating.mutating_step_ids),
+    official_api_mutating_observed_error_kinds: missing(officialMutating.observed_error_kinds),
+    official_api_mutating_total_steps: officialMutating.total_steps || 0,
+    official_api_mutating_read_step_count: officialMutating.read_step_count || 0,
+    official_api_mutating_step_count: officialMutating.mutating_step_count || 0,
+    official_api_mutating_quota_block_count: officialMutating.quota_block_count || 0,
+    official_api_mutating_private_manifest_count: officialMutating.private_manifest_count || 0,
+    official_api_mutating_ready_for_a2_evidence_context: officialMutating.ready_for_a2_evidence_context === true,
+    official_api_mutating_c3_grading_ready: officialMutating.c3_grading_ready === true,
+    official_api_paid_media_available: officialPaidMedia.available === true,
+    official_api_paid_media_status: officialPaidMedia.status || "unknown",
+    official_api_paid_media_mode: officialPaidMedia.mode || "unknown",
+    official_api_paid_media_public_safe: officialPaidMedia.public_safe === true,
+    official_api_paid_media_redacted_summary_fields_only: officialPaidMedia.redacted_summary_fields_only === true,
+    official_api_paid_media_raw_payload_values_included: officialPaidMedia.raw_payload_values_included === true,
+    official_api_paid_media_guardrails: officialPaidMediaGuardrails,
+    official_api_paid_media_total_step_count: officialPaidMedia.total_step_count || 0,
+    official_api_paid_media_read_step_count: officialPaidMedia.read_step_count || 0,
+    official_api_paid_media_mutating_step_count: officialPaidMedia.mutating_step_count || 0,
+    official_api_paid_media_ok_or_planned_step_count: officialPaidMedia.ok_or_planned_step_count || 0,
+    official_api_paid_media_error_step_count: officialPaidMedia.error_step_count || 0,
+    official_api_paid_media_quota_block_count: officialPaidMedia.quota_block_count || 0,
+    official_api_paid_media_estimated_call_count: officialPaidMedia.estimated_call_count || 0,
+    official_api_paid_media_modalities: missing(officialPaidMedia.modalities),
+    official_api_paid_media_step_ids: missing(officialPaidMedia.step_ids),
+    official_api_paid_media_mutating_functions: missing(officialPaidMedia.mutating_functions),
+    official_api_paid_media_mutating_modalities: missing(officialPaidMedia.mutating_modalities),
+    official_api_paid_media_quota_blocked_step_ids: missing(officialPaidMedia.quota_blocked_step_ids),
+    official_api_paid_media_quota_remaining_observed: officialPaidMedia.quota_remaining_observed === true,
+    official_api_paid_media_status_code_counts: mapping(officialPaidMedia.status_code_counts),
+    official_api_paid_media_ready_for_a2_evidence_context: officialPaidMedia.ready_for_a2_evidence_context === true,
+    official_api_paid_media_safe_for_paid_media_claims: officialPaidMedia.safe_for_paid_media_claims === true,
+    official_api_paid_media_c3_grading_ready: officialPaidMedia.c3_grading_ready === true,
     official_sdk_smoke_available: officialSdkSmoke.available === true,
     official_sdk_smoke_read_only_reachable: officialSdkSmoke.read_only_reachable === true,
     official_sdk_smoke_ok_call_count: officialSdkSmoke.ok_call_count || 0,
@@ -626,9 +682,17 @@ export function summarizeA2ResultPersistence(resultPersistenceFixture = {}) {
   const records = Array.isArray(resultPersistenceFixture.records) ? resultPersistenceFixture.records : [];
   const releaseGateRecords = records.filter((record) => record.record_type === "release_gate");
   const scenarioSelectionRecords = records.filter((record) => record.record_type === "scenario_selection");
+  const releaseUnblockChecklistRecords = records.filter((record) => record.record_type === "release_unblock_checklist");
+  const a1IngestionDigestRecords = records.filter((record) => record.record_type === "a1_ingestion_digest");
   const judgeRecords = records.filter((record) => record.record_type === "judge_result");
   const safetyBlockingRecords = judgeRecords.filter((record) => record.safety_blocking === true);
   const failedJudgeRecords = judgeRecords.filter((record) => record.passed === false);
+  const recordTypeCounts = Object.keys(objectOr(resultPersistenceFixture.record_type_counts)).length
+    ? objectOr(resultPersistenceFixture.record_type_counts)
+    : records.reduce((counts, record) => ({
+      ...counts,
+      [record.record_type || "unknown"]: (counts[record.record_type || "unknown"] || 0) + 1
+    }), {});
 
   return {
     available,
@@ -639,12 +703,14 @@ export function summarizeA2ResultPersistence(resultPersistenceFixture = {}) {
     run: resultPersistenceFixture.run || "unknown",
     dataset_id: resultPersistenceFixture.dataset_id || null,
     record_count: resultPersistenceFixture.record_count || records.length,
-    record_type_counts: objectOr(resultPersistenceFixture.record_type_counts),
+    record_type_counts: recordTypeCounts,
     judge_result_count: judgeRecords.length,
     failed_judge_result_count: failedJudgeRecords.length,
     safety_blocking_result_count: safetyBlockingRecords.length,
     release_gate_record_count: releaseGateRecords.length,
     scenario_selection_record_count: scenarioSelectionRecords.length,
+    release_unblock_checklist_record_count: releaseUnblockChecklistRecords.length,
+    a1_ingestion_digest_record_count: a1IngestionDigestRecords.length,
     source_refs: objectOr(resultPersistenceFixture.source_refs),
     public_safe: metadata.public_safe === true,
     canonical_json_hashing: metadata.canonical_json_hashing === true,
@@ -662,6 +728,18 @@ export function summarizeA2ResultPersistence(resultPersistenceFixture = {}) {
       primary_failure_class: record.primary_failure_class,
       safety_blocking: record.safety_blocking === true,
       decision: record.decision || null,
+      exit_code: record.exit_code ?? null,
+      risk_score: record.risk_score ?? null,
+      overall_status: record.overall_status || null,
+      blocked_gate_count: record.blocked_gate_count ?? record.blocking_gate_count ?? null,
+      release_gate_decision: record.release_gate_decision || null,
+      release_gate_risk_score: record.release_gate_risk_score ?? null,
+      gate_count: record.gate_count ?? null,
+      private_evidence_required: record.private_evidence_required === true,
+      selected_count: record.selected_count ?? null,
+      selection_id: record.selection_id || null,
+      upload_id: record.upload_id || null,
+      trace_batch_id: record.trace_batch_id || null,
       output_hash: record.output_hash
     })),
     recommendation: available
@@ -5230,6 +5308,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- C3 safe to mark met: ${evidenceReadiness.ashr_safe_to_mark_c3_met ? "yes" : "no"}`,
       `- Real API evidence: ${evidenceReadiness.real_api_evidence_available ? "yes" : "no"} / records ${evidenceReadiness.real_api_total_records || 0}`,
       `- Real API quota gate: ${evidenceReadiness.real_api_create_request_blocked ? "blocked" : "not blocked"} / ${evidenceReadiness.real_api_quota_block_count || 0}`,
+      `- Official API readonly: ${evidenceReadiness.official_api_readonly_available ? evidenceReadiness.official_api_readonly_status : "not attached"} / A2 context ${evidenceReadiness.official_api_readonly_ready_for_a2_evidence_context ? "ready" : "not ready"}`,
+      `- Official API mutating: records ${evidenceReadiness.official_api_mutating_record_count || 0}, quota blocks ${evidenceReadiness.official_api_mutating_quota_block_count || 0}, raw payloads ${evidenceReadiness.official_api_mutating_raw_payloads_included ? "included" : "not included"}`,
+      `- Official paid media: ${evidenceReadiness.official_api_paid_media_status || "unknown"} / safe claims ${evidenceReadiness.official_api_paid_media_safe_for_paid_media_claims ? "yes" : "no"} / estimated calls ${evidenceReadiness.official_api_paid_media_estimated_call_count || 0}`,
       `- Official SDK smoke: ${evidenceReadiness.official_sdk_smoke_read_only_reachable ? "read-only reachable" : "not confirmed"}`,
       `- Semantic judge offline-only: ${evidenceReadiness.semantic_offline_reference_only ? "yes" : "no"}`,
       `- Semantic live reviewed: ${evidenceReadiness.semantic_reviewed_live_observation_count || 0}/${evidenceReadiness.semantic_expected_reviewed_observation_count || 0}`,
@@ -5290,6 +5371,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Safety blocking results: ${resultPersistence.safety_blocking_result_count}`,
       `- Release gate records: ${resultPersistence.release_gate_record_count}`,
       `- Scenario selection records: ${resultPersistence.scenario_selection_record_count}`,
+      `- Release unblock checklist records: ${resultPersistence.release_unblock_checklist_record_count}`,
+      `- A1 ingestion digest records: ${resultPersistence.a1_ingestion_digest_record_count}`,
       `- Public safe: ${resultPersistence.public_safe ? "yes" : "no"}`,
       `- Secrets recorded: ${resultPersistence.secrets_not_recorded ? "no" : "unknown"}`,
       `- Recommendation: ${resultPersistence.recommendation}`,
