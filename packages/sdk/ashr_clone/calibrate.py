@@ -278,6 +278,7 @@ def build_api_calibration_readiness_packet(
     observed_functions = sorted(functions)
     read_only_steps = [step for step in plan.get("steps", []) if isinstance(step, Mapping) and step.get("kind") == "read"]
     read_only_missing = sorted(str(step.get("function")) for step in read_only_steps if not step.get("observed_response_keys"))
+    next_read_only_targets = build_next_read_only_calibration_targets(functions)
     return redact_sensitive(
         {
             "schema_version": API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION,
@@ -313,8 +314,46 @@ def build_api_calibration_readiness_packet(
             "readiness": {
                 "public_packet_ready": True,
                 "read_only_small_batch_ready": not read_only_missing,
+                "next_read_only_calibration_ready": True,
                 "mutating_small_batch_ready": False,
                 "reason_mutating_not_ready": "requires a fresh reviewed plan-batch quota gate and explicit modality before any real create-request call",
+            },
+            "next_read_only_calibration": {
+                "purpose": "Refresh official API calibration for public-safe error, usage, and quota shape coverage without mutating hosted state.",
+                "mode": "read-only small batch",
+                "target_shape_groups": next_read_only_targets,
+                "private_evidence_paths": {
+                    "manifest": "docs/evidence/private_refs/a1_python_api_calibration_manifest_real_error_usage_quota_<timestamp>.json",
+                    "step_records": "docs/evidence/private_refs/a1_python_api_calibration_manifest_real_error_usage_quota_<timestamp>.*.json",
+                    "refreshed_private_index_input": "docs/evidence/private_refs/",
+                },
+                "publishable_outputs": [
+                    "docs/a1/api_calibration/real_api_evidence_index.json",
+                    "docs/a1/api_calibration/real_api_response_field_map.json",
+                    "docs/a1/api_calibration/official_api_readiness_packet.json",
+                ],
+                "constraints": {
+                    "env_only_auth_material": True,
+                    "never_print_or_store_key": True,
+                    "mutating_calls_allowed": False,
+                    "include_mutating_allowed": False,
+                    "paid_media_allowed": False,
+                    "stdout_full_record_allowed": False,
+                    "raw_response_payload_publication_allowed": False,
+                    "real_output_root": "docs/evidence/private_refs",
+                },
+                "acceptance_checks": [
+                    "real read-only command uses --execute --small-batch --max-retries 0",
+                    "real read-only command omits --include-mutating and --allow-paid-media",
+                    "real manifest and step records are written only under docs/evidence/private_refs",
+                    "public summaries contain field names/counts/private paths only, never raw payloads or auth material",
+                    "refreshed packet records error, usage, and quota target outcomes before any mutating calibration round",
+                ],
+                "commands": {
+                    "dry_run_plan": "python -B -m packages.sdk.ashr_clone.calibrate --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run_error_usage_quota_<timestamp>.json",
+                    "real_read_only_private": "python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real_error_usage_quota_<timestamp>.json",
+                    "regenerate_public_packet": "python -B -c \"from pathlib import Path; import json; from packages.sdk.ashr_clone.calibrate import build_api_calibration_readiness_packet; Path('docs/a1/api_calibration/official_api_readiness_packet.json').write_text(json.dumps(build_api_calibration_readiness_packet(), indent=2, sort_keys=True) + '\\n', encoding='utf-8')\"",
+                },
             },
             "gaps": official_api_calibration_gaps(functions, read_only_missing),
             "commands": {
@@ -324,6 +363,47 @@ def build_api_calibration_readiness_packet(
             },
         }
     )
+
+
+def build_next_read_only_calibration_targets(observed_functions: Mapping[str, Any]) -> list[JsonDict]:
+    public_safe_observed_keys_exclude = {"authorization", "headers", "request_headers", "response_headers"}
+
+    def observed_keys(function_name: str, key: str) -> list[str]:
+        details = observed_functions.get(function_name)
+        if not isinstance(details, Mapping):
+            return []
+        value = details.get(key)
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+            return []
+        return sorted(str(item) for item in value if str(item).lower() not in public_safe_observed_keys_exclude)
+
+    return [
+        {
+            "id": "error_shape_refresh",
+            "target_functions": ["init", "get_dataset", "get_run", "get_request", "poll_run", "poll_request"],
+            "target_fields": ["error", "error_kind", "status", "message", "detail"],
+            "observed_error_keys": sorted({key for function in observed_functions for key in observed_keys(function, "error_keys")}),
+            "method": "Use read-only identifiers and intentionally invalid read-only IDs where needed; capture only redacted error envelopes in private records.",
+        },
+        {
+            "id": "usage_shape_refresh",
+            "target_functions": ["init", "keep_alive", "list_runs", "list_requests"],
+            "target_fields": ["usage", "billing", "plan", "limits", "remaining"],
+            "observed_response_keys": sorted({key for function in ("init", "keep_alive", "list_runs", "list_requests") for key in observed_keys(function, "response_keys")}),
+            "method": "Prefer session and list endpoints that may expose account, plan, or ledger metadata without creating runs or requests.",
+        },
+        {
+            "id": "quota_shape_refresh",
+            "target_functions": ["init", "list_datasets", "list_runs", "list_requests", "list_agents"],
+            "target_fields": ["quota", "quota_stop_go", "remaining", "reset_at", "retry_after", "rate_limit"],
+            "observed_quota_block_count": sum(
+                int(details.get("quota_block_count") or 0)
+                for details in observed_functions.values()
+                if isinstance(details, Mapping)
+            ),
+            "method": "Record quota and rate-limit shape names from normal read-only responses and controlled read-only failures; do not attempt to exhaust quota.",
+        },
+    ]
 
 
 def official_api_calibration_gaps(observed_functions: Mapping[str, Any], read_only_missing: Sequence[str]) -> list[JsonDict]:

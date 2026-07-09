@@ -872,6 +872,34 @@ func (repository *PostgresRepository) notImplemented(operation string) error {
 	return fmt.Errorf("%s: %w", operation, ErrPostgresRepositoryNotImplemented)
 }
 
+func (repository *PostgresRepository) CreateAPIKey(tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[APIKeyCreateResult], error) {
+	return Envelope[APIKeyCreateResult]{}, repository.notImplemented("create_api_key")
+}
+
+func (repository *PostgresRepository) ListAPIKeys(tenantID, projectID string) (Envelope[APIKeyListResult], error) {
+	return Envelope[APIKeyListResult]{}, repository.notImplemented("list_api_keys")
+}
+
+func (repository *PostgresRepository) RevokeAPIKey(tenantID, projectID, keyID string) (Envelope[APIKeyRecord], error) {
+	return Envelope[APIKeyRecord]{}, repository.notImplemented("revoke_api_key")
+}
+
+func (repository *PostgresRepository) VerifyAPIKeySecret(tenantID, projectID, keyID, secret, scope string) (Envelope[APIKeyVerifyResult], error) {
+	return Envelope[APIKeyVerifyResult]{}, repository.notImplemented("verify_api_key_secret")
+}
+
+func (repository *PostgresRepository) ConfigureAPIKeyRateLimit(tenantID, projectID, keyID, operation string, limit int) (Envelope[APIKeyRateLimit], error) {
+	return Envelope[APIKeyRateLimit]{}, repository.notImplemented("configure_api_key_rate_limit")
+}
+
+func (repository *PostgresRepository) APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error) {
+	return Envelope[APIKeyRateLimitSnapshot]{}, repository.notImplemented("api_key_rate_limit_snapshot")
+}
+
+func (repository *PostgresRepository) PreflightAPIKey(options PreflightOptions) (Envelope[AuthPreflight], error) {
+	return Envelope[AuthPreflight]{}, repository.notImplemented("auth.preflight")
+}
+
 func (repository *PostgresRepository) requireDB() error {
 	if repository == nil || repository.db == nil {
 		return fmt.Errorf("postgres repository db is required")

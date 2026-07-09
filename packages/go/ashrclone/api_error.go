@@ -19,11 +19,30 @@ type NotFoundError struct {
 	Resource string
 }
 
+type QuotaExceededError struct {
+	Operation string
+	Limit     int
+	Used      int
+	Requested int
+}
+
 func (err NotFoundError) Error() string {
 	if strings.TrimSpace(err.Resource) == "" {
 		return "resource not found"
 	}
 	return err.Resource + " not found"
+}
+
+func (err QuotaExceededError) Error() string {
+	remaining := err.Limit - err.Used
+	if remaining < 0 {
+		remaining = 0
+	}
+	requested := err.Requested
+	if requested <= 0 {
+		requested = 1
+	}
+	return fmt.Sprintf("quota exceeded for %s: requested %d, remaining %d", err.Operation, requested, remaining)
 }
 
 func NewAPIError(statusCode int, body []byte, headers http.Header) APIError {

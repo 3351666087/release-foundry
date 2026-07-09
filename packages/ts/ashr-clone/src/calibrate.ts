@@ -28,6 +28,7 @@ type QuotaGateValidation = JsonRecord & { valid: boolean; gate: QuotaGateSummary
 
 const API_PROBE_BATCH_PLAN_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1";
 const API_PROBE_GATE_VALIDATION_SCHEMA_VERSION = "ashr.clone.api_probe_gate_validation.v1";
+const CALIBRATION_MODALITIES: CalibrationModality[] = ["text", "image", "audio", "file", "video"];
 const DEFAULT_QUOTA_GATE_TTL_SECONDS = 24 * 60 * 60;
 const CALIBRATION_QUOTA_GATE_TARGET_OPERATION = "create-request";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -577,7 +578,7 @@ function canonicalValue(value: unknown): unknown {
 }
 
 function selectedCalibrationModalities(args: CalibrationArgs): CalibrationModality[] {
-  const defaults: CalibrationModality[] = ["text", "image", "audio", "file", "video"];
+  const defaults: CalibrationModality[] = [...CALIBRATION_MODALITIES];
   const selected: CalibrationModality[] = args.modalities.length > 0 ? args.modalities : defaults;
   return Array.from(new Set(selected)).sort((left, right) => modalityOrder(left) - modalityOrder(right));
 }
@@ -593,11 +594,11 @@ function parseModalities(value: string): CalibrationModality[] {
 }
 
 function isCalibrationModality(value: string): value is CalibrationModality {
-  return ["text", "image", "audio", "file", "video"].includes(value);
+  return CALIBRATION_MODALITIES.includes(value as CalibrationModality);
 }
 
 function modalityOrder(modality: CalibrationModality): number {
-  return ["text", "image", "audio", "file", "video"].indexOf(modality);
+  return CALIBRATION_MODALITIES.indexOf(modality);
 }
 function calibrationSteps(args: CalibrationArgs): CalibrationStep[] {
   const limit = Math.min(Math.max(1, Math.trunc(args.limit)), 5);
@@ -666,7 +667,7 @@ function createRequestStep(modality: CalibrationModality): CalibrationStep {
 
 function requestForModality(modality: CalibrationModality): JsonRecord {
   const acceptedInputs: JsonRecord = Object.fromEntries(
-    (["text", "image", "audio", "file", "video", "conversation"] as const).map((part) => [part, { enabled: part === modality || part === "text" }]),
+    ([...CALIBRATION_MODALITIES, "conversation"] as const).map((part) => [part, { enabled: part === modality || part === "text" }]),
   );
   const generationOptions: JsonRecord = {
     generate_images: modality === "image",

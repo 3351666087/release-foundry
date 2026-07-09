@@ -1,5 +1,5 @@
 ﻿#!/usr/bin/env node
-import { AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
+import { AGENT_INPUT_PART_TYPES, AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -1851,7 +1851,7 @@ function envelope<T extends JsonRecord>(operation: SaaSClientOperation, result: 
 
 export function buildSafeMediaEnvelope(value: unknown, options: { parts?: unknown; metadata?: JsonRecord } = {}): SaaSMediaEnvelope {
   const input = coerceAgentInput(value, options);
-  const failures = unsafeMediaEnvelopeFields(input);
+  const failures = [...unsafeMediaInputFields(value), ...unsafeMediaEnvelopeFields(input)];
   if (failures.length > 0) {
     throw new SecretInputError(`unsafe media envelope fields are not accepted: ${failures.join(", ")}`);
   }
@@ -1866,9 +1866,20 @@ export function buildSafeMediaEnvelope(value: unknown, options: { parts?: unknow
   };
 }
 
+function unsafeMediaInputFields(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  const failures: string[] = [];
+  for (const key of Object.keys(value)) {
+    const normalizedKey = key.toLowerCase().replace(/-/g, "_");
+    if (UNSAFE_MEDIA_ENVELOPE_KEYS.has(normalizedKey)) failures.push(key);
+  }
+  return failures;
+}
+
 function unsafeMediaEnvelopeFields(input: AgentInput): string[] {
   const failures: string[] = [];
   input.parts.forEach((part, index) => {
+    if (!AGENT_INPUT_PART_TYPES.includes(part.type)) failures.push(`parts[${index}].type`);
     for (const key of Object.keys(part)) {
       const normalizedKey = key.toLowerCase().replace(/-/g, "_");
       if (UNSAFE_MEDIA_ENVELOPE_KEYS.has(normalizedKey)) failures.push(`parts[${index}].${key}`);

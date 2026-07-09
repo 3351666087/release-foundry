@@ -14,6 +14,7 @@
     "execution_guardrails",
     "observed_surface",
     "readiness",
+    "next_read_only_calibration",
     "gaps",
     "commands"
   ],
@@ -95,12 +96,67 @@
     },
     "readiness": {
       "type": "object",
-      "required": ["public_packet_ready", "read_only_small_batch_ready", "mutating_small_batch_ready", "reason_mutating_not_ready"],
+      "required": ["public_packet_ready", "read_only_small_batch_ready", "next_read_only_calibration_ready", "mutating_small_batch_ready", "reason_mutating_not_ready"],
       "properties": {
         "public_packet_ready": {"const": true},
         "read_only_small_batch_ready": {"type": "boolean"},
+        "next_read_only_calibration_ready": {"const": true},
         "mutating_small_batch_ready": {"const": false},
         "reason_mutating_not_ready": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "next_read_only_calibration": {
+      "type": "object",
+      "required": ["purpose", "mode", "target_shape_groups", "private_evidence_paths", "constraints", "acceptance_checks", "commands"],
+      "properties": {
+        "purpose": {"type": "string"},
+        "mode": {"const": "read-only small batch"},
+        "target_shape_groups": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["id", "target_functions", "target_fields", "method"],
+            "properties": {
+              "id": {"enum": ["error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"]},
+              "target_functions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+              "target_fields": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+              "method": {"type": "string"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "private_evidence_paths": {
+          "type": "object",
+          "required": ["manifest", "step_records", "refreshed_private_index_input"],
+          "additionalProperties": {"type": "string", "pattern": "^docs/evidence/private_refs"}
+        },
+        "publishable_outputs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^docs/a1/api_calibration/"}
+        },
+        "constraints": {
+          "type": "object",
+          "required": ["env_only_auth_material", "never_print_or_store_key", "mutating_calls_allowed", "include_mutating_allowed", "paid_media_allowed", "stdout_full_record_allowed", "raw_response_payload_publication_allowed", "real_output_root"],
+          "properties": {
+            "env_only_auth_material": {"const": true},
+            "never_print_or_store_key": {"const": true},
+            "mutating_calls_allowed": {"const": false},
+            "include_mutating_allowed": {"const": false},
+            "paid_media_allowed": {"const": false},
+            "stdout_full_record_allowed": {"const": false},
+            "raw_response_payload_publication_allowed": {"const": false},
+            "real_output_root": {"const": "docs/evidence/private_refs"}
+          },
+          "additionalProperties": true
+        },
+        "acceptance_checks": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "commands": {
+          "type": "object",
+          "required": ["dry_run_plan", "real_read_only_private", "regenerate_public_packet"],
+          "additionalProperties": {"type": "string"}
+        }
       },
       "additionalProperties": true
     },
@@ -128,4 +184,3 @@
   },
   "additionalProperties": true
 }
-

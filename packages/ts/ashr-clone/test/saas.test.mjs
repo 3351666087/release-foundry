@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { AGENT_INPUT_PART_TYPES } from "../dist/index.js";
 import { SaaSControlPlaneRouter, SaaSControlPlaneService, SaaSIngestionClient, CONTROL_PLANE_SCHEMA_VERSION, buildSafeMediaEnvelope } from "../dist/saas.js";
 
 test("TS SaaS control plane covers key submit upload trace lifecycle idempotency", async () => {
@@ -92,7 +93,7 @@ test("TS SaaS builds public-safe media envelopes for SDK submit metadata", () =>
   assert.equal(envelope.schema_version, CONTROL_PLANE_SCHEMA_VERSION);
   assert.equal(envelope.raw_payload_included, false);
   assert.equal(envelope.secret_value_present, false);
-  assert.deepEqual(envelope.parts.map((part) => part.type), ["text", "image", "audio", "file", "video"]);
+  assert.deepEqual(envelope.parts.map((part) => part.type), AGENT_INPUT_PART_TYPES);
   assert.equal(envelope.parts[1].mime_type, "image/png");
   assert.equal(envelope.parts[3].url, "s3://safe-bucket/report.json");
   assert.equal(envelope.parts[3].name, "report.json");
@@ -111,6 +112,10 @@ test("TS SaaS builds public-safe media envelopes for SDK submit metadata", () =>
   assert.throws(
     () => buildSafeMediaEnvelope("bad", { metadata: { api_key: "tp_should_not_leak" } }),
     /unsafe media envelope fields are not accepted: metadata\.api_key/,
+  );
+  assert.throws(
+    () => buildSafeMediaEnvelope({ text: "bad", raw_payload: { api_key: "tp_should_not_leak" } }),
+    /unsafe media envelope fields are not accepted: raw_payload/,
   );
 });
 
