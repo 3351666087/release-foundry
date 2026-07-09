@@ -20,6 +20,10 @@ type MemoryService struct {
 	traceBatches      map[string]TraceBatch
 	artifactManifests map[string]ArtifactManifest
 	workerJobs        map[string]WorkerJob
+	apiKeys           map[string]APIKeyRecord
+	apiKeyRateLimits  map[string]APIKeyRateLimit
+	usageEvents       []UsageOperationTotal
+	auditEvents       []AuditEvent
 	idem              map[string]idemRecord
 	nextID            int
 }
@@ -34,6 +38,10 @@ func NewMemoryService() *MemoryService {
 		traceBatches:      map[string]TraceBatch{},
 		artifactManifests: map[string]ArtifactManifest{},
 		workerJobs:        map[string]WorkerJob{},
+		apiKeys:           map[string]APIKeyRecord{},
+		apiKeyRateLimits:  map[string]APIKeyRateLimit{},
+		usageEvents:       []UsageOperationTotal{},
+		auditEvents:       []AuditEvent{},
 		idem:              map[string]idemRecord{},
 		nextID:            1,
 	}
@@ -105,6 +113,9 @@ func (service *MemoryService) SubmitRun(tenantID, projectID, datasetID, agentRef
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunSubmit, "sdk_submit", 1); err != nil {
+		return Envelope[Run]{}, err
+	}
 	if runID == "" {
 		runID = service.id("run", datasetID)
 	}
@@ -137,6 +148,9 @@ func (service *MemoryService) UploadRun(tenantID, projectID, runID string, resul
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunUpload, "upload_run", 1); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
 	run, ok := service.runs[runKey(tenantID, projectID, runID)]
 	if !ok {
 		return Envelope[RunUpload]{}, NotFoundError{Resource: "run"}
@@ -173,6 +187,13 @@ func (service *MemoryService) IngestTrace(tenantID, projectID, runID string, obs
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	units := len(observations)
+	if units < 1 {
+		units = 1
+	}
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeTraceIngest, "ingest_trace", units); err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
 	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
 		return Envelope[TraceBatch]{}, NotFoundError{Resource: "run"}
 	}
@@ -206,6 +227,9 @@ func (service *MemoryService) CreateArtifactManifest(tenantID, projectID, runID 
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeArtifactManifestWrite, "artifact_manifest", 1); err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
 	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
 		return Envelope[ArtifactManifest]{}, NotFoundError{Resource: "run"}
 	}
@@ -241,6 +265,179 @@ func (service *MemoryService) ListArtifactManifests(tenantID, projectID, runID s
 	})
 	result := ArtifactManifestList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Manifests: manifests, Count: len(manifests)}
 	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	totals := map[string]UsageOperationTotal{}
+	for _, event := range service.usageEvents {
+		if event.Operation == "" {
+			continue
+		}
+		current := totals[event.Operation]
+		current.Operation = event.Operation
+		current.Units += event.Units
+		current.Events += event.Events
+		totals[event.Operation] = current
+	}
+	operations := make([]string, 0, len(totals))
+	for operation := range totals {
+		operations = append(operations, operation)
+	}
+	sort.Strings(operations)
+	result := UsageSnapshot{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, GeneratedAt: time.Now().UTC()}
+	for _, operation := range operations {
+		total := totals[operation]
+		result.OperationTotals = append(result.OperationTotals, total)
+		result.TotalUnits += total.Units
+		result.TotalEvents += total.Events
+	}
+	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, EventCount: len(service.auditEvents), CheckedAt: time.Now().UTC()}
+	if len(service.auditEvents) > 0 {
+		result.HeadHash = service.auditEvents[0].EventHash
+		result.TailHash = service.auditEvents[len(service.auditEvents)-1].EventHash
+	}
+	return Envelope[AuditChainVerification]{Operation: "audit.chain.verify", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) CreateAPIKey(tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[APIKeyCreateResult], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[APIKeyCreateResult]{}, NotFoundError{Resource: "project"}
+	}
+	if strings.TrimSpace(options.APIKey) != "" {
+		return Envelope[APIKeyCreateResult]{}, AuthzError{Code: "secret_input_rejected", Message: "local API key lifecycle only generates one-time local test secrets"}
+	}
+	keyID := strings.TrimSpace(firstNonEmpty(options.KeyID, options.AuthKeyID))
+	if keyID == "" {
+		keyID = service.id("key", options.Name)
+	}
+	if stringHasRawSecretShape(keyID) || stringHasRawSecretShape(options.Name) {
+		return Envelope[APIKeyCreateResult]{}, AuthzError{Code: "secret_input_rejected", Message: "api key identifiers and names must not contain raw secret material"}
+	}
+	storageKey := apiKeyRecordKey(tenantID, projectID, keyID)
+	if _, exists := service.apiKeys[storageKey]; exists {
+		return Envelope[APIKeyCreateResult]{}, fmt.Errorf("api key %s already exists", keyID)
+	}
+	scopes := sortedUniqueStrings(options.Scopes)
+	if len(scopes) == 0 {
+		return Envelope[APIKeyCreateResult]{}, fmt.Errorf("at least one scope is required")
+	}
+	secret := localAPIKeySecretPrefix + keyID + "_" + mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "key_id": keyID})[:16]
+	now := time.Now().UTC()
+	record := APIKeyRecord{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Name: strings.TrimSpace(options.Name), SecretPrefix: secretPrefix(secret), SecretSHA256: secretHash(secret), Scopes: scopes, CreatedAt: now}
+	service.apiKeys[storageKey] = record
+	result := APIKeyCreateResult{SchemaVersion: ControlPlaneSchemaVersion, APIKey: redactedAPIKeyRecord(record), OneTimeSecretDisplayed: options.RevealSecret}
+	if options.RevealSecret {
+		result.OneTimeSecret = secret
+	}
+	return Envelope[APIKeyCreateResult]{Operation: "api_key.create", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) ListAPIKeys(tenantID, projectID string) (Envelope[APIKeyListResult], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	keys := make([]APIKeyRecord, 0)
+	for _, record := range service.apiKeys {
+		if record.TenantID == tenantID && record.ProjectID == projectID {
+			keys = append(keys, redactedAPIKeyRecord(record))
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].KeyID < keys[j].KeyID })
+	result := APIKeyListResult{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, APIKeys: keys, Count: len(keys)}
+	return Envelope[APIKeyListResult]{Operation: "api_key.list", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) RevokeAPIKey(tenantID, projectID, keyID string) (Envelope[APIKeyRecord], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	storageKey := apiKeyRecordKey(tenantID, projectID, keyID)
+	record, ok := service.apiKeys[storageKey]
+	if !ok {
+		return Envelope[APIKeyRecord]{}, NotFoundError{Resource: "api key"}
+	}
+	record.Revoked = true
+	service.apiKeys[storageKey] = record
+	return Envelope[APIKeyRecord]{Operation: "api_key.revoke", Status: "ok", Result: redactedAPIKeyRecord(record)}, nil
+}
+
+func (service *MemoryService) VerifyAPIKeySecret(tenantID, projectID, keyID, secret, scope string) (Envelope[APIKeyVerifyResult], error) {
+	if !strings.HasPrefix(strings.TrimSpace(secret), localAPIKeySecretPrefix) {
+		return Envelope[APIKeyVerifyResult]{}, AuthzError{Code: "secret_input_rejected", Message: "local verification accepts generated local test secrets only"}
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	storageKey := apiKeyRecordKey(tenantID, projectID, keyID)
+	record, ok := service.apiKeys[storageKey]
+	if !ok {
+		return Envelope[APIKeyVerifyResult]{}, NotFoundError{Resource: "api key"}
+	}
+	authenticated := strings.TrimSpace(secret) != "" && secretHash(secret) == record.SecretSHA256 && !record.Revoked && scopeAllowed(record.Scopes, scope)
+	if authenticated {
+		now := time.Now().UTC()
+		record.LastUsedAt = &now
+		service.apiKeys[storageKey] = record
+	}
+	result := APIKeyVerifyResult{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Authenticated: authenticated, Scope: scope, SecretValuePresent: false, APIKey: redactedAPIKeyRecord(record)}
+	return Envelope[APIKeyVerifyResult]{Operation: "api_key.verify", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) ConfigureAPIKeyRateLimit(tenantID, projectID, keyID, operation string, limit int) (Envelope[APIKeyRateLimit], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.apiKeys[apiKeyRecordKey(tenantID, projectID, keyID)]; !ok {
+		return Envelope[APIKeyRateLimit]{}, NotFoundError{Resource: "api key"}
+	}
+	if strings.TrimSpace(operation) == "" {
+		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("operation is required")
+	}
+	if limit < 0 {
+		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("limit must be non-negative")
+	}
+	now := time.Now().UTC()
+	quota := service.apiKeyRateLimitLocked(tenantID, projectID, keyID, operation, now)
+	quota.Limit = limit
+	quota.Remaining = limit - quota.Used
+	if quota.Remaining < 0 {
+		quota.Remaining = 0
+	}
+	quota.UpdatedAt = now
+	service.apiKeyRateLimits[apiKeyQuotaKey(tenantID, projectID, keyID, operation)] = quota
+	return Envelope[APIKeyRateLimit]{Operation: "api_key.rate_limit.configure", Status: "ok", Result: quota}, nil
+}
+
+func (service *MemoryService) APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	limits := make([]APIKeyRateLimit, 0)
+	for _, quota := range service.apiKeyRateLimits {
+		if quota.TenantID == tenantID && quota.ProjectID == projectID && (keyID == "" || quota.KeyID == keyID) {
+			limits = append(limits, quota)
+		}
+	}
+	sort.Slice(limits, func(i, j int) bool {
+		if limits[i].KeyID != limits[j].KeyID {
+			return limits[i].KeyID < limits[j].KeyID
+		}
+		return limits[i].Operation < limits[j].Operation
+	})
+	result := APIKeyRateLimitSnapshot{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, RateLimits: limits, Count: len(limits)}
+	return Envelope[APIKeyRateLimitSnapshot]{Operation: "api_key.rate_limit.snapshot", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) PreflightAPIKey(options PreflightOptions) (Envelope[AuthPreflight], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	result, err := service.preflightAPIKeyLocked(options, time.Now().UTC())
+	return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, err
 }
 
 type EnqueueWorkerJobOptions struct {
@@ -326,6 +523,8 @@ func (service *MemoryService) EnqueueWorkerJob(tenantID, projectID, jobType, tar
 	availableAt := now
 	job := WorkerJob{SchemaVersion: ControlPlaneSchemaVersion, JobID: jobID, TenantID: tenantID, ProjectID: projectID, JobType: jobType, TargetID: targetID, PayloadSHA256: payloadSHA, RawPayloadIncluded: false, Status: WorkerJobStatusQueued, Priority: priority, Attempts: 0, MaxAttempts: maxAttempts, AvailableAt: &availableAt, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, CreatedAt: now, UpdatedAt: now}
 	service.workerJobs[job.JobID] = job
+	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.enqueue", 1, now)
+	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.enqueue", Units: 1, Events: 1})
 	response := Envelope[WorkerJob]{Operation: "worker.job.enqueue", Status: "ok", Result: job}
 	service.storeIdempotencyLocked("worker.job.enqueue", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -378,6 +577,8 @@ func (service *MemoryService) LeaseWorkerJob(tenantID, projectID, leaseOwnerID s
 	job.LeaseExpiresAt = &leaseExpiresAt
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
+	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.lease", 1, now)
+	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.lease", Units: 1, Events: 1})
 	resultJob := job
 	result := WorkerLeaseResult{SchemaVersion: ControlPlaneSchemaVersion, Status: "leased", TenantID: tenantID, ProjectID: projectID, Leased: true, Job: &resultJob}
 	return Envelope[WorkerLeaseResult]{Operation: "worker.job.lease", Status: "ok", Result: result}, nil
@@ -429,6 +630,8 @@ func (service *MemoryService) CompleteWorkerJob(tenantID, projectID, jobID, leas
 	job.UpdatedAt = now
 	job.CompletedAt = &now
 	service.workerJobs[job.JobID] = job
+	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.complete", 1, now)
+	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.complete", Units: 1, Events: 1})
 	return Envelope[WorkerJob]{Operation: "worker.job.complete", Status: "ok", Result: job}, nil
 }
 
@@ -471,6 +674,8 @@ func (service *MemoryService) FailWorkerJob(tenantID, projectID, jobID, leaseOwn
 	}
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
+	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.fail", 1, now)
+	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.fail", Units: 1, Events: 1})
 	return Envelope[WorkerJob]{Operation: "worker.job.fail", Status: "ok", Result: job}, nil
 }
 
@@ -537,6 +742,153 @@ func (service *MemoryService) id(prefix, name string) string {
 		stem = "local"
 	}
 	return fmt.Sprintf("%s_%s_%d", prefix, stem, service.nextID)
+}
+
+func (service *MemoryService) localAPIKeyChecksEnabledLocked() bool {
+	return len(service.apiKeys) > 0
+}
+
+func (service *MemoryService) authorizeAndConsumeLocked(tenantID, projectID, keyID, scope, operation string, units int) error {
+	now := time.Now().UTC()
+	if _, err := service.preflightAPIKeyLocked(PreflightOptions{TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Scope: scope, Operation: operation, Units: units}, now); err != nil {
+		return err
+	}
+	service.recordAPIKeyUsageLocked(tenantID, projectID, keyID, operation, units, now)
+	service.recordUsageEventLocked(operation, units)
+	return nil
+}
+
+func (service *MemoryService) recordUsageEventLocked(operation string, units int) {
+	if units <= 0 {
+		units = 1
+	}
+	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: operation, Units: units, Events: 1})
+}
+
+func (service *MemoryService) preflightAPIKeyLocked(options PreflightOptions, now time.Time) (AuthPreflight, error) {
+	units := options.Units
+	if units <= 0 {
+		units = 1
+	}
+	result := AuthPreflight{SchemaVersion: ControlPlaneSchemaVersion, TenantID: options.TenantID, ProjectID: options.ProjectID, KeyID: options.KeyID, Operation: options.Operation, CheckedAt: now}
+	if !service.localAPIKeyChecksEnabledLocked() {
+		result.Allowed = true
+		return result, nil
+	}
+	record, ok := service.apiKeys[apiKeyRecordKey(options.TenantID, options.ProjectID, options.KeyID)]
+	if !ok {
+		return result, AuthzError{Code: "api_key_not_found", Message: "api key handle not found"}
+	}
+	result.Scopes = append([]string(nil), record.Scopes...)
+	if record.Revoked {
+		return result, AuthzError{Code: "api_key_revoked", Message: "api key handle has been revoked"}
+	}
+	if !scopeAllowed(record.Scopes, options.Scope) {
+		return result, AuthzError{Code: "scope_denied", Message: "api key handle does not grant required scope"}
+	}
+	if quota, ok := service.apiKeyRateLimits[apiKeyQuotaKey(options.TenantID, options.ProjectID, options.KeyID, options.Operation)]; ok {
+		quota.Remaining = quota.Limit - quota.Used
+		if quota.Remaining < 0 {
+			quota.Remaining = 0
+		}
+		result.Quota = &quota
+		if quota.Limit >= 0 && quota.Used+units > quota.Limit {
+			return result, QuotaExceededError{Operation: options.Operation, Limit: quota.Limit, Used: quota.Used}
+		}
+	}
+	result.Allowed = true
+	return result, nil
+}
+
+func (service *MemoryService) recordAPIKeyUsageLocked(tenantID, projectID, keyID, operation string, units int, now time.Time) {
+	if keyID == "" || operation == "" {
+		return
+	}
+	if units <= 0 {
+		units = 1
+	}
+	quotaKey := apiKeyQuotaKey(tenantID, projectID, keyID, operation)
+	quota, ok := service.apiKeyRateLimits[quotaKey]
+	if ok {
+		quota.Used += units
+		quota.Remaining = quota.Limit - quota.Used
+		if quota.Remaining < 0 {
+			quota.Remaining = 0
+		}
+		quota.UpdatedAt = now
+		service.apiKeyRateLimits[quotaKey] = quota
+	}
+	if record, ok := service.apiKeys[apiKeyRecordKey(tenantID, projectID, keyID)]; ok {
+		record.LastUsedAt = &now
+		service.apiKeys[apiKeyRecordKey(tenantID, projectID, keyID)] = record
+	}
+}
+
+func (service *MemoryService) apiKeyRateLimitLocked(tenantID, projectID, keyID, operation string, now time.Time) APIKeyRateLimit {
+	if quota, ok := service.apiKeyRateLimits[apiKeyQuotaKey(tenantID, projectID, keyID, operation)]; ok {
+		return quota
+	}
+	return APIKeyRateLimit{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Operation: operation, Remaining: 0, UpdatedAt: now}
+}
+
+func apiKeyRecordKey(tenantID, projectID, keyID string) string {
+	return tenantID + "/" + projectID + "/" + keyID
+}
+
+func apiKeyQuotaKey(tenantID, projectID, keyID, operation string) string {
+	return apiKeyRecordKey(tenantID, projectID, keyID) + "/" + operation
+}
+
+func scopeAllowed(scopes []string, required string) bool {
+	if strings.TrimSpace(required) == "" {
+		return true
+	}
+	for _, scope := range scopes {
+		if scope == "*" || scope == required {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedUniqueStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	output := []string{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		output = append(output, trimmed)
+	}
+	sort.Strings(output)
+	return output
+}
+
+func redactedAPIKeyRecord(record APIKeyRecord) APIKeyRecord {
+	record.SecretSHA256 = ""
+	return record
+}
+
+func secretPrefix(secret string) string {
+	if len(secret) <= 8 {
+		return secret
+	}
+	return secret[:8]
+}
+
+func secretHash(secret string) string {
+	digest := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(digest[:])
+}
+
+func stringHasRawSecretShape(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	return strings.HasPrefix(trimmed, "sk-") || strings.HasPrefix(trimmed, "ashr_")
 }
 
 func fingerprint(value any) (string, error) {

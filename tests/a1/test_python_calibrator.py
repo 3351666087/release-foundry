@@ -545,6 +545,8 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     packet = build_api_calibration_readiness_packet()
     safety = packet["public_safety"]
     gap_ids = {gap["id"] for gap in packet["gaps"]}
+    next_read_only = packet["next_read_only_calibration"]
+    target_ids = {target["id"] for target in next_read_only["target_shape_groups"]}
     payload = json.dumps(packet, sort_keys=True)
 
     assert packet["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
@@ -554,6 +556,16 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     assert safety["contains_private_evidence_contents"] is False
     assert safety["private_evidence_references_only"] is True
     assert packet["observed_surface"]["read_only_missing_from_field_map"] == []
+    assert packet["readiness"]["next_read_only_calibration_ready"] is True
+    assert target_ids == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
+    assert next_read_only["constraints"]["env_only_auth_material"] is True
+    assert next_read_only["constraints"]["mutating_calls_allowed"] is False
+    assert next_read_only["constraints"]["include_mutating_allowed"] is False
+    assert next_read_only["constraints"]["paid_media_allowed"] is False
+    assert "--include-mutating" not in next_read_only["commands"]["real_read_only_private"]
+    assert "--allow-paid-media" not in next_read_only["commands"]["real_read_only_private"]
+    assert "--execute --small-batch --max-retries 0" in next_read_only["commands"]["real_read_only_private"]
+    assert next_read_only["commands"]["real_read_only_private"].count("docs/evidence/private_refs/") == 1
     assert "mutating_create_request_quota_gate" in gap_ids
     assert "hosted_surface_not_commercially_complete" in gap_ids
     assert "Bearer " not in payload
@@ -571,10 +583,19 @@ def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_priv
         assert field in packet
     for field in schema["properties"]["public_safety"]["required"]:
         assert field in packet["public_safety"]
+    for field in schema["properties"]["next_read_only_calibration"]["required"]:
+        assert field in packet["next_read_only_calibration"]
     assert packet["public_safety"]["raw_key_material_present"] is False
     assert packet["public_safety"]["auth_header_present"] is False
     assert packet["public_safety"]["private_evidence_root"] == "docs/evidence/private_refs"
+    assert packet["readiness"]["next_read_only_calibration_ready"] is True
+    assert {target["id"] for target in packet["next_read_only_calibration"]["target_shape_groups"]} == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
+    assert packet["next_read_only_calibration"]["constraints"]["env_only_auth_material"] is True
+    assert packet["next_read_only_calibration"]["constraints"]["never_print_or_store_key"] is True
+    assert packet["next_read_only_calibration"]["constraints"]["raw_response_payload_publication_allowed"] is False
     assert "docs/evidence/private_refs" in payload
     assert "response_headers" not in payload
     assert "authorization" not in payload.lower()
     assert "bearer " not in payload.lower()
+    assert "--include-mutating" not in packet["next_read_only_calibration"]["commands"]["real_read_only_private"]
+    assert "--allow-paid-media" not in packet["next_read_only_calibration"]["commands"]["real_read_only_private"]

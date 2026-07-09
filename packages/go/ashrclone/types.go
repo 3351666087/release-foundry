@@ -122,6 +122,52 @@ type ArtifactManifestList struct {
 	Count         int                `json:"count"`
 }
 
+type UsageOperationTotal struct {
+	Operation string `json:"operation"`
+	Units     int    `json:"units"`
+	Events    int    `json:"events"`
+}
+
+type UsageSnapshot struct {
+	SchemaVersion   string                `json:"schema_version"`
+	TenantID        string                `json:"tenant_id"`
+	ProjectID       string                `json:"project_id"`
+	OperationTotals []UsageOperationTotal `json:"operation_totals"`
+	TotalUnits      int                   `json:"total_units"`
+	TotalEvents     int                   `json:"total_events"`
+	GeneratedAt     time.Time             `json:"generated_at"`
+}
+
+type AuditEvent struct {
+	SchemaVersion   string    `json:"schema_version"`
+	TenantID        string    `json:"tenant_id"`
+	ProjectID       string    `json:"project_id"`
+	AuditEventID    string    `json:"audit_event_id"`
+	Action          string    `json:"action"`
+	TargetID        string    `json:"target_id,omitempty"`
+	APIKeyID        string    `json:"api_key_id,omitempty"`
+	IdempotencyKey  string    `json:"idempotency_key,omitempty"`
+	RequestID       string    `json:"request_id,omitempty"`
+	PreviousHash    string    `json:"previous_hash"`
+	EventHash       string    `json:"event_hash"`
+	After           JSONMap   `json:"after,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	CreatedAtUnixNS int64     `json:"created_at_unixns"`
+}
+
+type AuditChainVerification struct {
+	SchemaVersion      string      `json:"schema_version"`
+	TenantID           string      `json:"tenant_id"`
+	ProjectID          string      `json:"project_id"`
+	Verified           bool        `json:"verified"`
+	EventCount         int         `json:"event_count"`
+	HeadHash           string      `json:"head_hash,omitempty"`
+	TailHash           string      `json:"tail_hash,omitempty"`
+	FirstInvalidEvent  *AuditEvent `json:"first_invalid_event,omitempty"`
+	FirstInvalidReason string      `json:"first_invalid_reason,omitempty"`
+	CheckedAt          time.Time   `json:"checked_at"`
+}
+
 const (
 	WorkerJobStatusQueued       = "queued"
 	WorkerJobStatusLeased       = "leased"

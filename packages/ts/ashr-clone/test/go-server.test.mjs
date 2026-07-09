@@ -61,6 +61,7 @@ test("TS SaaS client drives the real Go HTTP server vertical slice", async () =>
   child.stderr.on("data", (chunk) => stderr.push(String(chunk)));
   try {
     const client = SaaSIngestionClient.forBaseUrl(baseUrl);
+    const apiKeyId = "key_ts_go";
     const health = await waitForHealth(client, child);
     assert.equal(health.backend, "memory_service_v0");
 
@@ -78,30 +79,46 @@ test("TS SaaS client drives the real Go HTTP server vertical slice", async () =>
       dataset_id: "dataset_ts_go",
       agent_ref: "agent:ts-go",
       run_id: "run_ts_go",
+      api_key_id: apiKeyId,
       idempotency_key: "idem-submit-ts-go",
     });
     assert.equal(submit.result.run_id, "run_ts_go");
 
-    const upload = await client.uploadRunHttp("tenant_ts_go", "project_ts_go", "run_ts_go", { status: "completed", media: [{ modality: "text", text: "ok" }] }, { upload_id: "upload_ts_go", idempotency_key: "idem-upload-ts-go" });
+    const upload = await client.uploadRunHttp("tenant_ts_go", "project_ts_go", "run_ts_go", { status: "completed", media: [{ modality: "text", text: "ok" }] }, { upload_id: "upload_ts_go", apiKeyId, idempotency_key: "idem-upload-ts-go" });
     assert.equal(upload.result.upload_id, "upload_ts_go");
     assert.equal(upload.result.raw_payload_included, false);
 
-    const trace = await client.ingestTraceHttp("tenant_ts_go", "project_ts_go", "run_ts_go", [{ observation_id: "obs_ts_go", modality: "text", type: "agent_message" }], { batch_id: "trace_ts_go", idempotency_key: "idem-trace-ts-go" });
+    const trace = await client.ingestTraceHttp("tenant_ts_go", "project_ts_go", "run_ts_go", [{ observation_id: "obs_ts_go", modality: "text", type: "agent_message" }], { batch_id: "trace_ts_go", apiKeyId, idempotency_key: "idem-trace-ts-go" });
     assert.equal(trace.result.batch_id, "trace_ts_go");
     assert.equal(trace.result.observation_count, 1);
 
-    const artifact = await client.createArtifactManifestHttp("tenant_ts_go", "project_ts_go", "run_ts_go", { artifact_type: "run_fixture", modalities: ["text", "audio", "file", "image", "video"] }, { artifactId: "artifact_ts_go", idempotencyKey: "idem-artifact-ts-go" });
+    const artifact = await client.createArtifactManifestHttp("tenant_ts_go", "project_ts_go", "run_ts_go", { artifact_type: "run_fixture", modalities: ["text", "audio", "file", "image", "video"] }, { artifactId: "artifact_ts_go", apiKeyId, idempotencyKey: "idem-artifact-ts-go" });
     assert.equal(artifact.result.artifact_id, "artifact_ts_go");
-    const artifacts = await client.listArtifactManifestsHttp("tenant_ts_go", "project_ts_go", "run_ts_go");
+    const artifacts = await client.listArtifactManifestsHttp("tenant_ts_go", "project_ts_go", "run_ts_go", { authKeyId: apiKeyId });
     assert.equal(artifacts.result.count, 1);
 
-    const enqueued = await client.enqueueWorkerJobHttp("tenant_ts_go", "project_ts_go", { job_type: "release_gate", target_id: "run_ts_go", job_id: "job_ts_go", payload: { run_id: "run_ts_go" }, idempotency_key: "idem-job-ts-go" });
+    const usage = await client.usageHttp("tenant_ts_go", "project_ts_go", { authKeyId: apiKeyId });
+    assert.equal(usage.operation, "usage");
+    assert.equal(usage.result.tenant_id, "tenant_ts_go");
+    assert.equal(usage.result.project_id, "project_ts_go");
+    assert.equal(usage.result.operation_totals === null || Array.isArray(usage.result.operation_totals), true);
+    assert.equal(typeof usage.result.total_units, "number");
+    assert.equal(typeof usage.result.total_events, "number");
+
+    const audit = await client.verifyAuditChainHttp("tenant_ts_go", "project_ts_go", { authKeyId: apiKeyId, requestId: "audit-ts-go" });
+    assert.equal(audit.operation, "audit_chain_verify");
+    assert.equal(audit.result.tenant_id, "tenant_ts_go");
+    assert.equal(audit.result.project_id, "project_ts_go");
+    assert.equal(audit.result.verified, true);
+    assert.equal(typeof audit.result.event_count, "number");
+
+    const enqueued = await client.enqueueWorkerJobHttp("tenant_ts_go", "project_ts_go", { job_type: "release_gate", target_id: "run_ts_go", job_id: "job_ts_go", payload: { run_id: "run_ts_go" }, apiKeyId, idempotency_key: "idem-job-ts-go" });
     assert.equal(enqueued.result.job_id, "job_ts_go");
-    const leased = await client.leaseWorkerJobHttp("tenant_ts_go", "project_ts_go", { lease_owner_id: "worker_ts_go", job_type: "release_gate" });
+    const leased = await client.leaseWorkerJobHttp("tenant_ts_go", "project_ts_go", { lease_owner_id: "worker_ts_go", job_type: "release_gate", apiKeyId });
     assert.equal(leased.result.leased, true);
-    const completed = await client.completeWorkerJobHttp("tenant_ts_go", "project_ts_go", "job_ts_go", { status: "ok" }, { lease_owner_id: "worker_ts_go" });
+    const completed = await client.completeWorkerJobHttp("tenant_ts_go", "project_ts_go", "job_ts_go", { status: "ok" }, { lease_owner_id: "worker_ts_go", apiKeyId });
     assert.equal(completed.result.status, "completed");
-    const jobs = await client.listWorkerJobsHttp("tenant_ts_go", "project_ts_go", { status: "completed" });
+    const jobs = await client.listWorkerJobsHttp("tenant_ts_go", "project_ts_go", { status: "completed", authKeyId: apiKeyId });
     assert.equal(jobs.result.count, 1);
   } finally {
     child.kill();

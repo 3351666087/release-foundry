@@ -16,6 +16,13 @@ type HTTPServer struct {
 
 type ControlPlaneBackend interface {
 	BootstrapProject(tenantName, projectName string, dataset Dataset, tenantID, projectID string) (Envelope[BootstrapResult], error)
+	CreateAPIKey(tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[APIKeyCreateResult], error)
+	ListAPIKeys(tenantID, projectID string) (Envelope[APIKeyListResult], error)
+	RevokeAPIKey(tenantID, projectID, keyID string) (Envelope[APIKeyRecord], error)
+	VerifyAPIKeySecret(tenantID, projectID, keyID, secret, scope string) (Envelope[APIKeyVerifyResult], error)
+	ConfigureAPIKeyRateLimit(tenantID, projectID, keyID, operation string, limit int) (Envelope[APIKeyRateLimit], error)
+	APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error)
+	PreflightAPIKey(options PreflightOptions) (Envelope[AuthPreflight], error)
 	SubmitRun(tenantID, projectID, datasetID, agentRef, runID string, metadata JSONMap, options IdempotencyOptions) (Envelope[Run], error)
 	EnqueueWorkerJob(tenantID, projectID, jobType, targetID string, payload JSONMap, options EnqueueWorkerJobOptions) (Envelope[WorkerJob], error)
 	LeaseWorkerJob(tenantID, projectID, leaseOwnerID string, options LeaseWorkerJobOptions) (Envelope[WorkerLeaseResult], error)
@@ -27,6 +34,8 @@ type ControlPlaneBackend interface {
 	IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error)
 	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
 	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
+	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
+	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
 }
 
 type HTTPServerOptions struct {
@@ -88,9 +97,60 @@ func (server *HTTPServer) handleBootstrap(writer http.ResponseWriter, request *h
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
+type requestAuthContext struct {
+	TenantID string
+	APIKeyID string
+}
+
+func resolveRequestAuth(writer http.ResponseWriter, request *http.Request, body JSONMap, requireKey bool, tenantCandidates ...string) (requestAuthContext, bool) {
+	if stringValue(body, "api_key") != "" || strings.TrimSpace(request.Header.Get("Authorization")) != "" {
+		writeError(writer, http.StatusBadRequest, "secret_input_rejected", "local Go control plane accepts api_key_id/auth_key_id handles only, not raw API key material")
+		return requestAuthContext{}, false
+	}
+	headerTenant := firstNonEmpty(request.Header.Get("X-Ashr-Tenant-ID"), request.Header.Get("X-Ashr-Auth-Tenant-ID"))
+	requestTenant := firstNonEmpty(tenantCandidates...)
+	if headerTenant != "" && requestTenant != "" && headerTenant != requestTenant {
+		writeError(writer, http.StatusForbidden, "tenant_mismatch", "tenant_id does not match authenticated tenant handle")
+		return requestAuthContext{}, false
+	}
+	headerKeyID := firstNonEmpty(request.Header.Get("X-Ashr-API-Key-ID"), request.Header.Get("X-Ashr-Auth-Key-ID"))
+	requestKeyID := firstNonEmpty(stringValue(body, "api_key_id"), stringValue(body, "auth_key_id"), request.URL.Query().Get("api_key_id"), request.URL.Query().Get("auth_key_id"))
+	if headerKeyID != "" && requestKeyID != "" && headerKeyID != requestKeyID {
+		writeError(writer, http.StatusForbidden, "api_key_mismatch", "api_key_id/auth_key_id does not match authenticated key handle")
+		return requestAuthContext{}, false
+	}
+	auth := requestAuthContext{TenantID: firstNonEmpty(headerTenant, requestTenant), APIKeyID: firstNonEmpty(headerKeyID, requestKeyID)}
+	if requireKey && auth.APIKeyID == "" {
+		writeError(writer, http.StatusUnauthorized, "authentication_required", "api_key_id/auth_key_id handle is required for protected local Go control-plane routes")
+		return requestAuthContext{}, false
+	}
+	return auth, true
+}
+
+func (server *HTTPServer) preflightRequest(writer http.ResponseWriter, auth requestAuthContext, projectID, scope, operation string) bool {
+	_, err := server.service.PreflightAPIKey(PreflightOptions{TenantID: auth.TenantID, ProjectID: projectID, KeyID: auth.APIKeyID, Scope: scope, Operation: operation, Units: 1})
+	if err != nil {
+		writeServiceError(writer, err)
+		return false
+	}
+	return true
+}
+
 func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
+	if len(parts) >= 1 && parts[0] == "api-keys" {
+		server.handleAPIKeys(writer, request, projectID, parts[1:])
+		return
+	}
 	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "worker-jobs" {
 		server.handleListWorkerJobs(writer, request, projectID)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "usage" {
+		server.handleUsageSnapshot(writer, request, projectID)
+		return
+	}
+	if (request.Method == http.MethodGet || request.Method == http.MethodPost) && len(parts) == 2 && parts[0] == "audit-chain" && parts[1] == "verify" {
+		server.handleVerifyAuditChain(writer, request, projectID)
 		return
 	}
 	if len(parts) >= 3 && parts[0] == "runs" {
@@ -102,15 +162,104 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		return
 	}
 	if request.Method == http.MethodPost && ((len(parts) == 1 && parts[0] == "sdk-submit") || (len(parts) == 2 && parts[0] == "runs" && parts[1] == "submit")) {
-		result, err := server.service.SubmitRun(stringValue(body, "tenant_id"), projectID, stringValue(body, "dataset_id"), stringValue(body, "agent_ref"), stringValue(body, "run_id"), mapValue(body, "metadata"), IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: stringValue(body, "api_key_id")})
+		auth, ok := resolveRequestAuth(writer, request, body, true, stringValue(body, "tenant_id"))
+		if !ok {
+			return
+		}
+		result, err := server.service.SubmitRun(auth.TenantID, projectID, stringValue(body, "dataset_id"), stringValue(body, "agent_ref"), stringValue(body, "run_id"), mapValue(body, "metadata"), IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: auth.APIKeyID})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if len(parts) >= 1 && parts[0] == "worker-jobs" {
-		server.handleWorkerJobs(writer, request, stringValue(body, "tenant_id"), projectID, parts[1:], body)
+		auth, ok := resolveRequestAuth(writer, request, body, true, stringValue(body, "tenant_id"))
+		if !ok {
+			return
+		}
+		server.handleWorkerJobs(writer, request, auth.TenantID, projectID, parts[1:], body, auth)
 		return
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handleUsageSnapshot(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	auth, ok := resolveRequestAuth(writer, request, body, true, firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id")))
+	if !ok {
+		return
+	}
+	if !server.preflightRequest(writer, auth, projectID, ScopeUsageRead, "usage") {
+		return
+	}
+	result, err := server.service.UsageSnapshot(auth.TenantID, projectID)
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+}
+
+func (server *HTTPServer) handleAPIKeys(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	if _, ok := resolveRequestAuth(writer, request, body, false, firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))); !ok {
+		return
+	}
+	query := request.URL.Query()
+	tenantID := firstNonEmpty(query.Get("tenant_id"), stringValue(body, "tenant_id"))
+	if request.Method == http.MethodPost && len(parts) == 0 {
+		result, err := server.service.CreateAPIKey(tenantID, projectID, CreateAPIKeyOptions{Name: stringValue(body, "name"), Scopes: stringSliceFromAny(body["scopes"]), KeyID: stringValue(body, "key_id"), AuthKeyID: stringValue(body, "auth_key_id"), RevealSecret: boolValue(body, "reveal_secret")})
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 0 {
+		result, err := server.service.ListAPIKeys(tenantID, projectID)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "rate-limits" {
+		keyID := firstNonEmpty(query.Get("key_id"), stringValue(body, "key_id"))
+		result, err := server.service.APIKeyRateLimitSnapshot(tenantID, projectID, keyID)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "preflight" {
+		result, err := server.service.PreflightAPIKey(PreflightOptions{TenantID: tenantID, ProjectID: projectID, KeyID: firstNonEmpty(stringValue(body, "key_id"), stringValue(body, "api_key_id"), stringValue(body, "auth_key_id")), Scope: stringValue(body, "scope"), Operation: stringValue(body, "operation"), Units: intValue(body, "units")})
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "revoke" && request.Method == http.MethodPost {
+		result, err := server.service.RevokeAPIKey(tenantID, projectID, parts[0])
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "verify" && request.Method == http.MethodPost {
+		result, err := server.service.VerifyAPIKeySecret(tenantID, projectID, parts[0], stringValue(body, "secret"), stringValue(body, "scope"))
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "rate-limit" && request.Method == http.MethodPost {
+		result, err := server.service.ConfigureAPIKeyRateLimit(tenantID, projectID, parts[0], stringValue(body, "operation"), intValue(body, "limit"))
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handleVerifyAuditChain(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	auth, ok := resolveRequestAuth(writer, request, body, true, firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id")))
+	if !ok {
+		return
+	}
+	if !server.preflightRequest(writer, auth, projectID, ScopeAuditRead, "audit.chain.verify") {
+		return
+	}
+	result, err := server.service.VerifyAuditChain(auth.TenantID, projectID)
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
 func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *http.Request, projectID, runID string, parts []string) {
@@ -118,28 +267,35 @@ func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *h
 	if !ok {
 		return
 	}
-	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))
+	auth, ok := resolveRequestAuth(writer, request, body, true, firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id")))
+	if !ok {
+		return
+	}
+	tenantID := auth.TenantID
 	if len(parts) == 1 {
 		switch parts[0] {
 		case "upload":
 			if request.Method == http.MethodPost {
-				result, err := server.service.UploadRun(tenantID, projectID, runID, mapValue(body, "result"), UploadRunOptions{UploadID: stringValue(body, "upload_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				result, err := server.service.UploadRun(tenantID, projectID, runID, mapValue(body, "result"), UploadRunOptions{UploadID: stringValue(body, "upload_id"), APIKeyID: auth.APIKeyID, IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
 			}
 		case "trace-events":
 			if request.Method == http.MethodPost {
-				result, err := server.service.IngestTrace(tenantID, projectID, runID, observationsFromAny(body["observations"]), IngestTraceOptions{BatchID: stringValue(body, "batch_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				result, err := server.service.IngestTrace(tenantID, projectID, runID, observationsFromAny(body["observations"]), IngestTraceOptions{BatchID: stringValue(body, "batch_id"), APIKeyID: auth.APIKeyID, IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
 			}
 		case "artifact-manifests":
 			if request.Method == http.MethodPost {
-				result, err := server.service.CreateArtifactManifest(tenantID, projectID, runID, mapValue(body, "manifest"), ArtifactManifestOptions{ArtifactID: stringValue(body, "artifact_id"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+				result, err := server.service.CreateArtifactManifest(tenantID, projectID, runID, mapValue(body, "manifest"), ArtifactManifestOptions{ArtifactID: stringValue(body, "artifact_id"), APIKeyID: auth.APIKeyID, IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
 			}
 			if request.Method == http.MethodGet {
+				if !server.preflightRequest(writer, auth, projectID, ScopeArtifactManifestRead, "artifact_manifests") {
+					return
+				}
 				result, err := server.service.ListArtifactManifests(tenantID, projectID, runID)
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
@@ -148,15 +304,14 @@ func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *h
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
 }
-
-func (server *HTTPServer) handleWorkerJobs(writer http.ResponseWriter, request *http.Request, tenantID, projectID string, parts []string, body JSONMap) {
+func (server *HTTPServer) handleWorkerJobs(writer http.ResponseWriter, request *http.Request, tenantID, projectID string, parts []string, body JSONMap, auth requestAuthContext) {
 	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "enqueue" {
-		result, err := server.service.EnqueueWorkerJob(tenantID, projectID, stringValue(body, "job_type"), stringValue(body, "target_id"), mapValue(body, "payload"), EnqueueWorkerJobOptions{JobID: stringValue(body, "job_id"), Priority: intValue(body, "priority"), MaxAttempts: intValue(body, "max_attempts"), APIKeyID: stringValue(body, "api_key_id"), IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
+		result, err := server.service.EnqueueWorkerJob(tenantID, projectID, stringValue(body, "job_type"), stringValue(body, "target_id"), mapValue(body, "payload"), EnqueueWorkerJobOptions{JobID: stringValue(body, "job_id"), Priority: intValue(body, "priority"), MaxAttempts: intValue(body, "max_attempts"), APIKeyID: auth.APIKeyID, IdempotencyKey: idempotencyKey(request, body), RequestID: requestID(request, body)})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "lease" {
-		result, err := server.service.LeaseWorkerJob(tenantID, projectID, stringValue(body, "lease_owner_id"), LeaseWorkerJobOptions{LeaseSeconds: intValue(body, "lease_seconds"), JobType: stringValue(body, "job_type"), APIKeyID: stringValue(body, "api_key_id"), RequestID: requestID(request, body)})
+		result, err := server.service.LeaseWorkerJob(tenantID, projectID, stringValue(body, "lease_owner_id"), LeaseWorkerJobOptions{LeaseSeconds: intValue(body, "lease_seconds"), JobType: stringValue(body, "job_type"), APIKeyID: auth.APIKeyID, RequestID: requestID(request, body)})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
@@ -168,11 +323,11 @@ func (server *HTTPServer) handleWorkerJobs(writer http.ResponseWriter, request *
 			writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 			return
 		case request.Method == http.MethodPost && action == "complete":
-			result, err := server.service.CompleteWorkerJob(tenantID, projectID, jobID, stringValue(body, "lease_owner_id"), mapValue(body, "result"), CompleteWorkerJobOptions{APIKeyID: stringValue(body, "api_key_id"), RequestID: requestID(request, body)})
+			result, err := server.service.CompleteWorkerJob(tenantID, projectID, jobID, stringValue(body, "lease_owner_id"), mapValue(body, "result"), CompleteWorkerJobOptions{APIKeyID: auth.APIKeyID, RequestID: requestID(request, body)})
 			writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 			return
 		case request.Method == http.MethodPost && action == "fail":
-			result, err := server.service.FailWorkerJob(tenantID, projectID, jobID, stringValue(body, "lease_owner_id"), mapValue(body, "error"), FailWorkerJobOptions{RetryAfterSeconds: optionalInt(body, "retry_after_seconds"), APIKeyID: stringValue(body, "api_key_id"), RequestID: requestID(request, body)})
+			result, err := server.service.FailWorkerJob(tenantID, projectID, jobID, stringValue(body, "lease_owner_id"), mapValue(body, "error"), FailWorkerJobOptions{RetryAfterSeconds: optionalInt(body, "retry_after_seconds"), APIKeyID: auth.APIKeyID, RequestID: requestID(request, body)})
 			writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 			return
 		}
@@ -186,16 +341,22 @@ func (server *HTTPServer) handleListWorkerJobs(writer http.ResponseWriter, reque
 		return
 	}
 	query := request.URL.Query()
-	tenantID := firstNonEmpty(query.Get("tenant_id"), stringValue(body, "tenant_id"))
 	status := firstNonEmpty(query.Get("status"), stringValue(body, "status"))
 	jobType := firstNonEmpty(query.Get("job_type"), stringValue(body, "job_type"))
-	authKeyID := firstNonEmpty(query.Get("auth_key_id"), stringValue(body, "auth_key_id"))
+	auth, ok := resolveRequestAuth(writer, request, body, true, firstNonEmpty(query.Get("tenant_id"), stringValue(body, "tenant_id")))
+	if !ok {
+		return
+	}
+	if !server.preflightRequest(writer, auth, projectID, ScopeWorkerJobList, "worker.job.list") {
+		return
+	}
+	authKeyID := auth.APIKeyID
 	limit, err := intFromQueryOrBody(query.Get("limit"), body, "limit")
 	if err != nil {
 		writeError(writer, http.StatusBadRequest, "validation_error", "limit must be an integer")
 		return
 	}
-	result, err := server.service.ListWorkerJobs(tenantID, projectID, ListWorkerJobsOptions{Status: status, JobType: jobType, Limit: limit, AuthKeyID: authKeyID})
+	result, err := server.service.ListWorkerJobs(auth.TenantID, projectID, ListWorkerJobsOptions{Status: status, JobType: jobType, Limit: limit, AuthKeyID: authKeyID})
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
@@ -211,8 +372,9 @@ func GoRouteManifest(backendName ...string) JSONMap {
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
 		backingStore = strings.TrimSpace(backendName[0])
 	}
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/api-keys", "GET /v1/projects/{project_id}/api-keys", "POST /v1/projects/{project_id}/api-keys/preflight", "GET /v1/projects/{project_id}/api-keys/rate-limits", "POST /v1/projects/{project_id}/api-keys/{key_id}/verify", "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke", "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
 }
+
 func readJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap, bool) {
 	if request.Method == http.MethodGet || request.Body == nil {
 		return JSONMap{}, true
@@ -250,11 +412,21 @@ func writeEnvelopeResult[T any](writer http.ResponseWriter, status int, result T
 func writeServiceError(writer http.ResponseWriter, err error) {
 	var conflict IdempotencyConflictError
 	var notFound NotFoundError
+	var authz AuthzError
+	var quota QuotaExceededError
 	switch {
 	case errors.As(err, &conflict):
 		writeError(writer, http.StatusConflict, "idempotency_conflict", conflict.Error())
 	case errors.As(err, &notFound):
 		writeError(writer, http.StatusNotFound, "not_found", notFound.Error())
+	case errors.As(err, &authz):
+		code := authz.Code
+		if code == "" {
+			code = "forbidden"
+		}
+		writeError(writer, http.StatusForbidden, code, authz.Error())
+	case errors.As(err, &quota):
+		writeError(writer, http.StatusTooManyRequests, "quota_exceeded", quota.Error())
 	default:
 		writeError(writer, http.StatusBadRequest, "validation_error", err.Error())
 	}
@@ -292,6 +464,7 @@ func observationsFromAny(value any) []JSONMap {
 	}
 	return observations
 }
+
 func datasetFromRequest(body JSONMap) Dataset {
 	dataset := datasetFromJSON(body["dataset"])
 	if dataset.DatasetID == "" {
@@ -391,6 +564,28 @@ func intValue(body JSONMap, key string) int {
 		return 0
 	}
 	return value
+}
+
+func boolValue(body JSONMap, key string) bool {
+	value, ok := body[key].(bool)
+	return ok && value
+}
+
+func stringSliceFromAny(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		output := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+				output = append(output, text)
+			}
+		}
+		return output
+	default:
+		return nil
+	}
 }
 
 func optionalInt(body JSONMap, key string) *int {

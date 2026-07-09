@@ -1,9 +1,9 @@
 ﻿#!/usr/bin/env node
-import { CloudApiService, NotFoundError, ValidationError } from "./index.js";
+import { AGENT_INPUT_PART_TYPES, AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import type { JsonRecord } from "./index.js";
+import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
 export const SAAS_CLIENT_VERSION = "ashr.clone.ts_saas_ingestion_client.v1";
@@ -79,6 +79,55 @@ export interface SaaSRouterResponse extends JsonRecord {
   status_code: number;
   body: JsonRecord;
 }
+
+export type SaaSClientOperation =
+  | "bootstrap_project"
+  | "create_api_key"
+  | "verify_api_key_secret"
+  | "configure_api_key_rate_limit"
+  | "api_key_rate_limit_snapshot"
+  | "list_api_keys"
+  | "revoke_api_key"
+  | "sdk_submit"
+  | "upload_run"
+  | "ingest_trace"
+  | "lifecycle"
+  | "usage"
+  | "quota_snapshot"
+  | "audit_log"
+  | "audit_chain_verify"
+  | "release_gate"
+  | "release_evidence"
+  | "release_evidence_verify"
+  | "artifact_manifest"
+  | "artifact_manifests"
+  | "worker_job_enqueue"
+  | "worker_job_lease"
+  | "worker_job_heartbeat"
+  | "worker_job_complete"
+  | "worker_job_fail"
+  | "worker_jobs";
+
+export interface SaaSClientEnvelope<T extends JsonRecord = JsonRecord> extends JsonRecord {
+  schema_version: typeof CONTROL_PLANE_SCHEMA_VERSION;
+  client_version: typeof SAAS_CLIENT_VERSION;
+  operation: SaaSClientOperation | string;
+  result: T;
+}
+
+export interface SaaSMediaEnvelope extends JsonRecord {
+  schema_version: typeof CONTROL_PLANE_SCHEMA_VERSION;
+  agent_input_schema_version: typeof AGENT_INPUT_SCHEMA_VERSION;
+  text: string;
+  parts: AgentInputPart[];
+  metadata: JsonRecord;
+  raw_payload_included: false;
+  secret_value_present: false;
+}
+
+export interface SaaSSdkSubmitResult extends JsonRecord { submission: JsonRecord; run: JsonRecord; }
+export interface SaaSUploadRunResult extends JsonRecord { upload_id: string; payload_sha256: string; payload_keys: string[]; raw_payload_included: false; }
+export interface SaaSTraceIngestResult extends JsonRecord { batch_id: string; observation_count: number; observation_ids: string[]; raw_payload_included: false; }
 
 export type SaaSFetchLike = (input: string | URL, init?: {
   method?: string;
@@ -1798,7 +1847,66 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileUR
 }
 
 
-function envelope(operation: string, result: JsonRecord): JsonRecord { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
+function envelope<T extends JsonRecord>(operation: SaaSClientOperation, result: T): SaaSClientEnvelope<T> { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
+
+export function buildSafeMediaEnvelope(value: unknown, options: { parts?: unknown; metadata?: JsonRecord } = {}): SaaSMediaEnvelope {
+  const input = coerceAgentInput(value, options);
+  const failures = [...unsafeMediaInputFields(value), ...unsafeMediaEnvelopeFields(input)];
+  if (failures.length > 0) {
+    throw new SecretInputError(`unsafe media envelope fields are not accepted: ${failures.join(", ")}`);
+  }
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+    agent_input_schema_version: AGENT_INPUT_SCHEMA_VERSION,
+    text: input.text,
+    parts: input.parts.map((part) => cloneJson(part) as AgentInputPart),
+    metadata: cloneJson(input.metadata) as JsonRecord,
+    raw_payload_included: false,
+    secret_value_present: false,
+  };
+}
+
+function unsafeMediaInputFields(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  const failures: string[] = [];
+  for (const key of Object.keys(value)) {
+    const normalizedKey = key.toLowerCase().replace(/-/g, "_");
+    if (UNSAFE_MEDIA_ENVELOPE_KEYS.has(normalizedKey)) failures.push(key);
+  }
+  return failures;
+}
+
+function unsafeMediaEnvelopeFields(input: AgentInput): string[] {
+  const failures: string[] = [];
+  input.parts.forEach((part, index) => {
+    if (!AGENT_INPUT_PART_TYPES.includes(part.type)) failures.push(`parts[${index}].type`);
+    for (const key of Object.keys(part)) {
+      const normalizedKey = key.toLowerCase().replace(/-/g, "_");
+      if (UNSAFE_MEDIA_ENVELOPE_KEYS.has(normalizedKey)) failures.push(`parts[${index}].${key}`);
+    }
+    if (part.type !== "text" && part.url !== undefined && signedUrlLooksSensitive(String(part.url))) failures.push(`parts[${index}].url`);
+  });
+  for (const key of Object.keys(input.metadata)) {
+    const normalizedKey = key.toLowerCase().replace(/-/g, "_");
+    if (UNSAFE_MEDIA_ENVELOPE_KEYS.has(normalizedKey)) failures.push(`metadata.${key}`);
+  }
+  return failures;
+}
+
+const UNSAFE_MEDIA_ENVELOPE_KEYS = new Set(["api_key", "authorization", "bearer", "cookie", "set_cookie", "password", "token", "access_token", "refresh_token", "client_secret", "secret", "content", "data", "bytes", "base64", "raw_payload", "payload"]);
+
+function signedUrlLooksSensitive(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return Array.from(parsed.searchParams.keys()).some((key) => {
+      const normalized = key.toLowerCase().replace(/-/g, "_");
+      return normalized.includes("token") || normalized.includes("sig") || normalized.includes("signature") || normalized.includes("secret") || normalized.includes("key");
+    });
+  } catch {
+    return false;
+  }
+}
+
 function rejectRawApiKey(value: unknown): void { if (value !== undefined && value !== null && String(value).trim() !== "") throw new SecretInputError("raw API key values are not accepted by the local SaaS client; pass apiKeyId/keyId handles only"); }
 function clientString(options: JsonRecord, ...keys: string[]): string | undefined { for (const key of keys) { const value = options[key]; if (typeof value === "string" && value.trim() !== "") return value; } return undefined; }
 function clientRequiredString(options: JsonRecord, ...keys: string[]): string { const value = clientString(options, ...keys); if (value === undefined) throw new ValidationError(`missing required option: ${keys.join("/")}`); return value; }
