@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import { SaaSControlPlaneRouter, SaaSControlPlaneService, SaaSIngestionClient, CONTROL_PLANE_SCHEMA_VERSION } from "../dist/saas.js";
+import { SaaSControlPlaneRouter, SaaSControlPlaneService, SaaSIngestionClient, CONTROL_PLANE_SCHEMA_VERSION, buildSafeMediaEnvelope } from "../dist/saas.js";
 
 test("TS SaaS control plane covers key submit upload trace lifecycle idempotency", async () => {
   const service = new SaaSControlPlaneService();
@@ -71,6 +71,46 @@ test("TS SaaS ingestion client accepts Python SDK option aliases", () => {
   assert.throws(
     () => client.sdkSubmit("tenant_ts_alias", "project_ts_alias", { dataset_id: "dataset_ts_alias", agent_ref: "mock", api_key: "tp_raw" }),
     /raw API key values are not accepted/,
+  );
+});
+
+test("TS SaaS builds public-safe media envelopes for SDK submit metadata", () => {
+  const envelope = buildSafeMediaEnvelope(
+    { text: "inspect multimodal fixture" },
+    {
+      parts: [
+        { type: "text", text: "inspect multimodal fixture" },
+        { type: "image", url: "https://cdn.example.invalid/image.png", mimeType: "image/png", sha256: "imgsha" },
+        { type: "audio", path: "fixtures/audio.wav", mime_type: "audio/wav", sha256: "audiosha" },
+        { type: "file", uri: "s3://safe-bucket/report.json", filename: "report.json", mime_type: "application/json" },
+        { type: "video", source: "fixtures/video.mp4", mime_type: "video/mp4", description: "short fixture" },
+      ],
+      metadata: { request_id: "req-media", fixture: true },
+    },
+  );
+
+  assert.equal(envelope.schema_version, CONTROL_PLANE_SCHEMA_VERSION);
+  assert.equal(envelope.raw_payload_included, false);
+  assert.equal(envelope.secret_value_present, false);
+  assert.deepEqual(envelope.parts.map((part) => part.type), ["text", "image", "audio", "file", "video"]);
+  assert.equal(envelope.parts[1].mime_type, "image/png");
+  assert.equal(envelope.parts[3].url, "s3://safe-bucket/report.json");
+  assert.equal(envelope.parts[3].name, "report.json");
+  assert.equal(envelope.parts[4].path, "fixtures/video.mp4");
+  assert.equal(JSON.stringify(envelope).includes("mimeType"), false);
+  assert.equal(JSON.stringify(envelope).includes("filename"), false);
+
+  assert.throws(
+    () => buildSafeMediaEnvelope("bad", { parts: [{ type: "image", url: "https://cdn.example.invalid/image.png?token=abc" }] }),
+    /unsafe media envelope fields are not accepted: parts\[0\]\.url/,
+  );
+  assert.throws(
+    () => buildSafeMediaEnvelope("bad", { parts: [{ type: "audio", base64: "c2VjcmV0" }] }),
+    /unsafe media envelope fields are not accepted: parts\[0\]\.base64/,
+  );
+  assert.throws(
+    () => buildSafeMediaEnvelope("bad", { metadata: { api_key: "tp_should_not_leak" } }),
+    /unsafe media envelope fields are not accepted: metadata\.api_key/,
   );
 });
 

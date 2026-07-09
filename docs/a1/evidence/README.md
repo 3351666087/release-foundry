@@ -7,7 +7,7 @@ This directory holds public-safe A1 evidence notes and smoke-run pointers. It mu
 `services/runner/docker-compose.a1.yml` is a local Docker Compose artifact for the A1 Go API + Postgres direction. It starts:
 
 - `postgres`: Postgres 16 on loopback port `15432` with local trust auth for disposable smoke data.
-- `api`: the Go control-plane entrypoint from `packages/go/ashrclone/cmd/ashr-api`, listening on loopback port `18787` and configured with `ASHR_GO_BACKEND=postgres` plus a container-internal `ASHR_POSTGRES_DSN`.
+- `api`: the Go control-plane entrypoint from `packages/go/ashrclone/cmd/ashr-api`, listening on loopback port `18787` and configured with `ASHR_GO_BACKEND=postgres` plus a container-internal `ASHR_POSTGRES_DSN`. Its Docker healthcheck uses `services/runner/a1_docker_healthcheck.go` to probe `/healthz` without curl, wget, hosted API keys, or admin-only host access.
 
 Run from the repository root:
 
@@ -27,12 +27,22 @@ Static validation:
 python -m pytest tests/a1/test_local_self_host_smoke_compose.py
 ```
 
+Docker daemon smoke:
+
+```powershell
+docker info --format '{{.ServerVersion}}'
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+```
+
+If Docker Desktop is installed but stopped, the pytest smoke skips the daemon-backed `docker compose config` assertion and reports the Docker connection error instead of requiring administrator credentials.
+
 Boundary notes:
 
 - The compose file is local-only and binds API/Postgres ports to `127.0.0.1`.
 - The API service uses the local Go backend environment only: `ASHR_GO_API_ADDR`, `ASHR_GO_BACKEND`, `ASHR_POSTGRES_DSN`, and `ASHR_A1_SMOKE_MODE`.
 - The artifact intentionally does not set hosted API key variables such as `ASHR_API_KEY`, `ASHR_LABS_API_KEY`, or bearer-token headers.
 - The Postgres DSN is a local service URL for the compose network and is not a production secret.
+- Docker daemon availability is probed with normal user-level `docker info`; no admin-only Docker Desktop repair path is part of this A1 smoke.
 
 ## 2026-07-09 - A1 Postgres / SQL / Compose backend slice
 
@@ -245,8 +255,62 @@ Next 20 A1 growth points:
 13. Add Python SDK smoke against Go Postgres backend.
 14. Generate OpenAPI from Go route manifest and validate TS/Python parity.
 15. Add Terraform/HCL self-host skeleton.
-16. Add Rust tamper-proof evidence bundle verifier.
+16. Expand Rust tamper-proof evidence bundle verifier beyond the initial `ashr.a1.evidence_bundle.v1` SHA-256 slice in `packages/rust/ashr-runtime-verify` to cover signed multi-file bundle manifests.
 17. Add official API dry-run/small-batch calibration for usage/quota/error shapes with redacted private evidence.
 18. Expand paid five-modality calibration only after quota gate review.
 19. Add old-vs-new run diff durable tables and routes.
 20. Keep A2/A3 artifacts isolated unless an explicit CL emergency requires cross-lane repair.
+
+## 2026-07-09 - A1 enterprise audit, usage read model, TS media parity, Docker healthcheck, Rust bundle verifier
+
+Goal:
+- Push A1 toward large-SaaS backend readiness across Go primary API, SQL-backed audit/usage, TS SDK parity, Docker self-host smoke, and Rust tamper-proof evidence verification without touching A2/A3 business semantics.
+
+Implemented:
+- `packages/go/ashrclone`: added `UsageSnapshot`, `UsageOperationTotal`, `AuditEvent`, and `AuditChainVerification` DTOs; exposed `UsageSnapshot` and `VerifyAuditChain` through `ControlPlaneBackend`, MemoryService read parity, Go HTTP routes, and Go route manifest.
+- `packages/go/ashrclone/postgres.go`: added Postgres usage snapshot aggregation and audit-chain verification that reloads `ashr_audit_events`, checks `previous_hash`, recomputes `event_hash`, and returns first invalid event/reason.
+- `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`: refreshed public-safe Go route manifest evidence for `GET /usage` and `GET|POST /audit-chain/verify`.
+- `packages/ts/ashr-clone`: added exported TS SaaS response/envelope typings and `buildSafeMediaEnvelope` covering text/audio/file/image/video equally while rejecting unsafe inline payload/secret fields.
+- `packages/rust/ashr-runtime-verify`: added `verify-bundle` command for `ashr.a1.evidence_bundle.v1`, SHA-256 recomputation over parsed evidence JSON, BOM tolerance, and secret-marker rejection tests.
+- `services/runner`: added `a1_docker_healthcheck.go` and Docker Compose API healthcheck; Docker Desktop daemon was started locally and `docker compose config --quiet` passed.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `cargo fmt; cargo test` in `packages/rust/ashr-runtime-verify` -> passed, 6 tests.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 283 tests.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 313 tests.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> passed.
+- `go test ../../../services/runner/a1_docker_healthcheck.go` from `packages/go/ashrclone` -> passed (`[no test files]`).
+
+Real API / private evidence:
+- `ASHR_API_KEY` was present in the environment; no raw key was read, printed, logged, staged, or committed.
+- Command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_round_usage_audit_readonly_20260709_113216.json`.
+- Result: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`.
+- Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_usage_audit_readonly_20260709_113216.json`.
+
+Peer changes / impact:
+- Baseline at start: PR #22 open/draft/mergeable and CL-green on `0f2061e`; A3 branch `codex/a3-commercial-cl-gate` existed remotely.
+- Existing unrelated dirty files remain excluded: `docs/a3/acceptance_checklist.md`, `docs/a3/worklog.md`, untracked `recon/`, and untracked `tools/`.
+
+Known gaps / next 20:
+1. TS must not lag Python; run a Python-vs-TS exported surface audit and close gaps within two rounds.
+2. Add Go API-key lifecycle tables/routes and bind auth principal to tenant/project/scope.
+3. Reject tenant/project mismatch from body/query vs authenticated API key.
+4. Add Go scope checks for submit/upload/trace/artifact/worker routes.
+5. Add quota hard limits before Go business mutations.
+6. Add live Postgres test path gated by `A1_POSTGRES_TEST_DSN` for usage/audit rows.
+7. Add Postgres RLS tenant isolation live tests.
+8. Add append-only audit trigger or DB-level protection for `ashr_audit_events`.
+9. Add SQL migration version/checksum ledger and health exposure.
+10. Add Go lifecycle snapshot route and run status transitions beyond queued/uploaded.
+11. Add Go audit-log listing route, matching TS/Python hosted contracts.
+12. Add Python SDK smoke against the Go server for usage/audit/worker routes.
+13. Add TS smoke against Go usage/audit routes and negative auth/quota cases.
+14. Add Docker Compose live smoke with Go API + Postgres + worker once DSN is configured.
+15. Add Terraform/HCL self-host skeleton for Go API/Postgres/worker/secrets.
+16. Extend Rust verifier to validate signed multi-file manifests, audit tail, usage totals hash, and artifact hashes.
+17. Add official API dry-run/small-batch field calibration for usage/quota/error shape.
+18. Add controlled paid text mutation calibration with explicit quota gate and no retries.
+19. Expand paid media calibration for audio/file/image/video one modality at a time after text evidence.
+20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.

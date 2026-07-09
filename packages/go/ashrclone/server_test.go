@@ -192,6 +192,9 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
+		"GET /v1/projects/{project_id}/usage":                             false,
+		"GET /v1/projects/{project_id}/audit-chain/verify":                false,
+		"POST /v1/projects/{project_id}/audit-chain/verify":               false,
 		"POST /v1/projects/{project_id}/runs/{run_id}/upload":             false,
 		"POST /v1/projects/{project_id}/runs/{run_id}/trace-events":       false,
 		"POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": false,
@@ -209,6 +212,45 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerUsageAndAuditReadEndpoints(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
+		"tenant_name": "Tenant", "project_name": "Audit", "tenant_id": "tenant_audit", "project_id": "project_audit", "dataset_id": "dataset_audit", "dataset_name": "Dataset",
+	})
+
+	usageResp, err := http.Get(server.URL + "/v1/projects/project_audit/usage?tenant_id=tenant_audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer usageResp.Body.Close()
+	if usageResp.StatusCode != http.StatusOK {
+		t.Fatalf("usage status = %d", usageResp.StatusCode)
+	}
+	var usage UsageSnapshot
+	if err := json.NewDecoder(usageResp.Body).Decode(&usage); err != nil {
+		t.Fatal(err)
+	}
+	if usage.SchemaVersion != ControlPlaneSchemaVersion || usage.TenantID != "tenant_audit" || usage.ProjectID != "project_audit" {
+		t.Fatalf("unexpected usage snapshot: %#v", usage)
+	}
+
+	auditResp, err := http.Get(server.URL + "/v1/projects/project_audit/audit-chain/verify?tenant_id=tenant_audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer auditResp.Body.Close()
+	if auditResp.StatusCode != http.StatusOK {
+		t.Fatalf("audit status = %d", auditResp.StatusCode)
+	}
+	var audit AuditChainVerification
+	if err := json.NewDecoder(auditResp.Body).Decode(&audit); err != nil {
+		t.Fatal(err)
+	}
+	if audit.SchemaVersion != ControlPlaneSchemaVersion || !audit.Verified || audit.TenantID != "tenant_audit" || audit.ProjectID != "project_audit" {
+		t.Fatalf("unexpected audit verification: %#v", audit)
+	}
+}
 func TestHTTPHandlerJSONErrorEnvelope(t *testing.T) {
 	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
 	defer server.Close()

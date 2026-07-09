@@ -779,6 +779,61 @@ ORDER BY created_at ASC, artifact_id ASC
 	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
 }
 
+func (repository *PostgresRepository) VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[AuditChainVerification]{}, err
+	}
+	ctx := context.Background()
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, audit_event_id, action, target_id, api_key_id, idempotency_key, request_id, previous_hash, event_hash, after_json, created_at
+FROM ashr_audit_events
+WHERE tenant_id = $1 AND project_id = $2
+ORDER BY created_at ASC, audit_event_id ASC
+`, tenantID, projectID)
+	if err != nil {
+		return Envelope[AuditChainVerification]{}, fmt.Errorf("verify audit chain query: %w", err)
+	}
+	defer rows.Close()
+
+	result, err := verifyPostgresAuditChainRows(rows, tenantID, projectID, repository.now().UTC())
+	if err != nil {
+		return Envelope[AuditChainVerification]{}, err
+	}
+	return Envelope[AuditChainVerification]{Operation: "audit.chain.verify", Status: "ok", Result: result}, nil
+}
+
+func (repository *PostgresRepository) UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[UsageSnapshot]{}, err
+	}
+	ctx := context.Background()
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT operation, COALESCE(SUM(units), 0)::int, COUNT(*)::int
+FROM ashr_quota_ledger
+WHERE tenant_id = $1 AND project_id = $2
+GROUP BY operation
+ORDER BY operation ASC
+`, tenantID, projectID)
+	if err != nil {
+		return Envelope[UsageSnapshot]{}, fmt.Errorf("usage snapshot query: %w", err)
+	}
+	defer rows.Close()
+	result := UsageSnapshot{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, GeneratedAt: repository.now().UTC()}
+	for rows.Next() {
+		var total UsageOperationTotal
+		if err := rows.Scan(&total.Operation, &total.Units, &total.Events); err != nil {
+			return Envelope[UsageSnapshot]{}, fmt.Errorf("scan usage snapshot: %w", err)
+		}
+		result.OperationTotals = append(result.OperationTotals, total)
+		result.TotalUnits += total.Units
+		result.TotalEvents += total.Events
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[UsageSnapshot]{}, fmt.Errorf("iterate usage snapshot: %w", err)
+	}
+	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
+}
+
 func (repository *PostgresRepository) mutateLeasedWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, now time.Time, operation string, mutate func(context.Context, *sql.Tx, WorkerJob) (WorkerJob, error)) (Envelope[WorkerJob], error) {
 	ctx := context.Background()
 	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -1323,6 +1378,88 @@ func scanPostgresArtifactManifest(scanner workerJobScanner) (ArtifactManifest, e
 	return manifest, nil
 }
 
+type auditEventScanner interface {
+	Scan(dest ...any) error
+}
+
+type auditEventRows interface {
+	auditEventScanner
+	Next() bool
+	Err() error
+}
+
+func scanPostgresAuditEvent(scanner auditEventScanner) (AuditEvent, error) {
+	event := AuditEvent{}
+	var afterPayload []byte
+	err := scanner.Scan(&event.TenantID, &event.ProjectID, &event.AuditEventID, &event.Action, &event.TargetID, &event.APIKeyID, &event.IdempotencyKey, &event.RequestID, &event.PreviousHash, &event.EventHash, &afterPayload, &event.CreatedAt)
+	if err != nil {
+		return AuditEvent{}, err
+	}
+	if len(afterPayload) == 0 {
+		event.After = JSONMap{}
+	} else if err := json.Unmarshal(afterPayload, &event.After); err != nil {
+		return AuditEvent{}, fmt.Errorf("unmarshal audit event after_json: %w", err)
+	}
+	event.SchemaVersion = ControlPlaneSchemaVersion
+	event.CreatedAt = event.CreatedAt.UTC()
+	event.CreatedAtUnixNS = event.CreatedAt.UnixNano()
+	return event, nil
+}
+
+func verifyPostgresAuditChainRows(rows auditEventRows, tenantID, projectID string, checkedAt time.Time) (AuditChainVerification, error) {
+	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, CheckedAt: checkedAt}
+	previousHash := ""
+	for rows.Next() {
+		event, err := scanPostgresAuditEvent(rows)
+		if err != nil {
+			return AuditChainVerification{}, err
+		}
+		if result.EventCount == 0 {
+			result.HeadHash = event.EventHash
+		}
+		result.EventCount++
+		if event.PreviousHash != previousHash {
+			return invalidAuditChain(result, event, fmt.Sprintf("previous_hash mismatch: got %q want %q", event.PreviousHash, previousHash)), nil
+		}
+		expectedHash, err := postgresAuditEventHash(event)
+		if err != nil {
+			return AuditChainVerification{}, err
+		}
+		if event.EventHash != expectedHash {
+			return invalidAuditChain(result, event, fmt.Sprintf("event_hash mismatch: got %q want %q", event.EventHash, expectedHash)), nil
+		}
+		previousHash = event.EventHash
+		result.TailHash = previousHash
+	}
+	if err := rows.Err(); err != nil {
+		return AuditChainVerification{}, err
+	}
+	return result, nil
+}
+
+func invalidAuditChain(result AuditChainVerification, event AuditEvent, reason string) AuditChainVerification {
+	result.Verified = false
+	result.FirstInvalidEvent = &event
+	result.FirstInvalidReason = reason
+	return result
+}
+
+func postgresAuditEventHash(event AuditEvent) (string, error) {
+	return fingerprint(JSONMap{
+		"tenant_id":         event.TenantID,
+		"project_id":        event.ProjectID,
+		"audit_event_id":    event.AuditEventID,
+		"action":            event.Action,
+		"target_id":         event.TargetID,
+		"api_key_id":        event.APIKeyID,
+		"idempotency_key":   event.IdempotencyKey,
+		"request_id":        event.RequestID,
+		"previous_hash":     event.PreviousHash,
+		"after":             defaultMap(event.After),
+		"created_at_unixns": event.CreatedAt.UnixNano(),
+	})
+}
+
 type postgresMutationEvidence struct {
 	APIKeyID       string
 	IdempotencyKey string
@@ -1348,6 +1485,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 }
 
 func appendPostgresAuditEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID, action string, evidence postgresMutationEvidence, now time.Time) error {
+	now = now.UTC().Truncate(time.Microsecond)
 	var previousHash string
 	err := tx.QueryRowContext(ctx, `
 SELECT event_hash

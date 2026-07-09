@@ -20,6 +20,8 @@ type MemoryService struct {
 	traceBatches      map[string]TraceBatch
 	artifactManifests map[string]ArtifactManifest
 	workerJobs        map[string]WorkerJob
+	usageEvents       []UsageOperationTotal
+	auditEvents       []AuditEvent
 	idem              map[string]idemRecord
 	nextID            int
 }
@@ -34,6 +36,8 @@ func NewMemoryService() *MemoryService {
 		traceBatches:      map[string]TraceBatch{},
 		artifactManifests: map[string]ArtifactManifest{},
 		workerJobs:        map[string]WorkerJob{},
+		usageEvents:       []UsageOperationTotal{},
+		auditEvents:       []AuditEvent{},
 		idem:              map[string]idemRecord{},
 		nextID:            1,
 	}
@@ -241,6 +245,46 @@ func (service *MemoryService) ListArtifactManifests(tenantID, projectID, runID s
 	})
 	result := ArtifactManifestList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Manifests: manifests, Count: len(manifests)}
 	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	totals := map[string]UsageOperationTotal{}
+	for _, event := range service.usageEvents {
+		if event.Operation == "" {
+			continue
+		}
+		current := totals[event.Operation]
+		current.Operation = event.Operation
+		current.Units += event.Units
+		current.Events += event.Events
+		totals[event.Operation] = current
+	}
+	operations := make([]string, 0, len(totals))
+	for operation := range totals {
+		operations = append(operations, operation)
+	}
+	sort.Strings(operations)
+	result := UsageSnapshot{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, GeneratedAt: time.Now().UTC()}
+	for _, operation := range operations {
+		total := totals[operation]
+		result.OperationTotals = append(result.OperationTotals, total)
+		result.TotalUnits += total.Units
+		result.TotalEvents += total.Events
+	}
+	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, EventCount: len(service.auditEvents), CheckedAt: time.Now().UTC()}
+	if len(service.auditEvents) > 0 {
+		result.HeadHash = service.auditEvents[0].EventHash
+		result.TailHash = service.auditEvents[len(service.auditEvents)-1].EventHash
+	}
+	return Envelope[AuditChainVerification]{Operation: "audit.chain.verify", Status: "ok", Result: result}, nil
 }
 
 type EnqueueWorkerJobOptions struct {

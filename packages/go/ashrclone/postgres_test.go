@@ -1,8 +1,10 @@
 package ashrclone
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPostgresRepositorySatisfiesBackend(t *testing.T) {
@@ -161,12 +163,93 @@ func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 			_, err := repository.ListArtifactManifests("tenant", "project", "run")
 			return err
 		}},
+		{name: "usage snapshot", call: func() error {
+			_, err := repository.UsageSnapshot("tenant", "project")
+			return err
+		}},
+		{name: "audit chain verify", call: func() error {
+			_, err := repository.VerifyAuditChain("tenant", "project")
+			return err
+		}},
 	}
 	for _, check := range checks {
 		err := check.call()
 		if err == nil || !strings.Contains(err.Error(), "db is required") {
 			t.Fatalf("%s: expected db validation error, got %v", check.name, err)
 		}
+	}
+}
+
+func TestAuditEventJSONUsesTSCompatibleFields(t *testing.T) {
+	event := AuditEvent{SchemaVersion: ControlPlaneSchemaVersion, TenantID: "tenant", ProjectID: "project", AuditEventID: "audit_1", Action: "sdk.submit", PreviousHash: "", EventHash: "abc", CreatedAt: time.Unix(1, 2).UTC(), CreatedAtUnixNS: 1000000002}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := string(payload)
+	for _, field := range []string{"schema_version", "tenant_id", "project_id", "audit_event_id", "previous_hash", "event_hash", "created_at", "created_at_unixns"} {
+		if !strings.Contains(encoded, `"`+field+`"`) {
+			t.Fatalf("audit event JSON missing %s: %s", field, encoded)
+		}
+	}
+}
+
+func TestVerifyPostgresAuditChainRowsAcceptsValidChain(t *testing.T) {
+	rows := newFakeAuditRows(t, []AuditEvent{
+		newAuditTestEvent(t, "audit_1", "sdk.submit", "", time.Unix(10, 1).UTC()),
+	})
+	second := newAuditTestEvent(t, "audit_2", "sdk.upload", rows.records[0].EventHash, time.Unix(11, 2).UTC())
+	rows.records = append(rows.records, fakeAuditRecordFromEvent(t, second))
+
+	result, err := verifyPostgresAuditChainRows(rows, "tenant", "project", time.Unix(12, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified || result.EventCount != 2 {
+		t.Fatalf("verification = %+v", result)
+	}
+	if result.HeadHash == "" || result.TailHash != second.EventHash {
+		t.Fatalf("unexpected chain hashes: %+v", result)
+	}
+}
+
+func TestVerifyPostgresAuditChainRowsRejectsBrokenPreviousHash(t *testing.T) {
+	rows := newFakeAuditRows(t, []AuditEvent{
+		newAuditTestEvent(t, "audit_1", "sdk.submit", "not-the-tail", time.Unix(10, 1).UTC()),
+	})
+	result, err := verifyPostgresAuditChainRows(rows, "tenant", "project", time.Unix(12, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Verified || !strings.Contains(result.FirstInvalidReason, "previous_hash mismatch") {
+		t.Fatalf("expected previous_hash mismatch, got %+v", result)
+	}
+}
+
+func TestVerifyPostgresAuditChainRowsRejectsTamperedEventHash(t *testing.T) {
+	event := newAuditTestEvent(t, "audit_1", "sdk.submit", "", time.Unix(10, 1).UTC())
+	event.EventHash = "tampered"
+	rows := newFakeAuditRows(t, []AuditEvent{event})
+	result, err := verifyPostgresAuditChainRows(rows, "tenant", "project", time.Unix(12, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Verified || !strings.Contains(result.FirstInvalidReason, "event_hash mismatch") {
+		t.Fatalf("expected event_hash mismatch, got %+v", result)
+	}
+}
+
+func TestPostgresAuditEventHashUsesPersistedTimestampPrecision(t *testing.T) {
+	createdAt := time.Unix(10, 123456789).UTC()
+	event := newAuditTestEvent(t, "audit_1", "sdk.submit", "", createdAt.Truncate(time.Microsecond))
+	readBack := event
+	readBack.CreatedAt = createdAt.Truncate(time.Microsecond)
+	hash, err := postgresAuditEventHash(readBack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hash != event.EventHash {
+		t.Fatalf("hash changed after timestamptz precision round trip")
 	}
 }
 
@@ -181,4 +264,70 @@ func TestOpenPostgresRepositoryRequiresDSN(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected DSN validation error")
 	}
+}
+
+type fakeAuditRecord struct {
+	AuditEvent
+	afterPayload []byte
+}
+
+type fakeAuditRows struct {
+	t       *testing.T
+	records []fakeAuditRecord
+	index   int
+}
+
+func newFakeAuditRows(t *testing.T, events []AuditEvent) *fakeAuditRows {
+	t.Helper()
+	rows := &fakeAuditRows{t: t, index: -1}
+	for _, event := range events {
+		rows.records = append(rows.records, fakeAuditRecordFromEvent(t, event))
+	}
+	return rows
+}
+
+func (rows *fakeAuditRows) Next() bool {
+	rows.index++
+	return rows.index < len(rows.records)
+}
+
+func (rows *fakeAuditRows) Err() error { return nil }
+
+func (rows *fakeAuditRows) Scan(dest ...any) error {
+	record := rows.records[rows.index]
+	values := []any{record.TenantID, record.ProjectID, record.AuditEventID, record.Action, record.TargetID, record.APIKeyID, record.IdempotencyKey, record.RequestID, record.PreviousHash, record.EventHash, record.afterPayload, record.CreatedAt}
+	for index, value := range values {
+		switch target := dest[index].(type) {
+		case *string:
+			*target = value.(string)
+		case *[]byte:
+			*target = append((*target)[:0], value.([]byte)...)
+		case *time.Time:
+			*target = value.(time.Time)
+		default:
+			rows.t.Fatalf("unsupported scan target %T", target)
+		}
+	}
+	return nil
+}
+
+func newAuditTestEvent(t *testing.T, auditEventID, action, previousHash string, createdAt time.Time) AuditEvent {
+	t.Helper()
+	event := AuditEvent{SchemaVersion: ControlPlaneSchemaVersion, TenantID: "tenant", ProjectID: "project", AuditEventID: auditEventID, Action: action, TargetID: "target", APIKeyID: "key", IdempotencyKey: "idem", RequestID: "request", PreviousHash: previousHash, After: JSONMap{"target_id": "target"}, CreatedAt: createdAt.UTC()}
+	event.CreatedAtUnixNS = event.CreatedAt.UnixNano()
+	hash, err := postgresAuditEventHash(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event.EventHash = hash
+	return event
+}
+
+func fakeAuditRecordFromEvent(t *testing.T, event AuditEvent) fakeAuditRecord {
+	t.Helper()
+	payload, err := jsonBytes(defaultMap(event.After))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fakeAuditRecord{AuditEvent: event, afterPayload: payload}
 }

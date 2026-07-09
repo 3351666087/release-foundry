@@ -39,6 +39,17 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - go
+        - run
+        - /workspace/services/runner/a1_docker_healthcheck.go
+        - http://127.0.0.1:8787/healthz
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   a1-postgres-smoke:

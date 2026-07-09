@@ -27,6 +27,8 @@ type ControlPlaneBackend interface {
 	IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error)
 	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
 	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
+	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
+	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
 }
 
 type HTTPServerOptions struct {
@@ -93,6 +95,14 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		server.handleListWorkerJobs(writer, request, projectID)
 		return
 	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "usage" {
+		server.handleUsageSnapshot(writer, request, projectID)
+		return
+	}
+	if (request.Method == http.MethodGet || request.Method == http.MethodPost) && len(parts) == 2 && parts[0] == "audit-chain" && parts[1] == "verify" {
+		server.handleVerifyAuditChain(writer, request, projectID)
+		return
+	}
 	if len(parts) >= 3 && parts[0] == "runs" {
 		server.handleRunRoutes(writer, request, projectID, parts[1], parts[2:])
 		return
@@ -111,6 +121,26 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		return
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handleUsageSnapshot(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))
+	result, err := server.service.UsageSnapshot(tenantID, projectID)
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+}
+
+func (server *HTTPServer) handleVerifyAuditChain(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))
+	result, err := server.service.VerifyAuditChain(tenantID, projectID)
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
 func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *http.Request, projectID, runID string, parts []string) {
@@ -211,7 +241,7 @@ func GoRouteManifest(backendName ...string) JSONMap {
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
 		backingStore = strings.TrimSpace(backendName[0])
 	}
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
 }
 func readJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap, bool) {
 	if request.Method == http.MethodGet || request.Body == nil {
