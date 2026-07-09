@@ -75,7 +75,7 @@ def test_wechat_and_alipay_hosted_payment_contracts_are_first_class():
         price={"lookup_key": "ashr_cn_team_monthly", "unit_amount_minor": 68800, "currency": "cny"},
         success_url="https://app.ashr-clone.invalid/cn/success",
         cancel_url="https://app.ashr-clone.invalid/cn/cancel",
-        provider_config={"provider": "wechat", "mode": "test", "secret_ref": "vault:wechat/test/mch_private_key", "account_ref": "mch:demo"},
+        provider_config={"provider": "wechat", "mode": "test", "secret_ref": "vault:wechat/test/mch_private_key", "account_ref": "provider-ref:wechat/test/mch_demo"},
     )
     alipay = build_checkout_session_plan(
         tenant_id="tenant_cn",
@@ -84,15 +84,17 @@ def test_wechat_and_alipay_hosted_payment_contracts_are_first_class():
         price={"lookup_key": "ashr_cn_team_monthly", "unit_amount_minor": 68800, "currency": "cny"},
         success_url="https://app.ashr-clone.invalid/cn/success",
         cancel_url="https://app.ashr-clone.invalid/cn/cancel",
-        provider_config={"provider": "alipay_plus", "mode": "test", "secret_ref": "vault:alipay/test/app_private_key", "account_ref": "alipay-app:demo"},
+        provider_config={"provider": "alipay_plus", "mode": "test", "secret_ref": "vault:alipay/test/app_private_key", "account_ref": "provider-ref:alipay/test/app_demo"},
     )
 
     assert wechat["provider"] == "wechat_pay"
     assert wechat["payment_methods"] == ["wechat_pay"]
     assert wechat["provider_request"]["trade_type"] == "NATIVE"
+    assert wechat["provider_mode_boundary"]["hosted_surface"] == "wechat_pay_native_qr_handoff"
     assert alipay["provider"] == "alipay"
     assert alipay["payment_methods"] == ["alipay"]
     assert alipay["provider_request"]["total_amount"] == "688.00"
+    assert alipay["provider_mode_boundary"]["hosted_surface"] == "alipay_trade_page_pay_handoff"
 
 
 def test_live_mode_requires_explicit_ack_and_secret_indirection():
@@ -133,9 +135,64 @@ def test_billing_contract_rejects_raw_secrets_cards_and_insecure_redirects():
     with pytest.raises(BillingContractError, match="raw secret"):
         build_checkout_session_plan(**base, provider_config={"provider": "stripe", "mode": "test", "secret_ref": "sk_test_should_not_be_here123456"})
     with pytest.raises(BillingContractError, match="sensitive billing"):
-        build_checkout_session_plan(**base, provider_config={"provider": "stripe", "mode": "test"}, metadata={"card_number": "4242 4242 4242 4242"})
+        build_checkout_session_plan(**base, provider_config={"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}, metadata={"card_number": "4242 4242 4242 4242"})
     with pytest.raises(BillingContractError, match="https"):
-        build_checkout_session_plan(**{**base, "success_url": "http://localhost/success"}, provider_config={"provider": "stripe", "mode": "test"})
+        build_checkout_session_plan(**{**base, "success_url": "http://localhost/success"}, provider_config={"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"})
+
+
+@pytest.mark.parametrize(
+    ("provider_config", "expected_methods"),
+    [
+        ({"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF", "allowed_payment_methods": ["card"]}, ["card"]),
+        ({"provider": "wechat_pay", "mode": "test", "secret_ref": "vault:wechat/test/mch_private_key", "allowed_payment_methods": ["wechat_pay"]}, ["wechat_pay"]),
+        ({"provider": "alipay", "mode": "test", "secret_ref": "vault:alipay/test/app_private_key", "allowed_payment_methods": ["alipay"]}, ["alipay"]),
+    ],
+)
+def test_provider_rails_allow_only_declared_payment_methods(provider_config, expected_methods):
+    plan = build_checkout_session_plan(
+        tenant_id="tenant_methods",
+        project_id="project_methods",
+        customer_ref="customer-ref",
+        price={"lookup_key": "team", "unit_amount_minor": 1200, "currency": "cny" if provider_config["provider"] != "stripe" else "usd"},
+        success_url="https://app.ashr-clone.invalid/success",
+        cancel_url="https://app.ashr-clone.invalid/cancel",
+        provider_config=provider_config,
+    )
+
+    assert plan["payment_methods"] == expected_methods
+    assert plan["provider_mode_boundary"]["allowed_payment_methods"] == expected_methods
+    assert plan["provider_mode_boundary"]["provider_called"] is False
+    assert plan["provider_mode_boundary"]["real_charge_possible"] is False
+
+
+@pytest.mark.parametrize(
+    "provider_config",
+    [
+        {"provider": "stripe", "mode": "test", "secret_ref": "vault:stripe/test/key", "allowed_payment_methods": ["paypal"]},
+        {"provider": "wechat_pay", "mode": "test", "secret_ref": "vault:wechat/test/mch_private_key", "allowed_payment_methods": ["card"]},
+        {"provider": "alipay", "mode": "test", "secret_ref": "vault:alipay/test/app_private_key", "allowed_payment_methods": ["wechat_pay"]},
+    ],
+)
+def test_provider_rails_reject_cross_provider_payment_methods(provider_config):
+    with pytest.raises(BillingContractError, match="unsupported payment methods"):
+        build_checkout_session_plan(
+            tenant_id="tenant_methods",
+            project_id="project_methods",
+            customer_ref="customer-ref",
+            price={"lookup_key": "team", "unit_amount_minor": 1200, "currency": "usd"},
+            success_url="https://app.ashr-clone.invalid/success",
+            cancel_url="https://app.ashr-clone.invalid/cancel",
+            provider_config=provider_config,
+        )
+
+
+def test_provider_rails_require_reference_prefixes_for_secret_and_account_refs():
+    with pytest.raises(BillingContractError, match="secret_ref is required"):
+        BillingProviderConfig(provider="stripe", mode="test").normalized()
+    with pytest.raises(BillingContractError, match="secret_ref must use an approved reference prefix"):
+        BillingProviderConfig(provider="stripe", mode="test", secret_ref="STRIPE_TEST_REF").normalized()
+    with pytest.raises(BillingContractError, match="account_ref must use an approved reference prefix"):
+        BillingProviderConfig(provider="wechat_pay", mode="test", secret_ref="vault:wechat/test/mch_private_key", account_ref="mch:demo").normalized()
 
 
 def test_billing_webhook_envelope_verification_is_hash_only():
@@ -148,9 +205,11 @@ def test_billing_webhook_envelope_verification_is_hash_only():
         project_id="project_bill",
         payload_sha256="a" * 64,
         signature_header_present=True,
+        signature_header_names=["Stripe-Signature"],
         webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
     )
     assert verified["verified"] is True
+    assert verified["signature_header_shape"]["expected_headers"] == ["stripe-signature"]
     assert verified["raw_payload_included"] is False
     assert verified["secret_value_present"] is False
 
@@ -169,10 +228,92 @@ def test_billing_webhook_envelope_verification_is_hash_only():
     assert {item["reason"] for item in failed["failures"]} == {"missing_signature_header", "missing_live_webhook_secret_ref"}
 
 
+@pytest.mark.parametrize(
+    ("provider", "event_type", "webhook_secret_ref", "headers"),
+    [
+        ("stripe", "invoice.paid", "env:STRIPE_WEBHOOK_REF_TEST", ["stripe-signature"]),
+        ("wechat_pay", "wechat_pay.transaction.success", "vault:wechat/test/notify_verify", ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"]),
+        ("alipay", "alipay.trade.success", "vault:alipay/test/public_key", ["sign", "sign_type", "app_id", "trade_no"]),
+    ],
+)
+def test_all_provider_webhook_envelopes_validate_signature_header_shape(provider, event_type, webhook_secret_ref, headers):
+    verified = verify_billing_webhook_envelope(
+        provider=provider,
+        mode="test",
+        event_type=event_type,
+        event_id=f"evt_{provider}_1",
+        tenant_id="tenant_hooks",
+        project_id="project_hooks",
+        payload_sha256="1" * 64,
+        signature_header_present=True,
+        signature_header_names=headers,
+        webhook_secret_ref=webhook_secret_ref,
+        livemode=False,
+    )
+
+    assert verified["verified"] is True
+    assert verified["signature_header_shape"]["valid"] is True
+    assert verified["signature_header_shape"]["raw_header_values_included"] is False
+    assert verified["raw_payload_included"] is False
+    assert verified["secret_value_present"] is False
+
+
+def test_provider_webhook_envelopes_reject_missing_refs_bad_headers_and_mode_crossing():
+    bad_headers = verify_billing_webhook_envelope(
+        provider="wechat_pay",
+        mode="test",
+        event_type="wechat_pay.transaction.success",
+        event_id="evt_wechat_bad_header",
+        tenant_id="tenant_hooks",
+        project_id="project_hooks",
+        payload_sha256="2" * 64,
+        signature_header_present=True,
+        signature_header_names=["wechatpay-signature"],
+        webhook_secret_ref="vault:wechat/test/notify_verify",
+        livemode=False,
+    )
+    assert bad_headers["verified"] is False
+    assert bad_headers["failures"][0]["reason"] == "invalid_signature_header_shape"
+
+    missing_ref = verify_billing_webhook_envelope(
+        provider="alipay",
+        mode="test",
+        event_type="alipay.trade.success",
+        event_id="evt_alipay_missing_ref",
+        tenant_id="tenant_hooks",
+        project_id="project_hooks",
+        payload_sha256="3" * 64,
+        signature_header_present=True,
+        signature_header_names=["sign", "sign_type", "app_id", "trade_no"],
+        livemode=False,
+    )
+    assert missing_ref["verified"] is False
+    assert {failure["reason"] for failure in missing_ref["failures"]} == {"missing_webhook_secret_ref"}
+
+    mode_crossing = verify_billing_webhook_envelope(
+        provider="stripe",
+        mode="live",
+        event_type="invoice.paid",
+        event_id="evt_stripe_test_in_live",
+        tenant_id="tenant_hooks",
+        project_id="project_hooks",
+        payload_sha256="4" * 64,
+        signature_header_present=True,
+        signature_header_names=["stripe-signature"],
+        webhook_secret_ref="env:STRIPE_WEBHOOK_REF_LIVE",
+        livemode=False,
+    )
+    assert mode_crossing["verified"] is False
+    assert {failure["reason"] for failure in mode_crossing["failures"]} == {"test_event_received_in_live_mode"}
+
+
 def test_billing_provider_manifest_names_commercial_payment_rails():
     manifest = billing_provider_manifest()
     assert set(manifest["providers"]) == {"stripe", "wechat_pay", "alipay"}
     assert manifest["payment_methods"]["stripe"] == ["card", "alipay", "wechat_pay"]
+    assert set(manifest["provider_mode_matrix"]) == {"stripe", "wechat_pay", "alipay"}
+    assert manifest["provider_mode_matrix"]["wechat_pay"]["webhook_signature_headers"] == ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"]
+    assert manifest["provider_mode_matrix"]["alipay"]["allowed_payment_methods"] == ["alipay"]
     assert "raw provider secrets are rejected" in manifest["live_mode_guardrails"]
 
 

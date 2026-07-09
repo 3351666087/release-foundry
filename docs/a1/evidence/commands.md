@@ -1529,3 +1529,21 @@ Results:
 - `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --limit 12 --output docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json`: planned 5 read + 5 mutating modality steps, estimated 17 calls.
 - `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --allow-quota-override --quota-override-reason user_authorized_paid_media_calibration_round39_bounded_once --max-retries 0 --modality text,image,audio,file,video --limit 8 --output docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json`: partial; 5 read steps ok, text mutating step quota/API blocked, non-text paid media did not proceed past gate.
 - `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json --output docs/a1/evidence/official_api_paid_media_round39_summary_20260709_222232.json --print-record`: wrote public-safe summary and returned non-zero because source status was partial; summary contains only response keys/status/quota flags.
+
+## Round40 commands - 2026-07-09T14:55:00Z
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; gh repo view --json nameWithOwner,url,defaultBranchRef; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb; git branch --show-current; git rev-parse --short HEAD; git rev-parse --short origin/main; gh pr list --state all --limit 20 --json ...; gh pr checks 27 --watch=false`: baseline confirmed PR #27 green and peer A2/A3 branches updated.
+- `python -B -c <build_private_evidence_index_from_dir + merge_evidence_indices + build_response_field_map>`: regenerated `docs/a1/api_calibration/real_api_evidence_index.json`, `real_api_response_field_map.json`, and `real_api_response_field_map.md`; merged historical public evidence with current private refs; result `total_records=399`, `quota_block_count=48`.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths ...` -> `5 passed`.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py ...` -> `11 passed, 1 skipped` for self-host/evidence focused checks.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py tests/a1/test_payment_provider_readiness_docs.py tests/a1/test_saas_sdk_client.py::test_sdk_saas_cli_end_to_end_and_redacts -q -p no:cacheprovider` -> `28 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `338 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `399 passed, 1 skipped`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, `findings=[]`.
+- `git diff --check` -> pass with CRLF normalization warnings only.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> pass.
+- Targeted secret scan over A1 public dirs found only expected synthetic fixtures and guardrail regexes; no raw API key/provider key/card/webhook secret was added.
+- Incorrect command note: `go test ./...` from repo root and pytest from `tests/integration/go` cwd are invalid in this monorepo; corrected module-root commands above were used as authoritative validation.

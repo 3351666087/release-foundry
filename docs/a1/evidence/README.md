@@ -25,12 +25,15 @@ Results:
 - The readiness command wrote a dry-run public artifact from the tracked field map and public evidence index. It did not read desktop key files, did not require API env vars, and did not call the hosted API.
 - Focused calibrator tests: 36 passed.
 
-## Local Go API + Postgres self-host smoke
+## Local commercial self-host runtime smoke
 
-`services/runner/docker-compose.a1.yml` is a local Docker Compose artifact for the A1 Go API + Postgres direction. It starts:
+`services/runner/docker-compose.a1.yml` is a local Docker Compose artifact for the A1 commercial self-host runtime direction. It starts:
 
 - `postgres`: Postgres 16 on loopback port `15432` with local trust auth for disposable smoke data.
 - `api`: the Go control-plane entrypoint from `packages/go/ashrclone/cmd/ashr-api`, listening on loopback port `18787` and configured with `ASHR_GO_BACKEND=postgres` plus a container-internal `ASHR_POSTGRES_DSN`. Its Docker healthcheck uses `services/runner/a1_docker_healthcheck.go` to probe `/healthz` without curl, wget, hosted API keys, or admin-only host access.
+- `worker`: a long-running local worker scaffold with `ASHR_WORKER_MODE=long-running`, `ASHR_WORKER_QUEUE=ashr_worker_jobs`, artifact evidence writes routed to `object-store`, and quota/accounting names pointed at `ashr_quota_ledger`.
+- `object-store`: a credential-free local file-backed object evidence volume rooted at `/object-store/ashr-local-artifacts/evidence/a1/self-host`.
+- `billing-webhook`: a loopback-only billing webhook receiver surface on port `18788` that records public-safe event metadata against `ashr_billing_ledger` and `ashr_quota_ledger` using secret reference env names only.
 
 Run from the repository root:
 
@@ -62,10 +65,14 @@ If Docker Desktop is installed but stopped, the pytest smoke skips the daemon-ba
 Boundary notes:
 
 - The compose file is local-only and binds API/Postgres ports to `127.0.0.1`.
-- The API service uses the local Go backend environment only: `ASHR_GO_API_ADDR`, `ASHR_GO_BACKEND`, `ASHR_POSTGRES_DSN`, and `ASHR_A1_SMOKE_MODE`.
-- The artifact intentionally does not set hosted API key variables such as `ASHR_API_KEY`, `ASHR_LABS_API_KEY`, or bearer-token headers.
+- The API service uses the local Go backend environment only: `ASHR_GO_API_ADDR`, `ASHR_GO_BACKEND`, `ASHR_POSTGRES_DSN`, and `ASHR_A1_SMOKE_MODE`; production DSNs are represented separately as `ASHR_POSTGRES_DSN_REF`.
+- The artifact intentionally does not set hosted API key variables such as `ASHR_API_KEY`, `ASHR_LABS_API_KEY`, real provider secrets, or bearer-token headers.
+- Commercial provider secrets use reference-only names: `ASHR_BILLING_PROVIDER_SECRET_REF`, `ASHR_BILLING_WEBHOOK_SECRET_REF`, `ASHR_OBJECT_STORE_ACCESS_KEY_REF`, and `ASHR_OBJECT_STORE_SECRET_KEY_REF`.
+- Object evidence is named through `ASHR_OBJECT_EVIDENCE_PREFIX`, `ASHR_OBJECT_STORE_BUCKET`, and `ASHR_ARTIFACT_MANIFEST_TABLE`; quota accounting is named through `ASHR_QUOTA_LEDGER_TABLE`.
 - The Postgres DSN is a local service URL for the compose network and is not a production secret.
 - Docker daemon availability is probed with normal user-level `docker info`; no admin-only Docker Desktop repair path is part of this A1 smoke.
+
+Detailed scaffold evidence: `docs/a1/evidence/self_host_commercial_runtime_scaffold_20260709.md`.
 
 ## 2026-07-09 - A1 Postgres / SQL / Compose backend slice
 

@@ -212,6 +212,66 @@ CREATE TABLE IF NOT EXISTS ashr_usage_quota_policies (
 );
 
 CREATE INDEX IF NOT EXISTS ashr_usage_quota_policies_scope_idx ON ashr_usage_quota_policies (tenant_id, project_id, operation, status);
+CREATE TABLE IF NOT EXISTS ashr_billing_checkout_plans (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    checkout_id TEXT NOT NULL,
+    plan_id TEXT NOT NULL,
+    billing_cycle TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    customer_ref TEXT NOT NULL DEFAULT '',
+    checkout_url TEXT NOT NULL,
+    price JSONB NOT NULL DEFAULT '{}'::jsonb,
+    provider_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    success_url TEXT NOT NULL DEFAULT '',
+    cancel_url TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    api_key_id TEXT NOT NULL DEFAULT '',
+    provider_called BOOLEAN NOT NULL DEFAULT false,
+    real_charge_possible BOOLEAN NOT NULL DEFAULT false,
+    raw_payload_included BOOLEAN NOT NULL DEFAULT false,
+    raw_secrets_included BOOLEAN NOT NULL DEFAULT false,
+    secret_value_present BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, checkout_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE,
+    CONSTRAINT ashr_billing_checkout_public_safe CHECK (
+        provider_called = false AND real_charge_possible = false AND raw_payload_included = false AND raw_secrets_included = false AND secret_value_present = false
+    )
+);
+
+CREATE TABLE IF NOT EXISTS ashr_billing_portal_plans (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    portal_session_id TEXT NOT NULL,
+    plan_id TEXT NOT NULL DEFAULT '',
+    provider TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    customer_ref TEXT NOT NULL DEFAULT '',
+    portal_url TEXT NOT NULL,
+    provider_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    return_url TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    api_key_id TEXT NOT NULL DEFAULT '',
+    provider_called BOOLEAN NOT NULL DEFAULT false,
+    real_charge_possible BOOLEAN NOT NULL DEFAULT false,
+    raw_payload_included BOOLEAN NOT NULL DEFAULT false,
+    raw_secrets_included BOOLEAN NOT NULL DEFAULT false,
+    secret_value_present BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, portal_session_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE,
+    CONSTRAINT ashr_billing_portal_public_safe CHECK (
+        provider_called = false AND real_charge_possible = false AND raw_payload_included = false AND raw_secrets_included = false AND secret_value_present = false
+    )
+);
+
+CREATE INDEX IF NOT EXISTS ashr_billing_checkout_scope_idx ON ashr_billing_checkout_plans (tenant_id, project_id, provider, mode, created_at);
+CREATE INDEX IF NOT EXISTS ashr_billing_portal_scope_idx ON ashr_billing_portal_plans (tenant_id, project_id, provider, mode, created_at);
 `
 
 type PostgresRepository struct {
@@ -939,28 +999,218 @@ func (repository *PostgresRepository) CreateBillingCheckoutPlan(tenantID, projec
 	if err := repository.requireDB(); err != nil {
 		return Envelope[BillingCheckoutPlan]{}, err
 	}
-	return Envelope[BillingCheckoutPlan]{}, repository.notImplemented("billing.checkout_plan")
+	planID := normalizeBillingPlanID(request.PlanID)
+	if planID == "" {
+		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing plan_id is required")
+	}
+	cycle := normalizeBillingCycle(request.BillingCycle)
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	provider := billingProviderFromConfig(providerConfig)
+	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
+	price := sanitizedBillingMetadata(request.Price)
+	metadata := sanitizedBillingMetadata(request.Metadata)
+	customerRef := strings.TrimSpace(request.CustomerRef)
+	successURL := strings.TrimSpace(request.SuccessURL)
+	cancelURL := strings.TrimSpace(request.CancelURL)
+	requestFingerprint := JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "billing_cycle": cycle, "provider": provider, "mode": mode, "customer_ref": customerRef, "price": price, "success_url": successURL, "cancel_url": cancelURL, "idempotency_key": options.Key}
+	fingerprint := mustFingerprint(requestFingerprint)
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	result := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, BillingCycle: cycle, CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: mode, Provider: provider, ProviderConfig: providerConfig, CustomerRef: customerRef, Price: price, SuccessURL: successURL, CancelURL: cancelURL, SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, Metadata: metadata, CreatedAt: now}
+	response := Envelope[BillingCheckoutPlan]{Operation: "billing.checkout_plan", Status: "ok", Result: result}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing checkout begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if options.Key != "" {
+		if replay, ok, err := loadIdempotentBillingCheckoutPlanReplay(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := requireProject(ctx, tx, tenantID, projectID); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, err
+	}
+	if err := insertPostgresBillingCheckoutPlan(ctx, tx, result, options); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, err
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, response.Operation, 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.Key, RequestID: options.RequestID, TargetID: result.CheckoutID, After: JSONMap{"checkout_id": result.CheckoutID, "plan_id": planID, "billing_cycle": cycle, "provider": provider, "raw_payload_included": false}}, now); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, err
+	}
+	if options.Key != "" {
+		if replay, ok, err := insertIdempotentBillingCheckoutPlanResponse(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing checkout commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) CreateBillingPortalPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingPortalPlan], error) {
 	if err := repository.requireDB(); err != nil {
 		return Envelope[BillingPortalPlan]{}, err
 	}
-	return Envelope[BillingPortalPlan]{}, repository.notImplemented("billing.portal_plan")
+	planID := normalizeBillingPlanID(request.PlanID)
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	provider := billingProviderFromConfig(providerConfig)
+	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
+	customerRef := strings.TrimSpace(request.CustomerRef)
+	returnURL := strings.TrimSpace(request.ReturnURL)
+	requestFingerprint := JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "provider": provider, "mode": mode, "customer_ref": customerRef, "return_url": returnURL, "idempotency_key": options.Key}
+	fingerprint := mustFingerprint(requestFingerprint)
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	result := BillingPortalPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, PortalSessionID: "portal_" + fingerprint[:16], PortalURL: "https://billing.local.ashr.invalid/portal/" + fingerprint[:24], Mode: mode, Provider: provider, ProviderConfig: providerConfig, CustomerRef: customerRef, ReturnURL: returnURL, SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, CreatedAt: now}
+	response := Envelope[BillingPortalPlan]{Operation: "billing.portal_plan", Status: "ok", Result: result}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, fmt.Errorf("billing portal begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if options.Key != "" {
+		if replay, ok, err := loadIdempotentBillingPortalPlanReplay(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := requireProject(ctx, tx, tenantID, projectID); err != nil {
+		return Envelope[BillingPortalPlan]{}, err
+	}
+	if err := insertPostgresBillingPortalPlan(ctx, tx, result, options); err != nil {
+		return Envelope[BillingPortalPlan]{}, err
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, response.Operation, 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.Key, RequestID: options.RequestID, TargetID: result.PortalSessionID, After: JSONMap{"portal_session_id": result.PortalSessionID, "plan_id": planID, "provider": provider, "raw_payload_included": false}}, now); err != nil {
+		return Envelope[BillingPortalPlan]{}, err
+	}
+	if options.Key != "" {
+		if replay, ok, err := insertIdempotentBillingPortalPlanResponse(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[BillingPortalPlan]{}, fmt.Errorf("billing portal commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) IngestBillingWebhook(tenantID, projectID string, event BillingWebhookIngest, options IdempotencyOptions) (Envelope[BillingWebhookIngest], error) {
 	if err := repository.requireDB(); err != nil {
 		return Envelope[BillingWebhookIngest]{}, err
 	}
-	return Envelope[BillingWebhookIngest]{}, repository.notImplemented("billing.webhook_ingest")
+	event.TenantID = tenantID
+	event.ProjectID = projectID
+	event.SchemaVersion = ControlPlaneSchemaVersion
+	event.EventType = strings.TrimSpace(event.EventType)
+	if event.EventType == "" {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook event_type is required")
+	}
+	event.Provider = normalizeBillingProvider(event.Provider)
+	event.Mode = normalizeBillingMode(event.Mode)
+	event.PlanID = normalizeBillingPlanID(event.PlanID)
+	event.CustomerRef = strings.TrimSpace(event.CustomerRef)
+	event.Status = normalizeBillingStatus(event.Status)
+	event.Metadata = sanitizedBillingMetadata(event.Metadata)
+	event.RawPayloadIncluded = false
+	event.SecretValuePresent = false
+	event.WebhookSecretRef = strings.TrimSpace(event.WebhookSecretRef)
+	payloadFingerprint := strings.ToLower(strings.TrimSpace(event.PayloadSHA256))
+	if payloadFingerprint == "" {
+		payloadFingerprint = mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType, "provider": event.Provider, "mode": event.Mode, "plan_id": event.PlanID, "customer_ref": event.CustomerRef, "status": event.Status, "metadata": event.Metadata})
+	}
+	if !looksLikeSHA256Hex(payloadFingerprint) {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook payload_sha256 must be a sha256 hex digest")
+	}
+	event.PayloadSHA256 = payloadFingerprint
+	event.Failures = billingWebhookFailures(event)
+	event.Verified = len(event.Failures) == 0
+	if strings.TrimSpace(event.EventID) == "" {
+		event.EventID = "billing_evt_" + payloadFingerprint[:16]
+	}
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	event.ReceivedAt = now
+	requestFingerprint := JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_id": event.EventID, "event_type": event.EventType, "provider": event.Provider, "mode": event.Mode, "payload_sha256": event.PayloadSHA256, "metadata": event.Metadata}
+	response := Envelope[BillingWebhookIngest]{Operation: "billing.webhook_ingest", Status: "ok", Result: event}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if options.Key != "" {
+		if replay, ok, err := loadIdempotentBillingWebhookReplay(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := requireProject(ctx, tx, tenantID, projectID); err != nil {
+		return Envelope[BillingWebhookIngest]{}, err
+	}
+	if err := ensurePostgresBillingSaaSScope(ctx, tx, tenantID, projectID, now); err != nil {
+		return Envelope[BillingWebhookIngest]{}, err
+	}
+	replayStatus, mutationCount, err := ingestPostgresBillingProviderEvent(ctx, tx, tenantID, projectID, event)
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, err
+	}
+	if replayStatus == "conflict" {
+		event.Verified = false
+		event.Failures = append(event.Failures, JSONMap{"reason": "provider_event_payload_conflict"})
+		response.Status = "conflict"
+		response.Result = event
+	} else if replayStatus == "duplicate" {
+		response.IdempotentReplay = true
+	}
+	if mutationCount > 0 {
+		if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, response.Operation, 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.Key, RequestID: options.RequestID, TargetID: event.EventID, After: JSONMap{"event_id": event.EventID, "event_type": event.EventType, "payload_sha256": event.PayloadSHA256, "raw_payload_included": false}}, now); err != nil {
+			return Envelope[BillingWebhookIngest]{}, err
+		}
+	}
+	if options.Key != "" {
+		if replay, ok, err := insertIdempotentBillingWebhookResponse(ctx, tx, response.Operation, tenantID, projectID, options.Key, requestFingerprint, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) BillingLedger(tenantID, projectID string) (Envelope[BillingLedger], error) {
 	if err := repository.requireDB(); err != nil {
 		return Envelope[BillingLedger]{}, err
 	}
-	return Envelope[BillingLedger]{}, repository.notImplemented("billing.ledger")
+	ctx := context.Background()
+	if err := requireProjectWithDB(ctx, repository.db, tenantID, projectID); err != nil {
+		return Envelope[BillingLedger]{}, err
+	}
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT p.provider_event_id, p.provider_event_type, p.provider, p.mode, COALESCE(l.customer_ref, ''), COALESCE((l.metadata->>'plan_id'), ''), COALESCE((l.metadata->>'status'), 'received'), p.payload_sha256, p.signature_verified, COALESCE((l.metadata->>'webhook_secret_ref'), ''), COALESCE((l.metadata->>'livemode')::boolean, false), COALESCE(l.metadata, '{}'::jsonb), p.created_at
+FROM billing_provider_events p
+LEFT JOIN billing_ledger_events l ON l.organization_id = p.organization_id AND l.project_id = p.project_id AND l.provider_event_id = p.id
+WHERE p.organization_id = $1::uuid AND p.project_id = $2::uuid
+ORDER BY p.created_at ASC, p.provider_event_id ASC
+`, postgresBillingUUID("org", tenantID), postgresBillingUUID("project", projectID))
+	if err != nil {
+		return Envelope[BillingLedger]{}, fmt.Errorf("billing ledger query: %w", err)
+	}
+	defer rows.Close()
+	events := []BillingWebhookIngest{}
+	for rows.Next() {
+		event, err := scanPostgresBillingLedgerEvent(rows, tenantID, projectID)
+		if err != nil {
+			return Envelope[BillingLedger]{}, err
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[BillingLedger]{}, fmt.Errorf("iterate billing ledger: %w", err)
+	}
+	result := BillingLedger{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Events: events, Count: len(events), GeneratedAt: repository.now().UTC()}
+	return Envelope[BillingLedger]{Operation: "billing.ledger", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) AppendQuotaUsage(tenantID, projectID string, event QuotaUsageAppend) (Envelope[UsageOperationTotal], error) {
@@ -1961,6 +2211,366 @@ ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
 	return loadIdempotentArtifactManifestReplay(ctx, tx, operation, tenantID, projectID, key, request)
 }
 
+func insertPostgresBillingCheckoutPlan(ctx context.Context, tx *sql.Tx, result BillingCheckoutPlan, options IdempotencyOptions) error {
+	providerConfig, err := jsonBytes(defaultMap(result.ProviderConfig))
+	if err != nil {
+		return fmt.Errorf("marshal checkout provider config: %w", err)
+	}
+	price, err := jsonBytes(defaultMap(result.Price))
+	if err != nil {
+		return fmt.Errorf("marshal checkout price: %w", err)
+	}
+	metadata, err := jsonBytes(defaultMap(result.Metadata))
+	if err != nil {
+		return fmt.Errorf("marshal checkout metadata: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_billing_checkout_plans (tenant_id, project_id, checkout_id, plan_id, billing_cycle, provider, mode, customer_ref, checkout_url, price, provider_config, metadata, success_url, cancel_url, idempotency_key, request_id, api_key_id, provider_called, real_charge_possible, raw_payload_included, raw_secrets_included, secret_value_present, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, false, false, false, false, false, $18)
+ON CONFLICT (tenant_id, project_id, checkout_id) DO NOTHING
+`, result.TenantID, result.ProjectID, result.CheckoutID, result.PlanID, result.BillingCycle, result.Provider, result.Mode, result.CustomerRef, result.CheckoutURL, string(price), string(providerConfig), string(metadata), result.SuccessURL, result.CancelURL, options.Key, options.RequestID, options.APIKeyID, result.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert billing checkout plan: %w", err)
+	}
+	return nil
+}
+
+func insertPostgresBillingPortalPlan(ctx context.Context, tx *sql.Tx, result BillingPortalPlan, options IdempotencyOptions) error {
+	providerConfig, err := jsonBytes(defaultMap(result.ProviderConfig))
+	if err != nil {
+		return fmt.Errorf("marshal portal provider config: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_billing_portal_plans (tenant_id, project_id, portal_session_id, plan_id, provider, mode, customer_ref, portal_url, provider_config, return_url, idempotency_key, request_id, api_key_id, provider_called, real_charge_possible, raw_payload_included, raw_secrets_included, secret_value_present, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, false, false, false, false, false, $14)
+ON CONFLICT (tenant_id, project_id, portal_session_id) DO NOTHING
+`, result.TenantID, result.ProjectID, result.PortalSessionID, result.PlanID, result.Provider, result.Mode, result.CustomerRef, result.PortalURL, string(providerConfig), result.ReturnURL, options.Key, options.RequestID, options.APIKeyID, result.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert billing portal plan: %w", err)
+	}
+	return nil
+}
+
+func ensurePostgresBillingSaaSScope(ctx context.Context, tx *sql.Tx, tenantID, projectID string, now time.Time) error {
+	orgID := postgresBillingUUID("org", tenantID)
+	workspaceID := postgresBillingUUID("workspace", tenantID+":"+projectID)
+	saasProjectID := postgresBillingUUID("project", projectID)
+	metadata, err := jsonBytes(JSONMap{"source": "go-postgres-billing", "tenant_id": tenantID, "project_id": projectID, "raw_payload_included": false, "secret_value_present": false})
+	if err != nil {
+		return fmt.Errorf("marshal billing SaaS scope metadata: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO organizations (id, slug, display_name, status, metadata, created_at, updated_at)
+VALUES ($1::uuid, $2, $3, 'active', $4::jsonb, $5, $5)
+ON CONFLICT (id) DO UPDATE SET slug = EXCLUDED.slug, display_name = EXCLUDED.display_name, updated_at = EXCLUDED.updated_at
+`, orgID, postgresSlug(tenantID, "tenant"), tenantID, string(metadata), now)
+	if postgresRelationMissing(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ensure billing organization scope: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO workspaces (id, organization_id, slug, display_name, status, metadata, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, 'active', $5::jsonb, $6, $6)
+ON CONFLICT (organization_id, id) DO UPDATE SET slug = EXCLUDED.slug, display_name = EXCLUDED.display_name, updated_at = EXCLUDED.updated_at
+`, workspaceID, orgID, postgresSlug(projectID, "workspace"), projectID, string(metadata), now)
+	if err != nil {
+		return fmt.Errorf("ensure billing workspace scope: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO projects (id, organization_id, workspace_id, slug, display_name, status, metadata, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, 'active', $6::jsonb, $7, $7)
+ON CONFLICT (organization_id, id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id, slug = EXCLUDED.slug, display_name = EXCLUDED.display_name, updated_at = EXCLUDED.updated_at
+`, saasProjectID, orgID, workspaceID, postgresSlug(projectID, "project"), projectID, string(metadata), now)
+	if err != nil {
+		return fmt.Errorf("ensure billing project scope: %w", err)
+	}
+	return nil
+}
+func ingestPostgresBillingProviderEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID string, event BillingWebhookIngest) (string, int, error) {
+	metadata := defaultMap(event.Metadata)
+	metadata["plan_id"] = event.PlanID
+	metadata["status"] = event.Status
+	metadata["signature_header_present"] = event.SignatureHeaderPresent
+	metadata["webhook_secret_ref"] = event.WebhookSecretRef
+	metadata["livemode"] = event.Livemode
+	metadata["raw_payload_included"] = false
+	metadata["secret_value_present"] = false
+	metadataJSON, err := jsonBytes(sanitizedBillingMetadata(metadata))
+	if err != nil {
+		return "", 0, fmt.Errorf("marshal billing webhook metadata: %w", err)
+	}
+	var replayStatus string
+	var providerEventID string
+	var ledgerEventID string
+	var mutationCount int
+	err = tx.QueryRowContext(ctx, `
+SELECT replay_status, provider_event_row_id::text, COALESCE(ledger_event_row_id::text, ''), ledger_mutation_count
+FROM ingest_billing_provider_event($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, NULL, 0, 'usd', 0, $10::jsonb)
+`, postgresBillingUUID("org", tenantID), postgresBillingUUID("project", projectID), event.Provider, event.Mode, event.EventID, event.EventType, event.PayloadSHA256, event.Verified, event.CustomerRef, string(metadataJSON)).Scan(&replayStatus, &providerEventID, &ledgerEventID, &mutationCount)
+	if err != nil {
+		return "", 0, fmt.Errorf("ingest billing provider event: %w", err)
+	}
+	return replayStatus, mutationCount, nil
+}
+
+func scanPostgresBillingLedgerEvent(rows *sql.Rows, tenantID, projectID string) (BillingWebhookIngest, error) {
+	var event BillingWebhookIngest
+	var metadataPayload []byte
+	if err := rows.Scan(&event.EventID, &event.EventType, &event.Provider, &event.Mode, &event.CustomerRef, &event.PlanID, &event.Status, &event.PayloadSHA256, &event.Verified, &event.WebhookSecretRef, &event.Livemode, &metadataPayload, &event.ReceivedAt); err != nil {
+		return BillingWebhookIngest{}, fmt.Errorf("scan billing ledger event: %w", err)
+	}
+	metadata, err := jsonMapFromBytes(metadataPayload)
+	if err != nil {
+		return BillingWebhookIngest{}, fmt.Errorf("decode billing ledger metadata: %w", err)
+	}
+	event.SchemaVersion = ControlPlaneSchemaVersion
+	event.TenantID = tenantID
+	event.ProjectID = projectID
+	event.Metadata = sanitizedBillingMetadata(metadata)
+	event.SignatureHeaderPresent = boolFromAny(metadata["signature_header_present"])
+	event.RawPayloadIncluded = false
+	event.SecretValuePresent = false
+	event.Failures = billingWebhookFailures(event)
+	if !event.Verified && len(event.Failures) == 0 {
+		event.Failures = append(event.Failures, JSONMap{"reason": "signature_not_verified"})
+	}
+	return event, nil
+}
+
+func looksLikeSHA256Hex(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 64 {
+		return false
+	}
+	for _, char := range value {
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+func postgresSlug(value, fallback string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	builder := strings.Builder{}
+	lastDash := false
+	for _, char := range value {
+		valid := (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')
+		if valid {
+			builder.WriteRune(char)
+			lastDash = false
+			continue
+		}
+		if !lastDash && builder.Len() > 0 {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	slug := strings.Trim(builder.String(), "-")
+	if slug == "" {
+		slug = fallback
+	}
+	if len(slug) > 48 {
+		slug = strings.Trim(slug[:48], "-")
+	}
+	return slug
+}
+func postgresBillingUUID(prefix, value string) string {
+	if looksLikeUUID(value) {
+		return strings.ToLower(strings.TrimSpace(value))
+	}
+	digest := mustFingerprint(JSONMap{"prefix": prefix, "value": strings.TrimSpace(value)})
+	return fmt.Sprintf("%s-%s-%s-%s-%s", digest[:8], digest[8:12], digest[12:16], digest[16:20], digest[20:32])
+}
+
+func jsonMapFromBytes(payload []byte) (JSONMap, error) {
+	if len(payload) == 0 {
+		return JSONMap{}, nil
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return nil, err
+	}
+	return cloneMap(JSONMap(decoded)), nil
+}
+
+func boolFromAny(value any) bool {
+	typed, ok := value.(bool)
+	return ok && typed
+}
+
+func loadIdempotentBillingCheckoutPlanReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[BillingCheckoutPlan], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[BillingCheckoutPlan]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, fmt.Errorf("load billing checkout idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[BillingCheckoutPlan]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[BillingCheckoutPlan]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, fmt.Errorf("decode billing checkout idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentBillingCheckoutPlanResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[BillingCheckoutPlan]) (Envelope[BillingCheckoutPlan], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, fmt.Errorf("marshal billing checkout idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[BillingCheckoutPlan]{}, false, fmt.Errorf("insert billing checkout idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[BillingCheckoutPlan]{}, false, nil
+	}
+	return loadIdempotentBillingCheckoutPlanReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
+func loadIdempotentBillingPortalPlanReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[BillingPortalPlan], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[BillingPortalPlan]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, false, fmt.Errorf("load billing portal idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[BillingPortalPlan]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[BillingPortalPlan]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[BillingPortalPlan]{}, false, fmt.Errorf("decode billing portal idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentBillingPortalPlanResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[BillingPortalPlan]) (Envelope[BillingPortalPlan], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, false, fmt.Errorf("marshal billing portal idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[BillingPortalPlan]{}, false, fmt.Errorf("insert billing portal idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[BillingPortalPlan]{}, false, nil
+	}
+	return loadIdempotentBillingPortalPlanReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
+func loadIdempotentBillingWebhookReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[BillingWebhookIngest], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[BillingWebhookIngest]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, fmt.Errorf("load billing webhook idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[BillingWebhookIngest]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[BillingWebhookIngest]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, fmt.Errorf("decode billing webhook idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentBillingWebhookResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[BillingWebhookIngest]) (Envelope[BillingWebhookIngest], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, fmt.Errorf("marshal billing webhook idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[BillingWebhookIngest]{}, false, fmt.Errorf("insert billing webhook idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[BillingWebhookIngest]{}, false, nil
+	}
+	return loadIdempotentBillingWebhookReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
+func requireProjectWithDB(ctx context.Context, db *sql.DB, tenantID, projectID string) error {
+	var exists bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM ashr_projects WHERE tenant_id = $1 AND project_id = $2)`, tenantID, projectID).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("load project: %w", err)
+	}
+	if !exists {
+		return NotFoundError{Resource: "project"}
+	}
+	return nil
+}
 func requireProject(ctx context.Context, tx *sql.Tx, tenantID, projectID string) error {
 	var exists bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM ashr_projects WHERE tenant_id = $1 AND project_id = $2)`, tenantID, projectID).Scan(&exists)

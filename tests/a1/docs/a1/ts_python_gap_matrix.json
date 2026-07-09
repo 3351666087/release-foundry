@@ -292,7 +292,7 @@
         "packages/ts/ashr-clone/src/saas.ts"
       ],
       "gaps": [
-        "Python-only SaaS CLI commands: api-key-revoke, artifact-manifest-create, artifact-manifest-list, bootstrap, lifecycle, quota, run-upload, sdk-submit, state, trace-ingest, usage",
+        "Python-only SaaS CLI commands: api-key-revoke",
         "TypeScript-only SaaS CLI commands: cases, export-fixture, job-complete, job-enqueue, job-fail, job-heartbeat, job-lease, job-list, queue-run, release-gate, replay-fixture, replay-queued, run-agent, run-agent-batch, run-agent-queued"
       ],
       "python_commands": {
@@ -329,6 +329,10 @@
           "artifact-manifest-list",
           "audit-chain-verify",
           "audit-log",
+          "billing-checkout-plan",
+          "billing-ledger",
+          "billing-portal-plan",
+          "billing-webhook-ingest",
           "bootstrap",
           "lifecycle",
           "quota",
@@ -372,17 +376,31 @@
           "api-key-rate-limit",
           "api-key-rate-limits",
           "api-key-verify",
+          "artifact-manifest-create",
+          "artifact-manifest-list",
           "audit-chain-verify",
           "audit-log",
+          "billing-checkout-plan",
+          "billing-ledger",
+          "billing-portal-plan",
+          "billing-webhook-ingest",
+          "bootstrap",
           "job-complete",
           "job-enqueue",
           "job-fail",
           "job-heartbeat",
           "job-lease",
           "job-list",
+          "lifecycle",
+          "quota",
           "release-evidence",
           "release-evidence-verify",
-          "release-gate"
+          "release-gate",
+          "run-upload",
+          "sdk-submit",
+          "state",
+          "trace-ingest",
+          "usage"
         ]
       }
     },
@@ -566,6 +584,10 @@
           "artifact-manifest-list",
           "audit-chain-verify",
           "audit-log",
+          "billing-checkout-plan",
+          "billing-ledger",
+          "billing-portal-plan",
+          "billing-webhook-ingest",
           "bootstrap",
           "lifecycle",
           "quota",
@@ -579,17 +601,7 @@
         ]
       },
       "python_only_saas_command_names": [
-        "api-key-revoke",
-        "artifact-manifest-create",
-        "artifact-manifest-list",
-        "bootstrap",
-        "lifecycle",
-        "quota",
-        "run-upload",
-        "sdk-submit",
-        "state",
-        "trace-ingest",
-        "usage"
+        "api-key-revoke"
       ],
       "shared_saas_command_names": [
         "api-key-create",
@@ -597,10 +609,24 @@
         "api-key-rate-limit",
         "api-key-rate-limits",
         "api-key-verify",
+        "artifact-manifest-create",
+        "artifact-manifest-list",
         "audit-chain-verify",
         "audit-log",
+        "billing-checkout-plan",
+        "billing-ledger",
+        "billing-portal-plan",
+        "billing-webhook-ingest",
+        "bootstrap",
+        "lifecycle",
+        "quota",
         "release-evidence",
-        "release-evidence-verify"
+        "release-evidence-verify",
+        "run-upload",
+        "sdk-submit",
+        "state",
+        "trace-ingest",
+        "usage"
       ],
       "typescript_commands": {
         "cloud-cli": [
@@ -632,17 +658,31 @@
           "api-key-rate-limit",
           "api-key-rate-limits",
           "api-key-verify",
+          "artifact-manifest-create",
+          "artifact-manifest-list",
           "audit-chain-verify",
           "audit-log",
+          "billing-checkout-plan",
+          "billing-ledger",
+          "billing-portal-plan",
+          "billing-webhook-ingest",
+          "bootstrap",
           "job-complete",
           "job-enqueue",
           "job-fail",
           "job-heartbeat",
           "job-lease",
           "job-list",
+          "lifecycle",
+          "quota",
           "release-evidence",
           "release-evidence-verify",
-          "release-gate"
+          "release-gate",
+          "run-upload",
+          "sdk-submit",
+          "state",
+          "trace-ingest",
+          "usage"
         ]
       },
       "typescript_only_saas_command_names": [

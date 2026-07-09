@@ -428,3 +428,103 @@ func fakeAuditRecordFromEvent(t *testing.T, event AuditEvent) fakeAuditRecord {
 	}
 	return fakeAuditRecord{AuditEvent: event, afterPayload: payload}
 }
+
+func TestPostgresBillingRepositoryWiresSQLBackedMoneySlice(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, forbidden := range []string{
+		`return Envelope[BillingCheckoutPlan]{}, repository.notImplemented("billing.checkout_plan")`,
+		`return Envelope[BillingPortalPlan]{}, repository.notImplemented("billing.portal_plan")`,
+		`return Envelope[BillingWebhookIngest]{}, repository.notImplemented("billing.webhook_ingest")`,
+		`return Envelope[BillingLedger]{}, repository.notImplemented("billing.ledger")`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("postgres billing method still has placeholder %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_billing_checkout_plans",
+		"CREATE TABLE IF NOT EXISTS ashr_billing_portal_plans",
+		"CONSTRAINT ashr_billing_checkout_public_safe CHECK",
+		"CONSTRAINT ashr_billing_portal_public_safe CHECK",
+		"FROM ingest_billing_provider_event($1::uuid, $2::uuid",
+		"ensurePostgresBillingSaaSScope(ctx, tx, tenantID, projectID, now)",
+		"INSERT INTO organizations (id, slug, display_name, status, metadata, created_at, updated_at)",
+		"billing webhook payload_sha256 must be a sha256 hex digest",
+		"FROM billing_provider_events p",
+		"LEFT JOIN billing_ledger_events l",
+		"raw_payload_included",
+		"secret_value_present",
+		"IdempotencyConflictError{Operation: operation, Key: key}",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres billing SQL slice missing %q", required)
+		}
+	}
+}
+
+func TestPostgresBillingUUIDIsDeterministicAndValid(t *testing.T) {
+	first := postgresBillingUUID("org", "tenant_billing")
+	second := postgresBillingUUID("org", "tenant_billing")
+	if first != second {
+		t.Fatalf("expected deterministic billing uuid, got %q then %q", first, second)
+	}
+	if !looksLikeUUID(first) {
+		t.Fatalf("expected uuid shape, got %q", first)
+	}
+	existing := "11111111-2222-3333-4444-555555555555"
+	if postgresBillingUUID("org", existing) != existing {
+		t.Fatalf("existing uuid should pass through unchanged")
+	}
+	if first == postgresBillingUUID("project", "tenant_billing") {
+		t.Fatalf("prefix must separate uuid namespaces")
+	}
+}
+
+func TestPostgresBillingPayloadSHAValidation(t *testing.T) {
+	valid := strings.Repeat("a", 64)
+	if !looksLikeSHA256Hex(valid) {
+		t.Fatalf("expected valid sha256 hex")
+	}
+	for _, invalid := range []string{"", "abc", strings.Repeat("g", 64), strings.Repeat("A", 64)} {
+		if looksLikeSHA256Hex(invalid) {
+			t.Fatalf("expected invalid sha256 hex %q", invalid)
+		}
+	}
+}
+func TestPostgresBillingDeterministicArtifactsDoNotLeakSecrets(t *testing.T) {
+	request := BillingPlanRequest{
+		PlanID:       "Startup",
+		BillingCycle: "Yearly",
+		CustomerRef:  "cus_public",
+		SuccessURL:   "https://app.example/success",
+		CancelURL:    "https://app.example/cancel",
+		Price:        JSONMap{"lookup_key": "startup", "authorization": "bearer secret"},
+		ProviderConfig: JSONMap{
+			"provider":   "Stripe",
+			"mode":       "test",
+			"secret_ref": "env:STRIPE_TEST_REF",
+			"raw_secret": "sk_test_should_not_escape",
+		},
+		Metadata: JSONMap{"token": "raw-token", "safe": "value"},
+	}
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	price := sanitizedBillingMetadata(request.Price)
+	metadata := sanitizedBillingMetadata(request.Metadata)
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": "tenant", "project_id": "project", "plan_id": normalizeBillingPlanID(request.PlanID), "billing_cycle": normalizeBillingCycle(request.BillingCycle), "provider": billingProviderFromConfig(providerConfig), "mode": billingModeFromConfig(providerConfig, "deterministic_contract"), "customer_ref": strings.TrimSpace(request.CustomerRef), "price": price, "success_url": strings.TrimSpace(request.SuccessURL), "cancel_url": strings.TrimSpace(request.CancelURL), "idempotency_key": "idem"})
+	artifact := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: "tenant", ProjectID: "project", PlanID: normalizeBillingPlanID(request.PlanID), BillingCycle: normalizeBillingCycle(request.BillingCycle), CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: billingModeFromConfig(providerConfig, "deterministic_contract"), Provider: billingProviderFromConfig(providerConfig), ProviderConfig: providerConfig, CustomerRef: strings.TrimSpace(request.CustomerRef), Price: price, SuccessURL: strings.TrimSpace(request.SuccessURL), CancelURL: strings.TrimSpace(request.CancelURL), SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, Metadata: metadata, CreatedAt: time.Unix(1700000000, 0).UTC()}
+	encoded, err := json.Marshal(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leaked := range []string{"sk_test_should_not_escape", "raw-token", "bearer secret"} {
+		if strings.Contains(string(encoded), leaked) {
+			t.Fatalf("billing artifact leaked secret %q: %s", leaked, encoded)
+		}
+	}
+	if artifact.ProviderCalled || artifact.RealChargePossible || artifact.RawPayloadIncluded || artifact.RawSecretsIncluded || artifact.SecretValuePresent || !artifact.PublicSafe {
+		t.Fatalf("unexpected money-grade safety flags: %#v", artifact)
+	}
+	if artifact.Provider != "stripe" || artifact.Mode != "test" || artifact.PlanID != "startup" || artifact.BillingCycle != "yearly" {
+		t.Fatalf("unexpected normalized billing fields: %#v", artifact)
+	}
+}

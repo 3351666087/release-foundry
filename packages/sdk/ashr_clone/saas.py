@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from inspect import signature
 from pathlib import Path
@@ -132,9 +133,12 @@ class SaaSIngestionClient:
     @classmethod
     def from_state_file(cls, path: str | Path) -> "SaaSIngestionClient":
         _assert_public_control_plane_path(path)
+        payload = load_json_file(path)
         from services.api.control_plane import control_plane_from_state_file
 
-        return cls(service=control_plane_from_state_file(str(path)))
+        client = cls(service=control_plane_from_state_file(str(path)))
+        client._restore_billing_ledger_state(payload.get("billing_ledger") if isinstance(payload, Mapping) else None)
+        return client
 
     @classmethod
     def from_base_url(
@@ -152,16 +156,45 @@ class SaaSIngestionClient:
     def write_state(self, path: str | Path) -> str:
         if self.uses_http:
             raise SaaSClientError("state files are only supported in in-process mode")
-        from services.api.control_plane import write_control_plane_state
+        output = Path(path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        tmp = output.with_suffix(output.suffix + ".tmp")
+        tmp.write_text(json.dumps(self.snapshot_state(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp.replace(output)
+        return str(output)
 
-        return write_control_plane_state(self.service, str(path))
+    def _billing_ledger_state(self) -> JsonDict:
+        if self._billing_ledger is None:
+            return {"ledger_events": [], "provider_events": {}, "billing_accounts": {}, "raw_payload_included": False, "secret_value_present": False}
+        return {
+            "ledger_events": list(self._billing_ledger.ledger_events),
+            "provider_events": dict(self._billing_ledger.provider_events),
+            "billing_accounts": dict(self._billing_ledger.billing_accounts),
+            "raw_payload_included": False,
+            "secret_value_present": False,
+        }
+
+    def _restore_billing_ledger_state(self, state: Any) -> None:
+        if not isinstance(state, Mapping):
+            return
+        from services.api.billing import BillingLedger
+
+        ledger = BillingLedger()
+        ledger.ledger_events = [dict(item) for item in state.get("ledger_events", []) if isinstance(item, Mapping)]
+        ledger.provider_events = {str(key): dict(value) for key, value in dict(state.get("provider_events") or {}).items() if isinstance(value, Mapping)}
+        ledger.billing_accounts = {str(key): dict(value) for key, value in dict(state.get("billing_accounts") or {}).items() if isinstance(value, Mapping)}
+        self._billing_ledger = ledger
 
     def snapshot_state(self) -> JsonDict:
         if self.uses_http:
             return self._request("state", {})["result"]
         from services.api.control_plane import snapshot_control_plane
 
-        return redact_sensitive(snapshot_control_plane(self.service))
+        snapshot = snapshot_control_plane(self.service)
+        snapshot["billing_ledger"] = self._billing_ledger_state()
+        payload = {key: value for key, value in snapshot.items() if key != "integrity"}
+        snapshot["integrity"] = {"payload_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()}
+        return snapshot
 
     def bootstrap_project(
         self,

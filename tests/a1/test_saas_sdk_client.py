@@ -229,6 +229,89 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     quota = cli("--state-input", str(state), "quota", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")
     assert quota["result"]["used"]["trace.ingest"] == 1
 
+    checkout = cli(
+        "--state-input",
+        str(state),
+        "billing-checkout-plan",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--price-json",
+        '{"lookupKey":"team","unitAmountMinor":9900,"currency":"usd"}',
+        "--success-url",
+        "https://app.ashr-clone.invalid/billing/success",
+        "--cancel-url",
+        "https://app.ashr-clone.invalid/billing/cancel",
+        "--metadata-json",
+        '{"safe_note":"checkout"}',
+        "--idempotency-key",
+        "checkout_python_cli",
+    )
+    assert checkout["operation"] == "billing_checkout_plan"
+    assert checkout["result"]["provider_request"]["operation"] == "checkout.sessions.create"
+    portal = cli(
+        "--state-input",
+        str(state),
+        "billing-portal-plan",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--return-url",
+        "https://app.ashr-clone.invalid/billing",
+        "--idempotency-key",
+        "portal_python_cli",
+    )
+    assert portal["operation"] == "billing_portal_plan"
+    webhook = cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "billing-webhook-ingest",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--provider",
+        "stripe",
+        "--mode",
+        "test",
+        "--event-type",
+        "invoice.paid",
+        "--event-id",
+        "evt_python_cli",
+        "--payload-sha256",
+        "d" * 64,
+        "--signature-header-present",
+        "--webhook-secret-ref",
+        "env:STRIPE_WEBHOOK_REF_TEST",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--amount-minor",
+        "9900",
+        "--currency",
+        "usd",
+        "--invoice-ref",
+        "in_python_cli",
+        "--metadata-json",
+        '{"billing_period":"2026-07"}',
+    )
+    assert webhook["operation"] == "billing_webhook_ingest"
+    assert webhook["result"]["raw_payload_included"] is False
+    billing_ledger = cli("--state-input", str(state), "billing-ledger", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")
+    assert billing_ledger["operation"] == "billing_ledger"
+    assert billing_ledger["result"]["ledger_event_count"] == 1
+    assert billing_ledger["result"]["totals_by_currency_minor"] == {"usd": 9900}
+    billing_text = json.dumps([checkout, portal, webhook, billing_ledger], sort_keys=True)
+    assert "whsec" not in billing_text
+    assert "4242 4242" not in billing_text
+
     audit = cli("--state-input", str(state), "audit-chain-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli")
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True

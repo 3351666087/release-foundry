@@ -28,12 +28,57 @@
     "private_storage_root": "docs/evidence/private_refs",
     "public_evidence_rule": "Public files may contain only stable references and hashes. Private captures, if any, stay out of docs/a1 and under the private evidence root."
   },
+  "provider_mode_matrix": {
+    "stripe": {
+      "modes": ["test", "live"],
+      "hosted_surface": "stripe_checkout_and_billing_portal",
+      "secret_ref_policy": "secret_ref required in test and live; approved reference prefix only; raw API keys forbidden",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; mode-specific signing secret reference only",
+      "webhook_signature_headers": ["stripe-signature"],
+      "allowed_payment_methods": ["card", "alipay", "wechat_pay"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false
+    },
+    "wechat_pay": {
+      "modes": ["test", "live"],
+      "hosted_surface": "wechat_pay_native_qr_handoff",
+      "secret_ref_policy": "secret_ref required in test and live; merchant private key/API material must stay behind approved references",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; API v3 notification verification material reference only",
+      "webhook_signature_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+      "allowed_payment_methods": ["wechat_pay"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false
+    },
+    "alipay": {
+      "modes": ["test", "live"],
+      "hosted_surface": "alipay_trade_page_pay_handoff",
+      "secret_ref_policy": "secret_ref required in test and live; app private key material must stay behind approved references",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; Alipay public-key verification material reference only",
+      "webhook_signature_headers": ["sign", "sign_type", "app_id", "trade_no"],
+      "allowed_payment_methods": ["alipay"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false
+    }
+  },
   "providers": [
     {
       "provider": "stripe",
       "modes": ["test", "live"],
       "hosted_surface": "Stripe-hosted Checkout and Billing Portal plans only",
       "payment_methods": ["card", "alipay", "wechat_pay"],
+      "secret_ref_policy": "secret_ref required in test and live; approved reference prefix only; raw API keys forbidden",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; mode-specific signing secret reference only",
+      "webhook_signature_headers": ["stripe-signature"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false,
       "secret_refs": {
         "test": "env:STRIPE_TEST_REF",
         "live": "env:STRIPE_LIVE_REF"
@@ -63,6 +108,13 @@
       "modes": ["test", "live"],
       "hosted_surface": "Hosted WeChat Pay/NATIVE QR provider handoff contract",
       "payment_methods": ["wechat_pay"],
+      "secret_ref_policy": "secret_ref required in test and live; merchant private key/API material must stay behind approved references",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; API v3 notification verification material reference only",
+      "webhook_signature_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false,
       "secret_refs": {
         "test": "vault:wechat/test/mch_private_key",
         "live": "vault:wechat/live/mch_private_key"
@@ -92,6 +144,13 @@
       "modes": ["test", "live"],
       "hosted_surface": "Hosted Alipay trade page/provider handoff contract",
       "payment_methods": ["alipay"],
+      "secret_ref_policy": "secret_ref required in test and live; app private key material must stay behind approved references",
+      "webhook_secret_ref_policy": "webhook_secret_ref required for verified envelopes; Alipay public-key verification material reference only",
+      "webhook_signature_headers": ["sign", "sign_type", "app_id", "trade_no"],
+      "requires_live_mode_ack": true,
+      "test_live_boundary_enforced": true,
+      "raw_secret_values_allowed": false,
+      "raw_card_data_allowed": false,
       "secret_refs": {
         "test": "vault:alipay/test/app_private_key",
         "live": "vault:alipay/live/app_private_key"
@@ -145,11 +204,30 @@
       "event_id_ref": "evt_ref:stripe/test/checkout_completed",
       "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "signature_header_present": true,
+      "signature_header_shape": {
+        "expected_headers": ["stripe-signature"],
+        "provided_headers": ["stripe-signature"],
+        "missing_headers": [],
+        "valid": true,
+        "raw_header_values_included": false
+      },
       "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF_TEST",
+      "provider_mode_boundary": {
+        "livemode": false,
+        "test_event_in_live_mode_allowed": false,
+        "live_event_in_test_mode_allowed": false
+      },
       "verified": true,
       "raw_payload_included": false,
       "secret_value_present": false,
-      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/test/checkout_completed.hash-envelope.json"
+      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/test/checkout_completed.hash-envelope.json",
+      "object_evidence_ref": {
+        "event_id_ref": "evt_ref:stripe/test/checkout_completed",
+        "object_evidence_path": "docs/evidence/private_refs/payments/stripe/test/checkout_completed.hash-envelope.json",
+        "contains_raw_provider_payload": false,
+        "contains_raw_secret": false,
+        "contains_card_data": false
+      }
     },
     {
       "provider": "wechat_pay",
@@ -158,11 +236,30 @@
       "event_id_ref": "evt_ref:wechat/test/transaction_success",
       "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "signature_header_present": true,
+      "signature_header_shape": {
+        "expected_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+        "provided_headers": ["wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"],
+        "missing_headers": [],
+        "valid": true,
+        "raw_header_values_included": false
+      },
       "webhook_secret_ref": "vault:wechat/test/webhook_key_ref",
+      "provider_mode_boundary": {
+        "livemode": false,
+        "test_event_in_live_mode_allowed": false,
+        "live_event_in_test_mode_allowed": false
+      },
       "verified": true,
       "raw_payload_included": false,
       "secret_value_present": false,
-      "object_evidence_path": "docs/evidence/private_refs/payments/wechat/test/transaction_success.hash-envelope.json"
+      "object_evidence_path": "docs/evidence/private_refs/payments/wechat/test/transaction_success.hash-envelope.json",
+      "object_evidence_ref": {
+        "event_id_ref": "evt_ref:wechat/test/transaction_success",
+        "object_evidence_path": "docs/evidence/private_refs/payments/wechat/test/transaction_success.hash-envelope.json",
+        "contains_raw_provider_payload": false,
+        "contains_raw_secret": false,
+        "contains_card_data": false
+      }
     },
     {
       "provider": "alipay",
@@ -171,11 +268,30 @@
       "event_id_ref": "evt_ref:alipay/test/trade_success",
       "payload_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "signature_header_present": true,
+      "signature_header_shape": {
+        "expected_headers": ["sign", "sign_type", "app_id", "trade_no"],
+        "provided_headers": ["sign", "sign_type", "app_id", "trade_no"],
+        "missing_headers": [],
+        "valid": true,
+        "raw_header_values_included": false
+      },
       "webhook_secret_ref": "vault:alipay/test/webhook_key_ref",
+      "provider_mode_boundary": {
+        "livemode": false,
+        "test_event_in_live_mode_allowed": false,
+        "live_event_in_test_mode_allowed": false
+      },
       "verified": true,
       "raw_payload_included": false,
       "secret_value_present": false,
-      "object_evidence_path": "docs/evidence/private_refs/payments/alipay/test/trade_success.hash-envelope.json"
+      "object_evidence_path": "docs/evidence/private_refs/payments/alipay/test/trade_success.hash-envelope.json",
+      "object_evidence_ref": {
+        "event_id_ref": "evt_ref:alipay/test/trade_success",
+        "object_evidence_path": "docs/evidence/private_refs/payments/alipay/test/trade_success.hash-envelope.json",
+        "contains_raw_provider_payload": false,
+        "contains_raw_secret": false,
+        "contains_card_data": false
+      }
     },
     {
       "provider": "stripe",
@@ -184,11 +300,30 @@
       "event_id_ref": "dashboard-ref:stripe/live/invoice_paid/manual_only",
       "payload_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "signature_header_present": true,
+      "signature_header_shape": {
+        "expected_headers": ["stripe-signature"],
+        "provided_headers": ["stripe-signature"],
+        "missing_headers": [],
+        "valid": true,
+        "raw_header_values_included": false
+      },
       "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF_LIVE",
+      "provider_mode_boundary": {
+        "livemode": true,
+        "test_event_in_live_mode_allowed": false,
+        "live_event_in_test_mode_allowed": false
+      },
       "verified": true,
       "raw_payload_included": false,
       "secret_value_present": false,
-      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/live/invoice_paid.hash-envelope.json"
+      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/live/invoice_paid.hash-envelope.json",
+      "object_evidence_ref": {
+        "event_id_ref": "dashboard-ref:stripe/live/invoice_paid/manual_only",
+        "object_evidence_path": "docs/evidence/private_refs/payments/stripe/live/invoice_paid.hash-envelope.json",
+        "contains_raw_provider_payload": false,
+        "contains_raw_secret": false,
+        "contains_card_data": false
+      }
     }
   ],
   "object_evidence_paths": [

@@ -28,6 +28,36 @@ SUPPORTED_PAYMENT_METHODS: dict[str, tuple[str, ...]] = {
     "wechat_pay": ("wechat_pay",),
     "alipay": ("alipay",),
 }
+SECRET_REF_PREFIXES = ("env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:")
+PROVIDER_RAIL_MATRIX: dict[str, JsonDict] = {
+    "stripe": {
+        "modes": ("test", "live"),
+        "hosted_surface": "stripe_checkout_and_billing_portal",
+        "secret_ref_policy": "secret_ref is required for every mode and must be an indirection reference, never a raw API key",
+        "webhook_secret_ref_policy": "webhook_secret_ref is required for verified webhook evidence and must reference the mode-specific signing secret",
+        "webhook_signature_headers": ("stripe-signature",),
+        "allowed_payment_methods": SUPPORTED_PAYMENT_METHODS["stripe"],
+        "requires_live_mode_ack": True,
+    },
+    "wechat_pay": {
+        "modes": ("test", "live"),
+        "hosted_surface": "wechat_pay_native_qr_handoff",
+        "secret_ref_policy": "secret_ref is required for every mode and must reference merchant API key/private-key material stored outside public artifacts",
+        "webhook_secret_ref_policy": "webhook_secret_ref is required for verified webhook evidence and must reference API v3 notification verification material",
+        "webhook_signature_headers": ("wechatpay-signature", "wechatpay-timestamp", "wechatpay-nonce", "wechatpay-serial"),
+        "allowed_payment_methods": SUPPORTED_PAYMENT_METHODS["wechat_pay"],
+        "requires_live_mode_ack": True,
+    },
+    "alipay": {
+        "modes": ("test", "live"),
+        "hosted_surface": "alipay_trade_page_pay_handoff",
+        "secret_ref_policy": "secret_ref is required for every mode and must reference app private-key material stored outside public artifacts",
+        "webhook_secret_ref_policy": "webhook_secret_ref is required for verified webhook evidence and must reference Alipay public-key verification material",
+        "webhook_signature_headers": ("sign", "sign_type", "app_id", "trade_no"),
+        "allowed_payment_methods": SUPPORTED_PAYMENT_METHODS["alipay"],
+        "requires_live_mode_ack": True,
+    },
+}
 
 _SECRET_KEY_RE = re.compile(r"\b(?:sk|rk|whsec)_(?:test|live)_[A-Za-z0-9]{8,}\b")
 _CARD_NUMBER_RE = re.compile(r"(?:\d[ -]*?){13,19}")
@@ -142,6 +172,7 @@ def build_checkout_session_plan(
         "metadata": _public_metadata(metadata),
         "usage_rollup": rollup,
         "provider_request": _provider_checkout_request(config, price_obj, tenant_id, project_id, customer_ref, quantity),
+        "provider_mode_boundary": _provider_mode_boundary(config),
         "side_effects": {"provider_called": False, "checkout_or_portal_called": False, "real_charge_possible": False},
         "created_at": _utc_now(),
         "idempotency_key": idempotency_key or plan_id,
@@ -184,6 +215,7 @@ def build_billing_portal_plan(
             "return_url": str(return_url),
             "secret_ref": config.secret_ref,
         },
+        "provider_mode_boundary": _provider_mode_boundary(config),
         "side_effects": {"provider_called": False, "checkout_or_portal_called": False, "real_charge_possible": False},
         "created_at": _utc_now(),
         "idempotency_key": idempotency_key or plan_id,
@@ -201,6 +233,7 @@ def verify_billing_webhook_envelope(
     project_id: str,
     payload_sha256: str,
     signature_header_present: bool,
+    signature_header_names: Sequence[str] | None = None,
     webhook_secret_ref: str | None = None,
     livemode: bool | None = None,
 ) -> JsonDict:
@@ -209,14 +242,21 @@ def verify_billing_webhook_envelope(
     _validate_tenant_project(tenant_id, project_id)
     if not re.fullmatch(r"[a-fA-F0-9]{64}", str(payload_sha256)):
         raise BillingContractError("payload_sha256 must be a sha256 hex digest")
+    header_shape = _validate_webhook_header_shape(provider_name, signature_header_present, signature_header_names)
+    if webhook_secret_ref:
+        _validate_public_ref("webhook_secret_ref", str(webhook_secret_ref))
     live_event = bool(livemode) if livemode is not None else normalized_mode == "live"
     failures: list[JsonDict] = []
     if not signature_header_present:
         failures.append({"reason": "missing_signature_header"})
-    if normalized_mode == "live" and not webhook_secret_ref:
-        failures.append({"reason": "missing_live_webhook_secret_ref"})
+    if signature_header_present and not header_shape["valid"]:
+        failures.append({"reason": "invalid_signature_header_shape", "missing_headers": header_shape["missing_headers"]})
+    if not webhook_secret_ref:
+        failures.append({"reason": "missing_webhook_secret_ref" if normalized_mode == "test" else "missing_live_webhook_secret_ref"})
     if normalized_mode == "test" and live_event:
         failures.append({"reason": "live_event_received_in_test_mode"})
+    if normalized_mode == "live" and live_event is False:
+        failures.append({"reason": "test_event_received_in_live_mode"})
 
     envelope = {
         "schema_version": BILLING_SCHEMA_VERSION,
@@ -229,7 +269,9 @@ def verify_billing_webhook_envelope(
         "event_id": str(event_id),
         "payload_sha256": str(payload_sha256).lower(),
         "signature_header_present": bool(signature_header_present),
+        "signature_header_shape": header_shape,
         "webhook_secret_ref": webhook_secret_ref,
+        "provider_mode_boundary": {"livemode": live_event, "test_event_in_live_mode_allowed": False, "live_event_in_test_mode_allowed": False},
         "verified": not failures,
         "failures": failures,
         "raw_payload_included": False,
@@ -246,9 +288,13 @@ def billing_provider_manifest() -> JsonDict:
         "modes": sorted(SUPPORTED_MODES),
         "currencies": sorted(SUPPORTED_CURRENCIES),
         "payment_methods": {provider: list(methods) for provider, methods in SUPPORTED_PAYMENT_METHODS.items()},
+        "secret_ref_prefixes": list(SECRET_REF_PREFIXES),
+        "provider_mode_matrix": _provider_mode_matrix_public(),
         "live_mode_guardrails": [
             "live mode requires live_mode_ack",
             "live mode requires secret_ref indirection",
+            "every provider mode requires secret_ref indirection",
+            "verified webhook evidence requires webhook_secret_ref indirection and provider-specific signature headers",
             "raw provider secrets are rejected",
             "raw card numbers are rejected",
             "plans do not call providers until an executor with explicit credentials is wired",
@@ -344,19 +390,84 @@ def _validate_provider_config(config: BillingProviderConfig) -> None:
         raise BillingContractError(f"unsupported billing provider: {config.provider}")
     if config.mode not in SUPPORTED_MODES:
         raise BillingContractError(f"unsupported billing mode: {config.mode}")
+    matrix = PROVIDER_RAIL_MATRIX[config.provider]
+    if config.mode not in matrix["modes"]:
+        raise BillingContractError(f"unsupported mode for {config.provider}: {config.mode}")
     for ref_name in ("secret_ref", "webhook_secret_ref", "account_ref"):
         value = getattr(config, ref_name)
-        if value and _looks_like_raw_secret(str(value)):
-            raise BillingContractError(f"{ref_name} must be an indirection, not a raw secret")
+        if value:
+            _validate_public_ref(ref_name, str(value))
+    if not config.secret_ref:
+        raise BillingContractError("secret_ref is required for provider rail plans")
     allowed = set(SUPPORTED_PAYMENT_METHODS[config.provider])
-    unknown = set(config.allowed_payment_methods) - allowed
+    methods = set(config.allowed_payment_methods)
+    unknown = methods - allowed
     if unknown:
         raise BillingContractError(f"unsupported payment methods for {config.provider}: {sorted(unknown)}")
+    if not methods:
+        raise BillingContractError("allowed_payment_methods must not be empty")
     if config.mode == "live":
         if not config.live_mode_ack:
             raise BillingContractError("live mode requires live_mode_ack=True")
-        if not config.secret_ref:
-            raise BillingContractError("live mode requires secret_ref indirection")
+
+
+def _validate_public_ref(ref_name: str, value: str) -> None:
+    if _looks_like_raw_secret(value):
+        raise BillingContractError(f"{ref_name} must be an indirection, not a raw secret")
+    if not value.startswith(SECRET_REF_PREFIXES):
+        raise BillingContractError(f"{ref_name} must use an approved reference prefix")
+    _reject_sensitive_payload({ref_name: value})
+
+
+def _provider_mode_boundary(config: BillingProviderConfig) -> JsonDict:
+    matrix = PROVIDER_RAIL_MATRIX[config.provider]
+    return {
+        "provider": config.provider,
+        "mode": config.mode,
+        "supported_modes": list(matrix["modes"]),
+        "hosted_surface": matrix["hosted_surface"],
+        "secret_ref_policy": matrix["secret_ref_policy"],
+        "webhook_secret_ref_policy": matrix["webhook_secret_ref_policy"],
+        "webhook_signature_headers": list(matrix["webhook_signature_headers"]),
+        "allowed_payment_methods": list(config.allowed_payment_methods),
+        "live_mode_ack": config.live_mode_ack,
+        "live_mode_ack_required": bool(matrix["requires_live_mode_ack"]),
+        "test_live_boundary_enforced": True,
+        "provider_called": False,
+        "real_charge_possible": False,
+    }
+
+
+def _provider_mode_matrix_public() -> JsonDict:
+    return {
+        provider: {
+            "modes": list(policy["modes"]),
+            "hosted_surface": policy["hosted_surface"],
+            "secret_ref_policy": policy["secret_ref_policy"],
+            "webhook_secret_ref_policy": policy["webhook_secret_ref_policy"],
+            "webhook_signature_headers": list(policy["webhook_signature_headers"]),
+            "allowed_payment_methods": list(policy["allowed_payment_methods"]),
+            "requires_live_mode_ack": bool(policy["requires_live_mode_ack"]),
+            "raw_secret_values_allowed": False,
+            "raw_card_data_allowed": False,
+        }
+        for provider, policy in sorted(PROVIDER_RAIL_MATRIX.items())
+    }
+
+
+def _validate_webhook_header_shape(provider: str, signature_header_present: bool, signature_header_names: Sequence[str] | None) -> JsonDict:
+    expected = tuple(PROVIDER_RAIL_MATRIX[provider]["webhook_signature_headers"])
+    provided = tuple(str(name).strip().lower() for name in (signature_header_names or ()) if str(name).strip())
+    if signature_header_present and not provided:
+        provided = expected
+    missing = [name for name in expected if name not in provided]
+    return {
+        "expected_headers": list(expected),
+        "provided_headers": list(provided),
+        "missing_headers": missing,
+        "valid": bool(signature_header_present) and not missing,
+        "raw_header_values_included": False,
+    }
 
 
 def _normalize_provider(provider: str) -> str:

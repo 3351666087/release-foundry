@@ -161,6 +161,7 @@ export interface SaaSControlPlaneState extends JsonRecord {
   metadata: { local_only: true; ashr_api_used: false };
   state_metadata: JsonRecord;
   control_plane: SaaSControlPlaneStore;
+  billing_ledger?: JsonRecord;
   integrity: JsonRecord;
 }
 
@@ -299,6 +300,37 @@ export class SaaSControlPlaneService {
     this.cloud = options.cloud ?? new CloudApiService();
     this.store = createSaaSControlPlaneStore(options.store);
     this.billingLedger = new BillingLedger();
+  }
+
+  restoreBillingLedgerState(state: JsonRecord = {}): void {
+    this.billingLedger.ledgerEvents.length = 0;
+    for (const event of Array.isArray(state.ledger_events) ? state.ledger_events : []) {
+      if (isRecord(event)) this.billingLedger.ledgerEvents.push(cloneJson(event) as JsonRecord);
+    }
+    this.billingLedger.providerEvents.clear();
+    const providerEvents = isRecord(state.provider_events) ? Object.values(state.provider_events) : (Array.isArray(state.provider_events) ? state.provider_events : []);
+    for (const event of providerEvents) {
+      if (!isRecord(event)) continue;
+      const key = `${event.tenant_id}:${event.project_id}:${event.provider}:${event.mode}:${event.event_id ?? event.provider_event_id}`;
+      this.billingLedger.providerEvents.set(key, cloneJson(event) as JsonRecord);
+    }
+    this.billingLedger.billingAccounts.clear();
+    const accounts = isRecord(state.billing_accounts) ? Object.values(state.billing_accounts) : (Array.isArray(state.billing_accounts) ? state.billing_accounts : []);
+    for (const account of accounts) {
+      if (!isRecord(account)) continue;
+      const key = `${account.tenant_id}:${account.project_id}:${account.provider}:${account.mode}:${account.customer_ref}`;
+      this.billingLedger.billingAccounts.set(key, cloneJson(account) as JsonRecord);
+    }
+  }
+
+  billingLedgerState(): JsonRecord {
+    return {
+      ledger_events: cloneJson(this.billingLedger.ledgerEvents) as JsonRecord[],
+      provider_events: Object.fromEntries([...this.billingLedger.providerEvents.entries()].map(([key, value]) => [key, cloneJson(value) as JsonRecord])),
+      billing_accounts: Object.fromEntries([...this.billingLedger.billingAccounts.entries()].map(([key, value]) => [key, cloneJson(value) as JsonRecord])),
+      raw_payload_included: false,
+      secret_value_present: false,
+    };
   }
 
   bootstrapProject(options: { tenantName: string; projectName: string; tenantId?: string; projectId?: string }): JsonRecord {
@@ -1005,6 +1037,7 @@ export class SaaSControlPlaneService {
       metadata: { local_only: true as const, ashr_api_used: false as const },
       state_metadata: { writer: "packages/ts/ashr-clone/saas", updated_at: utcNow() },
       control_plane: cloneJson(this.store),
+      billing_ledger: this.billingLedgerState(),
     };
     return { ...payload, integrity: { payload_sha256: sha256(JSON.stringify(sortJson(payload))) } };
   }
@@ -1030,7 +1063,7 @@ export class SaaSControlPlaneService {
       throw new ValidationError(`unsupported control-plane state schema version: ${version}`);
     }
     const control = isRecord(payload.control_plane) ? payload.control_plane : {};
-    return new SaaSControlPlaneService({
+    const service = new SaaSControlPlaneService({
       cloud: CloudApiService.fromState(payload.cloud),
       store: {
         api_keys: stateBucket(control, "api_keys"),
@@ -1045,6 +1078,8 @@ export class SaaSControlPlaneService {
         worker_jobs: stateBucket(control, "worker_jobs"),
       },
     });
+    if (isRecord(payload.billing_ledger)) service.restoreBillingLedgerState(payload.billing_ledger);
+    return service;
   }
 
   static async fromStateFile(inputPath: string): Promise<SaaSControlPlaneService> {
@@ -2009,7 +2044,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list"]);
+const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -2026,6 +2061,11 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
   const client = baseUrl !== undefined ? SaaSIngestionClient.forBaseUrl(baseUrl) : (stateInput !== undefined ? await SaaSIngestionClient.fromStateFile(stateInput) : new SaaSIngestionClient());
   let result: JsonRecord;
   switch (command) {
+    case "bootstrap":
+      result = baseUrl !== undefined
+        ? await client.bootstrapProjectHttp({ tenantName: stringOption(options, "tenant-name", true), projectName: stringOption(options, "project-name", true), tenantId: stringOption(options, "tenant-id", false), projectId: stringOption(options, "project-id", false), datasetId: stringOption(options, "dataset-id", false), datasetName: stringOption(options, "dataset-name", false) })
+        : client.bootstrapProject({ tenantName: stringOption(options, "tenant-name", true), projectName: stringOption(options, "project-name", true), tenantId: stringOption(options, "tenant-id", false), projectId: stringOption(options, "project-id", false), datasetId: stringOption(options, "dataset-id", false), datasetName: stringOption(options, "dataset-name", false) });
+      break;
     case "api-key-create":
       result = baseUrl !== undefined
         ? await client.createApiKeyHttp(projectTenant(options).tenantId, projectTenant(options).projectId, {
@@ -2054,6 +2094,57 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       result = baseUrl !== undefined
         ? await client.apiKeyRateLimitSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) })
         : client.apiKeyRateLimitSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) });
+      break;
+    case "sdk-submit":
+      result = baseUrl !== undefined
+        ? await client.sdkSubmitHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { datasetId: stringOption(options, "dataset-id", true), agentRef: stringOption(options, "agent-ref", true), runId: stringOption(options, "run-id", false), metadata: await jsonObjectOption(options, "metadata", {}), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+        : client.sdkSubmit(projectTenant(options).tenantId, projectTenant(options).projectId, { datasetId: stringOption(options, "dataset-id", true), agentRef: stringOption(options, "agent-ref", true), runId: stringOption(options, "run-id", false), metadata: await jsonObjectOption(options, "metadata", {}), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "run-upload":
+      {
+        const resultPayload = await jsonObjectOption(options, "result", {});
+        result = baseUrl !== undefined
+          ? await client.uploadRunHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), resultPayload, { uploadId: stringOption(options, "upload-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+          : client.uploadRun(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), resultPayload, { uploadId: stringOption(options, "upload-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      }
+      break;
+    case "trace-ingest":
+      result = baseUrl !== undefined
+        ? await client.ingestTraceHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), await jsonArrayOption(options, "observations"), { batchId: stringOption(options, "batch-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+        : client.ingestTrace(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), await jsonArrayOption(options, "observations"), { batchId: stringOption(options, "batch-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "lifecycle":
+      result = baseUrl !== undefined
+        ? await client.lifecycleHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true))
+        : client.lifecycle(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true));
+      break;
+    case "quota":
+      result = baseUrl !== undefined ? await client.quotaSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId) : client.quotaSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId);
+      break;
+    case "usage":
+      result = baseUrl !== undefined
+        ? await client.usageHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.usage(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-checkout-plan":
+      result = baseUrl !== undefined
+        ? await client.billingCheckoutPlanHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), price: await jsonObjectOption(options, "price", {}), successUrl: stringOption(options, "success-url", true), cancelUrl: stringOption(options, "cancel-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), usageRollup: await jsonObjectOption(options, "usage-rollup", {}), metadata: await jsonObjectOption(options, "metadata", {}), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingCheckoutPlan(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), price: await jsonObjectOption(options, "price", {}), successUrl: stringOption(options, "success-url", true), cancelUrl: stringOption(options, "cancel-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), usageRollup: await jsonObjectOption(options, "usage-rollup", {}), metadata: await jsonObjectOption(options, "metadata", {}), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-portal-plan":
+      result = baseUrl !== undefined
+        ? await client.billingPortalPlanHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), returnUrl: stringOption(options, "return-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingPortalPlan(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), returnUrl: stringOption(options, "return-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-webhook-ingest":
+      result = baseUrl !== undefined
+        ? await client.billingWebhookIngestHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { provider: stringOption(options, "provider", true), mode: stringOption(options, "mode", true), eventType: stringOption(options, "event-type", true), eventId: stringOption(options, "event-id", true), payloadSha256: stringOption(options, "payload-sha256", true), signatureHeaderPresent: Boolean(options["signature-header-present"]), webhookSecretRef: stringOption(options, "webhook-secret-ref", false), livemode: Boolean(options.livemode), customerRef: stringOption(options, "customer-ref", false), amountMinor: optionalNumberOption(options, "amount-minor"), currency: stringOption(options, "currency", false), invoiceRef: stringOption(options, "invoice-ref", false), usageUnits: optionalNumberOption(options, "usage-units"), metadata: await jsonObjectOption(options, "metadata", {}), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingWebhookIngest(projectTenant(options).tenantId, projectTenant(options).projectId, { provider: stringOption(options, "provider", true), mode: stringOption(options, "mode", true), eventType: stringOption(options, "event-type", true), eventId: stringOption(options, "event-id", true), payloadSha256: stringOption(options, "payload-sha256", true), signatureHeaderPresent: Boolean(options["signature-header-present"]), webhookSecretRef: stringOption(options, "webhook-secret-ref", false), livemode: Boolean(options.livemode), customerRef: stringOption(options, "customer-ref", false), amountMinor: optionalNumberOption(options, "amount-minor"), currency: stringOption(options, "currency", false), invoiceRef: stringOption(options, "invoice-ref", false), usageUnits: optionalNumberOption(options, "usage-units"), metadata: await jsonObjectOption(options, "metadata", {}), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-ledger":
+      result = baseUrl !== undefined
+        ? await client.billingLedgerHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingLedger(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
       break;
     case "release-gate":
       result = baseUrl !== undefined
@@ -2224,12 +2315,33 @@ async function jsonObjectOption(options: CliOptions, name: string, defaultValue:
   return defaultValue;
 }
 
+async function optionalJsonObjectOption(options: CliOptions, name: string): Promise<JsonRecord | undefined> {
+  const hasJson = stringOption(options, `${name}-json`, false) !== undefined;
+  const hasFile = stringOption(options, `${name}-file`, false) !== undefined;
+  return hasJson || hasFile ? jsonObjectOption(options, name, {}) : undefined;
+}
+
+async function jsonArrayOption(options: CliOptions, name: string): Promise<JsonRecord[]> {
+  const jsonValue = stringOption(options, `${name}-json`, false);
+  const fileValue = stringOption(options, `${name}-file`, false);
+  if (jsonValue !== undefined && fileValue !== undefined) throw new SecretInputError(`provide only one of --${name}-json or --${name}-file`);
+  const raw = jsonValue ?? (fileValue !== undefined ? await (async () => {
+    assertPublicControlPlanePath(fileValue);
+    const fs = await import("node:fs/promises");
+    return fs.readFile(fileValue, "utf8");
+  })() : undefined);
+  if (raw === undefined) return [];
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) throw new SecretInputError(`--${name}-json must decode to an array of objects`);
+  return parsed as JsonRecord[];
+}
+
 function projectTenant(options: CliOptions): { tenantId: string; projectId: string } {
   return { tenantId: stringOption(options, "tenant-id", true), projectId: stringOption(options, "project-id", true) };
 }
 
 function saasCliUsage(): string {
-  return "usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <api-key-create|api-key-list|api-key-verify|api-key-rate-limit|api-key-rate-limits|release-gate|audit-log|audit-chain-verify|release-evidence|release-evidence-verify|job-enqueue|job-lease|job-heartbeat|job-complete|job-fail|job-list> [options]";
+  return `usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <${[...SAAS_CLI_COMMANDS].join("|")}> [options]`;
 }
 
 async function mainSaaSCli(): Promise<number> {

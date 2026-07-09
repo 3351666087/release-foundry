@@ -305,7 +305,7 @@ def _summarize_record_path(path: Path) -> JsonDict | None:
     request = record.get("request") if isinstance(record.get("request"), Mapping) else {}
     quota = _public_safe_quota_summary(summarize_quota_error(record))
     entry: JsonDict = {
-        "path": path.as_posix(),
+        "path": _repo_relative_path(Path.cwd(), path.resolve()),
         "function": record.get("function"),
         "dry_run": record.get("dry_run"),
         "status": record.get("status"),

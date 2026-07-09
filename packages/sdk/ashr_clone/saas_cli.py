@@ -96,6 +96,54 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_args(usage)
     usage.add_argument("--auth-key-id")
 
+    checkout = subparsers.add_parser("billing-checkout-plan", help="Build a public-safe billing checkout plan without contacting a payment provider.")
+    _add_project_args(checkout)
+    checkout.add_argument("--customer-ref", required=True)
+    checkout.add_argument("--price-json")
+    checkout.add_argument("--price-file")
+    checkout.add_argument("--success-url", required=True)
+    checkout.add_argument("--cancel-url", required=True)
+    checkout.add_argument("--provider-config-json")
+    checkout.add_argument("--provider-config-file")
+    checkout.add_argument("--usage-rollup-json")
+    checkout.add_argument("--usage-rollup-file")
+    checkout.add_argument("--metadata-json")
+    checkout.add_argument("--metadata-file")
+    checkout.add_argument("--idempotency-key")
+    checkout.add_argument("--auth-key-id")
+
+    portal = subparsers.add_parser("billing-portal-plan", help="Build a public-safe billing portal plan without contacting a payment provider.")
+    _add_project_args(portal)
+    portal.add_argument("--customer-ref", required=True)
+    portal.add_argument("--return-url", required=True)
+    portal.add_argument("--provider-config-json")
+    portal.add_argument("--provider-config-file")
+    portal.add_argument("--idempotency-key")
+    portal.add_argument("--auth-key-id")
+
+    webhook = subparsers.add_parser("billing-webhook-ingest", help="Ingest a hash-only billing webhook envelope into the local billing ledger.")
+    _add_project_args(webhook)
+    webhook.add_argument("--provider", required=True)
+    webhook.add_argument("--mode", required=True)
+    webhook.add_argument("--event-type", required=True)
+    webhook.add_argument("--event-id", required=True)
+    webhook.add_argument("--payload-sha256", required=True)
+    webhook.add_argument("--signature-header-present", action="store_true")
+    webhook.add_argument("--webhook-secret-ref")
+    webhook.add_argument("--livemode", action="store_true")
+    webhook.add_argument("--customer-ref")
+    webhook.add_argument("--amount-minor", type=int, default=0)
+    webhook.add_argument("--currency", default="usd")
+    webhook.add_argument("--invoice-ref")
+    webhook.add_argument("--usage-units", type=int, default=0)
+    webhook.add_argument("--metadata-json")
+    webhook.add_argument("--metadata-file")
+    webhook.add_argument("--auth-key-id")
+
+    ledger = subparsers.add_parser("billing-ledger", help="Read the public-safe local billing ledger.")
+    _add_project_args(ledger)
+    ledger.add_argument("--auth-key-id")
+
     artifact_create = subparsers.add_parser("artifact-manifest-create", help="Store a hash-only artifact manifest receipt for a run.")
     _add_run_args(artifact_create)
     artifact_create.add_argument("--manifest-json")
@@ -214,6 +262,52 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.quota_snapshot(args.tenant_id, args.project_id)
     elif command == "usage":
         envelope = client.usage_snapshot(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
+    elif command == "billing-checkout-plan":
+        envelope = client.billing_checkout_plan(
+            args.tenant_id,
+            args.project_id,
+            customer_ref=args.customer_ref,
+            price=_load_object_arg(args.price_json, args.price_file, default={}),
+            success_url=args.success_url,
+            cancel_url=args.cancel_url,
+            provider_config=_load_object_arg(args.provider_config_json, args.provider_config_file, default=None),
+            usage_rollup=_load_object_arg(args.usage_rollup_json, args.usage_rollup_file, default={}),
+            metadata=_load_object_arg(args.metadata_json, args.metadata_file, default={}),
+            idempotency_key=args.idempotency_key,
+            auth_key_id=args.auth_key_id,
+        )
+    elif command == "billing-portal-plan":
+        envelope = client.billing_portal_plan(
+            args.tenant_id,
+            args.project_id,
+            customer_ref=args.customer_ref,
+            return_url=args.return_url,
+            provider_config=_load_object_arg(args.provider_config_json, args.provider_config_file, default=None),
+            idempotency_key=args.idempotency_key,
+            auth_key_id=args.auth_key_id,
+        )
+    elif command == "billing-webhook-ingest":
+        envelope = client.billing_webhook_ingest(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            mode=args.mode,
+            event_type=args.event_type,
+            event_id=args.event_id,
+            payload_sha256=args.payload_sha256,
+            signature_header_present=args.signature_header_present,
+            webhook_secret_ref=args.webhook_secret_ref,
+            livemode=args.livemode,
+            customer_ref=args.customer_ref,
+            amount_minor=args.amount_minor,
+            currency=args.currency,
+            invoice_ref=args.invoice_ref,
+            usage_units=args.usage_units,
+            metadata=_load_object_arg(args.metadata_json, args.metadata_file, default={}),
+            auth_key_id=args.auth_key_id,
+        )
+    elif command == "billing-ledger":
+        envelope = client.billing_ledger(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
     elif command == "artifact-manifest-create":
         envelope = client.create_artifact_manifest(
             args.tenant_id,

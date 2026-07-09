@@ -264,6 +264,20 @@ def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
     assert loaded["records"][0]["response_keys"] == ["status", "user"]
 
 
+def test_evidence_index_from_repo_private_refs_uses_relative_paths():
+    root = Path(__file__).resolve().parents[2]
+    record = root / "docs" / "evidence" / "private_refs" / "pytest_relative_path_record.json"
+    record.write_text(json.dumps({"function": "init", "status": "ok", "response": {"status": "ok"}}), encoding="utf-8")
+    try:
+        index = build_private_evidence_index([record], label="relative-path-check")
+    finally:
+        record.unlink(missing_ok=True)
+
+    assert index["records"][0]["path"] == "docs/evidence/private_refs/pytest_relative_path_record.json"
+    assert ":" not in index["records"][0]["path"]
+    assert "\\" not in index["records"][0]["path"]
+
+
 def test_public_evidence_index_matches_schema():
     root = Path(__file__).resolve().parents[2]
     schema = json.loads((root / "docs" / "a1" / "schemas" / "evidence_index.schema.json").read_text(encoding="utf-8"))
@@ -279,6 +293,17 @@ def test_public_evidence_index_matches_schema():
         assert isinstance(record["request_keys"], list)
         assert isinstance(record["response_keys"], list)
         assert isinstance(record["top_counts"], dict)
+
+
+def test_public_evidence_index_includes_round39_paid_media_gate_summary():
+    root = Path(__file__).resolve().parents[2]
+    index = json.loads((root / "docs" / "a1" / "api_calibration" / "real_api_evidence_index.json").read_text(encoding="utf-8"))
+    paths = {record["path"] for record in index["records"]}
+
+    assert "docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json" in paths
+    assert "docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json" in paths
+    assert index["quota_block_count"] >= 1
+    assert index["function_counts"]["create_request"] >= 1
 
 
 def test_merge_evidence_indices_preserves_existing_public_records(tmp_path: Path):

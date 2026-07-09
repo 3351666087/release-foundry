@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -101,4 +103,29 @@ test("TS SaaS billing HTTP routes match shared contract", async () => {
     assert.equal(bodyOrQuery.tenant_id, "tenant route");
     assert.equal(bodyOrQuery.auth_key_id, "key_bill");
   }
+});
+
+test("TS SaaS billing CLI exposes checkout, portal, webhook ingest, and ledger", async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), "ashr-ts-billing-cli-"));
+  const state = path.join(tempDir, "state.json");
+  const cli = (...args) => {
+    const child = spawnSync(process.execPath, ["dist/saas.js", ...args], { cwd: path.resolve("."), encoding: "utf8" });
+    assert.equal(child.status, 0, child.stderr);
+    const parsed = JSON.parse(child.stdout);
+    assertPublicSafe(parsed);
+    return parsed;
+  };
+
+  cli("--state-output", state, "bootstrap", "--tenant-name", "Tenant", "--project-name", "Project", "--tenant-id", "tenant_ts_bill_cli", "--project-id", "project_ts_bill_cli");
+  const checkout = cli("--state-input", state, "billing-checkout-plan", "--tenant-id", "tenant_ts_bill_cli", "--project-id", "project_ts_bill_cli", "--customer-ref", "cus_cli", "--price-json", '{"lookupKey":"team","unitAmountMinor":9900,"currency":"usd"}', "--success-url", "https://app.ashr-clone.invalid/billing/success", "--cancel-url", "https://app.ashr-clone.invalid/billing/cancel", "--metadata-json", '{"safe_note":"checkout"}', "--idempotency-key", "checkout_ts_bill_cli");
+  const portal = cli("--state-input", state, "billing-portal-plan", "--tenant-id", "tenant_ts_bill_cli", "--project-id", "project_ts_bill_cli", "--customer-ref", "cus_cli", "--return-url", "https://app.ashr-clone.invalid/billing", "--idempotency-key", "portal_ts_bill_cli");
+  const webhook = cli("--state-input", state, "--state-output", state, "billing-webhook-ingest", "--tenant-id", "tenant_ts_bill_cli", "--project-id", "project_ts_bill_cli", "--provider", "stripe", "--mode", "test", "--event-type", "invoice.paid", "--event-id", "evt_ts_bill_cli", "--payload-sha256", "c".repeat(64), "--signature-header-present", "--webhook-secret-ref", "env:STRIPE_WEBHOOK_REF_TEST", "--customer-ref", "cus_cli", "--amount-minor", "9900", "--currency", "usd", "--invoice-ref", "in_ts_bill_cli", "--metadata-json", '{"billing_period":"2026-07"}');
+  const ledger = cli("--state-input", state, "billing-ledger", "--tenant-id", "tenant_ts_bill_cli", "--project-id", "project_ts_bill_cli");
+
+  assert.equal(checkout.operation, contract.operations.checkout_plan.operation);
+  assert.equal(portal.operation, contract.operations.portal_plan.operation);
+  assert.equal(webhook.operation, contract.operations.webhook_ingest.operation);
+  assert.equal(ledger.operation, contract.operations.ledger_readback.operation);
+  assert.equal(ledger.result.ledger_event_count, 1);
+  assert.deepEqual(ledger.result.totals_by_currency_minor, { usd: 9900 });
 });

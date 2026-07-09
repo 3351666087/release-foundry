@@ -11,6 +11,7 @@
     "public_safe",
     "payment_call_policy",
     "provider_secret_policy",
+    "provider_mode_matrix",
     "providers",
     "human_real_card_testing",
     "webhook_hash_envelopes",
@@ -44,17 +45,34 @@
       },
       "additionalProperties": true
     },
+    "provider_mode_matrix": {
+      "type": "object",
+      "required": ["stripe", "wechat_pay", "alipay"],
+      "properties": {
+        "stripe": {"$ref": "#/$defs/provider_mode_policy"},
+        "wechat_pay": {"$ref": "#/$defs/provider_mode_policy"},
+        "alipay": {"$ref": "#/$defs/provider_mode_policy"}
+      },
+      "additionalProperties": false
+    },
     "providers": {
       "type": "array",
       "minItems": 3,
       "items": {
         "type": "object",
-        "required": ["provider", "modes", "hosted_surface", "payment_methods", "secret_refs", "webhook_secret_refs", "side_effects", "live_readiness_boundary"],
+        "required": ["provider", "modes", "hosted_surface", "payment_methods", "secret_ref_policy", "webhook_secret_ref_policy", "webhook_signature_headers", "secret_refs", "webhook_secret_refs", "side_effects", "live_readiness_boundary", "requires_live_mode_ack", "test_live_boundary_enforced", "raw_secret_values_allowed", "raw_card_data_allowed"],
         "properties": {
           "provider": {"enum": ["stripe", "wechat_pay", "alipay"]},
           "modes": {"type": "array", "items": {"enum": ["test", "live"]}, "contains": {"const": "test"}},
           "hosted_surface": {"type": "string"},
           "payment_methods": {"type": "array", "items": {"type": "string"}},
+          "secret_ref_policy": {"type": "string"},
+          "webhook_secret_ref_policy": {"type": "string"},
+          "webhook_signature_headers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "requires_live_mode_ack": {"const": true},
+          "test_live_boundary_enforced": {"const": true},
+          "raw_secret_values_allowed": {"const": false},
+          "raw_card_data_allowed": {"const": false},
           "secret_refs": {"$ref": "#/$defs/ref_map"},
           "webhook_secret_refs": {"$ref": "#/$defs/ref_map"},
           "account_refs": {"$ref": "#/$defs/ref_map"},
@@ -90,7 +108,7 @@
       "minItems": 3,
       "items": {
         "type": "object",
-        "required": ["provider", "mode", "event_type", "payload_sha256", "signature_header_present", "webhook_secret_ref", "raw_payload_included", "secret_value_present"],
+        "required": ["provider", "mode", "event_type", "payload_sha256", "signature_header_present", "signature_header_shape", "webhook_secret_ref", "provider_mode_boundary", "raw_payload_included", "secret_value_present", "object_evidence_path", "object_evidence_ref"],
         "properties": {
           "provider": {"enum": ["stripe", "wechat_pay", "alipay"]},
           "mode": {"enum": ["test", "live"]},
@@ -98,11 +116,14 @@
           "event_id_ref": {"type": "string"},
           "payload_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
           "signature_header_present": {"type": "boolean"},
+          "signature_header_shape": {"$ref": "#/$defs/signature_header_shape"},
           "webhook_secret_ref": {"type": "string"},
+          "provider_mode_boundary": {"$ref": "#/$defs/provider_mode_boundary"},
           "verified": {"type": "boolean"},
           "raw_payload_included": {"const": false},
           "secret_value_present": {"const": false},
-          "object_evidence_path": {"type": "string"}
+          "object_evidence_path": {"type": "string"},
+          "object_evidence_ref": {"$ref": "#/$defs/object_evidence_ref"}
         },
         "additionalProperties": true
       }
@@ -136,6 +157,57 @@
     }
   },
   "$defs": {
+    "provider_mode_policy": {
+      "type": "object",
+      "required": ["modes", "hosted_surface", "secret_ref_policy", "webhook_secret_ref_policy", "webhook_signature_headers", "allowed_payment_methods", "requires_live_mode_ack", "test_live_boundary_enforced", "raw_secret_values_allowed", "raw_card_data_allowed"],
+      "properties": {
+        "modes": {"type": "array", "items": {"enum": ["test", "live"]}, "contains": {"const": "test"}},
+        "hosted_surface": {"type": "string"},
+        "secret_ref_policy": {"type": "string"},
+        "webhook_secret_ref_policy": {"type": "string"},
+        "webhook_signature_headers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "allowed_payment_methods": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "requires_live_mode_ack": {"const": true},
+        "test_live_boundary_enforced": {"const": true},
+        "raw_secret_values_allowed": {"const": false},
+        "raw_card_data_allowed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "signature_header_shape": {
+      "type": "object",
+      "required": ["expected_headers", "provided_headers", "missing_headers", "valid", "raw_header_values_included"],
+      "properties": {
+        "expected_headers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "provided_headers": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "missing_headers": {"type": "array", "items": {"type": "string"}},
+        "valid": {"type": "boolean"},
+        "raw_header_values_included": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "provider_mode_boundary": {
+      "type": "object",
+      "required": ["livemode", "test_event_in_live_mode_allowed", "live_event_in_test_mode_allowed"],
+      "properties": {
+        "livemode": {"type": "boolean"},
+        "test_event_in_live_mode_allowed": {"const": false},
+        "live_event_in_test_mode_allowed": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "object_evidence_ref": {
+      "type": "object",
+      "required": ["event_id_ref", "object_evidence_path", "contains_raw_provider_payload", "contains_raw_secret", "contains_card_data"],
+      "properties": {
+        "event_id_ref": {"type": "string"},
+        "object_evidence_path": {"type": "string"},
+        "contains_raw_provider_payload": {"const": false},
+        "contains_raw_secret": {"const": false},
+        "contains_card_data": {"const": false}
+      },
+      "additionalProperties": true
+    },
     "ref_map": {
       "type": "object",
       "additionalProperties": {
