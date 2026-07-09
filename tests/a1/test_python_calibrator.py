@@ -562,6 +562,8 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     assert safety["contains_private_evidence_contents"] is False
     assert safety["private_evidence_references_only"] is True
     assert packet["observed_surface"]["read_only_missing_from_field_map"] == []
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["status"] == "ok"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["public_missing_claim_allowed"] is False
     assert packet["readiness"]["next_read_only_calibration_ready"] is True
     assert target_ids == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
     assert next_read_only["constraints"]["env_only_auth_material"] is True
@@ -576,6 +578,47 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     assert "hosted_surface_not_commercially_complete" in gap_ids
     assert "Bearer " not in payload
     assert "tp_syntheticsecret" not in payload
+
+
+def test_api_calibration_readiness_packet_blocks_missing_claim_when_public_summary_proves_private_manifest(tmp_path: Path):
+    manifest_summary = tmp_path / "official_api_readonly_manifest_summary.json"
+    manifest_summary.write_text(
+        json.dumps(
+            {
+                "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+                "source_private_manifest": "docs/evidence/private_refs/a1_private_manifest.json",
+                "source_private_manifest_present": True,
+                "status": "missing",
+                "summary": {"total_steps": 5, "read_steps": 5, "mutating_steps": 0, "error_steps": 0, "quota_block_count": 0},
+                "step_summaries": [{"step_id": "init", "function": "init", "response_keys": ["status"]}],
+                "error_summaries": [],
+                "public_safety": {
+                    "redacted_summary_fields_only": True,
+                    "raw_payload_values_included": False,
+                    "header_values_included": False,
+                    "request_parameter_values_included": False,
+                    "raw_key_material_present": False,
+                    "private_payload_contents_present": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    packet = build_api_calibration_readiness_packet(evidence_index_path=None, manifest_summary_index_path=manifest_summary)
+    guard = packet["observed_surface"]["private_manifest_claim_guard"]
+    summary_index = packet["observed_surface"]["private_manifest_summary"]
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert summary_index["source_private_manifest_present"] is True
+    assert summary_index["total_steps"] == 5
+    assert guard["status"] == "blocked"
+    assert guard["public_missing_claim_allowed"] is False
+    assert guard["public_missing_claim_blocked"] is True
+    assert guard["issues"][0]["code"] == "private_manifest_present_but_public_summary_missing"
+    assert "response_headers" not in payload
+    assert "authorization" not in payload.lower()
+    assert "bearer " not in payload.lower()
 
 
 def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_private_refs_public():
@@ -594,6 +637,8 @@ def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_priv
     assert packet["public_safety"]["raw_key_material_present"] is False
     assert packet["public_safety"]["auth_header_present"] is False
     assert packet["public_safety"]["private_evidence_root"] == "docs/evidence/private_refs"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["status"] == "ok"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["public_missing_claim_allowed"] is False
     assert packet["readiness"]["next_read_only_calibration_ready"] is True
     assert {target["id"] for target in packet["next_read_only_calibration"]["target_shape_groups"]} == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
     assert packet["next_read_only_calibration"]["constraints"]["env_only_auth_material"] is True

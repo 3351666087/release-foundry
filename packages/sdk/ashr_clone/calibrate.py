@@ -274,6 +274,7 @@ def build_api_calibration_readiness_packet(
     *,
     field_map_path: str | Path = FIELD_MAP_PATH,
     evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+    manifest_summary_index_path: str | Path | None = DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
 ) -> JsonDict:
     plan_args = args or CalibrationArgs(modalities=("text",))
     field_map = load_json_object(str(field_map_path), "--field-map")
@@ -281,6 +282,8 @@ def build_api_calibration_readiness_packet(
     evidence_index: JsonDict = {}
     if evidence_index_path is not None and Path(evidence_index_path).exists():
         evidence_index = load_json_object(str(evidence_index_path), "--evidence-index")
+    manifest_summary_index = _load_public_manifest_summary_index(manifest_summary_index_path)
+    manifest_claim_guard = _private_manifest_claim_guard(manifest_summary_index)
     plan = build_field_parity_plan(plan_args, field_map_path=field_map_path)
     observed_functions = sorted(functions)
     read_only_steps = [step for step in plan.get("steps", []) if isinstance(step, Mapping) and step.get("kind") == "read"]
@@ -292,6 +295,7 @@ def build_api_calibration_readiness_packet(
             "generated_at": utc_now(),
             "source_field_map": _repo_relative_output_path(field_map_path),
             "source_evidence_index": _repo_relative_output_path(evidence_index_path) if evidence_index_path else None,
+            "source_manifest_summary_index": _repo_relative_output_path(manifest_summary_index_path) if manifest_summary_index_path else None,
             "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
             "public_safety": {
                 "raw_key_material_present": False,
@@ -314,6 +318,8 @@ def build_api_calibration_readiness_packet(
                 "functions": observed_functions,
                 "read_only_manifest_step_count": len(read_only_steps),
                 "read_only_missing_from_field_map": read_only_missing,
+                "private_manifest_summary": manifest_summary_index,
+                "private_manifest_claim_guard": manifest_claim_guard,
                 "private_record_count": evidence_index.get("total_records"),
                 "status_counts": evidence_index.get("status_counts", {}),
                 "quota_block_count": evidence_index.get("quota_block_count", 0),
@@ -370,6 +376,85 @@ def build_api_calibration_readiness_packet(
             },
         }
     )
+
+
+def _load_public_manifest_summary_index(path: str | Path | None) -> JsonDict:
+    if path is None:
+        return _public_manifest_summary_index(None)
+    source = Path(path)
+    if not source.exists():
+        return _public_manifest_summary_index(
+            {
+                "source_private_manifest_present": False,
+                "status": "missing",
+                "summary": {},
+                "step_summaries": [],
+                "error_summaries": [],
+            },
+            summary_index_path=source,
+        )
+    return _public_manifest_summary_index(load_json_object(str(source), "--manifest-summary-index"), summary_index_path=source)
+
+
+def _public_manifest_summary_index(summary: Mapping[str, Any] | None, *, summary_index_path: str | Path | None = None) -> JsonDict:
+    summary = summary if isinstance(summary, Mapping) else {}
+    totals = summary.get("summary") if isinstance(summary.get("summary"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "summary_index_path": _repo_relative_output_path(summary_index_path) if summary_index_path else None,
+            "schema_version": summary.get("schema_version") if isinstance(summary.get("schema_version"), str) else None,
+            "source_private_manifest": summary.get("source_private_manifest") if isinstance(summary.get("source_private_manifest"), str) else None,
+            "source_private_manifest_present": summary.get("source_private_manifest_present") is True,
+            "status": summary.get("status") if isinstance(summary.get("status"), str) else "missing",
+            "mode": summary.get("mode") if isinstance(summary.get("mode"), str) else None,
+            "dry_run": summary.get("dry_run") if isinstance(summary.get("dry_run"), bool) else None,
+            "started_at_present": summary.get("started_at_present") is True,
+            "ended_at_present": summary.get("ended_at_present") is True,
+            "total_steps": _int_or_zero(totals.get("total_steps"), 0),
+            "read_steps": _int_or_zero(totals.get("read_steps"), 0),
+            "mutating_steps": _int_or_zero(totals.get("mutating_steps"), 0),
+            "error_steps": _int_or_zero(totals.get("error_steps"), 0),
+            "quota_block_count": _int_or_zero(totals.get("quota_block_count"), 0),
+            "step_summary_count": len(summary.get("step_summaries", [])) if isinstance(summary.get("step_summaries"), list) else 0,
+            "error_summary_count": len(summary.get("error_summaries", [])) if isinstance(summary.get("error_summaries"), list) else 0,
+            "public_safety": {
+                "redacted_summary_fields_only": _summary_public_safety_flag(summary, "redacted_summary_fields_only"),
+                "raw_payload_values_included": _summary_public_safety_flag(summary, "raw_payload_values_included"),
+                "header_values_included": _summary_public_safety_flag(summary, "header_values_included"),
+                "request_parameter_values_included": _summary_public_safety_flag(summary, "request_parameter_values_included"),
+                "raw_key_material_present": _summary_public_safety_flag(summary, "raw_key_material_present"),
+                "private_payload_contents_present": _summary_public_safety_flag(summary, "private_payload_contents_present"),
+            },
+        }
+    )
+
+
+def _summary_public_safety_flag(summary: Mapping[str, Any], key: str) -> bool:
+    public_safety = summary.get("public_safety") if isinstance(summary.get("public_safety"), Mapping) else {}
+    return public_safety.get(key) is True
+
+
+def _private_manifest_claim_guard(summary_index: Mapping[str, Any]) -> JsonDict:
+    source_present = summary_index.get("source_private_manifest_present") is True
+    status = summary_index.get("status") if isinstance(summary_index.get("status"), str) else "missing"
+    missing_claim_allowed = not source_present
+    issues: list[JsonDict] = []
+    if source_present and status == "missing":
+        issues.append(
+            {
+                "code": "private_manifest_present_but_public_summary_missing",
+                "severity": "high",
+                "summary": "Public docs must not claim the official API private manifest is missing when the public-safe manifest summary proves it is present.",
+            }
+        )
+    return {
+        "status": "blocked" if issues else "ok",
+        "private_manifest_present": source_present,
+        "public_missing_claim_allowed": missing_claim_allowed,
+        "public_missing_claim_blocked": source_present,
+        "claim_rule": "If source_private_manifest_present is true in the public summary index, public docs may describe only summarized counts/status and must not claim missing private evidence.",
+        "issues": issues,
+    }
 
 
 def build_next_read_only_calibration_targets(observed_functions: Mapping[str, Any]) -> list[JsonDict]:

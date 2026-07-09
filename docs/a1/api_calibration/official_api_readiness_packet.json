@@ -72,7 +72,7 @@
       "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
     }
   ],
-  "generated_at": "2026-07-09T07:53:52Z",
+  "generated_at": "2026-07-09T08:22:03Z",
   "next_read_only_calibration": {
     "acceptance_checks": [
       "real read-only command uses --execute --small-batch --max-retries 0",
@@ -208,6 +208,40 @@
       "unknown",
       "validate_gate"
     ],
+    "private_manifest_claim_guard": {
+      "claim_rule": "If source_private_manifest_present is true in the public summary index, public docs may describe only summarized counts/status and must not claim missing private evidence.",
+      "issues": [],
+      "private_manifest_present": true,
+      "public_missing_claim_allowed": false,
+      "public_missing_claim_blocked": true,
+      "status": "ok"
+    },
+    "private_manifest_summary": {
+      "dry_run": false,
+      "ended_at_present": true,
+      "error_steps": 0,
+      "error_summary_count": 0,
+      "mode": "small-batch",
+      "mutating_steps": 0,
+      "public_safety": {
+        "header_values_included": false,
+        "private_payload_contents_present": false,
+        "raw_key_material_present": false,
+        "raw_payload_values_included": false,
+        "redacted_summary_fields_only": true,
+        "request_parameter_values_included": false
+      },
+      "quota_block_count": 0,
+      "read_steps": 5,
+      "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+      "source_private_manifest": "docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json",
+      "source_private_manifest_present": true,
+      "started_at_present": true,
+      "status": "ok",
+      "step_summary_count": 5,
+      "summary_index_path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+      "total_steps": 5
+    },
     "private_record_count": 368,
     "quota_block_count": 43,
     "read_only_manifest_step_count": 5,
@@ -251,5 +285,6 @@
   },
   "schema_version": "ashr.clone.api_calibration_readiness_packet.v1",
   "source_evidence_index": "docs/a1/api_calibration/real_api_evidence_index.json",
-  "source_field_map": "docs/a1/api_calibration/real_api_response_field_map.json"
+  "source_field_map": "docs/a1/api_calibration/real_api_response_field_map.json",
+  "source_manifest_summary_index": "docs/a1/evidence/official_api_readonly_manifest_summary.json"
 }

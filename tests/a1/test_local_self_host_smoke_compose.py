@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import shutil
@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
 HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
 EVIDENCE_README = ROOT / "docs" / "a1" / "evidence" / "README.md"
+EVIDENCE_COMMANDS = ROOT / "docs" / "a1" / "evidence" / "commands.md"
 
 
 def _read_compose_text() -> str:
@@ -133,3 +134,17 @@ def test_a1_docker_compose_config_is_valid_when_daemon_is_reachable():
 
 def _one_line(value: str) -> str:
     return " ".join(value.split())[:240]
+
+
+def test_a1_wsl_go_readiness_is_recorded_as_linux_self_host_evidence():
+    commands = EVIDENCE_COMMANDS.read_text(encoding="utf-8")
+    start = commands.index("## Round25 WSL self-host Go readiness")
+    round25 = commands[start:]
+
+    assert "Round25 WSL self-host Go readiness" in round25
+    assert "Ubuntu-24.04-Ashr" in round25
+    assert "apt-get install -y golang-go" in round25
+    assert "go version go1.22.2 linux/amd64" in round25
+    assert "cd /mnt/c/Users/33516/Documents/Ashr_a1_clean_rebase/packages/go/ashrclone; go test ./..." in round25
+    assert "Linux/WSL Go SDK tests passed" in round25
+    assert "ASHR_API_KEY=" not in round25

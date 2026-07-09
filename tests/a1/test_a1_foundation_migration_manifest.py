@@ -133,6 +133,16 @@ def _function_statement(sql: str, function_name: str) -> str:
     return match.group(0)
 
 
+def _trigger_statement(sql: str, trigger_name: str) -> str:
+    match = re.search(
+        rf"CREATE\s+TRIGGER\s+{re.escape(trigger_name)}\b.*?;",
+        sql,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    assert match, f"missing trigger {trigger_name}"
+    return match.group(0)
+
+
 def test_a1_foundation_migration_manifest_points_to_public_owned_migration() -> None:
     manifest = _manifest()
     migration_path = manifest["migration"]
@@ -190,6 +200,25 @@ def test_a1_foundation_migration_manifest_enforces_idempotency_and_rollup_helper
         function_sql = _normalize(_function_statement(sql, function_name))
         for required_fragment in contract["must_contain"]:
             assert _normalize(required_fragment) in function_sql, f"{function_name} missing {required_fragment}"
+
+
+def test_a1_foundation_migration_manifest_enforces_quota_dimensions_and_triggers() -> None:
+    manifest = _manifest()
+    sql = _migration_sql()
+    normalized_sql = _normalize(sql)
+    quoted_dimensions = ", ".join(f"'{meter}'" for meter in manifest["quota_dimensions"])
+
+    for table_name in ["usage_ledger", "usage_rollups", "quota_policies"]:
+        body = _normalize(_table_body(sql, table_name))
+        assert f"check (meter in ({quoted_dimensions}))" in body
+
+    for trigger_name, contract in manifest["required_triggers"].items():
+        trigger_sql = _normalize(_trigger_statement(sql, trigger_name))
+        assert f"create trigger {trigger_name}" in trigger_sql
+        assert _normalize(contract["timing"]) in trigger_sql
+        assert f"on {contract['table']}" in trigger_sql
+        assert f"execute function {contract['function']}()" in trigger_sql
+        assert f"drop trigger if exists {trigger_name} on {contract['table']}" in normalized_sql
 
 
 def test_a1_foundation_optional_live_hook_stays_env_gated() -> None:

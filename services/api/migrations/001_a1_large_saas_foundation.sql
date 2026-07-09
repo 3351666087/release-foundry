@@ -275,6 +275,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   locked_until TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT idempotency_keys_org_project_id_key UNIQUE (organization_id, project_id, id),
   CONSTRAINT idempotency_keys_org_project_key_unique UNIQUE (organization_id, project_id, idempotency_key),
   CONSTRAINT idempotency_keys_scope_fingerprint_unique UNIQUE (organization_id, project_id, request_method, request_path, fingerprint),
   CONSTRAINT idempotency_keys_project_scope_fk FOREIGN KEY (organization_id, project_id)
@@ -287,7 +288,7 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
   workspace_id UUID,
   project_id UUID NOT NULL,
   environment_id UUID,
-  idempotency_key_id UUID REFERENCES idempotency_keys(id) ON DELETE SET NULL (idempotency_key_id),
+  idempotency_key_id UUID,
   meter TEXT NOT NULL,
   quantity NUMERIC(20, 6) NOT NULL CHECK (quantity >= 0),
   unit TEXT NOT NULL DEFAULT 'count',
@@ -298,12 +299,35 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
   metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT usage_ledger_period_check CHECK (period_end > period_start),
+  CONSTRAINT usage_ledger_meter_check CHECK (meter IN ('runs', 'observations', 'media', 'voice_minutes', 'projects', 'storage_bytes')),
+  CONSTRAINT usage_ledger_idempotency_scope_fk FOREIGN KEY (organization_id, project_id, idempotency_key_id)
+    REFERENCES idempotency_keys(organization_id, project_id, id) ON DELETE SET NULL (idempotency_key_id),
   CONSTRAINT usage_ledger_workspace_scope_fk FOREIGN KEY (organization_id, workspace_id)
     REFERENCES workspaces(organization_id, id) ON DELETE SET NULL (workspace_id),
   CONSTRAINT usage_ledger_project_scope_fk FOREIGN KEY (organization_id, project_id)
     REFERENCES projects(organization_id, id) ON DELETE CASCADE,
   CONSTRAINT usage_ledger_environment_scope_fk FOREIGN KEY (organization_id, environment_id)
     REFERENCES environments(organization_id, id) ON DELETE SET NULL (environment_id)
+);
+
+CREATE TABLE IF NOT EXISTS usage_rollups (
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workspace_id UUID,
+  project_id UUID NOT NULL,
+  meter TEXT NOT NULL,
+  period TEXT NOT NULL CHECK (period IN ('hour', 'day', 'month')),
+  period_start TIMESTAMPTZ NOT NULL,
+  period_end TIMESTAMPTZ NOT NULL,
+  total_quantity NUMERIC(20, 6) NOT NULL DEFAULT 0 CHECK (total_quantity >= 0),
+  ledger_entries BIGINT NOT NULL DEFAULT 0 CHECK (ledger_entries >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, project_id, meter, period, period_start),
+  CONSTRAINT usage_rollups_meter_check CHECK (meter IN ('runs', 'observations', 'media', 'voice_minutes', 'projects', 'storage_bytes')),
+  CONSTRAINT usage_rollups_period_check CHECK (period_end > period_start),
+  CONSTRAINT usage_rollups_workspace_scope_fk FOREIGN KEY (organization_id, workspace_id)
+    REFERENCES workspaces(organization_id, id) ON DELETE SET NULL (workspace_id),
+  CONSTRAINT usage_rollups_project_scope_fk FOREIGN KEY (organization_id, project_id)
+    REFERENCES projects(organization_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS quota_policies (
@@ -319,6 +343,7 @@ CREATE TABLE IF NOT EXISTS quota_policies (
   effective_until TIMESTAMPTZ,
   metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT quota_policies_meter_check CHECK (meter IN ('runs', 'observations', 'media', 'voice_minutes', 'projects', 'storage_bytes')),
   CONSTRAINT quota_policies_org_project_meter_period_key UNIQUE (organization_id, project_id, meter, period),
   CONSTRAINT quota_policies_project_scope_fk FOREIGN KEY (organization_id, project_id)
     REFERENCES projects(organization_id, id) ON DELETE CASCADE
@@ -359,12 +384,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
   resource_type TEXT NOT NULL,
   resource_id TEXT,
   request_id TEXT,
-  idempotency_key_id UUID REFERENCES idempotency_keys(id) ON DELETE SET NULL (idempotency_key_id),
+  idempotency_key_id UUID,
   payload JSONB NOT NULL DEFAULT '{}'::JSONB,
   prev_hash TEXT,
   entry_hash TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT audit_log_entry_hash_key UNIQUE (entry_hash),
+  CONSTRAINT audit_log_idempotency_scope_fk FOREIGN KEY (organization_id, project_id, idempotency_key_id)
+    REFERENCES idempotency_keys(organization_id, project_id, id) ON DELETE SET NULL (idempotency_key_id),
   CONSTRAINT audit_log_project_scope_fk FOREIGN KEY (organization_id, project_id)
     REFERENCES projects(organization_id, id) ON DELETE CASCADE
 );
@@ -389,6 +416,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_ledger_idempotency_key_unique
   WHERE idempotency_key_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_scope_meter_period ON usage_ledger(organization_id, project_id, meter, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_workspace_meter_period ON usage_ledger(organization_id, workspace_id, meter, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_usage_rollups_scope_meter_period ON usage_rollups(organization_id, project_id, meter, period, period_start DESC);
+CREATE INDEX IF NOT EXISTS idx_usage_rollups_workspace_meter_period ON usage_rollups(organization_id, workspace_id, meter, period, period_start DESC);
 CREATE INDEX IF NOT EXISTS idx_quota_policies_scope_meter ON quota_policies(organization_id, project_id, meter, status);
 CREATE INDEX IF NOT EXISTS idx_jobs_ready_queue ON jobs(status, run_after, priority, created_at) WHERE status = 'queued';
 CREATE INDEX IF NOT EXISTS idx_jobs_project_status ON jobs(organization_id, project_id, status, created_at DESC);
@@ -418,6 +447,7 @@ ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_endpoints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usage_rollups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quota_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
@@ -437,6 +467,7 @@ ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
 ALTER TABLE webhook_endpoints FORCE ROW LEVEL SECURITY;
 ALTER TABLE idempotency_keys FORCE ROW LEVEL SECURITY;
 ALTER TABLE usage_ledger FORCE ROW LEVEL SECURITY;
+ALTER TABLE usage_rollups FORCE ROW LEVEL SECURITY;
 ALTER TABLE quota_policies FORCE ROW LEVEL SECURITY;
 ALTER TABLE jobs FORCE ROW LEVEL SECURITY;
 ALTER TABLE audit_log FORCE ROW LEVEL SECURITY;
@@ -456,6 +487,7 @@ DROP POLICY IF EXISTS api_keys_organization_isolation ON api_keys;
 DROP POLICY IF EXISTS webhook_endpoints_organization_isolation ON webhook_endpoints;
 DROP POLICY IF EXISTS idempotency_keys_organization_isolation ON idempotency_keys;
 DROP POLICY IF EXISTS usage_ledger_organization_isolation ON usage_ledger;
+DROP POLICY IF EXISTS usage_rollups_organization_isolation ON usage_rollups;
 DROP POLICY IF EXISTS quota_policies_organization_isolation ON quota_policies;
 DROP POLICY IF EXISTS jobs_organization_isolation ON jobs;
 DROP POLICY IF EXISTS audit_log_organization_isolation ON audit_log;
@@ -517,6 +549,10 @@ CREATE POLICY idempotency_keys_organization_isolation ON idempotency_keys
   WITH CHECK (organization_id = a1_current_organization_id());
 
 CREATE POLICY usage_ledger_organization_isolation ON usage_ledger
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY usage_rollups_organization_isolation ON usage_rollups
   USING (organization_id = a1_current_organization_id())
   WITH CHECK (organization_id = a1_current_organization_id());
 
@@ -648,6 +684,152 @@ BEGIN
   GROUP BY u.organization_id, u.project_id, u.meter;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION usage_rollup_period_bounds(
+  p_period TEXT,
+  p_at TIMESTAMPTZ
+)
+RETURNS TABLE (
+  period_start TIMESTAMPTZ,
+  period_end TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+  IF p_period = 'hour' THEN
+    period_start := date_trunc('hour', p_at);
+    period_end := period_start + INTERVAL '1 hour';
+  ELSIF p_period = 'day' THEN
+    period_start := date_trunc('day', p_at);
+    period_end := period_start + INTERVAL '1 day';
+  ELSIF p_period = 'month' THEN
+    period_start := date_trunc('month', p_at);
+    period_end := period_start + INTERVAL '1 month';
+  ELSE
+    RAISE EXCEPTION 'unsupported usage rollup period: %', p_period USING ERRCODE = '22023';
+  END IF;
+
+  RETURN NEXT;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION upsert_usage_rollup_from_ledger()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  bounds RECORD;
+  rollup_period TEXT;
+BEGIN
+  FOREACH rollup_period IN ARRAY ARRAY['hour', 'day', 'month'] LOOP
+    SELECT period_start, period_end
+      INTO bounds
+      FROM usage_rollup_period_bounds(rollup_period, NEW.period_start);
+
+    INSERT INTO usage_rollups (
+      organization_id,
+      workspace_id,
+      project_id,
+      meter,
+      period,
+      period_start,
+      period_end,
+      total_quantity,
+      ledger_entries,
+      updated_at
+    )
+    VALUES (
+      NEW.organization_id,
+      NEW.workspace_id,
+      NEW.project_id,
+      NEW.meter,
+      rollup_period,
+      bounds.period_start,
+      bounds.period_end,
+      NEW.quantity,
+      1,
+      now()
+    )
+    ON CONFLICT (organization_id, project_id, meter, period, period_start)
+    DO UPDATE SET
+      workspace_id = COALESCE(usage_rollups.workspace_id, EXCLUDED.workspace_id),
+      period_end = EXCLUDED.period_end,
+      total_quantity = usage_rollups.total_quantity + EXCLUDED.total_quantity,
+      ledger_entries = usage_rollups.ledger_entries + 1,
+      updated_at = now();
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION audit_quota_policy_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  target_policy quota_policies%ROWTYPE;
+  previous_hash TEXT;
+  audit_payload JSONB;
+BEGIN
+  target_policy := COALESCE(NEW, OLD);
+
+  SELECT audit_chain_tail(target_policy.organization_id, target_policy.project_id)
+    INTO previous_hash;
+
+  audit_payload := jsonb_build_object(
+    'meter', target_policy.meter,
+    'period', target_policy.period,
+    'limit_quantity', target_policy.limit_quantity,
+    'enforcement_mode', target_policy.enforcement_mode,
+    'status', target_policy.status
+  );
+
+  INSERT INTO audit_log (
+    id,
+    organization_id,
+    project_id,
+    actor_type,
+    actor_id,
+    action,
+    resource_type,
+    resource_id,
+    payload,
+    prev_hash,
+    entry_hash,
+    created_at
+  )
+  VALUES (
+    gen_random_uuid(),
+    target_policy.organization_id,
+    target_policy.project_id,
+    'system',
+    'quota_policy_trigger',
+    'quota_policy.' || lower(TG_OP),
+    'quota_policy',
+    target_policy.id::TEXT,
+    audit_payload,
+    previous_hash,
+    encode(digest(COALESCE(previous_hash, '') || target_policy.id::TEXT || TG_OP || audit_payload::TEXT || now()::TEXT, 'sha256'), 'hex'),
+    now()
+  );
+
+  RETURN target_policy;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS usage_ledger_rollup_after_insert ON usage_ledger;
+CREATE TRIGGER usage_ledger_rollup_after_insert
+AFTER INSERT ON usage_ledger
+FOR EACH ROW
+EXECUTE FUNCTION upsert_usage_rollup_from_ledger();
+
+DROP TRIGGER IF EXISTS quota_policies_audit_after_change ON quota_policies;
+CREATE TRIGGER quota_policies_audit_after_change
+AFTER INSERT OR UPDATE OR DELETE ON quota_policies
+FOR EACH ROW
+EXECUTE FUNCTION audit_quota_policy_change();
 
 CREATE OR REPLACE FUNCTION audit_chain_tail(
   p_organization_id UUID,

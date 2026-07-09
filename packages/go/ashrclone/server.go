@@ -444,6 +444,44 @@ type ScopeManifestEntry struct {
 	Operation string `json:"operation"`
 }
 
+type RouteScopeDocs struct {
+	SchemaVersion       string                `json:"schema_version"`
+	PublicSafe          bool                  `json:"public_safe"`
+	RawPayloadsIncluded bool                  `json:"raw_payloads_included"`
+	Source              string                `json:"source"`
+	RouteGroups         []RouteScopeDocGroup  `json:"route_groups"`
+	PlanLimits          []RouteScopeDocPlan   `json:"plan_limits"`
+	PlanMetrics         []RouteScopeDocMetric `json:"plan_metrics"`
+	Notes               []string              `json:"notes"`
+}
+
+type RouteScopeDocGroup struct {
+	Name       string   `json:"name"`
+	Operations []string `json:"operations"`
+	Routes     []string `json:"routes"`
+	Scopes     []string `json:"scopes"`
+}
+
+type RouteScopeDocPlan struct {
+	Plan      string                   `json:"plan"`
+	CapMode   string                   `json:"cap_mode"`
+	Limits    []RouteScopeDocPlanLimit `json:"limits"`
+	PublicURL string                   `json:"public_url"`
+}
+
+type RouteScopeDocPlanLimit struct {
+	Metric string `json:"metric"`
+	Limit  int    `json:"limit"`
+	Unit   string `json:"unit"`
+}
+
+type RouteScopeDocMetric struct {
+	Metric      string   `json:"metric"`
+	Unit        string   `json:"unit"`
+	Operations  []string `json:"operations"`
+	Description string   `json:"description"`
+}
+
 func GoRouteManifest(backendName ...string) JSONMap {
 	backingStore := "memory_service_v0"
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
@@ -452,7 +490,8 @@ func GoRouteManifest(backendName ...string) JSONMap {
 	routeEntries := GoRouteManifestEntries()
 	routes := GoRouteManifestRoutes(routeEntries)
 	scopeManifest := GoScopeManifest(routeEntries)
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "manifest_schema_version": "ashr.clone.go_route_scope_manifest.v1", "routes": routes, "route_manifest": routeEntries, "scope_manifest": scopeManifest, "route_count": len(routeEntries), "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false, "public_safe": true}
+	routeScopeDocs := GoRouteScopeDocs(routeEntries)
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "manifest_schema_version": "ashr.clone.go_route_scope_manifest.v1", "routes": routes, "route_manifest": routeEntries, "scope_manifest": scopeManifest, "route_scope_docs": routeScopeDocs, "route_count": len(routeEntries), "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false, "public_safe": true}
 }
 
 func GoRouteManifestEntries() []RouteManifestEntry {
@@ -528,6 +567,93 @@ func GoScopeManifest(entries []RouteManifestEntry) map[string][]ScopeManifestEnt
 		manifest[scope] = scopeEntries
 	}
 	return manifest
+}
+
+func GoRouteScopeDocs(entries []RouteManifestEntry) RouteScopeDocs {
+	groups := []RouteScopeDocGroup{
+		goRouteScopeDocGroup(entries, "usage_quota", []string{"usage"}),
+		goRouteScopeDocGroup(entries, "run_lifecycle", []string{"lifecycle"}),
+		goRouteScopeDocGroup(entries, "audit", []string{"audit.chain.verify", "audit_log"}),
+	}
+	return RouteScopeDocs{
+		SchemaVersion:       "ashr.clone.go_route_scope_docs.v1",
+		PublicSafe:          true,
+		RawPayloadsIncluded: false,
+		Source:              "generated_from_go_route_manifest",
+		RouteGroups:         groups,
+		PlanLimits:          goPublicPlanLimits(),
+		PlanMetrics: []RouteScopeDocMetric{
+			{Metric: "graded_scenarios", Unit: "scenario", Operations: []string{"sdk_submit"}, Description: "Run submissions counted as graded scenario units."},
+			{Metric: "observations", Unit: "observation", Operations: []string{"ingest_trace"}, Description: "Trace observation rows accepted by the runtime."},
+			{Metric: "voice_minutes", Unit: "minute", Operations: []string{"upload_run", "ingest_trace"}, Description: "Voice/media usage documented for quota parity; local runtime records route coverage only."},
+			{Metric: "projects", Unit: "project", Operations: []string{"bootstrap_project"}, Description: "Project-count limit reference for billing documentation parity."},
+		},
+		Notes: []string{
+			"plan limits are public documentation references, not secret billing state",
+			"route groups are derived from GoRouteManifestEntries",
+			"raw request and response payloads are intentionally excluded",
+		},
+	}
+}
+
+func goRouteScopeDocGroup(entries []RouteManifestEntry, name string, operations []string) RouteScopeDocGroup {
+	operationSet := map[string]bool{}
+	for _, operation := range operations {
+		operationSet[operation] = true
+	}
+	routes := []string{}
+	scopes := []string{}
+	seenScopes := map[string]bool{}
+	seenOperations := map[string]bool{}
+	for _, entry := range entries {
+		if !operationSet[entry.Operation] {
+			continue
+		}
+		routes = append(routes, entry.Route)
+		seenOperations[entry.Operation] = true
+		for _, scope := range entry.Scopes {
+			if seenScopes[scope] {
+				continue
+			}
+			seenScopes[scope] = true
+			scopes = append(scopes, scope)
+		}
+	}
+	resolvedOperations := make([]string, 0, len(seenOperations))
+	for operation := range seenOperations {
+		resolvedOperations = append(resolvedOperations, operation)
+	}
+	sort.Strings(resolvedOperations)
+	sort.Strings(routes)
+	sort.Strings(scopes)
+	return RouteScopeDocGroup{Name: name, Operations: resolvedOperations, Routes: routes, Scopes: scopes}
+}
+
+func goPublicPlanLimits() []RouteScopeDocPlan {
+	return []RouteScopeDocPlan{
+		{
+			Plan:      "Developer",
+			CapMode:   "hard_limit",
+			PublicURL: "https://www.ashr.io/pricing",
+			Limits: []RouteScopeDocPlanLimit{
+				{Metric: "graded_scenarios", Limit: 5000, Unit: "scenario"},
+				{Metric: "observations", Limit: 250000, Unit: "observation"},
+				{Metric: "voice_minutes", Limit: 1000, Unit: "minute"},
+				{Metric: "projects", Limit: 1, Unit: "project"},
+			},
+		},
+		{
+			Plan:      "Startup",
+			CapMode:   "overage_billing",
+			PublicURL: "https://www.ashr.io/pricing",
+			Limits: []RouteScopeDocPlanLimit{
+				{Metric: "graded_scenarios", Limit: 100000, Unit: "scenario"},
+				{Metric: "observations", Limit: 10000000, Unit: "observation"},
+				{Metric: "voice_minutes", Limit: 50000, Unit: "minute"},
+				{Metric: "projects", Limit: 0, Unit: "unlimited"},
+			},
+		},
+	}
 }
 
 func goPublicRoute(method, path, operation, category string) RouteManifestEntry {

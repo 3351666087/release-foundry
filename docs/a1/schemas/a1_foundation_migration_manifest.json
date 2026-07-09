@@ -340,6 +340,27 @@
                        "rls_policy":  "usage_ledger_organization_isolation"
                    },
                    {
+                       "name":  "usage_rollups",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "organization_id",
+                                                "workspace_id",
+                                                "project_id",
+                                                "meter",
+                                                "period",
+                                                "period_start",
+                                                "period_end",
+                                                "total_quantity",
+                                                "ledger_entries",
+                                                "updated_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_usage_rollups_scope_meter_period",
+                                                "idx_usage_rollups_workspace_meter_period"
+                                            ],
+                       "rls_policy":  "usage_rollups_organization_isolation"
+                   },
+                   {
                        "name":  "quota_policies",
                        "tenant_column":  "organization_id",
                        "required_columns":  [
@@ -444,11 +465,57 @@
                                                                              "ORDER BY created_at DESC, id DESC",
                                                                              "LIMIT 1"
                                                                          ]
-                                                    }
+                                                    },
+                               "usage_rollup_period_bounds":  {
+                                                                  "must_contain":  [
+                                                                                       "date_trunc(\u0027hour\u0027, p_at)",
+                                                                                       "date_trunc(\u0027day\u0027, p_at)",
+                                                                                       "date_trunc(\u0027month\u0027, p_at)",
+                                                                                       "RAISE EXCEPTION"
+                                                                                   ]
+                                                              },
+                               "upsert_usage_rollup_from_ledger":  {
+                                                                       "must_contain":  [
+                                                                                            "FOREACH rollup_period IN ARRAY",
+                                                                                            "INSERT INTO usage_rollups",
+                                                                                            "ON CONFLICT (organization_id, project_id, meter, period, period_start)",
+                                                                                            "total_quantity = usage_rollups.total_quantity + EXCLUDED.total_quantity",
+                                                                                            "ledger_entries = usage_rollups.ledger_entries + 1"
+                                                                                        ]
+                                                                   },
+                               "audit_quota_policy_change":  {
+                                                                 "must_contain":  [
+                                                                                      "audit_chain_tail(target_policy.organization_id, target_policy.project_id)",
+                                                                                      "jsonb_build_object",
+                                                                                      "quota_policy_trigger",
+                                                                                      "INSERT INTO audit_log",
+                                                                                      "digest("
+                                                                                  ]
+                                                             }
                            },
     "optional_live_hook":  {
                                "env":  "A1_POSTGRES_TEST_DSN",
                                "psql_bin_env":  "A1_PSQL_BIN",
                                "smoke_test":  "tests/integration/test_a1_large_saas_migration_live.py"
-                           }
+                           },
+    "quota_dimensions":  [
+                             "runs",
+                             "observations",
+                             "media",
+                             "voice_minutes",
+                             "projects",
+                             "storage_bytes"
+                         ],
+    "required_triggers":  {
+                              "usage_ledger_rollup_after_insert":  {
+                                                                       "table":  "usage_ledger",
+                                                                       "timing":  "AFTER INSERT",
+                                                                       "function":  "upsert_usage_rollup_from_ledger"
+                                                                   },
+                              "quota_policies_audit_after_change":  {
+                                                                        "table":  "quota_policies",
+                                                                        "timing":  "AFTER INSERT OR UPDATE OR DELETE",
+                                                                        "function":  "audit_quota_policy_change"
+                                                                    }
+                          }
 }

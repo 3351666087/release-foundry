@@ -131,11 +131,42 @@ export interface CloudDemoSummary extends JsonRecord {
     timed_out: number;
     trace_completeness: number;
     observations: number;
+    total_tool_calls: number;
   };
   poll: { status: string; run_id: string };
+  cases: Array<{
+    case_id: string;
+    status: string;
+    expected: JsonRecord;
+    actual: JsonRecord;
+    tool_calls: JsonRecord[];
+    observations: number;
+  }>;
+  replay: { available: boolean; local_only: true; run_id: string; event_count: number; vm_stream_count: number };
+  sdk_submission?: JsonRecord;
   quota: Pick<QuotaSnapshot, "used" | "remaining">;
   fixture: CloudRunFixture;
   metadata: { local_only: true; ashr_api_used: false };
+}
+
+export interface CloudDemoSdkSubmitter {
+  sdkSubmit(
+    tenantId: string,
+    projectId: string,
+    options: {
+      datasetId?: string;
+      dataset_id?: string;
+      agentRef?: string;
+      agent_ref?: string;
+      runId?: string;
+      run_id?: string;
+      metadata?: JsonRecord;
+      idempotencyKey?: string;
+      idempotency_key?: string;
+      requestId?: string;
+      request_id?: string;
+    },
+  ): JsonRecord;
 }
 
 export interface RunRecord extends JsonRecord {
@@ -1054,6 +1085,9 @@ export async function runAgentCloudDemo(options: {
   datasetName?: string;
   runnerId?: string;
   service?: CloudApiService;
+  sdkSubmitter?: CloudDemoSdkSubmitter;
+  agentRef?: string;
+  sdkRunId?: string;
 }): Promise<CloudDemoSummary> {
   if (!Array.isArray(options.cases) || options.cases.length === 0) {
     throw new ValidationError("demo cases must not be empty");
@@ -1114,8 +1148,23 @@ export async function runAgentCloudDemo(options: {
     metadata: { source: "packages/ts/ashr-clone" },
   });
   const poll = service.pollRun(tenant.tenant_id, project.project_id, run.run_id);
-  const quota = service.quotaSnapshot(tenant.tenant_id, project.project_id);
   const fixture = service.exportRunFixture(tenant.tenant_id, project.project_id, run.run_id);
+  const totalToolCalls = caseResults.reduce((total, item) => total + item.agent_output.tool_calls.length, 0);
+  const sdkSubmission = options.sdkSubmitter?.sdkSubmit(tenant.tenant_id, project.project_id, {
+    datasetId: dataset.dataset_id,
+    agentRef: options.agentRef ?? options.runnerId ?? "ts-local-runner",
+    runId: options.sdkRunId ?? `${run.run_id}_hosted_submit`,
+    idempotencyKey: `${run.run_id}:sdk-submit`,
+    requestId: `${run.run_id}:quickstart`,
+    metadata: {
+      source: "runAgentCloudDemo",
+      local_run_id: run.run_id,
+      expected_vs_actual_cases: caseResults.length,
+      trace_events: run.observations.length,
+      tool_calls: totalToolCalls,
+    },
+  });
+  const quota = service.quotaSnapshot(tenant.tenant_id, project.project_id);
   return {
     schema_version: CLOUD_API_SCHEMA_VERSION,
     tenant: { tenant_id: tenant.tenant_id, name: tenant.name },
@@ -1134,8 +1183,19 @@ export async function runAgentCloudDemo(options: {
       timed_out: 0,
       trace_completeness: Number(runResult.trace_completeness ?? 0),
       observations: run.observations.length,
+      total_tool_calls: totalToolCalls,
     },
     poll: { status: poll.status, run_id: poll.run_id },
+    cases: caseResults.map((item) => ({
+      case_id: item.case_id,
+      status: item.status,
+      expected: isRecord(item.expected) ? jsonRecord(item.expected) : {},
+      actual: expectedActualFromTurn(item.agent_output),
+      tool_calls: item.agent_output.tool_calls.map((call) => jsonRecord(call)),
+      observations: item.observations.length,
+    })),
+    replay: { available: true, local_only: true, run_id: run.run_id, event_count: run.observations.length, vm_stream_count: 0 },
+    ...(sdkSubmission !== undefined ? { sdk_submission: sdkSubmission } : {}),
     quota: { used: quota.used, remaining: quota.remaining },
     fixture,
     metadata: { local_only: true, ashr_api_used: false },
@@ -1187,6 +1247,9 @@ async function runDemoCase(agent: AgentHandler, caseRecord: JsonRecord, index: n
     if (expected && typeof expected.text === "string" && output.text !== expected.text) {
       status = "failed";
     }
+    if (expected && expected.tool_calls !== undefined && !jsonEqual(toJson(expected.tool_calls), toJson(output.tool_calls))) {
+      status = "failed";
+    }
   } catch (error) {
     status = "error";
     output = {
@@ -1217,6 +1280,18 @@ async function runDemoCase(agent: AgentHandler, caseRecord: JsonRecord, index: n
     agent_output: output,
     observations,
   };
+}
+
+function expectedActualFromTurn(turn: AgentTurn): JsonRecord {
+  return {
+    text: turn.text,
+    tool_calls: turn.tool_calls.map((call) => jsonRecord(call)),
+    status: turn.status,
+  };
+}
+
+function jsonEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function normalizeAgentTurn(value: AgentTurnLike): AgentTurn {

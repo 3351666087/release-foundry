@@ -1219,3 +1219,41 @@ Results:
 - `Ubuntu-24.04-Ashr` WSL2 started successfully from the D-drive install and reached the current worktree; Python 3 was available. Docker daemon reported server version 29.6.1.
 - Real official API read-only small batch completed with status `ok`: 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls. Raw records stayed only under ignored `docs/evidence/private_refs/`.
 - Public summary was regenerated from the private manifest and records only status/counts/response key names plus private path references. Readiness packet was regenerated without embedding key material or private payloads.
+
+## Round25 WSL self-host Go readiness - 2026-07-09
+
+```powershell
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -e; whoami; pwd; command -v go || true; go version 2>/dev/null || true; command -v apt-get || true; command -v sudo || true; cat /etc/os-release | head -5"
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y golang-go; go version"
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; cd /mnt/c/Users/33516/Documents/Ashr_a1_clean_rebase/packages/go/ashrclone; go test ./..."
+```
+
+Results:
+- `Ubuntu-24.04-Ashr` runs as root on Ubuntu 24.04.4 LTS with `apt-get` and `sudo` available.
+- Installed Go toolchain in the D-drive WSL environment: `go version go1.22.2 linux/amd64`.
+- Linux/WSL Go SDK tests passed from `packages/go/ashrclone`; this validates the self-host backend package on a Linux runtime, not just Windows.
+
+## Round25 integrated A1 validation - 2026-07-09
+
+```powershell
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py tests/integration/test_a1_large_saas_migration_live.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+- Go package tests passed in `packages/go/ashrclone`; Go integration tests passed in `tests/integration/go`.
+- TS SDK suite passed with 322 tests after quickstart parity growth.
+- SQL/self-host focused tests passed with 18 passed and 2 live-DB tests skipped behind `A1_POSTGRES_TEST_DSN`.
+- TS/Python gap matrix regenerated after TS export growth and checked successfully.
+- Python A1 full suite passed with 340 tests.
+- Both Docker compose config checks passed.
+- CL hygiene passed with zero findings; `git diff --check` produced CRLF normalization warnings only.

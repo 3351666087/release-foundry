@@ -288,9 +288,10 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	var body struct {
-		Routes        []string             `json:"routes"`
-		RouteManifest []RouteManifestEntry `json:"route_manifest"`
-		ScopeManifest map[string][]struct {
+		Routes         []string             `json:"routes"`
+		RouteManifest  []RouteManifestEntry `json:"route_manifest"`
+		RouteScopeDocs RouteScopeDocs       `json:"route_scope_docs"`
+		ScopeManifest  map[string][]struct {
 			Route     string `json:"route"`
 			Operation string `json:"operation"`
 		} `json:"scope_manifest"`
@@ -349,6 +350,21 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	if !byRoute["POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"].AuthRequired {
 		t.Fatal("worker heartbeat requires an authenticated handle and must be marked auth required")
 	}
+	if !body.RouteScopeDocs.PublicSafe || body.RouteScopeDocs.RawPayloadsIncluded || body.RouteScopeDocs.Source != "generated_from_go_route_manifest" {
+		t.Fatalf("unexpected route scope docs safety metadata: %#v", body.RouteScopeDocs)
+	}
+	usageDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "usage_quota")
+	if usageDocs == nil || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/usage") || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/quota") || !stringSliceContains(usageDocs.Scopes, ScopeUsageRead) {
+		t.Fatalf("usage quota docs did not export manifest-derived routes/scopes: %#v", usageDocs)
+	}
+	lifecycleDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "run_lifecycle")
+	if lifecycleDocs == nil || !stringSliceContains(lifecycleDocs.Routes, "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle") || !stringSliceContains(lifecycleDocs.Scopes, ScopeRunLifecycleRead) {
+		t.Fatalf("lifecycle docs did not export manifest-derived routes/scopes: %#v", lifecycleDocs)
+	}
+	auditDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "audit")
+	if auditDocs == nil || !stringSliceContains(auditDocs.Routes, "GET /v1/projects/{project_id}/audit-log") || !stringSliceContains(auditDocs.Routes, "POST /v1/projects/{project_id}/audit-chain/verify") || !stringSliceContains(auditDocs.Scopes, ScopeAuditRead) {
+		t.Fatalf("audit docs did not export manifest-derived routes/scopes: %#v", auditDocs)
+	}
 	if _, ok := body.ScopeManifest[ScopeRunUpload]; !ok {
 		t.Fatalf("scope manifest missing %s", ScopeRunUpload)
 	}
@@ -358,6 +374,51 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 		}
 	}
 	t.Fatalf("scope manifest did not map %s to upload route: %#v", ScopeRunUpload, body.ScopeManifest[ScopeRunUpload])
+}
+
+func TestGoRouteScopeDocsIncludePublicPlanLimits(t *testing.T) {
+	docs := GoRouteScopeDocs(GoRouteManifestEntries())
+	if docs.SchemaVersion != "ashr.clone.go_route_scope_docs.v1" || !docs.PublicSafe || docs.RawPayloadsIncluded {
+		t.Fatalf("unexpected route scope docs metadata: %#v", docs)
+	}
+	if got := len(docs.RouteGroups); got != 3 {
+		t.Fatalf("route group count = %d, want usage/lifecycle/audit", got)
+	}
+	usageDocs := routeScopeDocGroupByName(docs, "usage_quota")
+	if usageDocs == nil || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/usage") || !stringSliceContains(usageDocs.Scopes, ScopeUsageRead) {
+		t.Fatalf("usage docs missing manifest-derived route or scope: %#v", usageDocs)
+	}
+	startup := routeScopeDocPlanByName(docs, "Startup")
+	developer := routeScopeDocPlanByName(docs, "Developer")
+	if developer == nil || startup == nil {
+		t.Fatalf("missing public plan references: %#v", docs.PlanLimits)
+	}
+	assertRouteScopePlanLimit(t, developer, "graded_scenarios", 5000, "scenario")
+	assertRouteScopePlanLimit(t, developer, "observations", 250000, "observation")
+	assertRouteScopePlanLimit(t, developer, "voice_minutes", 1000, "minute")
+	assertRouteScopePlanLimit(t, developer, "projects", 1, "project")
+	assertRouteScopePlanLimit(t, startup, "graded_scenarios", 100000, "scenario")
+	assertRouteScopePlanLimit(t, startup, "observations", 10000000, "observation")
+	assertRouteScopePlanLimit(t, startup, "voice_minutes", 50000, "minute")
+	assertRouteScopePlanLimit(t, startup, "projects", 0, "unlimited")
+	metricNames := []string{}
+	for _, metric := range docs.PlanMetrics {
+		metricNames = append(metricNames, metric.Metric)
+	}
+	for _, want := range []string{"graded_scenarios", "observations", "voice_minutes", "projects"} {
+		if !stringSliceContains(metricNames, want) {
+			t.Fatalf("route scope docs missing plan metric %q: %#v", want, docs.PlanMetrics)
+		}
+	}
+	encoded, err := json.Marshal(docs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secretish := range []string{"tenant_", "project_contract", "key_contract", "sk-"} {
+		if strings.Contains(string(encoded), secretish) {
+			t.Fatalf("route scope docs contain fixture/secret-like value %q: %s", secretish, encoded)
+		}
+	}
 }
 
 func TestGoRouteManifestEntriesAreDeterministicAndPublicSafe(t *testing.T) {
@@ -633,6 +694,46 @@ func authenticatedRequestForTest(t *testing.T, method, url string, payload any, 
 	req.Header.Set("X-Ashr-Tenant-ID", tenantID)
 	req.Header.Set("X-Ashr-API-Key-ID", apiKeyID)
 	return req
+}
+
+func routeScopeDocGroupByName(docs RouteScopeDocs, name string) *RouteScopeDocGroup {
+	for i := range docs.RouteGroups {
+		if docs.RouteGroups[i].Name == name {
+			return &docs.RouteGroups[i]
+		}
+	}
+	return nil
+}
+
+func routeScopeDocPlanByName(docs RouteScopeDocs, name string) *RouteScopeDocPlan {
+	for i := range docs.PlanLimits {
+		if docs.PlanLimits[i].Plan == name {
+			return &docs.PlanLimits[i]
+		}
+	}
+	return nil
+}
+
+func assertRouteScopePlanLimit(t *testing.T, plan *RouteScopeDocPlan, metric string, limit int, unit string) {
+	t.Helper()
+	for _, item := range plan.Limits {
+		if item.Metric == metric {
+			if item.Limit != limit || item.Unit != unit {
+				t.Fatalf("%s %s limit = %d %s, want %d %s", plan.Plan, metric, item.Limit, item.Unit, limit, unit)
+			}
+			return
+		}
+	}
+	t.Fatalf("%s plan missing %s limit: %#v", plan.Plan, metric, plan.Limits)
+}
+
+func stringSliceContains(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func assertControlPlaneError(t *testing.T, req *http.Request, wantStatus int, wantCode string) {
