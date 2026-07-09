@@ -1487,3 +1487,16 @@ Results:
 - `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
 - `git diff --check`: pass.
 - Environment note: `Get-PSDrive` showed C: at 0 bytes free. Removed regenerateable workspace/tool caches only. Reinstalling TS package dependencies with npm cache on D: still failed because `node_modules` target remains on C:. No source/evidence/private refs were deleted.
+
+
+## Round37 commands - 2026-07-09T13:25:51Z
+
+- `gh pr checks 27 --watch=false`: PR #27 head `91213fc8` green for summary, Plan/hygiene, Go, Python, and TypeScript; A3/Rust skipped.
+- `npm install --prefix packages/ts/ashr-clone --cache D:/codex-cache/npm --prefer-offline`: restored local TS dependencies after C: space recovered.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern billing`: `334 passed` because the current Node runner still executes the full package suite.
+- `python -B -m pytest tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider`: `1 skipped` without `A1_POSTGRES_TEST_DSN`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider`: `5 passed, 1 skipped`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- Docker note: `docker version --format '{.Server.Version}'` hung and was stopped by terminating the command process only; live Postgres proof not run locally.

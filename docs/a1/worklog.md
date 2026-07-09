@@ -1173,3 +1173,45 @@ Next 20 A1 growth points:
 18. Move local TS dependency/cache strategy to D: or a junction so C: ENOSPC stops blocking local full TS validation.
 19. Add official Ashr read-only calibration comparison against dashboard/usage copy if exposed.
 20. After Ashr quota reset or plan change, run successful text mutation then paid media probes one modality at a time.
+
+
+## Round37 billing migration live opt-in harness - 2026-07-09T13:25:51Z
+
+Baseline:
+- PR #27 head `91213fc8` completed green on GitHub: CL Gate summary, Plan/hygiene, Go SDK/integration, Python A1/A2 contracts, and TypeScript SDK parity passed; A3/Rust skipped by path rules.
+- Local TS dependency install recovered after C: space returned to about 1.7GB; `npm_config_cache` used `D:/codex-cache/npm`.
+
+Implemented:
+- Added `tests/integration/test_a1_billing_ledger_migration_live.py`, an opt-in live Postgres test for migration 002.
+- The test reuses the existing `A1_POSTGRES_TEST_DSN` / `A1_PSQL_DOCKER_CONTAINER` helper pattern, applies migrations 001+002 idempotently, seeds org/workspace/project/billing account rows, calls `ingest_billing_provider_event`, and asserts accepted/duplicate/conflict replay plus summary output.
+
+Validation:
+- `python -B -m pytest tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider` -> `1 skipped` without DSN, as designed.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider` -> `5 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern billing` -> command still executes the full package suite under Node test runner; `334 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `python scripts/cl_guard.py hygiene` from repo root -> pass, zero findings.
+- `git diff --check` -> pass.
+- Docker daemon check via `docker version --format ...` hung for over 60 seconds and was stopped; no Docker data was modified. Therefore the live Postgres proof remains opt-in and was not executed locally this round.
+
+Next 20 A1 growth points:
+1. Run the new billing migration live test against disposable Postgres once Docker responds or DSN is provided.
+2. Add RLS live tenant A/B negative proof for billing tables.
+3. Add Go Postgres repository methods for migration 002 billing ingest/readback.
+4. Add Go HTTP billing routes and route manifest scopes.
+5. Add OpenAPI schemas for billing route contracts.
+6. Add Python hosted SDK methods for billing routes.
+7. Add TS hosted SDK methods for billing routes.
+8. Add billing webhook worker normalization loop with retries/dead-letter.
+9. Add object storage bundle for billing evidence snapshots.
+10. Link billing evidence hash into release evidence packet.
+11. Add SQL stale timestamp/signature-shape guardrails.
+12. Add out-of-order refund/cancel SQL tests.
+13. Add WeChat fake signer contract.
+14. Add Alipay fake signer contract.
+15. Add Stripe test-mode credential presence probe without provider call.
+16. Add CLI billing dry-run/readback commands.
+17. Add Terraform/HCL billing secret ref skeleton.
+18. Add self-host compose hook applying migrations 001+002.
+19. Add official Ashr dashboard/API usage quota read-only comparison if exposed.
+20. After Ashr quota reset/plan change, execute successful text mutation then paid media probes one modality at a time.
