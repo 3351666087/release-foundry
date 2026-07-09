@@ -529,6 +529,10 @@
 - [x] Add React Native / Expo mobile release approval client-surface scaffold, documentation, and tests.
 - [x] Add WeChat mini program release approval / incident alert client-surface scaffold, documentation, and tests.
 - [x] Reduce commercial CL advisories to 0 while keeping blocker count at 0.
+- [x] Add SaaS Admin action guardrail Playwright E2E for local plan-only request recording.
+- [x] Add reviewer waiver and approval API-backed Playwright E2E with durable review-record assertions.
+- [x] Add hosted report revoked/missing denied-state Playwright E2E with no case-evidence leakage.
+- [x] Document A3 Commercial Growth Round 4 review/admin/denied-state evidence and A1/A2 safety boundary.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 
@@ -559,4 +563,6 @@
 - [x] Documented PowerShell `.cmd` workaround and browser-install failure mode in `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`.
 - [x] Add API-backed `api-mock` E2E with `services/report/a3_api_server.mjs`.
 - [x] Add hosted report share/revoke E2E.
-- [ ] Add admin action guardrail E2E.
+- [x] Add admin action guardrail E2E.
+- [x] Add reviewer waiver/approval receipt E2E.
+- [x] Add revoked/missing hosted report denied-state E2E.

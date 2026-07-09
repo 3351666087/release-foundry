@@ -1,5 +1,87 @@
 # A3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 4 API-Backed Governance E2E
+
+### Goal
+
+Continue A3 from latest `origin/main` and follow
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` by strengthening the browser
+proof around SaaS Admin, reviewer governance, and hosted report access control.
+
+### Work completed
+
+- Extended `tests/e2e/a3-dashboard-api-backed.spec.ts`.
+- Added SaaS Admin guardrail browser coverage:
+  - action selection
+  - plan-only copy
+  - `POST /api/a3/admin/actions/submit`
+  - local request receipt
+  - no real cloud mutation
+  - no fixture email leakage in the rendered admin panel
+- Added reviewer governance browser coverage:
+  - waiver receipt through `POST /api/a3/review/waivers`
+  - approval receipt through `POST /api/a3/review/approvals`
+  - durable record rendering after dashboard reload
+  - `hash_sealed` review custody evidence
+- Added hosted report denied-state browser coverage:
+  - active share link renders report body
+  - revoked share link returns 410 and hides Case Evidence / Expected / Actual
+  - missing share link returns 404 and hides report body evidence
+- Added Round 4 evidence doc:
+  - `docs/a3/p3_commercial_growth_round4_e2e_review_admin_denied_2026_07_09.md`
+- Updated:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+  - `docs/a3/p3_worklog.md`
+  - `docs/a3/acceptance_checklist.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, observation, and tool-call contracts were not changed.
+- A2 judge, score, pass/fail, release-gate, and failure taxonomy contracts were
+  not changed.
+- The new E2E coverage proves A3 governance around A1/A2 evidence. It does not
+  replace A1 RunResult proof or A2 GradeResult proof.
+
+### Verification
+
+```text
+node --check tests\e2e\a3-dashboard-api-backed.spec.ts
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+npm.cmd run test:e2e
+node --test tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_growth_manifest.test.mjs tests\a3\tailwind_boundary_contract.test.mjs tests\a3\a3_wechat_mini_program_client_surface.test.mjs tests\a3\a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Result:
+
+- API-backed E2E: 5 passed, 0 failed.
+- Full E2E: 9 passed, 0 failed.
+- Focused A3 contract tests: 94 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `.env.local`, `node_modules/`, and transient Playwright output remain ignored.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, real email, raw signed URL, or private
+  credential was read or committed.
+- No live Ashr API call, live GitHub mutation, billing mutation, real auth/team
+  operation, API-key creation, Trust publishing, database, object-storage, or
+  cloud mutation was performed.
+- SaaS Admin remains a safe local guardrail/request-recording surface.
+
+### Current interpretation
+
+A3 is now stronger at the "commercial product proof" layer: it can show browser
+evidence for admin guardrails, reviewer exception approval records, and
+fail-closed hosted report access. The next real commercial jumps are hosted
+auth/RBAC, production Postgres/RLS, live GitHub readback, and object-storage
+evidence custody.
+
 ## 2026-07-08 - Release Evidence Authority Guardrails
 
 ### Goal

@@ -82,7 +82,7 @@ On Windows PowerShell, `npm.ps1` / `npx.ps1` may be blocked by the local executi
 - Initial `npx.cmd playwright test` reached the Playwright runner but failed because Chromium was not installed locally.
 - Ran `npx.cmd playwright install chromium`, which installed Chrome for Testing, Chromium headless shell, FFmpeg, and Winldd into the local Playwright browser cache.
 - Final static/official-demo verification: `npx.cmd playwright test` passed 4/4 tests in Chromium.
-- API-backed verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts` passed 2/2 tests in Chromium.
+- API-backed verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts` passed 5/5 tests in Chromium after Round 4 added SaaS Admin guardrail, reviewer waiver/approval receipt, and hosted report denied-state coverage.
 - NPM script verification should now run both static and API-backed E2E specs.
 - Screenshot evidence: `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`.
 - CI should install browsers explicitly before running this lane.
@@ -97,7 +97,16 @@ On Windows PowerShell, `npm.ps1` / `npx.ps1` may be blocked by the local executi
 ## Next Growth
 
 1. Add Playwright to the GitHub CL gate once browser install is stable.
-2. Add admin action guardrail E2E for plan-only login/team/API-key/trust operations.
-3. Add reviewer waiver/approval API-backed E2E.
-4. Add screenshot review artifacts for desktop and mobile widths.
-5. Add hosted `/reports/:reportId` and `/r/:shareToken` denied-state visual tests.
+2. Add screenshot review artifacts for desktop and mobile widths.
+3. Add live-auth RBAC E2E after A1/A3 auth middleware exists.
+4. Add production Postgres/RLS-backed E2E after the SaaS store is real.
+5. Add maintainer-approved live GitHub readback E2E after CI credentials exist.
+
+## Round 4 Follow-Up - Review/Admin/Denied-State
+
+- Added SaaS Admin action guardrail E2E for plan-only login/team/API-key/trust/cloud-management style operations.
+- Added reviewer waiver and approval API-backed E2E using existing redacted A3 governance fixtures.
+- Added durable review-record UI assertions for waiver count, approval count, status, and `hash_sealed` custody language.
+- Added hosted report denied-state E2E for revoked and missing share-token pages.
+- Added no-leak assertions that denied pages do not render `Case Evidence`, `Expected`, or `Actual` report body details.
+- Kept the test local and fixture-backed; it does not call live Ashr, GitHub, billing, hosted auth, team, API-key, Trust, or cloud mutation APIs.

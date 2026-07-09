@@ -1,5 +1,91 @@
 # P3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 4 Review/Admin/Denied-State E2E
+
+Continued from latest `origin/main` after PR #24 was merged. This round follows
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and adds browser-level proof for
+the API-backed commercial workflow edges that were still mostly API-unit-tested:
+SaaS Admin request guardrails, reviewer waiver/approval receipts, and hosted
+report denied-state safety.
+
+Implemented:
+
+- Extended `tests/e2e/a3-dashboard-api-backed.spec.ts`.
+- Added SaaS Admin guardrail E2E:
+  - loads `apps/dashboard/index.html?source=api-mock`
+  - selects an admin action
+  - confirms plan-only / no-real-cloud-write language
+  - submits to `POST /api/a3/admin/actions/submit`
+  - confirms the dashboard records `recorded_plan_only`
+  - confirms fixture email-like values are not rendered
+- Added reviewer waiver/approval E2E:
+  - posts redacted waiver fixture to `POST /api/a3/review/waivers`
+  - posts redacted approval fixture to `POST /api/a3/review/approvals`
+  - reloads dashboard and confirms Durable Review Records, waiver/approval
+    counts, valid statuses, and `hash_sealed` custody language
+  - calls `GET /api/a3/review/workflow` and confirms durable storage readiness
+- Added hosted report denied-state E2E:
+  - creates an API-backed hosted report
+  - confirms active share page renders report body and Case Evidence
+  - revokes the report through `POST /api/a3/reports/:reportId/revoke`
+  - confirms revoked `/r/:shareToken` returns 410 without Case Evidence,
+    Expected, or Actual text
+  - confirms missing share token returns 404 without report body leakage
+- Added documentation:
+  - `docs/a3/p3_commercial_growth_round4_e2e_review_admin_denied_2026_07_09.md`
+- Updated:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+  - `docs/a3/acceptance_checklist.md`
+
+Verification:
+
+```text
+node --check tests\e2e\a3-dashboard-api-backed.spec.ts
+git diff --check
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+npm.cmd run test:e2e
+node --test tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_growth_manifest.test.mjs tests\a3\tailwind_boundary_contract.test.mjs tests\a3\a3_wechat_mini_program_client_surface.test.mjs tests\a3\a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Results:
+
+- API-backed Playwright E2E passed: 5 pass, 0 fail.
+- Full Playwright E2E passed: 9 pass, 0 fail.
+- Focused A3 Node/Tailwind/mobile/WeChat/commercial tests passed: 94 pass, 0 fail.
+- Commercial CL passed with 20/20 blocker anchors, 0 blockers, and 0 advisories.
+- Hygiene CL passed with no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and transient Playwright results are ignored.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, grade, score, pass/fail, release-gate, and failure-taxonomy semantics
+  were not changed.
+- A3 review/admin/report evidence remains downstream of A1 RunResult and A2
+  GradeResult evidence.
+
+Safety boundary:
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub mutation was made.
+- No real login, billing, team invite, API-key creation, Trust publishing,
+  database, object-storage, or cloud mutation was made.
+- No API key, token, cookie, account email, raw signed URL, or private credential
+  was committed.
+
+Current interpretation:
+
+This round closes three important "commercial proof" holes in A3's local MVP:
+admin actions are visibly guarded, reviewer exception workflows are durable
+enough for audit language, and denied hosted report links fail closed without
+leaking report body evidence. It still does not equal production SaaS auth/RBAC,
+Postgres/RLS, billing, object storage, or live GitHub branch-protection proof.
+
 ## 2026-07-08 - API-backed release evidence summary
 
 - Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the commercial SaaS roadmap.
