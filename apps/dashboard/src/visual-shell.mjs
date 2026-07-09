@@ -56,6 +56,7 @@ export const primaryAreas = [
     children: [
       { href: "#saas-admin", label: "Login / team" },
       { href: "#live-workflow-readiness", label: "Live workflow" },
+      { href: "#live-ops-control-plane", label: "Live ops" },
       { href: "#cloud-shell", label: "API keys" },
       { href: "#saas-runtime", label: "Usage / quota" },
       { href: "#reviewer-workflow", label: "Reviewer workflow" }
@@ -125,6 +126,7 @@ export const workspaceRailGroups = [
     links: [
       { href: "#saas-runtime", label: "SaaS Runtime" },
       { href: "#live-workflow-readiness", label: "Live Workflow" },
+      { href: "#live-ops-control-plane", label: "Live Ops" },
       { href: "#product-console", label: "Product Console" },
       { href: "#saas-admin", label: "SaaS Admin" },
       { href: "#enterprise-readiness", label: "Enterprise" },

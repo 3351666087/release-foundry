@@ -5471,3 +5471,63 @@ Safety:
   branch-protection mutation, or cloud mutation.
 - No raw key, token, cookie, email, account value, signed URL, local path, or
   payment secret was written.
+
+## 2026-07-09 - Live Ops Control Plane
+
+Goal: convert the six next SaaS workflow asks into an A3 control-plane contract
+that reviewers can inspect in API-backed and static dashboard modes.
+
+Implemented:
+
+- Added `services/report/a3_live_ops_control_plane.mjs`.
+- Added `a3.live_ops_control_plane.v1`.
+- Added `GET /api/a3/live-ops/control-plane`.
+- Added dashboard panel `#live-ops-control-plane`.
+- Added redacted fixture:
+  - `fixtures/a3/p3/a3_live_ops_control_plane.redacted.json`
+- Added docs:
+  - `docs/a3/p3_live_ops_control_plane_2026_07_09.md`
+- Added/updated tests:
+  - `tests/a3/a3_live_ops_control_plane.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+
+The control plane covers:
+
+- GitHub PR check live publishing.
+- PR comment live publishing.
+- Reviewer approve / deny / waiver workflow.
+- Dashboard human operation records.
+- Billing/admin read-only usage and billing state.
+- Report share-link revoke, expiry, and audit lifecycle.
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted workers, GitHub credentials, durable usage events,
+  billing ledger migrations, provider webhooks, auth/RBAC, and production DB
+  persistence.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 maps those outputs to product workflow state without mutating A1/A2 source
+  semantics.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, signed URL, local path, or payment secret was
+  written.
+
+Validation:
+
+- Focused Node: 43 pass, 0 fail.
+- Full A3 Node suite: 254 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.

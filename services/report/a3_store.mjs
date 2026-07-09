@@ -33,6 +33,7 @@ import { buildA3CommercialApiContract } from "./a3_commercial_api_contract.mjs";
 import { summarizeA3PeerBranchCalibration } from "./a3_peer_branch_calibration.mjs";
 import { buildA3SourceArtifacts } from "./a3_source_artifacts.mjs";
 import { buildA3LiveWorkflowReadiness } from "./a3_live_workflow_readiness.mjs";
+import { buildA3LiveOpsControlPlane } from "./a3_live_ops_control_plane.mjs";
 import {
   buildA3TenantScope,
   tenantScopeMatches,
@@ -148,6 +149,7 @@ export const A3_DB_CONTRACT = {
     "commercial_api_contracts",
     "peer_branch_calibrations",
     "live_workflow_readiness",
+    "live_ops_control_plane",
     "source_artifacts",
     "event_outbox"
   ],
@@ -181,6 +183,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/usage/ledger",
     "GET /api/a3/billing/readiness",
     "GET /api/a3/live-workflow/readiness",
+    "GET /api/a3/live-ops/control-plane",
     "GET /api/a3/commercial-api/contract",
     "GET /api/a3/peer-branches/calibration",
     "GET /api/a3/a1-a2/schema-drift",
@@ -559,6 +562,38 @@ export function createMemoryA3Store(seed = {}) {
         reportCenter,
         saasAdmin,
         eventOutbox: eventOutboxDashboard
+      }, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
+    },
+
+    async getLiveOpsControlPlane(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const usageLedger = await this.getUsageLedger(options);
+      const billingReadiness = await this.getBillingReadiness(options);
+      const reportCenter = await this.getReportCenter(options);
+      const reviewWorkflow = await this.getReviewWorkflow(options);
+      const eventOutboxDashboard = buildEventOutboxDashboard(eventOutbox, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
+        projectId: scopedSnapshot.projectId,
+        environmentId: scopedSnapshot.environmentId
+      });
+      const liveWorkflowReadiness = await this.getLiveWorkflowReadiness(options);
+      return buildA3LiveOpsControlPlane({
+        source: snapshot.source,
+        releaseEvidence: snapshot.releaseEvidence,
+        reviewWorkflow,
+        usageLedger,
+        billingReadiness,
+        reportCenter,
+        eventOutbox: eventOutboxDashboard,
+        liveWorkflowReadiness
       }, {
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
@@ -1828,6 +1863,20 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
+  const liveOpsControlPlane = buildA3LiveOpsControlPlane({
+    source: snapshot.source,
+    releaseEvidence: snapshot.releaseEvidence,
+    reviewWorkflow,
+    usageLedger,
+    billingReadiness,
+    reportCenter,
+    eventOutbox: eventOutboxDashboard,
+    liveWorkflowReadiness
+  }, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -1857,6 +1906,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     source_artifacts: sourceArtifacts,
     billing_readiness: billingReadiness,
     live_workflow_readiness: liveWorkflowReadiness,
+    live_ops_control_plane: liveOpsControlPlane,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

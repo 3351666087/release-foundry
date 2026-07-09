@@ -3618,3 +3618,59 @@ Safety boundary:
   protection mutation, or cloud write.
 - No raw key, token, cookie, email, account value, signed URL, local path, or
   payment secret was written.
+
+## 2026-07-09 - Live Ops Control Plane Round
+
+Goal: turn the six next SaaS workflow asks into one A3 product-console contract
+with API, DB, event, audit, dashboard, and A1/A2 dependency visibility.
+
+Implemented:
+
+- `a3.live_ops_control_plane.v1`
+- `GET /api/a3/live-ops/control-plane`
+- dashboard `Live Ops Control Plane`
+- static and API-backed dashboard wiring
+- redacted fixture:
+  - `fixtures/a3/p3/a3_live_ops_control_plane.redacted.json`
+- docs:
+  - `docs/a3/p3_live_ops_control_plane_2026_07_09.md`
+
+The control plane covers:
+
+- GitHub PR check live publishing
+- PR comment live publishing
+- reviewer approve / deny / waiver workflow
+- dashboard human operation records
+- billing/admin read-only usage and billing state
+- report share-link revoke, expiry, and audit lifecycle
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted workers, GitHub credentials, usage events,
+  billing ledger migrations, provider webhooks, auth/RBAC, and production DB
+  persistence.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 maps those outputs to product workflow state and does not mutate A1/A2
+  source semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.
+
+Verification:
+
+- Focused Node: 43 pass, 0 fail.
+- Full A3 Node suite: 254 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.

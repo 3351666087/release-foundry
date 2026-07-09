@@ -43,6 +43,7 @@ import {
   fetchA3UsageLedger,
   fetchA3BillingReadiness,
   fetchA3LiveWorkflowReadiness,
+  fetchA3LiveOpsControlPlane,
   fetchA3PeerBranchCalibration,
   planA3AdminAction,
   submitA3AdminAction,
@@ -63,6 +64,7 @@ import { buildA3ArtifactRegistry } from "../../../services/report/a3_artifact_re
 import { buildA3BillingReadiness } from "../../../services/report/a3_billing_readiness.mjs";
 import { summarizeA3PeerBranchCalibration } from "../../../services/report/a3_peer_branch_calibration.mjs";
 import { buildA3LiveWorkflowReadiness } from "../../../services/report/a3_live_workflow_readiness.mjs";
+import { buildA3LiveOpsControlPlane } from "../../../services/report/a3_live_ops_control_plane.mjs";
 import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
@@ -91,6 +93,7 @@ const state = {
   usageLedger: {},
   billingReadiness: {},
   liveWorkflowReadiness: {},
+  liveOpsControlPlane: {},
   reportCenter: {},
   artifactRegistry: {},
   schemaDriftRadar: {},
@@ -1482,6 +1485,7 @@ function renderReportCenter() {
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration);
   const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
+  const liveOpsControlPlane = state.liveOpsControlPlane || {};
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
   const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
   const regressionFactory = summarizeRegressionFactory(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
@@ -1511,6 +1515,9 @@ function renderReportCenter() {
     }
     if (liveWorkflowReadiness.schema_version) {
       tiles.push(reportTile("Live Workflow Readiness", `${liveWorkflowReadiness.status}: ${liveWorkflowReadiness.ready_capability_count || 0}/${liveWorkflowReadiness.capability_count || 0} ready, ${liveWorkflowReadiness.human_action_count || 0} human record(s), ${liveWorkflowReadiness.needs_backend_or_credentials_count || 0} need live backend/credentials.`));
+    }
+    if (liveOpsControlPlane.schema_version) {
+      tiles.push(reportTile("Live Ops Control Plane", `${liveOpsControlPlane.status}: ${liveOpsControlPlane.counts?.api_backed_count || 0}/${liveOpsControlPlane.counts?.lane_count || 0} API-backed lane(s), ${liveOpsControlPlane.counts?.audit_backed_count || 0} audit-backed, ${liveOpsControlPlane.counts?.local_external_mutation_count || 0} local external mutation(s).`));
     }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
@@ -2708,6 +2715,10 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.liveOpsControlPlane = await fetchA3LiveOpsControlPlane({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
   state.peerBranchCalibration = await fetchA3PeerBranchCalibration({
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
@@ -2719,6 +2730,7 @@ async function refreshReportEvidence() {
   renderReviewerWorkflowBoard();
   renderReleaseEvidenceSummary();
   renderLiveWorkflowReadiness();
+  renderLiveOpsControlPlane();
   renderPeerBranchCalibration();
   renderSaasRuntime();
   renderPrintReport();
@@ -2768,6 +2780,7 @@ function applyApiDashboardPayload(payload) {
   state.usageLedger = payload.usage_ledger || {};
   state.billingReadiness = payload.billing_readiness || {};
   state.liveWorkflowReadiness = payload.live_workflow_readiness || {};
+  state.liveOpsControlPlane = payload.live_ops_control_plane || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.peerBranchCalibration = payload.peer_branch_calibration || {};
@@ -2821,13 +2834,14 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/usage/ledger",
         "GET /api/a3/billing/readiness",
         "GET /api/a3/live-workflow/readiness",
+        "GET /api/a3/live-ops/control-plane",
         "GET /api/a3/peer-branches/calibration",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",
         "GET /api/a3/artifacts/registry"
       ],
-      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "trust_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "live_ops_control_plane", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
@@ -3071,6 +3085,21 @@ function refreshLiveWorkflowReadiness() {
   });
 }
 
+function refreshLiveOpsControlPlane() {
+  state.liveOpsControlPlane = buildA3LiveOpsControlPlane({
+    source: state.source,
+    releaseEvidence: state.releaseEvidence,
+    reviewWorkflow: state.reviewWorkflow,
+    usageLedger: state.usageLedger,
+    billingReadiness: state.billingReadiness,
+    reportCenter: state.reportCenter,
+    eventOutbox: state.saasRuntime?.event_outbox || {},
+    liveWorkflowReadiness: state.liveWorkflowReadiness
+  }, {
+    source: state.source
+  });
+}
+
 function renderLiveWorkflowReadiness() {
   const readiness = state.liveWorkflowReadiness || {};
   const statusBadge = $("live-workflow-status");
@@ -3092,6 +3121,42 @@ function renderLiveWorkflowReadiness() {
     ]), "No live workflow readiness capabilities are loaded.")}
     ${renderReportTable(["Next action"], (readiness.next_actions || []).map((item) => [item]), "No live workflow next actions are pending.")}
     <div class="caption">Boundary: ${escapeHtml(readiness.a1_a2_boundary || "A3 keeps live workflow evidence downstream of A1/A2 contracts.")}</div>
+  `;
+}
+
+function renderLiveOpsControlPlane() {
+  const controlPlane = state.liveOpsControlPlane || {};
+  const statusBadge = $("live-ops-status");
+  statusBadge.textContent = controlPlane.status || "checking";
+  statusBadge.className = `badge ${controlPlane.status === "live_mutation_observed" || controlPlane.status === "control_plane_ready_needs_live_workers" ? "pass" : controlPlane.status === "needs_contracts" ? "warn" : "neutral"}`;
+  const lanes = Array.isArray(controlPlane.lanes) ? controlPlane.lanes : [];
+  const counts = controlPlane.counts || {};
+  const human = controlPlane.human_operation_summary || {};
+  const billing = controlPlane.billing_state_summary || {};
+  const share = controlPlane.report_link_summary || {};
+  $("live-ops-body").innerHTML = `
+    <div class="caption">Six live SaaS workflows are tracked as API, DB, event, audit, and dashboard contracts. A3 keeps them safe until A1 hosted workers and A2 release policy are ready.</div>
+    <div class="health-grid">
+      ${healthTile(counts.lane_count || 0, "ops lanes")}
+      ${healthTile(counts.api_backed_count || 0, "API-backed")}
+      ${healthTile(counts.audit_backed_count || 0, "audit-backed")}
+      ${healthTile(counts.local_external_mutation_count || 0, "local mutations")}
+    </div>
+    ${renderReportTable(["Workflow", "Surface", "Status", "Mode", "Next action"], lanes.map((item) => [
+      item.label,
+      item.product_surface,
+      item.status,
+      item.current_mode,
+      item.next_action
+    ]), "No live ops control-plane lanes are loaded.")}
+    ${renderReportTable(["Summary", "Value"], [
+      ["Human records", `${human.review_record_count || 0} review / ${human.event_outbox_count || 0} outbox`],
+      ["Reviewer decisions", `${human.approval_count || 0} approve / ${human.denial_count || 0} deny / ${human.waiver_count || 0} waiver`],
+      ["Billing state", `${billing.billing_readiness_status || "unknown"} / ${billing.meter_count || 0} meter(s)`],
+      ["Share links", `${share.shareable_count || 0} shareable / ${share.revoked_count || 0} revoked / ${share.expired_count || 0} expired / ${share.total_view_count || 0} view(s)`]
+    ])}
+    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_consumed_contracts?.join(", ") || "usage, GitHub worker, billing ledger")}</div>
+    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_consumed_contracts?.join(", ") || "grade, release gate, failure taxonomy")}</div>
   `;
 }
 
@@ -3160,10 +3225,11 @@ async function loadDataSource(source) {
         }]
       };
     }
-    const [usageLedgerResult, billingReadinessResult, liveWorkflowResult] = await Promise.allSettled([
+    const [usageLedgerResult, billingReadinessResult, liveWorkflowResult, liveOpsResult] = await Promise.allSettled([
       fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
-      fetchA3LiveWorkflowReadiness({ source, baseUrl: getA3ApiBaseUrl() })
+      fetchA3LiveWorkflowReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
+      fetchA3LiveOpsControlPlane({ source, baseUrl: getA3ApiBaseUrl() })
     ]);
     if (usageLedgerResult.status === "fulfilled") {
       state.usageLedger = usageLedgerResult.value;
@@ -3173,6 +3239,9 @@ async function loadDataSource(source) {
     }
     if (liveWorkflowResult.status === "fulfilled") {
       state.liveWorkflowReadiness = liveWorkflowResult.value;
+    }
+    if (liveOpsResult.status === "fulfilled") {
+      state.liveOpsControlPlane = liveOpsResult.value;
     }
     state.saasRuntime.usage_ledger = state.usageLedger;
     state.saasRuntime.billing_readiness = state.billingReadiness;
@@ -3241,6 +3310,7 @@ async function loadDataSource(source) {
     refreshLocalProductConsole();
     refreshLocalArtifactRegistry();
     refreshLiveWorkflowReadiness();
+    refreshLiveOpsControlPlane();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -3266,6 +3336,7 @@ async function loadDataSource(source) {
   renderSchemaDriftRadar();
   renderPeerBranchCalibration();
   renderLiveWorkflowReadiness();
+  renderLiveOpsControlPlane();
   renderProductConsole();
   renderCoverageHealth();
   renderReleaseGate();
@@ -3323,6 +3394,7 @@ function resetCalibrationState() {
   state.reviewWorkflow = {};
   state.billingReadiness = {};
   state.liveWorkflowReadiness = {};
+  state.liveOpsControlPlane = {};
   state.peerBranchCalibration = {};
   state.releaseEvidence = {};
   state.releaseEvidenceReadbacks = {};

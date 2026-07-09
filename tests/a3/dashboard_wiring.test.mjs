@@ -547,6 +547,7 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/usage\/ledger/);
   assert.match(html, /GET \/api\/a3\/billing\/readiness/);
   assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
+  assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
   assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
   assert.match(html, /function hostedReportRow\(report\)/);
   assert.match(html, /function revokeHostedReport\(report\)/);
@@ -578,6 +579,24 @@ test("A3 dashboard wires live workflow readiness for GitHub, review, billing, an
   assert.match(html, /GitHub, reviewer, billing, and hosted-report readiness/);
   assert.match(html, /human records/);
   assert.match(html, /need live backend/);
+});
+
+test("A3 dashboard wires live ops control plane for PR, review, billing, human ops, and share links", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="live-ops-control-plane"/);
+  assert.match(html, /Live Ops Control Plane/);
+  assertNavigationTarget(html, "#live-ops-control-plane");
+  assert.match(html, /liveOpsControlPlane: \{\}/);
+  assert.match(html, /buildA3LiveOpsControlPlane/);
+  assert.match(html, /fetchA3LiveOpsControlPlane/);
+  assert.match(html, /function refreshLiveOpsControlPlane\(\)/);
+  assert.match(html, /function renderLiveOpsControlPlane\(\)/);
+  assert.match(html, /state\.liveOpsControlPlane = await fetchA3LiveOpsControlPlane/);
+  assert.match(html, /live_ops_control_plane/);
+  assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
+  assert.match(html, /PR publishing, review, human-operation, billing, and share-link control state/);
+  assert.match(html, /local mutations/);
 });
 
 test("A3 dashboard wires peer branch calibration into console and exports", async () => {

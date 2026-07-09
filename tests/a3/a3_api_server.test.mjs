@@ -32,7 +32,10 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.peer_branch_calibration.peer_delta_count >= 12, true);
     assert.equal(dashboard.live_workflow_readiness.schema_version, "a3.live_workflow_readiness.v1");
     assert.equal(dashboard.live_workflow_readiness.capability_count, 6);
+    assert.equal(dashboard.live_ops_control_plane.schema_version, "a3.live_ops_control_plane.v1");
+    assert.equal(dashboard.live_ops_control_plane.counts.lane_count, 6);
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-workflow/readiness"));
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-ops/control-plane"));
 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
@@ -160,6 +163,15 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(liveWorkflowReadiness.safety.secret_values_included, false);
     assert.match(liveWorkflowReadiness.a1_a2_boundary, /does not modify A1/);
     assert.doesNotMatch(JSON.stringify(liveWorkflowReadiness), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const liveOpsControlPlane = await getJson(`${url}/api/a3/live-ops/control-plane?source=mock`);
+    assert.equal(liveOpsControlPlane.schema_version, "a3.live_ops_control_plane.v1");
+    assert.equal(liveOpsControlPlane.counts.lane_count, 6);
+    assert.ok(liveOpsControlPlane.lanes.some((item) => item.id === "github_pr_check_live_publishing"));
+    assert.ok(liveOpsControlPlane.lanes.some((item) => item.id === "billing_admin_real_usage_billing_state"));
+    assert.equal(liveOpsControlPlane.safety.real_github_mutation_performed_locally, false);
+    assert.equal(liveOpsControlPlane.a1_a2_alignment.a3_mutates_a1_a2_semantics, false);
+    assert.doesNotMatch(JSON.stringify(liveOpsControlPlane), /Bearer|sk-|ghp_|owner@example.com/);
 
     const peerCalibration = await getJson(`${url}/api/a3/peer-branches/calibration?source=mock&role=auditor`);
     assert.equal(peerCalibration.schema_version, "a3.peer_branch_calibration.v1");

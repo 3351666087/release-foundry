@@ -106,6 +106,16 @@ export async function fetchA3LiveWorkflowReadiness(options = {}) {
   return response.json();
 }
 
+export async function fetchA3LiveOpsControlPlane(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/live-ops/control-plane?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API live ops control plane load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchA3PeerBranchCalibration(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

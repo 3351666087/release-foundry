@@ -107,6 +107,14 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/live-ops/control-plane") {
+        return sendJson(response, 200, await store.getLiveOpsControlPlane({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/commercial-api/contract") {
         return sendJson(response, 200, await store.getCommercialApiContract({
           source: sourceFrom(url),
