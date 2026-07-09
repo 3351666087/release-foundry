@@ -156,6 +156,44 @@ CREATE INDEX IF NOT EXISTS ashr_run_uploads_run_idx ON ashr_run_uploads (tenant_
 CREATE INDEX IF NOT EXISTS ashr_trace_batches_run_idx ON ashr_trace_batches (tenant_id, project_id, run_id, created_at);
 CREATE INDEX IF NOT EXISTS ashr_artifact_manifests_run_idx ON ashr_artifact_manifests (tenant_id, project_id, run_id, created_at, artifact_id);
 
+CREATE TABLE IF NOT EXISTS ashr_quota_ledger (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    usage_event_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    units INTEGER NOT NULL DEFAULT 1,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    target_id TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, usage_event_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_audit_events (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    audit_event_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_id TEXT NOT NULL DEFAULT '',
+    api_key_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    previous_hash TEXT NOT NULL DEFAULT '',
+    event_hash TEXT NOT NULL,
+    after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, audit_event_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_quota_ledger_scope_idx ON ashr_quota_ledger (tenant_id, project_id, operation, created_at);
+CREATE INDEX IF NOT EXISTS ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_audit_events_scope_idx ON ashr_audit_events (tenant_id, project_id, action, created_at);
+CREATE INDEX IF NOT EXISTS ashr_audit_events_target_idx ON ashr_audit_events (tenant_id, project_id, target_id, created_at);
+
 DROP TRIGGER IF EXISTS ashr_tenants_set_updated_at ON ashr_tenants;
 CREATE TRIGGER ashr_tenants_set_updated_at
 BEFORE UPDATE ON ashr_tenants
@@ -195,6 +233,8 @@ ALTER TABLE ashr_worker_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ashr_run_uploads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ashr_trace_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ashr_artifact_manifests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_quota_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_audit_events ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -248,6 +288,18 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_artifact_manifests' AND policyname = 'ashr_artifact_manifests_tenant_isolation') THEN
         CREATE POLICY ashr_artifact_manifests_tenant_isolation ON ashr_artifact_manifests
+        USING (tenant_id = ashr_current_tenant_id())
+        WITH CHECK (tenant_id = ashr_current_tenant_id());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_quota_ledger' AND policyname = 'ashr_quota_ledger_tenant_isolation') THEN
+        CREATE POLICY ashr_quota_ledger_tenant_isolation ON ashr_quota_ledger
+        USING (tenant_id = ashr_current_tenant_id())
+        WITH CHECK (tenant_id = ashr_current_tenant_id());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_audit_events' AND policyname = 'ashr_audit_events_tenant_isolation') THEN
+        CREATE POLICY ashr_audit_events_tenant_isolation ON ashr_audit_events
         USING (tenant_id = ashr_current_tenant_id())
         WITH CHECK (tenant_id = ashr_current_tenant_id());
     END IF;

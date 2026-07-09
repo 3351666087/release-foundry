@@ -56,6 +56,57 @@ func TestPostgresSchemaIncludesDurableWorkerJobContract(t *testing.T) {
 	}
 }
 
+func TestPostgresSchemaIncludesQuotaUsageLedgerContract(t *testing.T) {
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_quota_ledger",
+		"tenant_id TEXT NOT NULL",
+		"project_id TEXT NOT NULL",
+		"usage_event_id TEXT NOT NULL",
+		"operation TEXT NOT NULL",
+		"units INTEGER NOT NULL DEFAULT 1",
+		"api_key_id TEXT NOT NULL DEFAULT ''",
+		"idempotency_key TEXT NOT NULL DEFAULT ''",
+		"request_id TEXT NOT NULL DEFAULT ''",
+		"run_id TEXT NOT NULL DEFAULT ''",
+		"target_id TEXT NOT NULL DEFAULT ''",
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+		"PRIMARY KEY (tenant_id, project_id, usage_event_id)",
+		"FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE",
+		"ashr_quota_ledger_scope_idx ON ashr_quota_ledger (tenant_id, project_id, operation, created_at)",
+		"ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at)",
+	} {
+		if !strings.Contains(PostgresSchemaSQL, required) {
+			t.Fatalf("quota usage ledger schema missing %q", required)
+		}
+	}
+}
+
+func TestPostgresSchemaIncludesAuditLogHashChainContract(t *testing.T) {
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_audit_events",
+		"tenant_id TEXT NOT NULL",
+		"project_id TEXT NOT NULL",
+		"audit_event_id TEXT NOT NULL",
+		"action TEXT NOT NULL",
+		"target_id TEXT NOT NULL DEFAULT ''",
+		"api_key_id TEXT NOT NULL DEFAULT ''",
+		"idempotency_key TEXT NOT NULL DEFAULT ''",
+		"request_id TEXT NOT NULL DEFAULT ''",
+		"previous_hash TEXT NOT NULL DEFAULT ''",
+		"event_hash TEXT NOT NULL",
+		"after_json JSONB NOT NULL DEFAULT '{}'::jsonb",
+		"created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+		"PRIMARY KEY (tenant_id, project_id, audit_event_id)",
+		"FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE",
+		"ashr_audit_events_scope_idx ON ashr_audit_events (tenant_id, project_id, action, created_at)",
+		"ashr_audit_events_target_idx ON ashr_audit_events (tenant_id, project_id, target_id, created_at)",
+	} {
+		if !strings.Contains(PostgresSchemaSQL, required) {
+			t.Fatalf("audit log schema missing %q", required)
+		}
+	}
+}
+
 func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 	repository := NewPostgresRepository(nil)
 	checks := []struct {

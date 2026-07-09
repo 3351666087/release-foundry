@@ -17,6 +17,8 @@ REQUIRED_TABLES = (
     "ashr_run_uploads",
     "ashr_trace_batches",
     "ashr_artifact_manifests",
+    "ashr_quota_ledger",
+    "ashr_audit_events",
 )
 
 REQUIRED_FUNCTIONS = (
@@ -42,6 +44,8 @@ REQUIRED_POLICIES = (
     "ashr_run_uploads_tenant_isolation",
     "ashr_trace_batches_tenant_isolation",
     "ashr_artifact_manifests_tenant_isolation",
+    "ashr_quota_ledger_tenant_isolation",
+    "ashr_audit_events_tenant_isolation",
 )
 
 REQUIRED_WORKER_JOB_COLUMNS = (
@@ -109,6 +113,10 @@ def test_a1_postgres_migration_preserves_go_control_plane_first_slice():
         "ashr_run_uploads_run_idx",
         "ashr_trace_batches_run_idx",
         "ashr_artifact_manifests_run_idx",
+        "ashr_quota_ledger_scope_idx",
+        "ashr_quota_ledger_run_idx",
+        "ashr_audit_events_scope_idx",
+        "ashr_audit_events_target_idx",
     ):
         go_index = _extract_statement(go_schema_sql, f"CREATE INDEX IF NOT EXISTS {index_name}")
         assert _normalize_sql(go_index) in migration_sql
@@ -212,3 +220,49 @@ def test_a1_postgres_upload_trace_artifact_schema_preserves_hash_only_contract()
     )
     for fragment in required_fragments:
         assert fragment in migration_sql
+
+
+def test_a1_postgres_usage_and_audit_schema_preserves_enterprise_metering_contract():
+    migration_sql = _normalize_sql(_read(MIGRATION_PATH))
+
+    required_fragments = (
+        "create table if not exists ashr_quota_ledger",
+        "usage_event_id text not null",
+        "operation text not null",
+        "units integer not null default 1",
+        "run_id text not null default ''",
+        "target_id text not null default ''",
+        "create index if not exists ashr_quota_ledger_scope_idx",
+        "create index if not exists ashr_quota_ledger_run_idx",
+        "create table if not exists ashr_audit_events",
+        "audit_event_id text not null",
+        "action text not null",
+        "previous_hash text not null default ''",
+        "event_hash text not null",
+        "after_json jsonb not null default '{}'::jsonb",
+        "create index if not exists ashr_audit_events_scope_idx",
+        "create index if not exists ashr_audit_events_target_idx",
+        "alter table ashr_quota_ledger enable row level security",
+        "alter table ashr_audit_events enable row level security",
+        "create policy ashr_quota_ledger_tenant_isolation",
+        "create policy ashr_audit_events_tenant_isolation",
+    )
+    for fragment in required_fragments:
+        assert fragment in migration_sql
+
+
+def test_a1_go_postgres_mutations_append_usage_and_audit_foundation():
+    source = _read(GO_POSTGRES_PATH)
+
+    assert "appendPostgresUsageEvent" in source
+    assert "appendPostgresAuditEvent" in source
+    for operation in (
+        "sdk.submit",
+        "run.upload",
+        "trace.ingest",
+        "artifact.manifest",
+        "worker.job.enqueue",
+        "worker.job.complete",
+        "worker.job.fail",
+    ):
+        assert operation in source

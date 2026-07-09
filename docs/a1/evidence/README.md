@@ -202,3 +202,51 @@ Next 20 A1 growth points:
 18. Expand five-modality API calibration across text/audio/file/image/video after quota gate review.
 19. Add old-vs-new run diff durable tables and API routes.
 20. Keep A2/A3 outputs isolated unless an explicit CL emergency requires cross-lane repair.
+
+## 2026-07-09 - A1 Go Postgres quota ledger and audit chain foundation
+
+Goal:
+- Convert the durable Go/Postgres lifecycle from storage-only receipts into enterprise-grade metered and auditable mutations for self-host SaaS packaging.
+
+Implemented:
+- `packages/go/ashrclone/postgres.go`: added `ashr_quota_ledger` and `ashr_audit_events` to `PostgresSchemaSQL` with tenant/project composite keys, operation/action filters, run/target indexes, public-safe request attribution, and audit hash-chain fields.
+- Added transaction helpers `appendPostgresUsageEvent`, `appendPostgresAuditEvent`, and `appendPostgresMutationEvidence`.
+- Wired successful non-replayed Postgres mutations to quota/audit evidence for `sdk.submit`, `worker.job.enqueue`, `worker.job.lease`, `worker.job.heartbeat`, `worker.job.complete`, `worker.job.fail`, `run.upload`, `trace.ingest`, and `artifact.manifest`.
+- Updated Postgres trace ingestion to reject empty observation batches, matching TS/Python SaaS parity.
+- `docs/a1/schemas/a1_control_plane_postgres_migration.sql`: mirrored quota/audit tables, indexes, RLS enablement, and tenant-isolation policies.
+- `packages/go/ashrclone/postgres_test.go` and `tests/a1/test_a1_control_plane_postgres_migration.py`: added static schema and mutation-foundation coverage for quota ledger and audit hash-chain behavior.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1/test_a1_control_plane_postgres_migration.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider` -> 10 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 311 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 282 passed.
+
+Real API / private evidence:
+- No official Ashr API call in this local quota/audit backend subround. No API key or desktop key file was read, printed, logged, or staged.
+
+Peer changes / impact:
+- PR #22 was open, draft, mergeable, and CL-green before this follow-up. This update remains A1-only. Existing dirty A3 EOL files and untracked `recon/`, `tools/` remain excluded.
+
+Next 20 A1 growth points:
+1. Add live Postgres tests gated by `A1_POSTGRES_TEST_DSN` for quota/audit rows on every mutation.
+2. Add audit-chain verification method and optional read-only Go route.
+3. Align Go audit table field names closer to TS `audit_event_sha256` / chain position semantics if public response exposure is added.
+4. Add quota policy limits and hard blocking before business writes.
+5. Add usage/quota snapshot read-only Go route.
+6. Add API-key lifecycle tables and scope checks in Go.
+7. Add worker daemon loop backed by Postgres leases and audit receipts.
+8. Add Postgres trace batch listing and replay snapshot route.
+9. Add artifact manifest pagination and total counts.
+10. Add SQL migration checksum/version ledger.
+11. Add Docker Compose live smoke for Go API + Postgres + worker.
+12. Add TS SDK smoke against Go Postgres backend.
+13. Add Python SDK smoke against Go Postgres backend.
+14. Generate OpenAPI from Go route manifest and validate TS/Python parity.
+15. Add Terraform/HCL self-host skeleton.
+16. Add Rust tamper-proof evidence bundle verifier.
+17. Add official API dry-run/small-batch calibration for usage/quota/error shapes with redacted private evidence.
+18. Expand paid five-modality calibration only after quota gate review.
+19. Add old-vs-new run diff durable tables and routes.
+20. Keep A2/A3 artifacts isolated unless an explicit CL emergency requires cross-lane repair.

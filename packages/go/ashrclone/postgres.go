@@ -148,6 +148,44 @@ CREATE TABLE IF NOT EXISTS ashr_artifact_manifests (
 CREATE INDEX IF NOT EXISTS ashr_run_uploads_run_idx ON ashr_run_uploads (tenant_id, project_id, run_id, created_at);
 CREATE INDEX IF NOT EXISTS ashr_trace_batches_run_idx ON ashr_trace_batches (tenant_id, project_id, run_id, created_at);
 CREATE INDEX IF NOT EXISTS ashr_artifact_manifests_run_idx ON ashr_artifact_manifests (tenant_id, project_id, run_id, created_at, artifact_id);
+
+CREATE TABLE IF NOT EXISTS ashr_quota_ledger (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    usage_event_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    units INTEGER NOT NULL DEFAULT 1,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    target_id TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, usage_event_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_audit_events (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    audit_event_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_id TEXT NOT NULL DEFAULT '',
+    api_key_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    previous_hash TEXT NOT NULL DEFAULT '',
+    event_hash TEXT NOT NULL,
+    after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, audit_event_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_quota_ledger_scope_idx ON ashr_quota_ledger (tenant_id, project_id, operation, created_at);
+CREATE INDEX IF NOT EXISTS ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_audit_events_scope_idx ON ashr_audit_events (tenant_id, project_id, action, created_at);
+CREATE INDEX IF NOT EXISTS ashr_audit_events_target_idx ON ashr_audit_events (tenant_id, project_id, target_id, created_at);
 `
 
 type PostgresRepository struct {
@@ -276,6 +314,9 @@ func (repository *PostgresRepository) SubmitRun(tenantID, projectID, datasetID, 
 	if err := upsertRun(ctx, tx, run); err != nil {
 		return Envelope[Run]{}, err
 	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "sdk.submit", 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.Key, RequestID: options.RequestID, RunID: runID, TargetID: runID, After: JSONMap{"run_id": runID, "dataset_id": datasetID, "agent_ref": agentRef}}, repository.now().UTC()); err != nil {
+		return Envelope[Run]{}, err
+	}
 	if options.Key != "" {
 		if replay, ok, err := insertIdempotentRunResponse(ctx, tx, "sdk_submit", tenantID, projectID, options.Key, request, response); err != nil || ok {
 			return replay, err
@@ -342,6 +383,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, $13, $13)
 	if err != nil {
 		return Envelope[WorkerJob]{}, fmt.Errorf("insert worker job: %w", err)
 	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "worker.job.enqueue", 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, RunID: targetID, TargetID: jobID, After: JSONMap{"job_id": jobID, "job_type": jobType, "target_id": targetID, "payload_sha256": payloadSHA}}, now); err != nil {
+		return Envelope[WorkerJob]{}, err
+	}
 	if options.IdempotencyKey != "" {
 		if replay, ok, err := insertIdempotentWorkerJobResponse(ctx, tx, "worker.job.enqueue", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
 			return replay, err
@@ -395,6 +439,9 @@ func (repository *PostgresRepository) LeaseWorkerJob(tenantID, projectID, leaseO
 	}
 	job, err = updatePostgresWorkerJobLease(ctx, tx, tenantID, projectID, job.JobID, leaseOwnerID, leaseExpiresAt, now)
 	if err != nil {
+		return Envelope[WorkerLeaseResult]{}, err
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "worker.job.lease", 0, postgresMutationEvidence{IdempotencyKey: job.IdempotencyKey, RequestID: job.RequestID, RunID: job.TargetID, TargetID: job.JobID, After: JSONMap{"job_id": job.JobID, "job_type": job.JobType, "lease_owner_id": leaseOwnerID, "lease_expires_at": leaseExpiresAt}}, now); err != nil {
 		return Envelope[WorkerLeaseResult]{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -570,6 +617,9 @@ WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
 	if err != nil {
 		return Envelope[RunUpload]{}, fmt.Errorf("mark run uploaded: %w", err)
 	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "run.upload", 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, RunID: runID, TargetID: runID, After: JSONMap{"run_id": runID, "upload_id": uploadID, "result_sha256": resultSHA}}, now); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
 	if options.IdempotencyKey != "" {
 		if replay, ok, err := insertIdempotentRunUploadResponse(ctx, tx, "upload_run", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
 			return replay, err
@@ -587,6 +637,9 @@ func (repository *PostgresRepository) IngestTrace(tenantID, projectID, runID str
 	}
 	if err := ValidateMediaSafeEnvelope(observations); err != nil {
 		return Envelope[TraceBatch]{}, err
+	}
+	if len(observations) == 0 {
+		return Envelope[TraceBatch]{}, fmt.Errorf("trace ingestion requires at least one observation")
 	}
 	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "observations": observations, "batch_id": options.BatchID}
 	now := repository.now().UTC()
@@ -622,6 +675,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `, tenantID, projectID, runID, batchID, len(observations), observationsSHA, options.APIKeyID, options.RequestID, options.IdempotencyKey, now)
 	if err != nil {
 		return Envelope[TraceBatch]{}, fmt.Errorf("insert trace batch: %w", err)
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "trace.ingest", len(observations), postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, RunID: runID, TargetID: runID, After: JSONMap{"run_id": runID, "batch_id": batchID, "observation_count": len(observations), "observations_sha256": observationsSHA}}, now); err != nil {
+		return Envelope[TraceBatch]{}, err
 	}
 	if options.IdempotencyKey != "" {
 		if replay, ok, err := insertIdempotentTraceBatchResponse(ctx, tx, "ingest_trace", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
@@ -675,6 +731,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `, tenantID, projectID, runID, artifactID, manifestSHA, options.APIKeyID, options.RequestID, options.IdempotencyKey, now)
 	if err != nil {
 		return Envelope[ArtifactManifest]{}, fmt.Errorf("insert artifact manifest: %w", err)
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "artifact.manifest", 1, postgresMutationEvidence{APIKeyID: options.APIKeyID, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, RunID: runID, TargetID: runID, After: JSONMap{"run_id": runID, "artifact_id": artifactID, "manifest_sha256": manifestSHA}}, now); err != nil {
+		return Envelope[ArtifactManifest]{}, err
 	}
 	if options.IdempotencyKey != "" {
 		if replay, ok, err := insertIdempotentArtifactManifestResponse(ctx, tx, "artifact_manifest", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
@@ -739,6 +798,13 @@ func (repository *PostgresRepository) mutateLeasedWorkerJob(tenantID, projectID,
 	}
 	job, err = mutate(ctx, tx, job)
 	if err != nil {
+		return Envelope[WorkerJob]{}, err
+	}
+	units := 1
+	if operation == "worker.job.heartbeat" {
+		units = 0
+	}
+	if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, operation, units, postgresMutationEvidence{IdempotencyKey: job.IdempotencyKey, RequestID: job.RequestID, RunID: job.TargetID, TargetID: jobID, After: JSONMap{"job_id": jobID, "job_type": job.JobType, "status": job.Status, "attempts": job.Attempts}}, now); err != nil {
 		return Envelope[WorkerJob]{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -1255,6 +1321,88 @@ func scanPostgresArtifactManifest(scanner workerJobScanner) (ArtifactManifest, e
 	manifest.SchemaVersion = ControlPlaneSchemaVersion
 	manifest.RawPayloadIncluded = false
 	return manifest, nil
+}
+
+type postgresMutationEvidence struct {
+	APIKeyID       string
+	IdempotencyKey string
+	RequestID      string
+	RunID          string
+	TargetID       string
+	After          JSONMap
+}
+
+func appendPostgresUsageEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID, operation string, units int, evidence postgresMutationEvidence, now time.Time) error {
+	if units < 1 {
+		units = 1
+	}
+	usageEventID := stablePostgresTimedID("usage", operation, now)
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_quota_ledger (tenant_id, project_id, usage_event_id, operation, units, api_key_id, idempotency_key, request_id, run_id, target_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+`, tenantID, projectID, usageEventID, operation, units, evidence.APIKeyID, evidence.IdempotencyKey, evidence.RequestID, evidence.RunID, evidence.TargetID, now)
+	if err != nil {
+		return fmt.Errorf("append usage ledger: %w", err)
+	}
+	return nil
+}
+
+func appendPostgresAuditEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID, action string, evidence postgresMutationEvidence, now time.Time) error {
+	var previousHash string
+	err := tx.QueryRowContext(ctx, `
+SELECT event_hash
+FROM ashr_audit_events
+WHERE tenant_id = $1 AND project_id = $2
+ORDER BY created_at DESC, audit_event_id DESC
+LIMIT 1
+`, tenantID, projectID).Scan(&previousHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		previousHash = ""
+	} else if err != nil {
+		return fmt.Errorf("load audit tail: %w", err)
+	}
+	auditEventID := stablePostgresTimedID("audit", action, now)
+	after := defaultMap(evidence.After)
+	afterPayload, err := jsonBytes(after)
+	if err != nil {
+		return fmt.Errorf("marshal audit after: %w", err)
+	}
+	eventHash, err := fingerprint(JSONMap{
+		"tenant_id":         tenantID,
+		"project_id":        projectID,
+		"audit_event_id":    auditEventID,
+		"action":            action,
+		"target_id":         evidence.TargetID,
+		"api_key_id":        evidence.APIKeyID,
+		"idempotency_key":   evidence.IdempotencyKey,
+		"request_id":        evidence.RequestID,
+		"previous_hash":     previousHash,
+		"after":             after,
+		"created_at_unixns": now.UnixNano(),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_audit_events (tenant_id, project_id, audit_event_id, action, target_id, api_key_id, idempotency_key, request_id, previous_hash, event_hash, after_json, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+`, tenantID, projectID, auditEventID, action, evidence.TargetID, evidence.APIKeyID, evidence.IdempotencyKey, evidence.RequestID, previousHash, eventHash, string(afterPayload), now)
+	if err != nil {
+		return fmt.Errorf("append audit log: %w", err)
+	}
+	return nil
+}
+
+func appendPostgresMutationEvidence(ctx context.Context, tx *sql.Tx, tenantID, projectID, operation string, units int, evidence postgresMutationEvidence, now time.Time) error {
+	if units > 0 {
+		if err := appendPostgresUsageEvent(ctx, tx, tenantID, projectID, operation, units, evidence, now); err != nil {
+			return err
+		}
+	}
+	if err := appendPostgresAuditEvent(ctx, tx, tenantID, projectID, operation, evidence, now); err != nil {
+		return err
+	}
+	return nil
 }
 
 func requirePostgresWorkerJobLease(job WorkerJob, leaseOwnerID string, now time.Time) error {
