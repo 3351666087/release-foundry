@@ -1,30 +1,34 @@
 :root {
   color-scheme: light;
-  --bg: #f7f8fa;
+  --bg: #f6f8fb;
   --panel: #ffffff;
-  --panel-soft: #fbfcfe;
-  --line: #dfe5ed;
-  --line-strong: #cbd5e1;
+  --panel-soft: #fbfdff;
+  --line: #dce4ee;
+  --line-strong: #b9c6d8;
   --text: #0f172a;
-  --muted: #617083;
-  --green: #1f8a5b;
-  --red: #c24135;
-  --amber: #b86913;
-  --blue: #3564c8;
-  --cyan: #23818c;
-  --plum: #76527f;
-  --nav: #080c12;
-  --nav-soft: #f8fafc;
-  --nav-text: #d7dde7;
-  --teal-soft: #e7f5f7;
-  --green-soft: #eaf7ef;
-  --amber-soft: #fff5e5;
-  --red-soft: #fff0ee;
-  --blue-soft: #edf3ff;
-  --ink-soft: #edf1f6;
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 14px 32px rgba(15, 23, 42, 0.06);
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 22px rgba(15, 23, 42, 0.05);
-  --shadow-focus: 0 0 0 3px rgba(49, 95, 187, 0.16);
+  --muted: #5c6f84;
+  --green: #00a86b;
+  --red: #f05243;
+  --amber: #f59e0b;
+  --blue: #2563eb;
+  --cyan: #06a6d6;
+  --plum: #a855f7;
+  --pink: #ec4899;
+  --orange: #f97316;
+  --nav: #101322;
+  --nav-soft: #ffffff;
+  --nav-text: #e5e9f2;
+  --teal-soft: #e6fbff;
+  --green-soft: #e9fbf1;
+  --amber-soft: #fff7df;
+  --red-soft: #fff0ed;
+  --blue-soft: #edf4ff;
+  --pink-soft: #fff0f8;
+  --purple-soft: #f6f0ff;
+  --ink-soft: #edf2f7;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 16px 34px rgba(37, 99, 235, 0.08);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 22px rgba(6, 166, 214, 0.07);
+  --shadow-focus: 0 0 0 3px rgba(249, 115, 22, 0.22);
   --radius: 8px;
   --radius-sm: 6px;
   --space-panel: 16px;
@@ -38,7 +42,8 @@
 body {
   margin: 0;
   background:
-    linear-gradient(180deg, #fbfcfe 0, var(--bg) 360px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.06), rgba(0, 168, 107, 0.05), rgba(249, 115, 22, 0.06)),
+    linear-gradient(180deg, #ffffff 0, var(--bg) 420px),
     var(--bg);
   color: var(--text);
   font-size: 14px;
@@ -58,8 +63,10 @@ select {
 }
 
 .sidebar {
-  border-right: 1px solid #202632;
-  background: var(--nav);
+  border-right: 0;
+  background:
+    linear-gradient(180deg, #111827, #101322 54%, #141827),
+    var(--nav);
   color: var(--nav-text);
   padding: 22px 14px;
   position: sticky;
@@ -82,9 +89,9 @@ select {
 
 .brand-mark {
   align-items: center;
-  background: #fff;
+  background: linear-gradient(135deg, #00d2ff, #22c55e 48%, #f97316);
   border-radius: var(--radius-sm);
-  color: #080c12;
+  color: #07111f;
   display: inline-flex;
   font-size: 12px;
   height: 28px;
@@ -117,15 +124,15 @@ select {
 
 .nav a.active,
 .nav a:hover {
-  background: #161d29;
-  border-color: #273244;
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
 .nav a.active {
-  background: var(--nav-soft);
+  background: #fff;
   border-color: #fff;
-  color: #0f172a;
+  color: #111827;
 }
 
 .nav a.active::before,
@@ -149,11 +156,13 @@ select {
 }
 
 .topbar {
-  background: #111827;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96) 0%, rgba(14, 116, 144, 0.96) 48%, rgba(249, 115, 22, 0.95) 115%),
+    #111827;
   backdrop-filter: blur(14px);
-  border: 1px solid #111827;
-  border-radius: 12px;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: 0 18px 42px rgba(14, 116, 144, 0.2);
   color: #fff;
   display: flex;
   align-items: flex-start;
@@ -269,19 +278,19 @@ select:focus-visible {
 }
 
 .button.primary {
-  border-color: var(--blue);
-  background: var(--blue);
+  border-color: #111827;
+  background: #111827;
   color: #fff;
 }
 
 .button.primary:hover {
-  background: #274f9d;
+  background: #020617;
 }
 
 .topbar .button.primary {
   background: #fff;
   border-color: #fff;
-  color: #111827;
+  color: #0f172a;
 }
 
 .topbar .button.primary:hover {
@@ -289,7 +298,7 @@ select:focus-visible {
 }
 
 .topbar .button.subtle {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.24);
   color: #fff;
 }
@@ -356,7 +365,7 @@ select:focus-visible {
 .report-tile {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--panel-soft);
+  background: linear-gradient(180deg, #fff, var(--panel-soft));
   padding: 10px;
   min-width: 0;
   position: relative;
@@ -505,7 +514,7 @@ select:focus-visible {
 
 .channel-pill {
   background: var(--teal-soft);
-  border: 1px solid #b9dde2;
+  border: 1px solid #a6e7ef;
   border-radius: 999px;
   color: #185b63;
   font-size: 12px;
@@ -757,14 +766,14 @@ select:focus-visible {
   display: block;
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, var(--green), var(--cyan));
+  background: linear-gradient(90deg, var(--green), var(--cyan), var(--orange));
 }
 
 .metric,
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 
@@ -788,24 +797,54 @@ select:focus-visible {
   overflow: hidden;
 }
 
+.metric::after {
+  content: "";
+  bottom: 0;
+  opacity: 0.72;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 5px;
+}
+
 .metric::before {
   display: none;
 }
 
 .metric.good {
-  border-color: #bde8ce;
+  background: linear-gradient(180deg, #ffffff 0%, var(--green-soft) 100%);
+  border-color: #a9ecc6;
 }
 
 .metric.warn {
-  border-color: #f5d39b;
+  background: linear-gradient(180deg, #ffffff 0%, var(--amber-soft) 100%);
+  border-color: #ffd58a;
 }
 
 .metric.risk {
-  border-color: #efb8b1;
+  background: linear-gradient(180deg, #ffffff 0%, var(--red-soft) 100%);
+  border-color: #ffb5ad;
 }
 
 .metric.info {
-  border-color: #bddce1;
+  background: linear-gradient(180deg, #ffffff 0%, var(--teal-soft) 100%);
+  border-color: #9fe8f4;
+}
+
+.metric.good::after {
+  background: var(--green);
+}
+
+.metric.warn::after {
+  background: var(--amber);
+}
+
+.metric.risk::after {
+  background: var(--red);
+}
+
+.metric.info::after {
+  background: var(--cyan);
 }
 
 .metric label {
@@ -814,17 +853,23 @@ select:focus-visible {
   font-size: 12px;
   margin-bottom: 8px;
   text-transform: uppercase;
+  position: relative;
+  z-index: 1;
 }
 
 .metric strong {
-  font-size: 24px;
+  font-size: 27px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .metric span {
   color: var(--muted);
   font-size: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .filters {

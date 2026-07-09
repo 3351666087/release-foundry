@@ -569,6 +569,9 @@
 - [x] Apply the stronger Linear / Vercel style release-console direction to the production dashboard.
 - [x] Capture V2 concept screenshots and production V2 dashboard desktop/mobile screenshots.
 - [x] Keep the second-round visual work limited to A3 dashboard/docs/screenshots without changing A1/A2 semantics.
+- [x] Apply V3 colorful, simplified, direct dashboard polish after feedback that V2 still looked too plain.
+- [x] Capture V3 production desktop and mobile screenshots.
+- [x] Keep V3 visual polish clean-room and preserve A1/A2 dashboard source wiring.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
