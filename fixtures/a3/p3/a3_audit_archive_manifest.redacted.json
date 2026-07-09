@@ -2,7 +2,7 @@
   "schema_version": "a3.audit_archive_manifest.v1",
   "generated_at": "2026-07-08T00:00:00.000Z",
   "source": "unit-test",
-  "archive_id": "a3-archive-a3-bundle-local-mock-commercial-gate-run-a3-generated--31749db8c245",
+  "archive_id": "a3-archive-a3-bundle-local-mock-commercial-gate-run-a3-generated--e28918d5a7ea",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -13,7 +13,7 @@
   "archive_file": null,
   "bundle": {
     "bundle_id": "a3-bundle-local-mock-commercial-gate-run-a3-generated-from-f447ff6e9d1d",
-    "bundle_root_hash": "31749db8c245e5c45ab039a247b5456774c475cb51a5bacb094c3a964f13c1e2",
+    "bundle_root_hash": "e28918d5a7ea1b0dc22364e8bb67aab686b45d0b3b2001455086f6f04a43144b",
     "bundle_index_file": "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json",
     "release": {
       "run_id": "run_a3_generated_from_a2_g3",
@@ -50,7 +50,7 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "7a8f9be64886d7300e6dcdf0779035a4e58982ddb60cf1bfac63d76cfae4d903",
+      "sha256": "061543ed310196fb8fe3dd878461205a55d67a9f70aabced50489b38cb87a548",
       "byte_size": 11475,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -62,7 +62,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "b40600846b58fa2158903bd45b127257ab58f2dcb52ba33372b71a84498cd234",
+      "sha256": "0a4ae1278f1108ffbb10da77144b271218fc19d84177293c06a7aa457b43d5d0",
       "byte_size": 2002,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -86,7 +86,7 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "892aacc17b19eab11186e302673578ceda8dccae568fe1636f0d8af0775c0f52",
+      "sha256": "926bdb81b17a2fa0c1092a26581516f8d7886546d5092be7d1e5a2f361ac3c4c",
       "byte_size": 30865,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -98,7 +98,7 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "464425cadfe8d24f554625617b5c08b9a33db39c26c599cee8c0037cf822f2a0",
+      "sha256": "4f52249037f585c4f5a306370e269fa80b9fa9c0fa4baec151aaf73b274592db",
       "byte_size": 3297,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -146,8 +146,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "1cd8523aac6e01b6888667fb52ebf29fd8bcce34a791ee6c4a035c40c8b1cc41",
-      "byte_size": 51795,
+      "sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+      "byte_size": 49867,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -201,18 +201,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "4c2f1a14eee1821e1fc734910125278be268695fa4815cc84888690a31ac265d",
+  "archive_root_hash": "f1a32bc6b8b54af2723d6dd2c45210c1e55f9dd5345892d25d77730df41d0838",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "f30309a87be4b7a9a19492576efd9fbb0d33eb4e037845f0d9b275ec3aa98dbd",
+    "signed_payload_sha256": "3e6ebb16ed93cceda3dbe12183e11a57f4ddcbaf868810e136e0c2984dda1be4",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEASP4Ys78GXUBACHPB4JnKkboLJXw20JeoQjg27l5bAR0=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAEwVBZZS1zNP38v+U77W0IU/Zjz6spgiYCRQZiHSxwLo=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "uSHTQ1jHFhAJE38N6WueVxWZzXbHunnihGibI4LyclcTESofikBCTxe1RClHw7kWXaNbkWxEixqhiMBkkxiqAw=="
+    "signature_base64": "5cU6d8m0OZx8iuNCXS5M0d0jAnRzVgB4ZrdtzPUfYnX9CTKPXTcr1cGOYRnb5w9luDNW6Rq6R7EQysO2sbsrDw=="
   }
 }
