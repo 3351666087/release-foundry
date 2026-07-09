@@ -444,6 +444,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("promotion_gate", scenario_generation_schema["required"])
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
+        self.assertIn("a1_official_api_readonly_manifest", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -463,6 +464,12 @@ class A2ContractTests(unittest.TestCase):
             set(evidence_readiness["a1_real_api_evidence"]["api_probe_gate_validation"]),
         )
         self.assertIn("validate_gate_count", api_probe_gate_required)
+        official_manifest_required = set(evidence_readiness_schema["$defs"]["a1_official_api_readonly_manifest"]["required"])
+        self.assertLessEqual(
+            official_manifest_required,
+            set(evidence_readiness["a1_official_api_readonly_manifest"]),
+        )
+        self.assertIn("ready_for_a2_evidence_context", official_manifest_required)
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
@@ -1300,6 +1307,13 @@ class A2ContractTests(unittest.TestCase):
             "docs/a1/api_calibration/real_api_evidence_index.json",
             report["a1_real_api_evidence"]["index_path"],
         )
+        official_manifest = report["a1_official_api_readonly_manifest"]
+        self.assertFalse(official_manifest["available"])
+        self.assertEqual(
+            official_manifest["path"],
+            "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+        )
+        self.assertFalse(official_manifest["ready_for_a2_evidence_context"])
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -1345,6 +1359,59 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("ashr_grading_tiny_calibration", report["batch_plan_refs"])
         self.assertIn("semantic_llm_judge_audit", report["batch_plan_refs"])
         self.assertIn("raw prompts", report["redaction_policy"]["never_commit"])
+
+    def test_evidence_readiness_consumes_a1_official_api_readonly_manifest_summary(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        summary = {
+            "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+            "status": "ok",
+            "source_private_manifest_present": True,
+            "summary": {
+                "read_steps": 5,
+                "ok_or_planned_steps": 5,
+                "error_steps": 0,
+                "quota_block_count": 0,
+                "modalities": ["text"],
+            },
+            "step_summaries": [
+                {"step_id": "init"},
+                {"step_id": "list_datasets"},
+                {"step_id": "list_runs"},
+            ],
+            "public_safety": {
+                "raw_key_material_present": False,
+                "header_values_included": False,
+                "raw_payload_values_included": False,
+                "private_payload_contents_present": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "redacted_summary_fields_only": True,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "official_api_readonly_manifest_summary.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_official_api_readonly_manifest_path=summary_path,
+            )
+
+        official_manifest = report["a1_official_api_readonly_manifest"]
+        self.assertTrue(official_manifest["available"])
+        self.assertTrue(official_manifest["public_safe"])
+        self.assertTrue(official_manifest["ready_for_a2_evidence_context"])
+        self.assertEqual(official_manifest["read_step_count"], 5)
+        self.assertEqual(official_manifest["step_ids"], ["init", "list_datasets", "list_runs"])
+        self.assertFalse(official_manifest["raw_payload_values_included"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:

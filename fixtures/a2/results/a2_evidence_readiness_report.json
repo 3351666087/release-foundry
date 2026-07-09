@@ -226,6 +226,25 @@
       "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
     ]
   },
+  "a1_official_api_readonly_manifest": {
+    "available": false,
+    "path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+    "schema_version": "",
+    "status": "missing",
+    "source_private_manifest_present": false,
+    "read_step_count": 0,
+    "ok_or_planned_step_count": 0,
+    "error_step_count": 0,
+    "quota_block_count": 0,
+    "public_safe": false,
+    "redacted_summary_fields_only": false,
+    "raw_payload_values_included": false,
+    "ready_for_a2_evidence_context": false,
+    "notes": [
+      "A1 official API readonly manifest summary is not available on this branch yet.",
+      "When present, A2 uses it as public API reachability context, not as C3 server-side grading evidence."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",

@@ -9,6 +9,7 @@ from typing import Any
 
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
 DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
+DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST = Path("docs/a1/evidence/official_api_readonly_manifest_summary.json")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -43,6 +44,7 @@ def build_evidence_readiness_report(
     *,
     ashr_case_map_path: str | Path = DEFAULT_ASHR_CASE_MAP,
     a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
+    a1_official_api_readonly_manifest_path: str | Path = DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -74,6 +76,9 @@ def build_evidence_readiness_report(
     ]
     semantic_risk = semantic_harness_report.get("risk_assessment", {})
     a1_real_api_evidence = _a1_real_api_evidence_summary(a1_real_api_evidence_index_path)
+    a1_official_api_readonly_manifest = _a1_official_api_readonly_manifest_summary(
+        a1_official_api_readonly_manifest_path
+    )
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
@@ -120,6 +125,7 @@ def build_evidence_readiness_report(
             "commands": ashr_import_commands,
         },
         "a1_real_api_evidence": a1_real_api_evidence,
+        "a1_official_api_readonly_manifest": a1_official_api_readonly_manifest,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -361,6 +367,88 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
             "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge.",
         ],
     }
+
+
+def _a1_official_api_readonly_manifest_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "schema_version": "",
+            "status": "missing",
+            "source_private_manifest_present": False,
+            "read_step_count": 0,
+            "ok_or_planned_step_count": 0,
+            "error_step_count": 0,
+            "quota_block_count": 0,
+            "public_safe": False,
+            "redacted_summary_fields_only": False,
+            "raw_payload_values_included": False,
+            "ready_for_a2_evidence_context": False,
+            "notes": [
+                "A1 official API readonly manifest summary is not available on this branch yet.",
+                "When present, A2 uses it as public API reachability context, not as C3 server-side grading evidence.",
+            ],
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "schema_version": "",
+            "status": "invalid",
+            "source_private_manifest_present": False,
+            "read_step_count": 0,
+            "ok_or_planned_step_count": 0,
+            "error_step_count": 0,
+            "quota_block_count": 0,
+            "public_safe": False,
+            "redacted_summary_fields_only": False,
+            "raw_payload_values_included": False,
+            "ready_for_a2_evidence_context": False,
+            "notes": ["A1 official API readonly manifest summary is not a JSON object."],
+        }
+
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    public_safety = payload.get("public_safety") if isinstance(payload.get("public_safety"), dict) else {}
+    step_summaries = [step for step in payload.get("step_summaries", []) if isinstance(step, dict)]
+    public_safe = _official_manifest_public_safe(public_safety)
+    ready = bool(public_safe and str(payload.get("status", "")) not in {"invalid"})
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "status": str(payload.get("status", "")),
+        "source_private_manifest_present": payload.get("source_private_manifest_present") is True,
+        "read_step_count": int(summary.get("read_steps", 0)),
+        "ok_or_planned_step_count": int(summary.get("ok_or_planned_steps", 0)),
+        "error_step_count": int(summary.get("error_steps", 0)),
+        "quota_block_count": int(summary.get("quota_block_count", 0)),
+        "modalities": [str(modality) for modality in summary.get("modalities", [])],
+        "step_ids": sorted(str(step.get("step_id", "")) for step in step_summaries if step.get("step_id")),
+        "public_safe": public_safe,
+        "redacted_summary_fields_only": public_safety.get("redacted_summary_fields_only") is True,
+        "raw_payload_values_included": public_safety.get("raw_payload_values_included") is True,
+        "ready_for_a2_evidence_context": ready,
+        "notes": [
+            "A1 official API readonly manifest summary can support A2 evidence context and API shape confidence.",
+            "It does not count as reviewed ashr_grading rows for C3.",
+        ],
+    }
+
+
+def _official_manifest_public_safe(public_safety: dict[str, Any]) -> bool:
+    return (
+        public_safety.get("raw_key_material_present") is False
+        and public_safety.get("header_values_included") is False
+        and public_safety.get("raw_payload_values_included") is False
+        and public_safety.get("private_payload_contents_present") is False
+        and public_safety.get("request_parameter_values_included") is False
+        and public_safety.get("step_record_locations_included") is False
+        and public_safety.get("redacted_summary_fields_only") is True
+    )
 
 
 def _api_probe_gate_validation_summary(
