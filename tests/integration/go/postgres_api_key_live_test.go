@@ -1,7 +1,11 @@
 package gointegration
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -79,4 +83,106 @@ func TestPostgresAPIKeyLifecycleLiveOptIn(t *testing.T) {
 	if _, err := repository.PreflightAPIKey(ashrclone.PreflightOptions{TenantID: boot.Result.Tenant.TenantID, ProjectID: boot.Result.Project.ProjectID, KeyID: "key_live_submit", Scope: ashrclone.ScopeRunSubmit, Operation: "sdk_submit"}); err == nil {
 		t.Fatal("expected revoked key denial")
 	}
+}
+
+func TestPostgresHTTPAPIKeyLifecycleLiveOptIn(t *testing.T) {
+	dsn := os.Getenv("A1_POSTGRES_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set A1_POSTGRES_TEST_DSN to run live Postgres HTTP API key proof")
+	}
+	repository, err := ashrclone.OpenPostgresRepository(dsn)
+	if err != nil {
+		t.Fatalf("open postgres repository: %v", err)
+	}
+	defer repository.Close()
+	if err := repository.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate postgres repository: %v", err)
+	}
+	server := httptest.NewServer(ashrclone.NewHTTPHandler(repository))
+	defer server.Close()
+
+	boot := postLiveJSON[ashrclone.BootstrapResult](t, server.URL+"/bootstrap", ashrclone.JSONMap{
+		"tenant_name": "Tenant", "project_name": "HTTP Keys", "tenant_id": "tenant_http_live", "project_id": "project_http_live", "dataset_id": "dataset_http_live", "dataset_name": "Dataset",
+	})
+	created := postLiveJSON[ashrclone.APIKeyCreateResult](t, server.URL+"/v1/projects/project_http_live/api-keys", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "key_id": "key_http_live", "name": "HTTP live", "scopes": []string{ashrclone.ScopeRunSubmit}, "reveal_secret": true,
+	})
+	if created.OneTimeSecret == "" || created.APIKey.SecretSHA256 != "" {
+		t.Fatalf("unexpected key create result: %#v", created)
+	}
+	verified := postLiveJSON[ashrclone.APIKeyVerifyResult](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/verify", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "secret": created.OneTimeSecret, "scope": ashrclone.ScopeRunSubmit,
+	})
+	if !verified.Authenticated || verified.SecretValuePresent {
+		t.Fatalf("unexpected verify result: %#v", verified)
+	}
+	postLiveJSON[ashrclone.APIKeyRateLimit](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/rate-limit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "operation": "sdk_submit", "limit": 1,
+	})
+	postLiveJSON[ashrclone.Run](t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live", "api_key_id": "key_http_live", "idempotency_key": "idem_http_live",
+	})
+	quota := postLiveError(t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live_2", "api_key_id": "key_http_live", "idempotency_key": "idem_http_live_2",
+	})
+	if quota.Code != "quota_exceeded" || quota.Limit != 1 || quota.Used != 1 || quota.Remaining != 0 {
+		t.Fatalf("unexpected quota error: %#v", quota)
+	}
+	revoked := postLiveJSON[ashrclone.APIKeyRecord](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/revoke", ashrclone.JSONMap{"tenant_id": "tenant_http_live"})
+	if !revoked.Revoked || revoked.SecretSHA256 != "" {
+		t.Fatalf("unexpected revoke result: %#v", revoked)
+	}
+}
+
+func postLiveJSON[T any](t *testing.T, url string, body ashrclone.JSONMap) T {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var failure ashrclone.JSONMap
+		_ = json.NewDecoder(resp.Body).Decode(&failure)
+		t.Fatalf("status=%d body=%#v", resp.StatusCode, failure)
+	}
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+type liveError struct {
+	Code      string `json:"code"`
+	Limit     int    `json:"limit"`
+	Used      int    `json:"used"`
+	Remaining int    `json:"remaining"`
+}
+
+func postLiveError(t *testing.T, url string, body ashrclone.JSONMap) liveError {
+	t.Helper()
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", resp.StatusCode)
+	}
+	var envelope struct {
+		Error liveError `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	return envelope.Error
 }

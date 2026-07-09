@@ -1419,3 +1419,10 @@ Results:
 - `python scripts/cl_guard.py hygiene`: passed with zero findings.
 - `git diff --check`: pass.
 - `go test ./...` from repository root is a known invalid command for this multi-module repo and reports `directory prefix . does not contain main module`; correct Go test entrypoints are module-scoped and passed.
+
+
+## Round32 live Postgres HTTP API key proof - 2026-07-09T11:33:20Z
+
+- Extended `tests/integration/go/postgres_api_key_live_test.go` with `TestPostgresHTTPAPIKeyLifecycleLiveOptIn`, using `httptest.NewServer(ashrclone.NewHTTPHandler(repository))` over a real Postgres repository.
+- `go test ./...` from `tests/integration/go` without DSN: pass; live tests skipped.
+- Disposable HTTP live proof: `docker run --rm -d --name ashr-a1-go-http-live-pg -e POSTGRES_USER=ashr -e POSTGRES_PASSWORD=ashr -e POSTGRES_DB=ashr -p 55434:5432 postgres:16-alpine`; process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55434/ashr?sslmode=disable`; `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> repository and HTTP live tests passed; container removed.

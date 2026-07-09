@@ -945,3 +945,18 @@ Next 20 A1 growth points:
 18. Re-run official mutating text once quota resets.
 19. Run paid image/audio/file/video after successful text baseline.
 20. Keep monitoring peer branches and avoid A2/A3 staging.
+
+
+## Round32 live Postgres HTTP API key proof - 2026-07-09T11:33:20Z
+
+Implemented:
+- Extended the opt-in Go live Postgres test to start `httptest.NewServer(ashrclone.NewHTTPHandler(repository))` over a real migrated Postgres repository.
+- The HTTP live test now proves `POST /bootstrap`, API key create/verify/rate-limit routes, protected `sdk-submit`, `429 quota_exceeded` response schema after one submit, and revoke route all work through the Go HTTP boundary backed by Postgres.
+
+Live evidence:
+- Disposable Docker Postgres command started `postgres:16-alpine` on local port `55434`; `A1_POSTGRES_TEST_DSN` was set only for the test process.
+- `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> both repository and HTTP live tests passed.
+
+Validation:
+- `go test ./...` from `tests/integration/go` without DSN -> pass with live tests skipped.
+- Next before push: rerun Go package, Python A1, TS, compose, hygiene, and diff checks.
