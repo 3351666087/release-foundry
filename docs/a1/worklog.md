@@ -838,3 +838,56 @@ Growth-Auditor follow-up:
 - P0 remains durable Postgres API key lifecycle plus protected Go HTTP auth/quota path.
 - Next commercial slice should implement durable hashed API keys, Postgres-backed preflight/rate-limit snapshot, restart durability proof, and route-level quota denial/readback/audit evidence.
 - P1 remains live RLS negative proof for tenant A/B isolation and official successful mutating evidence once hosted quota resets or plan changes.
+
+
+## Round30 durable Postgres API key lifecycle and preflight - 2026-07-09T11:06:30Z
+
+Baseline:
+- PR #27 commit `985f400` CL Gate completed green: Plan/hygiene, Go, Python, TS, and summary passed; A3/Rust jobs skipped by rule.
+- Growth-Auditor reviewed the commercial blockers and called out Postgres API key lifecycle, Postgres-backed preflight/rate-limit snapshot, route-level submit preflight, bearer-secret future parity, RLS live negative proof, and successful official mutation after quota reset.
+- No A2/A3 files were staged or modified for this slice.
+
+Implemented:
+- Replaced Go `PostgresRepository` API key placeholders with durable create/list/revoke/verify/preflight/rate-limit/snapshot methods.
+- API keys are generated as one-time local test secrets, persisted only as hashes plus prefixes, and returned through existing redacted `APIKeyRecord` envelopes.
+- UUID tenant/project/key IDs use the commercial `api_keys` table from `services/api` migration when present; non-UUID local handles use a new durable `ashr_api_keys` fallback table so local Go HTTP tests keep working without raw secrets.
+- Added durable `ashr_api_key_rate_limits` table and rate-limit consumption path. Mutating Postgres usage writes now update API key rate-limit counters and `last_used_at`, and reject overspend with public-safe `QuotaExceededError`.
+- `sdk-submit` Go HTTP route now runs server-level scope preflight before mutation while intentionally avoiding pre-mutation quota consumption so idempotent replays are not blocked or double-billed.
+- Added Go static contract tests preventing `notImplemented` regressions and pinning the submit preflight semantics.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+
+Official API evidence:
+- No new official mutating call was made in this sub-slice because Round29 already used the env-only key and proved the current hosted quota boundary at the first text write. Repeating paid media writes while quota is exhausted would only create duplicate failed evidence.
+- Next official API action remains: after quota reset or plan change, run a successful text mutation baseline, then image/audio/file/video paid media one modality at a time.
+
+Next 20 A1 growth points:
+1. Add live Docker Postgres proof for API key create/list/verify/revoke/preflight/rate-limit restart durability.
+2. Add Go HTTP server against Postgres live proof for protected submit, quota denial, usage readback, and audit readback.
+3. Add bearer auth scheme to Go HTTP without weakening current raw-secret rejection in local handle mode.
+4. Add TS/Python hosted client parity for bearer auth once Go route contract lands.
+5. Add RLS live negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log` under tenant A/B session settings.
+6. Add no-side-effect-after-denial tests for submit, upload, trace ingest, artifact manifest, and worker enqueue.
+7. Add concurrency test for simultaneous submit requests against the same quota policy.
+8. Add OpenAPI auth scheme and API key/rate-limit schemas generated from Go route manifest.
+9. Generate TS/Python API clients from the OpenAPI artifact for key and quota routes.
+10. Add SQL audit trigger or explicit audit event for API key revoke and rate-limit configure.
+11. Add usage rollup reconciliation from rate-limit usage to invoice-ready meter rows.
+12. Add self-host compose profile running Go API against Postgres repository, not memory service.
+13. Add migration test for the local fallback `ashr_api_keys` table and commercial `api_keys` parity.
+14. Add Go webhook delivery table/worker for key revoked/quota denied/release events.
+15. Add CLI command to bootstrap tenant/project/key and print one-time secret only once.
+16. Add evidence packet for durable auth/quota proof with no raw secrets.
+17. Add official readonly usage/quota endpoint probe if the hosted product exposes it.
+18. Add successful official mutating text baseline after quota reset.
+19. Add paid image/audio/file/video probes after text success, one modality per audited batch.
+20. Keep PR #27 draft until live Postgres HTTP/auth/quota evidence is present.

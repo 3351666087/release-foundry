@@ -182,6 +182,9 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		if !ok {
 			return
 		}
+		if !server.preflightRequest(writer, auth, projectID, ScopeRunSubmit, "") {
+			return
+		}
 		result, err := server.service.SubmitRun(auth.TenantID, projectID, stringValue(body, "dataset_id"), stringValue(body, "agent_ref"), stringValue(body, "run_id"), mapValue(body, "metadata"), IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: auth.APIKeyID})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return

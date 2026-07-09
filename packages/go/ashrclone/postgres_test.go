@@ -106,6 +106,50 @@ func TestPostgresRepositoryWiresDurableSaaSQuotaFunction(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryWiresDurableAPIKeyLifecycle(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, forbidden := range []string{
+		`return Envelope[APIKeyCreateResult]{}, repository.notImplemented("create_api_key")`,
+		`return Envelope[APIKeyListResult]{}, repository.notImplemented("list_api_keys")`,
+		`return Envelope[APIKeyRecord]{}, repository.notImplemented("revoke_api_key")`,
+		`return Envelope[APIKeyVerifyResult]{}, repository.notImplemented("verify_api_key_secret")`,
+		`return Envelope[APIKeyRateLimit]{}, repository.notImplemented("configure_api_key_rate_limit")`,
+		`return Envelope[APIKeyRateLimitSnapshot]{}, repository.notImplemented("api_key_rate_limit_snapshot")`,
+		`return Envelope[AuthPreflight]{}, repository.notImplemented("auth.preflight")`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("postgres API key lifecycle still has placeholder %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_api_key_rate_limits",
+		"CREATE TABLE IF NOT EXISTS ashr_api_keys",
+		"INSERT INTO api_keys (id, organization_id, project_id, name, key_prefix, key_hash, scopes, status, created_at, revoked_at)",
+		"secretHash(secret)",
+		"redactedAPIKeyRecord(record)",
+		"scopeAllowed(record.Scopes, scope)",
+		"UPDATE api_keys SET last_used_at",
+		"UPDATE api_keys\nSET status = 'revoked'",
+		"consumeLocalPostgresAPIKeyRateLimit",
+		"APIKeyRateLimitSnapshot{SchemaVersion: ControlPlaneSchemaVersion",
+		"AuthPreflight{SchemaVersion: ControlPlaneSchemaVersion",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres API key lifecycle missing %q", required)
+		}
+	}
+}
+
+func TestGoHTTPSubmitRouteRunsAuthPreflightWithoutPreQuotaConsume(t *testing.T) {
+	source := readServerSource(t)
+	if !strings.Contains(source, `server.preflightRequest(writer, auth, projectID, ScopeRunSubmit, "")`) {
+		t.Fatalf("sdk-submit route must run server-level scope preflight before mutation")
+	}
+	if strings.Contains(source, `server.preflightRequest(writer, auth, projectID, ScopeRunSubmit, "sdk_submit")`) {
+		t.Fatalf("sdk-submit route must not consume/check rate quota before idempotency replay")
+	}
+}
+
 func readPostgresSource(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
@@ -115,6 +159,19 @@ func readPostgresSource(t *testing.T) string {
 	contents, err := os.ReadFile(filepath.Join(filepath.Dir(file), "postgres.go"))
 	if err != nil {
 		t.Fatalf("read postgres source: %v", err)
+	}
+	return string(contents)
+}
+
+func readServerSource(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve server test path")
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(file), "server.go"))
+	if err != nil {
+		t.Fatalf("read server source: %v", err)
 	}
 	return string(contents)
 }

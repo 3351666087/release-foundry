@@ -1383,3 +1383,19 @@ Results:
 - `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_paid_media_all_modalities_dry_run_20260709_185014.json`: dry-run planned 17 estimated calls and 5 mutating modality steps.
 - `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --allow-paid-media --modality text,image,audio,file,video --allow-quota-override --quota-override-reason ... --output docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json`: real official call used env-only key; 5 read steps succeeded, first text mutating create_request hit quota boundary; result `partial`, quota block count 1.
 - `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json --output docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json`: wrote public-safe summary. A mistaken attempt to write summary into the mutating index was reverted with `git checkout -- docs/a1/evidence/official_api_mutating_calibration_index.json` before manual schema-safe index append.
+
+
+## Round30 durable Postgres API key lifecycle and preflight - 2026-07-09T11:06:30Z
+
+- `gh pr checks 27`: PR #27 commit `985f400` CL Gate green; Go, Python, TS, Plan/hygiene, and summary passed; A3/Rust jobs skipped by rule.
+- Growth-Auditor read-only audit: P0 blockers were durable Postgres API key lifecycle, Postgres-backed preflight/rate-limit snapshot, `sdk-submit` route preflight, and future bearer-auth parity; P1 blockers were RLS live negative proof and successful official mutating baseline after quota reset.
+- `go test ./...` from `packages/go/ashrclone`: pass after implementing durable Postgres API key create/list/revoke/verify/preflight/rate-limit/snapshot.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: pass.
+- Official API note: no duplicate mutating call in this sub-slice because Round29 already proved hosted quota boundary with env-only key; next paid/API calibration should wait for quota reset or plan change to produce a successful text baseline before media writes.

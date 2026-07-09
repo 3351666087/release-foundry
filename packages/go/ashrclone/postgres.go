@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 var ErrPostgresRepositoryNotImplemented = errors.New("postgres repository is not implemented yet")
@@ -97,6 +97,17 @@ CREATE TABLE IF NOT EXISTS ashr_worker_jobs (
     dead_lettered_at TIMESTAMPTZ,
     PRIMARY KEY (tenant_id, project_id, job_id),
     FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_api_key_rate_limits (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    limit_units INTEGER NOT NULL,
+    used_units INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, key_id, operation)
 );
 
 CREATE INDEX IF NOT EXISTS ashr_worker_jobs_lease_idx ON ashr_worker_jobs (tenant_id, project_id, status, job_type, priority, available_at, created_at);
@@ -1001,23 +1012,448 @@ func (repository *PostgresRepository) notImplemented(operation string) error {
 }
 
 func (repository *PostgresRepository) CreateAPIKey(tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[APIKeyCreateResult], error) {
-	return Envelope[APIKeyCreateResult]{}, repository.notImplemented("create_api_key")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyCreateResult]{}, err
+	}
+	if strings.TrimSpace(options.APIKey) != "" {
+		return Envelope[APIKeyCreateResult]{}, AuthzError{Code: "secret_input_rejected", Message: "postgres API key lifecycle only generates one-time local test secrets"}
+	}
+	keyID := strings.TrimSpace(firstNonEmpty(options.KeyID, options.AuthKeyID))
+	if keyID == "" {
+		keyID = "key_" + mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "name": options.Name, "created_at": repository.now().UnixNano()})[:16]
+	}
+	if stringHasRawSecretShape(keyID) || stringHasRawSecretShape(options.Name) {
+		return Envelope[APIKeyCreateResult]{}, AuthzError{Code: "secret_input_rejected", Message: "api key identifiers and names must not contain raw secret material"}
+	}
+	scopes := sortedUniqueStrings(options.Scopes)
+	if len(scopes) == 0 {
+		return Envelope[APIKeyCreateResult]{}, fmt.Errorf("at least one scope is required")
+	}
+	secret := localAPIKeySecretPrefix + keyID + "_" + mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "key_id": keyID})[:16]
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	ctx := context.Background()
+	record := APIKeyRecord{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Name: strings.TrimSpace(options.Name), SecretPrefix: secretPrefix(secret), Scopes: scopes, CreatedAt: now}
+	if record.Name == "" {
+		record.Name = keyID
+	}
+	if err := repository.upsertPostgresAPIKey(ctx, record, secretHash(secret), "active", nil); err != nil {
+		return Envelope[APIKeyCreateResult]{}, err
+	}
+	result := APIKeyCreateResult{SchemaVersion: ControlPlaneSchemaVersion, APIKey: redactedAPIKeyRecord(record), OneTimeSecretDisplayed: options.RevealSecret}
+	if options.RevealSecret {
+		result.OneTimeSecret = secret
+	}
+	return Envelope[APIKeyCreateResult]{Operation: "api_key.create", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) ListAPIKeys(tenantID, projectID string) (Envelope[APIKeyListResult], error) {
-	return Envelope[APIKeyListResult]{}, repository.notImplemented("list_api_keys")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyListResult]{}, err
+	}
+	localFallback := false
+	rows, err := repository.db.QueryContext(context.Background(), `
+SELECT id, name, key_prefix, scopes, status, created_at, last_used_at
+FROM api_keys
+WHERE organization_id::text = $1 AND project_id::text = $2
+ORDER BY created_at DESC, id
+`, tenantID, projectID)
+	if err != nil && !postgresRelationMissing(err) {
+		return Envelope[APIKeyListResult]{}, fmt.Errorf("list api keys: %w", err)
+	}
+	if postgresRelationMissing(err) {
+		localFallback = true
+		if err := repository.ensureLocalPostgresAPIKeySchema(context.Background()); err != nil {
+			return Envelope[APIKeyListResult]{}, err
+		}
+		rows, err = repository.db.QueryContext(context.Background(), `
+SELECT key_id, name, secret_prefix, scopes, revoked, created_at, last_used_at
+FROM ashr_api_keys
+WHERE tenant_id = $1 AND project_id = $2
+ORDER BY created_at DESC, key_id
+`, tenantID, projectID)
+	}
+	if err != nil {
+		return Envelope[APIKeyListResult]{}, fmt.Errorf("list api keys: %w", err)
+	}
+	defer rows.Close()
+	keys := make([]APIKeyRecord, 0)
+	for rows.Next() {
+		var record APIKeyRecord
+		if localFallback {
+			record, err = scanLocalPostgresAPIKeyRecord(rows, tenantID, projectID)
+		} else {
+			record, err = scanPostgresAPIKeyRecord(rows, tenantID, projectID)
+		}
+		if err != nil {
+			return Envelope[APIKeyListResult]{}, err
+		}
+		keys = append(keys, redactedAPIKeyRecord(record))
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[APIKeyListResult]{}, fmt.Errorf("list api keys rows: %w", err)
+	}
+	result := APIKeyListResult{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, APIKeys: keys, Count: len(keys)}
+	return Envelope[APIKeyListResult]{Operation: "api_key.list", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) RevokeAPIKey(tenantID, projectID, keyID string) (Envelope[APIKeyRecord], error) {
-	return Envelope[APIKeyRecord]{}, repository.notImplemented("revoke_api_key")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyRecord]{}, err
+	}
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	ctx := context.Background()
+	var result sql.Result
+	var err error
+	if looksLikeUUID(tenantID) && looksLikeUUID(projectID) && looksLikeUUID(keyID) {
+		result, err = repository.db.ExecContext(ctx, `
+UPDATE api_keys
+SET status = 'revoked', revoked_at = $4, last_used_at = last_used_at
+WHERE organization_id::text = $1 AND project_id::text = $2 AND id::text = $3
+`, tenantID, projectID, keyID, now)
+	}
+	if err != nil && !postgresRelationMissing(err) {
+		return Envelope[APIKeyRecord]{}, fmt.Errorf("revoke api key: %w", err)
+	}
+	if result == nil || postgresRelationMissing(err) {
+		if err := repository.ensureLocalPostgresAPIKeySchema(ctx); err != nil {
+			return Envelope[APIKeyRecord]{}, err
+		}
+		result, err = repository.db.ExecContext(ctx, `
+UPDATE ashr_api_keys
+SET revoked = true, revoked_at = $4
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3
+`, tenantID, projectID, keyID, now)
+	}
+	if err != nil {
+		return Envelope[APIKeyRecord]{}, fmt.Errorf("revoke api key: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return Envelope[APIKeyRecord]{}, NotFoundError{Resource: "api key"}
+	}
+	record, err := repository.loadPostgresAPIKey(ctx, tenantID, projectID, keyID)
+	if err != nil {
+		return Envelope[APIKeyRecord]{}, err
+	}
+	return Envelope[APIKeyRecord]{Operation: "api_key.revoke", Status: "ok", Result: redactedAPIKeyRecord(record)}, nil
 }
 
 func (repository *PostgresRepository) VerifyAPIKeySecret(tenantID, projectID, keyID, secret, scope string) (Envelope[APIKeyVerifyResult], error) {
-	return Envelope[APIKeyVerifyResult]{}, repository.notImplemented("verify_api_key_secret")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyVerifyResult]{}, err
+	}
+	if !strings.HasPrefix(strings.TrimSpace(secret), localAPIKeySecretPrefix) {
+		return Envelope[APIKeyVerifyResult]{}, AuthzError{Code: "secret_input_rejected", Message: "postgres verification accepts generated local test secrets only"}
+	}
+	ctx := context.Background()
+	record, storedHash, status, err := repository.loadPostgresAPIKeyWithHash(ctx, tenantID, projectID, keyID)
+	if err != nil {
+		return Envelope[APIKeyVerifyResult]{}, err
+	}
+	authenticated := strings.TrimSpace(secret) != "" && secretHash(secret) == storedHash && status == "active" && !record.Revoked && scopeAllowed(record.Scopes, scope)
+	if authenticated {
+		now := repository.now().UTC().Truncate(time.Microsecond)
+		_ = repository.touchPostgresAPIKey(ctx, tenantID, projectID, keyID, now)
+		record.LastUsedAt = &now
+	}
+	result := APIKeyVerifyResult{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Authenticated: authenticated, Scope: scope, SecretValuePresent: false, APIKey: redactedAPIKeyRecord(record)}
+	return Envelope[APIKeyVerifyResult]{Operation: "api_key.verify", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) ConfigureAPIKeyRateLimit(tenantID, projectID, keyID, operation string, limit int) (Envelope[APIKeyRateLimit], error) {
-	return Envelope[APIKeyRateLimit]{}, repository.notImplemented("configure_api_key_rate_limit")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyRateLimit]{}, err
+	}
+	if strings.TrimSpace(operation) == "" {
+		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("operation is required")
+	}
+	if limit < 0 {
+		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("limit must be non-negative")
+	}
+	if _, err := repository.loadPostgresAPIKey(context.Background(), tenantID, projectID, keyID); err != nil {
+		return Envelope[APIKeyRateLimit]{}, err
+	}
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	if err := repository.ensureLocalPostgresAPIKeyRateLimitSchema(context.Background()); err != nil {
+		return Envelope[APIKeyRateLimit]{}, err
+	}
+	_, err := repository.db.ExecContext(context.Background(), `
+INSERT INTO ashr_api_key_rate_limits (tenant_id, project_id, key_id, operation, limit_units, used_units, updated_at)
+VALUES ($1, $2, $3, $4, $5, 0, $6)
+ON CONFLICT (tenant_id, project_id, key_id, operation)
+DO UPDATE SET limit_units = EXCLUDED.limit_units, updated_at = EXCLUDED.updated_at
+`, tenantID, projectID, keyID, operation, limit, now)
+	if err != nil {
+		return Envelope[APIKeyRateLimit]{}, fmt.Errorf("configure api key rate limit: %w", err)
+	}
+	quota, err := repository.loadPostgresAPIKeyRateLimit(context.Background(), tenantID, projectID, keyID, operation)
+	if err != nil {
+		return Envelope[APIKeyRateLimit]{}, err
+	}
+	return Envelope[APIKeyRateLimit]{Operation: "api_key.rate_limit.configure", Status: "ok", Result: quota}, nil
+}
+
+func (repository *PostgresRepository) upsertPostgresAPIKey(ctx context.Context, record APIKeyRecord, keyHash, status string, revokedAt *time.Time) error {
+	if looksLikeUUID(record.TenantID) && looksLikeUUID(record.ProjectID) && looksLikeUUID(record.KeyID) {
+		_, err := repository.db.ExecContext(ctx, `
+INSERT INTO api_keys (id, organization_id, project_id, name, key_prefix, key_hash, scopes, status, created_at, revoked_at)
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10)
+`, record.KeyID, record.TenantID, record.ProjectID, record.Name, record.SecretPrefix, keyHash, pq.Array(record.Scopes), status, record.CreatedAt, revokedAt)
+		if err != nil && !postgresRelationMissing(err) {
+			return fmt.Errorf("insert api key: %w", err)
+		}
+		if err == nil {
+			return nil
+		}
+	}
+	if err := repository.ensureLocalPostgresAPIKeySchema(ctx); err != nil {
+		return err
+	}
+	_, err := repository.db.ExecContext(ctx, `
+INSERT INTO ashr_api_keys (tenant_id, project_id, key_id, name, secret_prefix, secret_hash, scopes, revoked, created_at, revoked_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`, record.TenantID, record.ProjectID, record.KeyID, record.Name, record.SecretPrefix, keyHash, pq.Array(record.Scopes), status != "active", record.CreatedAt, revokedAt)
+	if err != nil {
+		return fmt.Errorf("insert local api key: %w", err)
+	}
+	return nil
+}
+
+func (repository *PostgresRepository) loadPostgresAPIKey(ctx context.Context, tenantID, projectID, keyID string) (APIKeyRecord, error) {
+	record, _, _, err := repository.loadPostgresAPIKeyWithHash(ctx, tenantID, projectID, keyID)
+	return record, err
+}
+
+func (repository *PostgresRepository) loadPostgresAPIKeyWithHash(ctx context.Context, tenantID, projectID, keyID string) (APIKeyRecord, string, string, error) {
+	if looksLikeUUID(tenantID) && looksLikeUUID(projectID) && looksLikeUUID(keyID) {
+		row := repository.db.QueryRowContext(ctx, `
+SELECT id::text, name, key_prefix, key_hash, scopes, status, created_at, last_used_at
+FROM api_keys
+WHERE organization_id::text = $1 AND project_id::text = $2 AND id::text = $3
+`, tenantID, projectID, keyID)
+		record, hash, status, err := scanPostgresAPIKeyRecordWithHash(row, tenantID, projectID)
+		if err == nil {
+			return record, hash, status, nil
+		}
+		if err != nil && !postgresRelationMissing(err) && !errors.Is(err, sql.ErrNoRows) {
+			return APIKeyRecord{}, "", "", fmt.Errorf("load api key: %w", err)
+		}
+	}
+	if err := repository.ensureLocalPostgresAPIKeySchema(ctx); err != nil {
+		return APIKeyRecord{}, "", "", err
+	}
+	row := repository.db.QueryRowContext(ctx, `
+SELECT key_id, name, secret_prefix, secret_hash, scopes, revoked, created_at, last_used_at
+FROM ashr_api_keys
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3
+`, tenantID, projectID, keyID)
+	record, hash, status, err := scanLocalPostgresAPIKeyRecordWithHash(row, tenantID, projectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return APIKeyRecord{}, "", "", NotFoundError{Resource: "api key"}
+	}
+	if err != nil {
+		return APIKeyRecord{}, "", "", fmt.Errorf("load local api key: %w", err)
+	}
+	return record, hash, status, nil
+}
+
+func (repository *PostgresRepository) touchPostgresAPIKey(ctx context.Context, tenantID, projectID, keyID string, now time.Time) error {
+	result, err := repository.db.ExecContext(ctx, `
+UPDATE api_keys SET last_used_at = $4
+WHERE organization_id::text = $1 AND project_id::text = $2 AND id::text = $3
+`, tenantID, projectID, keyID, now)
+	if err != nil && !postgresRelationMissing(err) {
+		return fmt.Errorf("touch api key: %w", err)
+	}
+	if err == nil {
+		if affected, _ := result.RowsAffected(); affected > 0 {
+			return nil
+		}
+	}
+	_, err = repository.db.ExecContext(ctx, `
+UPDATE ashr_api_keys SET last_used_at = $4
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3
+`, tenantID, projectID, keyID, now)
+	if err != nil && !postgresRelationMissing(err) {
+		return fmt.Errorf("touch local api key: %w", err)
+	}
+	return nil
+}
+
+func (repository *PostgresRepository) ensureLocalPostgresAPIKeySchema(ctx context.Context) error {
+	_, err := repository.db.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS ashr_api_keys (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    secret_prefix TEXT NOT NULL,
+    secret_hash TEXT NOT NULL,
+    scopes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    revoked BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    PRIMARY KEY (tenant_id, project_id, key_id)
+)
+`)
+	if err != nil {
+		return fmt.Errorf("ensure local api key schema: %w", err)
+	}
+	return nil
+}
+
+func (repository *PostgresRepository) ensureLocalPostgresAPIKeyRateLimitSchema(ctx context.Context) error {
+	_, err := repository.db.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS ashr_api_key_rate_limits (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    limit_units INTEGER NOT NULL,
+    used_units INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, key_id, operation)
+)
+`)
+	if err != nil {
+		return fmt.Errorf("ensure api key rate limit schema: %w", err)
+	}
+	return nil
+}
+
+type apiKeyScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPostgresAPIKeyRecord(scanner apiKeyScanner, tenantID, projectID string) (APIKeyRecord, error) {
+	record, _, _, err := scanPostgresAPIKeyRecordWithHash(scanner, tenantID, projectID)
+	return record, err
+}
+
+func scanPostgresAPIKeyRecordWithHash(scanner apiKeyScanner, tenantID, projectID string) (APIKeyRecord, string, string, error) {
+	var keyID, name, prefix, hash, status string
+	var scopes []string
+	var createdAt time.Time
+	var lastUsedAt sql.NullTime
+	if err := scanner.Scan(&keyID, &name, &prefix, &hash, pq.Array(&scopes), &status, &createdAt, &lastUsedAt); err != nil {
+		return APIKeyRecord{}, "", "", err
+	}
+	record := APIKeyRecord{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Name: name, SecretPrefix: prefix, Scopes: sortedUniqueStrings(scopes), Revoked: status != "active", CreatedAt: createdAt}
+	if lastUsedAt.Valid {
+		record.LastUsedAt = &lastUsedAt.Time
+	}
+	return record, hash, status, nil
+}
+
+func scanLocalPostgresAPIKeyRecordWithHash(scanner apiKeyScanner, tenantID, projectID string) (APIKeyRecord, string, string, error) {
+	var keyID, name, prefix, hash string
+	var scopes []string
+	var revoked bool
+	var createdAt time.Time
+	var lastUsedAt sql.NullTime
+	if err := scanner.Scan(&keyID, &name, &prefix, &hash, pq.Array(&scopes), &revoked, &createdAt, &lastUsedAt); err != nil {
+		return APIKeyRecord{}, "", "", err
+	}
+	status := "active"
+	if revoked {
+		status = "revoked"
+	}
+	record := APIKeyRecord{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Name: name, SecretPrefix: prefix, Scopes: sortedUniqueStrings(scopes), Revoked: revoked, CreatedAt: createdAt}
+	if lastUsedAt.Valid {
+		record.LastUsedAt = &lastUsedAt.Time
+	}
+	return record, hash, status, nil
+}
+
+func scanLocalPostgresAPIKeyRecord(scanner apiKeyScanner, tenantID, projectID string) (APIKeyRecord, error) {
+	var keyID, name, prefix string
+	var scopes []string
+	var revoked bool
+	var createdAt time.Time
+	var lastUsedAt sql.NullTime
+	if err := scanner.Scan(&keyID, &name, &prefix, pq.Array(&scopes), &revoked, &createdAt, &lastUsedAt); err != nil {
+		return APIKeyRecord{}, err
+	}
+	record := APIKeyRecord{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Name: name, SecretPrefix: prefix, Scopes: sortedUniqueStrings(scopes), Revoked: revoked, CreatedAt: createdAt}
+	if lastUsedAt.Valid {
+		record.LastUsedAt = &lastUsedAt.Time
+	}
+	return record, nil
+}
+
+type apiKeyRateLimitScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPostgresAPIKeyRateLimit(scanner apiKeyRateLimitScanner) (APIKeyRateLimit, error) {
+	quota := APIKeyRateLimit{SchemaVersion: ControlPlaneSchemaVersion}
+	if err := scanner.Scan(&quota.TenantID, &quota.ProjectID, &quota.KeyID, &quota.Operation, &quota.Limit, &quota.Used, &quota.UpdatedAt); err != nil {
+		return APIKeyRateLimit{}, err
+	}
+	quota.Remaining = quota.Limit - quota.Used
+	if quota.Remaining < 0 {
+		quota.Remaining = 0
+	}
+	return quota, nil
+}
+
+func (repository *PostgresRepository) loadPostgresAPIKeyRateLimit(ctx context.Context, tenantID, projectID, keyID, operation string) (APIKeyRateLimit, error) {
+	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(operation) == "" {
+		return APIKeyRateLimit{}, sql.ErrNoRows
+	}
+	if err := repository.ensureLocalPostgresAPIKeyRateLimitSchema(ctx); err != nil {
+		return APIKeyRateLimit{}, err
+	}
+	row := repository.db.QueryRowContext(ctx, `
+SELECT tenant_id, project_id, key_id, operation, limit_units, used_units, updated_at
+FROM ashr_api_key_rate_limits
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3 AND operation = $4
+`, tenantID, projectID, keyID, operation)
+	return scanPostgresAPIKeyRateLimit(row)
+}
+
+func consumeLocalPostgresAPIKeyRateLimit(ctx context.Context, tx *sql.Tx, tenantID, projectID, keyID, operation string, units int, now time.Time) error {
+	if strings.TrimSpace(keyID) == "" || strings.TrimSpace(operation) == "" {
+		return nil
+	}
+	if units <= 0 {
+		units = 1
+	}
+	var limit int
+	var used int
+	err := tx.QueryRowContext(ctx, `
+SELECT limit_units, used_units
+FROM ashr_api_key_rate_limits
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3 AND operation = $4
+FOR UPDATE
+`, tenantID, projectID, keyID, operation).Scan(&limit, &used)
+	if errors.Is(err, sql.ErrNoRows) || postgresRelationMissing(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load api key rate limit for consume: %w", err)
+	}
+	if limit >= 0 && used+units > limit {
+		return QuotaExceededError{Operation: operation, Limit: limit, Used: used, Requested: units}
+	}
+	_, err = tx.ExecContext(ctx, `
+UPDATE ashr_api_key_rate_limits
+SET used_units = used_units + $5, updated_at = $6
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3 AND operation = $4
+`, tenantID, projectID, keyID, operation, units, now)
+	if err != nil {
+		return fmt.Errorf("consume api key rate limit: %w", err)
+	}
+	_, _ = tx.ExecContext(ctx, `
+UPDATE api_keys SET last_used_at = $4
+WHERE organization_id::text = $1 AND project_id::text = $2 AND id::text = $3
+`, tenantID, projectID, keyID, now)
+	_, _ = tx.ExecContext(ctx, `
+UPDATE ashr_api_keys SET last_used_at = $4
+WHERE tenant_id = $1 AND project_id = $2 AND key_id = $3
+`, tenantID, projectID, keyID, now)
+	return nil
 }
 
 func (repository *PostgresRepository) ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error) {
@@ -1071,11 +1507,80 @@ DO UPDATE SET meter = EXCLUDED.meter, limit_units = EXCLUDED.limit_units, status
 }
 
 func (repository *PostgresRepository) APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error) {
-	return Envelope[APIKeyRateLimitSnapshot]{}, repository.notImplemented("api_key_rate_limit_snapshot")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[APIKeyRateLimitSnapshot]{}, err
+	}
+	if err := repository.ensureLocalPostgresAPIKeyRateLimitSchema(context.Background()); err != nil {
+		return Envelope[APIKeyRateLimitSnapshot]{}, err
+	}
+	args := []any{tenantID, projectID}
+	where := "tenant_id = $1 AND project_id = $2"
+	if strings.TrimSpace(keyID) != "" {
+		where += " AND key_id = $3"
+		args = append(args, keyID)
+	}
+	rows, err := repository.db.QueryContext(context.Background(), `
+SELECT tenant_id, project_id, key_id, operation, limit_units, used_units, updated_at
+FROM ashr_api_key_rate_limits
+WHERE `+where+`
+ORDER BY key_id, operation
+`, args...)
+	if err != nil {
+		return Envelope[APIKeyRateLimitSnapshot]{}, fmt.Errorf("api key rate limit snapshot: %w", err)
+	}
+	defer rows.Close()
+	limits := make([]APIKeyRateLimit, 0)
+	for rows.Next() {
+		quota, err := scanPostgresAPIKeyRateLimit(rows)
+		if err != nil {
+			return Envelope[APIKeyRateLimitSnapshot]{}, err
+		}
+		limits = append(limits, quota)
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[APIKeyRateLimitSnapshot]{}, fmt.Errorf("api key rate limit snapshot rows: %w", err)
+	}
+	result := APIKeyRateLimitSnapshot{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, KeyID: keyID, RateLimits: limits, Count: len(limits)}
+	return Envelope[APIKeyRateLimitSnapshot]{Operation: "api_key.rate_limit.snapshot", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) PreflightAPIKey(options PreflightOptions) (Envelope[AuthPreflight], error) {
-	return Envelope[AuthPreflight]{}, repository.notImplemented("auth.preflight")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[AuthPreflight]{}, err
+	}
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	units := options.Units
+	if units <= 0 {
+		units = 1
+	}
+	result := AuthPreflight{SchemaVersion: ControlPlaneSchemaVersion, TenantID: options.TenantID, ProjectID: options.ProjectID, KeyID: options.KeyID, Scope: options.Scope, Operation: options.Operation, CheckedAt: now}
+	record, err := repository.loadPostgresAPIKey(context.Background(), options.TenantID, options.ProjectID, options.KeyID)
+	if err != nil {
+		return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, err
+	}
+	result.Scopes = append([]string(nil), record.Scopes...)
+	if record.Revoked {
+		return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, AuthzError{Code: "api_key_revoked", Message: "api key handle has been revoked"}
+	}
+	if !scopeAllowed(record.Scopes, options.Scope) {
+		return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, AuthzError{Code: "scope_denied", Message: "api key handle does not grant required scope"}
+	}
+	quota, err := repository.loadPostgresAPIKeyRateLimit(context.Background(), options.TenantID, options.ProjectID, options.KeyID, options.Operation)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Envelope[AuthPreflight]{}, err
+	}
+	if err == nil {
+		quota.Remaining = quota.Limit - quota.Used
+		if quota.Remaining < 0 {
+			quota.Remaining = 0
+		}
+		result.Quota = &quota
+		if quota.Limit >= 0 && quota.Used+units > quota.Limit {
+			return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, QuotaExceededError{Operation: options.Operation, Limit: quota.Limit, Used: quota.Used, Requested: units}
+		}
+	}
+	result.Allowed = true
+	return Envelope[AuthPreflight]{Operation: "api_key.preflight", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) requireDB() error {
@@ -1789,6 +2294,9 @@ func appendPostgresUsageEvent(ctx context.Context, tx *sql.Tx, tenantID, project
 	if err := checkLocalPostgresUsageQuota(ctx, tx, tenantID, projectID, operation, units); err != nil {
 		return err
 	}
+	if err := consumeLocalPostgresAPIKeyRateLimit(ctx, tx, tenantID, projectID, evidence.APIKeyID, operation, units, now); err != nil {
+		return err
+	}
 	usageEventID := stablePostgresTimedID("usage", operation, now)
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO ashr_quota_ledger (tenant_id, project_id, usage_event_id, operation, units, api_key_id, idempotency_key, request_id, run_id, target_id, created_at)
@@ -1971,6 +2479,14 @@ func looksLikeUUID(value string) bool {
 		}
 	}
 	return true
+}
+
+func postgresRelationMissing(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
 }
 
 func saasQuotaDenialContext(ctx context.Context, tx *sql.Tx, tenantID, projectID, meter, policyID string, at time.Time) (int, int) {
