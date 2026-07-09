@@ -45,6 +45,7 @@ import {
   fetchA3BillingMigrationReadiness,
   fetchA3LiveWorkflowReadiness,
   fetchA3LiveOpsControlPlane,
+  fetchA3NotificationControlPlane,
   fetchA3PeerBranchCalibration,
   planA3AdminAction,
   submitA3AdminAction,
@@ -66,6 +67,7 @@ import { buildA3BillingReadiness } from "../../../services/report/a3_billing_rea
 import { summarizeA3PeerBranchCalibration } from "../../../services/report/a3_peer_branch_calibration.mjs";
 import { buildA3LiveWorkflowReadiness } from "../../../services/report/a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "../../../services/report/a3_live_ops_control_plane.mjs";
+import { buildA3NotificationControlPlane } from "../../../services/report/a3_notification_control_plane.mjs";
 import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
@@ -96,6 +98,7 @@ const state = {
   billingMigrationReadiness: {},
   liveWorkflowReadiness: {},
   liveOpsControlPlane: {},
+  notificationControlPlane: {},
   reportCenter: {},
   artifactRegistry: {},
   schemaDriftRadar: {},
@@ -1577,6 +1580,7 @@ function renderReportCenter() {
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration);
   const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
   const liveOpsControlPlane = state.liveOpsControlPlane || {};
+  const notificationControlPlane = state.notificationControlPlane || {};
   const billingMigrationReadiness = state.billingMigrationReadiness || {};
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
   const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
@@ -1592,7 +1596,7 @@ function renderReportCenter() {
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${notificationControlPlane.schema_version ? `${notificationControlPlane.summary?.channel_count || 0} notification channel(s)` : "no notification control plane"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
@@ -1610,6 +1614,9 @@ function renderReportCenter() {
     }
     if (liveOpsControlPlane.schema_version) {
       tiles.push(reportTile("Live Ops Control Plane", `${liveOpsControlPlane.status}: ${liveOpsControlPlane.counts?.api_backed_count || 0}/${liveOpsControlPlane.counts?.lane_count || 0} API-backed lane(s), ${liveOpsControlPlane.counts?.audit_backed_count || 0} audit-backed, ${liveOpsControlPlane.counts?.local_external_mutation_count || 0} local external mutation(s).`));
+    }
+    if (notificationControlPlane.schema_version) {
+      tiles.push(reportTile("Notification Control Plane", `${notificationControlPlane.status}: ${notificationControlPlane.summary?.channel_count || 0} channel(s), ${notificationControlPlane.summary?.contract_ready_count || 0} contract-ready, ${notificationControlPlane.summary?.growth_point_count || 0} growth point(s), live mutations ${notificationControlPlane.summary?.live_mutation_count || 0}.`));
     }
     if (billingMigrationReadiness.schema_version) {
       tiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: ${billingMigrationReadiness.summary?.upstream_commit_count || 0} A1 commit(s), ${billingMigrationReadiness.db_contract?.tables?.length || 0} billing table(s), live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
@@ -2580,7 +2587,9 @@ function exportReport(format) {
       state.reviewWorkflow,
       state.releaseEvidence,
       state.githubPublishEvidence,
-      state.peerBranchCalibration
+      state.peerBranchCalibration,
+      state.billingMigrationReadiness,
+      state.notificationControlPlane
     ), null, 2), "application/json");
     return;
   }
@@ -2614,7 +2623,9 @@ function exportReport(format) {
     state.artifactRegistry,
     state.releaseEvidence,
     state.githubPublishEvidence,
-    state.peerBranchCalibration
+    state.peerBranchCalibration,
+    state.billingMigrationReadiness,
+    state.notificationControlPlane
   ), "text/markdown");
 }
 
@@ -2818,6 +2829,10 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.notificationControlPlane = await fetchA3NotificationControlPlane({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
   state.peerBranchCalibration = await fetchA3PeerBranchCalibration({
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
@@ -2831,6 +2846,7 @@ async function refreshReportEvidence() {
   renderBillingMigrationReadiness();
   renderLiveWorkflowReadiness();
   renderLiveOpsControlPlane();
+  renderNotificationControlPlane();
   renderPeerBranchCalibration();
   renderSaasRuntime();
   renderPrintReport();
@@ -2882,6 +2898,7 @@ function applyApiDashboardPayload(payload) {
   state.billingMigrationReadiness = payload.billing_migration_readiness || {};
   state.liveWorkflowReadiness = payload.live_workflow_readiness || {};
   state.liveOpsControlPlane = payload.live_ops_control_plane || {};
+  state.notificationControlPlane = payload.notification_control_plane || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.peerBranchCalibration = payload.peer_branch_calibration || {};
@@ -2937,13 +2954,14 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/billing/migration-readiness",
         "GET /api/a3/live-workflow/readiness",
         "GET /api/a3/live-ops/control-plane",
+        "GET /api/a3/notifications/control-plane",
         "GET /api/a3/peer-branches/calibration",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",
         "GET /api/a3/artifacts/registry"
       ],
-      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "billing_migration_readiness", "live_ops_control_plane", "trust_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "billing_migration_readiness", "live_ops_control_plane", "notification_channels", "notification_deliveries", "webhook_deliveries", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
@@ -3306,6 +3324,60 @@ function renderLiveOpsControlPlane() {
   `;
 }
 
+function refreshNotificationControlPlane() {
+  state.notificationControlPlane = buildA3NotificationControlPlane({
+    source: state.source,
+    releaseEvidence: state.releaseEvidence,
+    liveOpsControlPlane: state.liveOpsControlPlane,
+    reviewWorkflow: state.reviewWorkflow,
+    eventOutbox: state.saasRuntime?.event_outbox || {},
+    reportCenter: state.reportCenter,
+    usageLedger: state.usageLedger
+  }, {
+    source: state.source
+  });
+}
+
+function renderNotificationControlPlane() {
+  const controlPlane = state.notificationControlPlane || {};
+  const statusBadge = $("notification-status");
+  statusBadge.textContent = controlPlane.status || "checking";
+  statusBadge.className = `badge ${String(controlPlane.status || "").includes("contract_ready") ? "pass" : String(controlPlane.status || "").includes("metadata_present") ? "warn" : "neutral"}`;
+  const summary = controlPlane.summary || {};
+  const channels = Array.isArray(controlPlane.channels) ? controlPlane.channels : [];
+  const triggers = Array.isArray(controlPlane.trigger_matrix) ? controlPlane.trigger_matrix : [];
+  const growthPoints = Array.isArray(controlPlane.growth_points) ? controlPlane.growth_points : [];
+  $("notification-body").innerHTML = `
+    <div class="caption">Slack, Teams, email, and webhook notifications are modeled as API, DB, event, artifact, usage, RBAC, and audit contracts. A3 plans notification evidence; A1 owns hosted delivery workers and connector secrets.</div>
+    <div class="health-grid">
+      ${healthTile(summary.channel_count || 0, "channels")}
+      ${healthTile(summary.contract_ready_count || 0, "contract-ready")}
+      ${healthTile(summary.audit_backed_count || 0, "audit-backed")}
+      ${healthTile(summary.live_mutation_count || 0, "live mutations")}
+    </div>
+    ${renderReportTable(["Channel", "Surface", "Status", "Provider", "Next action"], channels.map((item) => [
+      item.label,
+      item.delivery_surface || item.product_surface || item.provider,
+      item.status,
+      item.provider,
+      item.next_action
+    ]), "No notification control-plane channels are loaded.")}
+    ${renderReportTable(["Trigger", "Channels", "Dashboard state", "Customer value"], triggers.map((item) => [
+      item.label,
+      Array.isArray(item.channels) ? item.channels.join(", ") : item.provider || item.lane_id || "planned",
+      item.dashboard_state || (Array.isArray(item.triggers) ? item.triggers.join(", ") : "planned"),
+      item.customer_value || item.policy_owner || "Release notification evidence is planned."
+    ]), "No notification trigger matrix is loaded.")}
+    ${renderReportTable(["Growth", "Surface", "Artifact"], growthPoints.slice(0, 8).map((item) => [
+      `${item.priority} ${item.id}`,
+      item.surface,
+      item.expected_artifact
+    ]), "No notification growth points are loaded.")}
+    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_dependency || "hosted notification worker and encrypted connector references")}</div>
+    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_dependency || "release policy, failure taxonomy, score/pass/fail")}</div>
+  `;
+}
+
 function refreshLocalProductConsole() {
   state.productConsole = buildA3ProductConsole({
     source: state.source,
@@ -3328,7 +3400,8 @@ function refreshLocalArtifactRegistry() {
     usageLedger: state.usageLedger || {},
     productConsole: state.productConsole || {},
     saasAdmin: state.saasAdmin || {},
-    githubPublishEvidence: state.githubPublishEvidence || {}
+    githubPublishEvidence: state.githubPublishEvidence || {},
+    notificationControlPlane: state.notificationControlPlane || {}
   }, {
     source: state.source
   });
@@ -3371,12 +3444,13 @@ async function loadDataSource(source) {
         }]
       };
     }
-    const [usageLedgerResult, billingReadinessResult, billingMigrationResult, liveWorkflowResult, liveOpsResult] = await Promise.allSettled([
+    const [usageLedgerResult, billingReadinessResult, billingMigrationResult, liveWorkflowResult, liveOpsResult, notificationResult] = await Promise.allSettled([
       fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3BillingMigrationReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3LiveWorkflowReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
-      fetchA3LiveOpsControlPlane({ source, baseUrl: getA3ApiBaseUrl() })
+      fetchA3LiveOpsControlPlane({ source, baseUrl: getA3ApiBaseUrl() }),
+      fetchA3NotificationControlPlane({ source, baseUrl: getA3ApiBaseUrl() })
     ]);
     if (usageLedgerResult.status === "fulfilled") {
       state.usageLedger = usageLedgerResult.value;
@@ -3392,6 +3466,9 @@ async function loadDataSource(source) {
     }
     if (liveOpsResult.status === "fulfilled") {
       state.liveOpsControlPlane = liveOpsResult.value;
+    }
+    if (notificationResult.status === "fulfilled") {
+      state.notificationControlPlane = notificationResult.value;
     }
     state.saasRuntime.usage_ledger = state.usageLedger;
     state.saasRuntime.billing_readiness = state.billingReadiness;
@@ -3458,10 +3535,11 @@ async function loadDataSource(source) {
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
-    refreshLocalArtifactRegistry();
     refreshBillingMigrationReadiness();
     refreshLiveWorkflowReadiness();
     refreshLiveOpsControlPlane();
+    refreshNotificationControlPlane();
+    refreshLocalArtifactRegistry();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -3489,6 +3567,7 @@ async function loadDataSource(source) {
   renderBillingMigrationReadiness();
   renderLiveWorkflowReadiness();
   renderLiveOpsControlPlane();
+  renderNotificationControlPlane();
   renderProductConsole();
   renderCoverageHealth();
   renderReleaseGate();

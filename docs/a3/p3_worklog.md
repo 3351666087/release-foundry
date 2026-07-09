@@ -3738,3 +3738,79 @@ Safety boundary:
   protection mutation, or cloud write.
 - No raw key, token, cookie, email, account value, signed URL, local path,
   payment secret, or raw share token was written.
+
+## 2026-07-09 - Notification Control Plane Implementation
+
+Goal: implement the next A3 commercial workflow layer for Slack, Teams, email,
+and customer webhook notification readiness without performing real external
+sends.
+
+Completed:
+
+- Implemented `a3.notification_control_plane.v1` with four lanes:
+  - Slack release/reviewer notifications.
+  - Microsoft Teams release/reviewer notifications.
+  - Email digest/escalation notifications.
+  - Customer webhook notifications.
+- Exposed `GET /api/a3/notifications/control-plane` from the A3 API store and
+  server.
+- Added dashboard rendering and navigation for `Notification Control Plane`.
+- Added notification summary to report exports and report-center tiles.
+- Added artifact registry coverage:
+  - `notification_control_plane`
+  - `notification_readiness_packet`
+  - security audit packet inclusion.
+- Added SQL migration contract for notification channel, subscription,
+  template, delivery, and webhook delivery metadata tables.
+- Added commercial API contract endpoints and regenerated
+  `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+- Added RBAC boundary coverage for `notifications:read`.
+- Added notification secret-leak detection and tests proving that raw Slack,
+  Teams, email, webhook, token, cookie, key, and account-like values are not
+  echoed.
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted notification workers, encrypted connector
+  references, delivery retry/dead-letter behavior, event outbox durability, and
+  usage ledger writes.
+- A2 remains owner of which release-policy/failure-taxonomy/security events are
+  notify-worthy and whether notification payloads are safely redacted.
+- A3 remains downstream-only and does not mutate A1 runner outputs, A1 billing
+  facts, A2 score/pass-fail/failure-class, or A2 release policy semantics.
+
+Verification:
+
+- `node --check services/report/a3_notification_control_plane.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/report_builder.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/a3_notification_control_plane.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/a3_live_workflow_readiness.test.mjs tests/a3/a3_auth_rbac_boundary.test.mjs`
+- `node --test tests/a3/artifact_registry.test.mjs tests/a3/a3_commercial_api_contract.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py commercial`
+- `python scripts/cl_guard.py hygiene`
+- `git diff --check`
+
+Results:
+
+- Focused notification/live workflow/RBAC tests: 10 pass, 0 fail.
+- Focused artifact/commercial contract tests: 12 pass, 0 fail.
+- Full A3 Node suite: 262 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+- Commercial CL: passed.
+- Hygiene CL: passed.
+- Diff check: passed.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub, Slack, Teams, email, webhook, billing provider, or cloud
+  mutation.
+- No raw key, token, cookie, email, account value, signed URL, local path,
+  payment secret, raw webhook URL, connector secret, or raw share token was
+  written.

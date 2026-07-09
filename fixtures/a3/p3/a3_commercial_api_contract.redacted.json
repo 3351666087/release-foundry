@@ -12,21 +12,21 @@
   },
   "purpose": "Map commercial /v1 SaaS endpoints to current A3 product surfaces without claiming A1/A2 backend ownership.",
   "summary": {
-    "endpoint_count": 31,
-    "implemented_or_read_only_count": 20,
-    "plan_only_count": 8,
+    "endpoint_count": 34,
+    "implemented_or_read_only_count": 21,
+    "plan_only_count": 10,
     "blocked_by_auth_count": 3,
     "by_status": {
       "blocked_until_A1_auth_RBAC": 3,
       "implemented_local_a3": 11,
-      "plan_only_until_backend": 8,
-      "read_only_local_a3": 9
+      "plan_only_until_backend": 10,
+      "read_only_local_a3": 10
     },
     "by_owner_lane": {
       "A1": 13,
       "A1/A2": 4,
-      "A1/A2/A3": 1,
-      "A1/A3": 6,
+      "A1/A2/A3": 2,
+      "A1/A3": 8,
       "A2/A3": 4,
       "A3": 3
     },
@@ -34,6 +34,7 @@
       "admin_console": 5,
       "artifact_registry": 2,
       "audit_export": 2,
+      "notification_control_plane": 3,
       "product_console": 9,
       "release_gate": 2,
       "report_center": 3,
@@ -50,6 +51,7 @@
     "artifact_registry",
     "usage_billing",
     "admin_console",
+    "notification_control_plane",
     "audit_export"
   ],
   "endpoint_matrix": [
@@ -1113,6 +1115,116 @@
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/notification-channels",
+      "owner_lane": "A1/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "project_reviewer_or_admin",
+      "db_tables": [
+        "notification_channels",
+        "notification_subscriptions",
+        "notification_templates"
+      ],
+      "events": [
+        "notification.channels_read"
+      ],
+      "artifacts": [
+        "notification_control_plane"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 hosted notification worker",
+        "A2 release policy",
+        "A3 notification UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 32,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/notifications/test",
+      "owner_lane": "A1/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "notifications:publish",
+      "db_tables": [
+        "notification_deliveries",
+        "event_outbox",
+        "audit_events",
+        "usage_events"
+      ],
+      "events": [
+        "notification.test_requested",
+        "notification.delivery_audited"
+      ],
+      "artifacts": [
+        "notification_test_plan"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "notification_plans"
+      ],
+      "a1_a2_dependencies": [
+        "A1 encrypted connector reference",
+        "A1 delivery worker",
+        "A3 notification control plane"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 33,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/{release_gate_id}/notifications",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "notifications:publish",
+      "db_tables": [
+        "notification_deliveries",
+        "webhook_deliveries",
+        "event_outbox",
+        "audit_events",
+        "usage_events"
+      ],
+      "events": [
+        "notification.slack_release_requested",
+        "notification.teams_incident_requested",
+        "notification.webhook_delivery_requested"
+      ],
+      "artifacts": [
+        "slack_release_notification_plan",
+        "teams_incident_notification_plan",
+        "webhook_delivery_plan"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "notification_plans",
+        "webhook_deliveries"
+      ],
+      "a1_a2_dependencies": [
+        "A2 ReleaseGate",
+        "A1 hosted notification worker",
+        "A3 report/review workflow"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 34,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
     }
   ],
   "event_envelope_contract": {
@@ -1231,9 +1343,11 @@
         "billing_readiness_reads",
         "case_count",
         "judge_invocations",
+        "notification_plans",
         "report_exports",
         "run_count",
-        "trace_event_count"
+        "trace_event_count",
+        "webhook_deliveries"
       ],
       "billing_mutations_enabled": false,
       "source_of_truth": "A1 billing ledger; A3 remains read-only preview"
@@ -1265,6 +1379,12 @@
         "dataset.read",
         "denial.recorded",
         "judge.completed",
+        "notification.channels_read",
+        "notification.delivery_audited",
+        "notification.slack_release_requested",
+        "notification.teams_incident_requested",
+        "notification.test_requested",
+        "notification.webhook_delivery_requested",
         "organization.create_requested",
         "organization.listed",
         "policy.evaluated",
@@ -1307,5 +1427,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "f4e66ce3c09d347998f1d83dc03c01ad538a59b27ff8776bd28888e5e129b26f"
+  "contract_hash": "91fc248ac073cbcc5107d027a27eb3f6bbfa1343a2955ab91689c5d783dee830"
 }

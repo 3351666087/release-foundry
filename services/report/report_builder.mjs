@@ -4740,6 +4740,69 @@ export function summarizeGithubPublishEvidence(githubPublishFixture = {}) {
   };
 }
 
+export function summarizeNotificationControlPlane(notificationFixture = {}) {
+  const available = notificationFixture?.schema_version === "a3.notification_control_plane.v1";
+  if (!available) {
+    return {
+      schema_version: "a3.notification_control_plane_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach Notification Control Plane evidence before claiming Slack, Teams, email, or webhook release notifications."
+    };
+  }
+  const summary = notificationFixture.summary || {};
+  const channels = Array.isArray(notificationFixture.channels)
+    ? notificationFixture.channels
+    : Array.isArray(notificationFixture.lanes)
+      ? notificationFixture.lanes
+      : [];
+  const growthPoints = Array.isArray(notificationFixture.growth_points) ? notificationFixture.growth_points : [];
+  return {
+    schema_version: "a3.notification_control_plane_export.v1",
+    available: true,
+    source: notificationFixture.source || "unknown",
+    status: notificationFixture.status || "unknown",
+    channel_count: summary.channel_count || channels.length,
+    api_backed_count: summary.api_backed_count || channels.filter((item) => (item.api_routes || item.api?.routes || []).length > 0).length,
+    audit_backed_count: summary.audit_backed_count || channels.filter((item) => (item.audit_events || item.audit?.events || []).length > 0).length,
+    live_mutation_count: summary.live_mutation_count || 0,
+    growth_point_count: summary.growth_point_count || growthPoints.length,
+    strongest_money_path: summary.strongest_money_path || "PR gate + incident replay + enterprise audit notifications",
+    channels: channels.map((item) => ({
+      id: item.id,
+      provider: item.provider,
+      label: item.label,
+      status: item.status,
+      current_mode: item.current_mode,
+      api_routes: item.api_routes || item.api?.routes || [],
+      db_tables: item.db_tables || item.db?.tables || [],
+      event_types: item.event_types || item.event?.types || [],
+      artifact_types: item.artifact_types || item.artifact?.types || [],
+      usage_meters: item.usage_meters || item.usage?.meters || [],
+      audit_events: item.audit_events || item.audit?.events || [],
+      a1_dependency: item.a1_dependency || item.dependencies?.A1,
+      a2_dependency: item.a2_dependency || item.dependencies?.A2,
+      next_action: item.next_action
+    })),
+    trigger_count: Array.isArray(notificationFixture.trigger_matrix) ? notificationFixture.trigger_matrix.length : 0,
+    top_growth_points: growthPoints.slice(0, 8).map((item) => ({
+      id: item.id,
+      title: item.title || item.action,
+      surface: item.surface || item.provider,
+      priority: item.priority || "P2",
+      expected_artifact: item.expected_artifact || item.contract_surface?.artifacts?.join(", ") || "notification evidence"
+    })),
+    safety: {
+      secret_values_included: notificationFixture.safety?.secret_values_included === true,
+      raw_webhook_urls_included: notificationFixture.safety?.raw_webhook_urls_included === true,
+      raw_tokens_included: notificationFixture.safety?.raw_tokens_included === true,
+      raw_emails_included: notificationFixture.safety?.raw_emails_included === true,
+      real_external_mutation_performed_locally: notificationFixture.safety?.real_external_mutation_performed_locally === true
+    },
+    recommendation: "Use Notification Control Plane as the collaboration layer for PR gates, incident replay, reviewer workflow, and enterprise audit packets while A1 owns live delivery workers and connector secrets."
+  };
+}
+
 function summarizeGithubPublishRecord(record = {}, type = "unknown") {
   if (!record.schema_version) {
     return {
@@ -5118,7 +5181,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5176,6 +5239,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const artifactRegistry = summarizeArtifactRegistryExport(artifactRegistryFixture);
   const releaseEvidence = summarizeReleaseEvidenceSummary(releaseEvidenceFixture);
   const githubPublishEvidence = summarizeGithubPublishEvidence(githubPublishEvidenceFixture);
+  const notificationControlPlane = summarizeNotificationControlPlane(notificationControlPlaneFixture);
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
@@ -5259,6 +5323,26 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Maintainer approval required: ${githubPublishEvidence.maintainer_approval_required ? "yes" : "no"}`,
       ""
     );
+  }
+
+  if (notificationControlPlane.available) {
+    lines.push(
+      "## Notification Control Plane",
+      "",
+      `- Status: ${notificationControlPlane.status}`,
+      `- Channels: ${notificationControlPlane.channel_count}`,
+      `- API-backed: ${notificationControlPlane.api_backed_count}`,
+      `- Audit-backed: ${notificationControlPlane.audit_backed_count}`,
+      `- Live external mutations: ${notificationControlPlane.live_mutation_count}`,
+      `- Growth points: ${notificationControlPlane.growth_point_count}`,
+      `- Strongest money path: ${notificationControlPlane.strongest_money_path}`,
+      `- Safety: secrets ${notificationControlPlane.safety.secret_values_included ? "present" : "blocked"}, webhook URLs ${notificationControlPlane.safety.raw_webhook_urls_included ? "present" : "blocked"}, live send ${notificationControlPlane.safety.real_external_mutation_performed_locally ? "performed" : "not performed"}`,
+      ""
+    );
+    for (const channel of notificationControlPlane.channels) {
+      lines.push(`- ${channel.provider}: ${channel.status}, events ${channel.event_types.join(", ") || "none"}, meter ${channel.usage_meters.join(", ") || "none"}`);
+    }
+    lines.push("");
   }
 
   if (peerBranchCalibration.available) {
@@ -6097,7 +6181,7 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -6148,6 +6232,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
+    notification_control_plane: summarizeNotificationControlPlane(notificationControlPlaneFixture),
     peer_branch_calibration: summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),

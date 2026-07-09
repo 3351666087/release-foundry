@@ -85,7 +85,8 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
     "read_event_outbox",
     "read_schema_drift",
     "read_peer_branch_calibration",
-    "read_billing_migration_readiness"
+    "read_billing_migration_readiness",
+    "read_notification_control_plane"
   ]) {
     assert.ok(operations[operation], `${operation} should be covered by RBAC policy`);
     assert.equal(operations[operation].denied_state_required, true);
@@ -101,6 +102,10 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   assert.equal(operations.read_billing_migration_readiness.required_permission, "billing:read");
   assert.equal(operations.read_billing_migration_readiness.mode, "read_only");
   assert.deepEqual(operations.read_billing_migration_readiness.roles_allowed, ["billing_admin", "owner"]);
+  assert.equal(operations.read_notification_control_plane.route, "GET /api/a3/notifications/control-plane");
+  assert.equal(operations.read_notification_control_plane.required_permission, "notifications:read");
+  assert.equal(operations.read_notification_control_plane.mode, "read_only");
+  assert.deepEqual(operations.read_notification_control_plane.roles_allowed, ["admin", "auditor", "owner", "reviewer", "viewer"]);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).allowed, false);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("plan_admin_action", { role: "viewer" }).allowed, false);
@@ -108,6 +113,8 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "billing_admin" }).decision, "allowed_read_only");
   assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "viewer" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "auditor" }).decision, "denied_missing_permission");
+  assert.equal(authorizeA3Operation("read_notification_control_plane", { role: "viewer" }).decision, "allowed_read_only");
+  assert.equal(authorizeA3Operation("read_notification_control_plane", { role: "billing_admin" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("unknown_mutation", { role: "owner" }).decision, "denied_unknown_operation");
 });
 

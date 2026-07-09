@@ -40,6 +40,7 @@ import { summarizeA3PeerBranchCalibration } from "./a3_peer_branch_calibration.m
 import { buildA3SourceArtifacts } from "./a3_source_artifacts.mjs";
 import { buildA3LiveWorkflowReadiness } from "./a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "./a3_live_ops_control_plane.mjs";
+import { buildA3NotificationControlPlane } from "./a3_notification_control_plane.mjs";
 import {
   buildA3TenantScope,
   tenantScopeMatches,
@@ -149,6 +150,11 @@ export const A3_DB_CONTRACT = {
     "release_evidence_diffs",
     "release_evidence_readbacks",
     "github_publish_receipts",
+    "notification_channels",
+    "notification_subscriptions",
+    "notification_templates",
+    "notification_deliveries",
+    "webhook_deliveries",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
@@ -158,6 +164,7 @@ export const A3_DB_CONTRACT = {
     "peer_branch_calibrations",
     "live_workflow_readiness",
     "live_ops_control_plane",
+    "notification_control_plane",
     "source_artifacts",
     "event_outbox"
   ],
@@ -193,6 +200,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/billing/migration-readiness",
     "GET /api/a3/live-workflow/readiness",
     "GET /api/a3/live-ops/control-plane",
+    "GET /api/a3/notifications/control-plane",
     "GET /api/a3/commercial-api/contract",
     "GET /api/a3/peer-branches/calibration",
     "GET /api/a3/a1-a2/schema-drift",
@@ -637,6 +645,45 @@ export function createMemoryA3Store(seed = {}) {
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
         projectId: scopedSnapshot.projectId
+      });
+    },
+
+    async getNotificationControlPlane(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const releaseEvidenceInput = mergeReleaseEvidenceWithGitHubReceipts(snapshot.releaseEvidence, githubPublishReceipts, {
+        source: snapshot.source,
+        releaseId: releaseEvidenceReleaseId(snapshot),
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
+      const usageLedger = await this.getUsageLedger(options);
+      const reportCenter = await this.getReportCenter(options);
+      const reviewWorkflow = await this.getReviewWorkflow(options);
+      const eventOutboxDashboard = buildEventOutboxDashboard(eventOutbox, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
+        projectId: scopedSnapshot.projectId,
+        environmentId: scopedSnapshot.environmentId
+      });
+      const liveOpsControlPlane = await this.getLiveOpsControlPlane(options);
+      return buildA3NotificationControlPlane({
+        source: snapshot.source,
+        releaseEvidence: releaseEvidenceInput,
+        liveOpsControlPlane,
+        reviewWorkflow,
+        eventOutbox: eventOutboxDashboard,
+        reportCenter,
+        usageLedger
+      }, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        tenantId: scopedSnapshot.tenantId,
+        workspaceId: scopedSnapshot.workspaceId,
+        projectId: scopedSnapshot.projectId,
+        environmentId: scopedSnapshot.environmentId
       });
     },
 
@@ -1457,6 +1504,7 @@ export function createMemoryA3Store(seed = {}) {
         organizationId: options.organizationId || snapshot.organizationId,
         projectId: options.projectId || snapshot.projectId
       });
+      const notificationControlPlane = await this.getNotificationControlPlane(options);
       return buildA3ArtifactRegistry({
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
@@ -1476,6 +1524,7 @@ export function createMemoryA3Store(seed = {}) {
         migrationPlan,
         productConsole,
         saasAdmin,
+        notificationControlPlane,
         releaseEvidenceReadbacks: filterReleaseEvidenceReadbacks(releaseEvidenceReadbacks, {
           organizationId: scopedSnapshot.organizationId,
           projectId: scopedSnapshot.projectId
@@ -2076,6 +2125,22 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
+  const notificationControlPlane = buildA3NotificationControlPlane({
+    source: snapshot.source,
+    releaseEvidence: releaseEvidenceInput,
+    liveOpsControlPlane,
+    reviewWorkflow,
+    eventOutbox: eventOutboxDashboard,
+    reportCenter,
+    usageLedger
+  }, {
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    tenantId: snapshot.tenantId,
+    workspaceId: snapshot.workspaceId,
+    projectId: snapshot.projectId,
+    environmentId: snapshot.environmentId
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2109,6 +2174,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     billing_migration_readiness: billingMigrationReadiness,
     live_workflow_readiness: liveWorkflowReadiness,
     live_ops_control_plane: liveOpsControlPlane,
+    notification_control_plane: notificationControlPlane,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,
@@ -2138,7 +2204,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       releaseEvidenceReadbacks: options.releaseEvidenceReadbacks || [],
       migrationPlan,
       productConsole,
-      saasAdmin
+      saasAdmin,
+      notificationControlPlane
     }),
     commercial_api_contract: buildA3CommercialApiContract({
       source: "docs/strategy/large-saas-a1-a2-a3-full-plan.md",

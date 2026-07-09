@@ -21,6 +21,7 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
   const githubPublishEvidence = options.githubPublishEvidence || inputs.githubPublishEvidence || {};
   const billingMigrationReadiness = options.billingMigrationReadiness || inputs.billingMigrationReadiness || inputs.billingMigration || {};
+  const notificationControlPlane = options.notificationControlPlane || inputs.notificationControlPlane || inputs.notification_control_plane || {};
   const sourceArtifacts = options.sourceArtifacts || inputs.sourceArtifacts || {};
   const source = options.source || inputs.source || reportCenter.source || "unknown";
   const tenantScope = {
@@ -44,7 +45,8 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     productConsole,
     saasAdmin,
     githubPublishEvidence,
-    billingMigrationReadiness
+    billingMigrationReadiness,
+    notificationControlPlane
   });
   const entries = [...reportEntries, ...controlEntries, ...sourceArtifactEntries(sourceArtifacts, {
     tenantScope,
@@ -156,8 +158,41 @@ function controlArtifactEntries(context) {
       : ["auth_rbac_boundary"]
   }));
   entries.push(billingMigrationReadinessArtifact(context));
+  entries.push(notificationControlPlaneArtifact(context));
   entries.push(...githubPublishArtifactEntries(context));
   return entries;
+}
+
+function notificationControlPlaneArtifact(context) {
+  const controlPlane = context.notificationControlPlane || {};
+  const ready = controlPlane.schema_version === "a3.notification_control_plane.v1";
+  const summary = controlPlane.summary || {};
+  const safety = controlPlane.safety || {};
+  const safe = safety.secret_values_included !== true
+    && safety.raw_webhook_urls_included !== true
+    && safety.raw_tokens_included !== true
+    && safety.raw_emails_included !== true
+    && safety.real_slack_mutation_performed_locally !== true
+    && safety.real_teams_mutation_performed_locally !== true
+    && safety.real_email_mutation_performed_locally !== true
+    && safety.real_webhook_mutation_performed_locally !== true;
+  return controlArtifact("notification_control_plane", {
+    context,
+    ready: ready && safe,
+    contentType: "application/json",
+    billableMeter: "notification_plans",
+    customerValue: "Slack, Teams, email, and webhook release-notification readiness for enterprise sign-off without storing connector secrets.",
+    billableValue: `${summary.channel_count || 0} planned notification channel(s), ${summary.growth_point_count || 0} commercial growth point(s), strongest path ${summary.strongest_money_path || "PR gate + incident replay"}.`,
+    selfHostValue: "Maps notification_channels, notification_deliveries, event_outbox, audit_events, and usage_events into self-host deployment planning.",
+    auditValue: "Shows who would be notified, which trigger fired, which evidence fields are included, and why A1 hosted workers must own live delivery.",
+    missingControls: !ready
+      ? ["notification_control_plane_contract"]
+      : [
+        "a1_hosted_notification_worker",
+        "encrypted_connector_secret_reference",
+        "live_delivery_receipts"
+      ]
+  });
 }
 
 function billingMigrationReadinessArtifact(context) {
@@ -301,8 +336,9 @@ function buildPacketPresets(entries) {
     packetPreset("pr_review_packet", ["json_report", "markdown_report", "release_evidence_summary", "report_manifest"], entries),
     packetPreset("github_pr_gate_packet", ["github_check_publish_receipt", "github_pr_comment_publish_receipt", "github_required_check_plan"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
-    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "auth_rbac_boundary", "db_migration_plan", "billing_migration_readiness"], entries),
+    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "auth_rbac_boundary", "db_migration_plan", "billing_migration_readiness", "notification_control_plane"], entries),
     packetPreset("billing_migration_packet", ["billing_migration_readiness", "usage_ledger", "db_migration_plan", "report_manifest"], entries),
+    packetPreset("notification_readiness_packet", ["notification_control_plane", "release_evidence_summary", "usage_ledger", "report_manifest"], entries),
     packetPreset("source_evidence_packet", ["a1_run_result", "a1_trace_event_batch", "a2_grade_result", "a2_release_gate"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];

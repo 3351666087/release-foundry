@@ -39,7 +39,7 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
   assert.equal(registry.schema_version, "a3.artifact_registry.v1");
   assert.equal(registry.registry_status, "evidence_available");
   assert.equal(registry.summary.report_artifact_count, 5);
-  assert.equal(registry.summary.control_artifact_count, 10);
+  assert.equal(registry.summary.control_artifact_count, 11);
   assert.equal(registry.summary.billable_meter_count >= 4, true);
   assert.ok(registry.entries.some((item) => item.artifact_type === "hosted_report" && item.lifecycle_state === "shared"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
@@ -48,9 +48,11 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
   assert.ok(registry.entries.some((item) => item.artifact_type === "github_check_publish_receipt"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "github_pr_comment_publish_receipt"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "github_required_check_plan"));
+  assert.ok(registry.entries.some((item) => item.artifact_type === "notification_control_plane"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "github_pr_gate_packet"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "source_evidence_packet"));
   assert.ok(registry.packet_presets.some((item) => item.preset_id === "security_audit_packet"));
+  assert.ok(registry.packet_presets.some((item) => item.preset_id === "notification_readiness_packet"));
   assert.equal(registry.safety.raw_secret_values_allowed, false);
   assert.equal(registry.safety.raw_share_tokens_stored, false);
 
@@ -65,7 +67,7 @@ test("A3 artifact registry keeps empty projects honest", () => {
 
   assert.equal(registry.registry_status, "evidence_available");
   assert.equal(registry.summary.report_artifact_count, 0);
-  assert.equal(registry.summary.control_artifact_count, 9);
+  assert.equal(registry.summary.control_artifact_count, 10);
   assert.ok(registry.next_actions.some((item) => item.includes("Create a hosted report")));
   assert.ok(registry.entries.every((item) => item.raw_secret_values_allowed === false));
 });

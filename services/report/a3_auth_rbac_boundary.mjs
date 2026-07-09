@@ -20,7 +20,10 @@ export const A3_RBAC_ROLES = {
     "billing:read",
     "trust:read",
     "trust:publish",
-    "audit:read"
+    "audit:read",
+    "notifications:read",
+    "notifications:configure",
+    "notifications:test"
   ],
   admin: [
     "project:read",
@@ -34,7 +37,10 @@ export const A3_RBAC_ROLES = {
     "api_keys:manage",
     "usage:read",
     "trust:read",
-    "audit:read"
+    "audit:read",
+    "notifications:read",
+    "notifications:configure",
+    "notifications:test"
   ],
   developer: [
     "project:read",
@@ -49,14 +55,16 @@ export const A3_RBAC_ROLES = {
     "release:review",
     "release:approve",
     "trust:read",
-    "audit:read"
+    "audit:read",
+    "notifications:read"
   ],
   auditor: [
     "project:read",
     "reports:create",
     "trust:read",
     "audit:read",
-    "usage:read"
+    "usage:read",
+    "notifications:read"
   ],
   billing_admin: [
     "project:read",
@@ -68,10 +76,12 @@ export const A3_RBAC_ROLES = {
     "project:read",
     "project:ingest",
     "reports:create",
-    "release:review"
+    "release:review",
+    "notifications:deliver"
   ],
   viewer: [
-    "project:read"
+    "project:read",
+    "notifications:read"
   ]
 };
 
@@ -195,6 +205,13 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     surface: "usage_billing",
     a1: ["read-only billing ledger summary", "durable billing migration manifest", "provider event replay evidence"],
     a2: ["security verification", "model cost policy"]
+  }),
+  operation("read_notification_control_plane", "GET /api/a3/notifications/control-plane", "notifications:read", "read_only", {
+    event: "notification.control_plane_read",
+    resourceType: "notification_control_plane",
+    surface: "release_notifications",
+    a1: ["hosted notification workers", "encrypted connector refs", "event outbox", "usage ledger"],
+    a2: ["release policy", "failure taxonomy", "redaction verification"]
   }),
   operation("rotate_api_key", "POST /v1/api-keys/{api_key_id}/rotate", "api_keys:manage", "hosted_mutation", {
     event: "api_key.rotate_requested",

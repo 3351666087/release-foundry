@@ -12,6 +12,7 @@ const REQUIRED_A3_SURFACES = [
   "artifact_registry",
   "usage_billing",
   "admin_console",
+  "notification_control_plane",
   "audit_export"
 ];
 
@@ -558,5 +559,32 @@ const COMMERCIAL_ENDPOINTS = [
     artifacts: ["billing_portal_plan"],
     usage: ["api_requests"],
     dependencies: ["A1 payment backend", "A3 billing UI"]
+  }),
+  endpoint("GET /v1/notification-channels", "A1/A3", "notification_control_plane", "GET /api/a3/notifications/control-plane", {
+    status: "read_only",
+    rbac: "project_reviewer_or_admin",
+    db: ["notification_channels", "notification_subscriptions", "notification_templates"],
+    events: ["notification.channels_read"],
+    artifacts: ["notification_control_plane"],
+    usage: ["api_requests"],
+    dependencies: ["A1 hosted notification worker", "A2 release policy", "A3 notification UI"]
+  }),
+  endpoint("POST /v1/notifications/test", "A1/A3", "notification_control_plane", "GET /api/a3/notifications/control-plane", {
+    status: "plan_only",
+    rbac: "notifications:publish",
+    db: ["notification_deliveries", "event_outbox", "audit_events", "usage_events"],
+    events: ["notification.test_requested", "notification.delivery_audited"],
+    artifacts: ["notification_test_plan"],
+    usage: ["api_requests", "notification_plans"],
+    dependencies: ["A1 encrypted connector reference", "A1 delivery worker", "A3 notification control plane"]
+  }),
+  endpoint("POST /v1/release-gates/{release_gate_id}/notifications", "A1/A2/A3", "notification_control_plane", "GET /api/a3/notifications/control-plane", {
+    status: "plan_only",
+    rbac: "notifications:publish",
+    db: ["notification_deliveries", "webhook_deliveries", "event_outbox", "audit_events", "usage_events"],
+    events: ["notification.slack_release_requested", "notification.teams_incident_requested", "notification.webhook_delivery_requested"],
+    artifacts: ["slack_release_notification_plan", "teams_incident_notification_plan", "webhook_delivery_plan"],
+    usage: ["api_requests", "notification_plans", "webhook_deliveries"],
+    dependencies: ["A2 ReleaseGate", "A1 hosted notification worker", "A3 report/review workflow"]
   })
 ];

@@ -5601,3 +5601,69 @@ Safety:
   protection mutation, or cloud write.
 - No raw key, token, cookie, email, signed URL, local path, payment secret, or
   raw share token was written.
+
+## 2026-07-09 - Notification Control Plane Closeout
+
+Goal: extend the current A3 live SaaS workflow surface with a notification
+control plane for Slack, Microsoft Teams, email, and customer webhooks while
+keeping all live provider sends disabled locally.
+
+Completed:
+
+- Added `a3.notification_control_plane.v1` in
+  `services/report/a3_notification_control_plane.mjs`.
+- Added `GET /api/a3/notifications/control-plane`.
+- Added dashboard `Notification Control Plane` panel and Admin/Platform
+  navigation entries.
+- Added notification evidence to report JSON/Markdown export summaries.
+- Added notification evidence to artifact registry and the
+  `notification_readiness_packet`.
+- Added notification DB contract tables:
+  - `notification_channels`
+  - `notification_subscriptions`
+  - `notification_templates`
+  - `notification_deliveries`
+  - `webhook_deliveries`
+- Added commercial API contract routes:
+  - `GET /v1/notification-channels`
+  - `POST /v1/notifications/test`
+  - `POST /v1/release-gates/{release_gate_id}/notifications`
+- Added RBAC policy coverage for `read_notification_control_plane` with
+  `notifications:read`.
+- Regenerated the redacted commercial API contract fixture.
+- Preserved A1/A2 boundaries: A3 only plans and displays notification readiness;
+  A1 owns hosted delivery workers, connector secrets, queue/retry, and usage
+  ledger writes; A2 owns release policy, failure taxonomy, redaction, and
+  security verification.
+
+Validation:
+
+- `node --check services/report/a3_notification_control_plane.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/report_builder.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py commercial`
+- `python scripts/cl_guard.py hygiene`
+- `git diff --check`
+- `git check-ignore -v .env.local node_modules docs\screenshots\playwright-results`
+
+Results:
+
+- Full A3 Node suite: 262 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub, Slack, Teams, email, webhook, billing provider, or cloud call.
+- No raw key, token, cookie, email, signed URL, local account path, payment
+  secret, raw webhook URL, connector secret, or raw share token was written.

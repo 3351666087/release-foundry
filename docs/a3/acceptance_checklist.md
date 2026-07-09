@@ -681,3 +681,22 @@
 - [ ] Run live GitHub check/comment readback only after maintainer-approved GitHub App or CI integration exists.
 - [ ] Replace local store persistence with A1-owned hosted Postgres/RLS once available.
 - [ ] Replace read-only billing projections with A1 durable billing ledger and provider webhook evidence before production billing claims.
+
+## A3 Notification Control Plane - 2026-07-09
+
+- [x] Add `a3.notification_control_plane.v1` for Slack, Teams, email, and customer webhook notification readiness.
+- [x] Expose `GET /api/a3/notifications/control-plane`.
+- [x] Add dashboard `Notification Control Plane` panel and navigation entries.
+- [x] Add notification evidence to JSON/Markdown report exports.
+- [x] Add `notification_control_plane` artifact and `notification_readiness_packet` to artifact registry.
+- [x] Add notification DB migration contract tables for channels, subscriptions, templates, deliveries, and webhook deliveries.
+- [x] Add commercial API contract endpoints for notification channels, test planning, and release-gate notification planning.
+- [x] Add `notifications:read` RBAC policy coverage.
+- [x] Verify notification control plane does not echo Slack, Teams, email, webhook, token, cookie, key, account, or local-path secrets.
+- [x] Re-verify full A3 Node suite after notification round: 262 pass, 0 fail.
+- [x] Re-verify Playwright E2E after notification round: 10 pass, 0 fail.
+- [x] Re-verify commercial CL guard after notification round: passed, 0 blockers, 0 advisories.
+- [x] Re-verify hygiene CL guard after notification round: passed.
+- [ ] Real Slack/Teams/email/webhook delivery remains future A1 worker work.
+- [ ] Real notification payload safety certification remains future A2 redaction/security work.
+- [ ] Real notification delivery usage billing remains future A1 usage-ledger work.
