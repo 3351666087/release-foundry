@@ -75,6 +75,22 @@
         "requires_network": false
       },
       {
+        "endpoint_id": "release_unblock_checklist",
+        "method": "POST",
+        "path": "/internal/release/unblock-checklist",
+        "request_fields": [
+          "release_gate_report",
+          "evidence_readiness_report",
+          "regression_replay_report"
+        ],
+        "response_fields": [
+          "gate_items",
+          "a3_consumption_summary"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
         "endpoint_id": "regression_replay",
         "method": "POST",
         "path": "/internal/regression/replay",
@@ -151,7 +167,7 @@
     "judge_versions": [
       "0.1.0"
     ],
-    "policy_hash_count": 132,
+    "policy_hash_count": 133,
     "all_records_have_policy_hash": true,
     "all_records_have_input_hash": true,
     "all_records_have_output_hash": true,
@@ -322,10 +338,11 @@
   },
   "result_persistence": {
     "manifest_id": "a2_result_persistence_manifest",
-    "record_count": 162,
+    "record_count": 163,
     "record_type_counts": {
       "judge_result": 160,
       "release_gate": 1,
+      "release_unblock_checklist": 1,
       "scenario_selection": 1
     },
     "public_safe": true,
@@ -368,6 +385,7 @@
       "gradeFixture": "fixtures/a2/results/a2_g3_grade_results.json",
       "coverage": "fixtures/a2/results/a2_g3_coverage_report.json",
       "releaseGate": "fixtures/a2/results/a2_release_gate_report.json",
+      "releaseUnblockChecklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
       "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
       "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
       "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
@@ -379,6 +397,7 @@
       "judge version and policy hash audit",
       "judge registry pins and migration readiness",
       "release policy decision and blocker counts",
+      "release unblock checklist owner actions",
       "public-safe persistence record counts",
       "calibration source coverage and live evidence gaps"
     ],
@@ -386,7 +405,7 @@
       "grade_case_count": 32,
       "scenario_count": 60,
       "selected_scenario_count": 12,
-      "audit_record_count": 162
+      "audit_record_count": 163
     },
     "selected_policy_id": "release_policy_prod_strict",
     "release_gate_decision": "block",
@@ -406,6 +425,7 @@
     "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
     "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
     "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+    "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
     "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
     "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
     "release_policy_config": "fixtures/a2/config/release_policies.json"

@@ -49,6 +49,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
                 "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
                 "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+                "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
                 "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
                 "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
                 "release_policy_config": "fixtures/a2/config/release_policies.json",
@@ -84,6 +85,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("/internal/judge/run", endpoint_paths)
         self.assertIn("/internal/judge/batch", endpoint_paths)
         self.assertIn("/internal/release-policy/evaluate", endpoint_paths)
+        self.assertIn("/internal/release/unblock-checklist", endpoint_paths)
         self.assertIn("/internal/regression/replay", endpoint_paths)
         self.assertIn("/internal/calibration/evaluate", endpoint_paths)
         self.assertIn("/internal/scenarios/select", endpoint_paths)
@@ -125,8 +127,13 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(payload_keys["a2ControlPlane"], "fixtures/a2/results/a2_saas_control_plane_report.json")
         self.assertEqual(payload_keys["resultPersistence"], "fixtures/a2/results/a2_result_persistence_manifest.json")
         self.assertEqual(payload_keys["judgeVersions"], "fixtures/a2/results/a2_judge_versions.json")
+        self.assertEqual(
+            payload_keys["releaseUnblockChecklist"],
+            "fixtures/a2/results/a2_release_unblock_checklist.json",
+        )
         self.assertIn("judge version and policy hash audit", contract["dashboard_can_show"])
         self.assertIn("judge registry pins and migration readiness", contract["dashboard_can_show"])
+        self.assertIn("release unblock checklist owner actions", contract["dashboard_can_show"])
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")

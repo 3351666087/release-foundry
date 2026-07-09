@@ -292,6 +292,7 @@ def generate_outputs(
         release_gate,
         scenario_pack,
         scenario_selection_report=scenario_selection,
+        release_unblock_checklist_report=outputs[release_unblock_checklist_path],
         run_fixtures=fixture_payloads,
         source_refs={
             "grade_report": grade_report_path.as_posix(),
@@ -299,6 +300,7 @@ def generate_outputs(
             "scenario_pack": pack_path.as_posix(),
             "scenario_selection": scenario_selection_path.as_posix(),
             "regression_promotion_queue": regression_promotion_queue_path.as_posix(),
+            "release_unblock_checklist": release_unblock_checklist_path.as_posix(),
         },
     )
     outputs[result_persistence_manifest_path] = result_persistence_manifest
@@ -323,6 +325,7 @@ def generate_outputs(
             "calibration_matrix": calibration_matrix_path.as_posix(),
             "release_gate": release_gate_path.as_posix(),
             "scenario_selection": scenario_selection_path.as_posix(),
+            "release_unblock_checklist": release_unblock_checklist_path.as_posix(),
             "result_persistence": result_persistence_manifest_path.as_posix(),
             "judge_versions": judge_versions_path.as_posix(),
             "release_policy_config": release_policy_config_path.as_posix(),

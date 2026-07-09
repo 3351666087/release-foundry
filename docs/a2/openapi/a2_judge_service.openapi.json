@@ -17,6 +17,7 @@
     { "name": "policy", "description": "Release policy and PR gate evaluation." },
     { "name": "scenario", "description": "Per-project scenario selection." },
     { "name": "calibration", "description": "Calibration matrix and regression replay." },
+    { "name": "evidence", "description": "Release unblock and evidence readiness handoff." },
     { "name": "persistence", "description": "Public-safe result persistence records." }
   ],
   "paths": {
@@ -105,6 +106,23 @@
         "responses": { "200": { "$ref": "#/components/responses/RegressionReplayServiceEnvelope" } }
       }
     },
+    "/internal/release/unblock-checklist": {
+      "post": {
+        "operationId": "post_internal_release_unblock_checklist",
+        "tags": ["evidence"],
+        "summary": "Build the public-safe C3/C4/C5 release unblock checklist for A1/A3.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_release_unblock_checklist",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_ashr_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/ReleaseUnblockChecklistServiceEnvelope" } }
+      }
+    },
     "/internal/calibration/evaluate": {
       "post": {
         "operationId": "post_internal_calibration_evaluate",
@@ -184,9 +202,130 @@
             "schema": { "$ref": "#/components/schemas/RegressionReplayServiceEnvelope" }
           }
         }
+      },
+      "ReleaseUnblockChecklistServiceEnvelope": {
+        "description": "A2 internal release unblock checklist response envelope.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ReleaseUnblockChecklistServiceEnvelope" }
+          }
+        }
       }
     },
     "schemas": {
+      "ReleaseUnblockChecklistServiceEnvelope": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/components/schemas/InternalServiceEnvelope" },
+          {
+            "type": "object",
+            "required": ["result"],
+            "properties": {
+              "result": { "$ref": "#/components/schemas/ReleaseUnblockChecklist" }
+            }
+          }
+        ]
+      },
+      "ReleaseUnblockChecklist": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "checklist_id",
+          "source_release_gate",
+          "release_gate_decision",
+          "release_gate_exit_code",
+          "release_gate_risk_score",
+          "overall_status",
+          "blocked_gate_count",
+          "gate_items",
+          "a3_consumption_summary",
+          "review_workflow",
+          "evidence_refs",
+          "metadata"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.release_unblock_checklist.v1" },
+          "checklist_id": { "type": "string" },
+          "source_release_gate": { "type": "string" },
+          "release_gate_decision": { "type": "string" },
+          "release_gate_exit_code": { "type": "integer", "minimum": 0 },
+          "release_gate_risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "overall_status": { "enum": ["blocked", "ready"] },
+          "blocked_gate_count": { "type": "integer", "minimum": 0 },
+          "gate_items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReleaseUnblockGateItem" }
+          },
+          "a3_consumption_summary": { "type": "object", "additionalProperties": true },
+          "review_workflow": { "type": "object", "additionalProperties": true },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metadata": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseUnblockGateItem": {
+        "type": "object",
+        "required": [
+          "gate",
+          "title",
+          "status",
+          "blocks_release",
+          "owner_role",
+          "missing_count",
+          "required_actions",
+          "evidence_refs"
+        ],
+        "properties": {
+          "gate": { "enum": ["C3", "C4", "C5"] },
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "blocks_release": { "type": "boolean" },
+          "owner_role": { "type": "string" },
+          "missing_count": { "type": "integer", "minimum": 0 },
+          "required_actions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReleaseUnblockActionItem" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseUnblockActionItem": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "action",
+          "required_evidence_source",
+          "missing_count",
+          "private_evidence_required",
+          "private_input_ref",
+          "commands",
+          "evidence_refs"
+        ],
+        "properties": {
+          "action_id": { "type": "string" },
+          "action": { "type": "string" },
+          "required_evidence_source": { "type": "string" },
+          "missing_count": { "type": "integer", "minimum": 0 },
+          "private_evidence_required": { "type": "boolean" },
+          "private_input_ref": { "type": "string" },
+          "commands": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      },
       "RegressionReplayServiceEnvelope": {
         "type": "object",
         "allOf": [
