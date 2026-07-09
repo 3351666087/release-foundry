@@ -3319,3 +3319,9 @@ Safety:
 - No API key, token, cookie, real account value, raw signed URL, or payment
   secret written.
 - No live Ashr, GitHub, billing, auth, or cloud mutation performed.
+
+Publish note:
+
+- Local git HTTPS push was unavailable during this round, so the already-tested
+  A3 commit was published through the GitHub Git Data API with a fast-forward
+  parent and redacted file set only. No secret-bearing files were included.
