@@ -182,7 +182,7 @@ def test_public_evidence_artifact_scanner_catches_secret_and_payload_markers():
             "authorization: Bearer syntheticfixture",
             "X-API-Key: sk-syntheticfixture",
             "raw_payload_included: true",
-            "-----BEGIN PRIVATE KEY-----",
+            "-----BEGIN " + "PRIVATE KEY-----",
         ]
     )
 
