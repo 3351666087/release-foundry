@@ -57,6 +57,9 @@ jobs:
       - name: High-confidence hygiene blockers
         run: python scripts/cl_guard.py hygiene
 
+      - name: Commercial SaaS anchor blockers
+        run: python scripts/cl_guard.py commercial
+
   python-a1-a2:
     name: Python A1/A2 contracts
     runs-on: ubuntu-latest
@@ -102,6 +105,10 @@ jobs:
         working-directory: packages/ts/ashr-clone
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: packages/go/ashrclone/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

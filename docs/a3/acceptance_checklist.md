@@ -503,5 +503,60 @@
 - [x] Add tests proving dashboard/report/store/API readback visibility does not leak tokens, emails, Authorization headers, or raw secret values.
 - [x] Document that readback evidence is downstream of A1/A2 and does not replace A1 RunResult or A2 GradeResult proof.
 - [x] Document readback worker and visibility round in `docs/a3/p3_readback_worker_and_visibility_2026_07_08.md`.
+- [x] Add CL commercial anchor gate in `scripts/cl_guard.py commercial`.
+- [x] Wire CL commercial anchor gate into `.github/workflows/cl-gate.yml`.
+- [x] Add CL guard tests for A3 commercial anchors, A3/TypeScript/evidence routing, and missing-anchor failures.
+- [x] Ensure the TypeScript SDK CI job installs Go before running cross-stack TS-to-Go vertical-slice tests.
+- [x] Document A1/A2/A3 CL contract alignment in `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`.
+- [x] Document TypeScript, Tailwind/CSS, Playwright, mobile, and WeChat CL gaps in `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`.
+- [x] Add Growth-Auditor CL gate report in `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`.
+- [x] Keep Playwright, Tailwind, Expo, and WeChat checks advisory-only until their toolchains exist.
+- [x] Export A2 result persistence manifest in A3 JSON and Markdown reports.
+- [x] Export A2 release unblock checklist in A3 JSON and Markdown reports.
+- [x] Wire dashboard report export to load A2 persistence and unblock fixtures without changing A2 judge semantics.
+- [x] Add A3 Commercial Growth Manifest in `services/report/a3_commercial_growth_manifest.mjs`.
+- [x] Test A3 Commercial Growth Manifest in `tests/a3/a3_commercial_growth_manifest.test.mjs`.
+- [x] Generate redacted A3 Commercial Growth Manifest fixture at `fixtures/a3/p3/a3_commercial_growth_manifest.redacted.json`.
+- [x] Document A3 Commercial Growth Manifest in `docs/a3/p3_commercial_growth_manifest_2026_07_09.md`.
+- [x] Classify 20+ growth points with A1/A2/A3 evidence bindings, explicit gaps, and API/DB/event/artifact surfaces.
+- [x] Add executable Playwright TS E2E coverage for dashboard, report, release evidence, review workflow, SaaS admin, enterprise readiness, and A1/A2 contract visibility.
+- [x] Save Playwright dashboard screenshot evidence to `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`.
+- [x] Mount the existing A3 API handler into the Playwright E2E server for API-backed dashboard tests.
+- [x] Add API-backed Playwright E2E for `source=api-mock`.
+- [x] Add hosted report create/revoke Playwright E2E through local A3 API routes.
+- [x] Document A3 Commercial Growth Round 3 with 20 growth points and A1/A2 compatibility notes.
+- [x] Add Tailwind product-system scaffold with A3 content globs, semantic tokens, PostCSS readiness, documentation, and tests.
+- [x] Add React Native / Expo mobile release approval client-surface scaffold, documentation, and tests.
+- [x] Add WeChat mini program release approval / incident alert client-surface scaffold, documentation, and tests.
+- [x] Reduce commercial CL advisories to 0 while keeping blocker count at 0.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
+
+## Money-Grade Audit Round 2 - 2026-07-09
+
+- [x] Checked branch/status before writing: `codex/a3-commercial-growth-round2...origin/codex/a3-commercial-cl-gate`, clean initial short status.
+- [x] Added `docs/a3/p3_growth_auditor_money_grade_round2_2026_07_09.md`.
+- [x] Audited current A3 sellable capability against a commercial Ashr++ target.
+- [x] Listed 30+ next-round growth points across PR gate, production replay, enterprise audit, self-host, trace ingestion, judge calibration, incident report, review workflow, billing/usage, and API platform.
+- [x] Marked which growth points were advanced by the current Playwright, Evidence, and Integration parallel lanes.
+- [x] Tagged every growth point for paid willingness, ACV, launch risk, and enterprise/self-host/audit value.
+- [x] Captured evidence locations and remaining failure points in the Money-Grade report.
+- [x] Kept this round docs-only and did not touch runtime code, tests, fixtures, workflows, secrets, or env files.
+- [ ] Live GitHub Check/PR comment/branch-protection readback evidence remains future work.
+- [x] Real Playwright TS E2E tooling landed in `playwright.config.ts` and `tests/e2e`.
+- [ ] Real hosted auth/RBAC/SSO, production Postgres/RLS, object storage custody, and billing export remain future work.
+
+## P3 Playwright E2E Growth - 2026-07-09
+
+- [x] Added root Playwright package/config so `npm run test:e2e` and `npx playwright test` can execute after dependency install.
+- [x] Added local Node static dashboard server under `tests/e2e` without touching A1 runner or A2 judge logic.
+- [x] Added TypeScript E2E coverage for the real `apps/dashboard/index.html?source=p3-official-demo` page.
+- [x] Covered dashboard metrics, run list, case detail, trace timeline, failure clusters, Product Console, Report Center, Release Evidence, Reviewer Workflow, SaaS Admin, Enterprise Readiness, and raw A2 source switching.
+- [x] Verified API/DB/event/artifact, tenant/auth/RBAC/usage/audit, and A1/A2 contract visibility through dashboard UI assertions.
+- [x] Confirmed local Playwright Chromium was available for this workstation.
+- [x] Verified `npm.cmd run test:e2e`: 4 passed.
+- [x] Captured screenshot evidence under `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`.
+- [x] Documented PowerShell `.cmd` workaround and browser-install failure mode in `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`.
+- [x] Add API-backed `api-mock` E2E with `services/report/a3_api_server.mjs`.
+- [x] Add hosted report share/revoke E2E.
+- [ ] Add admin action guardrail E2E.

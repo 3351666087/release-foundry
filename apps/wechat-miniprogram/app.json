@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "pages/release-approval/index",
+    "pages/incident-alert/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Ashr A3 Gate",
+    "navigationBarBackgroundColor": "#0f172a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f8fafc"
+  },
+  "sitemapLocation": "sitemap.json"
+}

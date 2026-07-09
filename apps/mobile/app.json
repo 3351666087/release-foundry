@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Ashr A3 Release",
+    "slug": "ashr-a3-release",
+    "scheme": "ashra3",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [],
+    "extra": {
+      "surface": "a3-mobile-release-intelligence",
+      "mode": "contract-only",
+      "realCloudMutationsEnabled": false
+    }
+  }
+}

@@ -4121,9 +4121,176 @@ Result:
 
 A3 now has the local path needed for a future CI worker: collect a redacted GitHub readback receipt, submit it through the A3 API, persist it, and show it in customer-facing dashboard/report surfaces. The remaining commercial step is a maintainer-approved live GitHub App or GitHub Actions worker plus hosted auth/RBAC and production Postgres/RLS.
 
+## 2026-07-09 - Commercial CL Gate Anchors
+
+### Goal
+
+Continue A3 from latest `main` and make every future PR harder to regress away from the commercial SaaS endgame. This round follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`: A3 owns Product Console, Review Workflow, Report Center, GitHub Gate, Commercial UI, and client workflows, while staying calibrated to A1 runtime evidence and A2 judge evidence.
+
+### Work completed
+
+- Added `python scripts/cl_guard.py commercial`.
+- Wired the new commercial gate into `.github/workflows/cl-gate.yml`.
+- Added 20 blocker anchors across:
+  - main strategy file
+  - CL workflow and guard
+  - dashboard webapp split
+  - dashboard API client
+  - TypeScript SDK package
+  - A3 API routes
+  - A3 store DB/API contract
+  - report builder exports
+  - release evidence v2 authority
+  - readback worker CLI
+  - A1 evidence/worker schemas
+  - A2 grade/commercial readiness schemas
+  - A3 API/dashboard/report/SQLite tests
+  - A3 acceptance ledger
+- Added advisory-only checks for missing future surfaces:
+  - Playwright TS E2E
+  - Tailwind product styling pipeline
+  - React Native / Expo mobile client
+  - WeChat mini program client surface
+- Added `tests/a1/test_cl_guard.py`.
+- Added Contract-Agent artifact:
+  - `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`
+- Added UI/TS/Playwright artifact:
+  - `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`
+
+### Verification
+
+```text
+python -m py_compile scripts/cl_guard.py tests/a1/test_cl_guard.py
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+python -B -m pytest tests/a1/test_cl_guard.py -q -p no:cacheprovider
+```
+
+Additional validation before commit:
+
+```text
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/a3_review_workflow.test.mjs
+npm test --prefix packages/ts/ashr-clone
+git diff --check
+```
+
+Result:
+
+- CL commercial anchor gate passed with 20/20 blocker anchors and 0 blockers.
+- Hygiene gate passed with no secret findings.
+- CL guard pytest passed: 3 pass, 0 fail.
+- A3 Node contracts passed: 37 pass, 0 fail.
+- `packages/ts/ashr-clone` dependency install passed with 0 vulnerabilities.
+- Local full `npm test` is blocked by the Windows workstation missing `go`; the TypeScript test suite includes a real Go HTTP server vertical slice.
+- `.github/workflows/cl-gate.yml` now installs Go in the `typescript-sdk` job so CI can run that vertical slice intentionally.
+- Attempted local portable Go install under the user local tools directory, but `go.dev` download failed from this machine with a remote connection error.
+
+### A1/A2 calibration
+
+- A1 runtime/worker/evidence schema anchors are now part of the commercial CL gate.
+- A2 grade/commercial readiness schema anchors are now part of the commercial CL gate.
+- A3 API/dashboard/report tests remain the consumer-side proof that A1/A2 evidence is not replaced by A3 UI claims.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub mutation was made.
+- No billing, auth, team, API-key, Trust, object-storage, database, or cloud mutation was made.
+- Playwright/Tailwind/mobile/WeChat are advisory-only until their actual toolchains exist.
+
+### Current interpretation
+
+This is not a new product screen; it is a durability upgrade for the whole project. Future CLs now have a low-noise commercial anchor gate, so A3 is less likely to drift back into isolated demo work. The strongest next build remains a real Playwright TS E2E lane for dashboard/admin/review/report flows, followed by typed dashboard DTOs and a Tailwind/design-system migration.
+
 - No branch-protection mutation was made.
 - No token, cookie, email, Authorization header, raw signed URL, or local absolute user path was committed.
 
 ### Current interpretation
 
 A3 PR Gate now has a stronger audit story: generated check/comment/required-check evidence can travel through report export and Artifact Registry. The next enterprise step is hashing those receipts into the audit bundle and verifying real branch protection.
+
+## 2026-07-09 - A2 Persistence and Unblock Export Bridge
+
+### Goal
+
+Continue A3 commercial growth after PR #23 by consuming newer A2 release evidence without changing A2 semantics. This follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`: A3 should turn A1/A2 evidence into product console, report center, review workflow, audit export, and release-gate buyer value.
+
+### Work completed
+
+- Added A3 summary support for `a2.result_persistence_manifest.v1`.
+- Added A3 summary support for `a2.release_unblock_checklist.v1`.
+- Extended the A2 readiness bundle accepted by report exports with:
+  - `resultPersistence`
+  - `resultPersistenceManifest`
+  - `releaseUnblockChecklist`
+- Added `a2_result_persistence` and `a2_release_unblock_checklist` to JSON report export.
+- Added Markdown report sections:
+  - `A2 Result Persistence`
+  - `A2 Release Unblock Checklist`
+- Wired dashboard export loading for:
+  - `fixtures/a2/results/a2_result_persistence_manifest.json`
+  - `fixtures/a2/results/a2_release_unblock_checklist.json`
+- Added tests proving dashboard export wiring and report-builder summaries.
+- Added implementation note:
+  - `docs/a3/p3_a2_persistence_unblock_export_2026_07_09.md`
+
+### A1/A2 calibration
+
+- A1 runner, trace, observation, tool-call, and ingestion semantics were not changed.
+- A2 judge, grade, failure taxonomy, release-gate, and unblock semantics were not changed.
+- A3 only summarizes A2-owned fixtures and schemas for product/report/review consumption.
+
+### Safety boundary
+
+- No `.env.local` read.
+- No Ashr API key read, printed, or written.
+- No live Ashr API call.
+- No hosted auth, billing, team, API-key, Trust, database, object storage, or cloud mutation.
+- A2 private evidence refs remain named anchors only; raw private payloads were not read.
+
+## 2026-07-09 - API-Backed Playwright E2E Bridge
+
+### Goal
+
+Advance A3 from static dashboard browser proof toward the strategy bus requirement: `static -> API-backed`, `report export -> shareable hosted report`, and A1/A2-visible commercial workflow evidence.
+
+### Work completed
+
+- Mounted `services/report/a3_api_server.mjs` into the local Playwright dashboard server.
+- Added API-backed Playwright E2E for `apps/dashboard/index.html?source=api-mock`.
+- Verified browser-visible API/DB surfaces, SaaS Admin shell, A1 trace references, A2 judge evidence, Report Center, and hosted report lifecycle.
+- Exercised hosted report create/revoke through local A3 API routes.
+- Added Tailwind product-system config, PostCSS readiness, docs, and tests.
+- Added React Native / Expo mobile release approval client-surface contract, docs, and tests.
+- Added WeChat mini program release approval / incident alert client-surface contract, docs, and tests.
+- Added `docs/a3/p3_commercial_growth_round3_execution_2026_07_09.md` with 20 growth points.
+- Updated Playwright evidence notes and acceptance checklist.
+
+### Verification
+
+```text
+node --check tests/e2e/static-dashboard-server.mjs
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+node --test tests/a3/tailwind_boundary_contract.test.mjs tests/a3/a3_wechat_mini_program_client_surface.test.mjs tests/a3/a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+```
+
+Result:
+
+- API-backed Playwright E2E passed: 2 pass, 0 fail.
+- Client/design-surface contract tests passed: 16 pass, 0 fail.
+- Commercial CL passed with 0 blockers and 0 advisories.
+
+### A1/A2 calibration
+
+- A1 runner logic was not changed.
+- A2 judge semantics were not changed.
+- A3 now proves in a browser that API-backed mode still exposes A1 import/trace and A2 import/judge evidence.
+
+### Safety boundary
+
+- No `.env.local`, API key, token, cookie, email, raw signed URL, account value, or private credential was read or committed.
+- No live Ashr/GitHub/cloud/billing/auth mutation was performed.

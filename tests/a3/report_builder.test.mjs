@@ -14,6 +14,8 @@ import {
   filterCases,
   getFilterOptions,
   normalizeCases,
+  summarizeA2ReleaseUnblockChecklist,
+  summarizeA2ResultPersistence,
   summarizeCommercialReadiness,
   summarizeArtifactRegistryExport,
   summarizeCoverage,
@@ -1761,4 +1763,61 @@ test("A3 report builder can summarize A2 release gate fixture", async () => {
   assert.match(markdown, /Blocks release: yes/);
   assert.match(markdown, /Blocking gates: C3, C4, C5/);
   assert.match(markdown, /Required sources: ashr_grading, llm_judge/);
+});
+
+test("A3 report builder exports A2 result persistence and release unblock checklist evidence", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const caseBook = await loadJson("../../fixtures/a2/results/a2_case_book.json");
+  const regressionReplay = await loadJson("../../fixtures/a2/results/a2_regression_replay_report.json");
+  const commercial = await loadJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
+  const releaseGate = await loadJson("../../fixtures/a2/results/a2_release_gate_report.json");
+  const resultPersistence = await loadJson("../../fixtures/a2/results/a2_result_persistence_manifest.json");
+  const releaseUnblockChecklist = await loadJson("../../fixtures/a2/results/a2_release_unblock_checklist.json");
+
+  const persistenceSummary = summarizeA2ResultPersistence(resultPersistence);
+  assert.equal(persistenceSummary.available, true);
+  assert.equal(persistenceSummary.schema_version, "a2.result_persistence_manifest.v1");
+  assert.equal(persistenceSummary.record_count, 162);
+  assert.equal(persistenceSummary.judge_result_count, 160);
+  assert.equal(persistenceSummary.release_gate_record_count, 1);
+  assert.equal(persistenceSummary.scenario_selection_record_count, 1);
+  assert.equal(persistenceSummary.safety_blocking_result_count, 4);
+  assert.equal(persistenceSummary.public_safe, true);
+  assert.equal(persistenceSummary.secrets_not_recorded, true);
+  assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_gate" || record.record_type === "scenario_selection"));
+
+  const unblockSummary = summarizeA2ReleaseUnblockChecklist(releaseUnblockChecklist);
+  assert.equal(unblockSummary.available, true);
+  assert.equal(unblockSummary.schema_version, "a2.release_unblock_checklist.v1");
+  assert.equal(unblockSummary.overall_status, "blocked");
+  assert.deepEqual(unblockSummary.blocking_gate_ids, ["C3", "C4", "C5"]);
+  assert.equal(unblockSummary.required_action_count, 3);
+  assert.equal(unblockSummary.private_evidence_required_count, 2);
+  assert.ok(unblockSummary.required_reviewer_roles.includes("A2 evidence reviewer"));
+  assert.ok(unblockSummary.dashboard_sections.includes("C3 official grading"));
+
+  const bundle = {
+    caseBook,
+    regressionReplay,
+    commercialReadiness: commercial,
+    releaseGate,
+    resultPersistence,
+    releaseUnblockChecklist
+  };
+  const json = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.equal(json.a2_result_persistence.available, true);
+  assert.equal(json.a2_result_persistence.record_count, 162);
+  assert.equal(json.a2_release_unblock_checklist.overall_status, "blocked");
+  assert.deepEqual(json.a2_release_unblock_checklist.blocking_gate_ids, ["C3", "C4", "C5"]);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.match(markdown, /## A2 Result Persistence/);
+  assert.match(markdown, /Records: 162/);
+  assert.match(markdown, /Safety blocking results: 4/);
+  assert.match(markdown, /## A2 Release Unblock Checklist/);
+  assert.match(markdown, /Blocking gates: C3, C4, C5/);
+  assert.match(markdown, /Required reviewers: A2 evidence reviewer, A2 case-book owner/);
 });

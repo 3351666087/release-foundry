@@ -1,0 +1,2350 @@
+{
+  "schema_version": "a3.commercial_growth_manifest.v1",
+  "manifest_id": "a3cgm_2026_07_09",
+  "generated_at": "2026-07-09T00:00:00.000Z",
+  "source": "a3-local-commercial-evidence",
+  "tenant_scope": {
+    "organization_id": "org-local",
+    "project_id": "project-local"
+  },
+  "release_identity": {
+    "release_id": "a3-commercial-growth-2026-07-09",
+    "branch": "codex/a3-commercial-growth-round2",
+    "tracking_branch": "origin/codex/a3-commercial-cl-gate",
+    "semantic_boundary": "A3 manifest only; A1 runner and A2 judge semantics are unchanged."
+  },
+  "required_dimensions": [
+    "revenue",
+    "risk",
+    "audit",
+    "self-host",
+    "usage",
+    "billing",
+    "e2e"
+  ],
+  "summary": {
+    "growth_point_count": 29,
+    "dimensions": {
+      "api": {
+        "count": 7,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-06",
+          "CG-09",
+          "CG-21",
+          "CG-24",
+          "CG-25"
+        ]
+      },
+      "audit": {
+        "count": 24,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-04",
+          "CG-05",
+          "CG-06",
+          "CG-07",
+          "CG-08",
+          "CG-09",
+          "CG-10",
+          "CG-11",
+          "CG-13",
+          "CG-15",
+          "CG-16",
+          "CG-17",
+          "CG-18",
+          "CG-19",
+          "CG-22",
+          "CG-23",
+          "CG-24",
+          "CG-25",
+          "CG-26",
+          "CG-27",
+          "CG-28"
+        ]
+      },
+      "billing": {
+        "count": 4,
+        "point_ids": [
+          "CG-11",
+          "CG-12",
+          "CG-13",
+          "CG-17"
+        ]
+      },
+      "db": {
+        "count": 4,
+        "point_ids": [
+          "CG-04",
+          "CG-05",
+          "CG-10",
+          "CG-15"
+        ]
+      },
+      "e2e": {
+        "count": 16,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-04",
+          "CG-06",
+          "CG-08",
+          "CG-10",
+          "CG-14",
+          "CG-20",
+          "CG-21",
+          "CG-22",
+          "CG-23",
+          "CG-24",
+          "CG-26",
+          "CG-28",
+          "CG-29"
+        ]
+      },
+      "rbac": {
+        "count": 3,
+        "point_ids": [
+          "CG-09",
+          "CG-18",
+          "CG-25"
+        ]
+      },
+      "revenue": {
+        "count": 16,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-06",
+          "CG-11",
+          "CG-12",
+          "CG-13",
+          "CG-14",
+          "CG-16",
+          "CG-20",
+          "CG-21",
+          "CG-22",
+          "CG-24",
+          "CG-26",
+          "CG-27",
+          "CG-29"
+        ]
+      },
+      "review": {
+        "count": 3,
+        "point_ids": [
+          "CG-18",
+          "CG-19",
+          "CG-20"
+        ]
+      },
+      "risk": {
+        "count": 24,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-04",
+          "CG-05",
+          "CG-07",
+          "CG-08",
+          "CG-09",
+          "CG-10",
+          "CG-12",
+          "CG-14",
+          "CG-15",
+          "CG-16",
+          "CG-17",
+          "CG-18",
+          "CG-19",
+          "CG-20",
+          "CG-21",
+          "CG-22",
+          "CG-23",
+          "CG-25",
+          "CG-26",
+          "CG-28",
+          "CG-29"
+        ]
+      },
+      "self-host": {
+        "count": 8,
+        "point_ids": [
+          "CG-05",
+          "CG-07",
+          "CG-09",
+          "CG-14",
+          "CG-15",
+          "CG-16",
+          "CG-17",
+          "CG-27"
+        ]
+      },
+      "usage": {
+        "count": 4,
+        "point_ids": [
+          "CG-11",
+          "CG-12",
+          "CG-13",
+          "CG-27"
+        ]
+      }
+    },
+    "evidence": {
+      "a1": {
+        "count": 12,
+        "point_ids": [
+          "CG-04",
+          "CG-05",
+          "CG-09",
+          "CG-11",
+          "CG-14",
+          "CG-15",
+          "CG-21",
+          "CG-22",
+          "CG-28"
+        ]
+      },
+      "a2": {
+        "count": 9,
+        "point_ids": [
+          "CG-01",
+          "CG-04",
+          "CG-05",
+          "CG-22",
+          "CG-23",
+          "CG-24",
+          "CG-28"
+        ]
+      },
+      "a3": {
+        "count": 61,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-04",
+          "CG-05",
+          "CG-06",
+          "CG-07",
+          "CG-08",
+          "CG-09",
+          "CG-10",
+          "CG-11",
+          "CG-12",
+          "CG-13",
+          "CG-14",
+          "CG-15",
+          "CG-16",
+          "CG-17",
+          "CG-18",
+          "CG-19",
+          "CG-20",
+          "CG-21",
+          "CG-22",
+          "CG-23",
+          "CG-24",
+          "CG-25",
+          "CG-26",
+          "CG-27",
+          "CG-28",
+          "CG-29"
+        ]
+      },
+      "gaps": {
+        "count": 27,
+        "point_ids": [
+          "CG-01",
+          "CG-02",
+          "CG-03",
+          "CG-05",
+          "CG-07",
+          "CG-08",
+          "CG-09",
+          "CG-10",
+          "CG-11",
+          "CG-12",
+          "CG-13",
+          "CG-14",
+          "CG-15",
+          "CG-16",
+          "CG-17",
+          "CG-18",
+          "CG-19",
+          "CG-20",
+          "CG-21",
+          "CG-22",
+          "CG-23",
+          "CG-24",
+          "CG-25",
+          "CG-26",
+          "CG-27",
+          "CG-28",
+          "CG-29"
+        ]
+      }
+    },
+    "points_with_explicit_gaps": 27,
+    "points_with_a1_source": 9,
+    "points_with_a2_source": 7,
+    "points_with_a3_source": 29,
+    "sellable_package": "Enforced Agent PR/CL Gate plus Release Evidence Authority plus Enterprise Audit Packet plus Identity-Bound Review Workflow"
+  },
+  "contract": {
+    "api": [
+      {
+        "route": "GET /api/a3/commercial-growth/manifest",
+        "status": "planned_contract",
+        "auth": "tenant_reader_or_auditor",
+        "response_schema": "a3.commercial_growth_manifest.v1"
+      },
+      {
+        "route": "GET /api/a3/releases/:releaseId/commercial-growth",
+        "status": "planned_contract",
+        "auth": "release_reader",
+        "response_schema": "a3.commercial_growth_manifest.v1"
+      },
+      {
+        "route": "POST /api/a3/commercial-growth/refresh",
+        "status": "plan_only_until_rbac",
+        "auth": "admin_or_release_owner",
+        "response_schema": "a3.commercial_growth_manifest.v1"
+      }
+    ],
+    "db": [
+      "commercial_growth_manifests",
+      "commercial_growth_points",
+      "commercial_growth_evidence_links",
+      "commercial_growth_gap_events"
+    ],
+    "events": [
+      "commercial_growth.manifest_generated",
+      "commercial_growth.point_recorded",
+      "commercial_growth.gap_recorded",
+      "commercial_growth.point_promoted",
+      "commercial_growth.manifest_exported"
+    ],
+    "artifacts": [
+      "a3_commercial_growth_manifest.redacted.json",
+      "p3_commercial_growth_manifest_2026_07_09.md",
+      "release_evidence_summary",
+      "report_center_manifest",
+      "audit_bundle_index"
+    ]
+  },
+  "tenant_auth_rbac_usage_audit": {
+    "tenant": {
+      "required_scope_fields": [
+        "organization_id",
+        "project_id",
+        "release_id"
+      ],
+      "cross_tenant_default": "404_or_empty",
+      "storage_policy": "tenant columns required before durable SaaS claim"
+    },
+    "auth": {
+      "current_state": "local metadata only",
+      "required_before_live_refresh": [
+        "hosted auth middleware",
+        "service account identity",
+        "nonce and timestamp replay defense"
+      ],
+      "live_credentials_stored": false
+    },
+    "rbac": {
+      "roles": [
+        "owner",
+        "admin",
+        "developer",
+        "reviewer",
+        "auditor",
+        "billing_admin"
+      ],
+      "required_permissions": [
+        "growth:read",
+        "growth:refresh",
+        "evidence:read",
+        "audit:read",
+        "usage:read"
+      ],
+      "enforcement_state": "planned until A1 auth middleware exists"
+    },
+    "usage": {
+      "meter_candidates": [
+        "growth_manifest_exports",
+        "growth_point_promotions",
+        "readback_checks",
+        "audit_packet_exports"
+      ],
+      "billing_mutations_enabled": false,
+      "chargeback_state": "read_only_preview"
+    },
+    "audit": {
+      "append_only_events_required": true,
+      "event_payload_policy": "ids, hashes, paths, statuses, and counts only",
+      "verifier_link": "audit_bundle_index"
+    }
+  },
+  "a1_a2_integration": {
+    "a1": {
+      "consumed_contracts": [
+        "RunResult",
+        "Trace",
+        "ToolCall",
+        "Observation",
+        "WorkerDataModel",
+        "SaaSControlPlane"
+      ],
+      "must_not_change": "A3 reads A1 evidence projections and does not alter runner behavior or A1 API semantics."
+    },
+    "a2": {
+      "consumed_contracts": [
+        "GradeResult",
+        "ReleaseGate",
+        "ScenarioSelection",
+        "JudgeVersions",
+        "CommercialReadiness",
+        "CalibrationMatrix"
+      ],
+      "must_not_change": "A3 reads A2 outputs additively and does not alter judge scoring, thresholds, or release policy semantics."
+    },
+    "a3": {
+      "downstream_only": true,
+      "role": "Bind A1/A2 evidence into report, gate, review, audit, usage, billing, and self-host contracts."
+    }
+  },
+  "growth_points": [
+    {
+      "id": "CG-01",
+      "title": "GitHub Check readback worker",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "audit",
+        "e2e",
+        "api"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "GitHub Check readback worker",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [
+          {
+            "path": "docs/a2/schemas/release_gate.schema.json",
+            "contract": "a2.release_gate",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "services/report/a3_release_evidence.mjs",
+            "contract": "a3.release_evidence_summary.v2",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_readback_capture_cli.mjs",
+            "contract": "a3.readback_capture_cli",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json",
+            "contract": "a3.github_check_readback_receipt.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "live_provider_worker",
+            "description": "Maintainer-approved live GitHub worker is future integration evidence.",
+            "owner_lane": "A3/GitHub",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/releases/:releaseId/readbacks"
+        ],
+        "db": [
+          "release_evidence_readbacks"
+        ],
+        "events": [
+          "release_evidence.readback_captured"
+        ],
+        "artifacts": [
+          "release_evidence_readback",
+          "github_check_run"
+        ]
+      },
+      "order": 1,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-02",
+      "title": "PR comment readback worker",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "audit",
+        "e2e",
+        "api"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "PR comment readback worker",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_github_integration.mjs",
+            "contract": "a3.github_pr_comment_publish_receipt.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json",
+            "contract": "a3.github_pr_comment_readback_receipt.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "live_pr_comment_query",
+            "description": "Live PR comment query and provider readback remain future integration evidence.",
+            "owner_lane": "A3/GitHub",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/releases/:releaseId/readbacks"
+        ],
+        "db": [
+          "release_evidence_readbacks",
+          "audit_events"
+        ],
+        "events": [
+          "release_evidence.readback_captured",
+          "pr_comment.readback_stale"
+        ],
+        "artifacts": [
+          "pr_comment_markdown",
+          "release_evidence_readback"
+        ]
+      },
+      "order": 2,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-03",
+      "title": "Required branch-protection proof",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "audit",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "gap_explicit",
+      "sellable_claim": "Required branch-protection proof",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "fixtures/a3/p3/a3_github_required_check_plan.redacted.json",
+            "contract": "a3.github_required_check_plan.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md",
+            "contract": "required-check plan-only documentation",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "branch_protection_readback",
+            "description": "Plan-only evidence cannot prove branch protection enforcement.",
+            "owner_lane": "A3/GitHub",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/releases/:releaseId/required-check-proof"
+        ],
+        "db": [
+          "release_evidence_readbacks"
+        ],
+        "events": [
+          "required_check.proof_captured"
+        ],
+        "artifacts": [
+          "github_required_check_proof"
+        ]
+      },
+      "order": 3,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-04",
+      "title": "Immutable release evidence authority",
+      "dimensions": [
+        "audit",
+        "risk",
+        "db",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Immutable release evidence authority",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/run_result.schema.json",
+            "contract": "A1 RunResult",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [
+          {
+            "path": "docs/a2/schemas/grade_results.schema.json",
+            "contract": "A2 GradeResult",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "services/report/a3_release_evidence.mjs",
+            "contract": "a3.release_evidence_summary.v2",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": []
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/releases/:releaseId/evidence-summary",
+          "GET /api/a3/releases/:releaseId/evidence-health"
+        ],
+        "db": [
+          "release_evidence_summaries",
+          "release_evidence_snapshots",
+          "release_evidence_diffs"
+        ],
+        "events": [
+          "release_evidence.snapshot_created",
+          "release_evidence.diff_created"
+        ],
+        "artifacts": [
+          "release_evidence_summary"
+        ]
+      },
+      "order": 4,
+      "evidence_state": "evidence_backed"
+    },
+    {
+      "id": "CG-05",
+      "title": "A1/A2 source snapshot ledger",
+      "dimensions": [
+        "audit",
+        "risk",
+        "db",
+        "self-host"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "A1/A2 source snapshot ledger",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/run_result.schema.json",
+            "contract": "RunResult",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a1/schemas/trace_event.schema.json",
+            "contract": "TraceEvent",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [
+          {
+            "path": "docs/a2/schemas/grade_results.schema.json",
+            "contract": "GradeResult",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a2/schemas/release_policy.schema.json",
+            "contract": "ReleasePolicy",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "docs/a3/p3_a1_a2_release_evidence_v2_contract_map_2026_07_08.md",
+            "contract": "A1/A2 release evidence v2 map",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "mandatory_source_hash_projection",
+            "description": "Not every A1/A2 source artifact is hash-linked into v2 authority rows yet.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/import/a1-run-result",
+          "POST /api/a3/import/a2-grade-result"
+        ],
+        "db": [
+          "api_import_receipts",
+          "idempotency_keys",
+          "release_evidence_snapshots"
+        ],
+        "events": [
+          "a1.imported",
+          "a2.imported",
+          "source_snapshot.created"
+        ],
+        "artifacts": [
+          "source_snapshot_ledger",
+          "api_import_receipt"
+        ]
+      },
+      "order": 5,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-06",
+      "title": "Report Center packet detail",
+      "dimensions": [
+        "revenue",
+        "audit",
+        "e2e",
+        "api"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Report Center packet detail",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_report_center_manifest.mjs",
+            "contract": "a3.report_center_manifest.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_artifact_registry.mjs",
+            "contract": "a3.artifact_registry.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_report_center_manifest_growth_2026_07_07.md",
+            "contract": "Report Center manifest contract",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": []
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/report-center",
+          "GET /api/a3/reports/:reportId/manifest"
+        ],
+        "db": [
+          "shareable_reports",
+          "report_share_links",
+          "artifact_registry_entries"
+        ],
+        "events": [
+          "report.snapshot_created",
+          "report.manifest_generated"
+        ],
+        "artifacts": [
+          "report_center_manifest",
+          "hosted_report",
+          "usage_ledger"
+        ]
+      },
+      "order": 6,
+      "evidence_state": "evidence_backed"
+    },
+    {
+      "id": "CG-07",
+      "title": "Artifact hash coverage for every customer packet",
+      "dimensions": [
+        "audit",
+        "risk",
+        "self-host"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "Artifact hash coverage for every customer packet",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_artifact_registry.mjs",
+            "contract": "a3.artifact_registry.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json",
+            "contract": "a3.generated_artifact_manifest.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json",
+            "contract": "a3.audit_bundle_index.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "visual_artifact_hashes",
+            "description": "PDF, screenshot, and hosted HTML hashes are not universally covered yet.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/artifacts/registry"
+        ],
+        "db": [
+          "artifact_registry_entries",
+          "artifact_lifecycle_events"
+        ],
+        "events": [
+          "artifact.hash_recorded",
+          "artifact.verified"
+        ],
+        "artifacts": [
+          "generated_artifact_manifest",
+          "audit_bundle_index",
+          "audit_archive_manifest"
+        ]
+      },
+      "order": 7,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-08",
+      "title": "Universal export redaction firewall",
+      "dimensions": [
+        "risk",
+        "audit",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Universal export redaction firewall",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/export_redaction_firewall.mjs",
+            "contract": "a3.export_redaction_firewall.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "tests/a3/export_firewall_generated_artifacts.test.mjs",
+            "contract": "redaction firewall tests",
+            "status": "available",
+            "source_type": "test"
+          },
+          {
+            "path": "docs/a3/p3_redaction_firewall_evidence_map_2026_07_07.md",
+            "contract": "redaction evidence map",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "all_surface_enforcement",
+            "description": "Newer surfaces still need one universal publish gate.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/reports/share"
+        ],
+        "db": [
+          "redaction_scans",
+          "artifact_registry_entries"
+        ],
+        "events": [
+          "artifact.redaction_scanned",
+          "artifact.redaction_blocked"
+        ],
+        "artifacts": [
+          "export_redaction_firewall",
+          "redaction_findings_log"
+        ]
+      },
+      "order": 8,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-09",
+      "title": "Hosted auth and tenant-bound RBAC",
+      "dimensions": [
+        "risk",
+        "audit",
+        "rbac",
+        "self-host",
+        "api"
+      ],
+      "priority": "high",
+      "maturity": "gap_explicit",
+      "sellable_claim": "Hosted auth and tenant-bound RBAC",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/saas_control_plane.schema.json",
+            "contract": "A1 SaaS control plane",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_saas_admin.mjs",
+            "contract": "a3.saas_admin_console.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "hosted_auth_middleware",
+            "description": "Local tenant options are not hosted auth or RBAC enforcement.",
+            "owner_lane": "A1/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "all /api/a3/* tenant routes"
+        ],
+        "db": [
+          "users",
+          "roles",
+          "team_members",
+          "api_keys",
+          "audit_events"
+        ],
+        "events": [
+          "auth.session_started",
+          "rbac.denied",
+          "audit.actor_bound"
+        ],
+        "artifacts": [
+          "rbac_matrix",
+          "auth_boundary_receipt"
+        ]
+      },
+      "order": 9,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-10",
+      "title": "Cross-tenant negative tests",
+      "dimensions": [
+        "risk",
+        "audit",
+        "e2e",
+        "db"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Cross-tenant negative tests",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "tests/a3/a3_api_server.test.mjs",
+            "contract": "A3 API tenant-scope tests",
+            "status": "available",
+            "source_type": "test"
+          },
+          {
+            "path": "tests/a3/a3_sqlite_store.test.mjs",
+            "contract": "SQLite tenant persistence tests",
+            "status": "available",
+            "source_type": "test"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "real_auth_negative_tests",
+            "description": "Real hosted auth/RBAC tenant tests are blocked until auth middleware exists.",
+            "owner_lane": "A1/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/reports/:reportId",
+          "GET /api/a3/releases/:releaseId/readbacks"
+        ],
+        "db": [
+          "shareable_reports",
+          "release_evidence_readbacks",
+          "usage_ledger"
+        ],
+        "events": [
+          "tenant_scope.denied"
+        ],
+        "artifacts": [
+          "tenant_scope_negative_test_report"
+        ]
+      },
+      "order": 10,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-11",
+      "title": "Usage ledger event ids",
+      "dimensions": [
+        "usage",
+        "billing",
+        "revenue",
+        "audit"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Usage ledger event ids",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/worker_data_model.schema.json",
+            "contract": "A1 worker usage model",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_usage_ledger.mjs",
+            "contract": "a3.usage_ledger.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_sql_migrations.mjs",
+            "contract": "usage_ledger SQL contract",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "append_only_usage_event_ids",
+            "description": "Meters exist, but all billable events are not durable append-only rows yet.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/usage/ledger"
+        ],
+        "db": [
+          "usage_ledger"
+        ],
+        "events": [
+          "usage.recorded",
+          "usage.adjustment_planned"
+        ],
+        "artifacts": [
+          "usage_ledger"
+        ]
+      },
+      "order": 11,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-12",
+      "title": "Quota and chargeback preview",
+      "dimensions": [
+        "usage",
+        "billing",
+        "revenue",
+        "risk"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Quota and chargeback preview",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_saas_admin.mjs",
+            "contract": "a3.saas_admin_console.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/ashr_usage_quota_sample.redacted.json",
+            "contract": "redacted usage quota fixture",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "real_entitlements",
+            "description": "No billing or entitlement provider is wired; preview must stay read-only.",
+            "owner_lane": "A3/Billing",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/admin/console",
+          "POST /api/a3/admin/actions/submit"
+        ],
+        "db": [
+          "saas_admin_action_requests",
+          "usage_ledger"
+        ],
+        "events": [
+          "usage.quota_viewed",
+          "admin_action.requested"
+        ],
+        "artifacts": [
+          "saas_admin_guardrails",
+          "usage_quota_snapshot"
+        ]
+      },
+      "order": 12,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-13",
+      "title": "Billing export with explicit approval",
+      "dimensions": [
+        "billing",
+        "revenue",
+        "audit",
+        "usage"
+      ],
+      "priority": "medium",
+      "maturity": "gap_explicit",
+      "sellable_claim": "Billing export with explicit approval",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_usage_ledger.mjs",
+            "contract": "a3.usage_ledger.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_review_workflow.mjs",
+            "contract": "a3.approval_review.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "billing_export_artifact",
+            "description": "No billing export artifact exists yet; live billing mutation remains out of scope.",
+            "owner_lane": "A3/Billing",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/billing/export-plan"
+        ],
+        "db": [
+          "usage_ledger",
+          "audit_events",
+          "review_workflow_records"
+        ],
+        "events": [
+          "billing_export.planned",
+          "billing_export.approved",
+          "billing_export.generated"
+        ],
+        "artifacts": [
+          "billing_export_preview",
+          "approval_record"
+        ]
+      },
+      "order": 13,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-14",
+      "title": "Self-host smoke package",
+      "dimensions": [
+        "self-host",
+        "revenue",
+        "risk",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "Self-host smoke package",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "infra/docker/docker-compose.self-host.yml",
+            "contract": "A1 self-host compose scaffold",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a1/self_host_runtime_scaffold.md",
+            "contract": "A1 self-host runtime scaffold",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_enterprise_readiness.mjs",
+            "contract": "a3.enterprise_readiness.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_self_host_console_growth_2026_07_07.md",
+            "contract": "A3 self-host console direction",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "installable_package",
+            "description": "No single installable A3 self-host package with backup/restore proof exists yet.",
+            "owner_lane": "A3/Self-host",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/health",
+          "GET /api/a3/self-host/status"
+        ],
+        "db": [
+          "organizations",
+          "projects",
+          "artifact_registry_entries",
+          "usage_ledger"
+        ],
+        "events": [
+          "self_host.smoke_started",
+          "self_host.smoke_passed"
+        ],
+        "artifacts": [
+          "self_host_smoke_receipt",
+          "offline_verifier_packet"
+        ]
+      },
+      "order": 14,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-15",
+      "title": "Postgres/RLS and object-storage custody",
+      "dimensions": [
+        "self-host",
+        "db",
+        "risk",
+        "audit"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "Postgres/RLS and object-storage custody",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/a1_control_plane_postgres_migration.sql",
+            "contract": "A1 Postgres migration contract",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_sql_migrations.mjs",
+            "contract": "a3.sql_migration_plan.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "rls_apply_receipt",
+            "description": "Postgres/RLS and object-storage apply receipts are not present in local A3 evidence.",
+            "owner_lane": "A3/Self-host",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/storage/health"
+        ],
+        "db": [
+          "all tenant-owned tables",
+          "artifact_lifecycle_events"
+        ],
+        "events": [
+          "storage.object_verified",
+          "backup.verified",
+          "restore.verified"
+        ],
+        "artifacts": [
+          "storage_health_receipt",
+          "backup_restore_receipt"
+        ]
+      },
+      "order": 15,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-16",
+      "title": "Offline verifier packet",
+      "dimensions": [
+        "self-host",
+        "audit",
+        "revenue",
+        "risk"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Offline verifier packet",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json",
+            "contract": "a3.audit_bundle_verification.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_audit_archive_verification_passed.redacted.json",
+            "contract": "a3.audit_archive_verification.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_audit_archive.mjs",
+            "contract": "a3.audit_archive_manifest.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "single_packet_export",
+            "description": "Bundle/archive pieces exist, but one offline verifier packet route is not complete.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/audit/packet/:packetId"
+        ],
+        "db": [
+          "artifact_registry_entries",
+          "artifact_lifecycle_events",
+          "audit_events"
+        ],
+        "events": [
+          "audit_packet.exported",
+          "audit_packet.verified"
+        ],
+        "artifacts": [
+          "audit_bundle_index",
+          "audit_archive_manifest",
+          "offline_verifier_packet"
+        ]
+      },
+      "order": 16,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-17",
+      "title": "Retention and legal hold workflow",
+      "dimensions": [
+        "audit",
+        "risk",
+        "self-host",
+        "billing"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Retention and legal hold workflow",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "docs/a3/p3_report_center_manifest_growth_2026_07_07.md",
+            "contract": "retention fields in manifest contract",
+            "status": "available",
+            "source_type": "doc"
+          },
+          {
+            "path": "services/report/a3_artifact_registry.mjs",
+            "contract": "retention_class registry field",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "retention_job",
+            "description": "No enforced retention/legal-hold job or purge receipt exists yet.",
+            "owner_lane": "A3/Self-host",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/artifacts/:artifactId/legal-hold",
+          "POST /api/a3/artifacts/:artifactId/purge-plan"
+        ],
+        "db": [
+          "artifact_registry_entries",
+          "artifact_lifecycle_events",
+          "usage_ledger"
+        ],
+        "events": [
+          "retention.legal_hold_applied",
+          "retention.purge_planned",
+          "retention.purge_completed"
+        ],
+        "artifacts": [
+          "retention_policy_receipt",
+          "legal_hold_receipt"
+        ]
+      },
+      "order": 17,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-18",
+      "title": "Identity-bound approvals",
+      "dimensions": [
+        "risk",
+        "audit",
+        "review",
+        "rbac"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "Identity-bound approvals",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_review_workflow.mjs",
+            "contract": "a3.approval_review.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json",
+            "contract": "a3.approval.v1 fixture",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_signed_approval_validation_growth_2026_07_07.md",
+            "contract": "signed approval growth doc",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "real_actor_binding",
+            "description": "Approval signer is not backed by hosted identity/RBAC enforcement yet.",
+            "owner_lane": "A1/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/reviews/approvals"
+        ],
+        "db": [
+          "review_workflow_records",
+          "audit_events"
+        ],
+        "events": [
+          "approval.recorded",
+          "approval.rejected",
+          "approval.expired"
+        ],
+        "artifacts": [
+          "approval_record",
+          "approval_review"
+        ]
+      },
+      "order": 18,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-19",
+      "title": "Waiver expiry and remediation tracking",
+      "dimensions": [
+        "risk",
+        "audit",
+        "review"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Waiver expiry and remediation tracking",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_review_workflow.mjs",
+            "contract": "a3.waiver_review.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a3/p3/a3_waiver_review_blocked_exception.redacted.json",
+            "contract": "waiver review fixture",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_waiver_validation_growth_2026_07_07.md",
+            "contract": "waiver validation growth doc",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "issue_tracker_binding",
+            "description": "Follow-up issue tracker binding is not implemented.",
+            "owner_lane": "A3/Review",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/reviews/waivers"
+        ],
+        "db": [
+          "review_workflow_records",
+          "audit_events"
+        ],
+        "events": [
+          "waiver.requested",
+          "waiver.accepted",
+          "waiver.expired"
+        ],
+        "artifacts": [
+          "waiver_request",
+          "waiver_review"
+        ]
+      },
+      "order": 19,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-20",
+      "title": "Reviewer SLA and escalation",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "review",
+        "e2e"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Reviewer SLA and escalation",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "docs/a3/p3_reviewer_workflow_board_growth_2026_07_07.md",
+            "contract": "reviewer workflow board contract",
+            "status": "available",
+            "source_type": "doc"
+          },
+          {
+            "path": "tests/a3/a3_review_workflow.test.mjs",
+            "contract": "review workflow tests",
+            "status": "available",
+            "source_type": "test"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "notification_provider",
+            "description": "No notification or escalation provider is wired.",
+            "owner_lane": "A3/Review",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/reviews/board",
+          "PATCH /api/a3/reviews/items/:itemId"
+        ],
+        "db": [
+          "review_workflow_records",
+          "audit_events"
+        ],
+        "events": [
+          "review_item.assigned",
+          "review_item.escalated",
+          "review_item.resolved"
+        ],
+        "artifacts": [
+          "reviewer_board",
+          "pr_comment_markdown"
+        ]
+      },
+      "order": 20,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-21",
+      "title": "Production trace ingestion API",
+      "dimensions": [
+        "api",
+        "revenue",
+        "risk",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "gap_explicit",
+      "sellable_claim": "Production trace ingestion API",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/trace_event.schema.json",
+            "contract": "TraceEvent",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a1/schemas/observation.schema.json",
+            "contract": "Observation",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [],
+        "a3": [
+          {
+            "path": "docs/a3/p3_observability_replay_matrix_growth_2026_07_07.md",
+            "contract": "observability replay matrix",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "production_trace_import_route",
+            "description": "A3 does not expose a production trace ingestion route yet.",
+            "owner_lane": "A3/API",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/traces/import",
+          "GET /api/a3/traces/:traceId"
+        ],
+        "db": [
+          "trace_events",
+          "tool_calls",
+          "api_import_receipts"
+        ],
+        "events": [
+          "trace.imported",
+          "trace.validation_failed"
+        ],
+        "artifacts": [
+          "trace_ingestion_receipt"
+        ]
+      },
+      "order": 21,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-22",
+      "title": "Replay pack and runner receipts",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "e2e",
+        "audit"
+      ],
+      "priority": "high",
+      "maturity": "contract_ready",
+      "sellable_claim": "Replay pack and runner receipts",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/trace_event.schema.json",
+            "contract": "TraceEvent",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [
+          {
+            "path": "docs/a2/schemas/regression_replay.schema.json",
+            "contract": "A2 regression replay",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "docs/a3/p3_incident_replay_queue_growth_2026_07_07.md",
+            "contract": "incident replay queue contract",
+            "status": "available",
+            "source_type": "doc"
+          },
+          {
+            "path": "docs/a3/p3_regression_factory_growth_2026_07_07.md",
+            "contract": "regression factory contract",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "executable_replay_runner",
+            "description": "Replay queue exists as evidence/workflow, but production runner receipt is future work.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/replay-packs",
+          "POST /api/a3/replay-packs/:packId/receipts"
+        ],
+        "db": [
+          "artifact_registry_entries",
+          "audit_events",
+          "usage_ledger"
+        ],
+        "events": [
+          "replay_pack.generated",
+          "replay.receipt_recorded"
+        ],
+        "artifacts": [
+          "replay_pack",
+          "replay_runner_receipt"
+        ]
+      },
+      "order": 22,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-23",
+      "title": "Judge calibration and drift in gate health",
+      "dimensions": [
+        "risk",
+        "audit",
+        "e2e"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Judge calibration and drift in gate health",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [
+          {
+            "path": "fixtures/a2/results/a2_g3_calibration_matrix.json",
+            "contract": "a2.calibration_matrix.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "fixtures/a2/results/a2_judge_versions.json",
+            "contract": "a2.judge_versions.v1",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "services/report/a3_release_evidence.mjs",
+            "contract": "release evidence health",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "live_drift_monitor",
+            "description": "No live judge drift monitor is wired into A3 gate health.",
+            "owner_lane": "A2/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/releases/:releaseId/evidence-health"
+        ],
+        "db": [
+          "release_evidence_snapshots"
+        ],
+        "events": [
+          "judge_calibration.linked",
+          "judge_drift.detected"
+        ],
+        "artifacts": [
+          "calibration_matrix",
+          "judge_version_registry",
+          "release_evidence_summary"
+        ]
+      },
+      "order": 23,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-24",
+      "title": "Versioned A3 OpenAPI and webhooks",
+      "dimensions": [
+        "api",
+        "revenue",
+        "e2e",
+        "audit"
+      ],
+      "priority": "medium",
+      "maturity": "gap_explicit",
+      "sellable_claim": "Versioned A3 OpenAPI and webhooks",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [
+          {
+            "path": "docs/a2/openapi/a2_judge_service.openapi.json",
+            "contract": "A2 OpenAPI precedent",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "services/report/a3_api_server.mjs",
+            "contract": "A3 local API routes",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "a3_openapi_file",
+            "description": "No versioned A3 OpenAPI artifact is committed yet.",
+            "owner_lane": "A3/API",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "docs/a3/openapi/a3_release_governance.openapi.json"
+        ],
+        "db": [
+          "audit_events",
+          "idempotency_keys"
+        ],
+        "events": [
+          "webhook.delivery_planned",
+          "webhook.delivery_failed"
+        ],
+        "artifacts": [
+          "openapi_contract",
+          "webhook_schema"
+        ]
+      },
+      "order": 24,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-25",
+      "title": "SaaS admin action-request audit path",
+      "dimensions": [
+        "risk",
+        "audit",
+        "rbac",
+        "api"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "SaaS admin action-request audit path",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_saas_admin.mjs",
+            "contract": "a3.saas_admin_action_request.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_sql_migrations.mjs",
+            "contract": "saas_admin_action_requests SQL contract",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_saas_admin_action_requests_2026_07_08.md",
+            "contract": "admin action request doc",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "hosted_rbac_for_admin_actions",
+            "description": "Action requests are not authorized by real hosted RBAC yet.",
+            "owner_lane": "A1/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/admin/actions/submit",
+          "GET /api/a3/admin/actions"
+        ],
+        "db": [
+          "saas_admin_action_requests",
+          "audit_events"
+        ],
+        "events": [
+          "admin_action.requested",
+          "admin_action.blocked",
+          "admin_action.reviewed"
+        ],
+        "artifacts": [
+          "saas_admin_action_request_summary"
+        ]
+      },
+      "order": 25,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-26",
+      "title": "Hosted report share gating by health",
+      "dimensions": [
+        "revenue",
+        "risk",
+        "audit",
+        "e2e"
+      ],
+      "priority": "high",
+      "maturity": "local_evidence_ready",
+      "sellable_claim": "Hosted report share gating by health",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_shareable_report.mjs",
+            "contract": "a3.shareable_report.v1",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "services/report/a3_report_center.mjs",
+            "contract": "Report Center lifecycle",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "tests/a3/shareable_report.test.mjs",
+            "contract": "hosted report redaction tests",
+            "status": "available",
+            "source_type": "test"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "external_auth_mode",
+            "description": "External auth-required hosted report mode is not production-wired.",
+            "owner_lane": "A1/A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/reports/share",
+          "GET /r/:shareToken"
+        ],
+        "db": [
+          "shareable_reports",
+          "report_share_links",
+          "report_view_events"
+        ],
+        "events": [
+          "report.share_link_created",
+          "report.share_link_viewed",
+          "report.share_link_revoked",
+          "report.share_blocked"
+        ],
+        "artifacts": [
+          "hosted_report",
+          "release_evidence_summary",
+          "report_center_manifest"
+        ]
+      },
+      "order": 26,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-27",
+      "title": "Customer evidence packet presets",
+      "dimensions": [
+        "revenue",
+        "audit",
+        "self-host",
+        "usage"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Customer evidence packet presets",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "services/report/a3_artifact_registry.mjs",
+            "contract": "packet_presets",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_growth_auditor_artifact_registry_2026_07_07.md",
+            "contract": "artifact registry packet presets",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "one_click_packet_api",
+            "description": "Packet presets are modeled but no packet build endpoint exists.",
+            "owner_lane": "A3",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "POST /api/a3/packets/:presetId/build"
+        ],
+        "db": [
+          "artifact_registry_entries",
+          "usage_ledger",
+          "audit_events"
+        ],
+        "events": [
+          "packet.build_requested",
+          "packet.generated",
+          "usage.recorded"
+        ],
+        "artifacts": [
+          "pr_review_packet",
+          "security_audit_packet",
+          "customer_safe_packet"
+        ]
+      },
+      "order": 27,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-28",
+      "title": "Commercial CL gate selector visibility",
+      "dimensions": [
+        "risk",
+        "audit",
+        "e2e"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Commercial CL gate selector visibility",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [
+          {
+            "path": "docs/a1/schemas/evidence_index.schema.json",
+            "contract": "A1 evidence index anchor",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a2": [
+          {
+            "path": "docs/a2/schemas/commercial_readiness.schema.json",
+            "contract": "A2 commercial readiness anchor",
+            "status": "available",
+            "source_type": "contract"
+          }
+        ],
+        "a3": [
+          {
+            "path": "scripts/cl_guard.py",
+            "contract": "commercial anchor gate",
+            "status": "available",
+            "source_type": "contract"
+          },
+          {
+            "path": "docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md",
+            "contract": "CL contract alignment doc",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "manifest_specific_cl_selector",
+            "description": "The CL guard does not inspect this manifest schema directly yet.",
+            "owner_lane": "A3/CL",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [],
+        "db": [],
+        "events": [
+          "cl_gate.commercial_checked"
+        ],
+        "artifacts": [
+          "cl_gate_plan",
+          "commercial_growth_manifest"
+        ]
+      },
+      "order": 28,
+      "evidence_state": "evidence_backed_with_gap"
+    },
+    {
+      "id": "CG-29",
+      "title": "Current visual E2E evidence lane",
+      "dimensions": [
+        "e2e",
+        "risk",
+        "revenue"
+      ],
+      "priority": "medium",
+      "maturity": "contract_ready",
+      "sellable_claim": "Current visual E2E evidence lane",
+      "next_build": "Promote this growth point from contract evidence to durable API, DB, event, and artifact proof.",
+      "customer_value": "Strengthens A3 as a commercial release-governance evidence product.",
+      "evidence_bindings": {
+        "a1": [],
+        "a2": [],
+        "a3": [
+          {
+            "path": "tests/a3/dashboard_wiring.test.mjs",
+            "contract": "dashboard wiring smoke",
+            "status": "available",
+            "source_type": "test"
+          },
+          {
+            "path": "docs/screenshots/a3-dashboard-release-war-room.png",
+            "contract": "existing dashboard screenshot evidence",
+            "status": "available",
+            "source_type": "screenshot"
+          },
+          {
+            "path": "docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md",
+            "contract": "Playwright gap doc",
+            "status": "available",
+            "source_type": "doc"
+          }
+        ],
+        "gaps": [
+          {
+            "id": "playwright_ts_lane",
+            "description": "Playwright TS E2E lane is advisory until the toolchain exists.",
+            "owner_lane": "A3/E2E",
+            "blocks_enterprise_claim": true
+          }
+        ]
+      },
+      "contract_surface": {
+        "api": [
+          "GET /api/a3/dashboard",
+          "GET /r/:shareToken"
+        ],
+        "db": [
+          "report_view_events"
+        ],
+        "events": [
+          "visual_e2e.screenshot_captured",
+          "visual_e2e.leak_scan_passed"
+        ],
+        "artifacts": [
+          "dashboard_screenshot",
+          "hosted_report_screenshot",
+          "mobile_screenshot"
+        ]
+      },
+      "order": 29,
+      "evidence_state": "evidence_backed_with_gap"
+    }
+  ],
+  "safety": {
+    "contains_secret_values": false,
+    "raw_tokens_allowed": false,
+    "raw_cookies_allowed": false,
+    "raw_api_keys_allowed": false,
+    "raw_signed_urls_allowed": false,
+    "local_absolute_paths_allowed": false,
+    "live_cloud_mutations_performed": false,
+    "fixture_output_path": "fixtures/a3/p3/a3_commercial_growth_manifest.redacted.json"
+  },
+  "acceptance": {
+    "node_test": "node --test tests/a3/a3_commercial_growth_manifest.test.mjs",
+    "fixture": "fixtures/a3/p3/a3_commercial_growth_manifest.redacted.json",
+    "documentation": "docs/a3/p3_commercial_growth_manifest_2026_07_09.md",
+    "checklist": "docs/a3/acceptance_checklist.md"
+  },
+  "manifest_hash": "3ddf27b317a32c761d17df627d125efa2bc2119a48258a408243d4718112c6f6"
+}

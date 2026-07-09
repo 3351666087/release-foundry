@@ -2827,8 +2827,211 @@ Current interpretation:
 
 This closes the gap between "A3 can store readback" and "A3 can be fed by a worker and show readback to users." Production still needs a live GitHub App/GitHub Actions worker, hosted auth/RBAC, and production Postgres/RLS before readback can enforce a real customer release gate.
 
+## 2026-07-09 - Commercial CL gate anchors
+
+Continued from latest `main` after A3 readback work was merged. This round upgrades the CL gate so A3 cannot quietly drift away from the commercial SaaS endgame.
+
+Implemented:
+
+- Added `commercial` subcommand to `scripts/cl_guard.py`.
+- Added commercial anchor gate to `.github/workflows/cl-gate.yml`.
+- Added 20 blocker anchors covering strategy, CL workflow, A3 dashboard/API/report/store/release evidence/readback, A1 schemas, A2 schemas, and A3 tests.
+- Added 4 advisory-only gaps for future A3 toolchains:
+  - Playwright TS E2E
+  - Tailwind/CSS product system
+  - React Native / Expo mobile surface
+  - WeChat mini program surface
+- Added tests:
+  - `tests/a1/test_cl_guard.py`
+- Added Contract-Agent artifact:
+  - `docs/a3/p3_cl_gate_a1_a2_contract_alignment_2026_07_09.md`
+- Added UI/TS/Playwright artifact:
+  - `docs/a3/p3_cl_gate_typescript_playwright_gap_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_cl_gate_2026_07_09.md`
+
+Verification:
+
+```text
+python -m py_compile scripts/cl_guard.py tests/a1/test_cl_guard.py
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+python -B -m pytest tests/a1/test_cl_guard.py -q -p no:cacheprovider
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/a3_review_workflow.test.mjs
+npm ci  # in packages/ts/ashr-clone
+```
+
+Results:
+
+- CL guard pytest passed: 3 pass, 0 fail.
+- A3 Node contracts passed: 37 pass, 0 fail.
+- TypeScript package dependency install passed with 0 vulnerabilities.
+- Local full TypeScript SDK test is blocked by missing Go on this Windows workstation because the TS suite intentionally builds and drives the Go API server.
+- Added Go setup to the `typescript-sdk` CI job so the cross-stack TypeScript-to-Go vertical slice can run in GitHub Actions.
+
+A1/A2 calibration:
+
+- A1 evidence and worker schema anchors now participate in the CL gate.
+- A2 grade and commercial-readiness schema anchors now participate in the CL gate.
+- A3 still consumes A1/A2 evidence downstream through API/dashboard/report tests; it does not redefine A1/A2 semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub mutation.
+- No billing/auth/team/API-key/Trust/cloud mutation.
+- Missing Playwright/Tailwind/mobile/WeChat surfaces are advisories, not false blockers.
+
+Current interpretation:
+
+This round makes A3 more durable rather than more flashy. It gives the repo a low-noise commercial regression gate: if future work removes the release evidence path, A1/A2 contract anchors, TypeScript mainline, dashboard webapp split, or A3 API/report/store evidence spine, CL can stop it.
+
 - No token, cookie, email, Authorization header, or raw signed URL committed.
 
 Remaining production gap:
 
 Publish receipts still need audit-bundle hashing, dedicated dashboard cards, and real branch-protection verification.
+
+## 2026-07-09 - Commercial Growth Round 2
+
+Continued from PR #23 / `codex/a3-commercial-growth-round2` with latest `origin/main` and `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the commercial bus. This round pushed A3 in three parallel directions: Playwright E2E proof, A2 persistence/unblock export consumption, and a machine-readable commercial growth manifest.
+
+Implemented:
+
+- Added Playwright TS E2E infrastructure:
+  - `package.json`
+  - `package-lock.json`
+  - `playwright.config.ts`
+  - `tests/e2e/static-dashboard-server.mjs`
+  - `tests/e2e/a3-dashboard-commercial.spec.ts`
+- Verified the real dashboard page `apps/dashboard/index.html?source=p3-official-demo`.
+- Captured screenshot evidence:
+  - `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`
+- Added A2 persistence/unblock export bridge:
+  - `summarizeA2ResultPersistence`
+  - `summarizeA2ReleaseUnblockChecklist`
+  - JSON report fields `a2_result_persistence` and `a2_release_unblock_checklist`
+  - Markdown report sections `A2 Result Persistence` and `A2 Release Unblock Checklist`
+- Wired dashboard report export to load:
+  - `fixtures/a2/results/a2_result_persistence_manifest.json`
+  - `fixtures/a2/results/a2_release_unblock_checklist.json`
+- Added commercial growth manifest:
+  - `services/report/a3_commercial_growth_manifest.mjs`
+  - `tests/a3/a3_commercial_growth_manifest.test.mjs`
+  - `fixtures/a3/p3/a3_commercial_growth_manifest.redacted.json`
+  - `docs/a3/p3_commercial_growth_manifest_2026_07_09.md`
+- Added Money-Grade Auditor report:
+  - `docs/a3/p3_growth_auditor_money_grade_round2_2026_07_09.md`
+- Added implementation notes:
+  - `docs/a3/p3_a2_persistence_unblock_export_2026_07_09.md`
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+- Updated `.gitignore` for Node dependencies and transient Playwright output.
+
+Verification:
+
+```text
+node --check services/report/report_builder.mjs
+node --check apps/dashboard/src/app.mjs
+node --check services/report/a3_commercial_growth_manifest.mjs
+node --check tests/e2e/static-dashboard-server.mjs
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+node --test tests/a3/a3_commercial_growth_manifest.test.mjs
+npm.cmd run test:e2e
+```
+
+Results so far:
+
+- Report/dashboard contract tests passed: 73 pass, 0 fail.
+- Commercial growth manifest tests passed: 5 pass, 0 fail.
+- Playwright E2E passed: 4 pass, 0 fail.
+- Playwright screenshot rendered and was visually inspected.
+- Final pre-commit CL commercial gate passed with 0 blockers.
+- Final pre-commit CL hygiene gate passed with no findings.
+- Final combined A3 Node tests passed: 78 pass, 0 fail.
+- Final `git diff --check` passed.
+- Final ignored-file check confirmed `.env.local`, `node_modules/`, and transient Playwright results are ignored.
+
+A1/A2 calibration:
+
+- A1 runner/trace/tool-call semantics were not changed.
+- A2 judge/release-gate semantics were not changed.
+- A3 now consumes newer A2 result persistence and release unblock checklist artifacts downstream in reports.
+- Commercial growth manifest binds growth points to A1/A2/A3 evidence or explicit gaps.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, email, raw signed URL, or account value committed.
+- No live Ashr API call in this round.
+- No hosted auth, billing, team, API-key, Trust, database, object storage, or cloud mutation.
+- Playwright used local redacted/static fixtures only.
+
+Current interpretation:
+
+This round turns A3 from "dashboard with many panels" toward "testable commercial product surface." The important movement is executable browser proof plus stronger A2 release evidence in exports plus a growth manifest that forces future work to name evidence, contracts, tenant/RBAC/usage/audit impact, and commercial value.
+
+## 2026-07-09 - Commercial Growth Round 3 API-Backed E2E Start
+
+Continued from PR #24 / `codex/a3-commercial-growth-round2`. Opening checks confirmed the local worktree was clean and PR #24 remained clean on GitHub. A retry `git fetch origin` hit a transient GitHub HTTPS reset, so this round avoided rebasing or overwriting remote state and continued from the already pushed A3 branch.
+
+Implemented:
+
+- Mounted the existing A3 API handler inside the Playwright E2E static server:
+  - `tests/e2e/static-dashboard-server.mjs`
+- Added API-backed browser coverage:
+  - `tests/e2e/a3-dashboard-api-backed.spec.ts`
+- Added Tailwind product-system contract surface:
+  - `tailwind.config.ts`
+  - `postcss.config.mjs`
+  - `tests/a3/tailwind_boundary_contract.test.mjs`
+  - `docs/a3/p3_tailwind_product_system_contract_2026_07_09.md`
+- Added Expo mobile client-surface contract:
+  - `apps/mobile/package.json`
+  - `apps/mobile/app.json`
+  - `apps/mobile/src/release-intelligence-contract.ts`
+  - `tests/a3/a3_mobile_expo_client_surface.test.mjs`
+  - `docs/a3/p3_mobile_expo_client_surface_2026_07_09.md`
+- Added WeChat mini program client-surface contract:
+  - `apps/wechat-miniprogram/project.config.json`
+  - `apps/wechat-miniprogram/pages/release-approval/index.*`
+  - `apps/wechat-miniprogram/pages/incident-alert/index.*`
+  - `tests/a3/a3_wechat_mini_program_client_surface.test.mjs`
+  - `docs/a3/p3_wechat_mini_program_client_surface_2026_07_09.md`
+- Added Round 3 execution evidence:
+  - `docs/a3/p3_commercial_growth_round3_execution_2026_07_09.md`
+- Updated Playwright growth notes:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+
+Verification:
+
+```text
+node --check tests/e2e/static-dashboard-server.mjs
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+node --test tests/a3/tailwind_boundary_contract.test.mjs tests/a3/a3_wechat_mini_program_client_surface.test.mjs tests/a3/a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+```
+
+Results:
+
+- Static/API E2E server syntax check passed.
+- API-backed Playwright E2E passed: 2 pass, 0 fail.
+- Client/design-surface contract tests passed: 16 pass, 0 fail.
+- Commercial CL passed with 0 blockers and 0 advisories.
+- Windows backslash path invocation did not match the Playwright spec; the forward-slash invocation succeeded.
+
+A1/A2 calibration:
+
+- A1 runner, trace, and tool-call semantics were not changed.
+- A2 judge, grade, release-gate, and failure taxonomy semantics were not changed.
+- API-backed dashboard E2E still requires visible A1 import surfaces, A1 trace references, A2 import surfaces, and A2 judge evidence.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, email, raw signed URL, or account value read or written.
+- No live Ashr API call.
+- No live GitHub mutation.
+- No real billing, auth, team, API-key, Trust, database, object storage, or cloud mutation.
+- Hosted report share/revoke runs only against the local fixture-backed A3 API store.
+- One subagent accidentally wrote mobile draft files outside the repository root. Those exact accidental outer-workspace files and empty folders were removed after verifying their absolute paths were outside `ashr-codex-factory`; the correct in-repo mobile contract was kept.
