@@ -1,7 +1,6 @@
 package ashrclone
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -95,46 +94,27 @@ func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 			_, err := repository.ListWorkerJobs("tenant", "project", ListWorkerJobsOptions{})
 			return err
 		}},
+		{name: "run upload", call: func() error {
+			_, err := repository.UploadRun("tenant", "project", "run", JSONMap{"ok": true}, UploadRunOptions{})
+			return err
+		}},
+		{name: "trace ingest", call: func() error {
+			_, err := repository.IngestTrace("tenant", "project", "run", []JSONMap{{"event": "ok"}}, IngestTraceOptions{})
+			return err
+		}},
+		{name: "artifact create", call: func() error {
+			_, err := repository.CreateArtifactManifest("tenant", "project", "run", JSONMap{"artifact": "ok"}, ArtifactManifestOptions{})
+			return err
+		}},
+		{name: "artifact list", call: func() error {
+			_, err := repository.ListArtifactManifests("tenant", "project", "run")
+			return err
+		}},
 	}
 	for _, check := range checks {
 		err := check.call()
 		if err == nil || !strings.Contains(err.Error(), "db is required") {
 			t.Fatalf("%s: expected db validation error, got %v", check.name, err)
-		}
-	}
-}
-
-func TestPostgresRepositoryRemainingOperationsAreExplicitlyUnimplemented(t *testing.T) {
-	repository := NewPostgresRepository(nil)
-	checks := []struct {
-		operation string
-		call      func() error
-	}{
-		{operation: "run.upload", call: func() error {
-			_, err := repository.UploadRun("tenant", "project", "run", JSONMap{"ok": true}, UploadRunOptions{})
-			return err
-		}},
-		{operation: "trace.ingest", call: func() error {
-			_, err := repository.IngestTrace("tenant", "project", "run", []JSONMap{{"event": "ok"}}, IngestTraceOptions{})
-			return err
-		}},
-		{operation: "artifact.manifest.create", call: func() error {
-			_, err := repository.CreateArtifactManifest("tenant", "project", "run", JSONMap{"artifact": "ok"}, ArtifactManifestOptions{})
-			return err
-		}},
-		{operation: "artifact.manifest.list", call: func() error {
-			_, err := repository.ListArtifactManifests("tenant", "project", "run")
-			return err
-		}},
-	}
-
-	for _, check := range checks {
-		err := check.call()
-		if !errors.Is(err, ErrPostgresRepositoryNotImplemented) {
-			t.Fatalf("%s: expected not implemented error, got %v", check.operation, err)
-		}
-		if !strings.Contains(err.Error(), check.operation) {
-			t.Fatalf("%s: error should name operation, got %v", check.operation, err)
 		}
 	}
 }

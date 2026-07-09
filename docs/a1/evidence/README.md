@@ -155,3 +155,50 @@ Next 20 A1 growth points:
 18. Run official API dry-run/small-batch calibration for run lifecycle fields with public-safe summaries.
 19. Expand five-modality official API evidence packet for text/audio/file/image/video equally after quota gate review.
 20. Keep A2/A3 artifacts out of A1 commits unless a CL emergency explicitly requires otherwise.
+
+## 2026-07-09 - A1 durable Postgres upload trace artifact lifecycle
+
+Goal:
+- Extend the Go primary backend Postgres adapter beyond submit and worker jobs so the self-host control plane can durably receive run uploads, trace batches, and artifact manifest receipts with tenant/project/run isolation.
+
+Implemented:
+- `packages/go/ashrclone/postgres.go`: added `ashr_run_uploads`, `ashr_trace_batches`, and `ashr_artifact_manifests` to `PostgresSchemaSQL` with composite tenant/project/run primary keys, run-scoped indexes, API key/request/idempotency attribution, and hash-only receipt columns.
+- Implemented Postgres `UploadRun`, `IngestTrace`, `CreateArtifactManifest`, and `ListArtifactManifests` with media-safe validation, run existence checks, typed idempotency replay/conflict handling, hash-only payload/result/observation/manifest persistence, and upload status transition to `uploaded`.
+- `docs/a1/schemas/a1_control_plane_postgres_migration.sql`: mirrored the Go schema, added RLS enablement and tenant-isolation policies for upload, trace batch, and artifact manifest tables, and fixed the DO block terminator.
+- `packages/go/ashrclone/postgres_test.go`: moved upload/trace/artifact methods into the implemented DB-required boundary test.
+- `tests/a1/test_a1_control_plane_postgres_migration.py`: added schema/RLS/index/static hash-only assertions for durable upload, trace, and artifact lifecycle tables.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1/test_a1_control_plane_postgres_migration.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider` -> 8 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 309 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 282 passed.
+
+Real API / private evidence:
+- No official Ashr API call in this local durable-backend subround. No API key or desktop key file was read, printed, logged, or staged.
+
+Peer changes / impact:
+- PR #22 was open and CL green before this follow-up commit. This update remains A1-only and excludes existing dirty A3 EOL files plus untracked `recon/` and `tools/`.
+
+Next 20 A1 growth points:
+1. Add live Postgres tests gated by `A1_POSTGRES_TEST_DSN` for submit/upload/trace/artifact/worker lifecycle.
+2. Add Go quota ledger tables/functions and mutation hooks for submit/upload/trace/artifact/worker.
+3. Add Go audit hash-chain append for every successful non-replayed mutation.
+4. Add API-key lifecycle tables and scope checks to Go routes.
+5. Add Postgres-backed artifact manifest list pagination and total counts.
+6. Add trace batch listing and replay snapshot routes.
+7. Add durable run status lifecycle transitions beyond queued/uploaded.
+8. Add worker daemon loop backed by Postgres leases.
+9. Add Docker Compose live smoke with Go API, Postgres, and worker.
+10. Add TS SDK smoke against Go Postgres backend.
+11. Add Python SDK smoke against Go Postgres backend.
+12. Generate OpenAPI from Go route manifest and pin TS/Python parity to it.
+13. Add SQL migration checksum/version ledger.
+14. Add RLS live tests once local Postgres DSN is available.
+15. Add Terraform/HCL self-host skeleton for Go API/Postgres/worker deployment.
+16. Add Rust evidence bundle verifier for tamper-proof release packets.
+17. Add official API dry-run/small-batch calibration for upload/trace/artifact field names with redacted private evidence.
+18. Expand five-modality API calibration across text/audio/file/image/video after quota gate review.
+19. Add old-vs-new run diff durable tables and API routes.
+20. Keep A2/A3 outputs isolated unless an explicit CL emergency requires cross-lane repair.

@@ -109,6 +109,53 @@ CREATE TABLE IF NOT EXISTS ashr_worker_jobs (
 CREATE INDEX IF NOT EXISTS ashr_worker_jobs_lease_idx ON ashr_worker_jobs (tenant_id, project_id, status, job_type, priority, available_at, created_at);
 CREATE INDEX IF NOT EXISTS ashr_worker_jobs_status_idx ON ashr_worker_jobs (tenant_id, project_id, status, updated_at);
 
+CREATE TABLE IF NOT EXISTS ashr_run_uploads (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    upload_id TEXT NOT NULL,
+    result_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, upload_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_trace_batches (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    batch_id TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    observations_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, batch_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_artifact_manifests (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    artifact_id TEXT NOT NULL,
+    manifest_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, artifact_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_run_uploads_run_idx ON ashr_run_uploads (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_trace_batches_run_idx ON ashr_trace_batches (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_artifact_manifests_run_idx ON ashr_artifact_manifests (tenant_id, project_id, run_id, created_at, artifact_id);
+
 DROP TRIGGER IF EXISTS ashr_tenants_set_updated_at ON ashr_tenants;
 CREATE TRIGGER ashr_tenants_set_updated_at
 BEFORE UPDATE ON ashr_tenants
@@ -145,6 +192,9 @@ EXECUTE FUNCTION ashr_set_updated_at();
 ALTER TABLE ashr_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ashr_idempotency_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ashr_worker_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_run_uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_trace_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_artifact_manifests ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -183,7 +233,25 @@ BEGIN
         USING (tenant_id = ashr_current_tenant_id())
         WITH CHECK (tenant_id = ashr_current_tenant_id());
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_run_uploads' AND policyname = 'ashr_run_uploads_tenant_isolation') THEN
+        CREATE POLICY ashr_run_uploads_tenant_isolation ON ashr_run_uploads
+        USING (tenant_id = ashr_current_tenant_id())
+        WITH CHECK (tenant_id = ashr_current_tenant_id());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_trace_batches' AND policyname = 'ashr_trace_batches_tenant_isolation') THEN
+        CREATE POLICY ashr_trace_batches_tenant_isolation ON ashr_trace_batches
+        USING (tenant_id = ashr_current_tenant_id())
+        WITH CHECK (tenant_id = ashr_current_tenant_id());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ashr_artifact_manifests' AND policyname = 'ashr_artifact_manifests_tenant_isolation') THEN
+        CREATE POLICY ashr_artifact_manifests_tenant_isolation ON ashr_artifact_manifests
+        USING (tenant_id = ashr_current_tenant_id())
+        WITH CHECK (tenant_id = ashr_current_tenant_id());
+    END IF;
 END;
-$;
+$$;
 
 COMMIT;

@@ -101,6 +101,53 @@ CREATE TABLE IF NOT EXISTS ashr_worker_jobs (
 
 CREATE INDEX IF NOT EXISTS ashr_worker_jobs_lease_idx ON ashr_worker_jobs (tenant_id, project_id, status, job_type, priority, available_at, created_at);
 CREATE INDEX IF NOT EXISTS ashr_worker_jobs_status_idx ON ashr_worker_jobs (tenant_id, project_id, status, updated_at);
+
+CREATE TABLE IF NOT EXISTS ashr_run_uploads (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    upload_id TEXT NOT NULL,
+    result_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, upload_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_trace_batches (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    batch_id TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    observations_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, batch_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ashr_artifact_manifests (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    artifact_id TEXT NOT NULL,
+    manifest_sha256 TEXT NOT NULL,
+    api_key_id TEXT NOT NULL DEFAULT '',
+    request_id TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, run_id, artifact_id),
+    FOREIGN KEY (tenant_id, project_id, run_id) REFERENCES ashr_runs(tenant_id, project_id, run_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_run_uploads_run_idx ON ashr_run_uploads (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_trace_batches_run_idx ON ashr_trace_batches (tenant_id, project_id, run_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_artifact_manifests_run_idx ON ashr_artifact_manifests (tenant_id, project_id, run_id, created_at, artifact_id);
 `
 
 type PostgresRepository struct {
@@ -475,19 +522,202 @@ LIMIT $5
 }
 
 func (repository *PostgresRepository) UploadRun(tenantID, projectID, runID string, result JSONMap, options UploadRunOptions) (Envelope[RunUpload], error) {
-	return Envelope[RunUpload]{}, repository.notImplemented("run.upload")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
+	if err := ValidateMediaSafeEnvelope(result); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "result": result, "upload_id": options.UploadID}
+	now := repository.now().UTC()
+	uploadID := options.UploadID
+	if uploadID == "" {
+		uploadID = stablePostgresTimedID("upload", runID, now)
+	}
+	resultSHA, err := fingerprint(result)
+	if err != nil {
+		return Envelope[RunUpload]{}, err
+	}
+	upload := RunUpload{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, UploadID: uploadID, ResultSHA256: resultSHA, RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	response := Envelope[RunUpload]{Operation: "upload_run", Status: "ok", Result: upload}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[RunUpload]{}, fmt.Errorf("upload run begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if err := requireRun(ctx, tx, tenantID, projectID, runID); err != nil {
+		return Envelope[RunUpload]{}, err
+	}
+	if options.IdempotencyKey != "" {
+		replay, ok, err := loadIdempotentRunUploadReplay(ctx, tx, "upload_run", tenantID, projectID, options.IdempotencyKey, request)
+		if err != nil || ok {
+			return replay, err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_run_uploads (tenant_id, project_id, run_id, upload_id, result_sha256, api_key_id, request_id, idempotency_key, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`, tenantID, projectID, runID, uploadID, resultSHA, options.APIKeyID, options.RequestID, options.IdempotencyKey, now)
+	if err != nil {
+		return Envelope[RunUpload]{}, fmt.Errorf("insert run upload: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+UPDATE ashr_runs SET status = 'uploaded', updated_at = $4
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+`, tenantID, projectID, runID, now)
+	if err != nil {
+		return Envelope[RunUpload]{}, fmt.Errorf("mark run uploaded: %w", err)
+	}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := insertIdempotentRunUploadResponse(ctx, tx, "upload_run", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[RunUpload]{}, fmt.Errorf("upload run commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) IngestTrace(tenantID, projectID, runID string, observations []JSONMap, options IngestTraceOptions) (Envelope[TraceBatch], error) {
-	return Envelope[TraceBatch]{}, repository.notImplemented("trace.ingest")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
+	if err := ValidateMediaSafeEnvelope(observations); err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "observations": observations, "batch_id": options.BatchID}
+	now := repository.now().UTC()
+	batchID := options.BatchID
+	if batchID == "" {
+		batchID = stablePostgresTimedID("trace_batch", runID, now)
+	}
+	observationsSHA, err := fingerprint(observations)
+	if err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
+	batch := TraceBatch{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, BatchID: batchID, ObservationCount: len(observations), ObservationsSHA256: observationsSHA, RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	response := Envelope[TraceBatch]{Operation: "ingest_trace", Status: "ok", Result: batch}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[TraceBatch]{}, fmt.Errorf("ingest trace begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if err := requireRun(ctx, tx, tenantID, projectID, runID); err != nil {
+		return Envelope[TraceBatch]{}, err
+	}
+	if options.IdempotencyKey != "" {
+		replay, ok, err := loadIdempotentTraceBatchReplay(ctx, tx, "ingest_trace", tenantID, projectID, options.IdempotencyKey, request)
+		if err != nil || ok {
+			return replay, err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_trace_batches (tenant_id, project_id, run_id, batch_id, observation_count, observations_sha256, api_key_id, request_id, idempotency_key, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`, tenantID, projectID, runID, batchID, len(observations), observationsSHA, options.APIKeyID, options.RequestID, options.IdempotencyKey, now)
+	if err != nil {
+		return Envelope[TraceBatch]{}, fmt.Errorf("insert trace batch: %w", err)
+	}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := insertIdempotentTraceBatchResponse(ctx, tx, "ingest_trace", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[TraceBatch]{}, fmt.Errorf("ingest trace commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error) {
-	return Envelope[ArtifactManifest]{}, repository.notImplemented("artifact.manifest.create")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
+	if err := ValidateMediaSafeEnvelope(manifest); err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
+	request := JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID, "manifest": manifest, "artifact_id": options.ArtifactID}
+	now := repository.now().UTC()
+	artifactID := options.ArtifactID
+	if artifactID == "" {
+		artifactID = stablePostgresTimedID("artifact", runID, now)
+	}
+	manifestSHA, err := fingerprint(manifest)
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
+	record := ArtifactManifest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, ArtifactID: artifactID, ManifestSHA256: manifestSHA, RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
+	response := Envelope[ArtifactManifest]{Operation: "artifact_manifest", Status: "ok", Result: record}
+
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, fmt.Errorf("create artifact manifest begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if err := requireRun(ctx, tx, tenantID, projectID, runID); err != nil {
+		return Envelope[ArtifactManifest]{}, err
+	}
+	if options.IdempotencyKey != "" {
+		replay, ok, err := loadIdempotentArtifactManifestReplay(ctx, tx, "artifact_manifest", tenantID, projectID, options.IdempotencyKey, request)
+		if err != nil || ok {
+			return replay, err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO ashr_artifact_manifests (tenant_id, project_id, run_id, artifact_id, manifest_sha256, api_key_id, request_id, idempotency_key, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+`, tenantID, projectID, runID, artifactID, manifestSHA, options.APIKeyID, options.RequestID, options.IdempotencyKey, now)
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, fmt.Errorf("insert artifact manifest: %w", err)
+	}
+	if options.IdempotencyKey != "" {
+		if replay, ok, err := insertIdempotentArtifactManifestResponse(ctx, tx, "artifact_manifest", tenantID, projectID, options.IdempotencyKey, request, response); err != nil || ok {
+			return replay, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[ArtifactManifest]{}, fmt.Errorf("create artifact manifest commit: %w", err)
+	}
+	return response, nil
 }
 
 func (repository *PostgresRepository) ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error) {
-	return Envelope[ArtifactManifestList]{}, repository.notImplemented("artifact.manifest.list")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[ArtifactManifestList]{}, err
+	}
+	ctx := context.Background()
+	if err := requireRunWithDB(ctx, repository.db, tenantID, projectID, runID); err != nil {
+		return Envelope[ArtifactManifestList]{}, err
+	}
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, run_id, artifact_id, manifest_sha256, api_key_id, request_id, created_at
+FROM ashr_artifact_manifests
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+ORDER BY created_at ASC, artifact_id ASC
+`, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[ArtifactManifestList]{}, fmt.Errorf("list artifact manifests: %w", err)
+	}
+	defer rows.Close()
+	manifests := []ArtifactManifest{}
+	for rows.Next() {
+		manifest, err := scanPostgresArtifactManifest(rows)
+		if err != nil {
+			return Envelope[ArtifactManifestList]{}, err
+		}
+		manifests = append(manifests, manifest)
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[ArtifactManifestList]{}, fmt.Errorf("iterate artifact manifests: %w", err)
+	}
+	result := ArtifactManifestList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, Manifests: manifests, Count: len(manifests)}
+	return Envelope[ArtifactManifestList]{Operation: "artifact_manifests", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) mutateLeasedWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, now time.Time, operation string, mutate func(context.Context, *sql.Tx, WorkerJob) (WorkerJob, error)) (Envelope[WorkerJob], error) {
@@ -702,6 +932,165 @@ ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
 	return loadIdempotentWorkerJobReplay(ctx, tx, operation, tenantID, projectID, key, request)
 }
 
+func loadIdempotentRunUploadReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[RunUpload], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[RunUpload]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[RunUpload]{}, false, fmt.Errorf("load upload idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[RunUpload]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[RunUpload]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[RunUpload]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[RunUpload]{}, false, fmt.Errorf("decode upload idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentRunUploadResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[RunUpload]) (Envelope[RunUpload], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[RunUpload]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[RunUpload]{}, false, fmt.Errorf("marshal upload idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[RunUpload]{}, false, fmt.Errorf("insert upload idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[RunUpload]{}, false, nil
+	}
+	return loadIdempotentRunUploadReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
+func loadIdempotentTraceBatchReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[TraceBatch], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[TraceBatch]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[TraceBatch]{}, false, fmt.Errorf("load trace idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[TraceBatch]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[TraceBatch]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[TraceBatch]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[TraceBatch]{}, false, fmt.Errorf("decode trace idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentTraceBatchResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[TraceBatch]) (Envelope[TraceBatch], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[TraceBatch]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[TraceBatch]{}, false, fmt.Errorf("marshal trace idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[TraceBatch]{}, false, fmt.Errorf("insert trace idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[TraceBatch]{}, false, nil
+	}
+	return loadIdempotentTraceBatchReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
+func loadIdempotentArtifactManifestReplay(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any) (Envelope[ArtifactManifest], bool, error) {
+	var storedFingerprint string
+	var responsePayload []byte
+	err := tx.QueryRowContext(ctx, `
+SELECT request_fingerprint, response_json
+FROM ashr_idempotency_ledger
+WHERE operation = $1 AND tenant_id = $2 AND project_id = $3 AND key = $4
+`, operation, tenantID, projectID, key).Scan(&storedFingerprint, &responsePayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Envelope[ArtifactManifest]{}, false, nil
+	}
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, false, fmt.Errorf("load artifact idempotency ledger: %w", err)
+	}
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, false, err
+	}
+	if storedFingerprint != requestFingerprint {
+		return Envelope[ArtifactManifest]{}, false, IdempotencyConflictError{Operation: operation, Key: key}
+	}
+	var replay Envelope[ArtifactManifest]
+	if err := json.Unmarshal(responsePayload, &replay); err != nil {
+		return Envelope[ArtifactManifest]{}, false, fmt.Errorf("decode artifact idempotency response: %w", err)
+	}
+	replay.IdempotentReplay = true
+	return replay, true, nil
+}
+
+func insertIdempotentArtifactManifestResponse(ctx context.Context, tx *sql.Tx, operation, tenantID, projectID, key string, request any, response Envelope[ArtifactManifest]) (Envelope[ArtifactManifest], bool, error) {
+	requestFingerprint, err := fingerprint(request)
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, false, err
+	}
+	responsePayload, err := jsonBytes(response)
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, false, fmt.Errorf("marshal artifact idempotency response: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_idempotency_ledger (operation, tenant_id, project_id, key, request_fingerprint, response_json)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+ON CONFLICT (operation, tenant_id, project_id, key) DO NOTHING
+`, operation, tenantID, projectID, key, requestFingerprint, string(responsePayload))
+	if err != nil {
+		return Envelope[ArtifactManifest]{}, false, fmt.Errorf("insert artifact idempotency ledger: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 0 {
+		return Envelope[ArtifactManifest]{}, false, nil
+	}
+	return loadIdempotentArtifactManifestReplay(ctx, tx, operation, tenantID, projectID, key, request)
+}
+
 func requireProject(ctx context.Context, tx *sql.Tx, tenantID, projectID string) error {
 	var exists bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM ashr_projects WHERE tenant_id = $1 AND project_id = $2)`, tenantID, projectID).Scan(&exists)
@@ -710,6 +1099,30 @@ func requireProject(ctx context.Context, tx *sql.Tx, tenantID, projectID string)
 	}
 	if !exists {
 		return NotFoundError{Resource: "project"}
+	}
+	return nil
+}
+
+func requireRun(ctx context.Context, tx *sql.Tx, tenantID, projectID, runID string) error {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM ashr_runs WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3)`, tenantID, projectID, runID).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("load run: %w", err)
+	}
+	if !exists {
+		return NotFoundError{Resource: "run"}
+	}
+	return nil
+}
+
+func requireRunWithDB(ctx context.Context, db *sql.DB, tenantID, projectID, runID string) error {
+	var exists bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM ashr_runs WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3)`, tenantID, projectID, runID).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("load run: %w", err)
+	}
+	if !exists {
+		return NotFoundError{Resource: "run"}
 	}
 	return nil
 }
@@ -833,6 +1246,17 @@ func scanPostgresWorkerJob(scanner workerJobScanner) (WorkerJob, error) {
 	return job, nil
 }
 
+func scanPostgresArtifactManifest(scanner workerJobScanner) (ArtifactManifest, error) {
+	var manifest ArtifactManifest
+	err := scanner.Scan(&manifest.TenantID, &manifest.ProjectID, &manifest.RunID, &manifest.ArtifactID, &manifest.ManifestSHA256, &manifest.APIKeyID, &manifest.RequestID, &manifest.CreatedAt)
+	if err != nil {
+		return ArtifactManifest{}, err
+	}
+	manifest.SchemaVersion = ControlPlaneSchemaVersion
+	manifest.RawPayloadIncluded = false
+	return manifest, nil
+}
+
 func requirePostgresWorkerJobLease(job WorkerJob, leaseOwnerID string, now time.Time) error {
 	if strings.TrimSpace(leaseOwnerID) == "" {
 		return fmt.Errorf("lease_owner_id is required")
@@ -878,4 +1302,8 @@ func stablePostgresID(prefix, name string) string {
 
 func stablePostgresWorkerJobID(jobType string, now time.Time) string {
 	return fmt.Sprintf("%s_%d", stablePostgresID("job", jobType), now.UnixNano())
+}
+
+func stablePostgresTimedID(prefix, name string, now time.Time) string {
+	return fmt.Sprintf("%s_%d", stablePostgresID(prefix, name), now.UnixNano())
 }

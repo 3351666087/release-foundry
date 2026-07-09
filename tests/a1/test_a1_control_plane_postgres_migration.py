@@ -14,6 +14,9 @@ REQUIRED_TABLES = (
     "ashr_runs",
     "ashr_idempotency_ledger",
     "ashr_worker_jobs",
+    "ashr_run_uploads",
+    "ashr_trace_batches",
+    "ashr_artifact_manifests",
 )
 
 REQUIRED_FUNCTIONS = (
@@ -36,6 +39,9 @@ REQUIRED_POLICIES = (
     "ashr_runs_tenant_isolation",
     "ashr_idempotency_ledger_tenant_isolation",
     "ashr_worker_jobs_tenant_isolation",
+    "ashr_run_uploads_tenant_isolation",
+    "ashr_trace_batches_tenant_isolation",
+    "ashr_artifact_manifests_tenant_isolation",
 )
 
 REQUIRED_WORKER_JOB_COLUMNS = (
@@ -96,6 +102,14 @@ def test_a1_postgres_migration_preserves_go_control_plane_first_slice():
         assert _normalize_sql(go_statement) in migration_sql
 
     for index_name in ("ashr_runs_dataset_idx", "ashr_worker_jobs_lease_idx", "ashr_worker_jobs_status_idx"):
+        go_index = _extract_statement(go_schema_sql, f"CREATE INDEX IF NOT EXISTS {index_name}")
+        assert _normalize_sql(go_index) in migration_sql
+
+    for index_name in (
+        "ashr_run_uploads_run_idx",
+        "ashr_trace_batches_run_idx",
+        "ashr_artifact_manifests_run_idx",
+    ):
         go_index = _extract_statement(go_schema_sql, f"CREATE INDEX IF NOT EXISTS {index_name}")
         assert _normalize_sql(go_index) in migration_sql
 
@@ -172,3 +186,29 @@ def test_a1_go_postgres_worker_lifecycle_uses_atomic_hash_only_queue_contract():
     assert "WHERE tenant_id = $1 AND project_id = $2 AND ($3 = '' OR status = $3)" in source
     assert "job_type = $4" in source
     assert "raw_payload" not in normalized_source
+
+
+def test_a1_postgres_upload_trace_artifact_schema_preserves_hash_only_contract():
+    migration_sql = _normalize_sql(_read(MIGRATION_PATH))
+
+    required_fragments = (
+        "create table if not exists ashr_run_uploads",
+        "upload_id text not null",
+        "result_sha256 text not null",
+        "create table if not exists ashr_trace_batches",
+        "batch_id text not null",
+        "observation_count integer not null default 0",
+        "observations_sha256 text not null",
+        "create table if not exists ashr_artifact_manifests",
+        "artifact_id text not null",
+        "manifest_sha256 text not null",
+        "api_key_id text not null default ''",
+        "request_id text not null default ''",
+        "idempotency_key text not null default ''",
+        "foreign key (tenant_id, project_id, run_id) references ashr_runs(tenant_id, project_id, run_id) on delete cascade",
+        "create index if not exists ashr_run_uploads_run_idx",
+        "create index if not exists ashr_trace_batches_run_idx",
+        "create index if not exists ashr_artifact_manifests_run_idx",
+    )
+    for fragment in required_fragments:
+        assert fragment in migration_sql
