@@ -276,9 +276,12 @@ func TestHTTPHandlerAPIKeyPreflightAndQuota(t *testing.T) {
 	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_key", "project_key", SubmitRunOptions{DatasetID: "dataset_key", AgentRef: "agent:key", RunID: "run_key", APIKeyID: "key_http_lifecycle", IdempotencyKey: "idem_key"}); err != nil {
 		t.Fatal(err)
 	}
-	assertControlPlaneError(t, authenticatedRequestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_key/sdk-submit", JSONMap{
+	quotaResp := assertControlPlaneError(t, authenticatedRequestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_key/sdk-submit", JSONMap{
 		"tenant_id": "tenant_key", "dataset_id": "dataset_key", "agent_ref": "agent:key", "run_id": "run_key_2", "api_key_id": "key_http_lifecycle", "idempotency_key": "idem_key_2",
 	}, "tenant_key", "key_http_lifecycle"), http.StatusTooManyRequests, "quota_exceeded")
+	if quotaResp.Error.Operation != usageOperationSubmit || quotaResp.Error.Meter != QuotaMeterRuns || quotaResp.Error.Limit != 1 || quotaResp.Error.Used != 1 || quotaResp.Error.Requested != 1 || quotaResp.Error.Remaining != 0 {
+		t.Fatalf("unexpected quota error detail: %#v", quotaResp.Error)
+	}
 }
 
 func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
@@ -781,7 +784,18 @@ func stringSliceContains(items []string, want string) bool {
 	return false
 }
 
-func assertControlPlaneError(t *testing.T, req *http.Request, wantStatus int, wantCode string) {
+func assertControlPlaneError(t *testing.T, req *http.Request, wantStatus int, wantCode string) struct {
+	Status string `json:"status"`
+	Error  struct {
+		Code      string `json:"code"`
+		Operation string `json:"operation"`
+		Meter     string `json:"meter"`
+		Limit     int    `json:"limit"`
+		Used      int    `json:"used"`
+		Requested int    `json:"requested"`
+		Remaining int    `json:"remaining"`
+	} `json:"error"`
+} {
 	t.Helper()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -794,7 +808,13 @@ func assertControlPlaneError(t *testing.T, req *http.Request, wantStatus int, wa
 	var body struct {
 		Status string `json:"status"`
 		Error  struct {
-			Code string `json:"code"`
+			Code      string `json:"code"`
+			Operation string `json:"operation"`
+			Meter     string `json:"meter"`
+			Limit     int    `json:"limit"`
+			Used      int    `json:"used"`
+			Requested int    `json:"requested"`
+			Remaining int    `json:"remaining"`
 		} `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
@@ -803,4 +823,5 @@ func assertControlPlaneError(t *testing.T, req *http.Request, wantStatus int, wa
 	if body.Status != "error" || body.Error.Code != wantCode {
 		t.Fatalf("unexpected error envelope: %#v, want code %q", body, wantCode)
 	}
+	return body
 }

@@ -591,7 +591,7 @@ func GoRouteScopeDocs(entries []RouteManifestEntry) RouteScopeDocs {
 		Notes: []string{
 			"plan limits are public documentation references, not secret billing state",
 			"route groups are derived from GoRouteManifestEntries",
-			"raw request and response payloads are intentionally excluded",
+			"captured HTTP bodies and tenant data are intentionally excluded",
 		},
 	}
 }
@@ -723,7 +723,7 @@ func writeServiceError(writer http.ResponseWriter, err error) {
 		}
 		writeError(writer, http.StatusForbidden, code, authz.Error())
 	case errors.As(err, &quota):
-		writeError(writer, http.StatusTooManyRequests, "quota_exceeded", quota.Error())
+		writeQuotaExceeded(writer, quota)
 	default:
 		writeError(writer, http.StatusBadRequest, "validation_error", err.Error())
 	}
@@ -731,6 +731,11 @@ func writeServiceError(writer http.ResponseWriter, err error) {
 
 func writeError(writer http.ResponseWriter, status int, code, message string) {
 	writeJSON(writer, status, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "error", "error": JSONMap{"code": code, "message": RedactSensitive(message)}})
+}
+
+func writeQuotaExceeded(writer http.ResponseWriter, quota QuotaExceededError) {
+	detail := quota.PublicSchema()
+	writeJSON(writer, http.StatusTooManyRequests, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "error", "error": detail})
 }
 
 func writeJSON(writer http.ResponseWriter, status int, value any) {

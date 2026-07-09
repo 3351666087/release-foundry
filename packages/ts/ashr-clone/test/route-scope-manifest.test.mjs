@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
+  consumeOfficialApiMutatingCalibrationIndex,
   consumeGoRouteScopeManifest,
   hostedRouteScopeManifest,
 } from "../dist/saas.js";
@@ -11,6 +12,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..", "..", "..");
 const snapshotPath = join(repoRoot, "docs", "a1", "evidence", "go_python_ts_route_parity_snapshot.json");
+const mutatingIndexPath = join(repoRoot, "docs", "a1", "evidence", "official_api_mutating_calibration_index.json");
 
 function intersection(left, right) {
   return new Set([...left].filter((item) => right.has(item)));
@@ -207,6 +209,25 @@ test("TS Go route consumer rejects stale unsupported gap records", async () => {
 test("TS manifest consumer rejects private manifest paths", () => {
   assert.throws(
     () => consumeGoRouteScopeManifest(join(repoRoot, "docs", "evidence", "private_refs", "route_manifest.json")),
+    /private_refs|\.secrets/,
+  );
+});
+
+test("TS SDK consumes public official API mutating calibration index", () => {
+  const consumption = consumeOfficialApiMutatingCalibrationIndex(mutatingIndexPath);
+
+  assert.equal(consumption.schema_version, "ashr.clone.official_api_mutating_calibration_consumption.v1");
+  assert.equal(consumption.client, "typescript");
+  assert.deepEqual(consumption.modalities, ["text", "image", "audio", "file", "video"]);
+  assert.deepEqual(consumption.quota_blocked_modalities, ["text", "image", "audio", "file", "video"]);
+  const byModality = new Map(consumption.records.map((record) => [record.modality, record]));
+  assert.deepEqual(byModality.get("image").mutating_step_ids, ["create-request-image"]);
+  assert.deepEqual(byModality.get("file").observed_error_kinds, ["api"]);
+});
+
+test("TS SDK rejects private official API mutating calibration paths", () => {
+  assert.throws(
+    () => consumeOfficialApiMutatingCalibrationIndex(join(repoRoot, "docs", "evidence", "private_refs", "a1_official_api_mutating_video_20260709_172428.json")),
     /private_refs|\.secrets/,
   );
 });

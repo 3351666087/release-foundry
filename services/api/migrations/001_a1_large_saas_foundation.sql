@@ -289,6 +289,7 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
   project_id UUID NOT NULL,
   environment_id UUID,
   idempotency_key_id UUID,
+  operation TEXT NOT NULL DEFAULT 'unknown',
   meter TEXT NOT NULL,
   quantity NUMERIC(20, 6) NOT NULL CHECK (quantity >= 0),
   unit TEXT NOT NULL DEFAULT 'count',
@@ -414,6 +415,7 @@ CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys(orga
 CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_ledger_idempotency_key_unique
   ON usage_ledger(organization_id, project_id, idempotency_key_id)
   WHERE idempotency_key_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_usage_ledger_operation_period ON usage_ledger(organization_id, project_id, operation, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_scope_meter_period ON usage_ledger(organization_id, project_id, meter, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_workspace_meter_period ON usage_ledger(organization_id, workspace_id, meter, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_usage_rollups_scope_meter_period ON usage_rollups(organization_id, project_id, meter, period, period_start DESC);
@@ -854,4 +856,311 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE VIEW active_quota_policies AS
+SELECT *
+  FROM quota_policies
+ WHERE status = 'active'
+   AND effective_from <= now()
+   AND (effective_until IS NULL OR effective_until > now());
+
+CREATE OR REPLACE FUNCTION operation_meter_mapping(
+  p_operation TEXT
+)
+RETURNS TABLE (
+  operation TEXT,
+  meter TEXT,
+  unit TEXT,
+  default_quantity NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT mapped.operation, mapped.meter, mapped.unit, mapped.default_quantity
+    FROM (
+      VALUES
+        ('sdk.submit', 'runs', 'count', 1::NUMERIC),
+        ('run.upload', 'media', 'count', 1::NUMERIC),
+        ('trace.ingest', 'observations', 'count', 1::NUMERIC),
+        ('artifact.manifest', 'storage_bytes', 'bytes', 0::NUMERIC),
+        ('worker.job.enqueue', 'runs', 'count', 1::NUMERIC),
+        ('worker.job.lease', 'runs', 'count', 0::NUMERIC),
+        ('worker.job.complete', 'runs', 'count', 0::NUMERIC),
+        ('worker.job.fail', 'runs', 'count', 0::NUMERIC)
+    ) AS mapped(operation, meter, unit, default_quantity)
+   WHERE mapped.operation = p_operation;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'unsupported quota operation: %', p_operation USING ERRCODE = '22023';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION current_quota_policy(
+  p_organization_id UUID,
+  p_project_id UUID,
+  p_meter TEXT,
+  p_at TIMESTAMPTZ DEFAULT now()
+)
+RETURNS SETOF quota_policies
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT *
+    FROM quota_policies
+   WHERE organization_id = p_organization_id
+     AND project_id IS NOT DISTINCT FROM p_project_id
+     AND meter = p_meter
+     AND status = 'active'
+     AND effective_from <= p_at
+     AND (effective_until IS NULL OR effective_until > p_at)
+   ORDER BY enforcement_mode DESC, period ASC, limit_quantity ASC;
+$$;
+
+CREATE OR REPLACE FUNCTION append_quota_denied_audit_event(
+  p_organization_id UUID,
+  p_project_id UUID,
+  p_operation TEXT,
+  p_meter TEXT,
+  p_policy_id UUID,
+  p_attempted_quantity NUMERIC,
+  p_current_quantity NUMERIC,
+  p_limit_quantity NUMERIC,
+  p_period_start TIMESTAMPTZ,
+  p_period_end TIMESTAMPTZ,
+  p_metadata JSONB DEFAULT '{}'::JSONB
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  previous_hash TEXT;
+  audit_payload JSONB;
+BEGIN
+  SELECT audit_chain_tail(p_organization_id, p_project_id)
+    INTO previous_hash;
+
+  audit_payload := jsonb_build_object(
+    'operation', p_operation,
+    'meter', p_meter,
+    'quota_policy_id', p_policy_id,
+    'attempted_quantity', p_attempted_quantity,
+    'current_quantity', p_current_quantity,
+    'limit_quantity', p_limit_quantity,
+    'period_start', p_period_start,
+    'period_end', p_period_end,
+    'metadata', COALESCE(p_metadata, '{}'::JSONB)
+  );
+
+  INSERT INTO audit_log (
+    id,
+    organization_id,
+    project_id,
+    actor_type,
+    actor_id,
+    action,
+    resource_type,
+    resource_id,
+    payload,
+    prev_hash,
+    entry_hash,
+    created_at
+  )
+  VALUES (
+    gen_random_uuid(),
+    p_organization_id,
+    p_project_id,
+    'system',
+    'quota_check',
+    'quota.denied',
+    'quota_policy',
+    p_policy_id::TEXT,
+    audit_payload,
+    previous_hash,
+    encode(digest(COALESCE(previous_hash, '') || p_policy_id::TEXT || p_operation || audit_payload::TEXT || now()::TEXT, 'sha256'), 'hex'),
+    now()
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION check_quota_and_insert_usage(
+  p_organization_id UUID,
+  p_project_id UUID,
+  p_operation TEXT,
+  p_quantity NUMERIC DEFAULT NULL,
+  p_workspace_id UUID DEFAULT NULL,
+  p_environment_id UUID DEFAULT NULL,
+  p_idempotency_key_id UUID DEFAULT NULL,
+  p_source_type TEXT DEFAULT 'api',
+  p_source_id TEXT DEFAULT NULL,
+  p_period_at TIMESTAMPTZ DEFAULT now(),
+  p_metadata JSONB DEFAULT '{}'::JSONB,
+  p_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+  allowed BOOLEAN,
+  usage_ledger_id UUID,
+  idempotent_replay BOOLEAN,
+  operation TEXT,
+  meter TEXT,
+  quantity NUMERIC,
+  denied_policy_id UUID,
+  denial_reason TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  mapping RECORD;
+  policy_record quota_policies%ROWTYPE;
+  existing_usage usage_ledger%ROWTYPE;
+  inserted_usage usage_ledger%ROWTYPE;
+  bounds RECORD;
+  current_quantity NUMERIC;
+  attempted_quantity NUMERIC;
+  generated_usage_id UUID;
+BEGIN
+  SELECT *
+    INTO mapping
+    FROM operation_meter_mapping(p_operation);
+
+  attempted_quantity := COALESCE(p_quantity, mapping.default_quantity);
+
+  IF attempted_quantity < 0 THEN
+    RAISE EXCEPTION 'usage quantity must be non-negative for operation %', p_operation USING ERRCODE = '22023';
+  END IF;
+
+  IF p_idempotency_key_id IS NOT NULL THEN
+    SELECT *
+      INTO existing_usage
+      FROM usage_ledger
+     WHERE organization_id = p_organization_id
+       AND project_id IS NOT DISTINCT FROM p_project_id
+       AND idempotency_key_id = p_idempotency_key_id
+     FOR UPDATE;
+
+    IF FOUND THEN
+      allowed := TRUE;
+      usage_ledger_id := existing_usage.id;
+      idempotent_replay := TRUE;
+      operation := existing_usage.operation;
+      meter := existing_usage.meter;
+      quantity := existing_usage.quantity;
+      denied_policy_id := NULL;
+      denial_reason := NULL;
+      RETURN NEXT;
+      RETURN;
+    END IF;
+  END IF;
+
+  FOR policy_record IN
+    SELECT *
+      FROM quota_policies
+     WHERE organization_id = p_organization_id
+       AND project_id IS NOT DISTINCT FROM p_project_id
+       AND meter = mapping.meter
+       AND status = 'active'
+       AND enforcement_mode = 'hard'
+       AND effective_from <= p_period_at
+       AND (effective_until IS NULL OR effective_until > p_period_at)
+     ORDER BY period ASC, limit_quantity ASC
+     FOR UPDATE
+  LOOP
+    SELECT period_start, period_end
+      INTO bounds
+      FROM usage_rollup_period_bounds(policy_record.period, p_period_at);
+
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+      p_organization_id::TEXT || ':' || p_project_id::TEXT || ':' || mapping.meter || ':' || policy_record.period || ':' || bounds.period_start::TEXT,
+      0
+    ));
+
+    SELECT COALESCE(SUM(u.quantity), 0)
+      INTO current_quantity
+      FROM usage_ledger u
+     WHERE u.organization_id = p_organization_id
+       AND u.project_id IS NOT DISTINCT FROM p_project_id
+       AND u.meter = mapping.meter
+       AND u.period_start >= bounds.period_start
+       AND u.period_end <= bounds.period_end;
+
+    IF current_quantity + attempted_quantity > policy_record.limit_quantity THEN
+      PERFORM append_quota_denied_audit_event(
+        p_organization_id,
+        p_project_id,
+        p_operation,
+        mapping.meter,
+        policy_record.id,
+        attempted_quantity,
+        current_quantity,
+        policy_record.limit_quantity,
+        bounds.period_start,
+        bounds.period_end,
+        p_metadata
+      );
+
+      allowed := FALSE;
+      usage_ledger_id := NULL;
+      idempotent_replay := FALSE;
+      operation := p_operation;
+      meter := mapping.meter;
+      quantity := attempted_quantity;
+      denied_policy_id := policy_record.id;
+      denial_reason := 'quota_exceeded';
+      RETURN NEXT;
+      RETURN;
+    END IF;
+  END LOOP;
+
+  generated_usage_id := COALESCE(p_id, gen_random_uuid());
+
+  INSERT INTO usage_ledger (
+    id,
+    organization_id,
+    workspace_id,
+    project_id,
+    environment_id,
+    idempotency_key_id,
+    operation,
+    meter,
+    quantity,
+    unit,
+    source_type,
+    source_id,
+    period_start,
+    period_end,
+    metadata
+  )
+  VALUES (
+    generated_usage_id,
+    p_organization_id,
+    p_workspace_id,
+    p_project_id,
+    p_environment_id,
+    p_idempotency_key_id,
+    p_operation,
+    mapping.meter,
+    attempted_quantity,
+    mapping.unit,
+    p_source_type,
+    p_source_id,
+    p_period_at,
+    p_period_at + INTERVAL '1 second',
+    COALESCE(p_metadata, '{}'::JSONB)
+  )
+  ON CONFLICT (organization_id, project_id, idempotency_key_id) WHERE idempotency_key_id IS NOT NULL
+  DO UPDATE SET metadata = usage_ledger.metadata
+  RETURNING * INTO inserted_usage;
+
+  allowed := TRUE;
+  usage_ledger_id := inserted_usage.id;
+  idempotent_replay := inserted_usage.id <> generated_usage_id;
+  operation := inserted_usage.operation;
+  meter := inserted_usage.meter;
+  quantity := inserted_usage.quantity;
+  denied_policy_id := NULL;
+  denial_reason := NULL;
+  RETURN NEXT;
+END;
+$$;
 COMMIT;

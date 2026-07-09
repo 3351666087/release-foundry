@@ -909,6 +909,44 @@ ORDER BY operation ASC
 	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
 }
 
+func (repository *PostgresRepository) AppendQuotaUsage(tenantID, projectID string, event QuotaUsageAppend) (Envelope[UsageOperationTotal], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	operation := NormalizeQuotaOperation(event.Operation)
+	if operation == "" {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("quota usage operation is required")
+	}
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("quota usage append begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	now := event.CreatedAt
+	if now.IsZero() {
+		now = repository.now()
+	}
+	now = now.UTC().Truncate(time.Microsecond)
+	evidence := postgresMutationEvidence{APIKeyID: event.APIKeyID, IdempotencyKey: event.IdempotencyKey, RequestID: event.RequestID, RunID: event.RunID, TargetID: event.TargetID}
+	if err := appendPostgresUsageEvent(ctx, tx, tenantID, projectID, operation, quotaUnits(event.Units), evidence, now); err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("quota usage append commit: %w", err)
+	}
+	snapshot, err := repository.UsageSnapshot(tenantID, projectID)
+	if err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	for _, total := range snapshot.Result.OperationTotals {
+		if total.Operation == operation {
+			return Envelope[UsageOperationTotal]{Operation: "quota_usage.append", Status: "ok", Result: total}, nil
+		}
+	}
+	return Envelope[UsageOperationTotal]{Operation: "quota_usage.append", Status: "ok", Result: UsageOperationTotal{Operation: operation}}, nil
+}
+
 func (repository *PostgresRepository) mutateLeasedWorkerJob(tenantID, projectID, jobID, leaseOwnerID string, now time.Time, operation string, mutate func(context.Context, *sql.Tx, WorkerJob) (WorkerJob, error)) (Envelope[WorkerJob], error) {
 	ctx := context.Background()
 	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -965,6 +1003,10 @@ func (repository *PostgresRepository) VerifyAPIKeySecret(tenantID, projectID, ke
 
 func (repository *PostgresRepository) ConfigureAPIKeyRateLimit(tenantID, projectID, keyID, operation string, limit int) (Envelope[APIKeyRateLimit], error) {
 	return Envelope[APIKeyRateLimit]{}, repository.notImplemented("configure_api_key_rate_limit")
+}
+
+func (repository *PostgresRepository) ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error) {
+	return Envelope[UsageOperationTotal]{}, repository.notImplemented("configure_usage_quota")
 }
 
 func (repository *PostgresRepository) APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error) {

@@ -375,7 +375,7 @@ func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelop
 func (service *MemoryService) ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	operation = normalizeUsageOperation(operation)
+	operation = NormalizeQuotaOperation(operation)
 	if operation == "" {
 		return Envelope[UsageOperationTotal]{}, fmt.Errorf("usage quota operation is required")
 	}
@@ -647,7 +647,7 @@ func (service *MemoryService) EnqueueWorkerJob(tenantID, projectID, jobType, tar
 	job := WorkerJob{SchemaVersion: ControlPlaneSchemaVersion, JobID: jobID, TenantID: tenantID, ProjectID: projectID, JobType: jobType, TargetID: targetID, PayloadSHA256: payloadSHA, RawPayloadIncluded: false, Status: WorkerJobStatusQueued, Priority: priority, Attempts: 0, MaxAttempts: maxAttempts, AvailableAt: &availableAt, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, CreatedAt: now, UpdatedAt: now}
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.enqueue", 1, now)
-	service.recordUsageEventLocked(tenantID, projectID, "worker.job.enqueue", 1)
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobEnqueue, 1)
 	response := Envelope[WorkerJob]{Operation: "worker.job.enqueue", Status: "ok", Result: job}
 	service.storeIdempotencyLocked("worker.job.enqueue", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -701,7 +701,7 @@ func (service *MemoryService) LeaseWorkerJob(tenantID, projectID, leaseOwnerID s
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.lease", 1, now)
-	service.recordUsageEventLocked(tenantID, projectID, "worker.job.lease", 1)
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobLease, 1)
 	resultJob := job
 	result := WorkerLeaseResult{SchemaVersion: ControlPlaneSchemaVersion, Status: "leased", TenantID: tenantID, ProjectID: projectID, Leased: true, Job: &resultJob}
 	return Envelope[WorkerLeaseResult]{Operation: "worker.job.lease", Status: "ok", Result: result}, nil
@@ -754,7 +754,7 @@ func (service *MemoryService) CompleteWorkerJob(tenantID, projectID, jobID, leas
 	job.CompletedAt = &now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.complete", 1, now)
-	service.recordUsageEventLocked(tenantID, projectID, "worker.job.complete", 1)
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobComplete, 1)
 	return Envelope[WorkerJob]{Operation: "worker.job.complete", Status: "ok", Result: job}, nil
 }
 
@@ -798,7 +798,7 @@ func (service *MemoryService) FailWorkerJob(tenantID, projectID, jobID, leaseOwn
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.fail", 1, now)
-	service.recordUsageEventLocked(tenantID, projectID, "worker.job.fail", 1)
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationWorkerJobFail, 1)
 	return Envelope[WorkerJob]{Operation: "worker.job.fail", Status: "ok", Result: job}, nil
 }
 
@@ -884,21 +884,12 @@ func (service *MemoryService) authorizeAndConsumeLocked(tenantID, projectID, key
 	return nil
 }
 
-const (
-	usageOperationSubmit           = "sdk.submit"
-	usageOperationRunUpload        = "run.upload"
-	usageOperationTraceIngest      = "trace.ingest"
-	usageOperationArtifactManifest = "artifact.manifest"
-)
-
 func (service *MemoryService) checkUsageQuotaLocked(tenantID, projectID, operation string, units int) error {
-	operation = normalizeUsageOperation(operation)
+	operation = NormalizeQuotaOperation(operation)
 	if operation == "" {
 		return nil
 	}
-	if units <= 0 {
-		units = 1
-	}
+	units = quotaUnits(units)
 	limit, ok := service.usageQuotaLimits[usageQuotaKey(tenantID, projectID, operation)]
 	if !ok || limit < 0 {
 		return nil
@@ -911,7 +902,7 @@ func (service *MemoryService) checkUsageQuotaLocked(tenantID, projectID, operati
 }
 
 func (service *MemoryService) usageUnitsLocked(tenantID, projectID, operation string) int {
-	operation = normalizeUsageOperation(operation)
+	operation = NormalizeQuotaOperation(operation)
 	used := 0
 	for _, event := range service.usageEvents {
 		if event.TenantID == tenantID && event.ProjectID == projectID && event.Operation == operation {
@@ -922,33 +913,34 @@ func (service *MemoryService) usageUnitsLocked(tenantID, projectID, operation st
 }
 
 func (service *MemoryService) recordUsageEventLocked(tenantID, projectID, operation string, units int) {
-	operation = normalizeUsageOperation(operation)
+	operation = NormalizeQuotaOperation(operation)
 	if operation == "" {
 		return
 	}
-	if units <= 0 {
-		units = 1
-	}
+	units = quotaUnits(units)
 	service.usageEvents = append(service.usageEvents, usageEvent{TenantID: tenantID, ProjectID: projectID, Operation: operation, Units: units, Events: 1})
 }
 
-func normalizeUsageOperation(operation string) string {
-	switch strings.TrimSpace(operation) {
-	case "sdk_submit":
-		return usageOperationSubmit
-	case "upload_run":
-		return usageOperationRunUpload
-	case "ingest_trace":
-		return usageOperationTraceIngest
-	case "artifact_manifest":
-		return usageOperationArtifactManifest
-	default:
-		return strings.TrimSpace(operation)
-	}
+func usageQuotaKey(tenantID, projectID, operation string) string {
+	return tenantID + "/" + projectID + "/" + NormalizeQuotaOperation(operation)
 }
 
-func usageQuotaKey(tenantID, projectID, operation string) string {
-	return tenantID + "/" + projectID + "/" + normalizeUsageOperation(operation)
+func (service *MemoryService) AppendQuotaUsage(tenantID, projectID string, event QuotaUsageAppend) (Envelope[UsageOperationTotal], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	operation := NormalizeQuotaOperation(event.Operation)
+	if operation == "" {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("quota usage operation is required")
+	}
+	units := quotaUnits(event.Units)
+	service.recordUsageEventLocked(tenantID, projectID, operation, units)
+	result := UsageOperationTotal{Operation: operation, Units: service.usageUnitsLocked(tenantID, projectID, operation)}
+	for _, usage := range service.usageEvents {
+		if usage.TenantID == tenantID && usage.ProjectID == projectID && usage.Operation == operation {
+			result.Events += usage.Events
+		}
+	}
+	return Envelope[UsageOperationTotal]{Operation: "quota_usage.append", Status: "ok", Result: result}, nil
 }
 
 func (service *MemoryService) preflightAPIKeyLocked(options PreflightOptions, now time.Time) (AuthPreflight, error) {

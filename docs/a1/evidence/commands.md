@@ -1302,3 +1302,47 @@ Results:
 - Focused calibrator/SQL tests passed with 50 tests, and Docker compose configs passed.
 - `python scripts/cl_guard.py hygiene` passed with zero findings; `git diff --check` produced CRLF normalization warnings only.
 - WSL `Ubuntu-24.04-Ashr` starts from the D-drive install and has Bash, Go `1.22.2`, and Python `3.12.3`; Docker daemon reports `29.6.1`.
+
+## Round27 durable quota catalog and official mutating evidence SDK consumption - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh pr checks 27
+gh run view 29008613785 --json status,conclusion,updatedAt,jobs
+python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+npm run build --prefix packages/ts/ashr-clone
+node --test packages/ts/ashr-clone/test/route-scope-manifest.test.mjs
+python -B -m pytest tests/a1/test_a1_foundation_migration_manifest.py tests/a1/test_a1_control_plane_postgres_migration.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+go test ./...
+docker run --rm -d --name ashr-a1-live-pg -e POSTGRES_DB=ashr -e POSTGRES_USER=ashr -e POSTGRES_HOST_AUTH_METHOD=trust -p 15433:5432 postgres:16-alpine
+$env:A1_POSTGRES_TEST_DSN='docker://ashr-a1-live-pg'; $env:A1_PSQL_DOCKER_CONTAINER='ashr-a1-live-pg'; python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+- PR #27 GitHub run `29008613785` was still queued at baseline; no failing logs were available.
+- Peer movement observed again on `origin/codex/a3-commercial-growth-round4`; no peer files were staged.
+- SQL durable quota foundation now includes operation-aware `usage_ledger`, `operation_meter_mapping`, `current_quota_policy`, `check_quota_and_insert_usage`, advisory lock usage, idempotency replay, and quota-denied audit insertion.
+- Go quota surface now has `QuotaRepository`, operation catalog, canonical SQL-aligned meters (`runs`, `media`, `observations`, `storage_bytes`), structured public-safe quota error responses, and repository append/readback tests.
+- Growth-Auditor flagged SQL/Go meter vocabulary drift as P1; fixed this round by aligning Go meters with SQL and adding a Python static contract test that parses SQL + Go mappings together.
+- Python and TypeScript SDKs now consume `docs/a1/evidence/official_api_mutating_calibration_index.json` and reject private evidence paths.
+- Added `docs/a1/schemas/official_api_mutating_calibration_index.schema.json` and schema validation for the public mutating evidence index.
+- Official API read-only small batch refreshed successfully with env-only key, 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls. Private evidence remains ignored under `docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json`.
+- Focused Python/SQL/schema tests passed with 82 tests before the meter-catalog fix and 10 focused migration tests after the fix.
+- Disposable Docker Postgres live migration proof passed with 2 tests after SQL quota additions and meter catalog fix.
+- Go package tests passed; Go integration tests passed.
+- TS package suite passed with 327 tests.
+- Python A1 suite passed with 354 tests.
+- Docker compose config checks passed; CL hygiene passed with zero findings; `git diff --check` reported CRLF normalization warnings only.

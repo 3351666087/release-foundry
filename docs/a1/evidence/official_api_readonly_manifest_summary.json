@@ -6,26 +6,9 @@
     "auth_env_present_count": 1,
     "base_url_host": "api.ashr.io"
   },
-  "error_summaries": [
-    {
-      "error_keys": [
-        "error_kind",
-        "message",
-        "response",
-        "response_headers",
-        "status_code"
-      ],
-      "error_kind": "api",
-      "quota_blocked": true,
-      "quota_remaining_present": true,
-      "quota_resource": null,
-      "status": "error",
-      "status_code": 200,
-      "step_id": "create-request-text"
-    }
-  ],
+  "error_summaries": [],
   "field_map_version": "a1-api-calibration-2026-07-04",
-  "generated_at": "2026-07-09T09:23:09Z",
+  "generated_at": "2026-07-09T09:59:49Z",
   "guardrails": {
     "execute_requires_small_batch": true,
     "mutating_execute_requires_quota_gate": true,
@@ -38,7 +21,7 @@
       "sink": "private_file"
     },
     "paid_media_requires_allow_paid_media": true,
-    "quota_gate_present": true,
+    "quota_gate_present": false,
     "raw_records_private": true
   },
   "mode": "small-batch",
@@ -53,11 +36,11 @@
     "step_record_locations_included": false
   },
   "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
-  "source_private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json",
+  "source_private_manifest": "docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json",
   "source_private_manifest_present": true,
   "source_schema_version": "ashr.clone.api_calibration_manifest.v1",
   "started_at_present": true,
-  "status": "partial",
+  "status": "ok",
   "step_summaries": [
     {
       "attempts": 1,
@@ -193,45 +176,16 @@
       "top_counts": {
         "requests": 2
       }
-    },
-    {
-      "attempts": 1,
-      "dry_run": false,
-      "error_keys": [
-        "error_kind",
-        "message",
-        "response",
-        "response_headers",
-        "status_code"
-      ],
-      "error_kind": "api",
-      "estimated_calls": 2,
-      "function": "create_request",
-      "kind": "mutate",
-      "modality": "text",
-      "next_cursor_present": false,
-      "quota_blocked": true,
-      "quota_remaining_present": true,
-      "quota_resource": null,
-      "response_keys": [],
-      "response_status": null,
-      "response_summary_keys": [],
-      "status": "error",
-      "status_code": 200,
-      "step_id": "create-request-text",
-      "top_counts": {}
     }
   ],
   "summary": {
-    "error_steps": 1,
-    "estimated_calls": 17,
-    "modalities": [
-      "text"
-    ],
-    "mutating_steps": 1,
+    "error_steps": 0,
+    "estimated_calls": 7,
+    "modalities": [],
+    "mutating_steps": 0,
     "ok_or_planned_steps": 5,
-    "quota_block_count": 1,
+    "quota_block_count": 0,
     "read_steps": 5,
-    "total_steps": 6
+    "total_steps": 5
   }
 }

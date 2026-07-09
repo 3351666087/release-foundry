@@ -41,6 +41,9 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": ("worker_job:write",),
 }
 
+MUTATING_CALIBRATION_MODALITIES = ("text", "image", "audio", "file", "video")
+MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION = "ashr.clone.official_api_mutating_calibration_index.v1"
+
 UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
     "GET /health": {
         "reason": "Go exposes a root health alias; the hosted Python client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
@@ -803,6 +806,60 @@ def consume_go_route_scope_manifest(manifest: Mapping[str, Any] | str | Path) ->
             for route in consumable_go_routes
         ],
         "route_scope_docs": docs_consumption,
+    }
+
+
+def consume_official_api_mutating_calibration_index(index: Mapping[str, Any] | str | Path) -> JsonDict:
+    snapshot = load_json_file(index) if isinstance(index, (str, Path)) else dict(index)
+    if snapshot.get("schema_version") != MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION:
+        raise SaaSClientError("official API mutating calibration index schema_version drift")
+    if snapshot.get("public_safe") is not True or snapshot.get("raw_payloads_included") is not False or snapshot.get("secret_values_included") is not False:
+        raise SaaSClientError("official API mutating calibration index must be public-safe")
+    records = snapshot.get("records")
+    if not isinstance(records, Sequence) or isinstance(records, (str, bytes, bytearray)):
+        raise SaaSClientError("official API mutating calibration index records must be a list")
+
+    by_modality: dict[str, JsonDict] = {}
+    for raw_record in records:
+        if not isinstance(raw_record, Mapping):
+            raise SaaSClientError("official API mutating calibration index record must be an object")
+        modalities = raw_record.get("summary_modalities")
+        if not isinstance(modalities, Sequence) or isinstance(modalities, (str, bytes, bytearray)) or len(modalities) != 1:
+            raise SaaSClientError("official API mutating calibration index record must bind one modality")
+        modality = str(modalities[0])
+        if modality not in MUTATING_CALIBRATION_MODALITIES:
+            raise SaaSClientError(f"official API mutating calibration index has unsupported modality: {modality}")
+        step_ids = [str(step) for step in raw_record.get("mutating_step_ids", []) if isinstance(step, str)]
+        expected_step = f"create-request-{modality}"
+        if expected_step not in step_ids:
+            raise SaaSClientError(f"official API mutating calibration index missing {expected_step}")
+        private_manifest = str(raw_record.get("private_manifest", ""))
+        if not private_manifest.startswith("docs/evidence/private_refs/"):
+            raise SaaSClientError("official API mutating calibration index record must point to ignored private evidence")
+        if raw_record.get("raw_payloads_included") is not False:
+            raise SaaSClientError("official API mutating calibration index record must exclude raw payloads")
+        by_modality[modality] = {
+            "modality": modality,
+            "status": raw_record.get("status"),
+            "quota_block_count": int(raw_record.get("quota_block_count", 0) or 0),
+            "observed_error_kinds": sorted(str(kind) for kind in raw_record.get("observed_error_kinds", []) if isinstance(kind, str)),
+            "mutating_step_ids": step_ids,
+            "private_manifest": private_manifest,
+            "read_steps": int(raw_record.get("read_steps", 0) or 0),
+            "total_steps": int(raw_record.get("total_steps", 0) or 0),
+        }
+
+    missing = [modality for modality in MUTATING_CALIBRATION_MODALITIES if modality not in by_modality]
+    if missing:
+        raise SaaSClientError(f"official API mutating calibration index missing modalities: {','.join(missing)}")
+
+    return {
+        "schema_version": "ashr.clone.official_api_mutating_calibration_consumption.v1",
+        "client": "python",
+        "public_safe": True,
+        "modalities": list(MUTATING_CALIBRATION_MODALITIES),
+        "quota_blocked_modalities": [modality for modality in MUTATING_CALIBRATION_MODALITIES if by_modality[modality]["quota_block_count"] > 0],
+        "records": [by_modality[modality] for modality in MUTATING_CALIBRATION_MODALITIES],
     }
 
 

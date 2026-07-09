@@ -322,6 +322,7 @@
                                                 "project_id",
                                                 "environment_id",
                                                 "idempotency_key_id",
+                                                "operation",
                                                 "meter",
                                                 "quantity",
                                                 "unit",
@@ -334,6 +335,7 @@
                                             ],
                        "required_indexes":  [
                                                 "idx_usage_ledger_idempotency_key_unique",
+                                                "idx_usage_ledger_operation_period",
                                                 "idx_usage_ledger_scope_meter_period",
                                                 "idx_usage_ledger_workspace_meter_period"
                                             ],
@@ -491,7 +493,43 @@
                                                                                       "INSERT INTO audit_log",
                                                                                       "digest("
                                                                                   ]
-                                                             }
+                                                             },
+                               "operation_meter_mapping":  {
+                                                               "must_contain":  [
+                                                                                    "(\u0027sdk.submit\u0027, \u0027runs\u0027, \u0027count\u0027, 1::NUMERIC)",
+                                                                                    "(\u0027trace.ingest\u0027, \u0027observations\u0027, \u0027count\u0027, 1::NUMERIC)",
+                                                                                    "(\u0027artifact.manifest\u0027, \u0027storage_bytes\u0027, \u0027bytes\u0027, 0::NUMERIC)",
+                                                                                    "unsupported quota operation"
+                                                                                ]
+                                                           },
+                               "current_quota_policy":  {
+                                                            "must_contain":  [
+                                                                                 "status = \u0027active\u0027",
+                                                                                 "effective_from \u003c= p_at",
+                                                                                 "effective_until IS NULL OR effective_until \u003e p_at",
+                                                                                 "ORDER BY enforcement_mode DESC, period ASC, limit_quantity ASC"
+                                                                             ]
+                                                        },
+                               "append_quota_denied_audit_event":  {
+                                                                       "must_contain":  [
+                                                                                            "\u0027quota.denied\u0027",
+                                                                                            "\u0027quota_check\u0027",
+                                                                                            "jsonb_build_object",
+                                                                                            "INSERT INTO audit_log",
+                                                                                            "audit_chain_tail(p_organization_id, p_project_id)"
+                                                                                        ]
+                                                                   },
+                               "check_quota_and_insert_usage":  {
+                                                                    "must_contain":  [
+                                                                                         "operation_meter_mapping(p_operation)",
+                                                                                         "idempotency_key_id = p_idempotency_key_id",
+                                                                                         "FOR UPDATE",
+                                                                                         "pg_advisory_xact_lock",
+                                                                                         "append_quota_denied_audit_event",
+                                                                                         "ON CONFLICT (organization_id, project_id, idempotency_key_id) WHERE idempotency_key_id IS NOT NULL",
+                                                                                         "RETURNING * INTO inserted_usage"
+                                                                                     ]
+                                                                }
                            },
     "optional_live_hook":  {
                                "env":  "A1_POSTGRES_TEST_DSN",

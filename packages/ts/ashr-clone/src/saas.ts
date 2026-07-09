@@ -10,6 +10,8 @@ export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
 export const SAAS_CLIENT_VERSION = "ashr.clone.ts_saas_ingestion_client.v1";
 export const SAAS_OPENAPI_SCHEMA_VERSION = "ashr.clone.saas_openapi.v1";
 export const CONTROL_PLANE_OPENAPI_VERSION = "3.0.3";
+export const MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION = "ashr.clone.official_api_mutating_calibration_index.v1";
+export const MUTATING_CALIBRATION_MODALITIES = ["text", "image", "audio", "file", "video"] as const;
 export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "api_key.create": 100,
   "run.upload": 10000,
@@ -1376,6 +1378,57 @@ export function consumeGoRouteScopeManifest(manifest: JsonRecord | string): Json
     route_scopes: consumableGoRoutes.map((route) => ({ route, required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]] })),
     route_scope_docs: routeScopeDocs === undefined ? null : consumeGoRouteScopeDocs(routeScopeDocs),
   };
+}
+
+export function consumeOfficialApiMutatingCalibrationIndex(index: JsonRecord | string): JsonRecord {
+  const snapshot = typeof index === "string" ? JSON.parse(readFileSync(assertPublicManifestPath(index), "utf8")) as JsonRecord : { ...index };
+  if (snapshot.schema_version !== MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION) throw new ValidationError("official API mutating calibration index schema_version drift");
+  if (snapshot.public_safe !== true || snapshot.raw_payloads_included !== false || snapshot.secret_values_included !== false) {
+    throw new ValidationError("official API mutating calibration index must be public-safe");
+  }
+  if (!Array.isArray(snapshot.records)) throw new ValidationError("official API mutating calibration index records must be an array");
+
+  const byModality = new Map<string, JsonRecord>();
+  for (const rawRecord of snapshot.records) {
+    if (!isRecord(rawRecord)) throw new ValidationError("official API mutating calibration index record must be an object");
+    const modalities = Array.isArray(rawRecord.summary_modalities) ? rawRecord.summary_modalities.map((item) => String(item)) : [];
+    if (modalities.length !== 1) throw new ValidationError("official API mutating calibration index record must bind one modality");
+    const modality = modalities[0];
+    if (!(MUTATING_CALIBRATION_MODALITIES as readonly string[]).includes(modality)) throw new ValidationError(`official API mutating calibration index has unsupported modality: ${modality}`);
+    const stepIds = Array.isArray(rawRecord.mutating_step_ids) ? rawRecord.mutating_step_ids.map((item) => String(item)) : [];
+    const expectedStep = `create-request-${modality}`;
+    if (!stepIds.includes(expectedStep)) throw new ValidationError(`official API mutating calibration index missing ${expectedStep}`);
+    const privateManifest = typeof rawRecord.private_manifest === "string" ? rawRecord.private_manifest : "";
+    if (!privateManifest.startsWith("docs/evidence/private_refs/")) throw new ValidationError("official API mutating calibration index record must point to ignored private evidence");
+    if (rawRecord.raw_payloads_included !== false) throw new ValidationError("official API mutating calibration index record must exclude raw payloads");
+    byModality.set(modality, {
+      modality,
+      status: rawRecord.status,
+      quota_block_count: numberOrZero(rawRecord.quota_block_count),
+      observed_error_kinds: Array.isArray(rawRecord.observed_error_kinds) ? rawRecord.observed_error_kinds.map((item) => String(item)).sort() : [],
+      mutating_step_ids: stepIds,
+      private_manifest: privateManifest,
+      read_steps: numberOrZero(rawRecord.read_steps),
+      total_steps: numberOrZero(rawRecord.total_steps),
+    });
+  }
+
+  const missing = MUTATING_CALIBRATION_MODALITIES.filter((modality) => !byModality.has(modality));
+  if (missing.length > 0) throw new ValidationError(`official API mutating calibration index missing modalities: ${missing.join(",")}`);
+
+  const records = MUTATING_CALIBRATION_MODALITIES.map((modality) => byModality.get(modality) as JsonRecord);
+  return {
+    schema_version: "ashr.clone.official_api_mutating_calibration_consumption.v1",
+    client: "typescript",
+    public_safe: true,
+    modalities: [...MUTATING_CALIBRATION_MODALITIES],
+    quota_blocked_modalities: records.filter((record) => numberOrZero(record.quota_block_count) > 0).map((record) => String(record.modality)),
+    records,
+  };
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function goRoutesFromOpenApi(snapshot: JsonRecord): Set<string> {

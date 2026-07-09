@@ -178,6 +178,31 @@ func TestMemoryServiceUsageQuotaEnforcesSQLRollupDimensions(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceAppendQuotaUsageRollsUpThroughPublicRepository(t *testing.T) {
+	service := NewMemoryService()
+	first, err := service.AppendQuotaUsage("tenant_append", "project_append", QuotaUsageAppend{Operation: "upload_run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Result.Operation != usageOperationRunUpload || first.Result.Units != 1 || first.Result.Events != 1 {
+		t.Fatalf("unexpected first append result: %#v", first.Result)
+	}
+	second, err := service.AppendQuotaUsage("tenant_append", "project_append", QuotaUsageAppend{Operation: "run.upload", Units: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Result.Operation != usageOperationRunUpload || second.Result.Units != 4 || second.Result.Events != 2 {
+		t.Fatalf("unexpected second append result: %#v", second.Result)
+	}
+	snapshot, err := service.UsageSnapshot("tenant_append", "project_append")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Result.TotalUnits != 4 || snapshot.Result.TotalEvents != 2 || len(snapshot.Result.OperationTotals) != 1 {
+		t.Fatalf("unexpected append rollup snapshot: %#v", snapshot.Result)
+	}
+}
+
 func assertQuotaExceeded(t *testing.T, operation string, call func() error) {
 	t.Helper()
 	err := call()

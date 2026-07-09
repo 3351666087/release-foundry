@@ -72,7 +72,7 @@
       "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
     }
   ],
-  "generated_at": "2026-07-09T09:23:10Z",
+  "generated_at": "2026-07-09T09:59:49Z",
   "next_read_only_calibration": {
     "acceptance_checks": [
       "real read-only command uses --execute --small-batch --max-retries 0",
@@ -219,10 +219,10 @@
     "private_manifest_summary": {
       "dry_run": false,
       "ended_at_present": true,
-      "error_steps": 1,
-      "error_summary_count": 1,
+      "error_steps": 0,
+      "error_summary_count": 0,
       "mode": "small-batch",
-      "mutating_steps": 1,
+      "mutating_steps": 0,
       "public_safety": {
         "header_values_included": false,
         "private_payload_contents_present": false,
@@ -231,16 +231,16 @@
         "redacted_summary_fields_only": true,
         "request_parameter_values_included": false
       },
-      "quota_block_count": 1,
+      "quota_block_count": 0,
       "read_steps": 5,
       "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
-      "source_private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json",
+      "source_private_manifest": "docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json",
       "source_private_manifest_present": true,
       "started_at_present": true,
-      "status": "partial",
-      "step_summary_count": 6,
+      "status": "ok",
+      "step_summary_count": 5,
       "summary_index_path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
-      "total_steps": 6
+      "total_steps": 5
     },
     "private_record_count": 368,
     "quota_block_count": 43,

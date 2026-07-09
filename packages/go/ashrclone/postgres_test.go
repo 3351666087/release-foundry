@@ -9,6 +9,7 @@ import (
 
 func TestPostgresRepositorySatisfiesBackend(t *testing.T) {
 	var _ ControlPlaneBackend = (*PostgresRepository)(nil)
+	var _ QuotaRepository = (*PostgresRepository)(nil)
 }
 
 func TestPostgresRepositoryCloseWithoutDB(t *testing.T) {
@@ -165,6 +166,10 @@ func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 		}},
 		{name: "usage snapshot", call: func() error {
 			_, err := repository.UsageSnapshot("tenant", "project")
+			return err
+		}},
+		{name: "usage append", call: func() error {
+			_, err := repository.AppendQuotaUsage("tenant", "project", QuotaUsageAppend{Operation: "sdk_submit"})
 			return err
 		}},
 		{name: "audit chain verify", call: func() error {

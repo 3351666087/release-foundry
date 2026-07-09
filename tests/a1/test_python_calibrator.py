@@ -29,6 +29,7 @@ from packages.sdk.ashr_clone.calibrate import (
     write_api_calibration_readiness_packet,
     write_public_official_api_manifest_summary,
 )
+from packages.sdk.ashr_clone.saas import consume_official_api_mutating_calibration_index
 
 
 class FakeCalibrationClient:
@@ -838,3 +839,26 @@ def test_public_mutating_calibration_index_covers_all_modalities_without_raw_pay
 
     for forbidden in ("ASHR_API_KEY", "Bearer ", "api_key=", "tp_", "sk-", "customer-private-body"):
         assert forbidden not in payload
+
+
+def test_python_sdk_consumes_public_mutating_calibration_index():
+    root = Path(__file__).resolve().parents[2]
+    index_path = root / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+
+    consumption = consume_official_api_mutating_calibration_index(index_path)
+
+    assert consumption["schema_version"] == "ashr.clone.official_api_mutating_calibration_consumption.v1"
+    assert consumption["client"] == "python"
+    assert consumption["modalities"] == ["text", "image", "audio", "file", "video"]
+    assert consumption["quota_blocked_modalities"] == ["text", "image", "audio", "file", "video"]
+    by_modality = {record["modality"]: record for record in consumption["records"]}
+    assert by_modality["audio"]["mutating_step_ids"] == ["create-request-audio"]
+    assert by_modality["video"]["observed_error_kinds"] == ["api"]
+
+
+def test_python_sdk_rejects_private_mutating_calibration_paths():
+    root = Path(__file__).resolve().parents[2]
+    private_path = root / "docs" / "evidence" / "private_refs" / "a1_official_api_mutating_video_20260709_172428.json"
+
+    with pytest.raises(Exception, match="private_refs|secret"):
+        consume_official_api_mutating_calibration_index(private_path)

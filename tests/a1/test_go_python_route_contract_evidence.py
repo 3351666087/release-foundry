@@ -21,6 +21,8 @@ SCHEMA = ROOT / "docs" / "a1" / "schemas" / "go_python_route_contract_evidence.s
 ROUTE_SNAPSHOT = ROOT / "docs" / "a1" / "evidence" / "go_python_ts_route_parity_snapshot.json"
 GO_ROUTE_SCOPE_DOCS = ROOT / "docs" / "a1" / "evidence" / "go_route_scope_docs.json"
 GO_ROUTE_SCOPE_DOCS_SCHEMA = ROOT / "docs" / "a1" / "schemas" / "go_route_scope_docs.schema.json"
+MUTATING_CALIBRATION_INDEX = ROOT / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+MUTATING_CALIBRATION_INDEX_SCHEMA = ROOT / "docs" / "a1" / "schemas" / "official_api_mutating_calibration_index.schema.json"
 GO_SERVER = ROOT / "packages" / "go" / "ashrclone" / "server.go"
 PY_SAAS = ROOT / "packages" / "sdk" / "ashr_clone" / "saas.py"
 TS_SAAS = ROOT / "packages" / "ts" / "ashr-clone" / "src" / "saas.ts"
@@ -322,6 +324,28 @@ def test_go_route_scope_docs_artifact_matches_schema_and_public_safety():
     text = GO_ROUTE_SCOPE_DOCS.read_text(encoding="utf-8")
     for marker in ("tenant_", "project_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "sk-", "raw_request_payload", "raw_response_payload"):
         assert marker not in text
+
+
+def test_official_api_mutating_calibration_index_matches_schema_and_modalities():
+    artifact = json.loads(MUTATING_CALIBRATION_INDEX.read_text(encoding="utf-8"))
+    schema = json.loads(MUTATING_CALIBRATION_INDEX_SCHEMA.read_text(encoding="utf-8"))
+
+    if Draft202012Validator is not None:
+        Draft202012Validator(schema).validate(artifact)
+
+    assert artifact["public_safe"] is True
+    assert artifact["raw_payloads_included"] is False
+    assert artifact["secret_values_included"] is False
+    by_modality = {record["summary_modalities"][0]: record for record in artifact["records"]}
+    assert set(by_modality) == {"text", "image", "audio", "file", "video"}
+    for modality, record in by_modality.items():
+        assert record["mutating_step_ids"] == [f"create-request-{modality}"]
+        assert record["private_manifest"].startswith("docs/evidence/private_refs/")
+        assert record["quota_block_count"] >= 1
+        assert record["raw_payloads_included"] is False
+    payload = json.dumps(artifact, sort_keys=True)
+    for forbidden in ("ASHR_API_KEY", "Bearer ", "api_key=", "tp_", "sk-", "customer-private-body"):
+        assert forbidden not in payload
 
 
 def test_go_route_scope_docs_artifact_exports_required_route_families():
