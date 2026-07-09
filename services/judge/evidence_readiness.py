@@ -19,6 +19,7 @@ DEFAULT_A1_BILLING_REPLAY_FIXTURE = Path("docs/a1/evidence/billing_replay_fixtur
 DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST = Path(
     "docs/a1/schemas/a1_billing_ledger_migration_manifest.json"
 )
+DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -59,6 +60,7 @@ def build_evidence_readiness_report(
     a1_payment_provider_readiness_path: str | Path = DEFAULT_A1_PAYMENT_PROVIDER_READINESS,
     a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
     a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
+    a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -105,6 +107,9 @@ def build_evidence_readiness_report(
     a1_billing_replay_evidence = _a1_billing_replay_evidence_summary(a1_billing_replay_fixture_path)
     a1_billing_ledger_migration = _a1_billing_ledger_migration_summary(
         a1_billing_ledger_migration_manifest_path
+    )
+    a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
+        a1_billing_sql_semantic_contract_path
     )
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
@@ -158,6 +163,7 @@ def build_evidence_readiness_report(
         "a1_payment_provider_readiness": a1_payment_provider_readiness,
         "a1_billing_replay_evidence": a1_billing_replay_evidence,
         "a1_billing_ledger_migration": a1_billing_ledger_migration,
+        "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -1007,6 +1013,139 @@ def _a1_billing_ledger_migration_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_billing_sql_semantic_contract(
+            target,
+            "A1 billing SQL semantic contract is not available on this branch yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_billing_sql_semantic_contract(
+            target,
+            "A1 billing SQL semantic contract is not a JSON object.",
+        )
+
+    provider_config = (
+        payload.get("provider_config_storage")
+        if isinstance(payload.get("provider_config_storage"), dict)
+        else {}
+    )
+    replay_semantics = (
+        payload.get("replay_semantics")
+        if isinstance(payload.get("replay_semantics"), dict)
+        else {}
+    )
+    object_linkage = (
+        payload.get("object_evidence_linkage")
+        if isinstance(payload.get("object_evidence_linkage"), dict)
+        else {}
+    )
+    validation = payload.get("validation") if isinstance(payload.get("validation"), dict) else {}
+    replay_status_names = sorted(
+        status
+        for status in ("accepted", "duplicate", "conflict")
+        if isinstance(replay_semantics.get(status), dict)
+    )
+    replay_records = [
+        replay_semantics[status]
+        for status in replay_status_names
+        if isinstance(replay_semantics.get(status), dict)
+    ]
+    accepted = replay_semantics.get("accepted") if isinstance(replay_semantics.get("accepted"), dict) else {}
+    duplicate = replay_semantics.get("duplicate") if isinstance(replay_semantics.get("duplicate"), dict) else {}
+    conflict = replay_semantics.get("conflict") if isinstance(replay_semantics.get("conflict"), dict) else {}
+    billing_sql_edges = [
+        edge for edge in object_linkage.get("billing_sql_edges", []) if isinstance(edge, dict)
+    ]
+    hash_only_objects = [
+        item for item in object_linkage.get("go_postgres_hash_only_objects", []) if isinstance(item, dict)
+    ]
+    raw_payload_column_present_count = len(
+        [item for item in hash_only_objects if item.get("raw_payload_column_present") is True]
+    )
+    hash_columns = _string_list(provider_config.get("hash_columns"))
+    reference_only_fields = _string_list(provider_config.get("reference_only_fields"))
+    forbidden_durable_columns = _string_list(provider_config.get("forbidden_durable_columns"))
+    match_key = _string_list(replay_semantics.get("match_key"))
+    public_snapshot_fields = _string_list(object_linkage.get("public_snapshot_fields"))
+    pytest_targets = _string_list(validation.get("pytest_targets"))
+    raw_payload_included = any(record.get("raw_payload_included") is True for record in replay_records)
+    secret_value_present = any(record.get("secret_value_present") is True for record in replay_records)
+    provider_config_column_present = provider_config.get("provider_config_column_present") is True
+    provider_config_object_persisted = provider_config.get("provider_config_object_persisted") is True
+    ready = bool(
+        payload.get("public_safe") is True
+        and provider_config.get("durable_policy") == "hash_or_reference_only"
+        and not provider_config_column_present
+        and not provider_config_object_persisted
+        and "billing_provider_events.payload_sha256" in hash_columns
+        and {
+            "provider_config",
+            "provider_secret",
+            "client_secret",
+            "raw_payload",
+            "payload",
+            "card_number",
+        }
+        <= set(forbidden_durable_columns)
+        and set(replay_status_names) == {"accepted", "conflict", "duplicate"}
+        and _int_value(accepted.get("ledger_mutation_count")) == 1
+        and _int_value(duplicate.get("ledger_mutation_count")) == 0
+        and _int_value(conflict.get("ledger_mutation_count")) == 0
+        and not raw_payload_included
+        and not secret_value_present
+        and len(match_key) >= 5
+        and len(billing_sql_edges) >= 2
+        and len(hash_only_objects) >= 3
+        and raw_payload_column_present_count == 0
+        and "billing_snapshot_sha256" in public_snapshot_fields
+        and str(validation.get("schema_path", ""))
+        == "docs/a1/schemas/billing_sql_semantic_contract.schema.json"
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "migration": str(payload.get("migration", "")),
+        "public_safe": payload.get("public_safe") is True,
+        "durable_policy": str(provider_config.get("durable_policy", "")),
+        "provider_config_column_present": provider_config_column_present,
+        "provider_config_object_persisted": provider_config_object_persisted,
+        "hash_columns": hash_columns,
+        "reference_only_field_count": len(reference_only_fields),
+        "forbidden_durable_columns": forbidden_durable_columns,
+        "forbidden_public_marker_count": len(_string_list(provider_config.get("forbidden_public_markers"))),
+        "replay_statuses": replay_status_names,
+        "accepted_ledger_mutation_count": _int_value(accepted.get("ledger_mutation_count")),
+        "duplicate_ledger_mutation_count": _int_value(duplicate.get("ledger_mutation_count")),
+        "conflict_ledger_mutation_count": _int_value(conflict.get("ledger_mutation_count")),
+        "raw_payload_included": raw_payload_included,
+        "secret_value_present": secret_value_present,
+        "match_key": match_key,
+        "billing_sql_edge_count": len(billing_sql_edges),
+        "go_postgres_hash_only_object_count": len(hash_only_objects),
+        "raw_payload_column_present_count": raw_payload_column_present_count,
+        "public_snapshot_fields": public_snapshot_fields,
+        "pytest_targets": pytest_targets,
+        "schema_path": str(validation.get("schema_path", "")),
+        "ready_for_a2_sql_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "sql_semantic_policy_context": ready,
+            "can_support_replay_regression_cases": ready,
+            "can_support_hash_only_artifact_audit": ready,
+            "must_not_mark_c3_from_sql_context": True,
+        },
+        "notes": [
+            "A1 billing SQL semantic contract is public-safe SQL and replay semantics context for A2 policy checks.",
+            "It validates hash/reference-only billing storage semantics, not reviewed Ashr grading rows.",
+        ],
+    }
+
+
 def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -1200,6 +1339,48 @@ def _missing_billing_ledger_migration(path: Path, reason: str) -> dict[str, Any]
         "notes": [
             reason,
             "When present, A2 uses it as billing ledger SQL policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_billing_sql_semantic_contract(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "migration": "",
+        "public_safe": False,
+        "durable_policy": "",
+        "provider_config_column_present": False,
+        "provider_config_object_persisted": False,
+        "hash_columns": [],
+        "reference_only_field_count": 0,
+        "forbidden_durable_columns": [],
+        "forbidden_public_marker_count": 0,
+        "replay_statuses": [],
+        "accepted_ledger_mutation_count": 0,
+        "duplicate_ledger_mutation_count": 0,
+        "conflict_ledger_mutation_count": 0,
+        "raw_payload_included": False,
+        "secret_value_present": False,
+        "match_key": [],
+        "billing_sql_edge_count": 0,
+        "go_postgres_hash_only_object_count": 0,
+        "raw_payload_column_present_count": 0,
+        "public_snapshot_fields": [],
+        "pytest_targets": [],
+        "schema_path": "",
+        "ready_for_a2_sql_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "sql_semantic_policy_context": False,
+            "can_support_replay_regression_cases": False,
+            "can_support_hash_only_artifact_audit": False,
+            "must_not_mark_c3_from_sql_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as SQL semantic policy context, not as C3 server-side grading evidence.",
         ],
     }
 

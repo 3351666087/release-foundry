@@ -458,6 +458,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_payment_provider_readiness", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -535,6 +536,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_billing_ledger_migration"]["$ref"],
             "#/$defs/a1_billing_ledger_migration",
+        )
+        billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
+        self.assertLessEqual(
+            billing_sql_required,
+            set(evidence_readiness["a1_billing_sql_semantic_contract"]),
+        )
+        self.assertIn("ready_for_a2_sql_policy_context", billing_sql_required)
+        self.assertIn("c3_grading_ready", billing_sql_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_sql_semantic_contract"]["$ref"],
+            "#/$defs/a1_billing_sql_semantic_contract",
         )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
@@ -1435,6 +1447,18 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
+        billing_sql = report["a1_billing_sql_semantic_contract"]
+        self.assertFalse(billing_sql["available"])
+        self.assertEqual(
+            billing_sql["path"],
+            "docs/a1/evidence/billing_sql_semantic_contract.json",
+        )
+        self.assertFalse(billing_sql["ready_for_a2_sql_policy_context"])
+        self.assertFalse(billing_sql["public_safe"])
+        self.assertFalse(billing_sql["c3_grading_ready"])
+        self.assertTrue(
+            billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"]
+        )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -2106,6 +2130,165 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
+
+    def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        contract = {
+            "schema_version": "ashr.clone.a1.billing_sql_semantic_contract.v1",
+            "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+            "public_safe": True,
+            "provider_config_storage": {
+                "durable_policy": "hash_or_reference_only",
+                "provider_config_column_present": False,
+                "provider_config_object_persisted": False,
+                "hash_columns": ["billing_provider_events.payload_sha256"],
+                "reference_only_fields": [
+                    "billing_accounts.account_ref",
+                    "billing_accounts.customer_ref",
+                    "billing_ledger_events.provider_event_ref",
+                ],
+                "forbidden_durable_columns": [
+                    "provider_config",
+                    "provider_secret",
+                    "client_secret",
+                    "raw_payload",
+                    "payload",
+                    "card_number",
+                ],
+                "forbidden_public_markers": [
+                    "stripe secret key prefix",
+                    "authorization header marker",
+                ],
+            },
+            "replay_semantics": {
+                "accepted": {
+                    "status": "accepted",
+                    "ledger_mutation_count": 1,
+                    "payload_sha256_relation": "new_provider_event",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "duplicate": {
+                    "status": "duplicate",
+                    "ledger_mutation_count": 0,
+                    "payload_sha256_relation": "same_provider_event_same_hash",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "conflict": {
+                    "status": "conflict",
+                    "ledger_mutation_count": 0,
+                    "payload_sha256_relation": "same_provider_event_different_hash",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "match_key": [
+                    "organization_id",
+                    "project_id",
+                    "provider",
+                    "mode",
+                    "provider_event_id",
+                ],
+            },
+            "object_evidence_linkage": {
+                "billing_sql_edges": [
+                    {
+                        "from": "billing_provider_events.ledger_event_id",
+                        "to": "billing_ledger_events.id",
+                        "link_type": "provider replay row stores accepted ledger mutation id pointer",
+                    },
+                    {
+                        "from": "billing_ledger_events.provider_event_id",
+                        "to": "billing_provider_events.id",
+                        "link_type": "ledger row links back to provider event row",
+                    },
+                ],
+                "go_postgres_hash_only_objects": [
+                    {
+                        "table": "ashr_run_uploads",
+                        "object_id_column": "upload_id",
+                        "sha256_column": "result_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                    {
+                        "table": "ashr_trace_batches",
+                        "object_id_column": "batch_id",
+                        "sha256_column": "observations_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                    {
+                        "table": "ashr_artifact_manifests",
+                        "object_id_column": "artifact_id",
+                        "sha256_column": "manifest_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                ],
+                "public_snapshot_fields": [
+                    "billing_snapshot_sha256",
+                    "ledger_event_count",
+                    "provider_event_count",
+                    "raw_payload_included",
+                    "secret_value_present",
+                ],
+            },
+            "validation": {
+                "pytest_targets": [
+                    "tests/a1/test_billing_provider_contract.py",
+                    "tests/a1/test_billing_ledger_migration_manifest.py",
+                ],
+                "schema_path": "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            contract_path = Path(tmp_dir) / "billing_sql_semantic_contract.json"
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_sql_semantic_contract_path=contract_path,
+            )
+
+        billing_sql = report["a1_billing_sql_semantic_contract"]
+        self.assertTrue(billing_sql["available"])
+        self.assertEqual(billing_sql["schema_version"], "ashr.clone.a1.billing_sql_semantic_contract.v1")
+        self.assertEqual(billing_sql["migration"], "services/api/migrations/002_a1_billing_ledger.sql")
+        self.assertTrue(billing_sql["public_safe"])
+        self.assertEqual(billing_sql["durable_policy"], "hash_or_reference_only")
+        self.assertFalse(billing_sql["provider_config_column_present"])
+        self.assertFalse(billing_sql["provider_config_object_persisted"])
+        self.assertEqual(billing_sql["hash_columns"], ["billing_provider_events.payload_sha256"])
+        self.assertEqual(billing_sql["reference_only_field_count"], 3)
+        self.assertIn("provider_config", billing_sql["forbidden_durable_columns"])
+        self.assertEqual(billing_sql["forbidden_public_marker_count"], 2)
+        self.assertEqual(billing_sql["replay_statuses"], ["accepted", "conflict", "duplicate"])
+        self.assertEqual(billing_sql["accepted_ledger_mutation_count"], 1)
+        self.assertEqual(billing_sql["duplicate_ledger_mutation_count"], 0)
+        self.assertEqual(billing_sql["conflict_ledger_mutation_count"], 0)
+        self.assertFalse(billing_sql["raw_payload_included"])
+        self.assertFalse(billing_sql["secret_value_present"])
+        self.assertIn("provider_event_id", billing_sql["match_key"])
+        self.assertEqual(billing_sql["billing_sql_edge_count"], 2)
+        self.assertEqual(billing_sql["go_postgres_hash_only_object_count"], 3)
+        self.assertEqual(billing_sql["raw_payload_column_present_count"], 0)
+        self.assertIn("billing_snapshot_sha256", billing_sql["public_snapshot_fields"])
+        self.assertEqual(
+            billing_sql["schema_path"],
+            "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+        )
+        self.assertTrue(billing_sql["ready_for_a2_sql_policy_context"])
+        self.assertFalse(billing_sql["c3_grading_ready"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["sql_semantic_policy_context"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["can_support_replay_regression_cases"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["can_support_hash_only_artifact_audit"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:

@@ -429,6 +429,45 @@
       "When present, A2 uses it as billing ledger SQL policy context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_billing_sql_semantic_contract": {
+    "available": false,
+    "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
+    "schema_version": "",
+    "migration": "",
+    "public_safe": false,
+    "durable_policy": "",
+    "provider_config_column_present": false,
+    "provider_config_object_persisted": false,
+    "hash_columns": [],
+    "reference_only_field_count": 0,
+    "forbidden_durable_columns": [],
+    "forbidden_public_marker_count": 0,
+    "replay_statuses": [],
+    "accepted_ledger_mutation_count": 0,
+    "duplicate_ledger_mutation_count": 0,
+    "conflict_ledger_mutation_count": 0,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "match_key": [],
+    "billing_sql_edge_count": 0,
+    "go_postgres_hash_only_object_count": 0,
+    "raw_payload_column_present_count": 0,
+    "public_snapshot_fields": [],
+    "pytest_targets": [],
+    "schema_path": "",
+    "ready_for_a2_sql_policy_context": false,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_semantic_policy_context": false,
+      "can_support_replay_regression_cases": false,
+      "can_support_hash_only_artifact_audit": false,
+      "must_not_mark_c3_from_sql_context": true
+    },
+    "notes": [
+      "A1 billing SQL semantic contract is not available on this branch yet.",
+      "When present, A2 uses it as SQL semantic policy context, not as C3 server-side grading evidence."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
