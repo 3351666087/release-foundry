@@ -314,6 +314,47 @@
       "When present, A2 uses it as public paid-media quota/error context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_payment_provider_readiness": {
+    "available": false,
+    "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+    "schema_version": "",
+    "owner": "",
+    "public_safe": false,
+    "provider_count": 0,
+    "providers": [],
+    "mode_count": 0,
+    "modes": [],
+    "hosted_surface_count": 0,
+    "payment_methods": [],
+    "provider_called": false,
+    "checkout_or_portal_called": false,
+    "real_charge_possible": false,
+    "ci_payment_calls_allowed": false,
+    "raw_secret_values_allowed": false,
+    "secret_reference_prefixes": [],
+    "forbidden_material_count": 0,
+    "webhook_hash_envelope_count": 0,
+    "verified_webhook_hash_count": 0,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "human_real_card_testing_allowed": false,
+    "human_real_card_automation_allowed": false,
+    "stored_card_data_allowed": false,
+    "public_evidence_path_count": 0,
+    "private_ref_path_count": 0,
+    "ready_for_a2_payment_policy_context": false,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_provider_policy_context": false,
+      "can_support_payment_abuse_cases": false,
+      "live_payment_requires_human_operator": false,
+      "must_not_mark_c3_from_payment_context": true
+    },
+    "notes": [
+      "A1 payment provider readiness packet is not available on this branch yet.",
+      "When present, A2 uses it as payment provider policy context, not as C3 server-side grading evidence."
+    ]
+  },
   "a1_billing_replay_evidence": {
     "available": false,
     "path": "docs/a1/evidence/billing_replay_fixture_round35.json",
@@ -349,6 +390,43 @@
     "notes": [
       "A1 billing replay fixture is not available on this branch yet.",
       "When present, A2 uses it as billing usage and idempotency policy context, not as C3 server-side grading evidence."
+    ]
+  },
+  "a1_billing_ledger_migration": {
+    "available": false,
+    "path": "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
+    "schema_version": "",
+    "version": 0,
+    "migration": "",
+    "table_count": 0,
+    "table_names": [],
+    "tenant_rls_table_count": 0,
+    "tenant_rls_ready": false,
+    "required_index_count": 0,
+    "required_constraint_count": 0,
+    "constraint_names": [],
+    "provider_event_type_count": 0,
+    "ledger_event_type_count": 0,
+    "providers": [],
+    "modes": [],
+    "currencies": [],
+    "required_function_names": [],
+    "public_safe": false,
+    "raw_provider_payload_stored": false,
+    "raw_provider_secret_stored": false,
+    "raw_card_data_stored": false,
+    "provider_calls_executed": false,
+    "ready_for_a2_evidence_context": false,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_billing_policy_context": false,
+      "can_support_billing_abuse_cases": false,
+      "can_cross_check_usage_rollups": false,
+      "must_not_mark_c3_from_billing_context": true
+    },
+    "notes": [
+      "A1 billing ledger migration manifest is not available on this branch yet.",
+      "When present, A2 uses it as billing ledger SQL policy context, not as C3 server-side grading evidence."
     ]
   },
   "official_sdk_smoke": {

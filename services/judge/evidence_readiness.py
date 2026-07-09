@@ -14,7 +14,11 @@ DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX = Path("docs/a1/evidence/official_api_mut
 DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY = Path(
     "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json"
 )
+DEFAULT_A1_PAYMENT_PROVIDER_READINESS = Path("docs/a1/evidence/payment_provider_readiness_public.json")
 DEFAULT_A1_BILLING_REPLAY_FIXTURE = Path("docs/a1/evidence/billing_replay_fixture_round35.json")
+DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST = Path(
+    "docs/a1/schemas/a1_billing_ledger_migration_manifest.json"
+)
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -52,7 +56,9 @@ def build_evidence_readiness_report(
     a1_official_api_readonly_manifest_path: str | Path = DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST,
     a1_official_api_mutating_index_path: str | Path = DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX,
     a1_official_api_paid_media_summary_path: str | Path = DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY,
+    a1_payment_provider_readiness_path: str | Path = DEFAULT_A1_PAYMENT_PROVIDER_READINESS,
     a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
+    a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -93,7 +99,13 @@ def build_evidence_readiness_report(
     a1_official_api_paid_media_summary = _a1_official_api_paid_media_summary(
         a1_official_api_paid_media_summary_path
     )
+    a1_payment_provider_readiness = _a1_payment_provider_readiness_summary(
+        a1_payment_provider_readiness_path
+    )
     a1_billing_replay_evidence = _a1_billing_replay_evidence_summary(a1_billing_replay_fixture_path)
+    a1_billing_ledger_migration = _a1_billing_ledger_migration_summary(
+        a1_billing_ledger_migration_manifest_path
+    )
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
@@ -143,7 +155,9 @@ def build_evidence_readiness_report(
         "a1_official_api_readonly_manifest": a1_official_api_readonly_manifest,
         "a1_official_api_mutating_index": a1_official_api_mutating_index,
         "a1_official_api_paid_media_summary": a1_official_api_paid_media_summary,
+        "a1_payment_provider_readiness": a1_payment_provider_readiness,
         "a1_billing_replay_evidence": a1_billing_replay_evidence,
+        "a1_billing_ledger_migration": a1_billing_ledger_migration,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -616,6 +630,180 @@ def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_payment_provider_readiness_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_payment_provider_readiness(
+            target,
+            "A1 payment provider readiness packet is not available on this branch yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_payment_provider_readiness(
+            target,
+            "A1 payment provider readiness packet is not a JSON object.",
+        )
+
+    payment_call_policy = (
+        payload.get("payment_call_policy")
+        if isinstance(payload.get("payment_call_policy"), dict)
+        else {}
+    )
+    provider_secret_policy = (
+        payload.get("provider_secret_policy")
+        if isinstance(payload.get("provider_secret_policy"), dict)
+        else {}
+    )
+    human_real_card_testing = (
+        payload.get("human_real_card_testing")
+        if isinstance(payload.get("human_real_card_testing"), dict)
+        else {}
+    )
+    providers = [provider for provider in payload.get("providers", []) if isinstance(provider, dict)]
+    webhook_hash_envelopes = [
+        envelope for envelope in payload.get("webhook_hash_envelopes", []) if isinstance(envelope, dict)
+    ]
+    object_evidence_paths = [
+        evidence for evidence in payload.get("object_evidence_paths", []) if isinstance(evidence, dict)
+    ]
+    provider_names = sorted(str(provider.get("provider", "")) for provider in providers if provider.get("provider"))
+    modes = sorted(
+        {
+            str(mode)
+            for provider in providers
+            for mode in provider.get("modes", [])
+            if str(mode).strip()
+        }
+    )
+    payment_methods = sorted(
+        {
+            str(method)
+            for provider in providers
+            for method in provider.get("payment_methods", [])
+            if str(method).strip()
+        }
+    )
+    hosted_surface_count = len(
+        [provider for provider in providers if str(provider.get("hosted_surface", "")).strip()]
+    )
+    provider_called = (
+        payment_call_policy.get("provider_called") is True
+        or any(
+            isinstance(provider.get("side_effects"), dict)
+            and provider["side_effects"].get("provider_called") is True
+            for provider in providers
+        )
+    )
+    checkout_or_portal_called = (
+        payment_call_policy.get("checkout_or_portal_called") is True
+        or any(
+            isinstance(provider.get("side_effects"), dict)
+            and provider["side_effects"].get("checkout_or_portal_called") is True
+            for provider in providers
+        )
+    )
+    real_charge_possible = (
+        payment_call_policy.get("real_charge_possible") is True
+        or any(
+            isinstance(provider.get("side_effects"), dict)
+            and provider["side_effects"].get("real_charge_possible") is True
+            for provider in providers
+        )
+    )
+    ci_payment_calls_allowed = payment_call_policy.get("ci_payment_calls_allowed") is True
+    raw_secret_values_allowed = provider_secret_policy.get("raw_secret_values_allowed") is True
+    secret_reference_prefixes = _string_list(provider_secret_policy.get("secret_reference_prefixes"))
+    forbidden_material = _string_list(provider_secret_policy.get("forbidden_material"))
+    raw_payload_included = any(envelope.get("raw_payload_included") is True for envelope in webhook_hash_envelopes)
+    secret_value_present = any(envelope.get("secret_value_present") is True for envelope in webhook_hash_envelopes)
+    verified_webhook_hash_count = len(
+        [
+            envelope
+            for envelope in webhook_hash_envelopes
+            if envelope.get("verified") is True and str(envelope.get("payload_sha256", "")).strip()
+        ]
+    )
+    public_evidence_path_count = len(
+        [
+            evidence
+            for evidence in object_evidence_paths
+            if evidence.get("classification") == "public_contract"
+            and evidence.get("allowed_in_public_repo") is True
+        ]
+    )
+    private_ref_path_count = len(
+        [
+            evidence
+            for evidence in object_evidence_paths
+            if evidence.get("classification") in {"private_ref", "operator_runbook"}
+            and evidence.get("allowed_in_public_repo") is False
+        ]
+    )
+    stored_card_data_allowed = human_real_card_testing.get("stored_card_data_allowed") is True
+    human_real_card_automation_allowed = human_real_card_testing.get("automation_allowed") is True
+    human_real_card_testing_allowed = human_real_card_testing.get("allowed") is True
+    public_safe = payload.get("public_safe") is True
+    ready = bool(
+        public_safe
+        and not provider_called
+        and not checkout_or_portal_called
+        and not real_charge_possible
+        and not ci_payment_calls_allowed
+        and not raw_secret_values_allowed
+        and not raw_payload_included
+        and not secret_value_present
+        and not stored_card_data_allowed
+        and not human_real_card_automation_allowed
+        and {"stripe", "wechat_pay", "alipay"} <= set(provider_names)
+        and {"test", "live"} <= set(modes)
+        and verified_webhook_hash_count >= 3
+        and public_evidence_path_count >= 3
+        and private_ref_path_count >= 1
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "owner": str(payload.get("owner", "")),
+        "public_safe": public_safe,
+        "provider_count": len(providers),
+        "providers": provider_names,
+        "mode_count": len(modes),
+        "modes": modes,
+        "hosted_surface_count": hosted_surface_count,
+        "payment_methods": payment_methods,
+        "provider_called": provider_called,
+        "checkout_or_portal_called": checkout_or_portal_called,
+        "real_charge_possible": real_charge_possible,
+        "ci_payment_calls_allowed": ci_payment_calls_allowed,
+        "raw_secret_values_allowed": raw_secret_values_allowed,
+        "secret_reference_prefixes": secret_reference_prefixes,
+        "forbidden_material_count": len(forbidden_material),
+        "webhook_hash_envelope_count": len(webhook_hash_envelopes),
+        "verified_webhook_hash_count": verified_webhook_hash_count,
+        "raw_payload_included": raw_payload_included,
+        "secret_value_present": secret_value_present,
+        "human_real_card_testing_allowed": human_real_card_testing_allowed,
+        "human_real_card_automation_allowed": human_real_card_automation_allowed,
+        "stored_card_data_allowed": stored_card_data_allowed,
+        "public_evidence_path_count": public_evidence_path_count,
+        "private_ref_path_count": private_ref_path_count,
+        "ready_for_a2_payment_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "payment_provider_policy_context": ready,
+            "can_support_payment_abuse_cases": ready,
+            "live_payment_requires_human_operator": ready and human_real_card_testing_allowed,
+            "must_not_mark_c3_from_payment_context": True,
+        },
+        "notes": [
+            "A1 payment provider readiness is public-safe payment policy context for A2 cost, abuse, and release gates.",
+            "It records provider references and webhook hashes only; it does not prove C3 grading or authorize CI payment calls.",
+        ],
+    }
+
+
 def _a1_billing_replay_evidence_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
@@ -705,6 +893,120 @@ def _a1_billing_replay_evidence_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_billing_ledger_migration_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_billing_ledger_migration(
+            target,
+            "A1 billing ledger migration manifest is not available on this branch yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_billing_ledger_migration(
+            target,
+            "A1 billing ledger migration manifest is not a JSON object.",
+        )
+
+    tables = [table for table in payload.get("tables", []) if isinstance(table, dict)]
+    public_safety = payload.get("public_safety") if isinstance(payload.get("public_safety"), dict) else {}
+    required_functions = (
+        payload.get("required_functions")
+        if isinstance(payload.get("required_functions"), dict)
+        else {}
+    )
+    table_names = sorted(str(table.get("name", "")) for table in tables if table.get("name"))
+    rls_table_names = sorted(
+        str(table.get("name", ""))
+        for table in tables
+        if table.get("name") and table.get("tenant_column") and table.get("rls_policy")
+    )
+    constraint_names = sorted(
+        {
+            str(constraint)
+            for table in tables
+            for constraint in table.get("required_constraints", [])
+            if str(constraint).strip()
+        }
+    )
+    index_names = sorted(
+        {
+            str(index)
+            for table in tables
+            for index in table.get("required_indexes", [])
+            if str(index).strip()
+        }
+    )
+    function_names = sorted(str(name) for name in required_functions if str(name).strip())
+    provider_event_types = _string_list(payload.get("provider_event_types"))
+    ledger_event_types = _string_list(payload.get("ledger_event_types"))
+    providers = _string_list(payload.get("providers"))
+    modes = _string_list(payload.get("modes"))
+    currencies = _string_list(payload.get("currencies"))
+    raw_provider_payload_stored = public_safety.get("raw_provider_payload_stored") is True
+    raw_provider_secret_stored = public_safety.get("raw_provider_secret_stored") is True
+    raw_card_data_stored = public_safety.get("raw_card_data_stored") is True
+    provider_calls_executed = public_safety.get("provider_calls_executed") is True
+    public_safe = not (
+        raw_provider_payload_stored
+        or raw_provider_secret_stored
+        or raw_card_data_stored
+        or provider_calls_executed
+    )
+    tenant_rls_ready = len(tables) > 0 and len(rls_table_names) == len(tables)
+    supported_provider_set = set(providers)
+    supported_mode_set = set(modes)
+    supported_currency_set = set(currencies)
+    ready = bool(
+        public_safe
+        and tenant_rls_ready
+        and len(tables) >= 3
+        and {"billing_accounts", "billing_provider_events", "billing_ledger_events"} <= set(table_names)
+        and {"stripe", "wechat_pay", "alipay"} <= supported_provider_set
+        and {"test", "live"} <= supported_mode_set
+        and {"usd", "cny"} <= supported_currency_set
+        and {"normalize_billing_event_type", "ingest_billing_provider_event", "summarize_billing_ledger"}
+        <= set(function_names)
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "version": _int_value(payload.get("version")),
+        "migration": str(payload.get("migration", "")),
+        "table_count": len(tables),
+        "table_names": table_names,
+        "tenant_rls_table_count": len(rls_table_names),
+        "tenant_rls_ready": tenant_rls_ready,
+        "required_index_count": len(index_names),
+        "required_constraint_count": len(constraint_names),
+        "constraint_names": constraint_names,
+        "provider_event_type_count": len(provider_event_types),
+        "ledger_event_type_count": len(ledger_event_types),
+        "providers": providers,
+        "modes": modes,
+        "currencies": currencies,
+        "required_function_names": function_names,
+        "public_safe": public_safe,
+        "raw_provider_payload_stored": raw_provider_payload_stored,
+        "raw_provider_secret_stored": raw_provider_secret_stored,
+        "raw_card_data_stored": raw_card_data_stored,
+        "provider_calls_executed": provider_calls_executed,
+        "ready_for_a2_evidence_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "sql_billing_policy_context": ready,
+            "can_support_billing_abuse_cases": ready,
+            "can_cross_check_usage_rollups": ready and "summarize_billing_ledger" in function_names,
+            "must_not_mark_c3_from_billing_context": True,
+        },
+        "notes": [
+            "A1 billing ledger migration manifest is public-safe SQL contract evidence for A2 billing/usage policy checks.",
+            "It does not count as reviewed ashr_grading rows for C3.",
+        ],
+    }
+
+
 def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -778,6 +1080,50 @@ def _missing_paid_media_summary(path: Path, reason: str) -> dict[str, Any]:
     }
 
 
+def _missing_payment_provider_readiness(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "owner": "",
+        "public_safe": False,
+        "provider_count": 0,
+        "providers": [],
+        "mode_count": 0,
+        "modes": [],
+        "hosted_surface_count": 0,
+        "payment_methods": [],
+        "provider_called": False,
+        "checkout_or_portal_called": False,
+        "real_charge_possible": False,
+        "ci_payment_calls_allowed": False,
+        "raw_secret_values_allowed": False,
+        "secret_reference_prefixes": [],
+        "forbidden_material_count": 0,
+        "webhook_hash_envelope_count": 0,
+        "verified_webhook_hash_count": 0,
+        "raw_payload_included": False,
+        "secret_value_present": False,
+        "human_real_card_testing_allowed": False,
+        "human_real_card_automation_allowed": False,
+        "stored_card_data_allowed": False,
+        "public_evidence_path_count": 0,
+        "private_ref_path_count": 0,
+        "ready_for_a2_payment_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "payment_provider_policy_context": False,
+            "can_support_payment_abuse_cases": False,
+            "live_payment_requires_human_operator": False,
+            "must_not_mark_c3_from_payment_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as payment provider policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
 def _missing_billing_replay_evidence(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -814,6 +1160,46 @@ def _missing_billing_replay_evidence(path: Path, reason: str) -> dict[str, Any]:
         "notes": [
             reason,
             "When present, A2 uses it as billing usage and idempotency policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_billing_ledger_migration(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "version": 0,
+        "migration": "",
+        "table_count": 0,
+        "table_names": [],
+        "tenant_rls_table_count": 0,
+        "tenant_rls_ready": False,
+        "required_index_count": 0,
+        "required_constraint_count": 0,
+        "constraint_names": [],
+        "provider_event_type_count": 0,
+        "ledger_event_type_count": 0,
+        "providers": [],
+        "modes": [],
+        "currencies": [],
+        "required_function_names": [],
+        "public_safe": False,
+        "raw_provider_payload_stored": False,
+        "raw_provider_secret_stored": False,
+        "raw_card_data_stored": False,
+        "provider_calls_executed": False,
+        "ready_for_a2_evidence_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "sql_billing_policy_context": False,
+            "can_support_billing_abuse_cases": False,
+            "can_cross_check_usage_rollups": False,
+            "must_not_mark_c3_from_billing_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as billing ledger SQL policy context, not as C3 server-side grading evidence.",
         ],
     }
 
@@ -894,6 +1280,12 @@ def _currency_minor_totals(value: Any) -> dict[str, int]:
         for currency, amount in value.items()
         if str(currency).strip()
     }
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted(str(item) for item in value if str(item).strip())
 
 
 def _contains_true_flag(value: Any, flag_names: set[str]) -> bool:

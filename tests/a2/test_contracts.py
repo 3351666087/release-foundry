@@ -455,7 +455,9 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_official_api_readonly_manifest", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_mutating_index", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_paid_media_summary", evidence_readiness_schema["required"])
+        self.assertIn("a1_payment_provider_readiness", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -501,6 +503,17 @@ class A2ContractTests(unittest.TestCase):
             set(evidence_readiness["a1_official_api_paid_media_summary"]["guardrails"]),
         )
         self.assertIn("paid_media_requires_allow_paid_media", paid_media_guardrail_required)
+        payment_provider_required = set(evidence_readiness_schema["$defs"]["a1_payment_provider_readiness"]["required"])
+        self.assertLessEqual(
+            payment_provider_required,
+            set(evidence_readiness["a1_payment_provider_readiness"]),
+        )
+        self.assertIn("ready_for_a2_payment_policy_context", payment_provider_required)
+        self.assertIn("c3_grading_ready", payment_provider_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_payment_provider_readiness"]["$ref"],
+            "#/$defs/a1_payment_provider_readiness",
+        )
         billing_replay_required = set(evidence_readiness_schema["$defs"]["a1_billing_replay_evidence"]["required"])
         self.assertLessEqual(
             billing_replay_required,
@@ -511,6 +524,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_billing_replay_evidence"]["$ref"],
             "#/$defs/a1_billing_replay_evidence",
+        )
+        billing_migration_required = set(evidence_readiness_schema["$defs"]["a1_billing_ledger_migration"]["required"])
+        self.assertLessEqual(
+            billing_migration_required,
+            set(evidence_readiness["a1_billing_ledger_migration"]),
+        )
+        self.assertIn("tenant_rls_ready", billing_migration_required)
+        self.assertIn("c3_grading_ready", billing_migration_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_ledger_migration"]["$ref"],
+            "#/$defs/a1_billing_ledger_migration",
         )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
@@ -1374,6 +1398,19 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(paid_media_summary["safe_for_paid_media_claims"])
         self.assertFalse(paid_media_summary["c3_grading_ready"])
         self.assertFalse(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
+        payment_provider = report["a1_payment_provider_readiness"]
+        self.assertFalse(payment_provider["available"])
+        self.assertEqual(
+            payment_provider["path"],
+            "docs/a1/evidence/payment_provider_readiness_public.json",
+        )
+        self.assertFalse(payment_provider["ready_for_a2_payment_policy_context"])
+        self.assertFalse(payment_provider["public_safe"])
+        self.assertFalse(payment_provider["ci_payment_calls_allowed"])
+        self.assertFalse(payment_provider["c3_grading_ready"])
+        self.assertTrue(
+            payment_provider["a2_policy_implications"]["must_not_mark_c3_from_payment_context"]
+        )
         billing_replay = report["a1_billing_replay_evidence"]
         self.assertFalse(billing_replay["available"])
         self.assertEqual(
@@ -1385,6 +1422,18 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(billing_replay["c3_grading_ready"])
         self.assertTrue(
             billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+        billing_migration = report["a1_billing_ledger_migration"]
+        self.assertFalse(billing_migration["available"])
+        self.assertEqual(
+            billing_migration["path"],
+            "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
+        )
+        self.assertFalse(billing_migration["tenant_rls_ready"])
+        self.assertFalse(billing_migration["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_migration["c3_grading_ready"])
+        self.assertTrue(
+            billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
@@ -1658,6 +1707,169 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(paid_media["guardrails"]["mutating_execute_requires_quota_gate"])
         self.assertTrue(paid_media["guardrails"]["full_record_stdout_blocked"])
 
+    def test_evidence_readiness_consumes_a1_payment_provider_readiness(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        packet = {
+            "schema_version": "ashr.clone.a1.payment_provider_readiness.v1",
+            "owner": "A1 Worker-PaymentDocsEvidence",
+            "public_safe": True,
+            "payment_call_policy": {
+                "provider_called": False,
+                "checkout_or_portal_called": False,
+                "real_charge_possible": False,
+                "ci_payment_calls_allowed": False,
+            },
+            "provider_secret_policy": {
+                "raw_secret_values_allowed": False,
+                "secret_reference_prefixes": ["env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:"],
+                "forbidden_material": [
+                    "Stripe secret keys",
+                    "WeChat merchant private keys",
+                    "Alipay app private keys",
+                    "card PAN or CVC",
+                ],
+            },
+            "providers": [
+                {
+                    "provider": "stripe",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Stripe-hosted Checkout and Billing Portal plans only",
+                    "payment_methods": ["card", "alipay", "wechat_pay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+                {
+                    "provider": "wechat_pay",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Hosted WeChat Pay provider handoff contract",
+                    "payment_methods": ["wechat_pay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+                {
+                    "provider": "alipay",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Hosted Alipay trade page/provider handoff contract",
+                    "payment_methods": ["alipay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+            ],
+            "human_real_card_testing": {
+                "allowed": True,
+                "automation_allowed": False,
+                "stored_card_data_allowed": False,
+            },
+            "webhook_hash_envelopes": [
+                {
+                    "provider": "stripe",
+                    "mode": "test",
+                    "payload_sha256": "a" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                {
+                    "provider": "wechat_pay",
+                    "mode": "test",
+                    "payload_sha256": "b" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                {
+                    "provider": "alipay",
+                    "mode": "test",
+                    "payload_sha256": "c" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+            ],
+            "object_evidence_paths": [
+                {
+                    "path": "docs/a1/payment_provider_readiness.md",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/a1/schemas/payment_provider_readiness.schema.json",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/evidence/private_refs/payments/{provider}/{mode}/{object}.hash-envelope.json",
+                    "classification": "private_ref",
+                    "allowed_in_public_repo": False,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            packet_path = Path(tmp_dir) / "payment_provider_readiness_public.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_payment_provider_readiness_path=packet_path,
+            )
+
+        payment_provider = report["a1_payment_provider_readiness"]
+        self.assertTrue(payment_provider["available"])
+        self.assertEqual(payment_provider["schema_version"], "ashr.clone.a1.payment_provider_readiness.v1")
+        self.assertTrue(payment_provider["public_safe"])
+        self.assertEqual(payment_provider["provider_count"], 3)
+        self.assertEqual(payment_provider["providers"], ["alipay", "stripe", "wechat_pay"])
+        self.assertEqual(payment_provider["mode_count"], 2)
+        self.assertEqual(payment_provider["modes"], ["live", "test"])
+        self.assertEqual(payment_provider["hosted_surface_count"], 3)
+        self.assertEqual(payment_provider["payment_methods"], ["alipay", "card", "wechat_pay"])
+        self.assertFalse(payment_provider["provider_called"])
+        self.assertFalse(payment_provider["checkout_or_portal_called"])
+        self.assertFalse(payment_provider["real_charge_possible"])
+        self.assertFalse(payment_provider["ci_payment_calls_allowed"])
+        self.assertFalse(payment_provider["raw_secret_values_allowed"])
+        self.assertIn("vault:", payment_provider["secret_reference_prefixes"])
+        self.assertEqual(payment_provider["forbidden_material_count"], 4)
+        self.assertEqual(payment_provider["webhook_hash_envelope_count"], 3)
+        self.assertEqual(payment_provider["verified_webhook_hash_count"], 3)
+        self.assertFalse(payment_provider["raw_payload_included"])
+        self.assertFalse(payment_provider["secret_value_present"])
+        self.assertTrue(payment_provider["human_real_card_testing_allowed"])
+        self.assertFalse(payment_provider["human_real_card_automation_allowed"])
+        self.assertFalse(payment_provider["stored_card_data_allowed"])
+        self.assertEqual(payment_provider["public_evidence_path_count"], 3)
+        self.assertEqual(payment_provider["private_ref_path_count"], 1)
+        self.assertTrue(payment_provider["ready_for_a2_payment_policy_context"])
+        self.assertFalse(payment_provider["c3_grading_ready"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["payment_provider_policy_context"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["can_support_payment_abuse_cases"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["live_payment_requires_human_operator"])
+        self.assertTrue(
+            payment_provider["a2_policy_implications"]["must_not_mark_c3_from_payment_context"]
+        )
+
     def test_evidence_readiness_consumes_a1_billing_replay_fixture(self):
         calibration_matrix = build_calibration_matrix(
             pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
@@ -1778,6 +1990,121 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(billing_replay["a2_policy_implications"]["should_add_billing_abuse_cases"])
         self.assertTrue(
             billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_billing_ledger_migration_manifest(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        manifest = {
+            "schema_version": "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+            "version": 2,
+            "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+            "tables": [
+                {
+                    "name": "billing_accounts",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_accounts_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id"],
+                    "required_indexes": ["idx_billing_accounts_scope"],
+                    "required_constraints": ["billing_accounts_no_raw_secret"],
+                },
+                {
+                    "name": "billing_provider_events",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_provider_events_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id", "raw_payload_included"],
+                    "required_indexes": ["idx_billing_provider_events_scope_created"],
+                    "required_constraints": ["billing_provider_events_no_raw_secret"],
+                },
+                {
+                    "name": "billing_ledger_events",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_ledger_events_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id", "usage_units"],
+                    "required_indexes": ["idx_billing_ledger_events_scope_created"],
+                    "required_constraints": ["billing_ledger_events_no_raw_secret"],
+                },
+            ],
+            "provider_event_types": [
+                "invoice.paid",
+                "wechat_pay.transaction.success",
+                "alipay.trade.success",
+                "ashr.usage.reconciled",
+            ],
+            "ledger_event_types": ["invoice_paid", "usage_reconciled", "refund_created"],
+            "providers": ["stripe", "wechat_pay", "alipay"],
+            "modes": ["test", "live"],
+            "currencies": ["usd", "cny"],
+            "required_functions": {
+                "normalize_billing_event_type": {"must_contain": ["invoice.paid"]},
+                "ingest_billing_provider_event": {"must_contain": ["replay_status := 'duplicate'"]},
+                "summarize_billing_ledger": {"must_contain": ["SUM(l.usage_units)"]},
+            },
+            "public_safety": {
+                "raw_provider_payload_stored": False,
+                "raw_provider_secret_stored": False,
+                "raw_card_data_stored": False,
+                "provider_calls_executed": False,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "a1_billing_ledger_migration_manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_ledger_migration_manifest_path=manifest_path,
+            )
+
+        billing_migration = report["a1_billing_ledger_migration"]
+        self.assertTrue(billing_migration["available"])
+        self.assertEqual(
+            billing_migration["schema_version"],
+            "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+        )
+        self.assertEqual(billing_migration["version"], 2)
+        self.assertEqual(
+            billing_migration["migration"],
+            "services/api/migrations/002_a1_billing_ledger.sql",
+        )
+        self.assertEqual(billing_migration["table_count"], 3)
+        self.assertEqual(
+            billing_migration["table_names"],
+            ["billing_accounts", "billing_ledger_events", "billing_provider_events"],
+        )
+        self.assertEqual(billing_migration["tenant_rls_table_count"], 3)
+        self.assertTrue(billing_migration["tenant_rls_ready"])
+        self.assertEqual(billing_migration["required_index_count"], 3)
+        self.assertEqual(billing_migration["required_constraint_count"], 3)
+        self.assertIn("billing_provider_events_no_raw_secret", billing_migration["constraint_names"])
+        self.assertEqual(billing_migration["provider_event_type_count"], 4)
+        self.assertEqual(billing_migration["ledger_event_type_count"], 3)
+        self.assertEqual(billing_migration["providers"], ["alipay", "stripe", "wechat_pay"])
+        self.assertEqual(billing_migration["modes"], ["live", "test"])
+        self.assertEqual(billing_migration["currencies"], ["cny", "usd"])
+        self.assertEqual(
+            billing_migration["required_function_names"],
+            ["ingest_billing_provider_event", "normalize_billing_event_type", "summarize_billing_ledger"],
+        )
+        self.assertTrue(billing_migration["public_safe"])
+        self.assertFalse(billing_migration["raw_provider_payload_stored"])
+        self.assertFalse(billing_migration["raw_provider_secret_stored"])
+        self.assertFalse(billing_migration["raw_card_data_stored"])
+        self.assertFalse(billing_migration["provider_calls_executed"])
+        self.assertTrue(billing_migration["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_migration["c3_grading_ready"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["sql_billing_policy_context"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["can_support_billing_abuse_cases"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["can_cross_check_usage_rollups"])
+        self.assertTrue(
+            billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
