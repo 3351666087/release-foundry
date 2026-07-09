@@ -8,18 +8,21 @@ export function buildA3SqlMigrationPlan(options = {}) {
     dialect,
     status: "contract_ready",
     migration_count: statements.length,
-    tenancy_columns: ["organization_id", "project_id"],
+    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id"],
     guardrails: [
-      "Every tenant-owned row must include organization_id and project_id.",
+    "Every tenant-owned row must include organization_id, tenant_id, workspace_id, and project_id where the table participates in hosted SaaS scope.",
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
+      "Auth context, RBAC policy snapshots, and authz decisions are metadata-only records until A1 hosted auth becomes authoritative.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
+      "Billing migration readiness rows must be tenant-scoped, read-only A3 projections of A1 ledger/migration evidence; A3 must never store provider secrets, card data, or raw provider payloads.",
+      "Notification channel and delivery rows must be tenant-scoped, metadata-only, and must store connector secrets as encrypted references or hashes owned by A1 hosted workers.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -47,7 +50,7 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at ${types.timestamp} NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);`),
-    statement("003_identity_team_keys_trust", ["users", "roles", "team_members", "api_keys", "trust_reports"], `
+    statement("003_identity_team_keys_trust", ["users", "roles", "team_members", "api_keys", "trust_reports", "auth_contexts", "rbac_policy_snapshots", "authz_decisions"], `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -101,7 +104,52 @@ CREATE TABLE IF NOT EXISTS trust_reports (
   evidence_hash TEXT,
   published_at ${types.timestamp},
   created_at ${types.timestamp} NOT NULL
-);`),
+);
+CREATE TABLE IF NOT EXISTS auth_contexts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  actor_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  permissions ${types.json} NOT NULL,
+  auth_state TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_contexts_actor ON auth_contexts(project_id, actor_hash, role, created_at);
+CREATE TABLE IF NOT EXISTS rbac_policy_snapshots (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  policy_schema_version TEXT NOT NULL,
+  role_count INTEGER NOT NULL,
+  operation_count INTEGER NOT NULL,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rbac_policy_snapshots_hash ON rbac_policy_snapshots(project_id, payload_hash);
+CREATE TABLE IF NOT EXISTS authz_decisions (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  actor_hash TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  required_permission TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  audit_event_id TEXT,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_authz_decisions_project_operation ON authz_decisions(project_id, operation, decision, created_at);`),
     statement("003_runs_cases", ["runs", "cases"], `
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
@@ -380,6 +428,176 @@ CREATE TABLE IF NOT EXISTS release_evidence_readbacks (
 );
 CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary ON release_evidence_readbacks(project_id, summary_id, provider, readback_status);
 CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release ON release_evidence_readbacks(project_id, release_id, provider, created_at);`)
+    ,
+    statement("012_commercial_api_contracts", ["commercial_api_contracts"], `
+CREATE TABLE IF NOT EXISTS commercial_api_contracts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  contract_schema_version TEXT NOT NULL,
+  endpoint_count INTEGER NOT NULL,
+  implemented_or_read_only_count INTEGER NOT NULL,
+  plan_only_count INTEGER NOT NULL,
+  blocked_by_auth_count INTEGER NOT NULL,
+  contract_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_commercial_api_contracts_project ON commercial_api_contracts(project_id, environment_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_api_contracts_hash ON commercial_api_contracts(project_id, contract_hash);`)
+    ,
+    statement("013_source_artifacts_and_event_outbox", ["source_artifacts", "event_outbox"], `
+CREATE TABLE IF NOT EXISTS source_artifacts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source_lane TEXT NOT NULL,
+  artifact_type TEXT NOT NULL,
+  source_contracts ${types.json} NOT NULL,
+  content_hash TEXT NOT NULL,
+  record_count INTEGER NOT NULL,
+  redaction_status TEXT NOT NULL DEFAULT 'hash_only',
+  raw_payload_embedded BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_source_artifacts_project ON source_artifacts(project_id, source_lane, artifact_type, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_source_artifacts_hash ON source_artifacts(project_id, artifact_type, content_hash);
+CREATE TABLE IF NOT EXISTS event_outbox (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  event_schema_version TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  trace_id TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  payload_ref TEXT,
+  payload_hash TEXT NOT NULL,
+  redaction_status TEXT NOT NULL,
+  delivery_status TEXT NOT NULL DEFAULT 'pending',
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_outbox_project ON event_outbox(project_id, event_type, delivery_status, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_outbox_resource_hash ON event_outbox(project_id, resource_type, resource_id, payload_hash);`)
+    ,
+    statement("014_billing_migration_readiness", ["billing_migration_readiness"], `
+CREATE TABLE IF NOT EXISTS billing_migration_readiness (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  readiness_schema_version TEXT NOT NULL,
+  source_owner_lane TEXT NOT NULL DEFAULT 'A1',
+  source_ledger_summary_ref TEXT,
+  migration_manifest_hash TEXT NOT NULL,
+  provider_event_count INTEGER NOT NULL DEFAULT 0,
+  ledger_event_count INTEGER NOT NULL DEFAULT 0,
+  replay_status_summary ${types.json} NOT NULL,
+  billing_mutations_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_provider_payload_embedded BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_provider_secret_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_card_data_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_migration_readiness_scope ON billing_migration_readiness(organization_id, tenant_id, workspace_id, project_id, environment_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_migration_readiness_hash ON billing_migration_readiness(project_id, environment_id, payload_hash);`)
+    ,
+    statement("015_notification_control_plane", ["notification_channels", "notification_subscriptions", "notification_templates", "notification_deliveries", "webhook_deliveries"], `
+CREATE TABLE IF NOT EXISTS notification_channels (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  delivery_surface TEXT NOT NULL,
+  connector_secret_ref TEXT,
+  connector_secret_hash TEXT,
+  raw_secret_stored BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL DEFAULT 'planned',
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_project ON notification_channels(project_id, provider, status);
+CREATE TABLE IF NOT EXISTS notification_subscriptions (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL REFERENCES notification_channels(id),
+  trigger_id TEXT NOT NULL,
+  actor_hash TEXT,
+  recipient_hash TEXT,
+  raw_recipient_stored BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notification_subscriptions_trigger ON notification_subscriptions(project_id, trigger_id, status);
+CREATE TABLE IF NOT EXISTS notification_templates (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  template_key TEXT NOT NULL,
+  payload_field_contract ${types.json} NOT NULL,
+  redaction_status TEXT NOT NULL DEFAULT 'metadata_only',
+  payload_hash TEXT NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_templates_key ON notification_templates(project_id, template_key);
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  trigger_id TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  delivery_status TEXT NOT NULL DEFAULT 'planned',
+  provider_message_ref_hash TEXT,
+  payload_hash TEXT NOT NULL,
+  raw_payload_embedded BOOLEAN NOT NULL DEFAULT FALSE,
+  audit_event_id TEXT,
+  usage_event_id TEXT,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_project ON notification_deliveries(project_id, channel_id, trigger_id, delivery_status, created_at);
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  endpoint_hash TEXT NOT NULL,
+  raw_endpoint_stored BOOLEAN NOT NULL DEFAULT FALSE,
+  delivery_status TEXT NOT NULL DEFAULT 'planned',
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  payload_hash TEXT NOT NULL,
+  audit_event_id TEXT,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_project ON webhook_deliveries(project_id, delivery_status, created_at);`)
   ];
 }
 

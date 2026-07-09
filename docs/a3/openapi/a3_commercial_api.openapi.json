@@ -1,0 +1,2516 @@
+{
+  "$schema": "https://spec.openapis.org/oas/3.1/schema/2022-10-07",
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ashr++ A3 Commercial Product Console API",
+    "version": "2026.07.09",
+    "summary": "Machine-readable A3 OpenAPI contract for commercial dashboard, reports, release gate, admin, billing, and trust surfaces.",
+    "description": "This contract translates the existing A3 commercial API matrix into an OpenAPI 3.1 artifact. A3 owns product workflow and UI surfaces; A1 remains the durable platform/API/auth/usage owner; A2 remains the judge/policy/release-gate authority."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "x-schema-version": "a3.openapi.commercial_api.v1",
+  "x-contract-id": "a3_commercial_api_openapi_2026_07_09",
+  "x-contract-source": [
+    "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+    "services/report/a3_commercial_api_contract.mjs",
+    "fixtures/a3/p3/a3_commercial_api_contract.redacted.json"
+  ],
+  "x-service-boundary": {
+    "lane": "A3",
+    "owner": "Product Console / Review Workflow / Report Center / Commercial UI",
+    "does_not_own": [
+      "A1 runner core logic",
+      "A1 auth middleware",
+      "A1 billing ledger",
+      "A2 judge scoring",
+      "A2 release policy semantics"
+    ]
+  },
+  "x-required-commercial-notes": {
+    "tenant": "Every hosted endpoint must be scoped by organization_id, tenant_id, workspace_id, project_id, and environment_id where applicable. Cross-tenant reads must fail closed with sanitized 404 or empty state.",
+    "auth": "Hosted SaaS calls require an authenticated actor or service account supplied by A1. This OpenAPI artifact never stores or displays credential values.",
+    "rbac": "Every customer action must declare a role or permission. Denied states must be explicit and safe for dashboard rendering.",
+    "usage": "Usage meters are read-only in A3 and must come from A1 usage ledger events before billing claims become live.",
+    "audit": "Mutating or shareable actions must emit append-only audit events with ids, refs, hashes, statuses, and counts only."
+  },
+  "x-secret-policy": {
+    "raw_secrets_allowed": false,
+    "raw_tokens_allowed": false,
+    "raw_cookies_allowed": false,
+    "raw_emails_allowed": false,
+    "raw_signed_urls_allowed": false,
+    "placeholder_policy": "Use ids, hashes, aliases, and [REDACTED] only."
+  },
+  "x-a1-a2-references": {
+    "a1": [
+      "RunResult",
+      "TraceEvent",
+      "Observation",
+      "ToolCall",
+      "artifact refs",
+      "tenant/auth/API gateway",
+      "Postgres/object storage",
+      "usage ledger",
+      "audit events"
+    ],
+    "a2": [
+      "Scenario",
+      "GradeResult",
+      "ReleaseGate",
+      "failure taxonomy",
+      "judge versions",
+      "policy evaluation",
+      "redaction verifier"
+    ],
+    "a3_integration_rule": "A3 may package and display A1/A2 evidence but must not reinterpret A2 judge semantics or mutate A1 runner/auth/storage behavior."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4173",
+      "description": "Local A3 API server for fixture-backed development."
+    }
+  ],
+  "security": [
+    {
+      "A3Session": []
+    },
+    {
+      "A3ServiceBearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Dashboard",
+      "description": "Run list, case detail, expected vs actual, trace timeline, and A1/A2 evidence overview."
+    },
+    {
+      "name": "Reports",
+      "description": "Report center, hosted report, share, revoke, manifest, and export-readback workflow."
+    },
+    {
+      "name": "Release Gate",
+      "description": "A2-owned release decision evidence surfaced through A3 review workflow."
+    },
+    {
+      "name": "Admin",
+      "description": "Organization, project, team, API key, and admin action planning surfaces."
+    },
+    {
+      "name": "Billing",
+      "description": "Read-only usage, quota, plan, and billing readiness surfaces."
+    },
+    {
+      "name": "Trust",
+      "description": "Enterprise readiness, artifact registry, audit export, redaction, and evidence-chain posture."
+    }
+  ],
+  "paths": {
+    "/api/a3/commercial-api/contract": {
+      "get": {
+        "operationId": "getA3CommercialApiContract",
+        "summary": "Read the A3 commercial API endpoint matrix.",
+        "tags": [
+          "Trust"
+        ],
+        "x-schema-version": "a3.commercial_api_contract.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "auditor_or_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "commercial_api_contract.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "usage ledger",
+            "audit events"
+          ],
+          "a2": [
+            "release policy",
+            "failure taxonomy",
+            "redaction verifier"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Commercial contract returned without secret values.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommercialApiContract"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/auth/context": {
+      "get": {
+        "operationId": "getA3AuthContext",
+        "summary": "Read the redacted local actor context used by A3 contract checks.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.auth_context_api_response.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "headers_query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "auth.context_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "RBAC backend",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "abuse policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Redacted auth context and sample authorization decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/auth/rbac-policy": {
+      "get": {
+        "operationId": "getA3RbacPolicy",
+        "summary": "Read the A3 RBAC policy matrix for local contract validation.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.rbac_policy.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "auditor_or_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "rbac.policy_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RBAC backend",
+            "tenant/auth/API gateway",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "redaction verifier"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "A3 local RBAC policy matrix.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RbacPolicy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/auth/authorize": {
+      "post": {
+        "operationId": "authorizeA3Operation",
+        "summary": "Check whether a local A3 actor context can perform a named operation.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.authz_decision.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "body_headers_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "authz.operation_checked"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RBAC backend",
+            "tenant/auth/API gateway",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "abuse policy",
+            "redaction verifier"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "actor_hash": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  },
+                  "project_id": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization decision with sanitized denied state and audit event envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthzDecision"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/dashboard": {
+      "get": {
+        "operationId": "getA3Dashboard",
+        "summary": "Read the dashboard snapshot assembled from A1 run evidence and A2 grade evidence.",
+        "tags": [
+          "Dashboard"
+        ],
+        "x-schema-version": "a3.dashboard_snapshot.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "project.dashboard_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "TraceEvent",
+            "ToolCall"
+          ],
+          "a2": [
+            "GradeResult",
+            "Scenario",
+            "failure taxonomy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Dashboard snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/runs": {
+      "get": {
+        "operationId": "listA3Runs",
+        "summary": "List runs imported from A1 evidence.",
+        "tags": [
+          "Dashboard"
+        ],
+        "x-schema-version": "a3.api_run_list.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "run.listed"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult"
+          ],
+          "a2": [
+            "GradeResult"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Run list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/runs/{runId}": {
+      "get": {
+        "operationId": "getA3Run",
+        "summary": "Read one run with case, trace, and tool-call evidence.",
+        "tags": [
+          "Dashboard"
+        ],
+        "x-schema-version": "a3.run_detail.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "run.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "TraceEvent",
+            "Observation",
+            "ToolCall"
+          ],
+          "a2": [
+            "GradeResult",
+            "failure taxonomy"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RunId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run detail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/releases/{releaseId}/evidence-summary": {
+      "get": {
+        "operationId": "getA3ReleaseEvidenceSummary",
+        "summary": "Read release evidence summary for an A2-governed release gate.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.release_evidence_api_response.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reviewer",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "judge_invocations"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "release_evidence.summary_read",
+            "policy.evaluated"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "artifact refs",
+            "usage ledger"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "GradeResult",
+            "judge versions",
+            "failure taxonomy"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release evidence summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseEvidenceSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/releases/{releaseId}/evidence-health": {
+      "get": {
+        "operationId": "getA3ReleaseEvidenceHealth",
+        "summary": "Read compact release evidence health and next action.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.release_evidence_health_api_response.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reviewer",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "judge_invocations"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "release_evidence.health_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "artifact refs"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "policy evaluation"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release evidence health.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseEvidenceHealth"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/review/waivers": {
+      "post": {
+        "operationId": "submitA3ReviewWaiver",
+        "summary": "Submit a reviewer waiver request bound to release evidence.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.review_waiver_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "planned_actor_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "reviewer_or_security_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "waiver.requested",
+            "audit.mutation_recorded"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "audit events",
+            "tenant/auth/API gateway"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "policy evaluation"
+          ]
+        },
+        "responses": {
+          "202": {
+            "description": "Waiver accepted for review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/review/approvals": {
+      "post": {
+        "operationId": "submitA3ReviewApproval",
+        "summary": "Submit an approval record bound to release evidence.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.review_approval_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "planned_actor_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "reviewer_or_owner",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "approval.recorded",
+            "release_gate.approved"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "audit events",
+            "tenant/auth/API gateway"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "policy evaluation"
+          ]
+        },
+        "responses": {
+          "202": {
+            "description": "Approval accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/review/denials": {
+      "post": {
+        "operationId": "submitA3ReviewDenial",
+        "summary": "Submit a denial record that keeps release evidence blocked.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.review_denial_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "release_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "planned_actor_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "reviewer_or_owner",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "denial.recorded",
+            "release_gate.denied"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "audit events",
+            "tenant/auth/API gateway"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "policy evaluation"
+          ]
+        },
+        "responses": {
+          "202": {
+            "description": "Denial accepted and release remains blocked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewActionReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/reports": {
+      "get": {
+        "operationId": "listA3Reports",
+        "summary": "List shareable hosted reports.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.api_report_list.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "report_exports"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.listed"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "artifact refs"
+          ],
+          "a2": [
+            "GradeResult",
+            "ReleaseGate"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Report list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/reports/share": {
+      "post": {
+        "operationId": "createA3ShareableReport",
+        "summary": "Create a shareable report after redaction checks.",
+        "tags": [
+          "Reports",
+          "Trust"
+        ],
+        "x-schema-version": "a3.shareable_report.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_created_by_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reviewer_or_owner",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "report_exports"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.share_link_created",
+            "artifact.redaction_scanned"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "artifact refs",
+            "audit events"
+          ],
+          "a2": [
+            "GradeResult",
+            "redaction verifier"
+          ]
+        },
+        "responses": {
+          "201": {
+            "description": "Shareable report created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareableReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/reports/{reportId}": {
+      "get": {
+        "operationId": "getA3Report",
+        "summary": "Read a hosted report record.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.shareable_report.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "report_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "report_exports"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "artifact refs"
+          ],
+          "a2": [
+            "ReleaseGate",
+            "GradeResult"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report detail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareableReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/reports/{reportId}/manifest": {
+      "get": {
+        "operationId": "getA3ReportManifest",
+        "summary": "Read report manifest with source artifact references.",
+        "tags": [
+          "Reports",
+          "Trust"
+        ],
+        "x-schema-version": "a3.report_center_manifest.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "report_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "auditor_or_project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "report_exports"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.manifest_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "artifact refs",
+            "RunResult"
+          ],
+          "a2": [
+            "GradeResult",
+            "ReleaseGate"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report manifest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactManifest"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/reports/{reportId}/revoke": {
+      "post": {
+        "operationId": "revokeA3Report",
+        "summary": "Revoke a shareable hosted report.",
+        "tags": [
+          "Reports",
+          "Trust"
+        ],
+        "x-schema-version": "a3.report_revoke_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "report_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_revoked_by_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reviewer_or_owner",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "report_revocations"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.revoked"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "audit events",
+            "artifact refs"
+          ],
+          "a2": [
+            "redaction verifier"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportMutationReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/admin/console": {
+      "get": {
+        "operationId": "getA3AdminConsole",
+        "summary": "Read organization, project, team, API key metadata, and guardrail state.",
+        "tags": [
+          "Admin"
+        ],
+        "x-schema-version": "a3.saas_admin_console.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "organization_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "team_members"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "admin.console_read",
+            "api_key.listed"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "api key metadata",
+            "audit events"
+          ],
+          "a2": [
+            "security verification"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Admin console state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConsole"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/admin/actions/submit": {
+      "post": {
+        "operationId": "submitA3AdminAction",
+        "summary": "Submit an admin action request without live cloud mutation.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.saas_admin_action_request.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "body_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "planned_actor_alias",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "organization_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "admin.action_requested",
+            "audit.mutation_planned"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "audit events"
+          ],
+          "a2": [
+            "security verification"
+          ]
+        },
+        "responses": {
+          "202": {
+            "description": "Admin action request captured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActionReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/billing/readiness": {
+      "get": {
+        "operationId": "getA3BillingReadiness",
+        "summary": "Read billing readiness without payment mutation.",
+        "tags": [
+          "Billing"
+        ],
+        "x-schema-version": "a3.billing_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "read_only_preview",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "billing_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "billing_readiness_reads"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "billing.subscription_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "billing ledger",
+            "usage ledger",
+            "payment backend"
+          ],
+          "a2": [
+            "model cost policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Billing readiness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingReadiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/billing/migration-readiness": {
+      "get": {
+        "operationId": "getA3BillingMigrationReadiness",
+        "summary": "Read A1 billing migration readiness without A3 billing mutation.",
+        "tags": [
+          "Billing"
+        ],
+        "x-schema-version": "a3.billing_migration_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "read_only_preview",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "billing:read",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "billing_readiness_reads"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "billing.migration_readiness_read",
+            "billing.ledger_summary_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "read-only billing ledger summary",
+            "durable billing migration manifest",
+            "provider event replay evidence"
+          ],
+          "a2": [
+            "security verification",
+            "model cost policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Billing migration readiness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingMigrationReadiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/usage/ledger": {
+      "get": {
+        "operationId": "getA3UsageLedger",
+        "summary": "Read A3 usage ledger projection.",
+        "tags": [
+          "Billing",
+          "Trust"
+        ],
+        "x-schema-version": "a3.usage_ledger.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "read_only_preview",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "billing_admin_or_auditor",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "usage.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "usage ledger",
+            "quota policy"
+          ],
+          "a2": [
+            "model cost policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Usage ledger projection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageLedger"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/artifacts/registry": {
+      "get": {
+        "operationId": "getA3ArtifactRegistry",
+        "summary": "Read artifact registry projection for report and release evidence.",
+        "tags": [
+          "Trust",
+          "Reports"
+        ],
+        "x-schema-version": "a3.artifact_registry.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "auditor_or_project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "artifact_bytes_stored_days"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "artifact_registry.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "artifact refs",
+            "object storage",
+            "bundle service"
+          ],
+          "a2": [
+            "redaction verifier",
+            "ReleaseGate",
+            "GradeResult"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Artifact registry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactRegistry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/enterprise/readiness": {
+      "get": {
+        "operationId": "getA3EnterpriseReadiness",
+        "summary": "Read enterprise trust, security, and readiness posture.",
+        "tags": [
+          "Trust",
+          "Admin"
+        ],
+        "x-schema-version": "a3.enterprise_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "security_admin_or_auditor",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "enterprise_readiness.read",
+            "trust.posture_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "audit events",
+            "object storage"
+          ],
+          "a2": [
+            "security verification",
+            "redaction verifier",
+            "policy evaluation"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Enterprise readiness posture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnterpriseReadiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "A3Session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "a3_session",
+        "description": "Hosted session cookie issued and validated by A1 auth middleware. This contract never includes cookie values."
+      },
+      "A3ServiceBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Service-account bearer credential validated by A1 auth middleware. This contract never includes token values."
+      }
+    },
+    "parameters": {
+      "RunId": {
+        "name": "runId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ReleaseId": {
+        "name": "releaseId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ReportId": {
+        "name": "reportId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Sanitized not-found response. Cross-tenant reads must not reveal private evidence.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "TenantScope": {
+        "type": "object",
+        "required": [
+          "organization_id",
+          "project_id"
+        ],
+        "properties": {
+          "organization_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "environment_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SafetyEnvelope": {
+        "type": "object",
+        "required": [
+          "contains_secret_values",
+          "raw_tokens_allowed",
+          "raw_cookies_allowed",
+          "raw_signed_urls_allowed"
+        ],
+        "properties": {
+          "contains_secret_values": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_tokens_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_cookies_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_signed_urls_allowed": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "A1A2EvidenceRefs": {
+        "type": "object",
+        "required": [
+          "a1",
+          "a2"
+        ],
+        "properties": {
+          "a1": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "a2": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommercialApiContract": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "endpoint_matrix",
+          "tenant_auth_rbac_usage_audit",
+          "source_authority",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.commercial_api_contract.v1"
+          },
+          "endpoint_matrix": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "tenant_auth_rbac_usage_audit": {
+            "type": "object"
+          },
+          "source_authority": {
+            "type": "object"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "DashboardSnapshot": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "summary",
+          "runs"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "summary": {
+            "type": "object"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "a1_a2_evidence_refs": {
+            "$ref": "#/components/schemas/A1A2EvidenceRefs"
+          }
+        },
+        "additionalProperties": true
+      },
+      "RunListResponse": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "runs"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_run_list.v1"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "RunDetail": {
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "trace_events": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "expected_vs_actual": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseEvidenceSummary": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "release_id",
+          "tenant_scope",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "release_id": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "a1_source_snapshot": {
+            "$ref": "#/components/schemas/A1A2EvidenceRefs"
+          },
+          "a2_release_gate": {
+            "type": "object"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseEvidenceHealth": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "release_id",
+          "release_evidence_health",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.release_evidence_health_api_response.v1"
+          },
+          "release_id": {
+            "type": "string"
+          },
+          "release_evidence_health": {
+            "type": "object"
+          },
+          "next_action": {
+            "type": "string"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReviewActionReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "status",
+          "audit_event"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "audit_event": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReportListResponse": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "reports"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_report_list.v1"
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ShareableReport": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "report_id",
+          "status"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "report_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/ArtifactManifest"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ArtifactManifest": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "artifacts"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "artifact_id",
+                "artifact_type"
+              ],
+              "properties": {
+                "artifact_id": {
+                  "type": "string"
+                },
+                "artifact_type": {
+                  "type": "string"
+                },
+                "content_hash": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReportMutationReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "report_id",
+          "status",
+          "audit_event"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "report_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "audit_event": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AuthContextResponse": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "auth_context",
+          "sample_decisions",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.auth_context_api_response.v1"
+          },
+          "auth_context": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "actor_hash",
+              "role",
+              "permissions",
+              "tenant_scope",
+              "safety"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a3.auth_context.v1"
+              },
+              "actor_hash": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tenant_scope": {
+                "$ref": "#/components/schemas/TenantScope"
+              },
+              "safety": {
+                "$ref": "#/components/schemas/SafetyEnvelope"
+              }
+            },
+            "additionalProperties": true
+          },
+          "sample_decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthzDecision"
+            }
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "RbacPolicy": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "roles",
+          "operations",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.rbac_policy.v1"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AuthzDecision": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "operation",
+          "allowed",
+          "decision",
+          "audit_event",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.authz_decision.v1"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "audit_event": {
+            "type": "object"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AdminConsole": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "tenant_scope",
+          "guardrails"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "guardrails": {
+            "type": "object"
+          },
+          "api_keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Metadata only. Secret key material must never be returned."
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "AdminActionReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "action_id",
+          "status",
+          "audit_event"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "audit_event": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "BillingReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "billing_mutations_enabled",
+          "usage_source"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.billing_readiness.v1"
+          },
+          "billing_mutations_enabled": {
+            "type": "boolean",
+            "const": false
+          },
+          "usage_source": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "BillingMigrationReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "tenant_scope",
+          "billing_mutations_enabled",
+          "source_owner_lane",
+          "migration_manifest_hash",
+          "ledger_summary",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.billing_migration_readiness.v1"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "billing_mutations_enabled": {
+            "type": "boolean",
+            "const": false
+          },
+          "source_owner_lane": {
+            "type": "string",
+            "const": "A1"
+          },
+          "source_ledger_summary_ref": {
+            "type": "string"
+          },
+          "migration_manifest_hash": {
+            "type": "string"
+          },
+          "provider_event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ledger_event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ledger_summary": {
+            "type": "object",
+            "description": "Currency totals, usage units, provider event counts, ledger event counts, refs, hashes, and statuses only."
+          },
+          "replay_status_summary": {
+            "type": "object"
+          },
+          "raw_provider_secret_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_provider_payload_embedded": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_card_data_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "UsageLedger": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "meters"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.usage_ledger.v1"
+          },
+          "meters": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ArtifactRegistry": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "artifacts"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.artifact_registry.v1"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "redaction_status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "EnterpriseReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "tenant_scope",
+          "readiness_status",
+          "trust_controls"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.enterprise_readiness.v1"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "readiness_status": {
+            "type": "string"
+          },
+          "trust_controls": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "a1_a2_blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_error.v1"
+          },
+          "error": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

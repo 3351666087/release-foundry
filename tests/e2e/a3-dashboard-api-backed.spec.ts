@@ -11,9 +11,14 @@ test.describe("A3 API-backed dashboard E2E", () => {
       response.url().includes("/api/a3/dashboard")
       && response.request().method() === "GET"
     ));
+    const schemaDriftResponse = page.waitForResponse((response) => (
+      response.url().includes("/api/a3/a1-a2/schema-drift")
+      && response.request().method() === "GET"
+    ));
 
     await page.goto(apiBackedPath);
     await expect((await dashboardResponse).status()).toBe(200);
+    await expect((await schemaDriftResponse).status()).toBe(200);
 
     await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
     await expect(page.locator("#metric-cases")).toHaveText("32");
@@ -41,7 +46,50 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(reviewerWorkflow).toContainText("A1 trace");
     await expect(reviewerWorkflow).toContainText("A2 judge evidence");
 
+    const contractRadar = section(page, "#schema-drift-radar");
+    await expect(contractRadar).toContainText("A1/A2 Contract Radar");
+    await expect(contractRadar).toContainText("compatible");
+    await expect(contractRadar).toContainText("a1_run_result");
+    await expect(contractRadar).toContainText("raw schema payload not embedded");
+
     expect(consoleErrors, "API-backed dashboard should not emit browser console errors").toEqual([]);
+  });
+
+  test("renders Billing Migration Readiness evidence from the local A3 API", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+
+    await page.goto(apiBackedPath);
+    const migrationPanel = section(page, "#billing-migration-readiness");
+    await expect(migrationPanel).toContainText("Billing Migration Readiness");
+    await expect(migrationPanel).toContainText("Waiting for A1 billing ledger migration");
+
+    const migrationResponse = await page.request.get(apiUrl(page, "/api/a3/billing/migration-readiness?source=mock"), {
+      headers: {
+        "x-a3-role": "auditor"
+      }
+    });
+    await expect(migrationResponse.status()).toBe(200);
+    const migration = await migrationResponse.json();
+    expect(migration.schema_version).toBe("a3.billing_migration_readiness.v1");
+    expect(migration.summary.status).toBe("read_only_migration_contract_ready");
+    expect(migration.summary.ready_for_live_customer_billing).toBe(false);
+    expect(migration.safety.env_local_read).toBe(false);
+    expect(migration.safety.real_api_called_by_a3).toBe(false);
+    expect(migration.safety.real_payment_provider_called).toBe(false);
+    expect(migration.api_contract.some((route: { route?: string }) => route.route === "GET /api/a3/billing/readiness")).toBe(true);
+    expect(migration.db_contract.tables.some((table: { name?: string }) => table.name === "billing_provider_events")).toBe(true);
+    expect(migration.event_contract.ledger_event_types).toContain("usage_reconciled");
+    expect(JSON.stringify(migration)).not.toMatch(/Bearer|sk-|ghp_|github_pat_|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+
+    await expect(page.locator("body")).not.toContainText("owner@example.com");
+    await expect(page.locator("body")).not.toContainText("teammate@example.com");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-billing-migration-readiness-api-backed-2026-07-09.png",
+      fullPage: true
+    });
+
+    expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
   });
 
   test("creates and revokes a hosted report through the local A3 API", async ({ page }) => {
@@ -112,6 +160,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     const approval = loadFixture("fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
 
     const waiverResponse = await page.request.post(apiUrl(page, "/api/a3/review/waivers?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         waiver,
         generated_at: "2026-07-07T12:00:00.000Z"
@@ -123,6 +174,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(waiverReceipt.accepted).toBe(true);
 
     const approvalResponse = await page.request.post(apiUrl(page, "/api/a3/review/approvals?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         approval,
         waiver,
@@ -159,6 +213,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await page.goto(apiBackedPath);
 
     const shareResponse = await page.request.post(apiUrl(page, "/api/a3/reports/share?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         source: "mock",
         title: "A3 Round 4 denied-state report",
@@ -176,6 +233,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(page.locator("body")).toContainText("Case Evidence");
 
     const revokeResponse = await page.request.post(apiUrl(page, `/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke?source=mock`), {
+      headers: {
+        "x-a3-role": "owner"
+      },
       data: {
         reason: "round4_denied_state_e2e",
         revoked_by: "round4-e2e"

@@ -33,7 +33,8 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
     "release_evidence_summaries",
     "release_evidence_snapshots",
     "release_evidence_diffs",
-    "release_evidence_readbacks"
+    "release_evidence_readbacks",
+    "billing_migration_readiness"
   ]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
   }
@@ -50,7 +51,14 @@ test("A3 SQL migration plan covers tenant-scoped import, report, audit, and usag
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_snapshots_release/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary/);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release/);
+  assert.match(sql, /readiness_schema_version TEXT NOT NULL/);
+  assert.match(sql, /source_owner_lane TEXT NOT NULL DEFAULT 'A1'/);
+  assert.match(sql, /migration_manifest_hash TEXT NOT NULL/);
+  assert.match(sql, /billing_mutations_enabled BOOLEAN NOT NULL DEFAULT FALSE/);
+  assert.match(sql, /raw_provider_secret_allowed BOOLEAN NOT NULL DEFAULT FALSE/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_billing_migration_readiness_scope/);
   assert.ok(plan.guardrails.some((item) => item.includes("v2 authority rows")));
+  assert.ok(plan.guardrails.some((item) => item.includes("Billing migration readiness rows")));
 });
 
 test("A3 SQL migration plan documents Postgres, MySQL, and SQLite dialect targets", () => {

@@ -1,5 +1,60 @@
 # P3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial / Human Action / Runtime Reads
+
+Continued A3 from the commercial SaaS strategy bus and focused on the next
+review/governance/runtime requirements.
+
+Implemented this round:
+
+- Added denial as the third reviewer action beside waiver and approval.
+- Added `POST /api/a3/review/denials` in the local A3 API server.
+- Added memory/file/SQLite store support for denial records.
+- Added `denial.submitted` metadata-only event-outbox evidence.
+- Added dashboard controls to record waiver, approval, and denial in API-backed
+  mode.
+- Added dashboard display of review receipts and human action counts.
+- Added API-backed usage ledger and billing readiness reads into dashboard
+  runtime refresh.
+- Added billing readiness rows to the SaaS Runtime panel.
+- Added denial to `a3.commercial_api_contract.v1`, OpenAPI, and the redacted
+  commercial API contract fixture.
+
+A1/A2 calibration:
+
+- A1 RunResult, TraceEvent, ToolCall, usage, auth, billing, and GitHub
+  publisher semantics were not modified.
+- A2 ReleaseGate and judge semantics remain authoritative. A3 denial records
+  describe human governance only and do not rewrite score/pass/fail/failure
+  classes.
+- GitHub publishing remains live-capable through the existing publisher module
+  but default-safe in this round: no live token was read and no live mutation was
+  performed.
+- Billing remains read-only in A3. No checkout, invoice, provider, quota, or
+  customer payment mutation was enabled.
+
+Verification:
+
+```text
+node --check apps\dashboard\src\app.mjs apps\dashboard\src\api-client.mjs apps\dashboard\src\components\saas-runtime-panel.mjs services\report\a3_review_workflow.mjs services\report\a3_store.mjs services\report\a3_sqlite_store.mjs services\report\a3_api_server.mjs services\report\a3_auth_rbac_boundary.mjs services\report\a3_commercial_api_contract.mjs services\report\report_builder.mjs
+node --test tests\a3\*.mjs
+npm.cmd run test:e2e
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+
+- Syntax checks passed.
+- Focused A3 tests: 96 passed, 0 failed.
+- Full A3 Node suite: 243 passed, 0 failed.
+- Playwright E2E: 9 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and Playwright transient output remain ignored.
+
 ## 2026-07-09 - Commercial Growth Round 5 Billing/Usage Readiness Contract
 
 Continued from PR #25 / `codex/a3-commercial-growth-round4` after syncing
@@ -3279,3 +3334,483 @@ Safety:
 
 - No `.env.local`, Ashr API key, GitHub token, cookie, real account value, raw
   signed URL, or payment secret was read or committed.
+
+## 2026-07-09 - Commercial API Contract and Evidence Coverage Round
+
+Continued A3 toward the large SaaS strategy bus with a new commercial API
+contract round. This round adds `a3.commercial_api_contract.v1`, exposes it from
+`GET /api/a3/commercial-api/contract`, records the future DB table
+`commercial_api_contracts`, and generates
+`fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+
+The contract maps 29 commercial `/v1` endpoints into A3-owned product surfaces:
+product console, release gate, review workflow, report center, artifact
+registry, usage/billing, admin console, and audit export. Every endpoint names
+owner lane, local A3 route, RBAC requirement, DB tables, events, artifacts, usage
+meters, and A1/A2 dependencies.
+
+Parallel agent outputs integrated into this round:
+
+- `fixtures/a3/p3/a3_commercial_evidence_coverage.redacted.json`
+- `docs/a3/p3_commercial_evidence_coverage_2026_07_09.md`
+- `tests/a3/a3_commercial_evidence_coverage.test.mjs`
+- `tests/a3/a1_a2_compatibility_contract.test.mjs`
+- `services/report/a3_security_redaction_guard.mjs`
+- `tests/a3/a3_security_redaction_guard.test.mjs`
+- `docs/a3/p3_growth_auditor_money_grade_round6_2026_07_09.md`
+
+A1/A2 boundary:
+
+- A3 does not mutate A1 runner, SDK, auth, usage, billing, artifact, or API
+  gateway semantics.
+- A3 does not change A2 judge scores, pass/fail, release policies, thresholds,
+  failure classes, or verifier semantics.
+- A3 remains downstream: it turns A1/A2 evidence into product workflow, report,
+  review, audit, usage/billing preview, and commercial readiness evidence.
+
+Safety:
+
+- No `.env.local` read.
+- No API key, token, cookie, real account value, raw signed URL, or payment
+  secret written.
+- No live Ashr, GitHub, billing, auth, or cloud mutation performed.
+
+Publish note:
+
+- Local git HTTPS push was unavailable during this round, so the already-tested
+  A3 commit was published through the GitHub Git Data API with a fast-forward
+  parent and redacted file set only. No secret-bearing files were included.
+
+## 2026-07-09 - Commercial SaaS Contract Round 7: OpenAPI, Tenant Scope, Event Envelope, Source Artifacts
+
+Continued from latest `origin/main` after the group lead refreshed main with
+latest A1/README sync work. This round followed
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and focused on making A3 less
+like a dashboard-only demo and more like a commercial SaaS contract consumer.
+
+Twenty growth points considered and advanced:
+
+1. OpenAPI artifact for A3 commercial API surfaces.
+2. Tenant scope helper with organization/tenant/workspace/project/environment.
+3. Metadata-only event envelope builder.
+4. Future `event_outbox` SQL contract.
+5. A1 RunResult source artifact hash.
+6. A1 trace event batch source artifact hash.
+7. A1 tool-call batch source artifact hash.
+8. A2 GradeResult source artifact hash.
+9. A2 ReleaseGate source artifact hash.
+10. Source artifacts in release evidence v2.
+11. Source artifacts in artifact registry.
+12. Source artifacts in API-backed dashboard payload.
+13. Commercial API fixture refresh after tenant/workspace fields.
+14. Commercial API docs update for event outbox and source artifacts.
+15. OpenAPI test for tenant/auth/RBAC/usage/audit notes.
+16. Tenant/event/source-artifact unit tests.
+17. A1/A2 live alignment documentation.
+18. Growth-Auditor Money-Grade Round 7.
+19. Full A3 Node contract test run.
+20. Commercial and hygiene CL guard run.
+
+Implemented:
+
+- Added `services/report/a3_tenant_scope.mjs`.
+- Added `services/report/a3_event_envelope.mjs`.
+- Added `services/report/a3_source_artifacts.mjs`.
+- Added `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- Added `tests/a3/a3_commercial_openapi_contract.test.mjs`.
+- Added `tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`.
+- Updated `a3.commercial_api_contract.v1` with `tenant_id`, `workspace_id`,
+  `environment_id`, event outbox notes, and refreshed redacted fixture.
+- Updated `a3.release_evidence_summary.v2` so source artifact hashes travel with
+  release evidence without embedding raw A1/A2 payloads.
+- Updated Artifact Registry so it can include A1/A2 source evidence entries.
+- Updated SQL migration contract with `source_artifacts` and `event_outbox`.
+- Added Integration-Agent output:
+  - `docs/a3/p3_a1_a2_live_alignment_2026_07_09.md`
+- Added Growth-Auditor output:
+  - `docs/a3/p3_growth_auditor_money_grade_round7_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains source of truth for RunResult, TraceEvent, Observation, ToolCall,
+  tenant/auth/API gateway, durable usage, artifact storage, and event
+  publication.
+- A2 remains source of truth for Scenario, GradeResult, Judge, ReleaseGate,
+  failure taxonomy, policy, and verifier semantics.
+- A3 now records source artifact ids, counts, source contracts, and SHA-256
+  hashes so dashboard/report/release evidence can prove which A1/A2 evidence it
+  consumed without changing that evidence.
+
+API / DB / Event / Artifact contract:
+
+- API docs: `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- DB: `commercial_api_contracts`, `source_artifacts`, `event_outbox`.
+- Event: `services/report/a3_event_envelope.mjs` models
+  `ashr.event_envelope.v1`; durable event outbox remains future backend work.
+- Artifact: source artifact hash summaries for A1/A2 evidence are now carried by
+  release evidence v2 and artifact registry.
+
+Tenant/auth/RBAC/usage/audit:
+
+- Tenant fields now preserve `organization_id`, `tenant_id`, `workspace_id`,
+  `project_id`, and `environment_id`.
+- Auth/RBAC live enforcement remains blocked until A1 hosted auth/RBAC exists.
+- Usage remains read-only and downstream of the A1 usage ledger.
+- Audit events and source artifacts are metadata/hash only; no raw payloads are
+  embedded.
+
+Verification:
+
+```text
+node --check services\report\a3_tenant_scope.mjs
+node --check services\report\a3_event_envelope.mjs
+node --check services\report\a3_source_artifacts.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_release_evidence.mjs
+node --check services\report\a3_artifact_registry.mjs
+node --test tests\a3\a3_tenant_event_source_artifact_contract.test.mjs tests\a3\a3_release_evidence.test.mjs tests\a3\artifact_registry.test.mjs tests\a3\a3_commercial_api_contract.test.mjs tests\a3\a3_commercial_openapi_contract.test.mjs
+node --test tests\a3\*.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check -- services/report tests/a3 docs/a3/openapi docs/a3/p3_commercial_api_contract_2026_07_09.md fixtures/a3/p3/a3_commercial_api_contract.redacted.json
+```
+
+Results:
+
+- Focused tenant/event/source-artifact/OpenAPI tests passed: 19 pass, 0 fail.
+- Full A3 Node tests passed: 229 pass, 0 fail.
+- Commercial CL passed: 0 blockers, 0 advisories.
+- Hygiene CL passed with no findings.
+- Diff whitespace check passed for touched A3 files.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No real auth, billing, team, API-key, Trust, object-storage, branch
+  protection, or cloud mutation.
+- No API key, token, cookie, real account value, email, raw signed URL, or
+  payment secret was written.
+
+## 2026-07-09 - Auth/RBAC Boundary Spine Round
+
+Goal: answer Contract-Agent and Bus-Auditor feedback that A3 had auth/RBAC
+claims in OpenAPI/docs but needed a concrete local actor context and
+authorization decision contract.
+
+Implemented:
+
+- `services/report/a3_auth_rbac_boundary.mjs`
+- `a3.auth_context.v1`
+- `a3.rbac_policy.v1`
+- `a3.authz_decision.v1`
+- API routes:
+  - `GET /api/a3/auth/context`
+  - `GET /api/a3/auth/rbac-policy`
+  - `POST /api/a3/auth/authorize`
+- SaaS Admin Console `auth_boundary` state.
+- Dashboard Auth/RBAC Boundary panel inside SaaS Admin.
+- SaaS Admin export `auth_boundary` summary.
+- Artifact Registry `auth_rbac_boundary` evidence.
+- SQL contract tables:
+  - `auth_contexts`
+  - `rbac_policy_snapshots`
+  - `authz_decisions`
+- OpenAPI paths and schemas for Auth/RBAC boundary.
+- Documentation:
+  - `docs/a3/p3_auth_rbac_boundary_2026_07_09.md`
+- Tests:
+  - `tests/a3/a3_auth_rbac_boundary.test.mjs`
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted auth, sessions, API keys, RBAC enforcement, tenant
+  isolation, audit, usage, and API gateway.
+- A2 remains owner of security verification, abuse cases, release policy,
+  redaction, and verifier correctness.
+- A3 only models local product-workflow authorization and denied states.
+
+Verification:
+
+```text
+node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/artifact_registry.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs
+```
+
+Final verification result:
+
+- Focused Auth/RBAC round: 22 pass, 0 fail.
+- Full A3 Node suite: 234 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No real hosted auth, team invite, API-key rotation, billing, Trust publish, or
+  cloud mutation.
+- Actor identity is represented as `actor_hash`; raw email/token/cookie/key
+  values are not returned.
+
+## 2026-07-09 - Peer Branch and Live Workflow Readiness Round
+
+Goal: consume A1/A2 peer-branch contract changes before merge and turn the team
+lead's next six commercial workflow items into a visible A3 readiness contract.
+
+Implemented:
+
+- `a3.peer_branch_calibration.v1`
+- `GET /api/a3/peer-branches/calibration`
+- dashboard `Peer Branch Calibration`
+- source-artifact hash row `a3_peer_branch_calibration`
+- `a3.live_workflow_readiness.v1`
+- `GET /api/a3/live-workflow/readiness`
+- dashboard `Live Workflow Readiness`
+- static and API-backed dashboard wiring
+- docs:
+  - `docs/a3/p3_growth_auditor_peer_branch_calibration_2026_07_09.md`
+  - `docs/a3/p3_live_workflow_readiness_2026_07_09.md`
+
+The live readiness contract covers:
+
+- GitHub PR check live publishing
+- PR comment live publishing
+- reviewer approve / deny / waiver workflow
+- dashboard human operation records
+- billing/admin read-only usage and billing state
+- hosted report share-link revoke, expiry, and audit lifecycle
+
+A1/A2 calibration:
+
+- A1 remains owner of runner, auth, API gateway, usage ledger, billing provider,
+  quota enforcement, and live GitHub/CI credentials.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 consumes A1/A2 outputs and peer deltas as downstream dashboard/report/API
+  evidence only.
+
+Verification:
+
+```text
+node --test tests\a3\a3_live_workflow_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_peer_branch_calibration.test.mjs tests\a3\a3_tenant_event_source_artifact_contract.test.mjs
+```
+
+Result:
+
+- Focused round: 45 pass, 0 fail.
+- Full A3 Node suite: 249 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.
+
+## 2026-07-09 - Live Ops Control Plane Round
+
+Goal: turn the six next SaaS workflow asks into one A3 product-console contract
+with API, DB, event, audit, dashboard, and A1/A2 dependency visibility.
+
+Implemented:
+
+- `a3.live_ops_control_plane.v1`
+- `GET /api/a3/live-ops/control-plane`
+- dashboard `Live Ops Control Plane`
+- static and API-backed dashboard wiring
+- redacted fixture:
+  - `fixtures/a3/p3/a3_live_ops_control_plane.redacted.json`
+- docs:
+  - `docs/a3/p3_live_ops_control_plane_2026_07_09.md`
+
+The control plane covers:
+
+- GitHub PR check live publishing
+- PR comment live publishing
+- reviewer approve / deny / waiver workflow
+- dashboard human operation records
+- billing/admin read-only usage and billing state
+- report share-link revoke, expiry, and audit lifecycle
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted workers, GitHub credentials, usage events,
+  billing ledger migrations, provider webhooks, auth/RBAC, and production DB
+  persistence.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 maps those outputs to product workflow state and does not mutate A1/A2
+  source semantics.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.
+
+Verification:
+
+- Focused Node: 43 pass, 0 fail.
+- Full A3 Node suite: 254 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+## 2026-07-09 - Live Publish / Review / Billing / Share Closeout
+
+Goal: verify and document the latest A3 implementation pass for the six SaaS
+workflow asks:
+
+1. GitHub PR check live publishing.
+2. PR comment live publishing.
+3. Reviewer approve / deny / waiver workflow.
+4. Dashboard-visible human operation records.
+5. Billing/admin reads usage and billing state.
+6. Report share link revoke, expiry, and audit lifecycle.
+
+Completed:
+
+- Confirmed local A3 API routes for GitHub check and PR comment publishing.
+- Confirmed GitHub publish defaults to dry-run and live mode is gated by hosted
+  session or service-account context.
+- Confirmed reviewer waiver, approval, and denial routes write sanitized local
+  receipts, audit events, and event-outbox rows.
+- Confirmed dashboard/report payloads expose `github_publish_receipts`,
+  `review_workflow_records`, `saas_admin_action_requests`, `audit_events`, and
+  event-outbox summaries as human operation evidence.
+- Confirmed usage/billing/admin read routes stay read-only and downstream of
+  A1 billing/usage ownership.
+- Confirmed hosted report links support create, view, revoke, expiry, denied
+  access, and audit records without exposing raw share tokens.
+- Added closeout doc:
+  - `docs/a3/p3_live_publish_review_billing_share_closeout_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 owns hosted auth, service accounts, GitHub credentials/workers, production
+  DB persistence, durable usage events, billing ledger, provider webhooks, and
+  runner outputs.
+- A2 owns score, pass/fail, release policy, failure taxonomy, security
+  verification, and judge semantics.
+- A3 only presents workflow, review, report, billing-readiness, and audit
+  state derived from those sources.
+
+Verification:
+
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+
+Results:
+
+- Full A3 Node suite: 260 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path,
+  payment secret, or raw share token was written.
+
+## 2026-07-09 - Notification Control Plane Implementation
+
+Goal: implement the next A3 commercial workflow layer for Slack, Teams, email,
+and customer webhook notification readiness without performing real external
+sends.
+
+Completed:
+
+- Implemented `a3.notification_control_plane.v1` with four lanes:
+  - Slack release/reviewer notifications.
+  - Microsoft Teams release/reviewer notifications.
+  - Email digest/escalation notifications.
+  - Customer webhook notifications.
+- Exposed `GET /api/a3/notifications/control-plane` from the A3 API store and
+  server.
+- Added dashboard rendering and navigation for `Notification Control Plane`.
+- Added notification summary to report exports and report-center tiles.
+- Added artifact registry coverage:
+  - `notification_control_plane`
+  - `notification_readiness_packet`
+  - security audit packet inclusion.
+- Added SQL migration contract for notification channel, subscription,
+  template, delivery, and webhook delivery metadata tables.
+- Added commercial API contract endpoints and regenerated
+  `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+- Added RBAC boundary coverage for `notifications:read`.
+- Added notification secret-leak detection and tests proving that raw Slack,
+  Teams, email, webhook, token, cookie, key, and account-like values are not
+  echoed.
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted notification workers, encrypted connector
+  references, delivery retry/dead-letter behavior, event outbox durability, and
+  usage ledger writes.
+- A2 remains owner of which release-policy/failure-taxonomy/security events are
+  notify-worthy and whether notification payloads are safely redacted.
+- A3 remains downstream-only and does not mutate A1 runner outputs, A1 billing
+  facts, A2 score/pass-fail/failure-class, or A2 release policy semantics.
+
+Verification:
+
+- `node --check services/report/a3_notification_control_plane.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/report_builder.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/a3_notification_control_plane.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/a3_live_workflow_readiness.test.mjs tests/a3/a3_auth_rbac_boundary.test.mjs`
+- `node --test tests/a3/artifact_registry.test.mjs tests/a3/a3_commercial_api_contract.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py commercial`
+- `python scripts/cl_guard.py hygiene`
+- `git diff --check`
+
+Results:
+
+- Focused notification/live workflow/RBAC tests: 10 pass, 0 fail.
+- Focused artifact/commercial contract tests: 12 pass, 0 fail.
+- Full A3 Node suite: 262 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+- Commercial CL: passed.
+- Hygiene CL: passed.
+- Diff check: passed.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub, Slack, Teams, email, webhook, billing provider, or cloud
+  mutation.
+- No raw key, token, cookie, email, account value, signed URL, local path,
+  payment secret, raw webhook URL, connector secret, or raw share token was
+  written.

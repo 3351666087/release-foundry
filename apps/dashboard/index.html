@@ -10,36 +10,13 @@
     <div class="shell">
       <aside class="sidebar">
         <div class="brand"><span class="brand-mark">A3</span><span>Ashr A3</span></div>
-        <div class="subtitle">Product console for run triage, evidence review, and report export.</div>
-        <nav class="nav" aria-label="Dashboard sections">
-          <a href="#summary" class="active">Overview</a>
-          <a href="#console">Console</a>
-          <a href="#saas-runtime">SaaS Runtime</a>
-          <a href="#product-console">Product Console</a>
-          <a href="#saas-admin">SaaS Admin</a>
-          <a href="#enterprise-readiness">Enterprise Readiness</a>
-          <a href="#media-readiness">Media</a>
-          <a href="#cloud-shell">Cloud Shell</a>
-          <a href="#official-gap">Official Gap</a>
-          <a href="#official-mirror">Frontend Mirror</a>
-          <a href="#official-code-crawl">Code Crawl</a>
-          <a href="#official-roadmap">Parity Roadmap</a>
-          <a href="#release-gate">Release Gate</a>
-          <a href="#war-room">War Room</a>
-          <a href="#incident-replay">Incident Replay</a>
-          <a href="#observability-replay">Observability Replay</a>
-          <a href="#regression-factory">Regression Factory</a>
-          <a href="#reviewer-workflow">Reviewer Workflow</a>
-          <a href="#pr-gate">PR Gate</a>
-          <a href="#release-evidence">Release Evidence</a>
-          <a href="#export-redaction">Export Safety</a>
-          <a href="#operations">Operations</a>
-          <a href="#report-preview">Report</a>
-          <a href="#runs">Run List</a>
-          <a href="#detail">Case Detail</a>
-          <a href="#timeline">Trace Timeline</a>
-          <a href="#clusters">Failure Clusters</a>
-        </nav>
+        <div class="subtitle">Evaluation console for run triage, evidence review, SaaS admin, and report export.</div>
+        <nav class="nav" data-visual-shell="primary-nav" aria-label="Primary product areas"></nav>
+        <div class="sidebar-card" aria-label="A1 and A2 alignment">
+          <span class="sidebar-card-kicker">A1/A2 aligned</span>
+          <strong>Trace + grade evidence stays read-only.</strong>
+          <span>Dashboard changes do not alter runner or judge semantics.</span>
+        </div>
       </aside>
 
       <main class="content">
@@ -72,7 +49,11 @@
           </div>
         </section>
 
-        <section class="metrics" aria-label="Run summary metrics">
+        <section class="product-surface-strip" id="product-surfaces" data-visual-shell="surface-strip" aria-label="Product surfaces"></section>
+
+        <section class="section-rail" id="workspace-shortcuts" data-visual-shell="section-rail" aria-label="A3 workspace shortcuts"></section>
+
+        <section class="metrics" id="metrics" aria-label="Run summary metrics">
           <div class="metric info" id="metric-runs-card"><label>Runs</label><strong id="metric-runs">0</strong><span>execution batches</span></div>
           <div class="metric info" id="metric-cases-card"><label>Cases</label><strong id="metric-cases">0</strong><span>normalized test cases</span></div>
           <div class="metric" id="metric-pass-card"><label>Pass Rate</label><strong id="metric-pass-rate">0%</strong><span>current source</span></div>
@@ -108,6 +89,46 @@
             </div>
           </div>
 
+          <div class="panel wide-panel" id="billing-migration-readiness">
+            <div class="panel-header">
+              <h2>Billing Migration Readiness</h2>
+              <span class="badge neutral" id="billing-migration-status">checking</span>
+            </div>
+            <div class="panel-body" id="billing-migration-body">
+              <div class="caption">Waiting for A1 billing ledger migration, replay, and read-only billing API evidence.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="live-workflow-readiness">
+            <div class="panel-header">
+              <h2>Live Workflow Readiness</h2>
+              <span class="badge neutral" id="live-workflow-status">checking</span>
+            </div>
+            <div class="panel-body" id="live-workflow-body">
+              <div class="caption">Waiting for GitHub, reviewer, billing, and hosted-report readiness state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="live-ops-control-plane">
+            <div class="panel-header">
+              <h2>Live Ops Control Plane</h2>
+              <span class="badge neutral" id="live-ops-status">checking</span>
+            </div>
+            <div class="panel-body" id="live-ops-body">
+              <div class="caption">Waiting for PR publishing, review, human-operation, billing, and share-link control state.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="notification-control-plane">
+            <div class="panel-header">
+              <h2>Notification Control Plane</h2>
+              <span class="badge neutral" id="notification-status">checking</span>
+            </div>
+            <div class="panel-body" id="notification-body">
+              <div class="caption">Waiting for Slack, Teams, email, webhook, event, audit, and usage notification readiness.</div>
+            </div>
+          </div>
+
           <div class="panel wide-panel" id="product-console">
             <div class="panel-header">
               <h2>Product Console</h2>
@@ -135,6 +156,26 @@
             </div>
             <div class="panel-body" id="enterprise-readiness-body">
               <div class="caption">Waiting for A1/A2 evidence, admin guardrails, and DB contract.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="schema-drift-radar">
+            <div class="panel-header">
+              <h2>A1/A2 Contract Radar</h2>
+              <span class="badge neutral" id="schema-drift-status">not attached</span>
+            </div>
+            <div class="panel-body" id="schema-drift-body">
+              <div class="caption">Waiting for A1/A2 schema drift evidence.</div>
+            </div>
+          </div>
+
+          <div class="panel wide-panel" id="peer-branch-calibration">
+            <div class="panel-header">
+              <h2>Peer Branch Calibration</h2>
+              <span class="badge neutral" id="peer-branch-status">watching</span>
+            </div>
+            <div class="panel-body" id="peer-branch-body">
+              <div class="caption">Waiting for A1/A2 peer branch calibration evidence.</div>
             </div>
           </div>
 

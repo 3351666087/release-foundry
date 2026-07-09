@@ -14,8 +14,8 @@ export const A3_REVIEW_WORKFLOW_RECORD_SCHEMA_VERSION = "a3.review_workflow_reco
 export const A3_REVIEW_WORKFLOW_INDEX_SCHEMA_VERSION = "a3.review_workflow_index.v1";
 
 export function buildReviewWorkflowRecord(type, payload = {}, snapshot = {}, options = {}) {
-  if (!["waiver", "approval"].includes(type)) {
-    throw new Error("Review workflow record type must be waiver or approval.");
+  if (!["waiver", "approval", "denial"].includes(type)) {
+    throw new Error("Review workflow record type must be waiver, approval, or denial.");
   }
   const runFixture = snapshot.runFixture || snapshot.runs || {};
   const gradeFixture = snapshot.gradeFixture || snapshot.grades || {};
@@ -29,25 +29,16 @@ export function buildReviewWorkflowRecord(type, payload = {}, snapshot = {}, opt
     headSha: options.headSha || payload.head_sha,
     generatedAt: options.generatedAt || options.requestedAt
   });
-  const review = type === "waiver"
-    ? validateWaiverRequest(payload, gate, workflow, summary, {
-      releaseVersion: workflow.release_version,
-      environment: workflow.environment,
-      headSha: workflow.head_sha,
-      generatedAt: options.generatedAt || options.requestedAt
-    })
-    : validateApprovalRecord(payload, gate, workflow, summary, {
-      waiver: options.waiver || {},
-      releaseVersion: workflow.release_version,
-      environment: workflow.environment,
-      headSha: workflow.head_sha,
-      generatedAt: options.generatedAt || options.requestedAt
-    });
+  const review = buildReview(type, payload, gate, workflow, summary, options);
   const payloadHash = sha256(stableJson(payload || {}));
   const reviewHash = sha256(stableJson(review || {}));
   const createdAt = options.requestedAt || options.createdAt || new Date().toISOString();
   const recordId = options.recordId || `rwr_${sha256(`${type}:${payloadHash}:${reviewHash}:${createdAt}`).slice(0, 12)}`;
-  const subject = type === "waiver" ? review.waiver || {} : review.approval || {};
+  const subject = type === "waiver"
+    ? review.waiver || {}
+    : type === "approval"
+      ? review.approval || {}
+      : review.denial || {};
 
   return {
     schema_version: A3_REVIEW_WORKFLOW_RECORD_SCHEMA_VERSION,
@@ -88,6 +79,7 @@ export function buildReviewWorkflowIndex(records = [], options = {}) {
   const items = Array.isArray(records) ? records : [];
   const waiverRecords = items.filter((item) => item.record_type === "waiver");
   const approvalRecords = items.filter((item) => item.record_type === "approval");
+  const denialRecords = items.filter((item) => item.record_type === "denial");
   const accepted = items.filter((item) => item.accepted === true);
   return {
     schema_version: A3_REVIEW_WORKFLOW_INDEX_SCHEMA_VERSION,
@@ -97,11 +89,128 @@ export function buildReviewWorkflowIndex(records = [], options = {}) {
     record_count: items.length,
     waiver_count: waiverRecords.length,
     approval_count: approvalRecords.length,
+    denial_count: denialRecords.length,
     accepted_count: accepted.length,
+    human_action_count: items.length,
+    latest_human_action: items[items.length - 1]?.record_type || null,
     latest_record_id: items[items.length - 1]?.record_id || null,
     durable_storage_ready: options.durableStorageReady !== false,
     real_cloud_mutations_performed: false,
     records: items.slice(-10)
+  };
+}
+
+function buildReview(type, payload = {}, gate = {}, workflow = {}, summary = {}, options = {}) {
+  if (type === "waiver") {
+    return validateWaiverRequest(payload, gate, workflow, summary, {
+      releaseVersion: workflow.release_version,
+      environment: workflow.environment,
+      headSha: workflow.head_sha,
+      generatedAt: options.generatedAt || options.requestedAt
+    });
+  }
+  if (type === "approval") {
+    return validateApprovalRecord(payload, gate, workflow, summary, {
+      waiver: options.waiver || {},
+      releaseVersion: workflow.release_version,
+      environment: workflow.environment,
+      headSha: workflow.head_sha,
+      generatedAt: options.generatedAt || options.requestedAt
+    });
+  }
+  return validateDenialRecord(payload, gate, workflow, summary, options);
+}
+
+export function validateDenialRecord(denial = {}, gate = {}, workflow = {}, summary = {}, options = {}) {
+  const hasDenial = denial && typeof denial === "object" && Object.keys(denial).length > 0;
+  if (!hasDenial) {
+    return {
+      schema_version: "a3.denial_review.v1",
+      available: false,
+      status: "missing_denial",
+      accepted: false,
+      automatic_unblock: false,
+      reason: "No denial record was provided.",
+      findings: [denialFinding("missing_denial", "blocking", "No denial record was provided.")]
+    };
+  }
+
+  const findings = [];
+  const decision = denial.decision || "deny_release";
+  const allowedDecisions = new Set(["deny_release", "reject_release", "request_changes"]);
+  if (!["a3.denial.v1", "a3.review_denial.v1"].includes(denial.schema_version)) {
+    findings.push(denialFinding("schema_version", "blocking", "Denial schema_version must be a3.denial.v1 or a3.review_denial.v1."));
+  }
+  for (const field of ["denial_id", "reason", "run_id", "release_version", "environment"]) {
+    if (isBlank(denial[field])) {
+      findings.push(denialFinding(`missing_${field}`, "blocking", `Denial is missing required field ${field}.`));
+    }
+  }
+  if (!allowedDecisions.has(decision)) {
+    findings.push(denialFinding("decision_invalid", "blocking", "Denial decision must be deny_release, reject_release, or request_changes."));
+  }
+
+  const expectedRunId = summary.lastRunId || "";
+  if (denial.run_id && expectedRunId && denial.run_id !== expectedRunId) {
+    findings.push(denialFinding("run_id_mismatch", "blocking", `Denial run_id ${denial.run_id} does not match gate run ${expectedRunId}.`));
+  }
+  if (denial.release_version && options.releaseVersion && denial.release_version !== options.releaseVersion) {
+    findings.push(denialFinding("release_version_mismatch", "blocking", "Denial release_version does not match the gate release version."));
+  }
+  if (denial.environment && options.environment && denial.environment !== options.environment) {
+    findings.push(denialFinding("environment_mismatch", "blocking", "Denial environment does not match the gate environment."));
+  }
+  if (denial.head_sha && options.headSha && denial.head_sha !== options.headSha) {
+    findings.push(denialFinding("head_sha_mismatch", "blocking", "Denial head_sha does not match the gate head SHA."));
+  }
+
+  const reviewer = denial.reviewer || {};
+  if (isBlank(reviewer.role) || isBlank(reviewer.name) || !parseDateOrNull(reviewer.reviewed_at)) {
+    findings.push(denialFinding("reviewer_invalid", "blocking", "Denial reviewer must include role, name, and valid reviewed_at."));
+  }
+
+  const reviewedArtifacts = Array.isArray(denial.reviewed_artifacts) ? denial.reviewed_artifacts : [];
+  if (!reviewedArtifacts.length) {
+    findings.push(denialFinding("missing_reviewed_artifacts", "blocking", "Denial must include reviewed_artifacts."));
+  }
+  for (const artifact of reviewedArtifacts) {
+    if (isBlank(artifact.id) || !/^[a-f0-9]{64}$/.test(String(artifact.sha256 || ""))) {
+      findings.push(denialFinding("reviewed_artifact_invalid", "blocking", "Reviewed artifacts must include id and SHA-256 hash."));
+      break;
+    }
+  }
+
+  const blockingFindings = findings.filter((finding) => finding.severity === "blocking");
+  const accepted = blockingFindings.length === 0;
+  return {
+    schema_version: "a3.denial_review.v1",
+    available: true,
+    status: accepted ? "valid_denial" : "invalid_denial",
+    accepted,
+    automatic_unblock: false,
+    automatic_unblock_reason: "A denial records human review and keeps the release blocked; it never changes A1/A2 evidence or automatically unblocks.",
+    denial: {
+      denial_id: denial.denial_id || "unknown-denial",
+      decision,
+      run_id: denial.run_id || "",
+      release_version: denial.release_version || workflow.release_version || "",
+      environment: denial.environment || workflow.environment || "",
+      head_sha: denial.head_sha || workflow.head_sha || "",
+      reviewer_role: reviewer.role || "",
+      reviewer_identity_source: reviewer.identity_source || "dashboard",
+      reviewed_artifact_count: reviewedArtifacts.length,
+      gate_decision: gate.decision || "unknown",
+      gate_blocks_release: gate.blocks_release === true || gate.pr_gate?.blocks_merge === true
+    },
+    policy: {
+      allowed_decisions: [...allowedDecisions],
+      separation_of_duties_required: true,
+      denial_keeps_release_blocked: true
+    },
+    findings,
+    reason: accepted
+      ? "Denial evidence satisfies the local A3 review policy and keeps the release blocked."
+      : "Denial evidence does not satisfy the local A3 review policy."
   };
 }
 
@@ -116,6 +225,16 @@ function summarizeSubject(type, payload = {}, review = {}) {
       follow_up_issue: waiver.follow_up_issue || payload.follow_up_issue || null
     };
   }
+  if (type === "denial") {
+    const denial = review.denial || {};
+    return {
+      denial_id: denial.denial_id || payload.denial_id || "unknown-denial",
+      decision: denial.decision || payload.decision || "deny_release",
+      reviewer_role: denial.reviewer_role || payload.reviewer?.role || null,
+      reviewed_artifact_count: denial.reviewed_artifact_count || 0,
+      gate_decision: denial.gate_decision || "unknown"
+    };
+  }
   const approval = review.approval || {};
   return {
     approval_id: approval.approval_id || payload.approval_id || "unknown-approval",
@@ -125,6 +244,22 @@ function summarizeSubject(type, payload = {}, review = {}) {
     co_signer_count: approval.co_signer_count || 0,
     reviewed_artifact_count: approval.reviewed_artifact_count || 0
   };
+}
+
+function denialFinding(id, severity, message) {
+  return { id, severity, message };
+}
+
+function isBlank(value) {
+  return value === undefined || value === null || String(value).trim() === "";
+}
+
+function parseDateOrNull(value) {
+  if (isBlank(value)) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function firstRole(values) {

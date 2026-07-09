@@ -9,6 +9,7 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
   const guardrails = Array.isArray(dbContract.guardrails) ? dbContract.guardrails : [];
   const migrations = runtime.db_migrations || {};
   const usageLedger = runtime.usage_ledger || {};
+  const billingReadiness = runtime.billing_readiness || {};
 
   target.replaceChildren(
     runtimeSummary(runtime),
@@ -18,12 +19,14 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
       ["Primary DB", dbContract.recommended_primary_db || "postgres"],
       ["MySQL", dbContract.mysql_compatible ? "compatible" : "not planned"],
       ["Migrations", String(migrations.migration_count || 0)],
-      ["Usage meters", String((usageLedger.meters || []).length)]
+      ["Usage meters", String((usageLedger.meters || []).length)],
+      ["Billing", billingReadiness.status || "not loaded"]
     ]),
     runtimeList("API surfaces", apiSurfaces),
     runtimeList("DB tables", tables.slice(0, 8)),
     runtimeList("Migration batches", (migrations.statements || []).map((item) => `${item.id}: ${item.tables.join(", ")}`)),
     runtimeList("Usage meters", (usageLedger.meters || []).map((item) => `${item.meter}: ${item.quantity}`)),
+    runtimeList("Billing readiness", billingReadiness.schema_version ? billingRows(billingReadiness) : []),
     runtimeList("Guardrails", guardrails)
   );
 }
@@ -72,6 +75,21 @@ function runtimeList(label, items) {
     list.appendChild(row);
   }
   return list;
+}
+
+function billingRows(billing = {}) {
+  return [
+    `status: ${billing.status || "unknown"}`,
+    `mutations: ${billing.billing_mutations_enabled ? "enabled" : "disabled"}`,
+    `provider: ${billing.provider_boundary?.provider_mode || "not configured"}`,
+    `checkout: ${billing.provider_boundary?.checkout_enabled ? "enabled" : "disabled"}`,
+    `invoice export: ${billing.provider_boundary?.invoice_export_enabled ? "ready" : "not ready"}`,
+    `billable units: ${billing.billable_unit_count || 0}`,
+    `A1 usage ready: ${billing.a1_a2_alignment?.a1_usage_source_ready ? "yes" : "no"}`,
+    `A2 judge meter ready: ${billing.a1_a2_alignment?.a2_judge_meter_ready ? "yes" : "no"}`,
+    ...((billing.quota_exposure || []).slice(0, 4).map((item) => `${item.meter}: ${item.quantity} / ${item.quota_state}`)),
+    ...((billing.next_actions || []).slice(0, 3).map((item) => `next: ${item}`))
+  ];
 }
 
 function escapeHtml(value) {

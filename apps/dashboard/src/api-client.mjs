@@ -76,13 +76,101 @@ export async function fetchA3ReviewWorkflow(options = {}) {
   return response.json();
 }
 
+export async function fetchA3UsageLedger(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/usage/ledger?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API usage ledger load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3BillingReadiness(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/billing/readiness?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API billing readiness load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3BillingMigrationReadiness(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/billing/migration-readiness?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API billing migration readiness load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3LiveWorkflowReadiness(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/live-workflow/readiness?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API live workflow readiness load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3LiveOpsControlPlane(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/live-ops/control-plane?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API live ops control plane load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3NotificationControlPlane(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/notifications/control-plane?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API notification control plane load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3PeerBranchCalibration(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/peer-branches/calibration?source=${encodeURIComponent(source)}`, {
+    headers: {
+      "x-a3-role": options.role || "auditor"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API peer branch calibration load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3SchemaDriftRadar(options = {}) {
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/a1-a2/schema-drift`, {
+    headers: {
+      "x-a3-role": options.role || "auditor"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API schema drift radar load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const response = await fetch(`${baseUrl}/api/a3/admin/actions/plan?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       source,
@@ -101,7 +189,8 @@ export async function createShareableA3Report(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/reports/share?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "reviewer"
     },
     body: JSON.stringify({
       source,
@@ -122,7 +211,8 @@ export async function submitA3AdminAction(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/admin/actions/submit?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       source,
@@ -148,7 +238,8 @@ export async function revokeShareableA3Report(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/reports/${encodeURIComponent(reportId)}/revoke?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       reason: options.reason || "dashboard_revoke",
@@ -157,6 +248,43 @@ export async function revokeShareableA3Report(options = {}) {
   });
   if (!response.ok) {
     throw new Error(`A3 API revoke report failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function submitA3ReviewWaiver(options = {}) {
+  return submitA3ReviewRecord("waivers", "waiver", options, "reviewer");
+}
+
+export async function submitA3ReviewApproval(options = {}) {
+  return submitA3ReviewRecord("approvals", "approval", options, "reviewer");
+}
+
+export async function submitA3ReviewDenial(options = {}) {
+  return submitA3ReviewRecord("denials", "denial", options, "reviewer");
+}
+
+async function submitA3ReviewRecord(path, field, options = {}, defaultRole = "reviewer") {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/review/${path}?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-a3-role": options.role || defaultRole
+    },
+    body: JSON.stringify({
+      source,
+      [field]: options.record || {},
+      waiver: options.waiver,
+      generated_at: options.generatedAt,
+      release_version: options.releaseVersion,
+      environment: options.environment,
+      head_sha: options.headSha
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API review ${field} submit failed: ${response.status}`);
   }
   return response.json();
 }

@@ -7,7 +7,13 @@ import {
   A3StoreValidationError,
   createFixtureBackedA3Store
 } from "./a3_store.mjs";
+import {
+  authorizeA3Operation,
+  buildA3AuthContext,
+  buildA3RbacPolicy
+} from "./a3_auth_rbac_boundary.mjs";
 import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
+import { buildA1A2SchemaDriftRadar } from "./a3_schema_drift_radar.mjs";
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
@@ -32,6 +38,39 @@ export function createA3ApiHandler(options = {}) {
           storage_mode: store.storage_mode || "fixture_file",
           db_ready: true
         });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/auth/context") {
+        const authContext = buildAuthContextFromRequest(request, url);
+        return sendJson(response, 200, {
+          schema_version: "a3.auth_context_api_response.v1",
+          auth_context: authContext,
+          rbac_policy_id: buildA3RbacPolicy().policy_id,
+          sample_decisions: [
+            authorizeA3Operation("read_dashboard", authContext),
+            authorizeA3Operation("share_report", authContext),
+            authorizeA3Operation("rotate_api_key", authContext)
+          ],
+          safety: {
+            raw_actor_identity_exposed: false,
+            raw_token_allowed: false,
+            raw_cookie_allowed: false,
+            raw_api_key_allowed: false
+          }
+        });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/auth/rbac-policy") {
+        return sendJson(response, 200, buildA3RbacPolicy());
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/auth/authorize") {
+        const body = await readJsonBody(request);
+        const authContext = buildAuthContextFromRequest(request, url, body);
+        return sendJson(response, 200, authorizeA3Operation(body.operation || body.route || "read_dashboard", authContext, {
+          requestId: body.request_id || body.requestId,
+          traceId: body.trace_id || body.traceId
+        }));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/db-contract") {
@@ -60,8 +99,98 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/billing/migration-readiness") {
+        return sendJson(response, 200, await store.getBillingMigrationReadiness({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/live-workflow/readiness") {
+        return sendJson(response, 200, await store.getLiveWorkflowReadiness({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/live-ops/control-plane") {
+        return sendJson(response, 200, await store.getLiveOpsControlPlane({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/notifications/control-plane") {
+        return sendJson(response, 200, await store.getNotificationControlPlane({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/commercial-api/contract") {
+        return sendJson(response, 200, await store.getCommercialApiContract({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/peer-branches/calibration") {
+        const authz = authorizeRequest(request, url, "read_peer_branch_calibration");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getPeerBranchCalibration({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/a1-a2/schema-drift") {
+        const authz = authorizeRequest(request, url, "read_schema_drift");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await buildA1A2SchemaDriftRadar({
+          repoRoot: options.repoRoot,
+          repoRef: url.searchParams.get("repo_ref") || undefined,
+          comparedAgainst: url.searchParams.get("compared_against") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/events/outbox") {
+        const authz = authorizeRequest(request, url, "read_event_outbox");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.listEventOutbox({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined,
+          eventType: url.searchParams.get("event_type") || undefined,
+          deliveryStatus: url.searchParams.get("delivery_status") || undefined
+        }));
+      }
+
       if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a1_run_result", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
@@ -74,6 +203,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/import/a2-grade-result") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a2_grade_result", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.importA2GradeResult(body.grade_result || body.gradeResult || body, {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
@@ -136,9 +269,75 @@ export function createA3ApiHandler(options = {}) {
           : sendJson(response, 404, notFound("release_evidence", releaseEvidenceDiffMatch[1]));
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/github/check-run/publish") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "publish_github_check", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const liveGuard = authorizeLiveGitHubPublish(request, url, body);
+        if (!liveGuard.allowed) {
+          return sendJson(response, 403, liveGitHubPublishDenied(liveGuard));
+        }
+        const receipt = await store.publishGitHubCheckRun({
+          source: body.source || sourceFrom(url),
+          repo: body.repo,
+          headSha: body.head_sha || body.headSha,
+          detailsUrl: body.details_url || body.detailsUrl,
+          checkRunId: body.check_run_id || body.checkRunId,
+          dryRun: liveGuard.dryRun,
+          tokenEnvName: body.token_env || body.tokenEnvName || "GITHUB_TOKEN",
+          apiBaseUrl: body.api_base_url || body.apiBaseUrl,
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("github_publish_scope", body.source || sourceFrom(url)));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/github/pr-comment/publish") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "publish_github_pr_comment", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const liveGuard = authorizeLiveGitHubPublish(request, url, body);
+        if (!liveGuard.allowed) {
+          return sendJson(response, 403, liveGitHubPublishDenied(liveGuard));
+        }
+        const receipt = await store.publishGitHubPrComment({
+          source: body.source || sourceFrom(url),
+          repo: body.repo,
+          pullNumber: body.pull_number || body.pullNumber,
+          dryRun: liveGuard.dryRun,
+          tokenEnvName: body.token_env || body.tokenEnvName || "GITHUB_TOKEN",
+          apiBaseUrl: body.api_base_url || body.apiBaseUrl,
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("github_publish_scope", body.source || sourceFrom(url)));
+      }
+
       const releaseEvidenceReadbacksMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/readbacks$/);
       if (request.method === "POST" && releaseEvidenceReadbacksMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "capture_release_readback", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReleaseEvidenceReadback(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), body.readback || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -182,6 +381,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/plan") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "plan_admin_action", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const plan = await store.planSaasAdminAction(body.action, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -192,6 +395,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/submit") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_admin_action", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitSaasAdminAction(body.action, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -200,7 +407,8 @@ export function createA3ApiHandler(options = {}) {
           actorHash: body.actor_hash,
           reason: body.reason,
           target: body.target,
-          requestedAt: body.requested_at || body.requestedAt
+          requestedAt: body.requested_at || body.requestedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
@@ -215,6 +423,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/review/waivers") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_waiver", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReviewWaiver(body.waiver || body.waiver_request || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -223,13 +435,18 @@ export function createA3ApiHandler(options = {}) {
           generatedAt: body.generated_at || body.generatedAt,
           releaseVersion: body.release_version,
           environment: body.environment,
-          headSha: body.head_sha || body.headSha
+          headSha: body.head_sha || body.headSha,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
 
       if (request.method === "POST" && url.pathname === "/api/a3/review/approvals") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_approval", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReviewApproval(body.approval || body.approval_record || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -239,7 +456,28 @@ export function createA3ApiHandler(options = {}) {
           releaseVersion: body.release_version,
           environment: body.environment,
           headSha: body.head_sha || body.headSha,
-          waiver: body.waiver
+          waiver: body.waiver,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return sendJson(response, 202, receipt);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/review/denials") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_denial", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.submitReviewDenial(body.denial || body.denial_record || body, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          requestedAt: body.requested_at || body.requestedAt,
+          generatedAt: body.generated_at || body.generatedAt,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          headSha: body.head_sha || body.headSha,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 202, receipt);
       }
@@ -278,6 +516,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/reports/share") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "share_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const report = await store.createShareableReport({
           source: body.source || sourceFrom(url),
           title: body.title,
@@ -285,7 +527,8 @@ export function createA3ApiHandler(options = {}) {
           createdBy: body.created_by || body.createdBy || "a3-api",
           expiresAt: body.expires_at || body.expiresAt,
           organizationId: body.organization_id,
-          projectId: body.project_id
+          projectId: body.project_id,
+          idempotencyKey: idempotencyKeyFrom(request, body)
         });
         return sendJson(response, 201, report);
       }
@@ -333,10 +576,15 @@ export function createA3ApiHandler(options = {}) {
       const reportRevokeMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/revoke$/);
       if (request.method === "POST" && reportRevokeMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "revoke_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.revokeReport(decodeURIComponent(reportRevokeMatch[1]), {
           reason: body.reason,
           revokedBy: body.revoked_by || body.revokedBy || "a3-api",
           revokedAt: body.revoked_at || body.revokedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body),
           ...reportScopeFrom(url, body)
         });
         return receipt
@@ -347,9 +595,14 @@ export function createA3ApiHandler(options = {}) {
       const reportViewMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/view$/);
       if (request.method === "POST" && reportViewMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "view_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const report = await store.getReportForView(decodeURIComponent(reportViewMatch[1]), {
           viewer: body.viewer || "api",
           viewedAt: body.viewed_at || body.viewedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body),
           ...reportScopeFrom(url, body)
         });
         return report
@@ -432,11 +685,104 @@ function sourceFrom(url) {
   return url.searchParams.get("source") || "mock";
 }
 
+function authorizeRequest(request, url, operation, body = {}) {
+  const authContext = buildAuthContextFromRequest(request, url, body);
+  return authorizeA3Operation(operation, authContext, {
+    requestId: body.request_id || body.requestId || request.headers["x-a3-request-id"],
+    traceId: body.trace_id || body.traceId || request.headers["x-a3-trace-id"]
+  });
+}
+
+function buildAuthContextFromRequest(request, url, body = {}) {
+  return buildA3AuthContext({
+    role: body.role || url.searchParams.get("role") || request.headers["x-a3-role"],
+    actor_id: body.actor_id || body.actorId || url.searchParams.get("actor_id") || request.headers["x-a3-actor-id"],
+    actor_hash: body.actor_hash || body.actorHash || request.headers["x-a3-actor-hash"],
+    hosted_session: body.hosted_session === true || url.searchParams.get("hosted_session") === "true",
+    service_account: body.service_account === true || request.headers["x-a3-service-account"] === "true",
+    organization_id: body.organization_id || body.organizationId || url.searchParams.get("organization_id") || request.headers["x-a3-organization-id"],
+    tenant_id: body.tenant_id || body.tenantId || url.searchParams.get("tenant_id") || request.headers["x-a3-tenant-id"],
+    workspace_id: body.workspace_id || body.workspaceId || url.searchParams.get("workspace_id") || request.headers["x-a3-workspace-id"],
+    project_id: body.project_id || body.projectId || url.searchParams.get("project_id") || request.headers["x-a3-project-id"],
+    environment_id: body.environment_id || body.environmentId || url.searchParams.get("environment_id") || request.headers["x-a3-environment-id"]
+  });
+}
+
 function reportScopeFrom(url, body = {}) {
   return {
     source: body.source || sourceFrom(url),
     organizationId: body.organization_id || body.organizationId || url.searchParams.get("organization_id") || undefined,
     projectId: body.project_id || body.projectId || url.searchParams.get("project_id") || undefined
+  };
+}
+
+function forbiddenPayload(decision = {}) {
+  return {
+    schema_version: "a3.api_authz_denied.v1",
+    error: "forbidden",
+    operation: decision.operation || "unknown",
+    decision: decision.decision || "denied",
+    reason: decision.reason || "This role is not allowed to perform the requested action.",
+    required_permission: decision.required_permission || "unknown",
+    role: decision.role || "unknown",
+    tenant_scope: decision.tenant_scope,
+    denied_state: decision.denied_state,
+    authz_audit_event: decision.audit_event,
+    safety: {
+      raw_request_body_echoed: false,
+      raw_actor_identity_exposed: false,
+      raw_secret_values_allowed: false,
+      real_cloud_mutation_performed: false
+    }
+  };
+}
+
+function authorizeLiveGitHubPublish(request, url, body = {}) {
+  const liveRequested = body.allow_live === true || body.live === true || body.dry_run === false || body.dryRun === false;
+  if (!liveRequested) {
+    return {
+      allowed: true,
+      dryRun: true,
+      liveRequested: false,
+      reason: "Dry-run GitHub publish request; no external mutation is allowed."
+    };
+  }
+  const authContext = buildAuthContextFromRequest(request, url, body);
+  const hostedOrService = authContext.auth_state === "hosted_session" || authContext.auth_state === "service_account";
+  return {
+    allowed: hostedOrService,
+    dryRun: false,
+    liveRequested: true,
+    auth_state: authContext.auth_state,
+    role: authContext.role,
+    tenant_scope: authContext.tenant_scope,
+    reason: hostedOrService
+      ? "Live GitHub publish is explicitly requested by hosted/session or service-account context."
+      : "Live GitHub publish requires hosted session or service-account context."
+  };
+}
+
+function liveGitHubPublishDenied(guard = {}) {
+  return {
+    schema_version: "a3.github_live_publish_denied.v1",
+    error: "live_publish_requires_hosted_or_service_account",
+    decision: "denied_requires_hosted_auth_or_service_account",
+    live_requested: guard.liveRequested === true,
+    auth_state: guard.auth_state || "unknown",
+    role: guard.role || "unknown",
+    reason: guard.reason,
+    tenant_scope: guard.tenant_scope,
+    denied_state: {
+      http_status: 403,
+      customer_message: "Live GitHub publishing requires hosted auth or a service account. Retry as dry-run or from CI/GitHub App worker."
+    },
+    safety: {
+      raw_request_body_echoed: false,
+      raw_actor_identity_exposed: false,
+      raw_secret_values_allowed: false,
+      token_included: false,
+      real_github_mutation_performed: false
+    }
   };
 }
 
@@ -463,7 +809,7 @@ function sendJson(response, statusCode, payload) {
     "cache-control": "no-store",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,idempotency-key,x-idempotency-key"
+    "access-control-allow-headers": "content-type,idempotency-key,x-idempotency-key,x-a3-role,x-a3-actor-id,x-a3-actor-hash,x-a3-organization-id,x-a3-tenant-id,x-a3-workspace-id,x-a3-project-id,x-a3-environment-id,x-a3-service-account"
   });
   response.end(body);
 }

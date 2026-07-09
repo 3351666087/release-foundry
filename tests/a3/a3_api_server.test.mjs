@@ -28,6 +28,14 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
     assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
     assert.equal(dashboard.release_evidence_summary.available, true);
+    assert.equal(dashboard.peer_branch_calibration.schema_version, "a3.peer_branch_calibration.v1");
+    assert.equal(dashboard.peer_branch_calibration.peer_delta_count >= 12, true);
+    assert.equal(dashboard.live_workflow_readiness.schema_version, "a3.live_workflow_readiness.v1");
+    assert.equal(dashboard.live_workflow_readiness.capability_count, 6);
+    assert.equal(dashboard.live_ops_control_plane.schema_version, "a3.live_ops_control_plane.v1");
+    assert.equal(dashboard.live_ops_control_plane.counts.lane_count, 6);
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-workflow/readiness"));
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-ops/control-plane"));
 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
@@ -68,7 +76,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     };
     const readbackCapture = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1", "x-a3-role": "reviewer" },
       body: JSON.stringify(readbackCaptureBody)
     });
     assert.equal(readbackCapture.status, 202);
@@ -81,7 +89,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const duplicateReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1", "x-a3-role": "reviewer" },
       body: JSON.stringify(readbackCaptureBody)
     });
     assert.equal(duplicateReadback.status, 202);
@@ -107,6 +115,8 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboardAfterCapture.release_evidence_readbacks.readback_count, 1);
     assert.equal(dashboardAfterCapture.release_evidence_summary.readback_status_counts.readback_confirmed, 1);
     assert.equal(dashboardAfterCapture.release_evidence_summary.readback_records[0].resource_kind, "github_check");
+    assert.equal(dashboardAfterCapture.event_outbox.schema_version, "a3.event_outbox_dashboard.v1");
+    assert.equal(dashboardAfterCapture.event_outbox.event_type_counts["release_evidence.readback_captured"], 1);
     assert.doesNotMatch(JSON.stringify(dashboardAfterCapture.release_evidence_readbacks), /should-not-leak|release-owner@example.com|Bearer/);
 
     const usageAfterReadback = await getJson(`${url}/api/a3/usage/ledger?source=mock`);
@@ -145,6 +155,108 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(billingReadiness.required_events.includes("billing.subscription_changed"));
     assert.doesNotMatch(JSON.stringify(billingReadiness), /Bearer|sk-|ghp_|owner@example.com/);
 
+    const billingMigrationReadiness = await getJson(`${url}/api/a3/billing/migration-readiness?source=mock`);
+    assert.equal(billingMigrationReadiness.schema_version, "a3.billing_migration_readiness.v1");
+    assert.equal(billingMigrationReadiness.summary.ready_for_live_customer_billing, false);
+    assert.equal(billingMigrationReadiness.db_contract.tables.some((table) => table.name === "billing_ledger_events"), true);
+    assert.equal(billingMigrationReadiness.tenant_auth_rbac_usage_audit.usage.billing_mutations_enabled, false);
+    assert.doesNotMatch(JSON.stringify(billingMigrationReadiness), /Bearer|sk-|ghp_|owner@example.com|C:\\Users/);
+
+    const liveWorkflowReadiness = await getJson(`${url}/api/a3/live-workflow/readiness?source=mock`);
+    assert.equal(liveWorkflowReadiness.schema_version, "a3.live_workflow_readiness.v1");
+    assert.equal(liveWorkflowReadiness.capability_count, 6);
+    assert.ok(liveWorkflowReadiness.capabilities.some((item) => item.id === "github_pr_check_live_publishing"));
+    assert.ok(liveWorkflowReadiness.capabilities.some((item) => item.id === "report_share_link_revocable_expiring_audited"));
+    assert.equal(liveWorkflowReadiness.safety.secret_values_included, false);
+    assert.match(liveWorkflowReadiness.a1_a2_boundary, /does not modify A1/);
+    assert.doesNotMatch(JSON.stringify(liveWorkflowReadiness), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const liveOpsControlPlane = await getJson(`${url}/api/a3/live-ops/control-plane?source=mock`);
+    assert.equal(liveOpsControlPlane.schema_version, "a3.live_ops_control_plane.v1");
+    assert.equal(liveOpsControlPlane.counts.lane_count, 6);
+    assert.ok(liveOpsControlPlane.lanes.some((item) => item.id === "github_pr_check_live_publishing"));
+    assert.ok(liveOpsControlPlane.lanes.some((item) => item.id === "billing_admin_real_usage_billing_state"));
+    assert.equal(liveOpsControlPlane.safety.real_github_mutation_performed_locally, false);
+    assert.equal(liveOpsControlPlane.a1_a2_alignment.a3_mutates_a1_a2_semantics, false);
+    assert.doesNotMatch(JSON.stringify(liveOpsControlPlane), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const checkPublishResponse = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-check-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        details_url: "https://example.invalid/a3-gate",
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(checkPublishResponse.status, 202);
+    const checkPublishReceipt = await checkPublishResponse.json();
+    assert.equal(checkPublishReceipt.schema_version, "a3.github_publish_receipt_record.v1");
+    assert.equal(checkPublishReceipt.resource_kind, "github_check");
+    assert.equal(checkPublishReceipt.dry_run, true);
+    assert.equal(checkPublishReceipt.posted, false);
+    assert.equal(checkPublishReceipt.event_outbox_delivery_status, "pending");
+    assert.equal(checkPublishReceipt.idempotency.status, "recorded");
+    assert.doesNotMatch(JSON.stringify(checkPublishReceipt), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const commentPublishResponse = await fetch(`${url}/api/a3/github/pr-comment/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-comment-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        pull_number: 17,
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(commentPublishResponse.status, 202);
+    const commentPublishReceipt = await commentPublishResponse.json();
+    assert.equal(commentPublishReceipt.schema_version, "a3.github_publish_receipt_record.v1");
+    assert.equal(commentPublishReceipt.resource_kind, "pr_comment");
+    assert.equal(commentPublishReceipt.dry_run, true);
+    assert.equal(commentPublishReceipt.posted, false);
+    assert.equal(commentPublishReceipt.event_outbox_delivery_status, "pending");
+    assert.equal(commentPublishReceipt.idempotency.status, "recorded");
+    assert.doesNotMatch(JSON.stringify(commentPublishReceipt), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const duplicateCheckPublish = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-check-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        details_url: "https://example.invalid/a3-gate",
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(duplicateCheckPublish.status, 202);
+    const duplicateCheckReceipt = await duplicateCheckPublish.json();
+    assert.equal(duplicateCheckReceipt.idempotency.duplicate, true);
+
+    const dashboardAfterPublish = await getJson(`${url}/api/a3/dashboard?source=mock`);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.schema_version, "a3.github_publish_receipt_dashboard.v1");
+    assert.equal(dashboardAfterPublish.github_publish_receipts.receipt_count, 2);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.dry_run_count, 2);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.resource_counts.github_check, 1);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.resource_counts.pr_comment, 1);
+    assert.equal(dashboardAfterPublish.live_ops_control_plane.lanes.some((item) => (
+      item.id === "github_pr_check_live_publishing"
+      && item.current_mode === "dry_run_publish_plan"
+    )), true);
+    assert.doesNotMatch(JSON.stringify(dashboardAfterPublish.github_publish_receipts), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const peerCalibration = await getJson(`${url}/api/a3/peer-branches/calibration?source=mock&role=auditor`);
+    assert.equal(peerCalibration.schema_version, "a3.peer_branch_calibration.v1");
+    assert.equal(peerCalibration.peer_delta_count >= 12, true);
+    assert.equal(peerCalibration.blocking_delta_count >= 1, true);
+    assert.equal(peerCalibration.growth_point_count >= 20, true);
+    assert.equal(peerCalibration.tenant_scope.organization_id, "org-local");
+    assert.match(peerCalibration.a1_a2_boundary, /does not modify A1/);
+    assert.doesNotMatch(JSON.stringify(peerCalibration), /Bearer|sk-|ghp_|github_pat_|owner@example.com|C:\\Users/);
+
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");
     assert.equal(admin.login.session.cookie_storage, "not_read_or_saved");
@@ -157,7 +269,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const actionResponse = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ action: "invite_teammate" })
     });
     assert.equal(actionResponse.ok, true);
@@ -169,7 +281,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const teammateEmail = ["teammate", "example.com"].join("@");
     const actionSubmitResponse = await fetch(`${url}/api/a3/admin/actions/submit?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({
         action: "invite_teammate",
         actor: ownerEmail,
@@ -200,7 +312,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const approval = await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
     const waiverResponse = await fetch(`${url}/api/a3/review/waivers?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         waiver,
         generated_at: "2026-07-07T12:00:00.000Z"
@@ -213,7 +325,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const approvalResponse = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         approval,
         waiver,
@@ -225,9 +337,26 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(approvalReceipt.status, "valid_exception_approval");
     assert.equal(approvalReceipt.accepted, true);
 
+    const denialResponse = await fetch(`${url}/api/a3/review/denials?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        denial: buildDenialFixture(),
+        generated_at: "2026-07-07T12:00:00.000Z",
+        release_version: "local-mock-commercial-gate",
+        environment: "staging",
+        head_sha: "local-demo-head-sha"
+      })
+    });
+    assert.equal(denialResponse.status, 202);
+    const denialReceipt = await denialResponse.json();
+    assert.equal(denialReceipt.status, "valid_denial");
+    assert.equal(denialReceipt.accepted, true);
+
     const reviewWorkflow = await getJson(`${url}/api/a3/review/workflow?source=mock`);
     assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
-    assert.equal(reviewWorkflow.record_count, 2);
+    assert.equal(reviewWorkflow.record_count, 3);
+    assert.equal(reviewWorkflow.denial_count, 1);
     assert.equal(reviewWorkflow.durable_storage_ready, true);
 
     const productConsole = await getJson(`${url}/api/a3/product/console?source=mock`);
@@ -360,7 +489,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const shareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({ title: "A3 API smoke report" })
     });
     assert.equal(shareResponse.status, 201);
@@ -374,7 +503,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const otherTenantShareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         title: "A3 other tenant report",
         organization_id: "org-other",
@@ -402,7 +531,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(crossTenantView.status, 404);
     const crossTenantRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/revoke?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ reason: "wrong-tenant" })
     });
     assert.equal(crossTenantRevoke.status, 404);
@@ -465,7 +594,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const revokeResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ reason: "unit-test" })
     });
     assert.equal(revokeResponse.status, 200);
@@ -478,11 +607,193 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(revokedHostedHtml, /A3 report is not available/);
     assert.doesNotMatch(revokedHostedHtml, /Case Evidence/);
 
+    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor`);
+    assert.equal(outbox.schema_version, "a3.event_outbox_list.v1");
+    assert.equal(outbox.safety.metadata_only, true);
+    assert.ok(outbox.event_count >= 7);
+    for (const eventType of [
+      "release_evidence.readback_captured",
+      "github.check_publish_requested",
+      "github.pr_comment_publish_requested",
+      "admin.action_requested",
+      "waiver.submitted",
+      "approval.submitted",
+      "denial.submitted",
+      "report.share_link_created",
+      "report.viewed",
+      "report.share_link_viewed",
+      "report.revoked"
+    ]) {
+      assert.ok(outbox.event_type_counts[eventType] >= 1, `${eventType} should be present`);
+    }
+    assert.ok(outbox.events.every((event) => event.event_schema_version === "ashr.event_envelope.v1"));
+    assert.ok(outbox.events.every((event) => event.payload_inline === false));
+    assert.doesNotMatch(JSON.stringify(outbox), /release-owner@example.com|owner@example.com|teammate@example.com|Bearer|should-not-leak|a3s_[A-Za-z0-9]/);
+
+    const revokedOutbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor&event_type=report.revoked`);
+    assert.equal(revokedOutbox.event_count, 1);
+    assert.equal(revokedOutbox.events[0].event_type, "report.revoked");
+
     const missingShareToken = await fetch(`${url}/r/missing-share-token`);
     assert.equal(missingShareToken.status, 404);
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API server fails closed on unauthorized write and audit routes", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["mock"] });
+  const { server, url } = await startA3ApiServer({ store });
+  try {
+    const releaseEvidence = await getJson(`${url}/api/a3/releases/current/evidence-summary?source=mock`);
+    const deniedShare = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({
+        title: "Should not be created",
+        actor: ["viewer", "example.com"].join("@"),
+        authorization: "Bearer should-not-leak"
+      })
+    });
+    assert.equal(deniedShare.status, 403);
+    const deniedSharePayload = await deniedShare.json();
+    assert.equal(deniedSharePayload.schema_version, "a3.api_authz_denied.v1");
+    assert.equal(deniedSharePayload.operation, "share_report");
+    assert.equal(deniedSharePayload.decision, "denied_missing_permission");
+    assert.equal(deniedSharePayload.safety.raw_request_body_echoed, false);
+    assert.doesNotMatch(JSON.stringify(deniedSharePayload), /Should not be created|viewer@example.com|should-not-leak|Bearer/);
+
+    const deniedReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "developer"
+      },
+      body: JSON.stringify({
+        readback: {
+          readback_id: "should_not_persist",
+          resource_kind: "github_check",
+          readback_status: "readback_confirmed"
+        }
+      })
+    });
+    assert.equal(deniedReadback.status, 403);
+    const deniedReadbackPayload = await deniedReadback.json();
+    assert.equal(deniedReadbackPayload.operation, "capture_release_readback");
+    assert.equal(deniedReadbackPayload.decision, "denied_missing_permission");
+    assert.doesNotMatch(JSON.stringify(deniedReadbackPayload), /should_not_persist/);
+
+    const deniedCheckPublish = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        actor: ["viewer", "example.com"].join("@"),
+        authorization: "Bearer should-not-leak"
+      })
+    });
+    assert.equal(deniedCheckPublish.status, 403);
+    const deniedCheckPublishPayload = await deniedCheckPublish.json();
+    assert.equal(deniedCheckPublishPayload.operation, "publish_github_check");
+    assert.equal(deniedCheckPublishPayload.decision, "denied_missing_permission");
+    assert.doesNotMatch(JSON.stringify(deniedCheckPublishPayload), /viewer@example.com|should-not-leak|Bearer|abc123/);
+
+    const deniedLivePublish = await fetch(`${url}/api/a3/github/pr-comment/publish?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "reviewer"
+      },
+      body: JSON.stringify({
+        repo: "acme/refund-agent",
+        pull_number: 17,
+        allow_live: true,
+        actor: ["reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(deniedLivePublish.status, 403);
+    const deniedLivePublishPayload = await deniedLivePublish.json();
+    assert.equal(deniedLivePublishPayload.schema_version, "a3.github_live_publish_denied.v1");
+    assert.equal(deniedLivePublishPayload.decision, "denied_requires_hosted_auth_or_service_account");
+    assert.equal(deniedLivePublishPayload.safety.real_github_mutation_performed, false);
+    assert.doesNotMatch(JSON.stringify(deniedLivePublishPayload), /reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const deniedAdminPlan = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({ action: "rotate_api_key" })
+    });
+    assert.equal(deniedAdminPlan.status, 403);
+    const deniedAdminPlanPayload = await deniedAdminPlan.json();
+    assert.equal(deniedAdminPlanPayload.operation, "plan_admin_action");
+    assert.equal(deniedAdminPlanPayload.required_permission, "admin:plan");
+
+    const deniedApproval = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "admin"
+      },
+      body: JSON.stringify({
+        approval: {
+          approval_id: "should_not_persist",
+          authorization: "Bearer should-not-leak"
+        }
+      })
+    });
+    assert.equal(deniedApproval.status, 403);
+    const deniedApprovalPayload = await deniedApproval.json();
+    assert.equal(deniedApprovalPayload.operation, "submit_review_approval");
+    assert.equal(deniedApprovalPayload.required_permission, "release:approve");
+    assert.doesNotMatch(JSON.stringify(deniedApprovalPayload), /should_not_persist|should-not-leak|Bearer/);
+
+    const allowedShare = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "reviewer"
+      },
+      body: JSON.stringify({ title: "RBAC allowed before denied revoke" })
+    });
+    assert.equal(allowedShare.status, 201);
+    const report = await allowedShare.json();
+    const deniedRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({ reason: "should_not_persist" })
+    });
+    assert.equal(deniedRevoke.status, 403);
+    const deniedRevokePayload = await deniedRevoke.json();
+    assert.equal(deniedRevokePayload.operation, "revoke_report");
+    assert.equal(deniedRevokePayload.required_permission, "reports:revoke");
+
+    const deniedOutbox = await fetch(`${url}/api/a3/events/outbox?source=mock`, {
+      headers: { "x-a3-role": "viewer" }
+    });
+    assert.equal(deniedOutbox.status, 403);
+    const deniedOutboxPayload = await deniedOutbox.json();
+    assert.equal(deniedOutboxPayload.operation, "read_event_outbox");
+    assert.equal(deniedOutboxPayload.decision, "denied_missing_permission");
+
+    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor`);
+    assert.equal(outbox.event_count, 1);
+    assert.equal(outbox.event_type_counts["report.share_link_created"], 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -513,4 +824,30 @@ async function getJson(url) {
   const response = await fetch(url);
   assert.equal(response.ok, true, `${url} returned ${response.status}`);
   return response.json();
+}
+
+function buildDenialFixture() {
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: "denial-local-blocked-001",
+    decision: "deny_release",
+    reason: "Release remains blocked until failed A1 traces and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "api-test",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_gate_cli_report",
+        path: "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+        sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ]
+  };
 }

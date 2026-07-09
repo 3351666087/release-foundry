@@ -3,12 +3,19 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, styles] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/visual-shell.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
   ]);
-  return [html, app, styles].join("\n");
+  return [html, app, apiClient, visualShell, styles].join("\n");
+}
+
+function assertNavigationTarget(source, hash) {
+  const escaped = hash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(source, new RegExp(`(?:href="${escaped}"|href:\\s*["']${escaped}["'])`));
 }
 
 test("A3 dashboard is split into a webapp shell, module, and stylesheet", async () => {
@@ -20,6 +27,13 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   assert.doesNotMatch(indexHtml, /<style>/);
   assert.doesNotMatch(indexHtml, /<script type="module">\s*import/);
   assert.match(html, /from "\.\.\/\.\.\/\.\.\/services\/report\/report_builder\.mjs"/);
+  assert.match(html, /from "\.\/visual-shell\.mjs"/);
+  assert.match(html, /data-visual-shell="primary-nav"/);
+  assert.match(html, /export const primaryAreas/);
+  assert.match(html, /export const workspaceRailGroups/);
+  assert.match(html, /className = "nav-group"/);
+  assert.match(html, /className = "nav-sublist"/);
+  assert.match(html, /function syncExpandedNavigation\(id\)/);
 });
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {
@@ -52,6 +66,23 @@ test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", a
   assert.match(html, /state\.frontendSummary/);
   assert.match(html, /state\.frontendMirror/);
   assert.match(html, /buildCsvReport\(state\.runs, state\.grades\)/);
+});
+
+test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="schema-drift-radar"/);
+  assert.match(html, /A1\/A2 Contract Radar/);
+  assertNavigationTarget(html, "#schema-drift-radar");
+  assert.match(html, /fetchA3SchemaDriftRadar/);
+  assert.match(html, /\/api\/a3\/a1-a2\/schema-drift/);
+  assert.match(html, /"x-a3-role": options\.role \|\| "auditor"/);
+  assert.match(html, /schemaDriftRadar: \{\}/);
+  assert.match(html, /state\.schemaDriftRadar = await fetchA3SchemaDriftRadar/);
+  assert.match(html, /function resetSchemaDriftRadar\(\)/);
+  assert.match(html, /function renderSchemaDriftRadar\(\)/);
+  assert.match(html, /raw_schema_payload_embedded/);
+  assert.match(html, /renderSchemaDriftRadar\(\)/);
 });
 
 test("A3 dashboard wires product-console operations panels", async () => {
@@ -190,7 +221,7 @@ test("A3 dashboard wires official Ashr gap map into console and print report", a
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeOfficialAshrGap/);
-  assert.match(html, /href="#official-gap"/);
+  assertNavigationTarget(html, "#official-gap");
   assert.match(html, /id="official-gap"/);
   assert.match(html, /Official Ashr Gap/);
   assert.match(html, /id="official-gap-summary"/);
@@ -206,7 +237,7 @@ test("A3 dashboard wires official frontend mirror into console and exports", asy
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeOfficialFrontendMirror/);
-  assert.match(html, /href="#official-mirror"/);
+  assertNavigationTarget(html, "#official-mirror");
   assert.match(html, /id="official-mirror"/);
   assert.match(html, /Official Frontend Mirror/);
   assert.match(html, /clean-room/);
@@ -227,7 +258,7 @@ test("A3 dashboard wires official code crawl parity into console and reports", a
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeOfficialCodeCrawlParity/);
-  assert.match(html, /href="#official-code-crawl"/);
+  assertNavigationTarget(html, "#official-code-crawl");
   assert.match(html, /id="official-code-crawl"/);
   assert.match(html, /Official Code Crawl/);
   assert.match(html, /id="official-code-crawl-summary"/);
@@ -249,7 +280,7 @@ test("A3 dashboard wires official parity roadmap into console and reports", asyn
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeOfficialParityRoadmap/);
-  assert.match(html, /href="#official-roadmap"/);
+  assertNavigationTarget(html, "#official-roadmap");
   assert.match(html, /id="official-roadmap"/);
   assert.match(html, /Official Parity Roadmap/);
   assert.match(html, /id="official-roadmap-summary"/);
@@ -270,8 +301,8 @@ test("A3 dashboard wires commercial release gate into console and reports", asyn
 
   assert.match(html, /summarizeReleaseGate/);
   assert.match(html, /summarizeReleaseWorkflow/);
-  assert.match(html, /href="#release-gate"/);
-  assert.match(html, /href="#pr-gate"/);
+  assertNavigationTarget(html, "#release-gate");
+  assertNavigationTarget(html, "#pr-gate");
   assert.match(html, /id="release-gate"/);
   assert.match(html, /id="pr-gate"/);
   assert.match(html, /Release Gate/);
@@ -315,7 +346,7 @@ test("A3 dashboard wires release war room into console and reports", async () =>
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeReleaseWarRoom/);
-  assert.match(html, /href="#war-room"/);
+  assertNavigationTarget(html, "#war-room");
   assert.match(html, /id="war-room"/);
   assert.match(html, /Release War Room/);
   assert.match(html, /id="war-room-status"/);
@@ -335,7 +366,7 @@ test("A3 dashboard wires incident replay queue into console and reports", async 
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeIncidentReplayQueue/);
-  assert.match(html, /href="#incident-replay"/);
+  assertNavigationTarget(html, "#incident-replay");
   assert.match(html, /id="incident-replay"/);
   assert.match(html, /Incident Replay/);
   assert.match(html, /id="incident-replay-status"/);
@@ -355,7 +386,7 @@ test("A3 dashboard wires observability replay matrix into console and reports", 
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeObservabilityReplayMatrix/);
-  assert.match(html, /href="#observability-replay"/);
+  assertNavigationTarget(html, "#observability-replay");
   assert.match(html, /id="observability-replay"/);
   assert.match(html, /Observability Replay/);
   assert.match(html, /id="observability-replay-status"/);
@@ -376,7 +407,7 @@ test("A3 dashboard wires regression factory into console and reports", async () 
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeRegressionFactory/);
-  assert.match(html, /href="#regression-factory"/);
+  assertNavigationTarget(html, "#regression-factory");
   assert.match(html, /id="regression-factory"/);
   assert.match(html, /Regression Factory/);
   assert.match(html, /id="regression-factory-status"/);
@@ -397,7 +428,7 @@ test("A3 dashboard wires export redaction firewall into console and reports", as
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeExportRedactionFirewall/);
-  assert.match(html, /href="#export-redaction"/);
+  assertNavigationTarget(html, "#export-redaction");
   assert.match(html, /id="export-redaction"/);
   assert.match(html, /Export Safety/);
   assert.match(html, /id="export-redaction-status"/);
@@ -417,7 +448,7 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   const html = await loadDashboardHtml();
 
   assert.match(html, /summarizeReviewerWorkflowBoard/);
-  assert.match(html, /href="#reviewer-workflow"/);
+  assertNavigationTarget(html, "#reviewer-workflow");
   assert.match(html, /id="reviewer-workflow"/);
   assert.match(html, /Reviewer Workflow/);
   assert.match(html, /id="reviewer-workflow-status"/);
@@ -431,8 +462,17 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /function reviewerWorkflowItemRow\(item\)/);
   assert.match(html, /function renderReviewWorkflowRecords\(\)/);
   assert.match(html, /fetchA3ReviewWorkflow/);
+  assert.match(html, /submitA3ReviewWaiver/);
+  assert.match(html, /submitA3ReviewApproval/);
+  assert.match(html, /submitA3ReviewDenial/);
   assert.match(html, /review_workflow/);
   assert.match(html, /GET \/api\/a3\/review\/workflow/);
+  assert.match(html, /POST \/api\/a3\/review\/denials/);
+  assert.match(html, /data-review-action="denial"/);
+  assert.match(html, /Record Denial/);
+  assert.match(html, /denial_count/);
+  assert.match(html, /function submitReviewWorkflowAction\(action\)/);
+  assert.match(html, /function buildDashboardDenialRecord\(\)/);
   assert.match(html, /renderReviewerWorkflowBoard\(\)/);
   assert.match(html, /reviewerWorkflowBoard\.board_label/);
   assert.match(html, /Reviewer Workflow Board<\/h4>/);
@@ -480,12 +520,19 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /function getA3ApiBaseUrl\(\)/);
   assert.match(html, /params\.get\("apiBase"\)/);
   assert.match(html, /fetchA3DashboardSnapshot/);
+  assert.match(html, /fetchA3UsageLedger/);
+  assert.match(html, /fetchA3BillingReadiness/);
+  assert.match(html, /fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /fetchA3PeerBranchCalibration/);
   assert.match(html, /isA3ApiSource\(source\)/);
   assert.match(html, /renderSaasRuntime\(\)/);
   assert.match(html, /db_migrations/);
   assert.match(html, /usage_ledger/);
   assert.match(runtimeComponent, /Migration batches/);
   assert.match(runtimeComponent, /Usage meters/);
+  assert.match(runtimeComponent, /Billing readiness/);
+  assert.match(runtimeComponent, /invoice export/);
+  assert.match(runtimeComponent, /A1 usage ready/);
   assert.match(html, /data-share-report/);
   assert.match(html, /createShareableA3Report/);
   assert.match(html, /revokeShareableA3Report/);
@@ -497,6 +544,12 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /state\.artifactRegistry/);
   assert.match(html, /GET \/api\/a3\/reports\/center/);
   assert.match(html, /GET \/api\/a3\/artifacts\/registry/);
+  assert.match(html, /GET \/api\/a3\/usage\/ledger/);
+  assert.match(html, /GET \/api\/a3\/billing\/readiness/);
+  assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
+  assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
+  assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
+  assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
   assert.match(html, /function hostedReportRow\(report\)/);
   assert.match(html, /function revokeHostedReport\(report\)/);
   assert.match(html, /function refreshReportEvidence\(\)/);
@@ -508,6 +561,84 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
   assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+});
+
+test("A3 dashboard wires billing migration readiness into API-backed and static console", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="billing-migration-readiness"/);
+  assert.match(html, /Billing Migration Readiness/);
+  assertNavigationTarget(html, "#billing-migration-readiness");
+  assert.match(html, /billingMigrationReadiness: \{\}/);
+  assert.match(html, /buildA3BillingMigrationReadiness/);
+  assert.match(html, /fetchA3BillingMigrationReadiness/);
+  assert.match(html, /function refreshBillingMigrationReadiness\(\)/);
+  assert.match(html, /function renderBillingMigrationReadiness\(\)/);
+  assert.match(html, /state\.billingMigrationReadiness = await fetchA3BillingMigrationReadiness/);
+  assert.match(html, /billing_migration_readiness/);
+  assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
+  assert.match(html, /A1 billing ledger migration, replay, and read-only billing API evidence/);
+  assert.match(html, /billing_migration_readiness/);
+});
+
+test("A3 dashboard wires live workflow readiness for GitHub, review, billing, and hosted reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="live-workflow-readiness"/);
+  assert.match(html, /Live Workflow Readiness/);
+  assertNavigationTarget(html, "#live-workflow-readiness");
+  assert.match(html, /liveWorkflowReadiness: \{\}/);
+  assert.match(html, /buildA3LiveWorkflowReadiness/);
+  assert.match(html, /fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /function refreshLiveWorkflowReadiness\(\)/);
+  assert.match(html, /function renderLiveWorkflowReadiness\(\)/);
+  assert.match(html, /state\.liveWorkflowReadiness = await fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /live_workflow_readiness/);
+  assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
+  assert.match(html, /GitHub, reviewer, billing, and hosted-report readiness/);
+  assert.match(html, /human records/);
+  assert.match(html, /need live backend/);
+});
+
+test("A3 dashboard wires live ops control plane for PR, review, billing, human ops, and share links", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="live-ops-control-plane"/);
+  assert.match(html, /Live Ops Control Plane/);
+  assertNavigationTarget(html, "#live-ops-control-plane");
+  assert.match(html, /liveOpsControlPlane: \{\}/);
+  assert.match(html, /buildA3LiveOpsControlPlane/);
+  assert.match(html, /fetchA3LiveOpsControlPlane/);
+  assert.match(html, /function refreshLiveOpsControlPlane\(\)/);
+  assert.match(html, /function renderLiveOpsControlPlane\(\)/);
+  assert.match(html, /state\.liveOpsControlPlane = await fetchA3LiveOpsControlPlane/);
+  assert.match(html, /live_ops_control_plane/);
+  assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
+  assert.match(html, /PR publishing, review, human-operation, billing, and share-link control state/);
+  assert.match(html, /local mutations/);
+});
+
+test("A3 dashboard wires peer branch calibration into console and exports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="peer-branch-calibration"/);
+  assert.match(html, /Peer Branch Calibration/);
+  assert.match(html, /id="peer-branch-status"/);
+  assert.match(html, /id="peer-branch-body"/);
+  assertNavigationTarget(html, "#peer-branch-calibration");
+  assert.match(html, /Peer branches/);
+  assert.match(html, /Peer Branches/);
+  assert.match(html, /peerBranchCalibration: \{\}/);
+  assert.match(html, /summarizeA3PeerBranchCalibration/);
+  assert.match(html, /function renderPeerBranchCalibration\(\)/);
+  assert.match(html, /state\.peerBranchCalibration = await loadOptionalJson\("\.\.\/\.\.\/fixtures\/a3\/p3\/a3_peer_branch_calibration\.redacted\.json"\)/);
+  assert.match(html, /state\.peerBranchCalibration = await fetchA3PeerBranchCalibration/);
+  assert.match(html, /peer_branch_calibration/);
+  assert.match(html, /a3_peer_branch_calibration\.redacted\.json/);
+  assert.match(html, /state\.peerBranchCalibration/);
+  assert.match(html, /Peer Branch Calibration", `\$\{peerBranchCalibration\.status\}/);
+  assert.match(html, /A1\/A2 peer delta/);
+  assert.match(html, /does not modify A1/);
 });
 
 test("A3 dashboard wires release evidence publish and verification display", async () => {
@@ -579,6 +710,8 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(adminModel, /quota_mutations_enabled/);
   assert.match(adminModel, /buildSaasAdminActionRequest/);
   assert.match(html, /state\.saasRuntime\.usage_ledger/);
+  assert.match(html, /state\.saasRuntime\.billing_readiness/);
+  assert.match(html, /billingReadiness/);
   assert.match(html, /saas_admin_console/);
   assert.match(html, /selectedAdminAction/);
   assert.match(html, /selectedAdminPlan/);
@@ -597,7 +730,7 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(html, /summarizeSaasAdminExport/);
   assert.match(html, /components\/product-console-panel\.mjs/);
   assert.match(html, /fetchA3ProductConsole/);
-  assert.match(html, /href="#product-console"/);
+  assertNavigationTarget(html, "#product-console");
   assert.match(html, /id="product-console"/);
   assert.match(html, /id="product-console-body"/);
   assert.match(html, /function refreshLocalProductConsole\(\)/);
@@ -621,7 +754,7 @@ test("A3 dashboard wires enterprise readiness for self-host and audit review", a
 
   assert.match(html, /a3_enterprise_readiness\.mjs/);
   assert.match(html, /components\/enterprise-readiness-panel\.mjs/);
-  assert.match(html, /href="#enterprise-readiness"/);
+  assertNavigationTarget(html, "#enterprise-readiness");
   assert.match(html, /id="enterprise-readiness"/);
   assert.match(html, /id="enterprise-readiness-body"/);
   assert.match(html, /Enterprise Readiness/);
