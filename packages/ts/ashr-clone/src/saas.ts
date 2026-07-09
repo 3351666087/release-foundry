@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { AGENT_INPUT_PART_TYPES, AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -58,6 +58,7 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
   "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
   "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ["evidence:read"],
+  "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ["run:read"],
   "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
   "GET /v1/projects/{project_id}/usage": [USAGE_READ_SCOPE],
   "GET /v1/projects/{project_id}/worker-jobs": [WORKER_JOB_READ_SCOPE],

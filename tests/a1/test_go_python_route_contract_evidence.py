@@ -310,3 +310,10 @@ def test_go_structured_route_scope_manifest_is_public_safe_and_saas_grade():
     payload = json.dumps(entries, sort_keys=True)
     for forbidden in ("tenant_", "project_contract", "run_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "raw_payload"):
         assert forbidden not in payload
+
+
+def test_shared_hosted_routes_are_declared_in_route_scope_manifest():
+    from ashr_clone.saas import hosted_route_scope_manifest
+
+    manifest_routes = {entry["route"] for entry in hosted_route_scope_manifest()["routes"]}
+    assert PYTHON_TS_SHARED_HOSTED_ROUTES <= manifest_routes

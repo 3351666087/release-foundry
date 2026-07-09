@@ -450,3 +450,12 @@ Post-validation addendum:
 - `python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider` -> passed, 17 tests.
 - `git diff --check` -> passed.
 - Misrun note: `go test ./...` at repo root and repo-relative Docker/Python commands from `tests/integration/go` failed because those cwd values are not module/repo roots; each was rerun from the correct directory and passed.
+
+Lifecycle route-scope audit fix:
+- Bus-Auditor found `GET /v1/projects/{project_id}/runs/{run_id}/lifecycle` was shared by Python/TS hosted clients but absent from the new route-scope requirement maps.
+- Added lifecycle to Python and TS hosted route scope requirements with `run:read`.
+- Added a test that every Python/TS shared hosted route is declared in the route-scope manifest.
+- Re-ran `python -B tests/a1/ts_python_parity_matrix.py --write` after the route-scope API changed.
+- Validation: `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> passed, 12 tests.
+- Validation: `npm test --prefix packages/ts/ashr-clone` -> passed, 318 tests.
+- Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 326 tests.

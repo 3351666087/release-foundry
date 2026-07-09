@@ -18,6 +18,7 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "GET /v1/projects/{project_id}/api-keys/rate-limits": (),
     "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("evidence:read",),
+    "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ("run:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ("evidence:read",),
     "GET /v1/projects/{project_id}/usage": ("usage:read",),
     "GET /v1/projects/{project_id}/worker-jobs": ("worker_job:read",),
