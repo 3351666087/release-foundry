@@ -267,6 +267,7 @@ def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
 def test_evidence_index_from_repo_private_refs_uses_relative_paths():
     root = Path(__file__).resolve().parents[2]
     record = root / "docs" / "evidence" / "private_refs" / "pytest_relative_path_record.json"
+    record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(json.dumps({"function": "init", "status": "ok", "response": {"status": "ok"}}), encoding="utf-8")
     try:
         index = build_private_evidence_index([record], label="relative-path-check")

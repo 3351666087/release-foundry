@@ -1561,3 +1561,12 @@ Results:
 - `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
 - Safety: no secret/key file read, no Ashr API call, no live billing/auth/team/API-key/storage mutation in this CI-unblock slice.
 - Environment note: `bash -lc ...` through the current WSL relay failed with `/bin/bash` missing; revisit Linux shell availability before daemon/container-heavy follow-up.
+
+### Round41 CI follow-up - fresh private evidence dir
+
+- `gh run view 29028012989 --job 86152945121 --log-failed`: Python A1/A2 failed because `tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths` tried to write `docs/evidence/private_refs/pytest_relative_path_record.json` in a fresh GitHub checkout where the ignored private evidence directory does not exist.
+- Fix: the test now creates `record.parent` before writing the temporary private evidence record, then still deletes only that temporary file.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths -q -p no:cacheprovider`: 1 passed.
+- `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
+- `python scripts/cl_guard.py hygiene`: passed, findings empty.
+- `git diff --check`: passed with CRLF normalization warning only.
