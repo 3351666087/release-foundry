@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
+HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
 EVIDENCE_README = ROOT / "docs" / "a1" / "evidence" / "README.md"
 
 
@@ -36,6 +41,10 @@ def test_a1_compose_declares_local_go_api_and_postgres_services():
     assert '"127.0.0.1:18787:8787"' in api
     assert "postgres:" in api
     assert "condition: service_healthy" in api
+    assert "healthcheck:" in api
+    assert "a1_docker_healthcheck.go" in api
+    assert "http://127.0.0.1:8787/healthz" in api
+    assert "start_period: 20s" in api
 
     assert "image: postgres:16-alpine" in postgres
     assert "POSTGRES_DB: ashr" in postgres
@@ -72,5 +81,55 @@ def test_a1_evidence_readme_links_compose_and_validation_command():
     assert "services/runner/docker-compose.a1.yml" in readme
     assert "docker compose -f services/runner/docker-compose.a1.yml up --build" in readme
     assert "python -m pytest tests/a1/test_local_self_host_smoke_compose.py" in readme
+    assert "docker info --format" in readme
+    assert "docker compose -f services/runner/docker-compose.a1.yml config --quiet" in readme
+    assert "a1_docker_healthcheck.go" in readme
     assert "ASHR_API_KEY" in readme
     assert "not set" in readme or "does not set" in readme
+
+
+def test_a1_compose_healthcheck_uses_stdlib_go_probe_without_secrets():
+    source = HEALTHCHECK.read_text(encoding="utf-8")
+
+    assert "package main" in source
+    assert "net/http" in source
+    assert "http://127.0.0.1:8787/healthz" in source
+    assert "http.StatusOK" in source
+    assert "context.WithTimeout" in source
+
+    forbidden_markers = ["ASHR_API_KEY", "ASHR_LABS_API_KEY", "Authorization:", "Bearer ", "sk-"]
+    for marker in forbidden_markers:
+        assert marker not in source
+
+
+def test_a1_docker_compose_config_is_valid_when_daemon_is_reachable():
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is not installed on this host")
+
+    daemon = subprocess.run(
+        [docker, "info", "--format", "{{.ServerVersion}}"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=15,
+        check=False,
+    )
+    if daemon.returncode != 0:
+        pytest.skip(f"Docker daemon is not reachable: {_one_line(daemon.stderr or daemon.stdout)}")
+
+    config = subprocess.run(
+        [docker, "compose", "-f", str(COMPOSE), "config", "--quiet"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        check=False,
+    )
+    assert config.returncode == 0, config.stderr or config.stdout
+
+
+def _one_line(value: str) -> str:
+    return " ".join(value.split())[:240]

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { ASHR_API_ENV_VAR } from "../dist/index.js";
+import { AGENT_INPUT_PART_TYPES, ASHR_API_ENV_VAR, parseArgs, runCalibration } from "../dist/index.js";
 import { main } from "../dist/calibrate.js";
 
 function captureStreams() {
@@ -57,6 +57,32 @@ function writePlanBatchGate(path, decision = "go", options = {}) {
   );
 }
 
+test("calibration APIs are exported from the TS SDK barrel without invoking CLI", async () => {
+  const originalFetch = globalThis.fetch;
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-sdk-"));
+  const output = join(temp, "manifest.json");
+  let fetchCalled = false;
+  globalThis.fetch = () => {
+    fetchCalled = true;
+    throw new Error("SDK dry-run import must not call network");
+  };
+  try {
+    const args = parseArgs(["--include-mutating", "--allow-paid-media", "--output", output]);
+    const manifest = await runCalibration(args, {}, output);
+
+    assert.equal(fetchCalled, false);
+    assert.equal(manifest.schema_version, "ashr.clone.api_calibration_manifest.v1");
+    assert.equal(manifest.summary.read_steps, 5);
+    assert.equal(manifest.summary.mutating_steps, 5);
+    assert.deepEqual(new Set(manifest.summary.modalities), new Set(AGENT_INPUT_PART_TYPES));
+    assert.equal(manifest.steps.length, 10);
+    assert.equal(manifest.steps.every((step) => step.status === "planned"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("calibrate CLI dry-run writes a five-modality manifest without fetch", async () => {
   const originalFetch = globalThis.fetch;
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-calibrate-"));
@@ -101,8 +127,8 @@ test("calibrate CLI includes five mutating modality plans only with explicit opt
     assert.equal(capture.stderr, "");
     assert.equal(readJson(output).steps.length, 10);
     assert.equal(manifest.summary.mutating_steps, 5);
-    assert.deepEqual(manifest.summary.modalities, ["audio", "file", "image", "text", "video"]);
-    for (const modality of ["text", "image", "audio", "file", "video"]) {
+    assert.deepEqual(new Set(manifest.summary.modalities), new Set(AGENT_INPUT_PART_TYPES));
+    for (const modality of AGENT_INPUT_PART_TYPES) {
       assert.ok(manifest.steps.some((step) => step.step_id === `create-request-${modality}` && step.modality === modality));
     }
   } finally {

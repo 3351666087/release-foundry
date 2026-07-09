@@ -1,4 +1,5 @@
 export * from "./api-client.js";
+export * from "./calibrate.js";
 export * from "./cloud-queue.js";
 export * from "./dataset-adapter.js";
 export * from "./evidence.js";
@@ -224,8 +225,8 @@ export const DEFAULT_REQUEST_INPUT_SCHEMA: JsonRecord = {
   additionalProperties: true,
 };
 
-const AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["text", "image", "audio", "file", "video"];
-const NON_TEXT_AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["image", "audio", "file", "video"];
+export const AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["text", "image", "audio", "file", "video"];
+export const NON_TEXT_AGENT_INPUT_PART_TYPES: AgentInputPartType[] = ["image", "audio", "file", "video"];
 
 export class CloudApiError extends Error {
   code = "cloud_api_error";

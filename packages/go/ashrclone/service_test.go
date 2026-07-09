@@ -5,6 +5,69 @@ import (
 	"testing"
 )
 
+func TestMemoryServiceAPIKeyLifecyclePreflightAndQuota(t *testing.T) {
+	service := NewMemoryService()
+	if _, err := service.BootstrapProject("Tenant", "Auth", Dataset{Name: "Dataset"}, "tenant_auth", "project_auth"); err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := service.CreateAPIKey("tenant_auth", "project_auth", CreateAPIKeyOptions{KeyID: "key_submit", Name: "submitter", Scopes: []string{ScopeRunSubmit}, RevealSecret: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Result.OneTimeSecret == "" || created.Result.APIKey.SecretSHA256 != "" || created.Result.APIKey.SecretPrefix == "" {
+		t.Fatalf("expected one-time local test secret with redacted stored hash, got %#v", created.Result)
+	}
+
+	verified, err := service.VerifyAPIKeySecret("tenant_auth", "project_auth", "key_submit", created.Result.OneTimeSecret, ScopeRunSubmit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !verified.Result.Authenticated || verified.Result.SecretValuePresent {
+		t.Fatalf("expected local test secret verification, got %#v", verified.Result)
+	}
+
+	if _, err := service.PreflightAPIKey(PreflightOptions{TenantID: "tenant_auth", ProjectID: "project_auth", KeyID: "key_submit", Scope: ScopeRunUpload, Operation: "upload_run"}); err == nil {
+		t.Fatal("expected missing scope to fail preflight")
+	}
+	if _, err := service.ConfigureAPIKeyRateLimit("tenant_auth", "project_auth", "key_submit", "sdk_submit", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PreflightAPIKey(PreflightOptions{TenantID: "tenant_auth", ProjectID: "project_auth", KeyID: "key_submit", Scope: ScopeRunSubmit, Operation: "sdk_submit"}); err != nil {
+		t.Fatalf("expected first preflight within quota: %v", err)
+	}
+	first, err := service.SubmitRun("tenant_auth", "project_auth", "dataset_auth", "agent:auth", "run_quota", nil, IdempotencyOptions{Key: "idem_quota", APIKeyID: "key_submit"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := service.SubmitRun("tenant_auth", "project_auth", "dataset_auth", "agent:auth", "run_quota", nil, IdempotencyOptions{Key: "idem_quota", APIKeyID: "key_submit"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replay.IdempotentReplay || replay.Result.RunID != first.Result.RunID {
+		t.Fatalf("expected idempotent replay without additional quota, got %#v", replay)
+	}
+	if _, err := service.PreflightAPIKey(PreflightOptions{TenantID: "tenant_auth", ProjectID: "project_auth", KeyID: "key_submit", Scope: ScopeRunSubmit, Operation: "sdk_submit"}); err == nil {
+		t.Fatal("expected quota preflight failure after one submit")
+	}
+	if _, err := service.SubmitRun("tenant_auth", "project_auth", "dataset_auth", "agent:auth", "run_quota_2", nil, IdempotencyOptions{APIKeyID: "key_submit"}); err == nil {
+		t.Fatal("expected service-level quota enforcement before second submit")
+	} else {
+		var quota QuotaExceededError
+		if !errors.As(err, &quota) || quota.Operation != "sdk_submit" {
+			t.Fatalf("expected quota_exceeded for sdk_submit, got %T %v", err, err)
+		}
+	}
+
+	revoked, err := service.RevokeAPIKey("tenant_auth", "project_auth", "key_submit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !revoked.Result.Revoked || revoked.Result.SecretSHA256 != "" {
+		t.Fatalf("expected revoked redacted key record, got %#v", revoked.Result)
+	}
+}
+
 func TestMemoryServiceIdempotentSubmitReplaysAndConflicts(t *testing.T) {
 	service := NewMemoryService()
 	boot, err := service.BootstrapProject("Enterprise Tenant", "Release Gate", Dataset{Name: "Calibration"}, "tenant_saas", "project_saas")

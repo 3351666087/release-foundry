@@ -6,6 +6,10 @@ description = "Static Ashr A1 runtime fixture verifier and replay-plan utility."
 license = "UNLICENSED"
 publish = false
 
+[dependencies]
+serde_json = "1.0"
+sha2 = "0.10"
+
 [[bin]]
 name = "ashr-runtime-verify"
 path = "src/main.rs"
