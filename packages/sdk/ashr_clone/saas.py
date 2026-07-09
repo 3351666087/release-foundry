@@ -13,6 +13,32 @@ JsonDict = dict[str, Any]
 SAAS_CLIENT_VERSION = "ashr.clone.saas_ingestion_client.v1"
 BLOCKED_CONTROL_PLANE_PATH_PARTS = {".secrets", "private_refs"}
 
+HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "GET /v1/projects/{project_id}/api-keys": ("api_key:read",),
+    "GET /v1/projects/{project_id}/api-keys/rate-limits": (),
+    "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
+    "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("evidence:read",),
+    "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ("evidence:read",),
+    "GET /v1/projects/{project_id}/usage": ("usage:read",),
+    "GET /v1/projects/{project_id}/worker-jobs": ("worker_job:read",),
+    "POST /v1/bootstrap": (),
+    "POST /v1/projects/{project_id}/api-keys": ("api_key:write",),
+    "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit": ("api_key:write",),
+    "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke": ("api_key:write",),
+    "POST /v1/projects/{project_id}/api-keys/{key_id}/verify": (),
+    "POST /v1/projects/{project_id}/audit-chain/verify": ("audit:read",),
+    "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("artifact:upload",),
+    "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ("evidence:read",),
+    "POST /v1/projects/{project_id}/runs/{run_id}/trace-events": ("trace:ingest",),
+    "POST /v1/projects/{project_id}/runs/{run_id}/upload": ("run:upload",),
+    "POST /v1/projects/{project_id}/sdk-submit": ("sdk:submit",),
+    "POST /v1/projects/{project_id}/worker-jobs/enqueue": ("worker_job:write",),
+    "POST /v1/projects/{project_id}/worker-jobs/lease": ("worker_job:write",),
+    "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": ("worker_job:write",),
+    "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": ("worker_job:write",),
+    "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": ("worker_job:write",),
+}
+
 
 class SaaSClientError(RuntimeError):
     pass
@@ -683,6 +709,45 @@ def _remote_envelope(operation: str, result: Mapping[str, Any]) -> JsonDict:
 def load_json_file(path: str | Path) -> Any:
     _assert_public_control_plane_path(path)
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def hosted_route_scope_manifest() -> JsonDict:
+    return {
+        "schema_version": "ashr.clone.hosted_route_scope_manifest.v1",
+        "client": "python",
+        "public_safe": True,
+        "source_policy": {"private_evidence_read": False, "raw_payloads_included": False, "tokens_included": False},
+        "routes": [
+            {"route": route, "required_scopes": list(scopes)}
+            for route, scopes in sorted(HOSTED_ROUTE_SCOPE_REQUIREMENTS.items())
+        ],
+    }
+
+
+def consume_go_route_scope_manifest(manifest: Mapping[str, Any] | str | Path) -> JsonDict:
+    snapshot = load_json_file(manifest) if isinstance(manifest, (str, Path)) else dict(manifest)
+    if snapshot.get("public_safe") is not True:
+        raise SaaSClientError("route/scope manifest must be public_safe")
+    source_policy = snapshot.get("source_policy")
+    if source_policy != {"private_evidence_read": False, "raw_payloads_included": False, "tokens_included": False}:
+        raise SaaSClientError("route/scope manifest has unsafe source policy")
+
+    go_routes = {str(route) for route in snapshot.get("go_manifest_routes", [])}
+    hosted_routes = set(HOSTED_ROUTE_SCOPE_REQUIREMENTS)
+    consumable_go_routes = sorted(go_routes & hosted_routes)
+    return {
+        "schema_version": "ashr.clone.go_route_scope_consumption.v1",
+        "client": "python",
+        "public_safe": True,
+        "source_policy": source_policy,
+        "consumable_go_routes": consumable_go_routes,
+        "unsupported_go_routes": sorted(go_routes - hosted_routes),
+        "client_only_routes": sorted(hosted_routes - go_routes),
+        "route_scopes": [
+            {"route": route, "required_scopes": list(HOSTED_ROUTE_SCOPE_REQUIREMENTS[route])}
+            for route in consumable_go_routes
+        ],
+    }
 
 
 def _new_service() -> Any:

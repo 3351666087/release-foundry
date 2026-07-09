@@ -2,6 +2,7 @@
 import { AGENT_INPUT_PART_TYPES, AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
@@ -50,6 +51,34 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "queue:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
   [API_KEY_ADMIN_SCOPE]: [API_KEY_READ_SCOPE],
   [ADMIN_ALL_SCOPE]: ["*"],
+};
+
+export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
+  "GET /v1/projects/{project_id}/api-keys": [API_KEY_READ_SCOPE],
+  "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
+  "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
+  "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ["evidence:read"],
+  "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
+  "GET /v1/projects/{project_id}/usage": [USAGE_READ_SCOPE],
+  "GET /v1/projects/{project_id}/worker-jobs": [WORKER_JOB_READ_SCOPE],
+  "POST /v1/bootstrap": [],
+  "POST /v1/projects/{project_id}/api-keys": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/authenticate": [],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/verify": [],
+  "POST /v1/projects/{project_id}/audit-chain/verify": [AUDIT_READ_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": [ARTIFACT_MANIFEST_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ["evidence:read"],
+  "POST /v1/projects/{project_id}/runs/{run_id}/release-gate": [AUDIT_READ_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/trace-events": [TRACE_INGEST_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/upload": [RUN_UPLOAD_SCOPE],
+  "POST /v1/projects/{project_id}/sdk-submit": ["sdk:submit"],
+  "POST /v1/projects/{project_id}/worker-jobs/enqueue": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/lease": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": [WORKER_JOB_WRITE_SCOPE],
 };
 
 export interface SaaSControlPlaneStore {
@@ -1252,6 +1281,49 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
     "x-local-only": true,
     "x-ashr-api-used": false,
   };
+}
+
+export function hostedRouteScopeManifest(): JsonRecord {
+  return {
+    schema_version: "ashr.clone.hosted_route_scope_manifest.v1",
+    client: "typescript",
+    public_safe: true,
+    source_policy: { private_evidence_read: false, raw_payloads_included: false, tokens_included: false },
+    routes: Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS).sort().map((route) => ({
+      route,
+      required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]],
+    })),
+  };
+}
+
+export function consumeGoRouteScopeManifest(manifest: JsonRecord | string): JsonRecord {
+  const snapshot = typeof manifest === "string" ? JSON.parse(readFileSync(assertPublicManifestPath(manifest), "utf8")) as JsonRecord : manifest;
+  if (snapshot.public_safe !== true) throw new ValidationError("route/scope manifest must be public_safe");
+  const sourcePolicy = isRecord(snapshot.source_policy) ? snapshot.source_policy : {};
+  if (sourcePolicy.private_evidence_read !== false || sourcePolicy.raw_payloads_included !== false || sourcePolicy.tokens_included !== false) {
+    throw new ValidationError("route/scope manifest has unsafe source policy");
+  }
+  const goRoutes = new Set((Array.isArray(snapshot.go_manifest_routes) ? snapshot.go_manifest_routes : []).map((route) => String(route)));
+  const hostedRoutes = new Set(Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS));
+  const consumableGoRoutes = [...goRoutes].filter((route) => hostedRoutes.has(route)).sort();
+  return {
+    schema_version: "ashr.clone.go_route_scope_consumption.v1",
+    client: "typescript",
+    public_safe: true,
+    source_policy: { private_evidence_read: false, raw_payloads_included: false, tokens_included: false },
+    consumable_go_routes: consumableGoRoutes,
+    unsupported_go_routes: [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort(),
+    client_only_routes: [...hostedRoutes].filter((route) => !goRoutes.has(route)).sort(),
+    route_scopes: consumableGoRoutes.map((route) => ({ route, required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]] })),
+  };
+}
+
+function assertPublicManifestPath(inputPath: string): string {
+  const lowerParts = resolve(inputPath).toLowerCase().split(/[\\/]+/u);
+  if (lowerParts.includes("private_refs") || lowerParts.includes(".secrets")) {
+    throw new SecretInputError("refusing to read private_refs or .secrets input paths");
+  }
+  return inputPath;
 }
 
 

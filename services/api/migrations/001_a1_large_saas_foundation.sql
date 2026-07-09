@@ -395,6 +395,143 @@ CREATE INDEX IF NOT EXISTS idx_jobs_project_status ON jobs(organization_id, proj
 CREATE INDEX IF NOT EXISTS idx_audit_log_scope_created ON audit_log(organization_id, project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_resource ON audit_log(organization_id, resource_type, resource_id, created_at DESC);
 
+CREATE OR REPLACE FUNCTION a1_current_organization_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULLIF(current_setting('app.a1_organization_id', TRUE), '')::UUID;
+$$;
+
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE environments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE datasets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE case_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trace_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE artifacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evidence_bundles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhook_endpoints ENABLE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usage_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quota_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE organizations FORCE ROW LEVEL SECURITY;
+ALTER TABLE workspaces FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE environments FORCE ROW LEVEL SECURITY;
+ALTER TABLE datasets FORCE ROW LEVEL SECURITY;
+ALTER TABLE runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE case_results FORCE ROW LEVEL SECURITY;
+ALTER TABLE trace_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE observations FORCE ROW LEVEL SECURITY;
+ALTER TABLE artifacts FORCE ROW LEVEL SECURITY;
+ALTER TABLE evidence_bundles FORCE ROW LEVEL SECURITY;
+ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
+ALTER TABLE webhook_endpoints FORCE ROW LEVEL SECURITY;
+ALTER TABLE idempotency_keys FORCE ROW LEVEL SECURITY;
+ALTER TABLE usage_ledger FORCE ROW LEVEL SECURITY;
+ALTER TABLE quota_policies FORCE ROW LEVEL SECURITY;
+ALTER TABLE jobs FORCE ROW LEVEL SECURITY;
+ALTER TABLE audit_log FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS organizations_organization_isolation ON organizations;
+DROP POLICY IF EXISTS workspaces_organization_isolation ON workspaces;
+DROP POLICY IF EXISTS projects_organization_isolation ON projects;
+DROP POLICY IF EXISTS environments_organization_isolation ON environments;
+DROP POLICY IF EXISTS datasets_organization_isolation ON datasets;
+DROP POLICY IF EXISTS runs_organization_isolation ON runs;
+DROP POLICY IF EXISTS case_results_organization_isolation ON case_results;
+DROP POLICY IF EXISTS trace_events_organization_isolation ON trace_events;
+DROP POLICY IF EXISTS observations_organization_isolation ON observations;
+DROP POLICY IF EXISTS artifacts_organization_isolation ON artifacts;
+DROP POLICY IF EXISTS evidence_bundles_organization_isolation ON evidence_bundles;
+DROP POLICY IF EXISTS api_keys_organization_isolation ON api_keys;
+DROP POLICY IF EXISTS webhook_endpoints_organization_isolation ON webhook_endpoints;
+DROP POLICY IF EXISTS idempotency_keys_organization_isolation ON idempotency_keys;
+DROP POLICY IF EXISTS usage_ledger_organization_isolation ON usage_ledger;
+DROP POLICY IF EXISTS quota_policies_organization_isolation ON quota_policies;
+DROP POLICY IF EXISTS jobs_organization_isolation ON jobs;
+DROP POLICY IF EXISTS audit_log_organization_isolation ON audit_log;
+
+CREATE POLICY organizations_organization_isolation ON organizations
+  USING (id = a1_current_organization_id())
+  WITH CHECK (id = a1_current_organization_id());
+
+CREATE POLICY workspaces_organization_isolation ON workspaces
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY projects_organization_isolation ON projects
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY environments_organization_isolation ON environments
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY datasets_organization_isolation ON datasets
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY runs_organization_isolation ON runs
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY case_results_organization_isolation ON case_results
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY trace_events_organization_isolation ON trace_events
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY observations_organization_isolation ON observations
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY artifacts_organization_isolation ON artifacts
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY evidence_bundles_organization_isolation ON evidence_bundles
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY api_keys_organization_isolation ON api_keys
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY webhook_endpoints_organization_isolation ON webhook_endpoints
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY idempotency_keys_organization_isolation ON idempotency_keys
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY usage_ledger_organization_isolation ON usage_ledger
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY quota_policies_organization_isolation ON quota_policies
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY jobs_organization_isolation ON jobs
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
+CREATE POLICY audit_log_organization_isolation ON audit_log
+  USING (organization_id = a1_current_organization_id())
+  WITH CHECK (organization_id = a1_current_organization_id());
+
 CREATE OR REPLACE FUNCTION ensure_idempotency_fingerprint(
   p_organization_id UUID,
   p_project_id UUID,

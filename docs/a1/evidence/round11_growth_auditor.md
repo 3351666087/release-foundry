@@ -97,7 +97,7 @@ Implementation summary provided for this audit:
 - Tests were added for the new TS probe gate planner/validator path.
 - Real read-only TS API probes were run; no paid or mutating API calls are reported for this audit.
 - Public evidence index was refreshed to 333 records with lint issues 0.
-- Validation reported: `npm test --prefix packages/ts/ashr-clone` passed with 172 tests; `python -B -m pytest tests/a1` passed with 189 tests; readiness smoke passed; `git diff --check` exited 0 with CRLF warnings only; secret scan matched only historical pattern docs and synthetic `tp_syntheticsecret`.
+- Validation reported: `npm test --prefix packages/ts/ashr-clone` passed with 172 tests; `python -B -m pytest tests/a1` passed with 189 tests; readiness smoke passed; `git diff --check` exited 0 with CRLF warnings only; secret scan matched only historical pattern docs and an explicit synthetic test token fixture.
 
 ### P0 Findings
 
@@ -117,7 +117,7 @@ Implementation summary provided for this audit:
 
 - Confirm in the commit message or PR body that real API activity was read-only only, so reviewers do not infer mutating coverage from the refreshed evidence index.
 - Keep the CRLF warning noted as benign; no whitespace errors were reported by `git diff --check`.
-- The secret scan result should remain attached to the final evidence trail because the synthetic `tp_syntheticsecret` hit is expected but easy to misread later.
+- The secret scan result should remain attached to the final evidence trail because the explicit synthetic test token fixture hit is expected but easy to misread later.
 - TS parity is now reported complete for standalone planner/validator behavior, but future rounds should still watch Python/TS schema drift as new gate fields are added.
 
 ### Commit Readiness

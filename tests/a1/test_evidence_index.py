@@ -10,6 +10,8 @@ from packages.sdk.ashr_clone.evidence import (
     build_response_field_map,
     merge_evidence_indices,
     render_response_field_map_markdown,
+    scan_public_evidence_artifact_text,
+    scan_tracked_public_evidence_artifacts,
     validate_public_evidence_index,
     write_private_evidence_index,
     write_response_field_map_markdown,
@@ -173,6 +175,45 @@ def test_public_evidence_linter_scans_raw_secret_like_values_before_redaction():
 
     assert [issue["kind"] for issue in issues].count("secret_like_text") == 4
 
+
+def test_public_evidence_artifact_scanner_catches_secret_and_payload_markers():
+    text = "\n".join(
+        [
+            "authorization: Bearer syntheticfixture",
+            "X-API-Key: sk-syntheticfixture",
+            "raw_payload_included: true",
+            "-----BEGIN PRIVATE KEY-----",
+        ]
+    )
+
+    issues = scan_public_evidence_artifact_text(text, path="docs/a1/evidence/example.md")
+
+    kinds = {issue["kind"] for issue in issues}
+    assert kinds >= {"secret_like_text", "authorization_header", "api_key_header", "raw_private_payload_included", "private_key_block"}
+    assert all(issue["path"] == "docs/a1/evidence/example.md" for issue in issues)
+
+
+def test_tracked_public_evidence_artifact_scanner_ignores_untracked_private_refs(tmp_path: Path):
+    repo = tmp_path / "repo"
+    public = repo / "docs" / "a1" / "evidence"
+    private = repo / "docs" / "evidence" / "private_refs"
+    public.mkdir(parents=True)
+    private.mkdir(parents=True)
+    (public / "ok.md").write_text("raw_payload_included: false\nAuthorization headers are rejected.\n", encoding="utf-8")
+    (private / "raw.json").write_text('{"authorization":"Bearer syntheticfixture"}\n', encoding="utf-8")
+
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "add", "docs/a1/evidence/ok.md"], cwd=repo, check=True, capture_output=True, text=True)
+
+    assert scan_tracked_public_evidence_artifacts(repo) == []
+
+
+def test_tracked_a1_public_evidence_artifacts_are_secret_safe():
+    root = Path(__file__).resolve().parents[2]
+
+    assert scan_tracked_public_evidence_artifacts(root) == []
 
 
 def test_public_evidence_linter_blocks_real_nonprivate_output_override():

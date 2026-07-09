@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -417,12 +418,120 @@ func backendMode(backendName string) string {
 	return "postgres"
 }
 
+type RouteManifestEntry struct {
+	Method       string   `json:"method"`
+	Path         string   `json:"path"`
+	Route        string   `json:"route"`
+	Operation    string   `json:"operation"`
+	Category     string   `json:"category"`
+	AuthRequired bool     `json:"auth_required"`
+	Scopes       []string `json:"scopes"`
+	PublicSafe   bool     `json:"public_safe"`
+}
+
+type ScopeManifestEntry struct {
+	Route     string `json:"route"`
+	Operation string `json:"operation"`
+}
+
 func GoRouteManifest(backendName ...string) JSONMap {
 	backingStore := "memory_service_v0"
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
 		backingStore = strings.TrimSpace(backendName[0])
 	}
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/api-keys", "GET /v1/projects/{project_id}/api-keys", "POST /v1/projects/{project_id}/api-keys/preflight", "GET /v1/projects/{project_id}/api-keys/rate-limits", "POST /v1/projects/{project_id}/api-keys/{key_id}/verify", "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke", "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/audit-log", "GET /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence", "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
+	routeEntries := GoRouteManifestEntries()
+	routes := GoRouteManifestRoutes(routeEntries)
+	scopeManifest := GoScopeManifest(routeEntries)
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "manifest_schema_version": "ashr.clone.go_route_scope_manifest.v1", "routes": routes, "route_manifest": routeEntries, "scope_manifest": scopeManifest, "route_count": len(routeEntries), "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false, "public_safe": true}
+}
+
+func GoRouteManifestEntries() []RouteManifestEntry {
+	entries := []RouteManifestEntry{
+		goPublicRoute("GET", "/health", "health", "system"),
+		goPublicRoute("GET", "/healthz", "health", "system"),
+		goPublicRoute("GET", "/v1/healthz", "health", "system"),
+		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
+		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goPublicRoute("POST", "/bootstrap", "bootstrap_project", "bootstrap"),
+		goPublicRoute("POST", "/v1/bootstrap", "bootstrap_project", "bootstrap"),
+		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth"),
+		goAdminRoute("GET", "/v1/projects/{project_id}/api-keys", "api_key.list", "auth"),
+		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/preflight", "api_key.preflight", "auth"),
+		goAdminRoute("GET", "/v1/projects/{project_id}/api-keys/rate-limits", "api_key.rate_limit.snapshot", "auth"),
+		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/verify", "api_key.verify", "auth"),
+		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/revoke", "api_key.revoke", "auth"),
+		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "api_key.rate_limit.configure", "auth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/sdk-submit", "sdk_submit", "run", ScopeRunSubmit),
+		goScopedRoute("POST", "/v1/projects/{project_id}/runs/submit", "sdk_submit", "run", ScopeRunSubmit),
+		goScopedRoute("GET", "/v1/projects/{project_id}/usage", "usage", "billing", ScopeUsageRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/audit-log", "audit_log", "audit", ScopeAuditRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/upload", "upload_run", "run", ScopeRunUpload),
+		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/trace-events", "ingest_trace", "trace", ScopeTraceIngest),
+		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "artifact_manifest", "artifact", ScopeArtifactManifestWrite),
+		goScopedRoute("GET", "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "artifact_manifests", "artifact", ScopeArtifactManifestRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/runs/{run_id}/release-evidence", "release_evidence", "release", ScopeEvidenceRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify", "release_evidence.verify", "release", ScopeEvidenceRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/enqueue", "worker.job.enqueue", "worker", ScopeWorkerJobEnqueue),
+		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/lease", "worker.job.lease", "worker", ScopeWorkerJobLease),
+		goScopedRoute("GET", "/v1/projects/{project_id}/worker-jobs", "worker.job.list", "worker", ScopeWorkerJobList),
+		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "worker.job.heartbeat", "worker", ScopeWorkerJobLease),
+		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/complete", "worker.job.complete", "worker", ScopeWorkerJobComplete),
+		goScopedRoute("POST", "/v1/projects/{project_id}/worker-jobs/{job_id}/fail", "worker.job.fail", "worker", ScopeWorkerJobFail),
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Route == entries[j].Route {
+			return entries[i].Operation < entries[j].Operation
+		}
+		return entries[i].Route < entries[j].Route
+	})
+	return entries
+}
+
+func GoRouteManifestRoutes(entries []RouteManifestEntry) []string {
+	routes := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		routes = append(routes, entry.Route)
+	}
+	sort.Strings(routes)
+	return routes
+}
+
+func GoScopeManifest(entries []RouteManifestEntry) map[string][]ScopeManifestEntry {
+	manifest := map[string][]ScopeManifestEntry{}
+	for _, entry := range entries {
+		for _, scope := range entry.Scopes {
+			manifest[scope] = append(manifest[scope], ScopeManifestEntry{Route: entry.Route, Operation: entry.Operation})
+		}
+	}
+	for scope := range manifest {
+		scopeEntries := manifest[scope]
+		sort.Slice(scopeEntries, func(i, j int) bool {
+			if scopeEntries[i].Route == scopeEntries[j].Route {
+				return scopeEntries[i].Operation < scopeEntries[j].Operation
+			}
+			return scopeEntries[i].Route < scopeEntries[j].Route
+		})
+		manifest[scope] = scopeEntries
+	}
+	return manifest
+}
+
+func goPublicRoute(method, path, operation, category string) RouteManifestEntry {
+	return goRoute(method, path, operation, category, false, nil)
+}
+
+func goAdminRoute(method, path, operation, category string) RouteManifestEntry {
+	return goRoute(method, path, operation, category, false, nil)
+}
+
+func goScopedRoute(method, path, operation, category string, scopes ...string) RouteManifestEntry {
+	return goRoute(method, path, operation, category, true, scopes)
+}
+
+func goRoute(method, path, operation, category string, authRequired bool, scopes []string) RouteManifestEntry {
+	return RouteManifestEntry{Method: method, Path: path, Route: method + " " + path, Operation: operation, Category: category, AuthRequired: authRequired, Scopes: sortedUniqueStrings(scopes), PublicSafe: true}
 }
 
 func readJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap, bool) {

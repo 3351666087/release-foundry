@@ -743,7 +743,7 @@ Results:
 - Evidence index schema tests: 4 passed.
 - Final readiness safety smoke: ok, 2 steps, output `docs/evidence/private_refs/a1_readiness_round5_final_safety.json`.
 - `git diff --check`: exit 0 with CRLF warnings only.
-- Secret scan: matches were intentional synthetic test strings such as `tp_test_secret`; no real API key was printed or written to tracked docs/code/evidence index.
+- Secret scan: matches were intentional synthetic test-token fixtures; no real API key was printed or written to tracked docs/code/evidence index.
 - Growth-Auditor quota-detail follow-up: public evidence index quota summaries now use `*_present` booleans and generic quota-block text; tracked public docs/index scan found no exact hosted quota count phrase or numeric `used/requested/remaining` tuple.
 - One failed inspection command used bash-style `\n` in a PowerShell `python -c` string and produced a SyntaxError; it was rerun with a PowerShell-compatible one-liner.
 
@@ -990,7 +990,7 @@ Results:
 - Chrome read-only Usage page confirmed logged-in labels for Usage, Images, Audio, Files, and Upgrade; docs overview confirmed Python SDK / Testing Platform / Observability / EvalRunner / RunBuilder / Agent / `client.trace` / Span / Generation / VM Integration.
 - Public evidence index refreshed to 333 records, 16 response-field functions, quota block count 41, lint issues 0.
 - `git diff --check`: exit 0 with CRLF warnings only.
-- Secret scan matches were historical docs/pattern descriptions plus the intentional synthetic TS test token `tp_syntheticsecret`; no operational API key was printed or written.
+- Secret scan matches were historical docs/pattern descriptions plus an intentional synthetic TS test-token fixture; no operational API key was printed or written.
 - Failed point preserved: validation of the media no-quota gate without matching media flags and `--batch-size 3` failed with `target_binding_mismatch`; rerun with matching arguments passed.
 - No mutating paid Ashr API call was executed; the request-bound gate from real read-only evidence remained blocked because no quota/reset go evidence was present.
 

@@ -48,6 +48,7 @@
     "shared_all": [
       "GET /v1/projects/{project_id}/api-keys",
       "GET /v1/projects/{project_id}/api-keys/rate-limits",
+      "GET /v1/projects/{project_id}/audit-log",
       "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
       "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
       "GET /v1/projects/{project_id}/usage",
@@ -74,7 +75,6 @@
       "GET /healthz/openapi",
       "GET /openapi.json",
       "GET /v1/openapi.json",
-      "GET /v1/projects/{project_id}/audit-log",
       "POST /v1/projects/{project_id}/api-keys/{key_id}/authenticate",
       "POST /v1/projects/{project_id}/runs/{run_id}/release-gate"
     ]
@@ -83,6 +83,7 @@
   "python_hosted_routes": [
     "GET /v1/projects/{project_id}/api-keys",
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
+    "GET /v1/projects/{project_id}/audit-log",
     "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",

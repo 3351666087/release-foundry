@@ -358,3 +358,95 @@ Post-handoff verification addendum:
 - `go test ./...` at repository root -> expected setup failure because repo root is not a Go module; reran in `packages/go/ashrclone` and passed.
 - `wsl.exe -d Ubuntu-24.04-Ashr -e /bin/bash -lc 'pwd; uname -a; echo bash-ok'` -> passed; D-drive Ubuntu WSL2 distro is available for future rounds.
 - `ASHR_API_KEY` is present in the process environment by length check only; no key value was read or written.
+
+## 2026-07-09 - A1 route/scope manifest, evidence scanner, and SQL tenant isolation hardening
+
+Round goal:
+- Continue the large SaaS A1 bus after pushing PR #27 head `10de02d`.
+- Push a multi-lane backend slice instead of a narrow runner-only change: Go API route/scope manifest, TS/Python client consumption, public evidence leak scanner, and SQL tenant isolation hardening.
+- Keep all official API material env-only/private; no desktop key file was read and no raw private refs were staged.
+
+Parallel growth points advanced:
+1. Go route/scope manifest exposed through `/openapi.json` and `/v1/openapi.json` with `manifest_schema_version=ashr.clone.go_route_scope_manifest.v1`.
+2. Go route metadata now includes method, path, route, operation, category, auth_required, scopes, and public_safe fields.
+3. Go manifest keeps legacy `routes` compatibility while adding structured `route_manifest` and scope projection.
+4. Go tests assert deterministic route ordering, no fixture IDs, public-safe metadata, and route-to-scope mappings.
+5. Python SDK SaaS layer added hosted route scope requirements and public-safe Go manifest consumption helpers.
+6. TS SDK SaaS layer added matching route scope requirements and Go manifest consumption helpers.
+7. TS added route-scope manifest tests and rejects private path consumption.
+8. Public route parity snapshot was refreshed so `audit-log` is shared by Python and TS instead of TS-only.
+9. A1 route contract tests now validate structured Go route/scope metadata and Python consumption assertions.
+10. Public evidence scanner added tracked-only scanning through `git ls-files`.
+11. Scanner detects raw key-looking values, bearer/header assignments, private key blocks, and raw-payload-included markers.
+12. Scanner explicitly excludes ignored `docs/evidence/private_refs/**` from public artifact checks.
+13. Historical public evidence prose with synthetic token-looking literals was redacted.
+14. SQL migration added `a1_current_organization_id()` based on `app.a1_organization_id` session setting.
+15. SQL migration enables and forces RLS across the A1 SaaS foundation tables.
+16. SQL migration adds replay-tolerant organization isolation policies for every declared table.
+17. DB migrator tests parse the migration and verify RLS/session-policy coverage for all declared tables.
+18. TS/Python parity matrix regenerated after route-scope consumption APIs landed.
+19. D-drive Ubuntu WSL2 remains available for future Bash/Linux validation.
+20. PR #27 CL after push showed Plan/hygiene pass, Go/Python pending on GitHub runner queue, and A3/TS/Rust skipped by selective plan at the time of snapshot.
+
+Changed files in this round:
+- `packages/go/ashrclone/server.go`
+- `packages/go/ashrclone/server_test.go`
+- `packages/sdk/ashr_clone/saas.py`
+- `packages/sdk/ashr_clone/evidence.py`
+- `packages/ts/ashr-clone/src/saas.ts`
+- `packages/ts/ashr-clone/test/route-scope-manifest.test.mjs`
+- `services/api/migrations/001_a1_large_saas_foundation.sql`
+- `tests/a1/test_go_python_route_contract_evidence.py`
+- `tests/a1/test_evidence_index.py`
+- `tests/a1/test_db_migrator.py`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`
+- `docs/a1/evidence/commands.md`
+- `docs/a1/evidence/round11_growth_auditor.md`
+
+Validation / command results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> passed, 10 tests.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_evidence_index.py tests/a1/test_db_migrator.py -q -p no:cacheprovider` -> passed, 38 tests.
+- `npm test` in `packages/ts/ashr-clone` -> passed, 318 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` refreshed the TS/Python gap matrix.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> passed, 11 tests.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` initially failed only because the generated TS/Python matrix was stale; after refresh the targeted gap test passed. Full suite still needs rerun before commit.
+
+Real API / private evidence:
+- `ASHR_API_KEY` remains available by environment presence/length checks only.
+- No desktop key file was read, and no raw key or private hosted payload was written to code, docs, public evidence, or git diff.
+- This implementation slice did not make new official API calls; next API calibration should use a dry-run plan, small read-only/private evidence capture, then redacted summary regeneration.
+
+Next 20 A1 growth points:
+1. Rerun full A1 suite after matrix refresh and scanner additions.
+2. Run Docker compose A1/self-host config checks after SQL/RLS migration changes.
+3. Add Go `/v1/projects/{project_id}/quota` alias or converge Python/TS quota naming.
+4. Add Go `/runs/{run_id}/lifecycle` route parity or explicitly mark unsupported in route manifest.
+5. Add Go `/release-gate` route or route-manifest intentional gap for TS release gate.
+6. Add generated OpenAPI document from the route/scope manifest instead of static TS path mirrors.
+7. Add Python SDK smoke against compiled Go server for all route/scope manifest entries.
+8. Add TS SDK smoke against compiled Go server route/scope manifest entries.
+9. Add live Postgres RLS tests gated by `A1_POSTGRES_TEST_DSN`.
+10. Add migration checksum/version ledger and CI validation.
+11. Add SQL usage rollup views for route/scope categories and billable units.
+12. Add Go usage rollup worker for audit/evidence/trace/artifact operations.
+13. Add MinIO/S3/R2 artifact storage abstraction and manifest hash binding.
+14. Add Terraform skeleton validation for DB/object store/secret manager/service identity.
+15. Add Docker healthcheck smoke using the Go route/scope manifest.
+16. Add Rust verifier CLI that validates release evidence packet hashes independent of Go/Python/TS.
+17. Add official API read-only field drift detector into private evidence + public summary.
+18. Prepare quota-gated paid text calibration with zero retries and redacted public summary.
+19. Add media modality calibration evidence for image/audio/file/video with equal priority to text.
+20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.
+
+Post-validation addendum:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 325 tests after TS/Python gap matrix refresh.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `docker compose -f services/runner/docker-compose.a1.yml config` -> passed from repo root.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config` -> passed from repo root.
+- `python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider` -> passed, 17 tests.
+- `git diff --check` -> passed.
+- Misrun note: `go test ./...` at repo root and repo-relative Docker/Python commands from `tests/integration/go` failed because those cwd values are not module/repo roots; each was rerun from the correct directory and passed.

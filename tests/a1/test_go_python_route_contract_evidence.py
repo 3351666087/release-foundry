@@ -75,6 +75,7 @@ PYTHON_ROUTE_EXAMPLES = {
     "lifecycle_snapshot": {"project_id": "project_contract", "run_id": "run_contract"},
     "quota_snapshot": {"project_id": "project_contract"},
     "usage_snapshot": {"project_id": "project_contract"},
+    "audit_log": {"project_id": "project_contract"},
     "create_artifact_manifest": {"project_id": "project_contract", "run_id": "run_contract"},
     "list_artifact_manifests": {"project_id": "project_contract", "run_id": "run_contract"},
     "enqueue_worker_job": {"project_id": "project_contract"},
@@ -97,11 +98,36 @@ def _load_route_snapshot() -> dict:
     return json.loads(ROUTE_SNAPSHOT.read_text(encoding="utf-8"))
 
 
+
+
+def _go_structured_manifest_entries() -> list[dict]:
+    text = GO_SERVER.read_text(encoding="utf-8")
+    body_match = re.search(r"func GoRouteManifestEntries\(\) \[\]RouteManifestEntry \{(?P<body>.*?)\n\s*return entries\s*\n\}", text, re.S)
+    assert body_match, "GoRouteManifestEntries literal not found"
+    entries: list[dict] = []
+    for match in re.finditer(r'go(?P<kind>Public|Admin|Scoped)Route\("(?P<method>[A-Z]+)", "(?P<path>[^"]+)", "(?P<operation>[^"]+)", "(?P<category>[^"]+)"(?P<scopes>[^\n]*)\)', body_match.group("body")):
+        scopes = re.findall(r"Scope[A-Za-z0-9]+", match.group("scopes"))
+        entries.append({
+            "kind": match.group("kind"),
+            "method": match.group("method"),
+            "path": match.group("path"),
+            "route": f"{match.group('method')} {match.group('path')}",
+            "operation": match.group("operation"),
+            "category": match.group("category"),
+            "scopes": scopes,
+        })
+    assert entries, "Go structured manifest entries were not parsed"
+    return entries
+
 def _go_manifest_routes() -> set[str]:
     text = GO_SERVER.read_text(encoding="utf-8")
-    match = re.search(r'"routes"\s*:\s*\[\]string\{(?P<body>.*?)\},\s*"go_owned"', text, re.S)
-    assert match, "GoRouteManifest routes literal not found"
-    return set(re.findall(r'"([A-Z]+ [^"]+)"', match.group("body")))
+    match = re.search(r"func GoRouteManifestEntries\(\) \[\]RouteManifestEntry \{(?P<body>.*?)\n\}", text, re.S)
+    assert match, "Go route manifest entries function not found"
+    routes: set[str] = set()
+    for call in re.finditer(r'go(?:Public|Admin|Scoped)Route\("(?P<method>[A-Z]+)",\s*"(?P<path>[^"]+)"', match.group("body")):
+        routes.add(f"{call.group('method')} {call.group('path')}")
+    assert routes, "Go route manifest entries not found"
+    return routes
 
 
 def _python_hosted_routes() -> set[str]:
@@ -241,3 +267,46 @@ def test_python_and_ts_hosted_route_sets_do_not_drift_silently():
     assert set(snapshot["intentional_route_differences"]["ts_only"]) == ts_routes - python_routes
     assert "POST /v1/projects/{project_id}/runs/{run_id}/release-gate" in snapshot["intentional_route_differences"]["ts_only"]
     assert "GET /v1/projects/{project_id}/quota" in snapshot["intentional_route_differences"]["python_only"]
+
+
+def test_python_hosted_client_consumes_go_route_scope_manifest_publicly():
+    from ashr_clone.saas import consume_go_route_scope_manifest, hosted_route_scope_manifest
+
+    manifest = hosted_route_scope_manifest()
+    consumption = consume_go_route_scope_manifest(ROUTE_SNAPSHOT)
+    snapshot = _load_route_snapshot()
+
+    assert manifest["schema_version"] == "ashr.clone.hosted_route_scope_manifest.v1"
+    assert manifest["public_safe"] is True
+    assert consumption["schema_version"] == "ashr.clone.go_route_scope_consumption.v1"
+    assert consumption["public_safe"] is True
+    assert consumption["source_policy"] == snapshot["source_policy"]
+
+    manifest_routes = {entry["route"] for entry in manifest["routes"]}
+    route_scopes = {entry["route"]: tuple(entry["required_scopes"]) for entry in consumption["route_scopes"]}
+    assert set(consumption["consumable_go_routes"]) == set(snapshot["go_manifest_routes"]) & manifest_routes
+    assert set(consumption["unsupported_go_routes"]) == set(snapshot["go_manifest_routes"]) - manifest_routes
+    assert set(consumption["client_only_routes"]) == manifest_routes - set(snapshot["go_manifest_routes"])
+    assert route_scopes["POST /v1/projects/{project_id}/sdk-submit"] == ("sdk:submit",)
+    assert route_scopes["POST /v1/projects/{project_id}/worker-jobs/lease"] == ("worker_job:write",)
+    assert route_scopes["GET /v1/projects/{project_id}/worker-jobs"] == ("worker_job:read",)
+    assert route_scopes["GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"] == ("evidence:read",)
+    assert "POST /v1/projects/{project_id}/runs/submit" in consumption["unsupported_go_routes"]
+
+
+def test_go_structured_route_scope_manifest_is_public_safe_and_saas_grade():
+    entries = _go_structured_manifest_entries()
+    by_route = {entry["route"]: entry for entry in entries}
+
+    assert len(by_route) == len(entries)
+    assert by_route["GET /v1/projects/{project_id}/audit-log"]["scopes"] == ["ScopeAuditRead"]
+    assert by_route["GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"]["scopes"] == ["ScopeEvidenceRead"]
+    assert by_route["POST /v1/projects/{project_id}/runs/{run_id}/trace-events"]["scopes"] == ["ScopeTraceIngest"]
+    assert by_route["POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"]["scopes"] == ["ScopeWorkerJobLease"]
+
+    categories = {entry["category"] for entry in entries}
+    assert {"audit", "billing", "release", "trace", "worker", "artifact", "run"} <= categories
+
+    payload = json.dumps(entries, sort_keys=True)
+    for forbidden in ("tenant_", "project_contract", "run_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "raw_payload"):
+        assert forbidden not in payload

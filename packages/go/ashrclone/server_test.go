@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -262,10 +264,25 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	var body struct {
-		Routes []string `json:"routes"`
+		Routes        []string             `json:"routes"`
+		RouteManifest []RouteManifestEntry `json:"route_manifest"`
+		ScopeManifest map[string][]struct {
+			Route     string `json:"route"`
+			Operation string `json:"operation"`
+		} `json:"scope_manifest"`
+		RawPayloadsIncluded bool `json:"raw_payloads_included"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatal(err)
+	}
+	if body.RawPayloadsIncluded {
+		t.Fatal("route manifest must not claim raw payloads are included")
+	}
+	if !sort.StringsAreSorted(body.Routes) {
+		t.Fatalf("routes are not deterministic: %#v", body.Routes)
+	}
+	if len(body.Routes) != len(body.RouteManifest) {
+		t.Fatalf("routes length = %d, route manifest length = %d", len(body.Routes), len(body.RouteManifest))
 	}
 	want := map[string]bool{
 		"GET /v1/projects/{project_id}/usage":                             false,
@@ -286,6 +303,77 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 			t.Fatalf("manifest missing %s in %#v", route, body.Routes)
 		}
 	}
+	byRoute := map[string]RouteManifestEntry{}
+	for _, route := range body.RouteManifest {
+		if route.Route != route.Method+" "+route.Path {
+			t.Fatalf("route %q does not match method/path %#v", route.Route, route)
+		}
+		if !route.PublicSafe {
+			t.Fatalf("route metadata is not public-safe: %#v", route)
+		}
+		if strings.Contains(route.Path, "project_key") || strings.Contains(route.Path, "run_key") {
+			t.Fatalf("route path includes concrete fixture identifier: %#v", route)
+		}
+		byRoute[route.Route] = route
+	}
+	if got := byRoute["POST /v1/projects/{project_id}/runs/{run_id}/upload"].Scopes; len(got) != 1 || got[0] != ScopeRunUpload {
+		t.Fatalf("upload scope = %#v, want %s", got, ScopeRunUpload)
+	}
+	if got := byRoute["GET /v1/projects/{project_id}/worker-jobs"].Scopes; len(got) != 1 || got[0] != ScopeWorkerJobList {
+		t.Fatalf("worker list scope = %#v, want %s", got, ScopeWorkerJobList)
+	}
+	if !byRoute["POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"].AuthRequired {
+		t.Fatal("worker heartbeat requires an authenticated handle and must be marked auth required")
+	}
+	if _, ok := body.ScopeManifest[ScopeRunUpload]; !ok {
+		t.Fatalf("scope manifest missing %s", ScopeRunUpload)
+	}
+	for _, entry := range body.ScopeManifest[ScopeRunUpload] {
+		if entry.Route == "POST /v1/projects/{project_id}/runs/{run_id}/upload" {
+			return
+		}
+	}
+	t.Fatalf("scope manifest did not map %s to upload route: %#v", ScopeRunUpload, body.ScopeManifest[ScopeRunUpload])
+}
+
+func TestGoRouteManifestEntriesAreDeterministicAndPublicSafe(t *testing.T) {
+	manifest := GoRouteManifestEntries()
+	routes := GoRouteManifestRoutes(manifest)
+	if !sort.StringsAreSorted(routes) {
+		t.Fatalf("route strings are not sorted: %#v", routes)
+	}
+	if len(routes) != len(manifest) {
+		t.Fatalf("routes length = %d, manifest length = %d", len(routes), len(manifest))
+	}
+	seen := map[string]bool{}
+	for i, route := range manifest {
+		if route.Route != routes[i] {
+			t.Fatalf("manifest route[%d] = %q, route string = %q", i, route.Route, routes[i])
+		}
+		if seen[route.Route] {
+			t.Fatalf("duplicate route %q", route.Route)
+		}
+		seen[route.Route] = true
+		if route.Method == "" || route.Path == "" || route.Category == "" {
+			t.Fatalf("route metadata missing public fields: %#v", route)
+		}
+		if !route.PublicSafe {
+			t.Fatalf("route metadata is not public-safe: %#v", route)
+		}
+		if strings.Contains(route.Path, "tenant_") || strings.Contains(route.Path, "project_contract") || strings.Contains(route.Path, "key_contract") {
+			t.Fatalf("route metadata contains fixture values: %#v", route)
+		}
+	}
+	scopes := GoScopeManifest(manifest)
+	if _, ok := scopes[ScopeTraceIngest]; !ok {
+		t.Fatalf("scope manifest missing %s", ScopeTraceIngest)
+	}
+	for _, entry := range scopes[ScopeWorkerJobLease] {
+		if entry.Route == "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat" {
+			return
+		}
+	}
+	t.Fatalf("scope manifest missing heartbeat route for %s: %#v", ScopeWorkerJobLease, scopes[ScopeWorkerJobLease])
 }
 
 func TestHTTPHandlerUsageAndAuditReadEndpoints(t *testing.T) {
