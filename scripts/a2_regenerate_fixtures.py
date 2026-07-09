@@ -16,6 +16,7 @@ from services.judge.ashr_collection import build_ashr_grading_collection_packet 
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
 from services.judge.casebook import build_case_book_report  # noqa: E402
 from services.judge.coverage import build_coverage_report  # noqa: E402
+from services.judge.cross_lane_security import build_cross_lane_security_context  # noqa: E402
 from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
 from services.judge.incident_regression import build_incident_regression_candidate_report  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
@@ -66,6 +67,7 @@ DEFAULT_SAAS_CONTROL_PLANE = DEFAULT_RESULT_DIR / "a2_saas_control_plane_report.
 DEFAULT_JUDGE_VERSIONS = DEFAULT_RESULT_DIR / "a2_judge_versions.json"
 DEFAULT_SQL_STORE = DEFAULT_RESULT_DIR / "a2_sql_store_report.json"
 DEFAULT_SCENARIO_GENERATION_BACKLOG = DEFAULT_RESULT_DIR / "a2_scenario_generation_backlog.json"
+DEFAULT_CROSS_LANE_SECURITY = DEFAULT_RESULT_DIR / "a2_cross_lane_security_context.json"
 
 
 def main() -> int:
@@ -105,6 +107,7 @@ def main() -> int:
     parser.add_argument("--judge-versions", default=DEFAULT_JUDGE_VERSIONS.as_posix())
     parser.add_argument("--sql-store", default=DEFAULT_SQL_STORE.as_posix())
     parser.add_argument("--scenario-generation-backlog", default=DEFAULT_SCENARIO_GENERATION_BACKLOG.as_posix())
+    parser.add_argument("--cross-lane-security", default=DEFAULT_CROSS_LANE_SECURITY.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -143,6 +146,7 @@ def main() -> int:
         judge_versions_path=Path(args.judge_versions),
         sql_store_path=Path(args.sql_store),
         scenario_generation_backlog_path=Path(args.scenario_generation_backlog),
+        cross_lane_security_path=Path(args.cross_lane_security),
     )
 
     if args.check:
@@ -186,6 +190,7 @@ def generate_outputs(
     judge_versions_path: Path,
     sql_store_path: Path,
     scenario_generation_backlog_path: Path,
+    cross_lane_security_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -335,6 +340,8 @@ def generate_outputs(
         outputs[release_unblock_checklist_path],
     )
     outputs[scenario_generation_backlog_path] = scenario_generation_backlog
+    cross_lane_security_context = build_cross_lane_security_context()
+    outputs[cross_lane_security_path] = cross_lane_security_context
     release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
     outputs[saas_control_plane_path] = build_saas_control_plane_report(
         grade_report=outputs[grade_report_path],
@@ -345,6 +352,7 @@ def generate_outputs(
         result_persistence_manifest=result_persistence_manifest,
         judge_version_registry=judge_version_registry,
         scenario_generation_backlog=scenario_generation_backlog,
+        cross_lane_security_context=cross_lane_security_context,
         release_policy_config=release_policy_config,
         source_refs={
             "grade_report": grade_report_path.as_posix(),
@@ -357,6 +365,7 @@ def generate_outputs(
             "judge_versions": judge_versions_path.as_posix(),
             "sql_store": sql_store_path.as_posix(),
             "scenario_generation": scenario_generation_backlog_path.as_posix(),
+            "cross_lane_security": cross_lane_security_path.as_posix(),
             "release_policy_config": release_policy_config_path.as_posix(),
         },
     )

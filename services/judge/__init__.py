@@ -9,6 +9,7 @@ from .calibration import (
 )
 from .casebook import build_case_book_report
 from .coverage import build_coverage_report
+from .cross_lane_security import build_cross_lane_security_context
 from .incident_regression import build_incident_regression_candidate_report
 from .readiness import build_commercial_readiness_report
 from .regression_replay import build_regression_replay_report
@@ -64,6 +65,7 @@ __all__ = [
     "build_case_book_report",
     "build_commercial_readiness_report",
     "build_coverage_report",
+    "build_cross_lane_security_context",
     "build_incident_regression_candidate_report",
     "build_judge_version_registry",
     "build_project_scenario_selection",

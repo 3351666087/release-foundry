@@ -36,6 +36,7 @@ def build_saas_control_plane_report(
     release_policy_config: dict[str, Any],
     judge_version_registry: dict[str, Any] | None = None,
     scenario_generation_backlog: dict[str, Any] | None = None,
+    cross_lane_security_context: dict[str, Any] | None = None,
     source_refs: dict[str, str] | None = None,
     created_at: str = DEFAULT_CREATED_AT,
     report_id: str = DEFAULT_REPORT_ID,
@@ -69,6 +70,7 @@ def build_saas_control_plane_report(
         ),
         "scenario_selection": _scenario_selection_summary(scenario_selection_report),
         "scenario_generation": _scenario_generation_summary(scenario_generation_backlog or {}),
+        "cross_lane_security": _cross_lane_security_summary(cross_lane_security_context or {}),
         "calibration": _calibration_summary(calibration_matrix),
         "result_persistence": _persistence_summary(result_persistence_manifest),
         "release_gate": _release_gate_summary(release_gate_report),
@@ -77,6 +79,7 @@ def build_saas_control_plane_report(
             coverage_report=coverage_report,
             scenario_selection_report=scenario_selection_report,
             scenario_generation_backlog=scenario_generation_backlog or {},
+            cross_lane_security_context=cross_lane_security_context or {},
             result_persistence_manifest=result_persistence_manifest,
             selected_policy=selected_policy,
             release_gate_report=release_gate_report,
@@ -92,6 +95,7 @@ def build_saas_control_plane_report(
             "judge_versions": source_refs.get("judge_versions", ""),
             "sql_store": source_refs.get("sql_store", ""),
             "scenario_generation": source_refs.get("scenario_generation", ""),
+            "cross_lane_security": source_refs.get("cross_lane_security", ""),
             "release_policy_config": source_refs.get("release_policy_config", ""),
         },
         "metadata": {
@@ -322,6 +326,38 @@ def _scenario_generation_summary(backlog: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _cross_lane_security_summary(context: dict[str, Any]) -> dict[str, Any]:
+    a1 = context.get("a1_route_scope", {}) if isinstance(context.get("a1_route_scope"), dict) else {}
+    a3 = (
+        context.get("a3_auth_rbac_boundary", {})
+        if isinstance(context.get("a3_auth_rbac_boundary"), dict)
+        else {}
+    )
+    implications = (
+        context.get("a2_policy_implications", {})
+        if isinstance(context.get("a2_policy_implications"), dict)
+        else {}
+    )
+    followups = [item for item in context.get("a2_security_followups", []) if isinstance(item, dict)]
+    return {
+        "report_id": str(context.get("report_id", "")),
+        "a1_route_scope_available": a1.get("available") is True,
+        "a3_auth_rbac_available": a3.get("available") is True,
+        "route_scope_ready": a1.get("ready_for_a2_security_context") is True,
+        "auth_rbac_ready": a3.get("ready_for_a2_security_context") is True,
+        "should_block_hosted_mutations_without_a1_auth": bool(
+            implications.get("should_block_hosted_mutations_without_a1_auth")
+        ),
+        "should_add_auth_rbac_abuse_cases": bool(implications.get("should_add_auth_rbac_abuse_cases")),
+        "followup_count": len(followups),
+        "followup_ids": [
+            str(item.get("followup_id", ""))
+            for item in followups
+            if item.get("followup_id")
+        ],
+    }
+
+
 def _calibration_summary(matrix: dict[str, Any]) -> dict[str, Any]:
     coverage = matrix.get("source_coverage", {})
     agreements = matrix.get("agreement_summary", {})
@@ -407,6 +443,7 @@ def _a3_dashboard_contract(
     coverage_report: dict[str, Any],
     scenario_selection_report: dict[str, Any],
     scenario_generation_backlog: dict[str, Any],
+    cross_lane_security_context: dict[str, Any],
     result_persistence_manifest: dict[str, Any],
     selected_policy: dict[str, Any],
     release_gate_report: dict[str, Any],
@@ -427,6 +464,7 @@ def _a3_dashboard_contract(
             "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
             "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
             "scenarioGeneration": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+            "crossLaneSecurity": "fixtures/a2/results/a2_cross_lane_security_context.json",
             "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json",
         },
         "dashboard_can_show": [
@@ -439,6 +477,7 @@ def _a3_dashboard_contract(
             "public-safe persistence record counts",
             "SQL-readable eval/calibration/golden/regression history",
             "reviewable scenario generation backlog and policy experiments",
+            "A1/A3 route scope and Auth/RBAC security handoff status",
             "calibration source coverage and live evidence gaps",
         ],
         "local_meter": {
@@ -446,6 +485,7 @@ def _a3_dashboard_contract(
             "scenario_count": int(coverage_report.get("scenario_count", 0)),
             "selected_scenario_count": int(scenario_selection_report.get("selected_scenario_count", 0)),
             "scenario_generation_candidate_count": int(scenario_generation_backlog.get("candidate_count", 0)),
+            "cross_lane_security_followup_count": len(cross_lane_security_context.get("a2_security_followups", [])),
             "audit_record_count": int(result_persistence_manifest.get("record_count", 0)),
         },
         "selected_policy_id": str(selected_policy.get("policy_id", "")),

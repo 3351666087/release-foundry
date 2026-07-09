@@ -13,6 +13,7 @@
     "policy_config",
     "scenario_selection",
     "scenario_generation",
+    "cross_lane_security",
     "calibration",
     "result_persistence",
     "release_gate",
@@ -199,6 +200,32 @@
         "policy_experiment_ids": { "$ref": "#/$defs/string_array" },
         "may_mutate_main_pack": { "type": "boolean" },
         "promotion_status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "cross_lane_security": {
+      "type": "object",
+      "required": [
+        "report_id",
+        "a1_route_scope_available",
+        "a3_auth_rbac_available",
+        "route_scope_ready",
+        "auth_rbac_ready",
+        "should_block_hosted_mutations_without_a1_auth",
+        "should_add_auth_rbac_abuse_cases",
+        "followup_count",
+        "followup_ids"
+      ],
+      "properties": {
+        "report_id": { "type": "string" },
+        "a1_route_scope_available": { "type": "boolean" },
+        "a3_auth_rbac_available": { "type": "boolean" },
+        "route_scope_ready": { "type": "boolean" },
+        "auth_rbac_ready": { "type": "boolean" },
+        "should_block_hosted_mutations_without_a1_auth": { "type": "boolean" },
+        "should_add_auth_rbac_abuse_cases": { "type": "boolean" },
+        "followup_count": { "type": "integer", "minimum": 0 },
+        "followup_ids": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true
     },

@@ -308,6 +308,20 @@
     "may_mutate_main_pack": false,
     "promotion_status": "review_required"
   },
+  "cross_lane_security": {
+    "report_id": "a2_cross_lane_security_context",
+    "a1_route_scope_available": false,
+    "a3_auth_rbac_available": false,
+    "route_scope_ready": false,
+    "auth_rbac_ready": false,
+    "should_block_hosted_mutations_without_a1_auth": false,
+    "should_add_auth_rbac_abuse_cases": false,
+    "followup_count": 2,
+    "followup_ids": [
+      "wait-for-a1-route-scope-public-snapshot",
+      "wait-for-a3-auth-rbac-boundary-contract"
+    ]
+  },
   "calibration": {
     "matrix_id": "a2_g3_calibration_matrix",
     "case_count": 6,
@@ -426,6 +440,7 @@
       "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
       "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
       "scenarioGeneration": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+      "crossLaneSecurity": "fixtures/a2/results/a2_cross_lane_security_context.json",
       "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json"
     },
     "dashboard_can_show": [
@@ -438,6 +453,7 @@
       "public-safe persistence record counts",
       "SQL-readable eval/calibration/golden/regression history",
       "reviewable scenario generation backlog and policy experiments",
+      "A1/A3 route scope and Auth/RBAC security handoff status",
       "calibration source coverage and live evidence gaps"
     ],
     "local_meter": {
@@ -445,6 +461,7 @@
       "scenario_count": 60,
       "selected_scenario_count": 12,
       "scenario_generation_candidate_count": 12,
+      "cross_lane_security_followup_count": 2,
       "audit_record_count": 163
     },
     "selected_policy_id": "release_policy_prod_strict",
@@ -470,6 +487,7 @@
     "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
     "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
     "scenario_generation": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+    "cross_lane_security": "fixtures/a2/results/a2_cross_lane_security_context.json",
     "release_policy_config": "fixtures/a2/config/release_policies.json"
   },
   "metadata": {

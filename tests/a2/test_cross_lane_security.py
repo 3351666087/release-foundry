@@ -1,0 +1,165 @@
+import json
+import re
+import tempfile
+import unittest
+from pathlib import Path
+
+from services.judge.cross_lane_security import build_cross_lane_security_context
+
+
+ROOT = Path(__file__).resolve().parents[2]
+FIXTURE = ROOT / "fixtures/a2/results/a2_cross_lane_security_context.json"
+SCHEMA = ROOT / "docs/a2/schemas/cross_lane_security_context.schema.json"
+
+SECRET_PATTERNS = [
+    re.compile("tp_" + r"[A-Za-z0-9_\\-]+"),
+    re.compile("ashr_live_" + r"[A-Za-z0-9_\\-]+"),
+    re.compile("sk-" + r"[A-Za-z0-9]"),
+    re.compile("Bearer" + r"\\s+"),
+    re.compile(r"docs[\\/]+evidence[\\/]+private_refs"),
+]
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class A2CrossLaneSecurityTests(unittest.TestCase):
+    def test_default_fixture_matches_builder_and_waits_for_upstream_contracts(self):
+        actual = build_cross_lane_security_context()
+        expected = load_json(FIXTURE)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(actual["schema_version"], "a2.cross_lane_security_context.v1")
+        self.assertFalse(actual["a1_route_scope"]["available"])
+        self.assertFalse(actual["a3_auth_rbac_boundary"]["available"])
+        self.assertFalse(actual["a2_policy_implications"]["should_add_route_scope_security_cases"])
+        self.assertFalse(actual["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
+        followup_ids = {item["followup_id"] for item in actual["a2_security_followups"]}
+        self.assertEqual(
+            followup_ids,
+            {
+                "wait-for-a1-route-scope-public-snapshot",
+                "wait-for-a3-auth-rbac-boundary-contract",
+            },
+        )
+
+    def test_schema_and_fixture_are_public_safe(self):
+        payload = load_json(FIXTURE)
+        schema = load_json(SCHEMA)
+        payload_text = FIXTURE.read_text(encoding="utf-8")
+
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertTrue(payload["metadata"]["public_safe"])
+        self.assertFalse(payload["metadata"]["requires_network"])
+        self.assertFalse(payload["metadata"]["requires_ashr_api_key"])
+        self.assertTrue(payload["metadata"]["does_not_read_private_evidence"])
+        self.assertTrue(payload["metadata"]["raw_private_evidence_not_recorded"])
+        self.assertTrue(payload["metadata"]["secrets_not_recorded"])
+
+        for pattern in SECRET_PATTERNS:
+            self.assertIsNone(pattern.search(payload_text), pattern.pattern)
+
+    def test_ready_a1_a3_public_contracts_unlock_security_implications(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            a1_path = tmp / "route_scope.json"
+            a3_doc_path = tmp / "auth_rbac.md"
+            a3_openapi_path = tmp / "openapi.json"
+
+            a1_path.write_text(json.dumps(_a1_route_scope_fixture(), indent=2) + "\n", encoding="utf-8")
+            a3_doc_path.write_text(_a3_auth_rbac_doc(), encoding="utf-8")
+            a3_openapi_path.write_text(json.dumps(_a3_openapi_fixture(), indent=2) + "\n", encoding="utf-8")
+
+            payload = build_cross_lane_security_context(
+                a1_route_scope_path=a1_path,
+                a3_auth_rbac_doc_path=a3_doc_path,
+                a3_openapi_path=a3_openapi_path,
+            )
+
+        self.assertTrue(payload["a1_route_scope"]["available"])
+        self.assertTrue(payload["a1_route_scope"]["ready_for_a2_security_context"])
+        self.assertGreaterEqual(payload["a1_route_scope"]["api_key_route_count"], 1)
+        self.assertGreaterEqual(payload["a1_route_scope"]["release_gate_route_count"], 1)
+        self.assertTrue(payload["a1_route_scope"]["rls_or_tenant_hardening_observed"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["available"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["ready_for_a2_security_context"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["anchor_present"])
+        self.assertEqual(payload["a3_auth_rbac_boundary"]["openapi_auth_path_count"], 3)
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["actor_hash_required"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["raw_identity_redacted"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["tokens_forbidden"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["hosted_mutations_blocked"])
+        self.assertTrue(payload["a3_auth_rbac_boundary"]["safety"]["metadata_only_audit"])
+        self.assertTrue(payload["a2_policy_implications"]["should_block_hosted_mutations_without_a1_auth"])
+        self.assertTrue(payload["a2_policy_implications"]["should_require_metadata_only_audit_events"])
+        self.assertTrue(payload["a2_policy_implications"]["should_keep_raw_actor_identity_forbidden"])
+        self.assertTrue(payload["a2_policy_implications"]["should_add_route_scope_security_cases"])
+        self.assertTrue(payload["a2_policy_implications"]["should_add_auth_rbac_abuse_cases"])
+        self.assertEqual(
+            {item["followup_id"] for item in payload["a2_security_followups"]},
+            {"a2-route-scope-tenant-boundary", "a2-auth-rbac-denied-state-cases"},
+        )
+
+
+def _a1_route_scope_fixture() -> dict:
+    return {
+        "schema_version": "a1.route_scope_manifest.v1",
+        "python_hosted_routes": [
+            "POST /v1/api-keys",
+            "POST /v1/release-gates/evaluate",
+        ],
+        "ts_openapi_routes": [
+            "GET /v1/projects/{project_id}/runs",
+            "POST /v1/projects/{project_id}/release-gates",
+        ],
+        "go_manifest_routes": [
+            "POST /v1/organizations/{organization_id}/projects/{project_id}/runs",
+        ],
+        "intentional_route_differences": {"hosted_python_only": ["POST /v1/api-keys"]},
+        "source_paths": [
+            "packages/sdk/ashr_clone/saas.py",
+            "packages/ts/ashr-clone/src/saas.ts",
+            "services/api/migrations/001_a1_large_saas_foundation.sql",
+        ],
+        "security_notes": [
+            "RLS validates organization_id and project_id for tenant isolation.",
+        ],
+    }
+
+
+def _a3_auth_rbac_doc() -> str:
+    return "\n".join(
+        [
+            "# A3 Auth RBAC Boundary",
+            "ANCHOR: A3_AUTH_RBAC_BOUNDARY_CONTRACT",
+            "POST /api/a3/auth/context",
+            "GET /api/a3/auth/rbac-policy",
+            "POST /api/a3/auth/authorize",
+            "actor_hash is required on every local auth context.",
+            "Raw actor identity is redacted before A3 stores local state.",
+            "API keys, tokens, and cookies are forbidden in dashboard payloads.",
+            "Hosted mutations are blocked until A1 hosted auth is available.",
+            "A3 emits metadata-only audit events using ashr.event_envelope.v1.",
+            "A1 remains source of truth for backend auth and tenant enforcement.",
+            "A2 remains source of truth for release policy and abuse verification.",
+            "",
+        ]
+    )
+
+
+def _a3_openapi_fixture() -> dict:
+    return {
+        "openapi": "3.1.0",
+        "paths": {
+            "/api/a3/auth/context": {},
+            "/api/a3/auth/rbac-policy": {},
+            "/api/a3/auth/authorize": {},
+            "/api/a3/reports": {},
+        },
+    }
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -19,6 +19,7 @@ RESULT_PERSISTENCE = ROOT / "fixtures/a2/results/a2_result_persistence_manifest.
 RELEASE_POLICIES = ROOT / "fixtures/a2/config/release_policies.json"
 JUDGE_VERSIONS = ROOT / "fixtures/a2/results/a2_judge_versions.json"
 SCENARIO_GENERATION = ROOT / "fixtures/a2/results/a2_scenario_generation_backlog.json"
+CROSS_LANE_SECURITY = ROOT / "fixtures/a2/results/a2_cross_lane_security_context.json"
 
 SECRET_PATTERNS = [
     re.compile("tp_" + r"[A-Za-z0-9_\\-]+"),
@@ -45,6 +46,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
             release_policy_config=load_json(RELEASE_POLICIES),
             judge_version_registry=load_json(JUDGE_VERSIONS),
             scenario_generation_backlog=load_json(SCENARIO_GENERATION),
+            cross_lane_security_context=load_json(CROSS_LANE_SECURITY),
             source_refs={
                 "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
                 "coverage_report": "fixtures/a2/results/a2_g3_coverage_report.json",
@@ -56,6 +58,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
                 "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
                 "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
                 "scenario_generation": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+                "cross_lane_security": "fixtures/a2/results/a2_cross_lane_security_context.json",
                 "release_policy_config": "fixtures/a2/config/release_policies.json",
             },
         )
@@ -123,6 +126,19 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(report["scenario_generation"]["policy_experiment_count"], 3)
         self.assertFalse(report["scenario_generation"]["may_mutate_main_pack"])
         self.assertIn("A2-GEN-001", report["scenario_generation"]["candidate_ids"])
+        self.assertFalse(report["cross_lane_security"]["a1_route_scope_available"])
+        self.assertFalse(report["cross_lane_security"]["a3_auth_rbac_available"])
+        self.assertFalse(report["cross_lane_security"]["route_scope_ready"])
+        self.assertFalse(report["cross_lane_security"]["auth_rbac_ready"])
+        self.assertEqual(report["cross_lane_security"]["followup_count"], 2)
+        self.assertIn(
+            "wait-for-a1-route-scope-public-snapshot",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "wait-for-a3-auth-rbac-boundary-contract",
+            report["cross_lane_security"]["followup_ids"],
+        )
 
     def test_a3_dashboard_contract_points_to_public_safe_a2_artifacts(self):
         report = load_json(REPORT_FIXTURE)
@@ -141,6 +157,10 @@ class A2SaasControlPlaneTests(unittest.TestCase):
             "fixtures/a2/results/a2_scenario_generation_backlog.json",
         )
         self.assertEqual(
+            payload_keys["crossLaneSecurity"],
+            "fixtures/a2/results/a2_cross_lane_security_context.json",
+        )
+        self.assertEqual(
             payload_keys["releaseUnblockChecklist"],
             "fixtures/a2/results/a2_release_unblock_checklist.json",
         )
@@ -149,9 +169,11 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("release unblock checklist owner actions", contract["dashboard_can_show"])
         self.assertIn("SQL-readable eval/calibration/golden/regression history", contract["dashboard_can_show"])
         self.assertIn("reviewable scenario generation backlog and policy experiments", contract["dashboard_can_show"])
+        self.assertIn("A1/A3 route scope and Auth/RBAC security handoff status", contract["dashboard_can_show"])
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
         self.assertEqual(contract["local_meter"]["scenario_generation_candidate_count"], 12)
+        self.assertEqual(contract["local_meter"]["cross_lane_security_followup_count"], 2)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")
 
     def test_release_policy_config_selects_saas_project_without_falling_back(self):
