@@ -529,8 +529,19 @@
 - [x] Add React Native / Expo mobile release approval client-surface scaffold, documentation, and tests.
 - [x] Add WeChat mini program release approval / incident alert client-surface scaffold, documentation, and tests.
 - [x] Reduce commercial CL advisories to 0 while keeping blocker count at 0.
+- [x] Add SaaS Admin action guardrail Playwright E2E for local plan-only request recording.
+- [x] Add reviewer waiver and approval API-backed Playwright E2E with durable review-record assertions.
+- [x] Add hosted report revoked/missing denied-state Playwright E2E with no case-evidence leakage.
+- [x] Document A3 Commercial Growth Round 4 review/admin/denied-state evidence and A1/A2 safety boundary.
+- [x] Add `a3.billing_usage_summary.v1` to JSON and Markdown report exports.
+- [x] Extend `a3.usage_ledger.v1` with read-only plan, quota, billable meter, overage risk, and A1/A2 evidence counts.
+- [x] Add `GET /api/a3/billing/readiness` as a read-only billing readiness contract.
+- [x] Test billing readiness and usage/billing report exports without enabling real payment mutations.
+- [x] Add Growth-Auditor Money-Grade Round 5 artifact with 30+ next commercial growth points.
+- [x] Redact Round 4 evidence note identity placeholders so generated A3 docs pass the export firewall.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
+- [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
 
 ## Money-Grade Audit Round 2 - 2026-07-09
 
@@ -559,4 +570,6 @@
 - [x] Documented PowerShell `.cmd` workaround and browser-install failure mode in `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`.
 - [x] Add API-backed `api-mock` E2E with `services/report/a3_api_server.mjs`.
 - [x] Add hosted report share/revoke E2E.
-- [ ] Add admin action guardrail E2E.
+- [x] Add admin action guardrail E2E.
+- [x] Add reviewer waiver/approval receipt E2E.
+- [x] Add revoked/missing hosted report denied-state E2E.

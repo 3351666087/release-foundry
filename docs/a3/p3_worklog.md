@@ -1,5 +1,222 @@
 # P3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 5 Billing/Usage Readiness Contract
+
+Continued from PR #25 / `codex/a3-commercial-growth-round4` after syncing
+`origin/main` and checking open PR state. This round followed
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and moved A3 one step closer
+to a commercial SaaS billing surface without enabling real payment or cloud
+mutations.
+
+Twenty growth points considered:
+
+1. Billing readiness API.
+2. Usage ledger plan fields.
+3. Usage ledger quota fields.
+4. Billable meter classification.
+5. Overage risk classification.
+6. JSON report billing summary.
+7. Markdown report billing summary.
+8. A1 run/trace evidence counts in billing output.
+9. A2 judge/failure evidence counts in billing output.
+10. Invoice preview without real amounts.
+11. Provider boundary for Stripe/WeChat Pay/Alipay/manual invoice.
+12. Paid-action blocker summary from SaaS Admin.
+13. Tenant-scoped billing readiness.
+14. Future DB contract names for billing customers/subscriptions/invoices.
+15. Event names for usage/quota/billing changes.
+16. Secret-free billing report assertions.
+17. Growth-Auditor Money-Grade Round 5.
+18. A1 Postgres/auth/usage branch calibration.
+19. A2 commercial readiness calibration.
+20. PR #25 CI/readiness check continuation.
+
+Implemented this round:
+
+- Added `services/report/a3_billing_readiness.mjs`.
+- Added `GET /api/a3/billing/readiness`.
+- Added `a3.billing_readiness.v1`.
+- Extended `a3.usage_ledger.v1` with:
+  - `plan`
+  - `quota`
+  - `billable_meter`
+  - `billable_meters`
+  - `billable_unit_count`
+  - `overage_risk`
+  - `evidence_counts`
+  - `billing_usage_summary`
+- Added `a3.billing_usage_summary.v1` to JSON report exports.
+- Added `Billing / Usage Summary` to Markdown report exports.
+- Added billing readiness tests:
+  - `tests/a3/a3_billing_readiness.test.mjs`
+- Updated API tests:
+  - `tests/a3/a3_api_server.test.mjs`
+- Added implementation docs:
+  - `docs/a3/p3_billing_readiness_contract_2026_07_09.md`
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_money_grade_round5_2026_07_09.md`
+
+Verification:
+
+```text
+node --check services\report\a3_billing_readiness.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_api_server.mjs
+node --check services\report\report_builder.mjs
+node --test tests\a3\a3_billing_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sql_usage_report_center.test.mjs tests\a3\report_builder.test.mjs
+```
+
+Results:
+
+- Focused billing/API/report/usage tests passed: 51 pass, 0 fail.
+- Syntax checks passed for new and touched report/API modules.
+
+A1/A2 calibration:
+
+- A1: billing readiness treats A3 usage meters as read-only derived evidence.
+  It does not claim to replace A1's future Postgres `usage_events`,
+  `usage_rollups`, quota ledger, auth handles, or billing webhooks.
+- A2: `judge_results`, failed cases, and failure classes are counted for billing
+  visibility without changing A2 judge, score, pass/fail, release-gate, or
+  failure taxonomy semantics.
+- A3: owns the product/billing surface and readiness explanation, not payment
+  provider mutations.
+
+API / DB / event / artifact contract:
+
+- API added: `GET /api/a3/billing/readiness`.
+- DB contracts named for future A1/A3 handoff:
+  - `usage_ledger`
+  - `usage_events`
+  - `usage_rollups`
+  - `quota_policies`
+  - `billing_customers`
+  - `billing_subscriptions`
+  - `billing_invoices`
+  - `audit_events`
+- Events named:
+  - `usage.recorded`
+  - `quota.exceeded`
+  - `billing.subscription_changed`
+  - `audit_event.created`
+- Artifact impact:
+  - Billing readiness is a control-plane report artifact candidate.
+  - No customer invoice or payment provider artifact is generated yet.
+
+Tenant/auth/RBAC/usage/audit:
+
+- Tenant scope is included in billing readiness output.
+- Auth/RBAC remains read-only/plan-only until hosted auth exists.
+- Usage is derived from A1/A2-backed A3 meters.
+- Audit states no raw private payload, customer email, token, API key, or payment
+  secret is required in UI/report output.
+
+Safety boundary:
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, raw account value, signed URL, customer
+  email, or payment secret was read or committed.
+- No live Ashr API call was made.
+- No live GitHub mutation beyond the already-open PR branch was made.
+- No real payment provider, billing, team, API-key, Trust, object-storage, or
+  cloud mutation was performed.
+
+Remaining gaps:
+
+- Production billing still requires A1-owned usage events, usage rollups,
+  provider webhooks, hosted auth/RBAC, billing-admin approval, and invoice
+  export.
+- A3 billing readiness is a contract and customer-facing explanation layer; it
+  is not a production billing ledger.
+- A1 open branch `origin/codex/a1-local-sdk-runner` shows active Postgres/auth
+  direction, but it was not merged into this A3 branch.
+
+## 2026-07-09 - Commercial Growth Round 4 Review/Admin/Denied-State E2E
+
+Continued from latest `origin/main` after PR #24 was merged. This round follows
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and adds browser-level proof for
+the API-backed commercial workflow edges that were still mostly API-unit-tested:
+SaaS Admin request guardrails, reviewer waiver/approval receipts, and hosted
+report denied-state safety.
+
+Implemented:
+
+- Extended `tests/e2e/a3-dashboard-api-backed.spec.ts`.
+- Added SaaS Admin guardrail E2E:
+  - loads `apps/dashboard/index.html?source=api-mock`
+  - selects an admin action
+  - confirms plan-only / no-real-cloud-write language
+  - submits to `POST /api/a3/admin/actions/submit`
+  - confirms the dashboard records `recorded_plan_only`
+  - confirms fixture email-like values are not rendered
+- Added reviewer waiver/approval E2E:
+  - posts redacted waiver fixture to `POST /api/a3/review/waivers`
+  - posts redacted approval fixture to `POST /api/a3/review/approvals`
+  - reloads dashboard and confirms Durable Review Records, waiver/approval
+    counts, valid statuses, and `hash_sealed` custody language
+  - calls `GET /api/a3/review/workflow` and confirms durable storage readiness
+- Added hosted report denied-state E2E:
+  - creates an API-backed hosted report
+  - confirms active share page renders report body and Case Evidence
+  - revokes the report through `POST /api/a3/reports/:reportId/revoke`
+  - confirms revoked `/r/:shareToken` returns 410 without Case Evidence,
+    Expected, or Actual text
+  - confirms missing share token returns 404 without report body leakage
+- Added documentation:
+  - `docs/a3/p3_commercial_growth_round4_e2e_review_admin_denied_2026_07_09.md`
+- Updated:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+  - `docs/a3/acceptance_checklist.md`
+
+Verification:
+
+```text
+node --check tests\e2e\a3-dashboard-api-backed.spec.ts
+git diff --check
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+npm.cmd run test:e2e
+node --test tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_growth_manifest.test.mjs tests\a3\tailwind_boundary_contract.test.mjs tests\a3\a3_wechat_mini_program_client_surface.test.mjs tests\a3\a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Results:
+
+- API-backed Playwright E2E passed: 5 pass, 0 fail.
+- Full Playwright E2E passed: 9 pass, 0 fail.
+- Focused A3 Node/Tailwind/mobile/WeChat/commercial tests passed: 94 pass, 0 fail.
+- Commercial CL passed with 20/20 blocker anchors, 0 blockers, and 0 advisories.
+- Hygiene CL passed with no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and transient Playwright results are ignored.
+
+A1/A2 calibration:
+
+- A1 runner, SDK, trace, observation, and tool-call semantics were not changed.
+- A2 judge, grade, score, pass/fail, release-gate, and failure-taxonomy semantics
+  were not changed.
+- A3 review/admin/report evidence remains downstream of A1 RunResult and A2
+  GradeResult evidence.
+
+Safety boundary:
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub mutation was made.
+- No real login, billing, team invite, API-key creation, Trust publishing,
+  database, object-storage, or cloud mutation was made.
+- No API key, token, cookie, account email, raw signed URL, or private credential
+  was committed.
+
+Current interpretation:
+
+This round closes three important "commercial proof" holes in A3's local MVP:
+admin actions are visibly guarded, reviewer exception workflows are durable
+enough for audit language, and denied hosted report links fail closed without
+leaking report body evidence. It still does not equal production SaaS auth/RBAC,
+Postgres/RLS, billing, object storage, or live GitHub branch-protection proof.
+
 ## 2026-07-08 - API-backed release evidence summary
 
 - Continued A3 using `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the commercial SaaS roadmap.
@@ -3035,3 +3252,30 @@ Safety boundary:
 - No real billing, auth, team, API-key, Trust, database, object storage, or cloud mutation.
 - Hosted report share/revoke runs only against the local fixture-backed A3 API store.
 - One subagent accidentally wrote mobile draft files outside the repository root. Those exact accidental outer-workspace files and empty folders were removed after verifying their absolute paths were outside `ashr-codex-factory`; the correct in-repo mobile contract was kept.
+
+## 2026-07-09 - PR #25 Export Firewall CI Redaction Fix
+
+Fixed the GitHub Actions `A3 dashboard/report/evidence contracts` failure by
+removing email-shaped fixture placeholders from the Round 4 evidence document.
+The failure was caused by the repository export firewall treating fixture
+identity text as an unsafe account value. No runtime code, A1 runner behavior, or
+A2 judge semantics changed.
+
+Verification:
+
+```text
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+
+- Export firewall passed.
+- Hygiene CL passed with no findings.
+- Diff whitespace check passed.
+
+Safety:
+
+- No `.env.local`, Ashr API key, GitHub token, cookie, real account value, raw
+  signed URL, or payment secret was read or committed.

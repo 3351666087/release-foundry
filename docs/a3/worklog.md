@@ -1,5 +1,186 @@
 # A3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 5 Billing And Usage Readiness
+
+### Goal
+
+Continue A3 under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` and push the
+SaaS/commercial axis from "usage is visible" toward "usage can become a
+customer-facing billing contract." This round stays read-only: no checkout,
+payment provider, quota mutation, team mutation, or real billing call is
+enabled.
+
+### Work completed
+
+- Added `services/report/a3_billing_readiness.mjs`.
+- Added `GET /api/a3/billing/readiness`.
+- Added `a3.billing_readiness.v1`.
+- Added `a3.billing_usage_summary.v1` in `services/report/report_builder.mjs`.
+- Extended `a3.usage_ledger.v1` in `services/report/a3_usage_ledger.mjs` with:
+  - plan
+  - quota
+  - billable meter(s)
+  - billable unit count
+  - overage risk
+  - A1/A2 evidence counts
+- Added billing/usage summary to JSON reports.
+- Added `Billing / Usage Summary` to Markdown reports.
+- Added focused tests:
+  - `tests/a3/a3_billing_readiness.test.mjs`
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/a3_sql_usage_report_center.test.mjs`
+- Added docs:
+  - `docs/a3/a3_billing_usage_summary_2026_07_09.md`
+  - `docs/a3/p3_billing_readiness_contract_2026_07_09.md`
+  - `docs/a3/p3_growth_auditor_money_grade_round5_2026_07_09.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, artifact, auth, quota, and billing backend logic were not
+  changed.
+- A3 explicitly treats `a3.usage_ledger.v1` as a read-only derived meter, not
+  the A1 production billing ledger or quota source of truth.
+- A2 judge, score, pass/fail, release-gate, failure taxonomy, and cost policy
+  semantics were not changed.
+- A3 counts A2 judge results for commercial visibility without turning A2
+  evaluation output into a billing mutation.
+
+### API / DB / Event / Artifact Contract
+
+- API added:
+  - `GET /api/a3/billing/readiness`
+- DB contracts named for future production integration:
+  - `usage_events`
+  - `usage_rollups`
+  - `quota_policies`
+  - `billing_customers`
+  - `billing_subscriptions`
+  - `billing_invoices`
+  - `audit_events`
+- Events named for future A1/A3 handoff:
+  - `usage.recorded`
+  - `quota.exceeded`
+  - `billing.subscription_changed`
+  - `audit_event.created`
+- Artifact impact:
+  - Billing readiness is now a report/control-plane artifact candidate.
+  - No real invoice or provider receipt artifact is generated yet.
+
+### Verification
+
+```text
+node --check services\report\a3_billing_readiness.mjs
+node --check services\report\a3_store.mjs
+node --check services\report\a3_api_server.mjs
+node --check services\report\report_builder.mjs
+node --test tests\a3\a3_billing_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sql_usage_report_center.test.mjs tests\a3\report_builder.test.mjs
+```
+
+Result:
+
+- Focused billing/API/report/usage tests: 51 passed, 0 failed.
+- Syntax checks passed for new and touched modules.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, customer email, raw signed URL, payment
+  provider secret, or account value was read or committed.
+- No live Ashr API call was made.
+- No real billing, checkout, provider webhook, team invite, API-key, Trust,
+  object-storage, or cloud mutation was performed.
+- Billing mutations remain disabled in both report and API output.
+
+### Current interpretation
+
+This round makes A3 more sellable, but not by pretending billing is done. It
+creates the commercial connective tissue: A1/A2 evidence becomes billable usage
+shape, A3 can explain plan/quota/overage risk to a customer, and future A1
+billing ledger work has a clearer UI/API consumer.
+
+## 2026-07-09 - Commercial Growth Round 4 API-Backed Governance E2E
+
+### Goal
+
+Continue A3 from latest `origin/main` and follow
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` by strengthening the browser
+proof around SaaS Admin, reviewer governance, and hosted report access control.
+
+### Work completed
+
+- Extended `tests/e2e/a3-dashboard-api-backed.spec.ts`.
+- Added SaaS Admin guardrail browser coverage:
+  - action selection
+  - plan-only copy
+  - `POST /api/a3/admin/actions/submit`
+  - local request receipt
+  - no real cloud mutation
+  - no fixture email leakage in the rendered admin panel
+- Added reviewer governance browser coverage:
+  - waiver receipt through `POST /api/a3/review/waivers`
+  - approval receipt through `POST /api/a3/review/approvals`
+  - durable record rendering after dashboard reload
+  - `hash_sealed` review custody evidence
+- Added hosted report denied-state browser coverage:
+  - active share link renders report body
+  - revoked share link returns 410 and hides Case Evidence / Expected / Actual
+  - missing share link returns 404 and hides report body evidence
+- Added Round 4 evidence doc:
+  - `docs/a3/p3_commercial_growth_round4_e2e_review_admin_denied_2026_07_09.md`
+- Updated:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+  - `docs/a3/p3_worklog.md`
+  - `docs/a3/acceptance_checklist.md`
+
+### A1/A2 compatibility
+
+- A1 runner, trace, observation, and tool-call contracts were not changed.
+- A2 judge, score, pass/fail, release-gate, and failure taxonomy contracts were
+  not changed.
+- The new E2E coverage proves A3 governance around A1/A2 evidence. It does not
+  replace A1 RunResult proof or A2 GradeResult proof.
+
+### Verification
+
+```text
+node --check tests\e2e\a3-dashboard-api-backed.spec.ts
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+npm.cmd run test:e2e
+node --test tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_growth_manifest.test.mjs tests\a3\tailwind_boundary_contract.test.mjs tests\a3\a3_wechat_mini_program_client_surface.test.mjs tests\a3\a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Result:
+
+- API-backed E2E: 5 passed, 0 failed.
+- Full E2E: 9 passed, 0 failed.
+- Focused A3 contract tests: 94 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `.env.local`, `node_modules/`, and transient Playwright output remain ignored.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, real email, raw signed URL, or private
+  credential was read or committed.
+- No live Ashr API call, live GitHub mutation, billing mutation, real auth/team
+  operation, API-key creation, Trust publishing, database, object-storage, or
+  cloud mutation was performed.
+- SaaS Admin remains a safe local guardrail/request-recording surface.
+
+### Current interpretation
+
+A3 is now stronger at the "commercial product proof" layer: it can show browser
+evidence for admin guardrails, reviewer exception approval records, and
+fail-closed hosted report access. The next real commercial jumps are hosted
+auth/RBAC, production Postgres/RLS, live GitHub readback, and object-storage
+evidence custody.
+
 ## 2026-07-08 - Release Evidence Authority Guardrails
 
 ### Goal
@@ -4294,3 +4475,45 @@ Result:
 
 - No `.env.local`, API key, token, cookie, email, raw signed URL, account value, or private credential was read or committed.
 - No live Ashr/GitHub/cloud/billing/auth mutation was performed.
+
+## 2026-07-09 - PR #25 Export Firewall CI Redaction Fix
+
+### Goal
+
+Fix the PR #25 GitHub Actions failure in `A3 dashboard/report/evidence contracts`
+without changing A1/A2 semantics or A3 runtime behavior.
+
+### Work completed
+
+- Replaced email-shaped fixture placeholders in the Round 4 evidence note with
+  redacted identity wording.
+- Confirmed the failure was documentation-only safety scanning, not a dashboard,
+  billing, review workflow, or A1/A2 contract regression.
+
+### Verification
+
+```text
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Result:
+
+- Export firewall passed.
+- Hygiene CL passed with no findings.
+- Whitespace diff check passed.
+
+### A1/A2 calibration
+
+- A1 runner, SDK, trace, observation, artifact, usage, and auth semantics were
+  not changed.
+- A2 judge, grade, score, pass/fail, release-gate, and failure-taxonomy
+  semantics were not changed.
+- This change only keeps A3 generated documentation within the repository export
+  safety boundary.
+
+### Safety boundary
+
+- No `.env.local`, API key, token, cookie, real account value, raw signed URL, or
+  billing provider secret was read or committed.
