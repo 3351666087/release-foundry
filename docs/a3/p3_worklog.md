@@ -3279,3 +3279,43 @@ Safety:
 
 - No `.env.local`, Ashr API key, GitHub token, cookie, real account value, raw
   signed URL, or payment secret was read or committed.
+
+## 2026-07-09 - Commercial API Contract and Evidence Coverage Round
+
+Continued A3 toward the large SaaS strategy bus with a new commercial API
+contract round. This round adds `a3.commercial_api_contract.v1`, exposes it from
+`GET /api/a3/commercial-api/contract`, records the future DB table
+`commercial_api_contracts`, and generates
+`fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+
+The contract maps 29 commercial `/v1` endpoints into A3-owned product surfaces:
+product console, release gate, review workflow, report center, artifact
+registry, usage/billing, admin console, and audit export. Every endpoint names
+owner lane, local A3 route, RBAC requirement, DB tables, events, artifacts, usage
+meters, and A1/A2 dependencies.
+
+Parallel agent outputs integrated into this round:
+
+- `fixtures/a3/p3/a3_commercial_evidence_coverage.redacted.json`
+- `docs/a3/p3_commercial_evidence_coverage_2026_07_09.md`
+- `tests/a3/a3_commercial_evidence_coverage.test.mjs`
+- `tests/a3/a1_a2_compatibility_contract.test.mjs`
+- `services/report/a3_security_redaction_guard.mjs`
+- `tests/a3/a3_security_redaction_guard.test.mjs`
+- `docs/a3/p3_growth_auditor_money_grade_round6_2026_07_09.md`
+
+A1/A2 boundary:
+
+- A3 does not mutate A1 runner, SDK, auth, usage, billing, artifact, or API
+  gateway semantics.
+- A3 does not change A2 judge scores, pass/fail, release policies, thresholds,
+  failure classes, or verifier semantics.
+- A3 remains downstream: it turns A1/A2 evidence into product workflow, report,
+  review, audit, usage/billing preview, and commercial readiness evidence.
+
+Safety:
+
+- No `.env.local` read.
+- No API key, token, cookie, real account value, raw signed URL, or payment
+  secret written.
+- No live Ashr, GitHub, billing, auth, or cloud mutation performed.

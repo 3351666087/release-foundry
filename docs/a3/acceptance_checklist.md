@@ -539,6 +539,7 @@
 - [x] Test billing readiness and usage/billing report exports without enabling real payment mutations.
 - [x] Add Growth-Auditor Money-Grade Round 5 artifact with 30+ next commercial growth points.
 - [x] Redact Round 4 evidence note identity placeholders so generated A3 docs pass the export firewall.
+- [x] Add `a3.commercial_api_contract.v1` with 29 mapped `/v1` SaaS endpoints, A1/A2 owner boundaries, event envelope, usage/audit/RBAC notes, API route, fixture, SQL table, and tests.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

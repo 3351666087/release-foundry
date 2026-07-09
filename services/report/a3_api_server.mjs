@@ -60,6 +60,15 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/commercial-api/contract") {
+        return sendJson(response, 200, await store.getCommercialApiContract({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
       if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
         const body = await readJsonBody(request);
         const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {

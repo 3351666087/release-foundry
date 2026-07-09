@@ -380,6 +380,24 @@ CREATE TABLE IF NOT EXISTS release_evidence_readbacks (
 );
 CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_summary ON release_evidence_readbacks(project_id, summary_id, provider, readback_status);
 CREATE INDEX IF NOT EXISTS idx_release_evidence_readbacks_release ON release_evidence_readbacks(project_id, release_id, provider, created_at);`)
+    ,
+    statement("012_commercial_api_contracts", ["commercial_api_contracts"], `
+CREATE TABLE IF NOT EXISTS commercial_api_contracts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  contract_schema_version TEXT NOT NULL,
+  endpoint_count INTEGER NOT NULL,
+  implemented_or_read_only_count INTEGER NOT NULL,
+  plan_only_count INTEGER NOT NULL,
+  blocked_by_auth_count INTEGER NOT NULL,
+  contract_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_commercial_api_contracts_project ON commercial_api_contracts(project_id, environment_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commercial_api_contracts_hash ON commercial_api_contracts(project_id, contract_hash);`)
   ];
 }
 

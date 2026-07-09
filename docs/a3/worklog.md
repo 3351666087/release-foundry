@@ -4517,3 +4517,60 @@ Result:
 
 - No `.env.local`, API key, token, cookie, real account value, raw signed URL, or
   billing provider secret was read or committed.
+
+## 2026-07-09 - Commercial API Contract and Evidence Coverage Round
+
+### Goal
+
+Continue the large SaaS strategy bus by making A3 expose a machine-readable
+commercial API map instead of only dashboard panels and scattered docs.
+
+### Work completed
+
+- Added `a3.commercial_api_contract.v1` with 29 mapped commercial `/v1`
+  endpoints across product console, release gate, review workflow, report
+  center, artifact registry, usage/billing, admin console, and audit export.
+- Exposed the contract through `GET /api/a3/commercial-api/contract`.
+- Added `commercial_api_contracts` to the A3 DB and SQL migration contract.
+- Generated `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+- Added commercial API contract docs and tests.
+- Integrated parallel agent work:
+  - commercial evidence coverage artifact and tests,
+  - A1/A2 compatibility contract test,
+  - security redaction guard and tests,
+  - Growth-Auditor Money-Grade Round 6 report.
+
+### A1/A2 calibration
+
+- A1 remains owner of API gateway, hosted auth/RBAC, usage source, billing
+  ledger, artifacts, object storage, and durable event publication.
+- A2 remains owner of judge scores, pass/fail, failure taxonomy, release gate,
+  commercial readiness, result persistence, and verifier semantics.
+- A3 maps these source authorities into product workflow, reports, review,
+  audit, usage/billing preview, and commercial API readiness without changing
+  A1 runner or A2 judge behavior.
+
+### API / DB / Event / Artifact contract
+
+- API: `GET /api/a3/commercial-api/contract`.
+- DB: `commercial_api_contracts` migration contract.
+- Event: `ashr.event_envelope.v1` declared with tenant, actor, request, trace,
+  resource, payload hash, and redaction fields.
+- Artifact: redacted contract fixture and commercial evidence coverage fixture.
+
+### Tenant / Auth / RBAC / Usage / Audit
+
+- Tenant: all commercial endpoints are mapped to organization/project/environment
+  scope.
+- Auth/RBAC: live writes stay blocked or plan-only until A1 hosted auth/RBAC
+  exists.
+- Usage: A3 maps read-only usage meters and explicitly keeps A1 billing ledger as
+  source of truth.
+- Audit: payload policy is ids, refs, hashes, statuses, and counts only.
+
+### Safety boundary
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, real email, raw signed URL, payment
+  secret, or account value was written.
+- No live Ashr, GitHub, billing, auth, or cloud mutation was performed.
