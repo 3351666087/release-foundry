@@ -23,10 +23,19 @@ type MemoryService struct {
 	workerJobs        map[string]WorkerJob
 	apiKeys           map[string]APIKeyRecord
 	apiKeyRateLimits  map[string]APIKeyRateLimit
-	usageEvents       []UsageOperationTotal
+	usageEvents       []usageEvent
+	usageQuotaLimits  map[string]int
 	auditEvents       []AuditEvent
 	idem              map[string]idemRecord
 	nextID            int
+}
+
+type usageEvent struct {
+	TenantID  string
+	ProjectID string
+	Operation string
+	Units     int
+	Events    int
 }
 
 func NewMemoryService() *MemoryService {
@@ -41,7 +50,8 @@ func NewMemoryService() *MemoryService {
 		workerJobs:        map[string]WorkerJob{},
 		apiKeys:           map[string]APIKeyRecord{},
 		apiKeyRateLimits:  map[string]APIKeyRateLimit{},
-		usageEvents:       []UsageOperationTotal{},
+		usageEvents:       []usageEvent{},
+		usageQuotaLimits:  map[string]int{},
 		auditEvents:       []AuditEvent{},
 		idem:              map[string]idemRecord{},
 		nextID:            1,
@@ -114,7 +124,7 @@ func (service *MemoryService) SubmitRun(tenantID, projectID, datasetID, agentRef
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunSubmit, "sdk_submit", 1); err != nil {
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunSubmit, "sdk_submit", usageOperationSubmit, 1); err != nil {
 		return Envelope[Run]{}, err
 	}
 	if runID == "" {
@@ -149,12 +159,15 @@ func (service *MemoryService) UploadRun(tenantID, projectID, runID string, resul
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunUpload, "upload_run", 1); err != nil {
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeRunUpload, "upload_run", "", 0); err != nil {
 		return Envelope[RunUpload]{}, err
 	}
 	run, ok := service.runs[runKey(tenantID, projectID, runID)]
 	if !ok {
 		return Envelope[RunUpload]{}, NotFoundError{Resource: "run"}
+	}
+	if err := service.checkUsageQuotaLocked(tenantID, projectID, usageOperationRunUpload, 1); err != nil {
+		return Envelope[RunUpload]{}, err
 	}
 	uploadID := options.UploadID
 	if uploadID == "" {
@@ -165,6 +178,7 @@ func (service *MemoryService) UploadRun(tenantID, projectID, runID string, resul
 	service.runUploads[runUploadKey(tenantID, projectID, runID, uploadID)] = upload
 	run.Status = "uploaded"
 	service.runs[runKey(tenantID, projectID, runID)] = run
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationRunUpload, 1)
 	service.appendAuditEventLocked(tenantID, projectID, "upload_run", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "upload_id": uploadID, "result_sha256": upload.ResultSHA256}, now)
 	response := Envelope[RunUpload]{Operation: "upload_run", Status: "ok", Result: upload}
 	service.storeIdempotencyLocked("upload_run", tenantID, projectID, options.IdempotencyKey, request, response)
@@ -193,11 +207,14 @@ func (service *MemoryService) IngestTrace(tenantID, projectID, runID string, obs
 	if units < 1 {
 		units = 1
 	}
-	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeTraceIngest, "ingest_trace", units); err != nil {
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeTraceIngest, "ingest_trace", "", 0); err != nil {
 		return Envelope[TraceBatch]{}, err
 	}
 	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
 		return Envelope[TraceBatch]{}, NotFoundError{Resource: "run"}
+	}
+	if err := service.checkUsageQuotaLocked(tenantID, projectID, usageOperationTraceIngest, units); err != nil {
+		return Envelope[TraceBatch]{}, err
 	}
 	batchID := options.BatchID
 	if batchID == "" {
@@ -206,6 +223,7 @@ func (service *MemoryService) IngestTrace(tenantID, projectID, runID string, obs
 	now := time.Now().UTC()
 	batch := TraceBatch{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, BatchID: batchID, ObservationCount: len(observations), ObservationsSHA256: mustFingerprint(observations), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
 	service.traceBatches[traceBatchKey(tenantID, projectID, runID, batchID)] = batch
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationTraceIngest, units)
 	service.appendAuditEventLocked(tenantID, projectID, "ingest_trace", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "batch_id": batchID, "observations_sha256": batch.ObservationsSHA256, "observation_count": len(observations)}, now)
 	response := Envelope[TraceBatch]{Operation: "ingest_trace", Status: "ok", Result: batch}
 	service.storeIdempotencyLocked("ingest_trace", tenantID, projectID, options.IdempotencyKey, request, response)
@@ -230,11 +248,14 @@ func (service *MemoryService) CreateArtifactManifest(tenantID, projectID, runID 
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeArtifactManifestWrite, "artifact_manifest", 1); err != nil {
+	if err := service.authorizeAndConsumeLocked(tenantID, projectID, options.APIKeyID, ScopeArtifactManifestWrite, "artifact_manifest", "", 0); err != nil {
 		return Envelope[ArtifactManifest]{}, err
 	}
 	if _, ok := service.runs[runKey(tenantID, projectID, runID)]; !ok {
 		return Envelope[ArtifactManifest]{}, NotFoundError{Resource: "run"}
+	}
+	if err := service.checkUsageQuotaLocked(tenantID, projectID, usageOperationArtifactManifest, 1); err != nil {
+		return Envelope[ArtifactManifest]{}, err
 	}
 	artifactID := options.ArtifactID
 	if artifactID == "" {
@@ -243,6 +264,7 @@ func (service *MemoryService) CreateArtifactManifest(tenantID, projectID, runID 
 	now := time.Now().UTC()
 	record := ArtifactManifest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, ArtifactID: artifactID, ManifestSHA256: mustFingerprint(manifest), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
 	service.artifactManifests[artifactManifestKey(tenantID, projectID, runID, artifactID)] = record
+	service.recordUsageEventLocked(tenantID, projectID, usageOperationArtifactManifest, 1)
 	service.appendAuditEventLocked(tenantID, projectID, "artifact.manifest", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "artifact_id": artifactID, "manifest_sha256": record.ManifestSHA256}, now)
 	response := Envelope[ArtifactManifest]{Operation: "artifact_manifest", Status: "ok", Result: record}
 	service.storeIdempotencyLocked("artifact_manifest", tenantID, projectID, options.IdempotencyKey, request, response)
@@ -323,6 +345,9 @@ func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelop
 	defer service.mu.Unlock()
 	totals := map[string]UsageOperationTotal{}
 	for _, event := range service.usageEvents {
+		if event.TenantID != tenantID || event.ProjectID != projectID {
+			continue
+		}
 		if event.Operation == "" {
 			continue
 		}
@@ -345,6 +370,19 @@ func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelop
 		result.TotalEvents += total.Events
 	}
 	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	operation = normalizeUsageOperation(operation)
+	if operation == "" {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("usage quota operation is required")
+	}
+	service.usageQuotaLimits[usageQuotaKey(tenantID, projectID, operation)] = limit
+	used := service.usageUnitsLocked(tenantID, projectID, operation)
+	result := UsageOperationTotal{Operation: operation, Units: used}
+	return Envelope[UsageOperationTotal]{Operation: "usage_quota.configure", Status: "ok", Result: result}, nil
 }
 
 func (service *MemoryService) AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error) {
@@ -609,7 +647,7 @@ func (service *MemoryService) EnqueueWorkerJob(tenantID, projectID, jobType, tar
 	job := WorkerJob{SchemaVersion: ControlPlaneSchemaVersion, JobID: jobID, TenantID: tenantID, ProjectID: projectID, JobType: jobType, TargetID: targetID, PayloadSHA256: payloadSHA, RawPayloadIncluded: false, Status: WorkerJobStatusQueued, Priority: priority, Attempts: 0, MaxAttempts: maxAttempts, AvailableAt: &availableAt, IdempotencyKey: options.IdempotencyKey, RequestID: options.RequestID, CreatedAt: now, UpdatedAt: now}
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.enqueue", 1, now)
-	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.enqueue", Units: 1, Events: 1})
+	service.recordUsageEventLocked(tenantID, projectID, "worker.job.enqueue", 1)
 	response := Envelope[WorkerJob]{Operation: "worker.job.enqueue", Status: "ok", Result: job}
 	service.storeIdempotencyLocked("worker.job.enqueue", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -663,7 +701,7 @@ func (service *MemoryService) LeaseWorkerJob(tenantID, projectID, leaseOwnerID s
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.lease", 1, now)
-	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.lease", Units: 1, Events: 1})
+	service.recordUsageEventLocked(tenantID, projectID, "worker.job.lease", 1)
 	resultJob := job
 	result := WorkerLeaseResult{SchemaVersion: ControlPlaneSchemaVersion, Status: "leased", TenantID: tenantID, ProjectID: projectID, Leased: true, Job: &resultJob}
 	return Envelope[WorkerLeaseResult]{Operation: "worker.job.lease", Status: "ok", Result: result}, nil
@@ -716,7 +754,7 @@ func (service *MemoryService) CompleteWorkerJob(tenantID, projectID, jobID, leas
 	job.CompletedAt = &now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.complete", 1, now)
-	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.complete", Units: 1, Events: 1})
+	service.recordUsageEventLocked(tenantID, projectID, "worker.job.complete", 1)
 	return Envelope[WorkerJob]{Operation: "worker.job.complete", Status: "ok", Result: job}, nil
 }
 
@@ -760,7 +798,7 @@ func (service *MemoryService) FailWorkerJob(tenantID, projectID, jobID, leaseOwn
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
 	service.recordAPIKeyUsageLocked(tenantID, projectID, options.APIKeyID, "worker.job.fail", 1, now)
-	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: "worker.job.fail", Units: 1, Events: 1})
+	service.recordUsageEventLocked(tenantID, projectID, "worker.job.fail", 1)
 	return Envelope[WorkerJob]{Operation: "worker.job.fail", Status: "ok", Result: job}, nil
 }
 
@@ -833,21 +871,84 @@ func (service *MemoryService) localAPIKeyChecksEnabledLocked() bool {
 	return len(service.apiKeys) > 0
 }
 
-func (service *MemoryService) authorizeAndConsumeLocked(tenantID, projectID, keyID, scope, operation string, units int) error {
+func (service *MemoryService) authorizeAndConsumeLocked(tenantID, projectID, keyID, scope, operation, usageOperation string, units int) error {
 	now := time.Now().UTC()
 	if _, err := service.preflightAPIKeyLocked(PreflightOptions{TenantID: tenantID, ProjectID: projectID, KeyID: keyID, Scope: scope, Operation: operation, Units: units}, now); err != nil {
 		return err
 	}
+	if err := service.checkUsageQuotaLocked(tenantID, projectID, usageOperation, units); err != nil {
+		return err
+	}
 	service.recordAPIKeyUsageLocked(tenantID, projectID, keyID, operation, units, now)
-	service.recordUsageEventLocked(operation, units)
+	service.recordUsageEventLocked(tenantID, projectID, usageOperation, units)
 	return nil
 }
 
-func (service *MemoryService) recordUsageEventLocked(operation string, units int) {
+const (
+	usageOperationSubmit           = "sdk.submit"
+	usageOperationRunUpload        = "run.upload"
+	usageOperationTraceIngest      = "trace.ingest"
+	usageOperationArtifactManifest = "artifact.manifest"
+)
+
+func (service *MemoryService) checkUsageQuotaLocked(tenantID, projectID, operation string, units int) error {
+	operation = normalizeUsageOperation(operation)
+	if operation == "" {
+		return nil
+	}
 	if units <= 0 {
 		units = 1
 	}
-	service.usageEvents = append(service.usageEvents, UsageOperationTotal{Operation: operation, Units: units, Events: 1})
+	limit, ok := service.usageQuotaLimits[usageQuotaKey(tenantID, projectID, operation)]
+	if !ok || limit < 0 {
+		return nil
+	}
+	used := service.usageUnitsLocked(tenantID, projectID, operation)
+	if used+units > limit {
+		return QuotaExceededError{Operation: operation, Limit: limit, Used: used, Requested: units}
+	}
+	return nil
+}
+
+func (service *MemoryService) usageUnitsLocked(tenantID, projectID, operation string) int {
+	operation = normalizeUsageOperation(operation)
+	used := 0
+	for _, event := range service.usageEvents {
+		if event.TenantID == tenantID && event.ProjectID == projectID && event.Operation == operation {
+			used += event.Units
+		}
+	}
+	return used
+}
+
+func (service *MemoryService) recordUsageEventLocked(tenantID, projectID, operation string, units int) {
+	operation = normalizeUsageOperation(operation)
+	if operation == "" {
+		return
+	}
+	if units <= 0 {
+		units = 1
+	}
+	service.usageEvents = append(service.usageEvents, usageEvent{TenantID: tenantID, ProjectID: projectID, Operation: operation, Units: units, Events: 1})
+}
+
+func normalizeUsageOperation(operation string) string {
+	switch strings.TrimSpace(operation) {
+	case "sdk_submit":
+		return usageOperationSubmit
+	case "upload_run":
+		return usageOperationRunUpload
+	case "ingest_trace":
+		return usageOperationTraceIngest
+	case "artifact_manifest":
+		return usageOperationArtifactManifest
+	default:
+		return strings.TrimSpace(operation)
+	}
+}
+
+func usageQuotaKey(tenantID, projectID, operation string) string {
+	return tenantID + "/" + projectID + "/" + normalizeUsageOperation(operation)
 }
 
 func (service *MemoryService) preflightAPIKeyLocked(options PreflightOptions, now time.Time) (AuthPreflight, error) {

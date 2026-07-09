@@ -1257,3 +1257,48 @@ Results:
 - Python A1 full suite passed with 340 tests.
 - Both Docker compose config checks passed.
 - CL hygiene passed with zero findings; `git diff --check` produced CRLF normalization warnings only.
+
+## Round26 route docs, quota enforcement, live Postgres, and mutating API calibration - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh repo view --json nameWithOwner,defaultBranchRef,url
+gh pr list --state all --limit 20 --json number,title,headRefName,baseRefName,state,url,updatedAt
+python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --max-retries 0 --output docs/evidence/private_refs/a1_official_api_mutating_all_modalities_dryrun_20260709_172241.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality text,image,audio,file,video --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_mutating_all_modalities_quota_gate_20260709_172259.json --output docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality image --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172407.json --output docs/evidence/private_refs/a1_official_api_mutating_image_20260709_172407.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality audio --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172414.json --output docs/evidence/private_refs/a1_official_api_mutating_audio_20260709_172414.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality file --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172421.json --output docs/evidence/private_refs/a1_official_api_mutating_file_20260709_172421.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality video --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172428.json --output docs/evidence/private_refs/a1_official_api_mutating_video_20260709_172428.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m pytest tests/a1/test_python_calibrator.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py -q -p no:cacheprovider
+docker run --rm -d --name ashr-a1-live-pg -e POSTGRES_DB=ashr -e POSTGRES_USER=ashr -e POSTGRES_HOST_AUTH_METHOD=trust -p 15433:5432 postgres:16-alpine
+$env:A1_POSTGRES_TEST_DSN='docker://ashr-a1-live-pg'; $env:A1_PSQL_DOCKER_CONTAINER='ashr-a1-live-pg'; python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "pwd; uname -a; command -v bash; command -v go; go version; command -v python3; python3 --version"
+docker version --format '{{.Server.Version}}'
+```
+
+Results:
+- Baseline observed peer movement on `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no peer files were staged in this A1 slice.
+- Mutating dry-run plan covered text/image/audio/file/video with 10 planned steps, 5 mutating steps, 17 estimated calls, and no local guard errors.
+- Real official API mutating small batches were attempted with env-only `ASHR_API_KEY`, small-batch, zero retries, quota-gate records, and private ignored output paths. The all-modality run reached `create-request-text`; per-media runs reached `create-request-image`, `create-request-audio`, `create-request-file`, and `create-request-video`. Each returned `status=partial`, 5 read steps, 1 mutating attempt, and `quota_block_count=1`. This proves real hosted mutating/media boundary behavior without leaking raw payloads publicly.
+- Public mutating evidence index was written to `docs/a1/evidence/official_api_mutating_calibration_index.json`; raw manifests and quota gates remain ignored under `docs/evidence/private_refs/`.
+- Disposable Docker Postgres live migration proof passed with 2 tests after removing UTF-8 BOMs from the migration and live test.
+- Go package tests passed; Go integration tests passed.
+- TS SDK suite passed with 325 tests.
+- Python A1 suite passed with 347 tests after adding public mutating index coverage.
+- Focused calibrator/SQL tests passed with 50 tests, and Docker compose configs passed.
+- `python scripts/cl_guard.py hygiene` passed with zero findings; `git diff --check` produced CRLF normalization warnings only.
+- WSL `Ubuntu-24.04-Ashr` starts from the D-drive install and has Bash, Go `1.22.2`, and Python `3.12.3`; Docker daemon reports `29.6.1`.

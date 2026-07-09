@@ -92,6 +92,101 @@ func TestMemoryServiceIdempotentSubmitReplaysAndConflicts(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceUsageQuotaEnforcesSQLRollupDimensions(t *testing.T) {
+	service := NewMemoryService()
+	boot, err := service.BootstrapProject("Tenant", "Quota", Dataset{Name: "Dataset"}, "tenant_quota", "project_quota")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.BootstrapProject("Other", "Quota", Dataset{Name: "Dataset"}, "tenant_other", "project_quota"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "sdk.submit", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "run.upload", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "trace.ingest", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "artifact.manifest", 1); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_quota", nil, IdempotencyOptions{Key: "idem_submit_quota"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_quota", nil, IdempotencyOptions{Key: "idem_submit_quota"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replay.IdempotentReplay || replay.Result.RunID != first.Result.RunID {
+		t.Fatalf("expected idempotent submit replay without extra usage, got %#v", replay)
+	}
+	assertQuotaExceeded(t, "sdk.submit", func() error {
+		_, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_over", nil, IdempotencyOptions{})
+		return err
+	})
+	if _, err := service.SubmitRun("tenant_other", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_other", nil, IdempotencyOptions{}); err != nil {
+		t.Fatalf("expected quota to be scoped by tenant and project: %v", err)
+	}
+
+	if _, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 1}, UploadRunOptions{IdempotencyKey: "idem_upload_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 1}, UploadRunOptions{IdempotencyKey: "idem_upload_quota"}); err != nil {
+		t.Fatalf("expected upload replay inside quota: %v", err)
+	}
+	assertQuotaExceeded(t, "run.upload", func() error {
+		_, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 2}, UploadRunOptions{})
+		return err
+	})
+
+	if _, err := service.IngestTrace("tenant_quota", "project_quota", "run_quota", []JSONMap{{"span_id": "one"}, {"span_id": "two"}}, IngestTraceOptions{BatchID: "trace_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	assertQuotaExceeded(t, "trace.ingest", func() error {
+		_, err := service.IngestTrace("tenant_quota", "project_quota", "run_quota", []JSONMap{{"span_id": "three"}}, IngestTraceOptions{})
+		return err
+	})
+
+	if _, err := service.CreateArtifactManifest("tenant_quota", "project_quota", "run_quota", JSONMap{"artifact": "release.json"}, ArtifactManifestOptions{ArtifactID: "artifact_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	assertQuotaExceeded(t, "artifact.manifest", func() error {
+		_, err := service.CreateArtifactManifest("tenant_quota", "project_quota", "run_quota", JSONMap{"artifact": "other.json"}, ArtifactManifestOptions{})
+		return err
+	})
+
+	snapshot, err := service.UsageSnapshot("tenant_quota", "project_quota")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUnits := map[string]int{"artifact.manifest": 1, "run.upload": 1, "sdk.submit": 1, "trace.ingest": 2}
+	for _, total := range snapshot.Result.OperationTotals {
+		if want, ok := wantUnits[total.Operation]; ok {
+			if total.Units != want || total.Events != 1 {
+				t.Fatalf("unexpected total for %s: %#v", total.Operation, total)
+			}
+			delete(wantUnits, total.Operation)
+		}
+	}
+	if len(wantUnits) != 0 {
+		t.Fatalf("missing usage totals: %#v in %#v", wantUnits, snapshot.Result.OperationTotals)
+	}
+}
+
+func assertQuotaExceeded(t *testing.T, operation string, call func() error) {
+	t.Helper()
+	err := call()
+	var quota QuotaExceededError
+	if !errors.As(err, &quota) || quota.Operation != operation {
+		t.Fatalf("expected quota exceeded for %s, got %T %v", operation, err, err)
+	}
+}
+
 func TestMemoryServiceWorkerJobLifecycleRetriesAndCompletes(t *testing.T) {
 	service := NewMemoryService()
 	boot, err := service.BootstrapProject("Enterprise Tenant", "Worker Queue", Dataset{Name: "Dataset"}, "tenant_worker", "project_worker")

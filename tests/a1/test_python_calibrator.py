@@ -812,3 +812,29 @@ def test_write_api_calibration_readiness_packet_helper_writes_artifact(tmp_path:
     assert output.exists()
     assert packet["readiness"]["next_read_only_calibration_ready"] is True
     assert json.loads(output.read_text(encoding="utf-8"))["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+
+
+def test_public_mutating_calibration_index_covers_all_modalities_without_raw_payloads():
+    root = Path(__file__).resolve().parents[2]
+    index_path = root / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    payload = json.dumps(index, sort_keys=True)
+
+    assert index["schema_version"] == "ashr.clone.official_api_mutating_calibration_index.v1"
+    assert index["public_safe"] is True
+    assert index["raw_payloads_included"] is False
+    assert index["secret_values_included"] is False
+
+    records = index["records"]
+    modalities = {record["summary_modalities"][0] for record in records}
+    assert modalities == {"text", "image", "audio", "file", "video"}
+    for record in records:
+        assert record["private_manifest"].startswith("docs/evidence/private_refs/")
+        assert record["status"] == "partial"
+        assert record["read_steps"] == 5
+        assert record["quota_block_count"] == 1
+        assert record["raw_payloads_included"] is False
+        assert record["observed_error_kinds"] == ["api"]
+
+    for forbidden in ("ASHR_API_KEY", "Bearer ", "api_key=", "tp_", "sk-", "customer-private-body"):
+        assert forbidden not in payload

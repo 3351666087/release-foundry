@@ -1346,26 +1346,121 @@ export function hostedRouteScopeManifest(): JsonRecord {
 export function consumeGoRouteScopeManifest(manifest: JsonRecord | string): JsonRecord {
   const snapshot = typeof manifest === "string" ? JSON.parse(readFileSync(assertPublicManifestPath(manifest), "utf8")) as JsonRecord : manifest;
   if (snapshot.public_safe !== true) throw new ValidationError("route/scope manifest must be public_safe");
-  const sourcePolicy = isRecord(snapshot.source_policy) ? snapshot.source_policy : {};
+  const safeSourcePolicy = { private_evidence_read: false, raw_payloads_included: false, tokens_included: false };
+  const sourcePolicy = isRecord(snapshot.source_policy)
+    ? snapshot.source_policy
+    : snapshot.raw_payloads_included === false
+      ? safeSourcePolicy
+      : {};
   if (sourcePolicy.private_evidence_read !== false || sourcePolicy.raw_payloads_included !== false || sourcePolicy.tokens_included !== false) {
     throw new ValidationError("route/scope manifest has unsafe source policy");
   }
   const goRoutes = new Set((Array.isArray(snapshot.go_manifest_routes) ? snapshot.go_manifest_routes : []).map((route) => String(route)));
+  if (goRoutes.size === 0) {
+    for (const route of goRoutesFromOpenApi(snapshot)) goRoutes.add(route);
+  }
   const hostedRoutes = new Set(Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS));
   const consumableGoRoutes = [...goRoutes].filter((route) => hostedRoutes.has(route)).sort();
   const unsupportedGoRoutes = [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort();
   const unsupportedGoRouteGaps = validateUnsupportedGoRouteGaps(goRoutes, hostedRoutes);
+  const routeScopeDocs = extractGoRouteScopeDocs(snapshot);
   return {
     schema_version: "ashr.clone.go_route_scope_consumption.v1",
     client: "typescript",
     public_safe: true,
-    source_policy: { private_evidence_read: false, raw_payloads_included: false, tokens_included: false },
+    source_policy: safeSourcePolicy,
     consumable_go_routes: consumableGoRoutes,
     unsupported_go_routes: unsupportedGoRoutes,
     unsupported_go_route_gaps: unsupportedGoRouteGaps,
     client_only_routes: [...hostedRoutes].filter((route) => !goRoutes.has(route)).sort(),
     route_scopes: consumableGoRoutes.map((route) => ({ route, required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]] })),
+    route_scope_docs: routeScopeDocs === undefined ? null : consumeGoRouteScopeDocs(routeScopeDocs),
   };
+}
+
+function goRoutesFromOpenApi(snapshot: JsonRecord): Set<string> {
+  const routes = new Set<string>();
+  if (isRecord(snapshot.paths)) {
+    for (const [path, pathItem] of Object.entries(snapshot.paths)) {
+      if (!isRecord(pathItem)) continue;
+      for (const method of ["get", "post", "put", "patch", "delete"]) {
+        if (Object.prototype.hasOwnProperty.call(pathItem, method)) routes.add(`${method.toUpperCase()} ${path}`);
+      }
+    }
+  }
+  if (Array.isArray(snapshot.routes)) {
+    for (const route of snapshot.routes) {
+      if (typeof route === "string" && route.includes(" ")) routes.add(route);
+    }
+  }
+  return routes;
+}
+
+function extractGoRouteScopeDocs(snapshot: JsonRecord): JsonRecord | undefined {
+  for (const key of ["route_scope_docs", "go_route_scope_docs"]) {
+    if (isRecord(snapshot[key])) return snapshot[key] as JsonRecord;
+  }
+  if (isRecord(snapshot.artifact)) return extractGoRouteScopeDocs(snapshot.artifact as JsonRecord);
+  if (isRecord(snapshot.payload)) return extractGoRouteScopeDocs(snapshot.payload as JsonRecord);
+  return undefined;
+}
+
+function consumeGoRouteScopeDocs(docs: JsonRecord): JsonRecord {
+  if (docs.schema_version !== "ashr.clone.go_route_scope_docs.v1") throw new ValidationError("route_scope_docs schema_version drift");
+  if (docs.public_safe !== true || docs.raw_payloads_included !== false) {
+    throw new ValidationError("route_scope_docs must be public-safe and exclude raw payloads");
+  }
+  if (docs.source !== "generated_from_go_route_manifest") throw new ValidationError("route_scope_docs source drift");
+
+  const groups = new Map<string, JsonRecord>();
+  for (const group of Array.isArray(docs.route_groups) ? docs.route_groups : []) {
+    if (isRecord(group)) groups.set(String(group.name), group);
+  }
+  const requiredGroups = new Set(["usage_quota", "run_lifecycle", "audit"]);
+  const missingGroups = [...requiredGroups].filter((name) => !groups.has(name)).sort();
+  if (missingGroups.length > 0) throw new ValidationError(`route_scope_docs missing route families: ${missingGroups.join(",")}`);
+
+  assertRouteScopeGroup(groups.get("usage_quota")!, "usage_quota", new Set(["GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota"]), new Set(["usage:read"]));
+  assertRouteScopeGroup(groups.get("run_lifecycle")!, "run_lifecycle", new Set(["GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"]), new Set(["run:lifecycle:read"]));
+  assertRouteScopeGroup(groups.get("audit")!, "audit", new Set(["GET /v1/projects/{project_id}/audit-log", "POST /v1/projects/{project_id}/audit-chain/verify"]), new Set(["audit:read"]));
+
+  const planMetrics = new Map<string, JsonRecord>();
+  for (const metric of Array.isArray(docs.plan_metrics) ? docs.plan_metrics : []) {
+    if (isRecord(metric)) planMetrics.set(String(metric.metric), metric);
+  }
+  const requiredMetrics = new Set(["graded_scenarios", "observations", "voice_minutes", "projects"]);
+  const missingMetrics = [...requiredMetrics].filter((metric) => !planMetrics.has(metric)).sort();
+  if (missingMetrics.length > 0) throw new ValidationError(`route_scope_docs missing plan metrics: ${missingMetrics.join(",")}`);
+
+  const planLimits = new Map<string, JsonRecord>();
+  for (const plan of Array.isArray(docs.plan_limits) ? docs.plan_limits : []) {
+    if (isRecord(plan)) planLimits.set(String(plan.plan), plan);
+  }
+  for (const planName of ["Developer", "Startup"]) {
+    const plan = planLimits.get(planName);
+    if (plan === undefined) throw new ValidationError(`route_scope_docs missing plan limit docs: ${planName}`);
+    const limits = new Set((Array.isArray(plan.limits) ? plan.limits : []).filter(isRecord).map((limit) => String(limit.metric)));
+    const missingLimits = [...requiredMetrics].filter((metric) => !limits.has(metric)).sort();
+    if (missingLimits.length > 0) throw new ValidationError(`route_scope_docs missing ${planName} limits: ${missingLimits.join(",")}`);
+  }
+
+  return {
+    schema_version: docs.schema_version,
+    source: docs.source,
+    public_safe: true,
+    route_families: [...requiredGroups].sort(),
+    plan_metrics: [...planMetrics.keys()].sort(),
+    plan_limits: [...planLimits.keys()].sort(),
+  };
+}
+
+function assertRouteScopeGroup(group: JsonRecord, name: string, routes: Set<string>, scopes: Set<string>): void {
+  const groupRoutes = new Set((Array.isArray(group.routes) ? group.routes : []).map((route) => String(route)));
+  const groupScopes = new Set((Array.isArray(group.scopes) ? group.scopes : []).map((scope) => String(scope)));
+  const missingRoutes = [...routes].filter((route) => !groupRoutes.has(route)).sort();
+  if (missingRoutes.length > 0) throw new ValidationError(`route_scope_docs ${name} missing routes: ${missingRoutes.join(",")}`);
+  const missingScopes = [...scopes].filter((scope) => !groupScopes.has(scope)).sort();
+  if (missingScopes.length > 0) throw new ValidationError(`route_scope_docs ${name} missing scopes: ${missingScopes.join(",")}`);
 }
 
 function validateUnsupportedGoRouteGaps(goRoutes: Set<string>, hostedRoutes: Set<string>): JsonRecord[] {

@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS usage_rollups (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, project_id, meter, period, period_start),
   CONSTRAINT usage_rollups_meter_check CHECK (meter IN ('runs', 'observations', 'media', 'voice_minutes', 'projects', 'storage_bytes')),
-  CONSTRAINT usage_rollups_period_check CHECK (period_end > period_start),
+  CONSTRAINT usage_rollups_period_bounds_check CHECK (period_end > period_start),
   CONSTRAINT usage_rollups_workspace_scope_fk FOREIGN KEY (organization_id, workspace_id)
     REFERENCES workspaces(organization_id, id) ON DELETE SET NULL (workspace_id),
   CONSTRAINT usage_rollups_project_scope_fk FOREIGN KEY (organization_id, project_id)

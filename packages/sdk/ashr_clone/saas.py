@@ -775,13 +775,20 @@ def consume_go_route_scope_manifest(manifest: Mapping[str, Any] | str | Path) ->
     if snapshot.get("public_safe") is not True:
         raise SaaSClientError("route/scope manifest must be public_safe")
     source_policy = snapshot.get("source_policy")
-    if source_policy != {"private_evidence_read": False, "raw_payloads_included": False, "tokens_included": False}:
+    safe_source_policy = {"private_evidence_read": False, "raw_payloads_included": False, "tokens_included": False}
+    if source_policy is None and snapshot.get("raw_payloads_included") is False:
+        source_policy = safe_source_policy
+    if source_policy != safe_source_policy:
         raise SaaSClientError("route/scope manifest has unsafe source policy")
 
     go_routes = {str(route) for route in snapshot.get("go_manifest_routes", [])}
+    if not go_routes:
+        go_routes = _go_routes_from_openapi(snapshot)
     hosted_routes = set(HOSTED_ROUTE_SCOPE_REQUIREMENTS)
     consumable_go_routes = sorted(go_routes & hosted_routes)
     unsupported_go_routes = sorted(go_routes - hosted_routes)
+    route_scope_docs = _extract_go_route_scope_docs(snapshot)
+    docs_consumption = _consume_go_route_scope_docs(route_scope_docs) if route_scope_docs is not None else None
     return {
         "schema_version": "ashr.clone.go_route_scope_consumption.v1",
         "client": "python",
@@ -795,7 +802,91 @@ def consume_go_route_scope_manifest(manifest: Mapping[str, Any] | str | Path) ->
             {"route": route, "required_scopes": list(HOSTED_ROUTE_SCOPE_REQUIREMENTS[route])}
             for route in consumable_go_routes
         ],
+        "route_scope_docs": docs_consumption,
     }
+
+
+def _go_routes_from_openapi(snapshot: Mapping[str, Any]) -> set[str]:
+    routes: set[str] = set()
+    paths = snapshot.get("paths")
+    if isinstance(paths, Mapping):
+        for path, path_item in paths.items():
+            if not isinstance(path_item, Mapping):
+                continue
+            for method in ("get", "post", "put", "patch", "delete"):
+                if method in path_item:
+                    routes.add(f"{method.upper()} {path}")
+    manifest_routes = snapshot.get("routes")
+    if isinstance(manifest_routes, Sequence) and not isinstance(manifest_routes, (str, bytes, bytearray)):
+        for route in manifest_routes:
+            if isinstance(route, str) and " " in route:
+                routes.add(route)
+    return routes
+
+
+def _extract_go_route_scope_docs(snapshot: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    for key in ("route_scope_docs", "go_route_scope_docs"):
+        docs = snapshot.get(key)
+        if isinstance(docs, Mapping):
+            return docs
+    artifact = snapshot.get("artifact")
+    if isinstance(artifact, Mapping):
+        return _extract_go_route_scope_docs(artifact)
+    payload = snapshot.get("payload")
+    if isinstance(payload, Mapping):
+        return _extract_go_route_scope_docs(payload)
+    return None
+
+
+def _consume_go_route_scope_docs(docs: Mapping[str, Any]) -> JsonDict:
+    if docs.get("schema_version") != "ashr.clone.go_route_scope_docs.v1":
+        raise SaaSClientError("route_scope_docs schema_version drift")
+    if docs.get("public_safe") is not True or docs.get("raw_payloads_included") is not False:
+        raise SaaSClientError("route_scope_docs must be public-safe and exclude raw payloads")
+    if docs.get("source") != "generated_from_go_route_manifest":
+        raise SaaSClientError("route_scope_docs source drift")
+
+    groups = {str(group.get("name")): group for group in docs.get("route_groups", []) if isinstance(group, Mapping)}
+    required_groups = {"usage_quota", "run_lifecycle", "audit"}
+    missing_groups = sorted(required_groups - set(groups))
+    if missing_groups:
+        raise SaaSClientError(f"route_scope_docs missing route families: {','.join(missing_groups)}")
+
+    _assert_route_scope_group(groups["usage_quota"], "usage_quota", {"GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota"}, {"usage:read"})
+    _assert_route_scope_group(groups["run_lifecycle"], "run_lifecycle", {"GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"}, {"run:lifecycle:read"})
+    _assert_route_scope_group(groups["audit"], "audit", {"GET /v1/projects/{project_id}/audit-log", "POST /v1/projects/{project_id}/audit-chain/verify"}, {"audit:read"})
+
+    plan_metrics = {str(metric.get("metric")): metric for metric in docs.get("plan_metrics", []) if isinstance(metric, Mapping)}
+    required_metrics = {"graded_scenarios", "observations", "voice_minutes", "projects"}
+    if missing_metrics := sorted(required_metrics - set(plan_metrics)):
+        raise SaaSClientError(f"route_scope_docs missing plan metrics: {','.join(missing_metrics)}")
+
+    plan_limits = {str(plan.get("plan")): plan for plan in docs.get("plan_limits", []) if isinstance(plan, Mapping)}
+    for plan_name in ("Developer", "Startup"):
+        plan = plan_limits.get(plan_name)
+        if plan is None:
+            raise SaaSClientError(f"route_scope_docs missing plan limit docs: {plan_name}")
+        limits = {str(limit.get("metric")): limit for limit in plan.get("limits", []) if isinstance(limit, Mapping)}
+        if missing_limits := sorted(required_metrics - set(limits)):
+            raise SaaSClientError(f"route_scope_docs missing {plan_name} limits: {','.join(missing_limits)}")
+
+    return {
+        "schema_version": docs["schema_version"],
+        "source": docs["source"],
+        "public_safe": True,
+        "route_families": sorted(required_groups),
+        "plan_metrics": sorted(plan_metrics),
+        "plan_limits": sorted(plan_limits),
+    }
+
+
+def _assert_route_scope_group(group: Mapping[str, Any], name: str, routes: set[str], scopes: set[str]) -> None:
+    group_routes = {str(route) for route in group.get("routes", [])}
+    group_scopes = {str(scope) for scope in group.get("scopes", [])}
+    if missing_routes := sorted(routes - group_routes):
+        raise SaaSClientError(f"route_scope_docs {name} missing routes: {','.join(missing_routes)}")
+    if missing_scopes := sorted(scopes - group_scopes):
+        raise SaaSClientError(f"route_scope_docs {name} missing scopes: {','.join(missing_scopes)}")
 
 
 def _validate_unsupported_go_route_gaps(go_routes: set[str], hosted_routes: set[str]) -> list[JsonDict]:

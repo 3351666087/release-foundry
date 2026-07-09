@@ -17,13 +17,26 @@ def _dsn() -> str:
     return value
 
 
-def _psql(dsn: str, sql: str | None = None, *, file: Path | None = None) -> subprocess.CompletedProcess[str]:
+def _psql(
+    dsn: str,
+    sql: str | None = None,
+    *,
+    file: Path | None = None,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    docker_container = os.environ.get("A1_PSQL_DOCKER_CONTAINER", "").strip()
+    if docker_container:
+        command = ["docker", "exec", "-i", docker_container, "psql", "-U", "ashr", "-d", "ashr", "-v", "ON_ERROR_STOP=1"]
+        input_sql = file.read_text(encoding="utf-8-sig") if file is not None else (sql or "")
+        command.extend(["-f", "-"])
+        return subprocess.run(command, cwd=ROOT, input=input_sql, text=True, capture_output=True, check=check)
+
     command = [os.environ.get("A1_PSQL_BIN", "psql"), dsn, "-v", "ON_ERROR_STOP=1"]
     if file is not None:
         command.extend(["-f", str(file)])
     else:
         command.extend(["-c", sql or ""])
-    return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=True)
+    return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=check)
 
 
 def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> None:
@@ -48,7 +61,7 @@ def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> No
         'idem-live-a1', 'POST', '/v1/runs', 'fp-live-a1'
       );
     INSERT INTO usage_ledger (id, organization_id, project_id, meter, quantity, unit, source_type, source_id, period_start, period_end)
-      VALUES ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'run_count', 2, 'runs', 'run', 'run-live-a1', '2026-07-08T00:00:00Z', '2026-07-09T00:00:00Z')
+      VALUES ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'runs', 2, 'runs', 'run', 'run-live-a1', '2026-07-08T00:00:00Z', '2026-07-09T00:00:00Z')
       ON CONFLICT DO NOTHING;
     INSERT INTO jobs (id, organization_id, project_id, job_type, status, priority, dedupe_key, payload)
       VALUES ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'run.dispatch', 'queued', 10, 'job-live-a1', '{"run_id":"00000000-0000-0000-0000-000000000103"}'::jsonb)
@@ -66,7 +79,7 @@ def test_a1_foundation_migration_applies_and_helpers_execute_on_postgres() -> No
       FROM rollup_usage(
         '00000000-0000-0000-0000-000000000101',
         '00000000-0000-0000-0000-000000000103',
-        'run_count', '2026-07-08T00:00:00Z', '2026-07-10T00:00:00Z'
+        'runs', '2026-07-08T00:00:00Z', '2026-07-10T00:00:00Z'
       );
     INSERT INTO audit_log (id, organization_id, project_id, actor_type, action, resource_type, resource_id, entry_hash)
       VALUES ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000103', 'system', 'migration.smoke', 'project', '00000000-0000-0000-0000-000000000103', 'hash-live-a1')
@@ -113,8 +126,8 @@ def test_a1_foundation_idempotency_conflict_is_live_opt_in() -> None:
         'idem-live-a1-conflict', 'POST', '/v1/runs', 'fp-live-a1-different'
       );
     """
-    command = [os.environ.get("A1_PSQL_BIN", "psql"), dsn, "-v", "ON_ERROR_STOP=1", "-c", conflict_sql]
-    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    result = _psql(dsn, conflict_sql, check=False)
 
     assert result.returncode != 0
-    assert "idempotency key conflict" in result.stderr
+    assert "idempotency" in result.stderr
+    assert "fingerprint conflict" in result.stderr

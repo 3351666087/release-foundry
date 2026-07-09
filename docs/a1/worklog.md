@@ -602,3 +602,74 @@ Round25 next 20 A1 growth points:
 18. Add customer-facing route/scope/plan-limit proof note under docs/a1.
 19. Add staging guard test that fails if `docs/evidence/private_refs` ever appears in staged paths.
 20. Keep A2/A3 peer branches monitored, but do not stage their files unless unblocking CL by explicit instruction.
+
+## Round26 route docs, quota enforcement, live Postgres, mutating media calibration - 2026-07-09
+
+Baseline and peer changes:
+- Worktree: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains PR #27 branch `codex/a1-local-sdk-runner`.
+- Fetched all remote heads and tags. Peer movement observed: `origin/codex/a3-commercial-growth-round4` advanced and `origin/dev/g3-a2-calibration` advanced. No A2/A3 files were staged for this A1 commit.
+- PR #27 remains open against `main`; PR #28 remains A3-owned.
+
+Parallel workers and integration:
+- Worker-RouteArtifact created checked-in public `docs/a1/evidence/go_route_scope_docs.json`, schema `docs/a1/schemas/go_route_scope_docs.schema.json`, Go artifact drift/public-safety tests, and Python evidence checks.
+- Worker-GoQuota added in-memory Go quota enforcement for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`, including idempotency replay and tenant/project scoping tests.
+- Worker-TSPythonConsumption added Python and TypeScript consumers for legacy snapshots, Go OpenAPI `paths`, and future artifact wrappers carrying `route_scope_docs`.
+- Main thread integrated worker outputs, removed public artifact wording that looked like raw request payload capture, and closed all workers.
+
+Implemented this round:
+- Promoted Go route scope docs into a public-safe artifact and JSON schema that TS/Python can consume without invoking Go.
+- Added route-family and plan-limit validation in Python and TypeScript for `usage_quota`, `run_lifecycle`, and `audit` families.
+- Added Go runtime quota enforcement aligned to SaaS writes and protected idempotent replay from double metering.
+- Fixed live Postgres test helper so Docker-container `psql` supports `check=False`, then proved migration/helper/idempotency behavior in a disposable `postgres:16-alpine` container.
+- Renamed the live migration period check constraint to avoid duplicate constraint-name collisions in real Postgres.
+- Removed UTF-8 BOMs from the SQL migration and live integration test after Growth-Auditor flagged Linux/psql portability risk.
+- Ran real official API calibration using env-only `ASHR_API_KEY`: read-only small batch succeeded, then mutating all-modality and per-media small batches reached official `create_request` boundaries and returned quota-blocked partial manifests.
+- Added public-safe mutating evidence index at `docs/a1/evidence/official_api_mutating_calibration_index.json`, covering text/image/audio/file/video without raw payloads or key material.
+- Added Python test coverage for the public mutating index.
+
+Official API evidence:
+- Read-only private manifest: `docs/evidence/private_refs/a1_official_api_readonly_20260709_172042.json` (`status=ok`, 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls).
+- Mutating dry-run plan: `docs/evidence/private_refs/a1_official_api_mutating_all_modalities_dryrun_20260709_172241.json` (`status=planned`, 5 mutating modalities, estimated 17 calls).
+- Mutating all-modality private manifest: `docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json` (`status=partial`, `create-request-text`, `quota_block_count=1`).
+- Per-media private manifests: `a1_official_api_mutating_image_20260709_172407.json`, `a1_official_api_mutating_audio_20260709_172414.json`, `a1_official_api_mutating_file_20260709_172421.json`, and `a1_official_api_mutating_video_20260709_172428.json`; each reached one official mutating attempt and recorded quota-blocked partial status.
+- Public summaries: `docs/a1/evidence/official_api_readonly_manifest_summary.json`, `docs/a1/api_calibration/official_api_readiness_packet.json`, and `docs/a1/evidence/official_api_mutating_calibration_index.json`.
+- Raw private manifests and quota gates remain ignored under `docs/evidence/private_refs/`; no raw key values were printed, stored in tracked files, or staged.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 325 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` and `--check` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 347 tests.
+- `python -B -m pytest tests/a1/test_python_calibrator.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py -q -p no:cacheprovider` -> passed, 50 tests.
+- Disposable Docker Postgres live proof with `A1_POSTGRES_TEST_DSN=docker://ashr-a1-live-pg` and `A1_PSQL_DOCKER_CONTAINER=ashr-a1-live-pg` -> passed, 2 tests.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` and `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed with zero findings.
+- `git diff --check` -> no whitespace errors; CRLF normalization warnings only.
+- WSL `Ubuntu-24.04-Ashr` and Docker daemon verified usable: Bash, Go 1.22.2, Python 3.12.3, Docker server 29.6.1.
+
+Growth-Auditor follow-up:
+- Auditor said evidence was pushable if scoped precisely, but P1 risks remained: live Postgres proof must be attached, BOMs should be removed, Go quota is still in-memory only, SQL operation-to-meter mapping is not durable, and TS/Python route consumption is validation rather than generated-client replacement.
+- Main thread resolved the live proof and BOM P1s in this round. Remaining P1s are durable SQL quota enforcement, operation-to-meter mapping, generated SDK route maps, and structured live migration assertions.
+
+Round26 next 20 A1 growth points:
+1. Wire Go quota enforcement to durable Postgres `quota_policies`, `usage_ledger`, and `usage_rollups`.
+2. Add SQL operation-to-meter mapping for `sdk.submit -> runs`, `trace.ingest -> observations`, `run.upload -> media/voice_minutes`, and `artifact.manifest -> storage_bytes`.
+3. Add transactional SQL quota check plus ledger insert to prevent concurrent overspend.
+4. Add Go repository interfaces for quota policy read, usage append, and rollup readback.
+5. Add Postgres-backed Go service mode parallel to `MemoryService`.
+6. Add SQL hard-vs-soft quota policy tests and audit events for denied quota decisions.
+7. Add idempotency-aware SQL usage inserts so replays do not double-bill.
+8. Replace live migration stdout substring checks with structured JSON assertions.
+9. Add CI service-container job for live Postgres migration proof.
+10. Generate OpenAPI directly from Go route manifest and publish route docs hash.
+11. Generate Python/TS route-scope maps from the Go/OpenAPI artifact instead of hand-maintained maps.
+12. Add Go HTTP quota-exceeded tests for submit/upload/trace/artifact endpoints.
+13. Add shared public-safe quota error schema across Go, TS, and Python.
+14. Add official API quota/error fixture normalization from the new mutating partial manifests.
+15. Add per-modality paid media calibration retry policy that stops on first quota block but indexes response keys.
+16. Add API-key lifecycle official calibration plan and protected gate for create/revoke/verify/list.
+17. Add artifact manifest durable storage proof through Go API -> SQL -> SDK readback.
+18. Add trace ingestion durable storage proof through Go API -> SQL -> SDK readback.
+19. Add billing-grade invoice/export mock from usage rollups.
+20. Add A1 push gate script that runs Go, Python A1, TS package, compose, and optional live Docker proof with pass/skip matrix.

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -417,6 +420,48 @@ func TestGoRouteScopeDocsIncludePublicPlanLimits(t *testing.T) {
 	for _, secretish := range []string{"tenant_", "project_contract", "key_contract", "sk-"} {
 		if strings.Contains(string(encoded), secretish) {
 			t.Fatalf("route scope docs contain fixture/secret-like value %q: %s", secretish, encoded)
+		}
+	}
+}
+
+func TestGoRouteScopeDocsArtifactMatchesGeneratedPublicExport(t *testing.T) {
+	artifactPath := filepath.Join("..", "..", "..", "docs", "a1", "evidence", "go_route_scope_docs.json")
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var artifact struct {
+		SchemaVersion       string         `json:"schema_version"`
+		ArtifactID          string         `json:"artifact_id"`
+		Owner               string         `json:"owner"`
+		PublicSafe          bool           `json:"public_safe"`
+		RawPayloadsIncluded bool           `json:"raw_payloads_included"`
+		SourcePolicy        JSONMap        `json:"source_policy"`
+		Producer            JSONMap        `json:"producer"`
+		RouteScopeDocs      RouteScopeDocs `json:"route_scope_docs"`
+	}
+	if err := json.Unmarshal(content, &artifact); err != nil {
+		t.Fatal(err)
+	}
+	if artifact.SchemaVersion != "ashr.clone.go_route_scope_docs_artifact.v1" || artifact.ArtifactID != "go_route_scope_docs" || artifact.Owner != "a1.go" {
+		t.Fatalf("unexpected route scope docs artifact identity: %#v", artifact)
+	}
+	if !artifact.PublicSafe || artifact.RawPayloadsIncluded {
+		t.Fatalf("artifact safety metadata is not public-safe: %#v", artifact)
+	}
+	if artifact.SourcePolicy["private_evidence_read"] != false || artifact.SourcePolicy["tokens_included"] != false || artifact.SourcePolicy["raw_payloads_included"] != false {
+		t.Fatalf("artifact source policy is not public-safe: %#v", artifact.SourcePolicy)
+	}
+	want := GoRouteScopeDocs(GoRouteManifestEntries())
+	if !reflect.DeepEqual(artifact.RouteScopeDocs, want) {
+		gotJSON, _ := json.MarshalIndent(artifact.RouteScopeDocs, "", "  ")
+		wantJSON, _ := json.MarshalIndent(want, "", "  ")
+		t.Fatalf("route scope docs artifact drifted from Go generator\ngot: %s\nwant: %s", gotJSON, wantJSON)
+	}
+	encoded := string(content)
+	for _, secretish := range []string{"tenant_", "project_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "sk-", "raw_request_payload", "raw_response_payload"} {
+		if strings.Contains(encoded, secretish) {
+			t.Fatalf("route scope docs artifact contains fixture/secret-like value %q", secretish)
 		}
 	}
 }
