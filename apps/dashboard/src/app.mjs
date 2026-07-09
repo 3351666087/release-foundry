@@ -2974,6 +2974,51 @@ function resetCalibrationState() {
   state.githubPublishEvidence = {};
 }
 
+function setupSectionNavigation() {
+  const navLinks = [...document.querySelectorAll(".nav a[href^='#']")];
+  const sections = navLinks
+    .map((link) => document.querySelector(link.getAttribute("href")))
+    .filter(Boolean);
+
+  const setActiveLink = (id) => {
+    for (const link of navLinks) {
+      link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
+    }
+  };
+
+  const focusSection = (section) => {
+    section.classList.remove("section-focus");
+    window.requestAnimationFrame(() => section.classList.add("section-focus"));
+  };
+
+  for (const link of navLinks) {
+    link.addEventListener("click", () => {
+      const section = document.querySelector(link.getAttribute("href"));
+      if (!section) return;
+      setActiveLink(section.id);
+      focusSection(section);
+    });
+  }
+
+  if (!("IntersectionObserver" in window)) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (visible?.target?.id) {
+      setActiveLink(visible.target.id);
+    }
+  }, {
+    rootMargin: "-20% 0px -65% 0px",
+    threshold: [0.2, 0.45, 0.7]
+  });
+
+  for (const section of sections) {
+    observer.observe(section);
+  }
+}
+
 async function init() {
   const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
   const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
@@ -3002,6 +3047,8 @@ async function init() {
   for (const button of document.querySelectorAll("[data-print]")) {
     button.addEventListener("click", printReport);
   }
+
+  setupSectionNavigation();
 }
 
 init().catch((error) => {

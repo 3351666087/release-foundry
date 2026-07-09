@@ -4911,3 +4911,52 @@ Safety:
   or brand tokens were copied.
 - No API key, token, cookie, account value, email, signed URL, payment secret,
   or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Polish V4 Refined Premium Console
+
+Responded to feedback that V3 became too colorful and that the product needed a
+broader, more refined, less industry-narrow visual pass.
+
+Changed:
+
+- Reworked `apps/dashboard/src/styles.css` away from the V3 colorful gradient
+  into a restrained premium console style.
+- Kept the V2 dark sidebar direction but refined spacing, borders, card shadows,
+  metric strips, and hover transitions.
+- Added smooth anchor scrolling and section focus animations.
+- Added nav active-state updates on click and while scrolling in
+  `apps/dashboard/src/app.mjs`.
+- Added reduced-motion handling for users who disable animation.
+- Captured V4 screenshots:
+  - `docs/screenshots/a3-dashboard-visual-polish-v4-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-polish-v4-mobile-2026-07-09.png`
+- Added `docs/a3/a3_ui_visual_polish_v4_2026_07_09.md`.
+
+Reference scan:
+
+- Bilibili was considered for content density, horizontal navigation, and
+  card-feed rhythm. The fetchable page returned a browser-upgrade page in this
+  environment, so it was treated as limited category inspiration only.
+- Apple, Notion, Raycast, Linear, and Vercel were used as broad references for
+  premium spacing, calm workspace layout, dark productivity shell, and release
+  console structure.
+
+Interaction evidence:
+
+- Playwright click check confirmed clicking `SaaS Admin` updates the active nav
+  item to `SaaS Admin`.
+- Mobile screenshot width check confirmed `bodyScrollWidth` equals viewport
+  width, so there is no page-level horizontal overflow.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, or failure taxonomy
+  logic changed.
+
+Safety:
+
+- No external source code, private frontend code, screenshots, logos, assets,
+  or brand tokens were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.

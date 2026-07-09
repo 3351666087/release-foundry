@@ -572,6 +572,10 @@
 - [x] Apply V3 colorful, simplified, direct dashboard polish after feedback that V2 still looked too plain.
 - [x] Capture V3 production desktop and mobile screenshots.
 - [x] Keep V3 visual polish clean-room and preserve A1/A2 dashboard source wiring.
+- [x] Replace V3 loud color treatment with a refined V4 premium console style after broader web reference scan.
+- [x] Add nav click active-state animation, scroll-aware active nav, section focus animation, and reduced-motion support.
+- [x] Capture V4 production desktop and mobile screenshots and verify mobile width does not overflow.
+- [x] Keep V4 UI refinement clean-room and preserve A1/A2 dashboard source wiring.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
