@@ -802,6 +802,76 @@ ORDER BY created_at ASC, audit_event_id ASC
 	return Envelope[AuditChainVerification]{Operation: "audit.chain.verify", Status: "ok", Result: result}, nil
 }
 
+func (repository *PostgresRepository) AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[AuditEventList]{}, err
+	}
+	ctx := context.Background()
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, audit_event_id, action, target_id, api_key_id, idempotency_key, request_id, previous_hash, event_hash, after_json, created_at
+FROM ashr_audit_events
+WHERE tenant_id = $1 AND project_id = $2
+ORDER BY created_at ASC, audit_event_id ASC
+`, tenantID, projectID)
+	if err != nil {
+		return Envelope[AuditEventList]{}, fmt.Errorf("audit log query: %w", err)
+	}
+	defer rows.Close()
+	events := []AuditEvent{}
+	for rows.Next() {
+		event, err := scanPostgresAuditEvent(rows)
+		if err != nil {
+			return Envelope[AuditEventList]{}, err
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return Envelope[AuditEventList]{}, fmt.Errorf("iterate audit log: %w", err)
+	}
+	filtered := filterAuditEvents(events, options.RunID, options.ActionPrefix, options.Limit)
+	result := AuditEventList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: options.RunID, ActionPrefix: options.ActionPrefix, Events: filtered, Count: len(filtered)}
+	return Envelope[AuditEventList]{Operation: "audit_log", Status: "ok", Result: result}, nil
+}
+
+func (repository *PostgresRepository) BuildReleaseEvidencePacket(tenantID, projectID, runID string) (Envelope[ReleaseEvidencePacket], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	ctx := context.Background()
+	run, err := repository.postgresRun(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	now := repository.now().UTC()
+	verification, err := repository.VerifyAuditChain(tenantID, projectID)
+	if err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	uploads, err := repository.postgresRunUploads(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	batches, err := repository.postgresTraceBatches(ctx, tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	manifests, err := repository.ListArtifactManifests(tenantID, projectID, runID)
+	if err != nil {
+		return Envelope[ReleaseEvidencePacket]{}, err
+	}
+	packet := ReleaseEvidencePacket{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, PacketID: "release_evidence_" + mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID})[:16], Run: run, Uploads: uploads, TraceBatches: batches, ArtifactManifests: manifests.Result.Manifests, AuditVerification: verification.Result, GeneratedAt: now}
+	packet.PacketSHA256 = releaseEvidencePacketSHA(packet)
+	return Envelope[ReleaseEvidencePacket]{Operation: "release_evidence", Status: "ok", Result: packet}, nil
+}
+
+func (repository *PostgresRepository) VerifyReleaseEvidencePacket(tenantID, projectID, runID string, packet JSONMap) (Envelope[ReleaseEvidenceVerification], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[ReleaseEvidenceVerification]{}, err
+	}
+	result := verifyReleaseEvidencePacketMap(tenantID, projectID, runID, packet, repository.now().UTC())
+	return Envelope[ReleaseEvidenceVerification]{Operation: "release_evidence.verify", Status: "ok", Result: result}, nil
+}
+
 func (repository *PostgresRepository) UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error) {
 	if err := repository.requireDB(); err != nil {
 		return Envelope[UsageSnapshot]{}, err
@@ -1404,6 +1474,82 @@ func scanPostgresArtifactManifest(scanner workerJobScanner) (ArtifactManifest, e
 	manifest.SchemaVersion = ControlPlaneSchemaVersion
 	manifest.RawPayloadIncluded = false
 	return manifest, nil
+}
+
+func (repository *PostgresRepository) postgresRun(ctx context.Context, tenantID, projectID, runID string) (Run, error) {
+	var run Run
+	var metadataPayload []byte
+	err := repository.db.QueryRowContext(ctx, `
+SELECT tenant_id, project_id, run_id, dataset_id, agent_ref, status, metadata
+FROM ashr_runs
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+`, tenantID, projectID, runID).Scan(&run.TenantID, &run.ProjectID, &run.RunID, &run.DatasetID, &run.AgentRef, &run.Status, &metadataPayload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Run{}, NotFoundError{Resource: "run"}
+	}
+	if err != nil {
+		return Run{}, fmt.Errorf("load run: %w", err)
+	}
+	if len(metadataPayload) > 0 {
+		if err := json.Unmarshal(metadataPayload, &run.Metadata); err != nil {
+			return Run{}, fmt.Errorf("decode run metadata: %w", err)
+		}
+	}
+	return run, nil
+}
+
+func (repository *PostgresRepository) postgresRunUploads(ctx context.Context, tenantID, projectID, runID string) ([]RunUpload, error) {
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, run_id, upload_id, result_sha256, api_key_id, request_id, created_at
+FROM ashr_run_uploads
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+ORDER BY created_at ASC, upload_id ASC
+`, tenantID, projectID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list run uploads: %w", err)
+	}
+	defer rows.Close()
+	uploads := []RunUpload{}
+	for rows.Next() {
+		var upload RunUpload
+		if err := rows.Scan(&upload.TenantID, &upload.ProjectID, &upload.RunID, &upload.UploadID, &upload.ResultSHA256, &upload.APIKeyID, &upload.RequestID, &upload.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan run upload: %w", err)
+		}
+		upload.SchemaVersion = ControlPlaneSchemaVersion
+		upload.RawPayloadIncluded = false
+		uploads = append(uploads, upload)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate run uploads: %w", err)
+	}
+	return uploads, nil
+}
+
+func (repository *PostgresRepository) postgresTraceBatches(ctx context.Context, tenantID, projectID, runID string) ([]TraceBatch, error) {
+	rows, err := repository.db.QueryContext(ctx, `
+SELECT tenant_id, project_id, run_id, batch_id, observation_count, observations_sha256, api_key_id, request_id, created_at
+FROM ashr_trace_batches
+WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
+ORDER BY created_at ASC, batch_id ASC
+`, tenantID, projectID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list trace batches: %w", err)
+	}
+	defer rows.Close()
+	batches := []TraceBatch{}
+	for rows.Next() {
+		var batch TraceBatch
+		if err := rows.Scan(&batch.TenantID, &batch.ProjectID, &batch.RunID, &batch.BatchID, &batch.ObservationCount, &batch.ObservationsSHA256, &batch.APIKeyID, &batch.RequestID, &batch.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan trace batch: %w", err)
+		}
+		batch.SchemaVersion = ControlPlaneSchemaVersion
+		batch.RawPayloadIncluded = false
+		batches = append(batches, batch)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate trace batches: %w", err)
+	}
+	return batches, nil
 }
 
 type auditEventScanner interface {

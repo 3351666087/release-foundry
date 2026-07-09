@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tests.a1.ts_python_parity_matrix import ARTIFACT, MEDIA_MODALITIES, generate_matrix
+from tests.a1.ts_python_parity_matrix import ARTIFACT, MEDIA_MODALITIES, REQUIRED_HOSTED_ROUTE_LITERALS, generate_matrix
 
 
 def _matrix_by_area(matrix: dict) -> dict[str, dict]:
@@ -58,6 +58,9 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert "/v1/bootstrap" in routes["shared_route_literals"]
     assert routes["python_saas_route_literals"]
     assert routes["typescript_saas_route_literals"]
+    assert routes["required_hosted_route_literals"] == REQUIRED_HOSTED_ROUTE_LITERALS
+    assert routes["missing_required_python_hosted_routes"] == []
+    assert routes["missing_required_typescript_hosted_routes"] == []
 
     media = matrix["generated_contract"]["media"]
     assert media["required_modalities"] == MEDIA_MODALITIES

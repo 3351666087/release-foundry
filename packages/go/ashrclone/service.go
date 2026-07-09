@@ -3,6 +3,7 @@ package ashrclone
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -164,6 +165,7 @@ func (service *MemoryService) UploadRun(tenantID, projectID, runID string, resul
 	service.runUploads[runUploadKey(tenantID, projectID, runID, uploadID)] = upload
 	run.Status = "uploaded"
 	service.runs[runKey(tenantID, projectID, runID)] = run
+	service.appendAuditEventLocked(tenantID, projectID, "upload_run", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "upload_id": uploadID, "result_sha256": upload.ResultSHA256}, now)
 	response := Envelope[RunUpload]{Operation: "upload_run", Status: "ok", Result: upload}
 	service.storeIdempotencyLocked("upload_run", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -204,6 +206,7 @@ func (service *MemoryService) IngestTrace(tenantID, projectID, runID string, obs
 	now := time.Now().UTC()
 	batch := TraceBatch{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, BatchID: batchID, ObservationCount: len(observations), ObservationsSHA256: mustFingerprint(observations), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
 	service.traceBatches[traceBatchKey(tenantID, projectID, runID, batchID)] = batch
+	service.appendAuditEventLocked(tenantID, projectID, "ingest_trace", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "batch_id": batchID, "observations_sha256": batch.ObservationsSHA256, "observation_count": len(observations)}, now)
 	response := Envelope[TraceBatch]{Operation: "ingest_trace", Status: "ok", Result: batch}
 	service.storeIdempotencyLocked("ingest_trace", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -240,6 +243,7 @@ func (service *MemoryService) CreateArtifactManifest(tenantID, projectID, runID 
 	now := time.Now().UTC()
 	record := ArtifactManifest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, ArtifactID: artifactID, ManifestSHA256: mustFingerprint(manifest), RawPayloadIncluded: false, APIKeyID: options.APIKeyID, RequestID: options.RequestID, CreatedAt: now}
 	service.artifactManifests[artifactManifestKey(tenantID, projectID, runID, artifactID)] = record
+	service.appendAuditEventLocked(tenantID, projectID, "artifact.manifest", runID, options.APIKeyID, options.IdempotencyKey, options.RequestID, JSONMap{"run_id": runID, "artifact_id": artifactID, "manifest_sha256": record.ManifestSHA256}, now)
 	response := Envelope[ArtifactManifest]{Operation: "artifact_manifest", Status: "ok", Result: record}
 	service.storeIdempotencyLocked("artifact_manifest", tenantID, projectID, options.IdempotencyKey, request, response)
 	return response, nil
@@ -296,15 +300,49 @@ func (service *MemoryService) UsageSnapshot(tenantID, projectID string) (Envelop
 	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
 }
 
+func (service *MemoryService) AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[AuditEventList]{}, NotFoundError{Resource: "project"}
+	}
+	events := service.auditEventsForProjectLocked(tenantID, projectID)
+	filtered := filterAuditEvents(events, options.RunID, options.ActionPrefix, options.Limit)
+	result := AuditEventList{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: options.RunID, ActionPrefix: options.ActionPrefix, Events: filtered, Count: len(filtered)}
+	return Envelope[AuditEventList]{Operation: "audit_log", Status: "ok", Result: result}, nil
+}
+
 func (service *MemoryService) VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, EventCount: len(service.auditEvents), CheckedAt: time.Now().UTC()}
-	if len(service.auditEvents) > 0 {
-		result.HeadHash = service.auditEvents[0].EventHash
-		result.TailHash = service.auditEvents[len(service.auditEvents)-1].EventHash
+	events := service.auditEventsForProjectLocked(tenantID, projectID)
+	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, EventCount: len(events), CheckedAt: time.Now().UTC()}
+	if len(events) > 0 {
+		result.HeadHash = events[0].EventHash
+		result.TailHash = events[len(events)-1].EventHash
 	}
 	return Envelope[AuditChainVerification]{Operation: "audit.chain.verify", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) BuildReleaseEvidencePacket(tenantID, projectID, runID string) (Envelope[ReleaseEvidencePacket], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	run, ok := service.runs[runKey(tenantID, projectID, runID)]
+	if !ok {
+		return Envelope[ReleaseEvidencePacket]{}, NotFoundError{Resource: "run"}
+	}
+	now := time.Now().UTC()
+	verification := service.auditChainVerificationLocked(tenantID, projectID, now)
+	packet := ReleaseEvidencePacket{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, PacketID: "release_evidence_" + mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "run_id": runID})[:16], Run: run, Uploads: service.runUploadsForRunLocked(tenantID, projectID, runID), TraceBatches: service.traceBatchesForRunLocked(tenantID, projectID, runID), ArtifactManifests: service.artifactManifestsForRunLocked(tenantID, projectID, runID), AuditVerification: verification, GeneratedAt: now}
+	packet.PacketSHA256 = releaseEvidencePacketSHA(packet)
+	return Envelope[ReleaseEvidencePacket]{Operation: "release_evidence", Status: "ok", Result: packet}, nil
+}
+
+func (service *MemoryService) VerifyReleaseEvidencePacket(tenantID, projectID, runID string, packet JSONMap) (Envelope[ReleaseEvidenceVerification], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	result := verifyReleaseEvidencePacketMap(tenantID, projectID, runID, packet, time.Now().UTC())
+	return Envelope[ReleaseEvidenceVerification]{Operation: "release_evidence.verify", Status: "ok", Result: result}, nil
 }
 
 func (service *MemoryService) CreateAPIKey(tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[APIKeyCreateResult], error) {
@@ -908,6 +946,22 @@ func mustFingerprint(value any) string {
 	return fingerprint
 }
 
+func releaseEvidencePacketSHA(packet ReleaseEvidencePacket) string {
+	copy := packet
+	copy.PacketSHA256 = ""
+	mapped, err := jsonMapFromStruct(copy)
+	if err != nil {
+		panic(err)
+	}
+	return releaseEvidencePacketMapSHA(mapped)
+}
+
+func releaseEvidencePacketMapSHA(packet JSONMap) string {
+	copy := cloneMap(packet)
+	copy["packet_sha256"] = ""
+	return mustFingerprint(copy)
+}
+
 func idempotencyLedgerKey(operation, tenantID, projectID, key string) string {
 	return operation + "\x00" + tenantID + "\x00" + projectID + "\x00" + key
 }
@@ -927,6 +981,162 @@ func traceBatchKey(tenantID, projectID, runID, batchID string) string {
 }
 func artifactManifestKey(tenantID, projectID, runID, artifactID string) string {
 	return runKey(tenantID, projectID, runID) + "/" + artifactID
+}
+
+func (service *MemoryService) appendAuditEventLocked(tenantID, projectID, action, targetID, apiKeyID, idempotencyKey, requestID string, after JSONMap, now time.Time) AuditEvent {
+	now = now.UTC()
+	previousHash := ""
+	for index := len(service.auditEvents) - 1; index >= 0; index-- {
+		event := service.auditEvents[index]
+		if event.TenantID == tenantID && event.ProjectID == projectID {
+			previousHash = event.EventHash
+			break
+		}
+	}
+	event := AuditEvent{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, AuditEventID: service.id("audit", action), Action: action, TargetID: targetID, APIKeyID: apiKeyID, IdempotencyKey: idempotencyKey, RequestID: requestID, PreviousHash: previousHash, After: defaultJSONMap(after), CreatedAt: now, CreatedAtUnixNS: now.UnixNano()}
+	event.EventHash = mustFingerprint(JSONMap{"tenant_id": event.TenantID, "project_id": event.ProjectID, "audit_event_id": event.AuditEventID, "action": event.Action, "target_id": event.TargetID, "api_key_id": event.APIKeyID, "idempotency_key": event.IdempotencyKey, "request_id": event.RequestID, "previous_hash": event.PreviousHash, "after": event.After, "created_at_unixns": event.CreatedAtUnixNS})
+	service.auditEvents = append(service.auditEvents, event)
+	return event
+}
+
+func (service *MemoryService) auditEventsForProjectLocked(tenantID, projectID string) []AuditEvent {
+	events := []AuditEvent{}
+	for _, event := range service.auditEvents {
+		if event.TenantID == tenantID && event.ProjectID == projectID {
+			events = append(events, event)
+		}
+	}
+	sortAuditEvents(events)
+	return events
+}
+
+func (service *MemoryService) auditChainVerificationLocked(tenantID, projectID string, checkedAt time.Time) AuditChainVerification {
+	events := service.auditEventsForProjectLocked(tenantID, projectID)
+	result := AuditChainVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Verified: true, EventCount: len(events), CheckedAt: checkedAt}
+	if len(events) > 0 {
+		result.HeadHash = events[0].EventHash
+		result.TailHash = events[len(events)-1].EventHash
+	}
+	return result
+}
+
+func (service *MemoryService) runUploadsForRunLocked(tenantID, projectID, runID string) []RunUpload {
+	uploads := []RunUpload{}
+	for _, upload := range service.runUploads {
+		if upload.TenantID == tenantID && upload.ProjectID == projectID && upload.RunID == runID {
+			uploads = append(uploads, upload)
+		}
+	}
+	sort.Slice(uploads, func(i, j int) bool {
+		if !uploads[i].CreatedAt.Equal(uploads[j].CreatedAt) {
+			return uploads[i].CreatedAt.Before(uploads[j].CreatedAt)
+		}
+		return uploads[i].UploadID < uploads[j].UploadID
+	})
+	return uploads
+}
+
+func (service *MemoryService) traceBatchesForRunLocked(tenantID, projectID, runID string) []TraceBatch {
+	batches := []TraceBatch{}
+	for _, batch := range service.traceBatches {
+		if batch.TenantID == tenantID && batch.ProjectID == projectID && batch.RunID == runID {
+			batches = append(batches, batch)
+		}
+	}
+	sort.Slice(batches, func(i, j int) bool {
+		if !batches[i].CreatedAt.Equal(batches[j].CreatedAt) {
+			return batches[i].CreatedAt.Before(batches[j].CreatedAt)
+		}
+		return batches[i].BatchID < batches[j].BatchID
+	})
+	return batches
+}
+
+func (service *MemoryService) artifactManifestsForRunLocked(tenantID, projectID, runID string) []ArtifactManifest {
+	manifests := []ArtifactManifest{}
+	for _, manifest := range service.artifactManifests {
+		if manifest.TenantID == tenantID && manifest.ProjectID == projectID && manifest.RunID == runID {
+			manifests = append(manifests, manifest)
+		}
+	}
+	sort.Slice(manifests, func(i, j int) bool {
+		if !manifests[i].CreatedAt.Equal(manifests[j].CreatedAt) {
+			return manifests[i].CreatedAt.Before(manifests[j].CreatedAt)
+		}
+		return manifests[i].ArtifactID < manifests[j].ArtifactID
+	})
+	return manifests
+}
+
+func filterAuditEvents(events []AuditEvent, runID, actionPrefix string, limit int) []AuditEvent {
+	filtered := []AuditEvent{}
+	for _, event := range events {
+		if runID != "" && event.TargetID != runID && stringFromAny(event.After["run_id"]) != runID {
+			continue
+		}
+		if actionPrefix != "" && !strings.HasPrefix(event.Action, actionPrefix) {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	if limit > 0 && len(filtered) > limit {
+		filtered = filtered[len(filtered)-limit:]
+	}
+	return filtered
+}
+
+func sortAuditEvents(events []AuditEvent) {
+	sort.Slice(events, func(i, j int) bool {
+		if !events[i].CreatedAt.Equal(events[j].CreatedAt) {
+			return events[i].CreatedAt.Before(events[j].CreatedAt)
+		}
+		return events[i].AuditEventID < events[j].AuditEventID
+	})
+}
+
+func verifyReleaseEvidencePacketMap(tenantID, projectID, runID string, packet JSONMap, checkedAt time.Time) ReleaseEvidenceVerification {
+	result := ReleaseEvidenceVerification{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, RunID: runID, PacketID: stringFromAny(packet["packet_id"]), CheckedAt: checkedAt}
+	if stringFromAny(packet["tenant_id"]) != tenantID || stringFromAny(packet["project_id"]) != projectID || stringFromAny(packet["run_id"]) != runID {
+		result.Reason = "packet scope does not match requested tenant/project/run"
+		return result
+	}
+	packetSHA := stringFromAny(packet["packet_sha256"])
+	if packetSHA == "" {
+		result.Reason = "packet_sha256 is required"
+		return result
+	}
+	computed := releaseEvidencePacketMapSHA(packet)
+	result.PacketSHA256 = computed
+	if computed != packetSHA {
+		result.Reason = "packet_sha256 mismatch"
+		return result
+	}
+	verification := jsonMapFromAny(packet["audit_verification"])
+	if verified, ok := verification["verified"].(bool); ok && !verified {
+		result.Reason = "audit chain verification is false"
+		return result
+	}
+	result.Verified = true
+	return result
+}
+
+func jsonMapFromStruct(value any) (JSONMap, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var mapped JSONMap
+	if err := json.Unmarshal(payload, &mapped); err != nil {
+		return nil, err
+	}
+	return mapped, nil
+}
+
+func defaultJSONMap(value JSONMap) JSONMap {
+	if value == nil {
+		return JSONMap{}
+	}
+	return value
 }
 
 func (service *MemoryService) workerJobRecordLocked(tenantID, projectID, jobID string, now time.Time) (WorkerJob, error) {

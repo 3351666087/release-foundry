@@ -113,6 +113,10 @@ def test_sdk_saas_client_exposes_audit_and_release_evidence_verification():
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True
     assert audit["result"]["event_count"] >= 3
+    audit_listing = client.audit_log("tenant_verify", "project_verify", auth_key_id="key_verify", target_id="run_verify", limit=2)
+    assert audit_listing["operation"] == "audit_log"
+    assert audit_listing["result"]["event_count"] <= 2
+    assert audit_listing["result"]["chain"]["verified"] is True
 
     packet = client.build_release_evidence_packet("tenant_verify", "project_verify", "run_verify", auth_key_id="key_verify")["result"]
     verified = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=packet, auth_key_id="key_verify")
@@ -228,6 +232,9 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     audit = cli("--state-input", str(state), "audit-chain-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli")
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True
+    audit_listing = cli("--state-input", str(state), "audit-log", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli", "--run-id", "run_sdk_cli", "--limit", "2")
+    assert audit_listing["operation"] == "audit_log"
+    assert audit_listing["result"]["event_count"] <= 2
 
     packet = cli("--state-input", str(state), "release-evidence", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli")["result"]
     packet_path = tmp_path / "packet.json"
@@ -302,6 +309,11 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
             return {"used": {"run.submit": 1}}
         if parsed.path.endswith("/v1/projects/project_http/audit-chain/verify"):
             return {"verification": {"verified": True}, "event_count": 1}
+        if parsed.path.endswith("/v1/projects/project_http/audit-log"):
+            assert method == "GET"
+            assert data == {}
+            assert query["run_id"] == "run_http"
+            return {"chain": {"verified": True}, "event_count": 1, "events": [{"audit_event_id": "audit_http"}]}
         if parsed.path.endswith("/v1/projects/project_http/runs/run_http/release-evidence/verify"):
             return {"verified": True, "packet_id": data["packet"]["packet_id"]}
         if parsed.path.endswith("/v1/projects/project_http/worker-jobs/enqueue") and data.get("job_type") == "run.replay":
@@ -355,6 +367,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
     assert trace["result"]["observation_count"] == 1
     assert client.quota_snapshot("tenant_http", "project_http")["result"]["used"]["run.submit"] == 1
     assert client.verify_audit_chain("tenant_http", "project_http", auth_key_id="key_http")["result"]["verification"]["verified"] is True
+    assert client.audit_log("tenant_http", "project_http", auth_key_id="key_http", run_id="run_http")["result"]["events"][0]["audit_event_id"] == "audit_http"
     assert client.verify_release_evidence_packet("tenant_http", "project_http", "run_http", packet={"packet_id": "packet_http"}, auth_key_id="key_http")["result"]["packet_id"] == "packet_http"
     enqueued = client.enqueue_worker_job(
         "tenant_http",
@@ -377,6 +390,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/trace-events"),
         ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/quota"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/audit-chain/verify"),
+        ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/audit-log"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/release-evidence/verify"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/enqueue"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/lease"),

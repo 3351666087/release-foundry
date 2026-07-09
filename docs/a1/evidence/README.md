@@ -471,3 +471,13 @@ Real API calibration addendum:
 - Public summary: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; modalities `[]`.
 - Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_ts316_go_key_quota_readonly_20260709_131208.json`.
 - Raw key remained env-only; no desktop key file was read.
+
+### 2026-07-09 A1 audit-log and release evidence hosted parity
+
+- Added Go hosted audit-log listing and release evidence packet build/verify routes with `audit:read` and evidence:read scope checks.
+- Added Go in-memory and Postgres release evidence packet support over run, upload, trace, artifact, and audit-chain evidence.
+- Fixed release evidence packet hashing so a packet generated through HTTP JSON can be submitted back to verify without hash drift.
+- Added Python SDK/CLI `audit-log` parity and refreshed TS/Python required hosted-route checks.
+- Refreshed docs/a1/evidence/go_python_ts_route_parity_snapshot.json after Go route manifest growth.
+- Recorded D-drive Ubuntu WSL evidence and official Ashr API read-only calibration in docs/a1/evidence/round21_worker_evidence_api.md; private raw records remain ignored under docs/evidence/private_refs/.
+- Validation: Go package tests passed; Go integration tests passed; TS SDK suite passed with 316 tests; Python A1 suite passed with 314 tests; both A1 Docker compose configs passed; Ubuntu-24.04-Ashr Bash smoke passed.

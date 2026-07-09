@@ -35,7 +35,10 @@ type ControlPlaneBackend interface {
 	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
 	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
 	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
+	AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error)
 	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
+	BuildReleaseEvidencePacket(tenantID, projectID, runID string) (Envelope[ReleaseEvidencePacket], error)
+	VerifyReleaseEvidencePacket(tenantID, projectID, runID string, packet JSONMap) (Envelope[ReleaseEvidenceVerification], error)
 }
 
 type HTTPServerOptions struct {
@@ -147,6 +150,10 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 	}
 	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "usage" {
 		server.handleUsageSnapshot(writer, request, projectID)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "audit-log" {
+		server.handleAuditLog(writer, request, projectID)
 		return
 	}
 	if (request.Method == http.MethodGet || request.Method == http.MethodPost) && len(parts) == 2 && parts[0] == "audit-chain" && parts[1] == "verify" {
@@ -262,6 +269,28 @@ func (server *HTTPServer) handleVerifyAuditChain(writer http.ResponseWriter, req
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
+func (server *HTTPServer) handleAuditLog(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	query := request.URL.Query()
+	auth, ok := resolveRequestAuth(writer, request, body, true, firstNonEmpty(query.Get("tenant_id"), stringValue(body, "tenant_id")))
+	if !ok {
+		return
+	}
+	if !server.preflightRequest(writer, auth, projectID, ScopeAuditRead, "audit_log") {
+		return
+	}
+	limit, err := intFromQueryOrBody(query.Get("limit"), body, "limit")
+	if err != nil {
+		writeError(writer, http.StatusBadRequest, "validation_error", "limit must be an integer")
+		return
+	}
+	result, err := server.service.AuditLog(auth.TenantID, projectID, AuditLogOptions{RunID: firstNonEmpty(query.Get("run_id"), stringValue(body, "run_id")), ActionPrefix: firstNonEmpty(query.Get("action_prefix"), stringValue(body, "action_prefix")), AuthKeyID: auth.APIKeyID, Limit: limit})
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+}
+
 func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *http.Request, projectID, runID string, parts []string) {
 	body, ok := readJSONBodyAllowGET(writer, request)
 	if !ok {
@@ -300,7 +329,28 @@ func (server *HTTPServer) handleRunRoutes(writer http.ResponseWriter, request *h
 				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 				return
 			}
+		case "release-evidence":
+			if request.Method == http.MethodGet {
+				if !server.preflightRequest(writer, auth, projectID, ScopeEvidenceRead, "release_evidence") {
+					return
+				}
+				result, err := server.service.BuildReleaseEvidencePacket(tenantID, projectID, runID)
+				writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+				return
+			}
 		}
+	}
+	if len(parts) == 2 && parts[0] == "release-evidence" && parts[1] == "verify" && request.Method == http.MethodPost {
+		if !server.preflightRequest(writer, auth, projectID, ScopeEvidenceRead, "release_evidence.verify") {
+			return
+		}
+		packet := mapValue(body, "packet")
+		if len(packet) == 0 {
+			packet = body
+		}
+		result, err := server.service.VerifyReleaseEvidencePacket(tenantID, projectID, runID, packet)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
 }
@@ -372,7 +422,7 @@ func GoRouteManifest(backendName ...string) JSONMap {
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
 		backingStore = strings.TrimSpace(backendName[0])
 	}
-	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/api-keys", "GET /v1/projects/{project_id}/api-keys", "POST /v1/projects/{project_id}/api-keys/preflight", "GET /v1/projects/{project_id}/api-keys/rate-limits", "POST /v1/projects/{project_id}/api-keys/{key_id}/verify", "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke", "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
+	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "routes": []string{"GET /health", "GET /healthz", "GET /v1/healthz", "GET /openapi.json", "GET /v1/openapi.json", "POST /bootstrap", "POST /v1/bootstrap", "POST /v1/projects/{project_id}/api-keys", "GET /v1/projects/{project_id}/api-keys", "POST /v1/projects/{project_id}/api-keys/preflight", "GET /v1/projects/{project_id}/api-keys/rate-limits", "POST /v1/projects/{project_id}/api-keys/{key_id}/verify", "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke", "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "POST /v1/projects/{project_id}/sdk-submit", "POST /v1/projects/{project_id}/runs/submit", "GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/audit-log", "GET /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/audit-chain/verify", "POST /v1/projects/{project_id}/runs/{run_id}/upload", "POST /v1/projects/{project_id}/runs/{run_id}/trace-events", "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests", "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence", "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify", "POST /v1/projects/{project_id}/worker-jobs/enqueue", "POST /v1/projects/{project_id}/worker-jobs/lease", "GET /v1/projects/{project_id}/worker-jobs", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete", "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail"}, "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false}
 }
 
 func readJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap, bool) {

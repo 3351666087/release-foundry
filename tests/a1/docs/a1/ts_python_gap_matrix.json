@@ -264,7 +264,7 @@
       ],
       "gaps": [
         "Python-only SaaS CLI commands: api-key-revoke, artifact-manifest-create, artifact-manifest-list, bootstrap, lifecycle, quota, run-upload, sdk-submit, state, trace-ingest, usage",
-        "TypeScript-only SaaS CLI commands: audit-log, cases, export-fixture, job-complete, job-enqueue, job-fail, job-heartbeat, job-lease, job-list, queue-run, release-gate, replay-fixture, replay-queued, run-agent, run-agent-batch, run-agent-queued"
+        "TypeScript-only SaaS CLI commands: cases, export-fixture, job-complete, job-enqueue, job-fail, job-heartbeat, job-lease, job-list, queue-run, release-gate, replay-fixture, replay-queued, run-agent, run-agent-batch, run-agent-queued"
       ],
       "python_commands": {
         "ashr_clone.calibrate_flags": [
@@ -296,6 +296,7 @@
           "artifact-manifest-create",
           "artifact-manifest-list",
           "audit-chain-verify",
+          "audit-log",
           "bootstrap",
           "lifecycle",
           "quota",
@@ -359,19 +360,22 @@
         "packages/sdk/ashr_clone/saas.py",
         "packages/ts/ashr-clone/src/saas.ts"
       ],
+      "missing_required_python_hosted_routes": [],
+      "missing_required_typescript_hosted_routes": [],
       "python_leads": [
-        "/v1/projects/{_quote_path(project_id)}",
-        "/v1/state"
+        "/v1/projects/{project_id}/quota"
+      ],
+      "required_hosted_route_literals": [
+        "/v1/bootstrap",
+        "/v1/projects/{project_id}/audit-log",
+        "/v1/projects/{project_id}/audit-chain/verify",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify"
       ],
       "shared": [
-        "/v1/bootstrap"
-      ],
-      "status": "partial",
-      "typescript_leads": [
-        "/v1/openapi.json",
+        "/v1/bootstrap",
         "/v1/projects/{project_id}/api-keys",
         "/v1/projects/{project_id}/api-keys/rate-limits",
-        "/v1/projects/{project_id}/api-keys/{key_id}/authenticate",
         "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit",
         "/v1/projects/{project_id}/api-keys/{key_id}/revoke",
         "/v1/projects/{project_id}/api-keys/{key_id}/verify",
@@ -381,7 +385,6 @@
         "/v1/projects/{project_id}/runs/{run_id}/lifecycle",
         "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
         "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
-        "/v1/projects/{project_id}/runs/{run_id}/release-gate",
         "/v1/projects/{project_id}/runs/{run_id}/trace-events",
         "/v1/projects/{project_id}/runs/{run_id}/upload",
         "/v1/projects/{project_id}/sdk-submit",
@@ -391,7 +394,13 @@
         "/v1/projects/{project_id}/worker-jobs/lease",
         "/v1/projects/{project_id}/worker-jobs/{job_id}/complete",
         "/v1/projects/{project_id}/worker-jobs/{job_id}/fail",
-        "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat",
+        "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
+      ],
+      "status": "partial",
+      "typescript_leads": [
+        "/v1/openapi.json",
+        "/v1/projects/{project_id}/api-keys/{key_id}/authenticate",
+        "/v1/projects/{project_id}/runs/{run_id}/release-gate",
         "/v1/projects/{value}/api-keys",
         "/v1/projects/{value}/api-keys/rate-limits",
         "/v1/projects/{value}/api-keys/{value}/rate-limit",
@@ -514,6 +523,7 @@
           "artifact-manifest-create",
           "artifact-manifest-list",
           "audit-chain-verify",
+          "audit-log",
           "bootstrap",
           "lifecycle",
           "quota",
@@ -546,6 +556,7 @@
         "api-key-rate-limits",
         "api-key-verify",
         "audit-chain-verify",
+        "audit-log",
         "release-evidence",
         "release-evidence-verify"
       ],
@@ -593,7 +604,6 @@
         ]
       },
       "typescript_only_saas_command_names": [
-        "audit-log",
         "cases",
         "export-fixture",
         "job-complete",
@@ -663,33 +673,25 @@
       "typescript_only_agent_input_part_types": []
     },
     "routes": {
+      "missing_required_python_hosted_routes": [],
+      "missing_required_typescript_hosted_routes": [],
       "python_only_route_literals": [
-        "/v1/projects/{_quote_path(project_id)}",
-        "/v1/state"
+        "/v1/projects/{project_id}/quota"
       ],
       "python_saas_route_literals": [
         "/v1/bootstrap",
-        "/v1/projects/{_quote_path(project_id)}",
-        "/v1/state"
-      ],
-      "shared_route_literals": [
-        "/v1/bootstrap"
-      ],
-      "typescript_only_route_literals": [
-        "/v1/openapi.json",
         "/v1/projects/{project_id}/api-keys",
         "/v1/projects/{project_id}/api-keys/rate-limits",
-        "/v1/projects/{project_id}/api-keys/{key_id}/authenticate",
         "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit",
         "/v1/projects/{project_id}/api-keys/{key_id}/revoke",
         "/v1/projects/{project_id}/api-keys/{key_id}/verify",
         "/v1/projects/{project_id}/audit-chain/verify",
         "/v1/projects/{project_id}/audit-log",
+        "/v1/projects/{project_id}/quota",
         "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
         "/v1/projects/{project_id}/runs/{run_id}/lifecycle",
         "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
         "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
-        "/v1/projects/{project_id}/runs/{run_id}/release-gate",
         "/v1/projects/{project_id}/runs/{run_id}/trace-events",
         "/v1/projects/{project_id}/runs/{run_id}/upload",
         "/v1/projects/{project_id}/sdk-submit",
@@ -699,7 +701,43 @@
         "/v1/projects/{project_id}/worker-jobs/lease",
         "/v1/projects/{project_id}/worker-jobs/{job_id}/complete",
         "/v1/projects/{project_id}/worker-jobs/{job_id}/fail",
-        "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat",
+        "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
+      ],
+      "required_hosted_route_literals": [
+        "/v1/bootstrap",
+        "/v1/projects/{project_id}/audit-log",
+        "/v1/projects/{project_id}/audit-chain/verify",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify"
+      ],
+      "shared_route_literals": [
+        "/v1/bootstrap",
+        "/v1/projects/{project_id}/api-keys",
+        "/v1/projects/{project_id}/api-keys/rate-limits",
+        "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit",
+        "/v1/projects/{project_id}/api-keys/{key_id}/revoke",
+        "/v1/projects/{project_id}/api-keys/{key_id}/verify",
+        "/v1/projects/{project_id}/audit-chain/verify",
+        "/v1/projects/{project_id}/audit-log",
+        "/v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+        "/v1/projects/{project_id}/runs/{run_id}/lifecycle",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
+        "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
+        "/v1/projects/{project_id}/runs/{run_id}/trace-events",
+        "/v1/projects/{project_id}/runs/{run_id}/upload",
+        "/v1/projects/{project_id}/sdk-submit",
+        "/v1/projects/{project_id}/usage",
+        "/v1/projects/{project_id}/worker-jobs",
+        "/v1/projects/{project_id}/worker-jobs/enqueue",
+        "/v1/projects/{project_id}/worker-jobs/lease",
+        "/v1/projects/{project_id}/worker-jobs/{job_id}/complete",
+        "/v1/projects/{project_id}/worker-jobs/{job_id}/fail",
+        "/v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
+      ],
+      "typescript_only_route_literals": [
+        "/v1/openapi.json",
+        "/v1/projects/{project_id}/api-keys/{key_id}/authenticate",
+        "/v1/projects/{project_id}/runs/{run_id}/release-gate",
         "/v1/projects/{value}/api-keys",
         "/v1/projects/{value}/api-keys/rate-limits",
         "/v1/projects/{value}/api-keys/{value}/rate-limit",

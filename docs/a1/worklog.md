@@ -195,3 +195,98 @@ Real API calibration addendum:
 - Public summary: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; modalities `[]`.
 - Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_ts316_go_key_quota_readonly_20260709_131208.json`.
 - Raw key remained env-only; no desktop key file was read.
+
+## 2026-07-09 - Worker-Evidence-API public-safe WSL/API evidence
+
+Round goal:
+- Record public-safe evidence that `Ubuntu-24.04-Ashr` is installed at `D:\WSL\Ubuntu-24.04-Ashr` and can run Bash.
+- Run one purposeful official Ashr API read-only small-batch calibration using environment auth only, if available.
+- Inspect the current official API readiness packet and propose next code tasks for API parity.
+
+Implemented / integrated files:
+- `docs/a1/evidence/round21_worker_evidence_api.md`
+- `docs/a1/worklog.md`
+
+Validation / command results:
+- `Test-Path -LiteralPath 'D:\WSL\Ubuntu-24.04-Ashr'` -> `True`.
+- `wsl.exe --list --verbose` -> `Ubuntu-24.04-Ashr` present as a WSL2 distro; initially stopped, then launched for verification.
+- `wsl.exe -d Ubuntu-24.04-Ashr -- bash -lc 'echo shell=$SHELL; bash --version | sed -n "1p"; uname -srm; pwd'` -> `/bin/bash`, GNU Bash `5.2.21(1)-release`, WSL2 kernel `6.18.33.2-microsoft-standard-WSL2 x86_64`, cwd `/mnt/c/Users/33516/Documents/Ashr`.
+- Environment presence check showed `ASHR_API_KEY=true`, `ASHR_LABS_API_KEY=false`, `ASHR_LABS_BASE_URL=false`; no values were printed.
+- Official read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`.
+- Official read-only result: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; modalities `[]`.
+- Public-safe response key summary observed: `init` -> `features,notes,status,tenant,user`; `health-check` -> `db,message,status`; `list-agents` -> `_user,agents,status`; `list-datasets` -> `_user,datasets,next_cursor,status`; `list-requests` -> `_user,next_cursor,requests,status`.
+
+Private evidence:
+- Manifest: `docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`.
+- Observed manifest size: 5,547 bytes.
+- Per-step private records referenced by the manifest remain under ignored `docs/evidence/private_refs/`.
+- No desktop key file was read; raw key material and raw official API payloads were not copied into public docs.
+
+Readiness packet findings / next code tasks:
+1. Add a public-safe summary builder for private official API manifests so future A1 notes are reproducible without hand extraction.
+2. Add read-only usage/quota/error-shape probing when hosted endpoints are available, with private output and public key/status summaries only.
+3. Add quota-gate freshness verification for `create-request-text` before any mutating official calibration is allowed.
+4. Add a tiny text mutation readiness test path requiring `--include-mutating`, explicit `--modality text`, zero retries, a private output sink, and a fresh quota-gate record.
+5. Expand paid media calibration one modality at a time after reviewed text mutation evidence: image, audio, file, then video.
+6. Add local parity stubs/tests for hosted API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, and webhooks.
+7. Add public-safety regression scanning for raw payload/auth/key markers in generated A1 public docs while allowing private path references.
+
+## 2026-07-09 - A1 Go/Python/TS audit and release evidence parity
+
+Round goal:
+- Close the A1 commercial control-plane gap for audit-log listing and release evidence packet build/verify across Go backend, Python SDK/CLI, TS/Python parity evidence, and route snapshots.
+- Keep official Ashr API usage env-only and record WSL-on-D evidence for future bash/Docker work.
+
+Implemented / integrated files:
+- packages/go/ashrclone/auth.go: added evidence:read scope.
+- packages/go/ashrclone/types.go: added audit-log list and release evidence packet/verification DTOs.
+- packages/go/ashrclone/service.go: added audit event recording/listing, packet build/verify, stable JSON packet hashing, and filter helpers.
+- packages/go/ashrclone/postgres.go: added Postgres audit-log listing and release packet build/verify over durable run/upload/trace/artifact/audit tables.
+- packages/go/ashrclone/server.go: added GET /audit-log, GET /runs/{run_id}/release-evidence, POST /runs/{run_id}/release-evidence/verify, scope preflights, and manifest routes.
+- packages/go/ashrclone/service_test.go and packages/go/ashrclone/server_test.go: added audit filtering, release evidence roundtrip/tamper, manifest, and scoped evidence rejection coverage.
+- packages/sdk/ashr_clone/saas.py and packages/sdk/ashr_clone/saas_cli.py: added Python `audit_log` hosted route/CLI parity and release verify aliasing.
+- 	ests/a1/test_saas_sdk_client.py, 	ests/a1/test_ts_python_gap_matrix.py, 	ests/a1/ts_python_parity_matrix.py, 	ests/a1/docs/a1/ts_python_gap_matrix.json: refreshed required hosted-route parity.
+- docs/a1/evidence/go_python_ts_route_parity_snapshot.json: refreshed public-safe route evidence after Go audit/release routes landed.
+- docs/a1/evidence/round21_worker_evidence_api.md: recorded D-drive Ubuntu WSL and official read-only API calibration evidence.
+
+Validation / command results:
+- go test ./... in packages/go/ashrclone -> passed.
+- go test ./... in 	ests/integration/go -> passed.
+- 
+pm test in packages/ts/ashr-clone -> passed, 316 tests.
+- python -B tests/a1/ts_python_parity_matrix.py --check -> passed.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider -> passed, 314 tests.
+- docker compose -f services/runner/docker-compose.a1.yml config -> passed.
+- docker compose -f infra/docker/docker-compose.self-host.yml config -> passed.
+- wsl.exe -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; echo WSL_BASH_OK; pwd; command -v bash; bash --version | sed -n '1p'" -> passed; distro is mounted at workspace and Bash 5.2.21 is available.
+
+Official API / private evidence:
+- Read-only small-batch official calibration was run by Worker-Evidence-API with env-only auth: python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json.
+- Public-safe summary: status ok; read steps 5; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls 7.
+- Private evidence remains ignored under docs/evidence/private_refs/; no desktop key file was read and no raw official payload/key was copied to public docs.
+
+Peer changes / impact:
+- PR #22 latest pushed commit 9a217f4 had green CL Gate before this round and is BEHIND main.
+- Remote peer work observed: A3 PR #25 open, A3 PRs #23/#24 merged. Local A3 files still have unrelated line-ending noise and must remain excluded from A1 staging.
+
+Known gaps / next 20:
+1. Add Go GET /quota alias or intentionally document usage vs quota route vocabulary.
+2. Add Go GET /runs/{run_id}/lifecycle route parity or mark Go lifecycle intentionally SDK-only.
+3. Add generated Go route/scope manifest instead of a static route list.
+4. Add per-route insufficient-scope tests for audit-log, usage, artifact read, worker list, release evidence, and future quota/lifecycle.
+5. Add live-gated Postgres tests for release evidence packet build over durable tables.
+6. Add live-gated Postgres API-key secret hash persistence tests.
+7. Add live-gated SQL/RLS tenant-isolation tests for runs, artifacts, quota, audit, and worker jobs.
+8. Add migration checksum/version ledger.
+9. Add quota consume/refund helper tests across submit, upload, trace, artifact, release evidence, and worker operations.
+10. Add billing-grade quota rollup fixtures by tenant/project/key/operation/day.
+11. Add Docker live smoke for Go API + Postgres + worker daemon.
+12. Add Python SDK smoke against compiled Go server for API-key lifecycle, quota, worker, audit, and release evidence.
+13. Add TS generated client parity for any remaining Python-only public export or mark intentional gaps.
+14. Add official read-only usage/quota/error-shape probe summaries when hosted endpoints surface them.
+15. Prepare quota-gated text mutation calibration only after reviewed fresh quota gate, zero retries, and private evidence path.
+16. Expand paid media calibration one modality at a time after text mutation evidence: image, audio, file, video.
+17. Add public-safe manifest summarizer for private official API manifests.
+18. Add Rust verifier fixture coverage against Go release evidence packets.
+19. Add Terraform/self-host validation to A1 gate.
+20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.

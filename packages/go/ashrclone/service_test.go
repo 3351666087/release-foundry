@@ -182,3 +182,58 @@ func TestMemoryServiceWorkerJobLeaseExpiryAndDeadLetter(t *testing.T) {
 		t.Fatalf("expected dead-lettered terminal job, got %#v", dead.Result)
 	}
 }
+
+func TestMemoryServiceAuditLogAndReleaseEvidencePacket(t *testing.T) {
+	service := NewMemoryService()
+	boot, err := service.BootstrapProject("Tenant", "Evidence", Dataset{Name: "Dataset"}, "tenant_evidence", "project_evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SubmitRun("tenant_evidence", "project_evidence", boot.Result.Dataset.DatasetID, "agent:evidence", "run_evidence", nil, IdempotencyOptions{APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UploadRun("tenant_evidence", "project_evidence", "run_evidence", JSONMap{"score": 0.99}, UploadRunOptions{UploadID: "upload_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.IngestTrace("tenant_evidence", "project_evidence", "run_evidence", []JSONMap{{"span_id": "span_evidence"}}, IngestTraceOptions{BatchID: "trace_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateArtifactManifest("tenant_evidence", "project_evidence", "run_evidence", JSONMap{"artifact": "release.json"}, ArtifactManifestOptions{ArtifactID: "artifact_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+
+	audit, err := service.AuditLog("tenant_evidence", "project_evidence", AuditLogOptions{RunID: "run_evidence", ActionPrefix: "artifact", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if audit.Result.Count != 1 || audit.Result.Events[0].Action != "artifact.manifest" || audit.Result.Events[0].TargetID != "run_evidence" {
+		t.Fatalf("unexpected filtered audit log: %#v", audit.Result)
+	}
+
+	packet, err := service.BuildReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packet.Result.PacketSHA256 == "" || len(packet.Result.Uploads) != 1 || len(packet.Result.TraceBatches) != 1 || len(packet.Result.ArtifactManifests) != 1 || !packet.Result.AuditVerification.Verified {
+		t.Fatalf("unexpected release evidence packet: %#v", packet.Result)
+	}
+	mapped, err := jsonMapFromStruct(packet.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", mapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !verified.Result.Verified || verified.Result.PacketSHA256 == "" {
+		t.Fatalf("expected packet to verify: %#v", verified.Result)
+	}
+	mapped["run_id"] = "run_tampered"
+	tampered, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", mapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tampered.Result.Verified || tampered.Result.Reason == "" {
+		t.Fatalf("expected tampered packet to fail verification: %#v", tampered.Result)
+	}
+}

@@ -108,6 +108,16 @@ def build_parser() -> argparse.ArgumentParser:
     _add_run_args(artifact_list)
     artifact_list.add_argument("--auth-key-id")
 
+    audit_log = subparsers.add_parser("audit-log", help="List public-safe hosted audit events for a project.")
+    _add_project_args(audit_log)
+    audit_log.add_argument("--auth-key-id")
+    audit_log.add_argument("--run-id")
+    audit_log.add_argument("--action")
+    audit_log.add_argument("--action-prefix")
+    audit_log.add_argument("--target-id")
+    audit_log.add_argument("--audit-api-key-id")
+    audit_log.add_argument("--limit", type=int)
+
     audit_verify = subparsers.add_parser("audit-chain-verify", help="Verify the local hosted audit event hash chain.")
     _add_project_args(audit_verify)
     audit_verify.add_argument("--auth-key-id")
@@ -217,6 +227,18 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         )
     elif command == "artifact-manifest-list":
         envelope = client.list_artifact_manifests(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
+    elif command == "audit-log":
+        envelope = client.audit_log(
+            args.tenant_id,
+            args.project_id,
+            auth_key_id=args.auth_key_id,
+            run_id=args.run_id,
+            action=args.action,
+            action_prefix=args.action_prefix,
+            target_id=args.target_id,
+            api_key_id=args.audit_api_key_id,
+            limit=args.limit,
+        )
     elif command == "audit-chain-verify":
         envelope = client.verify_audit_chain(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id, action=args.action, target_id=args.target_id, api_key_id=args.audit_api_key_id, limit=args.limit, request_id=args.request_id)
     elif command == "release-evidence":

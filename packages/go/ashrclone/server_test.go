@@ -120,6 +120,12 @@ func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
 	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
 		"tenant_name": "Tenant", "project_name": "Runs", "tenant_id": "tenant_runs", "project_id": "project_runs", "dataset_id": "dataset_runs", "dataset_name": "Dataset",
 	})
+	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
+		"tenant_id": "tenant_runs", "key_id": "key_runs", "name": "full-run-key", "scopes": []string{ScopeRunSubmit, ScopeRunUpload, ScopeTraceIngest, ScopeArtifactManifestWrite, ScopeArtifactManifestRead, ScopeAuditRead, ScopeEvidenceRead},
+	})
+	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
+		"tenant_id": "tenant_runs", "key_id": "key_runs_no_evidence", "name": "audit-only-key", "scopes": []string{ScopeAuditRead},
+	})
 
 	client := NewClient(WithBaseURL(server.URL), WithRetry(0, 0))
 	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_runs", "project_runs", SubmitRunOptions{DatasetID: "dataset_runs", AgentRef: "agent:runs", RunID: "run_routes", APIKeyID: "key_runs", IdempotencyKey: "idem_run_routes"}); err != nil {
@@ -157,6 +163,36 @@ func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
 	if listed.Operation != "artifact_manifests" || listed.Result["count"].(float64) != 1 {
 		t.Fatalf("unexpected artifact list response: %#v", listed)
 	}
+
+	audit, err := client.AuditLogHTTP(context.Background(), "tenant_runs", "project_runs", AuditLogOptions{RunID: "run_routes", AuthKeyID: "key_runs", Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if audit.Operation != "audit_log" || audit.Result["count"].(float64) == 0 || audit.Result["run_id"] != "run_routes" {
+		t.Fatalf("unexpected audit log response: %#v", audit)
+	}
+
+	packet, err := client.BuildReleaseEvidencePacketHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", AuthKeyOptions{AuthKeyID: "key_runs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packet.Operation != "release_evidence" || packet.Result["packet_id"] == "" || packet.Result["packet_sha256"] == "" {
+		t.Fatalf("unexpected release evidence response: %#v", packet)
+	}
+
+	packetMap, ok := packet.Result["packet"].(JSONMap)
+	if !ok {
+		packetMap = packet.Result
+	}
+	verified, err := client.VerifyReleaseEvidencePacketHTTP(context.Background(), "tenant_runs", "project_runs", "run_routes", VerifyReleaseEvidencePacketOptions{AuthKeyID: "key_runs", Packet: packetMap})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verified.Operation != "release_evidence_verify" || verified.Result["verified"] != true {
+		t.Fatalf("unexpected release evidence verification response: %#v", verified)
+	}
+
+	assertControlPlaneError(t, requestForTest(t, http.MethodGet, server.URL+"/v1/projects/project_runs/runs/run_routes/release-evidence?tenant_id=tenant_runs&auth_key_id=key_runs_no_evidence", nil), http.StatusForbidden, "scope_denied")
 }
 
 func TestHTTPHandlerRunRoutesRejectInlineMedia(t *testing.T) {

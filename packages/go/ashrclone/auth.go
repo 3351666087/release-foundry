@@ -9,6 +9,7 @@ const (
 	ScopeTraceIngest           = "trace:ingest"
 	ScopeUsageRead             = "usage:read"
 	ScopeAuditRead             = "audit:read"
+	ScopeEvidenceRead          = "evidence:read"
 	ScopeWorkerJobEnqueue      = "worker_job:enqueue"
 	ScopeWorkerJobLease        = "worker_job:lease"
 	ScopeWorkerJobComplete     = "worker_job:complete"

@@ -168,6 +168,43 @@ type AuditChainVerification struct {
 	CheckedAt          time.Time   `json:"checked_at"`
 }
 
+type AuditEventList struct {
+	SchemaVersion string       `json:"schema_version"`
+	TenantID      string       `json:"tenant_id"`
+	ProjectID     string       `json:"project_id"`
+	RunID         string       `json:"run_id,omitempty"`
+	ActionPrefix  string       `json:"action_prefix,omitempty"`
+	Events        []AuditEvent `json:"events"`
+	Count         int          `json:"count"`
+}
+
+type ReleaseEvidencePacket struct {
+	SchemaVersion     string                 `json:"schema_version"`
+	TenantID          string                 `json:"tenant_id"`
+	ProjectID         string                 `json:"project_id"`
+	RunID             string                 `json:"run_id"`
+	PacketID          string                 `json:"packet_id"`
+	Run               Run                    `json:"run"`
+	Uploads           []RunUpload            `json:"uploads"`
+	TraceBatches      []TraceBatch           `json:"trace_batches"`
+	ArtifactManifests []ArtifactManifest     `json:"artifact_manifests"`
+	AuditVerification AuditChainVerification `json:"audit_verification"`
+	PacketSHA256      string                 `json:"packet_sha256"`
+	GeneratedAt       time.Time              `json:"generated_at"`
+}
+
+type ReleaseEvidenceVerification struct {
+	SchemaVersion string    `json:"schema_version"`
+	TenantID      string    `json:"tenant_id"`
+	ProjectID     string    `json:"project_id"`
+	RunID         string    `json:"run_id"`
+	PacketID      string    `json:"packet_id,omitempty"`
+	Verified      bool      `json:"verified"`
+	PacketSHA256  string    `json:"packet_sha256,omitempty"`
+	Reason        string    `json:"reason,omitempty"`
+	CheckedAt     time.Time `json:"checked_at"`
+}
+
 const (
 	WorkerJobStatusQueued       = "queued"
 	WorkerJobStatusLeased       = "leased"

@@ -351,6 +351,48 @@ class SaaSIngestionClient:
             return self._request("usage_snapshot", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id})
         return _envelope("usage_snapshot", self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id))
 
+    def audit_log(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        auth_key_id: str | None = None,
+        run_id: str | None = None,
+        action: str | None = None,
+        action_prefix: str | None = None,
+        target_id: str | None = None,
+        api_key_id: str | None = None,
+        limit: int | None = None,
+        api_key: str | None = None,
+    ) -> JsonDict:
+        _reject_raw_api_key(api_key)
+        payload = {
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "auth_key_id": auth_key_id,
+            "run_id": run_id,
+            "action": action,
+            "action_prefix": action_prefix,
+            "target_id": target_id,
+            "audit_api_key_id": api_key_id,
+            "limit": limit,
+        }
+        if self.uses_http:
+            return self._request("audit_log", payload)
+        snapshot = dict(
+            self.service.audit_snapshot(
+                tenant_id,
+                project_id,
+                auth_key_id=auth_key_id,
+                action=action,
+                target_id=target_id or run_id,
+                api_key_id=api_key_id,
+                limit=limit,
+            )
+        )
+        snapshot.setdefault("event_count", len(snapshot.get("events", [])) if isinstance(snapshot.get("events"), list) else 0)
+        return _envelope("audit_log", snapshot)
+
     def create_artifact_manifest(
         self,
         tenant_id: str,
@@ -516,6 +558,7 @@ _GET_OPERATIONS = {
     "lifecycle_snapshot",
     "quota_snapshot",
     "usage_snapshot",
+    "audit_log",
     "list_artifact_manifests",
     "list_worker_jobs",
     "release_evidence",
@@ -542,7 +585,7 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/api-keys/rate-limits"
     if operation == "sdk_submit":
         return method, f"{project_path}/sdk-submit"
-    if operation in {"upload_run", "ingest_trace", "lifecycle_snapshot", "create_artifact_manifest", "list_artifact_manifests", "release_evidence", "verify_release_evidence_packet"}:
+    if operation in {"upload_run", "ingest_trace", "lifecycle_snapshot", "create_artifact_manifest", "list_artifact_manifests", "release_evidence", "release_evidence_verify", "verify_release_evidence_packet"}:
         run_id = _required_route_value(payload, "run_id", operation)
         suffix = {
             "upload_run": "upload",
@@ -551,6 +594,7 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
             "create_artifact_manifest": "artifact-manifests",
             "list_artifact_manifests": "artifact-manifests",
             "release_evidence": "release-evidence",
+            "release_evidence_verify": "release-evidence/verify",
             "verify_release_evidence_packet": "release-evidence/verify",
         }[operation]
         return method, f"{project_path}/runs/{_quote_path(run_id)}/{suffix}"
@@ -566,6 +610,8 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/worker-jobs/{_quote_path(job_id)}/{suffix}"
     if operation == "verify_audit_chain":
         return method, f"{project_path}/audit-chain/verify"
+    if operation == "audit_log":
+        return method, f"{project_path}/audit-log"
     raise SaaSClientError(f"unsupported SaaS HTTP operation: {operation}")
 
 
