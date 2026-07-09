@@ -125,12 +125,15 @@ func TestHTTPHandlerRunUploadTraceAndArtifactManifests(t *testing.T) {
 	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
 		"tenant_name": "Tenant", "project_name": "Runs", "tenant_id": "tenant_runs", "project_id": "project_runs", "dataset_id": "dataset_runs", "dataset_name": "Dataset",
 	})
-	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
+	adminKey := postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
+		"tenant_id": "tenant_runs", "key_id": "key_runs_admin", "name": "admin-key", "scopes": []string{ScopeAPIKeyWrite, ScopeAPIKeyRead}, "reveal_secret": true,
+	})
+	postJSONWithHeadersForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
 		"tenant_id": "tenant_runs", "key_id": "key_runs", "name": "full-run-key", "scopes": []string{ScopeRunSubmit, ScopeRunUpload, ScopeTraceIngest, ScopeArtifactManifestWrite, ScopeArtifactManifestRead, ScopeRunLifecycleRead, ScopeAuditRead, ScopeEvidenceRead},
-	})
-	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
+	}, map[string]string{"Authorization": "Bearer " + adminKey.OneTimeSecret})
+	postJSONWithHeadersForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_runs/api-keys", JSONMap{
 		"tenant_id": "tenant_runs", "key_id": "key_runs_no_evidence", "name": "audit-only-key", "scopes": []string{ScopeAuditRead},
-	})
+	}, map[string]string{"Authorization": "Bearer " + adminKey.OneTimeSecret})
 
 	client := NewClient(WithBaseURL(server.URL), WithRetry(0, 0))
 	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_runs", "project_runs", SubmitRunOptions{DatasetID: "dataset_runs", AgentRef: "agent:runs", RunID: "run_routes", APIKeyID: "key_runs", IdempotencyKey: "idem_run_routes"}); err != nil {
@@ -252,7 +255,7 @@ func TestHTTPHandlerAPIKeyPreflightAndQuota(t *testing.T) {
 	}), http.StatusBadRequest, "secret_input_rejected")
 
 	created := postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_key/api-keys", JSONMap{
-		"tenant_id": "tenant_key", "key_id": "key_http_lifecycle", "name": "submitter", "scopes": []string{ScopeRunSubmit}, "reveal_secret": true,
+		"tenant_id": "tenant_key", "key_id": "key_http_lifecycle", "name": "submitter", "scopes": []string{ScopeRunSubmit, ScopeAPIKeyWrite, ScopeAPIKeyPreflight}, "reveal_secret": true,
 	})
 	if created.OneTimeSecret == "" || created.APIKey.SecretSHA256 != "" {
 		t.Fatalf("unexpected key create response: %#v", created)
@@ -265,13 +268,15 @@ func TestHTTPHandlerAPIKeyPreflightAndQuota(t *testing.T) {
 		t.Fatalf("expected test secret to verify: %#v", verified)
 	}
 
-	assertControlPlaneError(t, requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_key/api-keys/preflight", JSONMap{
+	preflightDenied := requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_key/api-keys/preflight", JSONMap{
 		"tenant_id": "tenant_key", "key_id": "key_http_lifecycle", "scope": ScopeRunUpload, "operation": "upload_run",
-	}), http.StatusForbidden, "scope_denied")
-
-	postJSONForTest[APIKeyRateLimit](t, server.URL+"/v1/projects/project_key/api-keys/key_http_lifecycle/rate-limit", JSONMap{
-		"tenant_id": "tenant_key", "operation": "sdk_submit", "limit": 1,
 	})
+	preflightDenied.Header.Set("Authorization", "Bearer "+created.OneTimeSecret)
+	assertControlPlaneError(t, preflightDenied, http.StatusForbidden, "scope_denied")
+
+	postJSONWithHeadersForTest[APIKeyRateLimit](t, server.URL+"/v1/projects/project_key/api-keys/key_http_lifecycle/rate-limit", JSONMap{
+		"tenant_id": "tenant_key", "operation": "sdk_submit", "limit": 1,
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
 	client := NewClient(WithBaseURL(server.URL), WithRetry(0, 0))
 	if _, err := client.SubmitRunHTTP(context.Background(), "tenant_key", "project_key", SubmitRunOptions{DatasetID: "dataset_key", AgentRef: "agent:key", RunID: "run_key", APIKeyID: "key_http_lifecycle", IdempotencyKey: "idem_key"}); err != nil {
 		t.Fatal(err)
@@ -625,11 +630,15 @@ func TestHTTPHandlerProtectedRoutesRejectMissingOrRawAPIKey(t *testing.T) {
 		"tenant_id": "tenant_auth", "dataset_id": "dataset_auth", "agent_ref": "agent:auth", "run_id": "run_missing", "idempotency_key": "idem_missing",
 	}), http.StatusUnauthorized, "authentication_required")
 
+	assertControlPlaneError(t, requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_auth/sdk-submit", JSONMap{
+		"tenant_id": "tenant_auth", "dataset_id": "dataset_auth", "agent_ref": "agent:auth", "run_id": "run_secret", "api_key": "sk-test-never-read", "idempotency_key": "idem_secret",
+	}), http.StatusBadRequest, "secret_input_rejected")
+
 	req := requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_auth/sdk-submit", JSONMap{
-		"tenant_id": "tenant_auth", "dataset_id": "dataset_auth", "agent_ref": "agent:auth", "run_id": "run_secret", "api_key_id": "key_auth", "idempotency_key": "idem_secret",
+		"tenant_id": "tenant_auth", "dataset_id": "dataset_auth", "agent_ref": "agent:auth", "run_id": "run_bad_auth", "idempotency_key": "idem_bad_auth",
 	})
-	req.Header.Set("Authorization", "Bearer sk-test-never-read")
-	assertControlPlaneError(t, req, http.StatusBadRequest, "secret_input_rejected")
+	req.Header.Set("Authorization", "Basic not-a-bearer")
+	assertControlPlaneError(t, req, http.StatusBadRequest, "invalid_authorization_header")
 }
 
 func TestHTTPHandlerAPIKeyLifecycleScopesAndQuota(t *testing.T) {
@@ -640,7 +649,7 @@ func TestHTTPHandlerAPIKeyLifecycleScopesAndQuota(t *testing.T) {
 	})
 
 	created := postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_keys/api-keys", JSONMap{
-		"tenant_id": "tenant_keys", "key_id": "key_submit", "name": "Submitter", "scopes": []string{ScopeRunSubmit}, "reveal_secret": true,
+		"tenant_id": "tenant_keys", "key_id": "key_submit", "name": "Submitter", "scopes": []string{ScopeRunSubmit, ScopeAPIKeyWrite}, "reveal_secret": true,
 	})
 	if created.OneTimeSecret == "" || !created.OneTimeSecretDisplayed || created.APIKey.SecretSHA256 != "" {
 		t.Fatalf("unexpected created key response: %#v", created)
@@ -651,9 +660,9 @@ func TestHTTPHandlerAPIKeyLifecycleScopesAndQuota(t *testing.T) {
 	if !verified.Authenticated || verified.SecretValuePresent {
 		t.Fatalf("unexpected verify response: %#v", verified)
 	}
-	postJSONForTest[APIKeyRateLimit](t, server.URL+"/v1/projects/project_keys/api-keys/key_submit/rate-limit", JSONMap{
+	postJSONWithHeadersForTest[APIKeyRateLimit](t, server.URL+"/v1/projects/project_keys/api-keys/key_submit/rate-limit", JSONMap{
 		"tenant_id": "tenant_keys", "operation": "sdk_submit", "limit": 1,
-	})
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
 
 	assertControlPlaneError(t, authenticatedRequestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_keys/runs/run_missing/upload", JSONMap{
 		"tenant_id": "tenant_keys", "result": JSONMap{"status": "ok"}, "api_key_id": "key_submit",
@@ -668,6 +677,44 @@ func TestHTTPHandlerAPIKeyLifecycleScopesAndQuota(t *testing.T) {
 	assertControlPlaneError(t, authenticatedRequestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_keys/sdk-submit", JSONMap{
 		"tenant_id": "tenant_keys", "dataset_id": "dataset_keys", "agent_ref": "agent:key", "run_id": "run_quota_2", "api_key_id": "key_submit", "idempotency_key": "idem_key_submit_2",
 	}, "tenant_keys", "key_submit"), http.StatusTooManyRequests, "quota_exceeded")
+}
+
+func TestHTTPHandlerBearerAPIKeySubmitAndDenials(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
+		"tenant_name": "Tenant", "project_name": "Bearer", "tenant_id": "tenant_bearer", "project_id": "project_bearer", "dataset_id": "dataset_bearer", "dataset_name": "Dataset",
+	})
+	created := postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_bearer/api-keys", JSONMap{
+		"tenant_id": "tenant_bearer", "key_id": "key_bearer", "name": "Bearer submitter", "scopes": []string{ScopeRunSubmit, ScopeUsageRead, ScopeAPIKeyWrite}, "reveal_secret": true,
+	})
+
+	bearerReq := requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_bearer/sdk-submit", JSONMap{
+		"tenant_id": "tenant_bearer", "dataset_id": "dataset_bearer", "agent_ref": "agent:bearer", "run_id": "run_bearer", "idempotency_key": "idem_bearer",
+	})
+	bearerReq.Header.Set("Authorization", "Bearer "+created.OneTimeSecret)
+	submit := doJSONForTest[Run](t, bearerReq, http.StatusOK)
+	if submit.RunID != "run_bearer" || submit.Status != "queued" {
+		t.Fatalf("unexpected bearer submit: %#v", submit)
+	}
+	usageReq := requestForTest(t, http.MethodGet, server.URL+"/v1/projects/project_bearer/usage?tenant_id=tenant_bearer", nil)
+	usageReq.Header.Set("Authorization", "Bearer "+created.OneTimeSecret)
+	usage := doJSONForTest[UsageSnapshot](t, usageReq, http.StatusOK)
+	if operationTotalCount(usage.OperationTotals, "sdk.submit") != 1 {
+		t.Fatalf("bearer submit did not record sdk_submit usage: %#v", usage.OperationTotals)
+	}
+
+	mismatch := requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_bearer/sdk-submit", JSONMap{
+		"tenant_id": "tenant_bearer", "dataset_id": "dataset_bearer", "agent_ref": "agent:bearer", "run_id": "run_mismatch", "api_key_id": "other_key", "idempotency_key": "idem_mismatch",
+	})
+	mismatch.Header.Set("Authorization", "Bearer "+created.OneTimeSecret)
+	assertControlPlaneError(t, mismatch, http.StatusForbidden, "api_key_mismatch")
+
+	wrongScope := requestForTest(t, http.MethodPost, server.URL+"/v1/projects/project_bearer/runs/run_bearer/upload", JSONMap{
+		"tenant_id": "tenant_bearer", "result": JSONMap{"status": "ok"},
+	})
+	wrongScope.Header.Set("Authorization", "Bearer "+created.OneTimeSecret)
+	assertControlPlaneError(t, wrongScope, http.StatusForbidden, "scope_denied")
 }
 
 func TestHTTPHandlerJSONErrorEnvelope(t *testing.T) {
@@ -716,6 +763,42 @@ func postJSONForTest[T any](t *testing.T, url string, payload any) T {
 		t.Fatal(err)
 	}
 	return output
+}
+
+func doJSONForTest[T any](t *testing.T, req *http.Request, wantStatus int) T {
+	t.Helper()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != wantStatus {
+		var failure JSONMap
+		_ = json.NewDecoder(resp.Body).Decode(&failure)
+		t.Fatalf("status = %d, want %d body=%#v", resp.StatusCode, wantStatus, failure)
+	}
+	var output T
+	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
+		t.Fatal(err)
+	}
+	return output
+}
+
+func postJSONWithHeadersForTest[T any](t *testing.T, url string, payload any, headers map[string]string) T {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	return doJSONForTest[T](t, req, http.StatusOK)
 }
 
 func requestForTest(t *testing.T, method, url string, payload any) *http.Request {
@@ -777,6 +860,14 @@ func assertRouteScopePlanLimit(t *testing.T, plan *RouteScopeDocPlan, metric str
 	t.Fatalf("%s plan missing %s limit: %#v", plan.Plan, metric, plan.Limits)
 }
 
+func operationTotalCount(totals []UsageOperationTotal, operation string) int {
+	for _, total := range totals {
+		if total.Operation == operation {
+			return total.Events
+		}
+	}
+	return 0
+}
 func stringSliceContains(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {

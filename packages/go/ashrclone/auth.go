@@ -18,6 +18,9 @@ const (
 	ScopeWorkerJobList         = "worker_job:list"
 	ScopeArtifactManifestRead  = "artifact_manifest:read"
 	ScopeArtifactManifestWrite = "artifact_manifest:write"
+	ScopeAPIKeyWrite           = "api_key:write"
+	ScopeAPIKeyRead            = "api_key:read"
+	ScopeAPIKeyPreflight       = "api_key:preflight"
 )
 
 type APIKeyHandle struct {

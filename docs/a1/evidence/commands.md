@@ -1426,3 +1426,16 @@ Results:
 - Extended `tests/integration/go/postgres_api_key_live_test.go` with `TestPostgresHTTPAPIKeyLifecycleLiveOptIn`, using `httptest.NewServer(ashrclone.NewHTTPHandler(repository))` over a real Postgres repository.
 - `go test ./...` from `tests/integration/go` without DSN: pass; live tests skipped.
 - Disposable HTTP live proof: `docker run --rm -d --name ashr-a1-go-http-live-pg -e POSTGRES_USER=ashr -e POSTGRES_PASSWORD=ashr -e POSTGRES_DB=ashr -p 55434:5432 postgres:16-alpine`; process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55434/ashr?sslmode=disable`; `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> repository and HTTP live tests passed; container removed.
+
+## Round33 bearer auth and admin API-key hardening - 2026-07-09T20:10:00+08:00
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; git branch --show-current; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb --untracked-files=all; gh repo view --json nameWithOwner,defaultBranchRef,url; gh pr list --state all --limit 20 --json number,title,headRefName,baseRefName,state,isDraft,updatedAt,url; gh pr checks 27 --watch=false`: PR #27 green before this round; A3/Rust skipped by rule.
+- `docker version; docker ps; wsl -l -v`: Docker Desktop daemon available; WSL distributions installed but stopped. Direct `/bin/bash` command in Codex failed with `/bin/bash: No such file or directory`, so this round used PowerShell.
+- Growth-Auditor read-only review: recommended admin API-key auth truthfulness and live evidence.
+- TS worker: changed `packages/ts/ashr-clone/src/saas.ts` and `packages/ts/ashr-clone/test/saas.test.mjs`; reported `npm test -- --runInBand` -> 328 passed and Python parity subset -> 12 passed.
+- `go test ./...` from `packages/go/ashrclone`: pass after Bearer auth and admin API-key hardening.
+- `go test ./...` from `tests/integration/go`: pass without DSN.
+- Disposable Postgres live proof: `docker run --name ashr-a1-pg-live-55435 -e POSTGRES_PASSWORD=ashr -e POSTGRES_USER=ashr -e POSTGRES_DB=ashr -p 55435:5432 -d postgres:16-alpine`; set process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@127.0.0.1:55435/ashr?sslmode=disable`; `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> both live tests passed; container removed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: 20 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 328 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 354 passed.

@@ -105,7 +105,7 @@ func TestPostgresHTTPAPIKeyLifecycleLiveOptIn(t *testing.T) {
 		"tenant_name": "Tenant", "project_name": "HTTP Keys", "tenant_id": "tenant_http_live", "project_id": "project_http_live", "dataset_id": "dataset_http_live", "dataset_name": "Dataset",
 	})
 	created := postLiveJSON[ashrclone.APIKeyCreateResult](t, server.URL+"/v1/projects/project_http_live/api-keys", ashrclone.JSONMap{
-		"tenant_id": "tenant_http_live", "key_id": "key_http_live", "name": "HTTP live", "scopes": []string{ashrclone.ScopeRunSubmit}, "reveal_secret": true,
+		"tenant_id": "tenant_http_live", "key_id": "key_http_live", "name": "HTTP live", "scopes": []string{ashrclone.ScopeRunSubmit, ashrclone.ScopeUsageRead, ashrclone.ScopeAPIKeyWrite}, "reveal_secret": true,
 	})
 	if created.OneTimeSecret == "" || created.APIKey.SecretSHA256 != "" {
 		t.Fatalf("unexpected key create result: %#v", created)
@@ -116,31 +116,82 @@ func TestPostgresHTTPAPIKeyLifecycleLiveOptIn(t *testing.T) {
 	if !verified.Authenticated || verified.SecretValuePresent {
 		t.Fatalf("unexpected verify result: %#v", verified)
 	}
-	postLiveJSON[ashrclone.APIKeyRateLimit](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/rate-limit", ashrclone.JSONMap{
+	postLiveJSONWithHeaders[ashrclone.APIKeyRateLimit](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/rate-limit", ashrclone.JSONMap{
 		"tenant_id": "tenant_http_live", "operation": "sdk_submit", "limit": 1,
-	})
-	postLiveJSON[ashrclone.Run](t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
-		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live", "api_key_id": "key_http_live", "idempotency_key": "idem_http_live",
-	})
-	quota := postLiveError(t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
-		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live_2", "api_key_id": "key_http_live", "idempotency_key": "idem_http_live_2",
-	})
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
+	submitted := postLiveJSONWithHeaders[ashrclone.Run](t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live", "idempotency_key": "idem_http_live",
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
+	if submitted.RunID != "run_http_live" || submitted.Status != "queued" {
+		t.Fatalf("unexpected bearer submit: %#v", submitted)
+	}
+	quota := postLiveErrorWithHeaders(t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live_2", "idempotency_key": "idem_http_live_2",
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret}, http.StatusTooManyRequests)
 	if quota.Code != "quota_exceeded" || quota.Limit != 1 || quota.Used != 1 || quota.Remaining != 0 {
 		t.Fatalf("unexpected quota error: %#v", quota)
 	}
-	revoked := postLiveJSON[ashrclone.APIKeyRecord](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/revoke", ashrclone.JSONMap{"tenant_id": "tenant_http_live"})
+	usage := getLiveJSONWithHeaders[ashrclone.UsageSnapshot](t, server.URL+"/v1/projects/project_http_live/usage?tenant_id=tenant_http_live", map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
+	if operationTotalEvents(usage.OperationTotals, "sdk.submit") != 1 {
+		t.Fatalf("quota denial caused side effects, usage=%#v", usage.OperationTotals)
+	}
+	revoked := postLiveJSONWithHeaders[ashrclone.APIKeyRecord](t, server.URL+"/v1/projects/project_http_live/api-keys/key_http_live/revoke", ashrclone.JSONMap{"tenant_id": "tenant_http_live"}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret})
 	if !revoked.Revoked || revoked.SecretSHA256 != "" {
 		t.Fatalf("unexpected revoke result: %#v", revoked)
 	}
+	revokedError := postLiveErrorWithHeaders(t, server.URL+"/v1/projects/project_http_live/sdk-submit", ashrclone.JSONMap{
+		"tenant_id": "tenant_http_live", "dataset_id": boot.Dataset.DatasetID, "agent_ref": "agent:http", "run_id": "run_http_live_3", "idempotency_key": "idem_http_live_3",
+	}, map[string]string{"Authorization": "Bearer " + created.OneTimeSecret}, http.StatusUnauthorized)
+	if revokedError.Code != "authentication_failed" {
+		t.Fatalf("unexpected revoked error: %#v", revokedError)
+	}
 }
 
+func getLiveJSONWithHeaders[T any](t *testing.T, url string, headers map[string]string) T {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var failure ashrclone.JSONMap
+		_ = json.NewDecoder(resp.Body).Decode(&failure)
+		t.Fatalf("status=%d body=%#v", resp.StatusCode, failure)
+	}
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
 func postLiveJSON[T any](t *testing.T, url string, body ashrclone.JSONMap) T {
+	t.Helper()
+	return postLiveJSONWithHeaders[T](t, url, body, nil)
+}
+
+func postLiveJSONWithHeaders[T any](t *testing.T, url string, body ashrclone.JSONMap, headers map[string]string) T {
 	t.Helper()
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewReader(encoded))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,6 +208,15 @@ func postLiveJSON[T any](t *testing.T, url string, body ashrclone.JSONMap) T {
 	return result
 }
 
+func operationTotalEvents(totals []ashrclone.UsageOperationTotal, operation string) int {
+	for _, total := range totals {
+		if total.Operation == operation {
+			return total.Events
+		}
+	}
+	return 0
+}
+
 type liveError struct {
 	Code      string `json:"code"`
 	Limit     int    `json:"limit"`
@@ -166,17 +226,30 @@ type liveError struct {
 
 func postLiveError(t *testing.T, url string, body ashrclone.JSONMap) liveError {
 	t.Helper()
+	return postLiveErrorWithHeaders(t, url, body, nil, http.StatusTooManyRequests)
+}
+
+func postLiveErrorWithHeaders(t *testing.T, url string, body ashrclone.JSONMap, headers map[string]string, wantStatus int) liveError {
+	t.Helper()
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewReader(encoded))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("expected 429, got %d", resp.StatusCode)
+	if resp.StatusCode != wantStatus {
+		t.Fatalf("expected %d, got %d", wantStatus, resp.StatusCode)
 	}
 	var envelope struct {
 		Error liveError `json:"error"`

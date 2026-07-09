@@ -960,3 +960,63 @@ Live evidence:
 Validation:
 - `go test ./...` from `tests/integration/go` without DSN -> pass with live tests skipped.
 - Next before push: rerun Go package, Python A1, TS, compose, hygiene, and diff checks.
+
+## Round33 bearer auth and admin API-key hardening - 2026-07-09T20:10:00+08:00
+
+Baseline:
+- Started from clean A1 worktree `C:\Users\33516\Documents\Ashr_a1_clean_rebase` on `codex/a1-local-sdk-runner-clean`, tracking PR #27 head `f69bc667` before this round.
+- `gh pr checks 27 --watch=false`: CL Gate summary, Go SDK/integration, Python A1/A2 contracts, TypeScript SDK parity, and Plan/hygiene passed; A3/Rust skipped by path rules.
+- Peer updates observed on `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no A2/A3 files changed or staged in this worktree.
+- Docker Desktop daemon is usable (`docker version` returned client/server 29.6.1). `wsl -l -v` showed `docker-desktop` and `Ubuntu-24.04-Ashr` installed but stopped; direct Codex `/bin/bash` execution failed earlier in this round, so PowerShell remained the command shell.
+- Growth-Auditor read-only audit identified admin API-key route truthfulness as the highest-value next commercial hardening slice.
+- TS worker implemented Bearer secret support in `packages/ts/ashr-clone` and reported `npm test -- --runInBand` -> 328 passed plus Python parity subset -> 12 passed.
+
+Implemented:
+- Go HTTP now accepts standard `Authorization: Bearer <one-time-secret>` for protected routes while continuing to reject raw `api_key` material in JSON bodies.
+- Bearer-only requests infer local generated key IDs from the one-time secret prefix, verify the stored hash, enforce route scope, and then run quota preflight before mutation.
+- API-key admin routes now require admin/read/preflight scopes after the first bootstrap admin key. The first unauthenticated API-key create is allowed only when the project has no keys and requested scopes include `api_key:write`.
+- Added Go scopes `api_key:write`, `api_key:read`, and `api_key:preflight`.
+- Added Go unit tests for Bearer submit, usage readback, invalid Authorization, key mismatch, wrong-scope denial, first-admin bootstrap, and admin-protected rate-limit/preflight paths.
+- Extended live Postgres HTTP proof to cover Bearer-only submit, quota denial, usage readback showing no extra side effect, admin Bearer rate-limit/revoke, and revoked Bearer denial.
+- TypeScript SDK now supports `bearerApiKey` / `apiKeySecret` for protected HTTP route calls and keeps raw secret material out of request bodies.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` without `A1_POSTGRES_TEST_DSN` -> pass.
+- Disposable Docker Postgres live proof on `127.0.0.1:55435`: `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 20 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 328 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 354 passed.
+
+Official API calibration:
+- No new hosted mutating/paid media call was made in this sub-slice because Round29 already proved the current hosted quota boundary with env-only key at first text mutation. Next useful official action remains a successful text mutation baseline after quota reset/plan change, then image/audio/file/video paid probes in audited batches.
+
+Commercial agenda raised this round:
+1. Stripe test mode to live mode billing slice.
+2. GitHub OAuth and Google OAuth login.
+3. Real API key create/revoke/rate-limit/usage ledger hardening.
+4. Postgres persistence for real org/project/user/session.
+5. Object storage for real report/evidence bundles.
+6. Long-running worker daemon for real run/trace/artifact processing.
+
+Next 20 A1 growth points:
+1. Add admin-auth route manifest parity to Go OpenAPI and public route scope docs.
+2. Add Python hosted client Bearer secret support matching TS.
+3. Add CLI bootstrap command that prints first admin one-time secret only once.
+4. Add no-side-effect-after-denial proofs for upload, trace ingest, artifact manifest, and worker enqueue.
+5. Add restart durability proof: create admin key, close repo, reopen repo, verify/list/revoke.
+6. Add concurrent rate-limit race proof against Postgres.
+7. Add RLS tenant A/B negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log`.
+8. Add audit events for API key create/revoke/rate-limit configure and quota denied.
+9. Add audit-chain verification over auth/quota events.
+10. Add self-host compose profile running Go API plus Postgres plus worker daemon.
+11. Add object storage abstraction and filesystem/S3-compatible test double for evidence bundles.
+12. Add Go worker daemon lease loop with graceful shutdown and heartbeat.
+13. Add Postgres user/session tables and OAuth identity placeholders without real provider secrets.
+14. Add GitHub OAuth callback skeleton with state/nonce/session persistence.
+15. Add Google OAuth callback skeleton with state/nonce/session persistence.
+16. Add Stripe test-mode billing ledger schema and webhook verifier skeleton.
+17. Add live-mode guardrails so live billing requires explicit env and dry-run plan.
+18. Add official API successful text mutation baseline after quota reset/plan update.
+19. Add paid image/audio/file/video calibration, one modality per audited batch after text success.
+20. Add release evidence bundle storage/readback path wired to quota/audit.

@@ -104,13 +104,18 @@ func (server *HTTPServer) handleBootstrap(writer http.ResponseWriter, request *h
 }
 
 type requestAuthContext struct {
-	TenantID string
-	APIKeyID string
+	TenantID     string
+	APIKeyID     string
+	BearerSecret string
 }
 
 func resolveRequestAuth(writer http.ResponseWriter, request *http.Request, body JSONMap, requireKey bool, tenantCandidates ...string) (requestAuthContext, bool) {
-	if stringValue(body, "api_key") != "" || strings.TrimSpace(request.Header.Get("Authorization")) != "" {
-		writeError(writer, http.StatusBadRequest, "secret_input_rejected", "local Go control plane accepts api_key_id/auth_key_id handles only, not raw API key material")
+	if stringValue(body, "api_key") != "" {
+		writeError(writer, http.StatusBadRequest, "secret_input_rejected", "local Go control plane accepts raw API key material only through Authorization: Bearer")
+		return requestAuthContext{}, false
+	}
+	bearerSecret, bearerOK := parseBearerSecret(writer, request.Header.Get("Authorization"))
+	if !bearerOK {
 		return requestAuthContext{}, false
 	}
 	headerTenant := firstNonEmpty(request.Header.Get("X-Ashr-Tenant-ID"), request.Header.Get("X-Ashr-Auth-Tenant-ID"))
@@ -121,25 +126,69 @@ func resolveRequestAuth(writer http.ResponseWriter, request *http.Request, body 
 	}
 	headerKeyID := firstNonEmpty(request.Header.Get("X-Ashr-API-Key-ID"), request.Header.Get("X-Ashr-Auth-Key-ID"))
 	requestKeyID := firstNonEmpty(stringValue(body, "api_key_id"), stringValue(body, "auth_key_id"), request.URL.Query().Get("api_key_id"), request.URL.Query().Get("auth_key_id"))
+	inferredKeyID := apiKeyIDFromLocalBearerSecret(bearerSecret)
 	if headerKeyID != "" && requestKeyID != "" && headerKeyID != requestKeyID {
 		writeError(writer, http.StatusForbidden, "api_key_mismatch", "api_key_id/auth_key_id does not match authenticated key handle")
 		return requestAuthContext{}, false
 	}
-	auth := requestAuthContext{TenantID: firstNonEmpty(headerTenant, requestTenant), APIKeyID: firstNonEmpty(headerKeyID, requestKeyID)}
-	if requireKey && auth.APIKeyID == "" {
-		writeError(writer, http.StatusUnauthorized, "authentication_required", "api_key_id/auth_key_id handle is required for protected local Go control-plane routes")
+	explicitKeyID := firstNonEmpty(headerKeyID, requestKeyID)
+	if inferredKeyID != "" && explicitKeyID != "" && inferredKeyID != explicitKeyID {
+		writeError(writer, http.StatusForbidden, "api_key_mismatch", "Authorization: Bearer credential does not match api_key_id/auth_key_id handle")
+		return requestAuthContext{}, false
+	}
+	auth := requestAuthContext{TenantID: firstNonEmpty(headerTenant, requestTenant), APIKeyID: firstNonEmpty(explicitKeyID, inferredKeyID), BearerSecret: bearerSecret}
+	if requireKey && auth.APIKeyID == "" && auth.BearerSecret == "" {
+		writeError(writer, http.StatusUnauthorized, "authentication_required", "api_key_id/auth_key_id handle or Authorization: Bearer secret is required for protected local Go control-plane routes")
 		return requestAuthContext{}, false
 	}
 	return auth, true
 }
 
 func (server *HTTPServer) preflightRequest(writer http.ResponseWriter, auth requestAuthContext, projectID, scope, operation string) bool {
+	if auth.BearerSecret != "" {
+		verified, err := server.service.VerifyAPIKeySecret(auth.TenantID, projectID, auth.APIKeyID, auth.BearerSecret, scope)
+		if err != nil {
+			writeServiceError(writer, err)
+			return false
+		}
+		if !verified.Result.Authenticated {
+			writeError(writer, http.StatusUnauthorized, "authentication_failed", "Authorization: Bearer secret did not authenticate for the required project, key, and scope")
+			return false
+		}
+		auth.APIKeyID = verified.Result.KeyID
+	}
 	_, err := server.service.PreflightAPIKey(PreflightOptions{TenantID: auth.TenantID, ProjectID: projectID, KeyID: auth.APIKeyID, Scope: scope, Operation: operation, Units: 1})
 	if err != nil {
 		writeServiceError(writer, err)
 		return false
 	}
 	return true
+}
+
+func parseBearerSecret(writer http.ResponseWriter, authorization string) (string, bool) {
+	trimmed := strings.TrimSpace(authorization)
+	if trimmed == "" {
+		return "", true
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		writeError(writer, http.StatusBadRequest, "invalid_authorization_header", "Authorization must use Bearer scheme with exactly one credential")
+		return "", false
+	}
+	return parts[1], true
+}
+
+func apiKeyIDFromLocalBearerSecret(secret string) string {
+	trimmed := strings.TrimSpace(secret)
+	if !strings.HasPrefix(trimmed, localAPIKeySecretPrefix) {
+		return ""
+	}
+	remainder := strings.TrimPrefix(trimmed, localAPIKeySecretPrefix)
+	lastUnderscore := strings.LastIndex(remainder, "_")
+	if lastUnderscore <= 0 || lastUnderscore == len(remainder)-1 {
+		return ""
+	}
+	return remainder[:lastUnderscore]
 }
 
 func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
@@ -237,34 +286,50 @@ func (server *HTTPServer) handleAPIKeys(writer http.ResponseWriter, request *htt
 	if !ok {
 		return
 	}
-	if _, ok := resolveRequestAuth(writer, request, body, false, firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))); !ok {
-		return
-	}
 	query := request.URL.Query()
 	tenantID := firstNonEmpty(query.Get("tenant_id"), stringValue(body, "tenant_id"))
+	auth, ok := resolveRequestAuth(writer, request, body, false, tenantID)
+	if !ok {
+		return
+	}
 	if request.Method == http.MethodPost && len(parts) == 0 {
+		if !server.allowBootstrapFirstAPIKey(writer, auth, tenantID, projectID, stringSliceFromAny(body["scopes"])) {
+			return
+		}
 		result, err := server.service.CreateAPIKey(tenantID, projectID, CreateAPIKeyOptions{Name: stringValue(body, "name"), Scopes: stringSliceFromAny(body["scopes"]), KeyID: stringValue(body, "key_id"), AuthKeyID: stringValue(body, "auth_key_id"), RevealSecret: boolValue(body, "reveal_secret")})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if request.Method == http.MethodGet && len(parts) == 0 {
-		result, err := server.service.ListAPIKeys(tenantID, projectID)
+		if !server.preflightRequest(writer, auth, projectID, ScopeAPIKeyRead, "api_key.list") {
+			return
+		}
+		result, err := server.service.ListAPIKeys(auth.TenantID, projectID)
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "rate-limits" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeAPIKeyRead, "api_key.rate_limit.snapshot") {
+			return
+		}
 		keyID := firstNonEmpty(query.Get("key_id"), stringValue(body, "key_id"))
-		result, err := server.service.APIKeyRateLimitSnapshot(tenantID, projectID, keyID)
+		result, err := server.service.APIKeyRateLimitSnapshot(auth.TenantID, projectID, keyID)
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "preflight" {
-		result, err := server.service.PreflightAPIKey(PreflightOptions{TenantID: tenantID, ProjectID: projectID, KeyID: firstNonEmpty(stringValue(body, "key_id"), stringValue(body, "api_key_id"), stringValue(body, "auth_key_id")), Scope: stringValue(body, "scope"), Operation: stringValue(body, "operation"), Units: intValue(body, "units")})
+		if !server.preflightRequest(writer, auth, projectID, ScopeAPIKeyPreflight, "api_key.preflight") {
+			return
+		}
+		result, err := server.service.PreflightAPIKey(PreflightOptions{TenantID: auth.TenantID, ProjectID: projectID, KeyID: firstNonEmpty(stringValue(body, "key_id"), stringValue(body, "api_key_id"), stringValue(body, "auth_key_id")), Scope: stringValue(body, "scope"), Operation: stringValue(body, "operation"), Units: intValue(body, "units")})
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "revoke" && request.Method == http.MethodPost {
-		result, err := server.service.RevokeAPIKey(tenantID, projectID, parts[0])
+		if !server.preflightRequest(writer, auth, projectID, ScopeAPIKeyWrite, "api_key.revoke") {
+			return
+		}
+		result, err := server.service.RevokeAPIKey(auth.TenantID, projectID, parts[0])
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
@@ -274,11 +339,34 @@ func (server *HTTPServer) handleAPIKeys(writer http.ResponseWriter, request *htt
 		return
 	}
 	if len(parts) == 2 && parts[1] == "rate-limit" && request.Method == http.MethodPost {
-		result, err := server.service.ConfigureAPIKeyRateLimit(tenantID, projectID, parts[0], stringValue(body, "operation"), intValue(body, "limit"))
+		if !server.preflightRequest(writer, auth, projectID, ScopeAPIKeyWrite, "api_key.rate_limit.configure") {
+			return
+		}
+		result, err := server.service.ConfigureAPIKeyRateLimit(auth.TenantID, projectID, parts[0], stringValue(body, "operation"), intValue(body, "limit"))
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 		return
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) allowBootstrapFirstAPIKey(writer http.ResponseWriter, auth requestAuthContext, tenantID, projectID string, requestedScopes []string) bool {
+	if auth.APIKeyID != "" || auth.BearerSecret != "" {
+		return server.preflightRequest(writer, auth, projectID, ScopeAPIKeyWrite, "api_key.create")
+	}
+	if !scopeAllowed(requestedScopes, ScopeAPIKeyWrite) {
+		writeError(writer, http.StatusUnauthorized, "authentication_required", "first unauthenticated API key must include api_key:write scope; later API-key creation requires admin auth")
+		return false
+	}
+	listed, err := server.service.ListAPIKeys(tenantID, projectID)
+	if err != nil {
+		writeServiceError(writer, err)
+		return false
+	}
+	if listed.Result.Count > 0 {
+		writeError(writer, http.StatusUnauthorized, "authentication_required", "API-key creation requires Authorization: Bearer admin credentials after the first bootstrap key")
+		return false
+	}
+	return true
 }
 
 func (server *HTTPServer) handleVerifyAuditChain(writer http.ResponseWriter, request *http.Request, projectID string) {
@@ -529,13 +617,13 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
 		goPublicRoute("POST", "/bootstrap", "bootstrap_project", "bootstrap"),
 		goPublicRoute("POST", "/v1/bootstrap", "bootstrap_project", "bootstrap"),
-		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth"),
-		goAdminRoute("GET", "/v1/projects/{project_id}/api-keys", "api_key.list", "auth"),
-		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/preflight", "api_key.preflight", "auth"),
-		goAdminRoute("GET", "/v1/projects/{project_id}/api-keys/rate-limits", "api_key.rate_limit.snapshot", "auth"),
-		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/verify", "api_key.verify", "auth"),
-		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/revoke", "api_key.revoke", "auth"),
-		goAdminRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "api_key.rate_limit.configure", "auth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth", ScopeAPIKeyWrite),
+		goScopedRoute("GET", "/v1/projects/{project_id}/api-keys", "api_key.list", "auth", ScopeAPIKeyRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys/preflight", "api_key.preflight", "auth", ScopeAPIKeyPreflight),
+		goScopedRoute("GET", "/v1/projects/{project_id}/api-keys/rate-limits", "api_key.rate_limit.snapshot", "auth", ScopeAPIKeyRead),
+		goPublicRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/verify", "api_key.verify", "auth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/revoke", "api_key.revoke", "auth", ScopeAPIKeyWrite),
+		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys/{key_id}/rate-limit", "api_key.rate_limit.configure", "auth", ScopeAPIKeyWrite),
 		goScopedRoute("POST", "/v1/projects/{project_id}/sdk-submit", "sdk_submit", "run", ScopeRunSubmit),
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/submit", "sdk_submit", "run", ScopeRunSubmit),
 		goScopedRoute("GET", "/v1/projects/{project_id}/usage", "usage", "billing", ScopeUsageRead),

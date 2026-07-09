@@ -217,6 +217,10 @@ export type SaaSFetchLike = (input: string | URL, init?: {
 type SaaSClientOptions = JsonRecord & {
   apiKey?: string;
   api_key?: string;
+  bearerApiKey?: string;
+  bearer_api_key?: string;
+  apiKeySecret?: string;
+  api_key_secret?: string;
   apiKeyId?: string;
   api_key_id?: string;
   authKeyId?: string;
@@ -247,10 +251,12 @@ export interface SaaSHttpTransportOptions {
   baseUrl: string;
   fetch?: SaaSFetchLike;
   headers?: Record<string, string>;
+  bearerApiKey?: string;
+  apiKeySecret?: string;
 }
 
 export interface SaaSClientTransport {
-  requestJson(method: string, path: string, body?: JsonRecord): Promise<JsonRecord>;
+  requestJson(method: string, path: string, body?: JsonRecord, options?: { headers?: Record<string, string> }): Promise<JsonRecord>;
 }
 
 export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore> = {}): SaaSControlPlaneStore {
@@ -393,6 +399,17 @@ export class SaaSControlPlaneService {
       api_key: publicApiKey(record),
       secret_value_present: false,
     };
+  }
+
+  apiKeyIdForSecret(tenantId: string, projectId: string, secret: string | undefined): string | undefined {
+    if (secret === undefined || secret.trim() === "") return undefined;
+    const hash = secretHash(secret);
+    for (const record of Object.values(this.store.api_keys)) {
+      if (record.tenant_id === tenantId && record.project_id === projectId && record.secret_hash_sha256 === hash) {
+        return String(record.key_id);
+      }
+    }
+    throw new ValidationError("api key secret verification failed");
   }
 
   configureApiKeyRateLimit(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): JsonRecord {
@@ -1107,7 +1124,7 @@ export class SaaSControlPlaneRouter {
     this.service = service;
   }
 
-  handle(method: string, path: string, body: JsonRecord = {}): SaaSRouterResponse {
+  handle(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string | string[] | undefined> } = {}): SaaSRouterResponse {
     const upperMethod = method.toUpperCase();
     const parts = path.split("/").filter(Boolean);
     try {
@@ -1124,7 +1141,9 @@ export class SaaSControlPlaneRouter {
         const projectId = parts[2];
         const tenantId = String(body.tenant_id ?? body.organization_id ?? body.tenant ?? "");
         if (!tenantId) throw new ValidationError("tenant_id is required");
-        const authKeyId = optionalString(body.auth_key_id ?? body.api_key_id);
+        const explicitAuthKeyId = optionalString(body.auth_key_id ?? body.api_key_id);
+        const bearerSecret = bearerSecretFromHeaders(options.headers);
+        const authKeyId = explicitAuthKeyId ?? this.service.apiKeyIdForSecret(tenantId, projectId, bearerSecret);
         if (upperMethod === "POST" && parts.length === 4 && parts[3] === "api-keys") {
           return { status_code: 201, body: this.service.createApiKey(tenantId, projectId, { name: String(body.name ?? "API key"), scopes: arrayOfStrings(body.scopes), keyId: optionalString(body.key_id), authKeyId, revealSecret: Boolean(body.reveal_secret) }) };
         }
@@ -1230,15 +1249,19 @@ export class SaaSHttpJsonTransport implements SaaSClientTransport {
     if (candidate === undefined) throw new ValidationError("fetch implementation is required for SaaS HTTP transport");
     this.baseUrl = String(options.baseUrl).replace(/\/+$/, "");
     this.headers = { ...(options.headers ?? {}) };
+    const bearerApiKey = options.bearerApiKey ?? options.apiKeySecret;
+    if (bearerApiKey !== undefined && bearerApiKey.trim() !== "") {
+      this.headers.Authorization = bearerAuthorizationHeader(bearerApiKey);
+    }
     this.fetchImpl = candidate;
   }
 
-  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
+  async requestJson(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string> } = {}): Promise<JsonRecord> {
     const upperMethod = method.toUpperCase();
     const url = new URL(path.startsWith("/") ? path : `/${path}`, `${this.baseUrl}/`);
     const init: { method: string; headers: Record<string, string>; body?: string } = {
       method: upperMethod,
-      headers: { accept: "application/json", ...this.headers },
+      headers: { accept: "application/json", ...this.headers, ...(options.headers ?? {}) },
     };
     if (upperMethod === "GET") {
       for (const [key, value] of Object.entries(body)) {
@@ -1547,18 +1570,18 @@ export class SaaSIngestionClient {
   readonly service: SaaSControlPlaneService;
   readonly transport?: SaaSClientTransport;
 
-  constructor(options: { service?: SaaSControlPlaneService; transport?: SaaSClientTransport; baseUrl?: string; fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}) {
+  constructor(options: { service?: SaaSControlPlaneService; transport?: SaaSClientTransport; baseUrl?: string; fetch?: SaaSFetchLike; headers?: Record<string, string>; bearerApiKey?: string; apiKeySecret?: string } = {}) {
     this.service = options.service ?? new SaaSControlPlaneService();
-    this.transport = options.transport ?? (options.baseUrl !== undefined ? new SaaSHttpJsonTransport({ baseUrl: options.baseUrl, fetch: options.fetch, headers: options.headers }) : undefined);
+    this.transport = options.transport ?? (options.baseUrl !== undefined ? new SaaSHttpJsonTransport({ baseUrl: options.baseUrl, fetch: options.fetch, headers: options.headers, bearerApiKey: options.bearerApiKey, apiKeySecret: options.apiKeySecret }) : undefined);
   }
 
-  static forBaseUrl(baseUrl: string, options: { fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}): SaaSIngestionClient {
-    return new SaaSIngestionClient({ baseUrl, fetch: options.fetch, headers: options.headers });
+  static forBaseUrl(baseUrl: string, options: { fetch?: SaaSFetchLike; headers?: Record<string, string>; bearerApiKey?: string; apiKeySecret?: string } = {}): SaaSIngestionClient {
+    return new SaaSIngestionClient({ baseUrl, fetch: options.fetch, headers: options.headers, bearerApiKey: options.bearerApiKey, apiKeySecret: options.apiKeySecret });
   }
 
-  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
-    if (this.transport !== undefined) return this.transport.requestJson(method, path, body);
-    return new SaaSControlPlaneRouter(this.service).handle(method, path, body).body;
+  async requestJson(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string> } = {}): Promise<JsonRecord> {
+    if (this.transport !== undefined) return this.transport.requestJson(method, path, body, options);
+    return new SaaSControlPlaneRouter(this.service).handle(method, path, body, options).body;
   }
 
   async healthz(): Promise<JsonRecord> {
@@ -1816,21 +1839,21 @@ export class SaaSIngestionClient {
 
   async sdkSubmitHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: clientRequiredString(options, "datasetId", "dataset_id"), agent_ref: clientRequiredString(options, "agentRef", "agent_ref"), run_id: clientString(options, "runId", "run_id"), metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: clientRequiredString(options, "datasetId", "dataset_id"), agent_ref: clientRequiredString(options, "agentRef", "agent_ref"), run_id: clientString(options, "runId", "run_id"), metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") }, clientAuthHeaders(options));
     return envelope("sdk_submit", body);
   }
 
   async uploadRunHttp(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: SaaSClientOptions & { uploadId?: string; upload_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const upload = clientUploadOptions(options);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: upload.uploadId, api_key_id: upload.apiKeyId, idempotency_key: upload.idempotencyKey, request_id: upload.requestId });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: upload.uploadId, api_key_id: upload.apiKeyId, idempotency_key: upload.idempotencyKey, request_id: upload.requestId }, clientAuthHeaders(options));
     return envelope("upload_run", body);
   }
 
   async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const trace = clientTraceOptions(options);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId }, clientAuthHeaders(options));
     return envelope("ingest_trace", body);
   }
 
@@ -1840,12 +1863,12 @@ export class SaaSIngestionClient {
   }
 
   async usageHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId }, clientAuthHeaders(options as SaaSClientOptions));
     return envelope("usage", body);
   }
 
   async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
     return envelope("quota_snapshot", body);
   }
 
@@ -1874,13 +1897,13 @@ export class SaaSIngestionClient {
     return envelope("release_evidence_verify", body);
   }
 
-  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: SaaSClientOptions & { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId }, clientAuthHeaders(options));
     return envelope("artifact_manifest", body);
   }
 
-  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: SaaSClientOptions & { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId }, clientAuthHeaders(options));
     return envelope("artifact_manifests", body);
   }
 }
@@ -2194,6 +2217,19 @@ function rejectRawApiKey(value: unknown): void { if (value !== undefined && valu
 function clientString(options: JsonRecord, ...keys: string[]): string | undefined { for (const key of keys) { const value = options[key]; if (typeof value === "string" && value.trim() !== "") return value; } return undefined; }
 function clientRequiredString(options: JsonRecord, ...keys: string[]): string { const value = clientString(options, ...keys); if (value === undefined) throw new ValidationError(`missing required option: ${keys.join("/")}`); return value; }
 function clientBool(options: JsonRecord, ...keys: string[]): boolean { for (const key of keys) { if (options[key] !== undefined) return Boolean(options[key]); } return false; }
+function bearerAuthorizationHeader(secret: string): string { return String(secret).trim().toLowerCase().startsWith("bearer ") ? String(secret).trim() : `Bearer ${String(secret).trim()}`; }
+function clientAuthHeaders(options: SaaSClientOptions): { headers?: Record<string, string> } {
+  const secret = clientString(options, "bearerApiKey", "bearer_api_key", "apiKeySecret", "api_key_secret");
+  return secret === undefined ? {} : { headers: { Authorization: bearerAuthorizationHeader(secret) } };
+}
+function bearerSecretFromHeaders(headers: Record<string, string | string[] | undefined> | undefined): string | undefined {
+  if (headers === undefined) return undefined;
+  const value = headers.Authorization ?? headers.authorization;
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return undefined;
+  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
+  return match === null ? undefined : match[1].trim();
+}
 function clientUploadOptions(options: SaaSClientOptions): { uploadId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { uploadId: clientString(options, "uploadId", "upload_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
 function clientTraceOptions(options: SaaSClientOptions): { batchId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { batchId: clientString(options, "batchId", "batch_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
 function assertPublicControlPlanePath(inputPath: string): void { const normalized = resolve(inputPath).replaceAll("\\", "/").toLowerCase(); for (const part of [".secrets", "private_refs"]) { if (normalized.includes("/" + part + "/") || normalized.endsWith("/" + part)) throw new SecretInputError("refusing to read or write control-plane state under " + part); } }
