@@ -4,9 +4,9 @@
 
 Ashr Codex Factory is a local-first reproduction and productization lab for an agent evaluation SaaS. It is organized as three connected systems:
 
-- **A1 - Execution, SDK, and ingestion core**: Python/TypeScript agent runners, trace capture, local cloud API facade, queue replay, SaaS-style control plane contracts, API calibration, quota guardrails, and redacted evidence indexing.
+- **A1 - Execution, SDK, and ingestion core**: Python/TypeScript agent runners, trace capture, local cloud API facade, queue replay, SaaS-style control plane contracts, durable Postgres backend slices, API-key guarded Go ingress, API calibration, quota guardrails, and redacted evidence indexing.
 - **A2 - Evaluation intelligence**: deterministic judges, scenario selection, failure taxonomy, release policies, judge versioning, regression candidates, commercial readiness, and result-persistence contracts.
-- **A3 - Product and release control tower**: modular dashboard, product console, SaaS admin shell, report center, hosted-report contracts, audit bundles, GitHub/PR gate payloads, redaction firewall, self-host console contracts, and exportable JSON/CSV/Markdown evidence.
+- **A3 - Product and release control tower**: modular dashboard, product console, SaaS admin shell, report center, hosted-report contracts, audit bundles, GitHub/PR gate payloads, redaction firewall, governance and billing-readiness contracts, self-host console contracts, and exportable JSON/CSV/Markdown evidence.
 
 The current repository is not a finished hosted SaaS. It is a fast-growing, test-backed product factory that already models much of the SaaS contract locally: multi-tenant shapes, SDK ingestion, release gates, audit artifacts, usage ledgers, report sharing, and admin workflows.
 
@@ -37,14 +37,22 @@ flowchart LR
 
 ## What Works Now
 
+### Latest Sync Snapshot
+
+As of the current main-sync branch, the repo has absorbed the A3 commercial growth Round 4 work and the latest A1 local SDK runner work. In plain terms: A3 now has stronger product governance, billing-readiness, denied-state, and E2E evidence surfaces; A1 now has deeper durable backend contracts for Postgres-backed worker jobs, uploads, traces, artifact manifests, quota/audit ledgers, Go ingress authentication handles, and Python/TypeScript parity evidence.
+
+The product is still local-first and contract-backed, not a hosted production SaaS. The important change is that more of the SaaS backend and commercial product workflow is now represented by tested code paths instead of only documents or fixtures.
+
 ### A1 - Execution and SaaS Ingestion
 
 - Python and TypeScript agent adapters.
 - Batch runners with timeout, failure, trace, and replay fixture output.
 - Local cloud API runtime with tenant/project/dataset/request/run records.
-- Queue worker, deterministic replay, state export, and cancellation paths.
-- Python and TypeScript SDK parity for agent inputs, media parts, run results, traces, quota checks, and local cloud workflows.
-- SaaS-style ingestion/control-plane contracts for API keys, upload/trace lifecycle, idempotency, and redacted errors.
+- Queue worker, deterministic replay, state export, cancellation paths, lease lifecycle, and dead-letter handling.
+- Durable Postgres backend slices for tenants, projects, datasets, runs, worker jobs, uploads, trace batches, artifact manifests, idempotency, quota/audit ledgers, and readback parity.
+- Go ingress surfaces with API-key authentication handles and redacted error envelopes for local SaaS-style routes.
+- Python and TypeScript SDK parity for agent inputs, media parts, run results, traces, quota checks, calibration gates, control-plane calls, and local cloud workflows.
+- SaaS-style ingestion/control-plane contracts for API keys, upload/trace lifecycle, idempotency, usage accounting, and redacted errors.
 - Hosted API calibration path with dry-run-first safety, quota gates, protected outputs, and public-safe evidence index generation.
 
 ### A2 - Evaluation Intelligence
@@ -64,6 +72,7 @@ flowchart LR
 - SaaS admin shell for login/team/API-key/usage/trust flows, kept local and plan-safe.
 - Report Center, hosted report lifecycle, share-token contracts, usage ledger, SQL migration plan, and self-host readiness contract.
 - Gate CLI with GitHub check payloads, PR comments, waiver/approval validation, generated artifact manifest, audit bundle index, bundle verification, and redaction firewall.
+- Commercial growth Round 4 contracts for governance evidence, billing-readiness, reviewer/denied-state E2E flows, and identity-safe placeholders.
 - Exportable reports in JSON, CSV, Markdown, and print-oriented dashboard views.
 
 ---
@@ -74,14 +83,14 @@ The repo currently behaves like a **local SaaS contract simulator plus evaluatio
 
 | Area | Current State | SaaS Gap |
 |---|---|---|
-| SDK ingestion | Python/TS local SDKs, cloud facade, quota and idempotency contracts | Publishable packages, versioned public API, long-running compatibility policy |
+| SDK ingestion | Python/TS local SDKs, cloud facade, quota/idempotency contracts, calibration parity evidence, and Go ingress handles | Publishable packages, versioned public API, long-running compatibility policy |
 | Multi-tenancy | Tenant/project/dataset/run models and scoped local services | Real auth, org membership, RBAC, tenant isolation enforced by a production DB/API layer |
 | Evaluation | Deterministic judges, scenario packs, release gates, regression candidates | Hosted judge service, configurable policies, semantic/LLM judge calibration at scale |
-| Storage | Fixture-backed reports, manifests, local state files, SQL migration plans | Real Postgres/object storage/queue deployment, migrations, backups, retention jobs |
-| Product UI | Modular dashboard, product console, SaaS admin shell, hosted report contracts | Real login, server-backed mutations, collaborative review workflows, production UX QA |
+| Storage | Fixture-backed reports plus expanding Postgres-backed tenants/projects/runs/jobs/uploads/traces/artifacts/usage/audit contracts | Full production Postgres/object storage/queue deployment, migrations, backups, retention jobs |
+| Product UI | Modular dashboard, product console, SaaS admin shell, hosted report contracts, governance and billing-readiness views | Real login, server-backed mutations, collaborative review workflows, production UX QA |
 | Audit/compliance | Redaction firewall, audit bundle, root hash, verifier, evidence manifests | Immutable storage, signatures, access logs, enterprise retention, SSO/SOC2-style controls |
 | Operations | Local tests and command-driven verification | CI/CD, environments, monitoring, alerts, SLOs, incident response, deployment automation |
-| Billing/usage | Usage ledger and quota contracts | Payment plans, metering pipeline, invoices, plan enforcement, admin billing UI |
+| Billing/usage | Usage ledger, quota contracts, billing-readiness evidence, and local plan-safe surfaces | Payment plans, metering pipeline, invoices, plan enforcement, admin billing UI |
 
 ---
 
@@ -189,6 +198,8 @@ services/judge/                  A2 judges, release policy, scenario selection, 
 services/report/                 A3 reports, gate CLI, product/admin/report-center services
 packages/sdk/ashr_clone/         Python SDK-style runtime and evidence helpers
 packages/ts/ashr-clone/          TypeScript SDK/runtime/probe/cloud parity package
+packages/go/ashrclone/            Go API/runtime, Postgres, auth, and local SaaS ingress slices
+packages/rust/ashr-runtime-verify/ Static runtime fixture verifier
 packages/scenarios/              A2 scenario packs
 fixtures/a2/                     A2 generated reports, readiness, policy, persistence fixtures
 fixtures/a3/                     A3 run/grade/dashboard/gate/audit fixtures
@@ -237,9 +248,9 @@ docs/evidence/private_refs/
 
 The current main branch is pushing from local factory toward hosted SaaS in this order:
 
-1. **A1** turns the runner/SDK into production ingestion and platform backend contracts.
+1. **A1** turns the runner/SDK into production ingestion and platform backend contracts, with durable Postgres and Go ingress slices now becoming the main hardening path.
 2. **A2** turns deterministic judges into a configurable evaluation intelligence service.
-3. **A3** turns local evidence into a real product workflow: release gate, reviewer workflow, report center, audit bundle, admin console, and self-host readiness.
+3. **A3** turns local evidence into a real product workflow: release gate, reviewer workflow, report center, governance/billing readiness, audit bundle, admin console, and self-host readiness.
 
 The central roadmap bus is:
 
