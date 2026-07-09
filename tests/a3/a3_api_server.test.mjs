@@ -28,6 +28,11 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.usage_ledger.schema_version, "a3.usage_ledger.v1");
     assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
     assert.equal(dashboard.release_evidence_summary.available, true);
+    assert.equal(dashboard.peer_branch_calibration.schema_version, "a3.peer_branch_calibration.v1");
+    assert.equal(dashboard.peer_branch_calibration.peer_delta_count >= 12, true);
+    assert.equal(dashboard.live_workflow_readiness.schema_version, "a3.live_workflow_readiness.v1");
+    assert.equal(dashboard.live_workflow_readiness.capability_count, 6);
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-workflow/readiness"));
 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
@@ -146,6 +151,24 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(billingReadiness.required_db_contracts.includes("billing_invoices"));
     assert.ok(billingReadiness.required_events.includes("billing.subscription_changed"));
     assert.doesNotMatch(JSON.stringify(billingReadiness), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const liveWorkflowReadiness = await getJson(`${url}/api/a3/live-workflow/readiness?source=mock`);
+    assert.equal(liveWorkflowReadiness.schema_version, "a3.live_workflow_readiness.v1");
+    assert.equal(liveWorkflowReadiness.capability_count, 6);
+    assert.ok(liveWorkflowReadiness.capabilities.some((item) => item.id === "github_pr_check_live_publishing"));
+    assert.ok(liveWorkflowReadiness.capabilities.some((item) => item.id === "report_share_link_revocable_expiring_audited"));
+    assert.equal(liveWorkflowReadiness.safety.secret_values_included, false);
+    assert.match(liveWorkflowReadiness.a1_a2_boundary, /does not modify A1/);
+    assert.doesNotMatch(JSON.stringify(liveWorkflowReadiness), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const peerCalibration = await getJson(`${url}/api/a3/peer-branches/calibration?source=mock&role=auditor`);
+    assert.equal(peerCalibration.schema_version, "a3.peer_branch_calibration.v1");
+    assert.equal(peerCalibration.peer_delta_count >= 12, true);
+    assert.equal(peerCalibration.blocking_delta_count >= 1, true);
+    assert.equal(peerCalibration.growth_point_count >= 20, true);
+    assert.equal(peerCalibration.tenant_scope.organization_id, "org-local");
+    assert.match(peerCalibration.a1_a2_boundary, /does not modify A1/);
+    assert.doesNotMatch(JSON.stringify(peerCalibration), /Bearer|sk-|ghp_|github_pat_|owner@example.com|C:\\Users/);
 
     const admin = await getJson(`${url}/api/a3/admin/console?source=mock`);
     assert.equal(admin.login.user_identity, "[REDACTED]");

@@ -170,11 +170,19 @@ test("A3 source artifacts include optional G3 A1/A2 calibration inputs when pres
         a2_judge_results: 2
       },
       metadata: { public_safe: true }
+    },
+    peerBranchCalibration: {
+      schema_version: "a3.peer_branch_calibration.v1",
+      peer_delta_count: 2,
+      top_deltas: [
+        { delta_id: "peer-a1", source_branch: "origin/a1", source_file: "docs/a1/evidence.json" },
+        { delta_id: "peer-a2", source_branch: "origin/a2", source_file: "docs/a2/evidence.json" }
+      ]
     }
   });
 
   const byType = Object.fromEntries(sourceArtifacts.artifacts.map((artifact) => [artifact.artifact_type, artifact]));
-  assert.equal(sourceArtifacts.source_artifact_count, 12);
+  assert.equal(sourceArtifacts.source_artifact_count, 13);
   assert.equal(byType.a1_official_api_readonly_manifest.record_count, 4);
   assert.equal(byType.a1_official_api_mutating_index.record_count, 3);
   assert.equal(byType.a1_official_api_paid_media_summary.source_lane, "A1");
@@ -182,5 +190,7 @@ test("A3 source artifacts include optional G3 A1/A2 calibration inputs when pres
   assert.equal(byType.a2_release_unblock_checklist.record_count, 1);
   assert.equal(byType.a2_cross_lane_security_context.record_count, 1);
   assert.equal(byType.a2_sql_store_report.record_count, 3);
+  assert.equal(byType.a3_peer_branch_calibration.source_lane, "A3");
+  assert.equal(byType.a3_peer_branch_calibration.record_count, 2);
   assert.doesNotMatch(JSON.stringify(sourceArtifacts), /should-not-leak|Bearer|Cookie|owner@example\.com|sk-[A-Za-z0-9]/);
 });

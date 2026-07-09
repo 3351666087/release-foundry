@@ -522,6 +522,8 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /fetchA3DashboardSnapshot/);
   assert.match(html, /fetchA3UsageLedger/);
   assert.match(html, /fetchA3BillingReadiness/);
+  assert.match(html, /fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /fetchA3PeerBranchCalibration/);
   assert.match(html, /isA3ApiSource\(source\)/);
   assert.match(html, /renderSaasRuntime\(\)/);
   assert.match(html, /db_migrations/);
@@ -544,6 +546,8 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/artifacts\/registry/);
   assert.match(html, /GET \/api\/a3\/usage\/ledger/);
   assert.match(html, /GET \/api\/a3\/billing\/readiness/);
+  assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
+  assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
   assert.match(html, /function hostedReportRow\(report\)/);
   assert.match(html, /function revokeHostedReport\(report\)/);
   assert.match(html, /function refreshReportEvidence\(\)/);
@@ -555,6 +559,48 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
   assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+});
+
+test("A3 dashboard wires live workflow readiness for GitHub, review, billing, and hosted reports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="live-workflow-readiness"/);
+  assert.match(html, /Live Workflow Readiness/);
+  assertNavigationTarget(html, "#live-workflow-readiness");
+  assert.match(html, /liveWorkflowReadiness: \{\}/);
+  assert.match(html, /buildA3LiveWorkflowReadiness/);
+  assert.match(html, /fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /function refreshLiveWorkflowReadiness\(\)/);
+  assert.match(html, /function renderLiveWorkflowReadiness\(\)/);
+  assert.match(html, /state\.liveWorkflowReadiness = await fetchA3LiveWorkflowReadiness/);
+  assert.match(html, /live_workflow_readiness/);
+  assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
+  assert.match(html, /GitHub, reviewer, billing, and hosted-report readiness/);
+  assert.match(html, /human records/);
+  assert.match(html, /need live backend/);
+});
+
+test("A3 dashboard wires peer branch calibration into console and exports", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="peer-branch-calibration"/);
+  assert.match(html, /Peer Branch Calibration/);
+  assert.match(html, /id="peer-branch-status"/);
+  assert.match(html, /id="peer-branch-body"/);
+  assertNavigationTarget(html, "#peer-branch-calibration");
+  assert.match(html, /Peer branches/);
+  assert.match(html, /Peer Branches/);
+  assert.match(html, /peerBranchCalibration: \{\}/);
+  assert.match(html, /summarizeA3PeerBranchCalibration/);
+  assert.match(html, /function renderPeerBranchCalibration\(\)/);
+  assert.match(html, /state\.peerBranchCalibration = await loadOptionalJson\("\.\.\/\.\.\/fixtures\/a3\/p3\/a3_peer_branch_calibration\.redacted\.json"\)/);
+  assert.match(html, /state\.peerBranchCalibration = await fetchA3PeerBranchCalibration/);
+  assert.match(html, /peer_branch_calibration/);
+  assert.match(html, /a3_peer_branch_calibration\.redacted\.json/);
+  assert.match(html, /state\.peerBranchCalibration/);
+  assert.match(html, /Peer Branch Calibration", `\$\{peerBranchCalibration\.status\}/);
+  assert.match(html, /A1\/A2 peer delta/);
+  assert.match(html, /does not modify A1/);
 });
 
 test("A3 dashboard wires release evidence publish and verification display", async () => {

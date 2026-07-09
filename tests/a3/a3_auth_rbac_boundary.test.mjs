@@ -83,7 +83,8 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
     "submit_admin_action",
     "capture_release_readback",
     "read_event_outbox",
-    "read_schema_drift"
+    "read_schema_drift",
+    "read_peer_branch_calibration"
   ]) {
     assert.ok(operations[operation], `${operation} should be covered by RBAC policy`);
     assert.equal(operations[operation].denied_state_required, true);
@@ -94,6 +95,7 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   assert.deepEqual(operations.submit_review_approval.roles_allowed, ["owner", "reviewer"]);
   assert.deepEqual(operations.read_event_outbox.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
   assert.deepEqual(operations.read_schema_drift.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
+  assert.deepEqual(operations.read_peer_branch_calibration.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).allowed, false);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("plan_admin_action", { role: "viewer" }).allowed, false);

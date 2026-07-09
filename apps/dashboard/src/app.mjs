@@ -42,6 +42,8 @@ import {
   fetchA3SchemaDriftRadar,
   fetchA3UsageLedger,
   fetchA3BillingReadiness,
+  fetchA3LiveWorkflowReadiness,
+  fetchA3PeerBranchCalibration,
   planA3AdminAction,
   submitA3AdminAction,
   submitA3ReviewWaiver,
@@ -58,6 +60,9 @@ import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mj
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "../../../services/report/a3_artifact_registry.mjs";
+import { buildA3BillingReadiness } from "../../../services/report/a3_billing_readiness.mjs";
+import { summarizeA3PeerBranchCalibration } from "../../../services/report/a3_peer_branch_calibration.mjs";
+import { buildA3LiveWorkflowReadiness } from "../../../services/report/a3_live_workflow_readiness.mjs";
 import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
@@ -85,9 +90,11 @@ const state = {
   productConsole: {},
   usageLedger: {},
   billingReadiness: {},
+  liveWorkflowReadiness: {},
   reportCenter: {},
   artifactRegistry: {},
   schemaDriftRadar: {},
+  peerBranchCalibration: {},
   githubPublishEvidence: {},
   reviewWorkflow: {},
   releaseEvidence: {},
@@ -1473,6 +1480,8 @@ function renderReportCenter() {
   const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
   const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
+  const peerBranchCalibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration);
+  const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
   const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
   const regressionFactory = summarizeRegressionFactory(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
@@ -1487,16 +1496,22 @@ function renderReportCenter() {
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
     reportTile("Markdown", "Human-readable release-gate and war-room report with product console onboarding/audit state, SaaS admin guardrails, incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
     reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
   ];
-  if (releaseEvidence.available) {
-    tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}, readbacks ${releaseEvidence.readback_record_count || 0} (${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed).`));
-  }
+    if (releaseEvidence.available) {
+      tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}, readbacks ${releaseEvidence.readback_record_count || 0} (${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed).`));
+    }
+    if (peerBranchCalibration.available) {
+      tiles.push(reportTile("Peer Branch Calibration", `${peerBranchCalibration.status}: ${peerBranchCalibration.peer_delta_count} A1/A2 peer delta(s), ${peerBranchCalibration.blocking_delta_count} blocking, ${peerBranchCalibration.growth_point_count} growth point(s).`));
+    }
+    if (liveWorkflowReadiness.schema_version) {
+      tiles.push(reportTile("Live Workflow Readiness", `${liveWorkflowReadiness.status}: ${liveWorkflowReadiness.ready_capability_count || 0}/${liveWorkflowReadiness.capability_count || 0} ready, ${liveWorkflowReadiness.human_action_count || 0} human record(s), ${liveWorkflowReadiness.needs_backend_or_credentials_count || 0} need live backend/credentials.`));
+    }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
     tiles.push(...hostedReports.map(hostedReportRow));
@@ -2462,7 +2477,8 @@ function exportReport(format) {
       state.artifactRegistry,
       state.reviewWorkflow,
       state.releaseEvidence,
-      state.githubPublishEvidence
+      state.githubPublishEvidence,
+      state.peerBranchCalibration
     ), null, 2), "application/json");
     return;
   }
@@ -2495,7 +2511,8 @@ function exportReport(format) {
     },
     state.artifactRegistry,
     state.releaseEvidence,
-    state.githubPublishEvidence
+    state.githubPublishEvidence,
+    state.peerBranchCalibration
   ), "text/markdown");
 }
 
@@ -2687,12 +2704,22 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.liveWorkflowReadiness = await fetchA3LiveWorkflowReadiness({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.peerBranchCalibration = await fetchA3PeerBranchCalibration({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
   state.saasRuntime.usage_ledger = state.usageLedger;
   state.saasRuntime.billing_readiness = state.billingReadiness;
   renderReportCenter();
   renderProductConsole();
   renderReviewerWorkflowBoard();
   renderReleaseEvidenceSummary();
+  renderLiveWorkflowReadiness();
+  renderPeerBranchCalibration();
   renderSaasRuntime();
   renderPrintReport();
 }
@@ -2740,8 +2767,10 @@ function applyApiDashboardPayload(payload) {
   state.productConsole = payload.product_console || {};
   state.usageLedger = payload.usage_ledger || {};
   state.billingReadiness = payload.billing_readiness || {};
+  state.liveWorkflowReadiness = payload.live_workflow_readiness || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
+  state.peerBranchCalibration = payload.peer_branch_calibration || {};
   state.reviewWorkflow = payload.review_workflow || {};
   state.releaseEvidenceReadbacks = releaseEvidenceReadbacks;
   state.releaseEvidence = {
@@ -2759,6 +2788,7 @@ function applyApiDashboardPayload(payload) {
     source: payload.source,
     source_label: payload.source_label,
     summary: payload.summary,
+    event_outbox: payload.event_outbox || {},
     usage_ledger: payload.usage_ledger
       || state.usageLedger,
     billing_readiness: payload.billing_readiness
@@ -2790,6 +2820,8 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/review/workflow",
         "GET /api/a3/usage/ledger",
         "GET /api/a3/billing/readiness",
+        "GET /api/a3/live-workflow/readiness",
+        "GET /api/a3/peer-branches/calibration",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
         "GET /api/a3/reports/center",
@@ -2845,6 +2877,12 @@ function refreshLocalUsageLedger() {
       { meter: "media_evidence_cases", quantity: summary.mediaEvidenceCases }
     ]
   };
+  state.billingReadiness = buildA3BillingReadiness({
+    usageLedger: state.usageLedger,
+    adminConsole: state.saasAdmin
+  }, {
+    source: state.source
+  });
   state.saasRuntime.usage_ledger = state.usageLedger;
   state.saasRuntime.billing_readiness = state.billingReadiness;
 }
@@ -2989,6 +3027,74 @@ function renderSchemaDriftRadar() {
   `;
 }
 
+function renderPeerBranchCalibration() {
+  const calibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration || {});
+  const statusBadge = $("peer-branch-status");
+  statusBadge.textContent = calibration.status || "watching";
+  statusBadge.className = `badge ${calibration.status === "ready_to_consume" ? "pass" : calibration.status === "needs_a3_action" || calibration.status === "unsafe" ? "fail" : "warn"}`;
+  $("peer-branch-body").innerHTML = `
+    <div class="caption">${escapeHtml(calibration.recommendation)}</div>
+    <div class="health-grid">
+      ${healthTile(calibration.peer_branch_count || 0, "branches")}
+      ${healthTile(calibration.peer_delta_count || 0, "peer deltas")}
+      ${healthTile(calibration.blocking_delta_count || 0, "blocking")}
+      ${healthTile(calibration.growth_point_count || 0, "growth points")}
+    </div>
+    ${renderReportTable(["Delta", "Lane", "Surface", "Risk"], (calibration.top_deltas || []).slice(0, 6).map((item) => [
+      item.contract || item.delta_id,
+      item.owner_lane,
+      item.a3_surface,
+      item.risk_level
+    ]), "No peer branch deltas are loaded.")}
+    ${renderReportTable(["Priority", "Surface", "Action"], (calibration.action_items || []).slice(0, 5).map((item) => [
+      item.priority,
+      item.surface,
+      item.action
+    ]), "No peer branch actions are pending.")}
+    <div class="caption">A1/A2 peer delta evidence is downstream only; A3 does not modify A1 runtime/auth/billing or A2 judge/release semantics.</div>
+    <div class="caption">Boundary: ${escapeHtml(calibration.a1_a2_boundary)}</div>
+  `;
+}
+
+function refreshLiveWorkflowReadiness() {
+  state.liveWorkflowReadiness = buildA3LiveWorkflowReadiness({
+    source: state.source,
+    releaseEvidence: state.releaseEvidence,
+    reviewWorkflow: state.reviewWorkflow,
+    usageLedger: state.usageLedger,
+    billingReadiness: state.billingReadiness,
+    reportCenter: state.reportCenter,
+    saasAdmin: state.saasAdmin,
+    eventOutbox: state.saasRuntime?.event_outbox || {}
+  }, {
+    source: state.source
+  });
+}
+
+function renderLiveWorkflowReadiness() {
+  const readiness = state.liveWorkflowReadiness || {};
+  const statusBadge = $("live-workflow-status");
+  statusBadge.textContent = readiness.status || "checking";
+  statusBadge.className = `badge ${readiness.status === "live_evidence_observed" ? "pass" : readiness.status === "contract_ready_needs_live_credentials" ? "warn" : "neutral"}`;
+  const capabilities = Array.isArray(readiness.capabilities) ? readiness.capabilities : [];
+  $("live-workflow-body").innerHTML = `
+    <div class="caption">${escapeHtml(readiness.commercial_value || "Live workflow readiness is not attached.")}</div>
+    <div class="health-grid">
+      ${healthTile(readiness.ready_capability_count || 0, "ready capabilities")}
+      ${healthTile(readiness.needs_backend_or_credentials_count || 0, "need live backend")}
+      ${healthTile(readiness.human_action_count || 0, "human records")}
+      ${healthTile(readiness.audit_backed_count || 0, "audit backed")}
+    </div>
+    ${renderReportTable(["Next capability", "Status", "Dashboard value"], capabilities.map((item) => [
+      item.label,
+      item.status,
+      item.dashboard_value
+    ]), "No live workflow readiness capabilities are loaded.")}
+    ${renderReportTable(["Next action"], (readiness.next_actions || []).map((item) => [item]), "No live workflow next actions are pending.")}
+    <div class="caption">Boundary: ${escapeHtml(readiness.a1_a2_boundary || "A3 keeps live workflow evidence downstream of A1/A2 contracts.")}</div>
+  `;
+}
+
 function refreshLocalProductConsole() {
   state.productConsole = buildA3ProductConsole({
     source: state.source,
@@ -3038,8 +3144,36 @@ async function loadDataSource(source) {
         }
       };
     }
-    state.usageLedger = await fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() });
-    state.billingReadiness = await fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() });
+    try {
+      state.peerBranchCalibration = await fetchA3PeerBranchCalibration({ source, baseUrl: getA3ApiBaseUrl() });
+    } catch (error) {
+      state.peerBranchCalibration = {
+        schema_version: "a3.peer_branch_calibration.v1",
+        source: "api_error",
+        peer_deltas: [],
+        growth_points: [{
+          id: "PBC-API-ERROR",
+          title: error.message,
+          surface: "api_platform",
+          expected_artifact: "peer branch calibration API error",
+          money_grade_reason: "A3 should fail visible when peer calibration cannot load."
+        }]
+      };
+    }
+    const [usageLedgerResult, billingReadinessResult, liveWorkflowResult] = await Promise.allSettled([
+      fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() }),
+      fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
+      fetchA3LiveWorkflowReadiness({ source, baseUrl: getA3ApiBaseUrl() })
+    ]);
+    if (usageLedgerResult.status === "fulfilled") {
+      state.usageLedger = usageLedgerResult.value;
+    }
+    if (billingReadinessResult.status === "fulfilled") {
+      state.billingReadiness = billingReadinessResult.value;
+    }
+    if (liveWorkflowResult.status === "fulfilled") {
+      state.liveWorkflowReadiness = liveWorkflowResult.value;
+    }
     state.saasRuntime.usage_ledger = state.usageLedger;
     state.saasRuntime.billing_readiness = state.billingReadiness;
   } else if (source === "p3-media") {
@@ -3099,12 +3233,14 @@ async function loadDataSource(source) {
     state.resultPersistence = await loadOptionalJson("../../fixtures/a2/results/a2_result_persistence_manifest.json");
     state.releaseUnblockChecklist = await loadOptionalJson("../../fixtures/a2/results/a2_release_unblock_checklist.json");
     state.releaseGate = await loadOptionalJson("../../fixtures/a2/results/a2_release_gate_report.json");
+    state.peerBranchCalibration = await loadOptionalJson("../../fixtures/a3/p3/a3_peer_branch_calibration.redacted.json");
     state.releaseEvidence = await loadReleaseEvidenceFixtures();
     state.githubPublishEvidence = await loadGithubPublishEvidenceFixtures();
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
     refreshLocalArtifactRegistry();
+    refreshLiveWorkflowReadiness();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -3128,6 +3264,8 @@ async function loadDataSource(source) {
   renderSaasAdmin();
   renderEnterpriseReadiness();
   renderSchemaDriftRadar();
+  renderPeerBranchCalibration();
+  renderLiveWorkflowReadiness();
   renderProductConsole();
   renderCoverageHealth();
   renderReleaseGate();
@@ -3184,6 +3322,8 @@ function resetCalibrationState() {
   state.artifactRegistry = {};
   state.reviewWorkflow = {};
   state.billingReadiness = {};
+  state.liveWorkflowReadiness = {};
+  state.peerBranchCalibration = {};
   state.releaseEvidence = {};
   state.releaseEvidenceReadbacks = {};
   state.githubPublishEvidence = {};

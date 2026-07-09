@@ -5402,3 +5402,72 @@ Safety:
   prefixes only.
 - It does not display raw schemas, API keys, cookies, account details, private
   evidence, or signed URLs.
+
+## 2026-07-09 - Peer Branch and Live Workflow Readiness
+
+Goal: continue A3 commercial SaaS growth under
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` by keeping A3 aligned with A1/A2
+peer branches and by turning the next six live workflow items into one visible
+dashboard/API contract.
+
+Changed:
+
+- Added `services/report/a3_peer_branch_calibration.mjs`.
+- Added `fixtures/a3/p3/a3_peer_branch_calibration.redacted.json`.
+- Added `GET /api/a3/peer-branches/calibration` and dashboard panel
+  `#peer-branch-calibration`.
+- Made peer branch calibration idempotent so both raw fixtures and API summaries
+  preserve peer delta counts, blocking counts, and action items.
+- Added peer calibration to source-artifact hash coverage as
+  `a3_peer_branch_calibration`.
+- Added `services/report/a3_live_workflow_readiness.mjs`.
+- Added `a3.live_workflow_readiness.v1` and
+  `GET /api/a3/live-workflow/readiness`.
+- Added dashboard panel `#live-workflow-readiness` for:
+  GitHub PR check publishing, PR comment publishing, approve/deny/waiver review,
+  human operation records, usage/billing read state, and share-link
+  revoke/expiry/audit lifecycle.
+- Added documentation:
+  - `docs/a3/p3_growth_auditor_peer_branch_calibration_2026_07_09.md`
+  - `docs/a3/p3_live_workflow_readiness_2026_07_09.md`
+- Added/updated tests:
+  - `tests/a3/a3_peer_branch_calibration.test.mjs`
+  - `tests/a3/a3_live_workflow_readiness.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+  - `tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`
+
+Validation so far:
+
+- `node --test tests\a3\a3_live_workflow_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_peer_branch_calibration.test.mjs tests\a3\a3_tenant_event_source_artifact_contract.test.mjs`
+- Focused result: 45 tests passed, 0 failed.
+- `node --test tests\a3\*.mjs`
+- Full A3 result: 249 tests passed, 0 failed.
+- `npm.cmd run test:e2e`
+- Playwright E2E result: 9 tests passed, 0 failed.
+- `python scripts\cl_guard.py commercial`
+- Commercial CL result: passed, 0 blockers, 0 advisories.
+- `python scripts\cl_guard.py hygiene`
+- Hygiene CL result: passed, no findings.
+- `git diff --check`
+- Whitespace result: passed.
+- `git check-ignore -v .env.local node_modules docs\screenshots\playwright-results`
+- Ignore result: `.env.local`, `node_modules`, and Playwright result artifacts are ignored.
+
+A1/A2 calibration:
+
+- A3 reads A1/A2 PR deltas as downstream readiness evidence only.
+- A3 does not change A1 billing/auth/runner behavior or A2 judge/release-policy
+  semantics.
+- The live workflow readiness card explicitly separates local contracts from
+  future live GitHub, hosted auth, billing provider, and durable DB work.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No real billing, hosted auth, team invite, API-key rotation, Trust publish,
+  branch-protection mutation, or cloud mutation.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.

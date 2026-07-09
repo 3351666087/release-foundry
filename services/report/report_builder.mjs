@@ -3,6 +3,7 @@
   sanitizeCsvCellValue,
   summarizeRedactionResults
 } from "./export_redaction_firewall.mjs";
+import { summarizeA3PeerBranchCalibration } from "./a3_peer_branch_calibration.mjs";
 
 export function normalizeScore(score) {
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -4957,7 +4958,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5014,6 +5015,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const artifactRegistry = summarizeArtifactRegistryExport(artifactRegistryFixture);
   const releaseEvidence = summarizeReleaseEvidenceSummary(releaseEvidenceFixture);
   const githubPublishEvidence = summarizeGithubPublishEvidence(githubPublishEvidenceFixture);
+  const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5096,6 +5098,27 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Maintainer approval required: ${githubPublishEvidence.maintainer_approval_required ? "yes" : "no"}`,
       ""
     );
+  }
+
+  if (peerBranchCalibration.available) {
+    lines.push(
+      "## Peer Branch Calibration",
+      "",
+      `- Status: ${peerBranchCalibration.status}`,
+      `- Peer branches: ${peerBranchCalibration.peer_branch_count}`,
+      `- Peer deltas: ${peerBranchCalibration.peer_delta_count}`,
+      `- A1/A2 peer delta evidence: ${peerBranchCalibration.peer_delta_count} downstream contract change(s) observed before merge.`,
+      `- Blocking deltas: ${peerBranchCalibration.blocking_delta_count}`,
+      `- Ready deltas: ${peerBranchCalibration.ready_delta_count}`,
+      `- Growth points: ${peerBranchCalibration.growth_point_count}`,
+      `- Boundary: ${peerBranchCalibration.a1_a2_boundary}`,
+      `- Commercial value: ${peerBranchCalibration.commercial_value}`,
+      ""
+    );
+    for (const item of peerBranchCalibration.action_items.slice(0, 5)) {
+      lines.push(`- ${item.priority} ${item.surface}: ${item.action} (${item.evidence_ref})`);
+    }
+    lines.push("");
   }
 
   if (productConsole.available) {
@@ -5878,7 +5901,7 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5928,6 +5951,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
+    peer_branch_calibration: summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

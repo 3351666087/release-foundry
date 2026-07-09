@@ -99,8 +99,29 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/live-workflow/readiness") {
+        return sendJson(response, 200, await store.getLiveWorkflowReadiness({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/commercial-api/contract") {
         return sendJson(response, 200, await store.getCommercialApiContract({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/peer-branches/calibration") {
+        const authz = authorizeRequest(request, url, "read_peer_branch_calibration");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getPeerBranchCalibration({
           source: sourceFrom(url),
           organizationId: url.searchParams.get("organization_id") || undefined,
           projectId: url.searchParams.get("project_id") || undefined,

@@ -618,6 +618,11 @@
 - [x] Add optional A3 JSON/Markdown consumers for A2 cross-lane security context.
 - [x] Add optional A3 JSON/Markdown consumers and source-artifact hashing for A2 SQL store reports.
 - [x] Surface the A1/A2 schema drift radar in the dashboard with API-backed and static-safe states.
+- [x] Add A3 peer branch calibration for A1/A2 draft PR deltas with API/dashboard/report/source-artifact coverage.
+- [x] Add `GET /api/a3/peer-branches/calibration` with redacted downstream-only A1/A2 boundary.
+- [x] Add `a3.live_workflow_readiness.v1` for GitHub check publishing, PR comment publishing, review decisions, human operation records, usage/billing reads, and share-link lifecycle.
+- [x] Add `GET /api/a3/live-workflow/readiness` and dashboard `Live Workflow Readiness` panel.
+- [x] Verify peer branch and live workflow readiness with focused Node tests: 45 pass, 0 fail.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

@@ -3554,3 +3554,67 @@ Safety boundary:
   cloud mutation.
 - Actor identity is represented as `actor_hash`; raw email/token/cookie/key
   values are not returned.
+
+## 2026-07-09 - Peer Branch and Live Workflow Readiness Round
+
+Goal: consume A1/A2 peer-branch contract changes before merge and turn the team
+lead's next six commercial workflow items into a visible A3 readiness contract.
+
+Implemented:
+
+- `a3.peer_branch_calibration.v1`
+- `GET /api/a3/peer-branches/calibration`
+- dashboard `Peer Branch Calibration`
+- source-artifact hash row `a3_peer_branch_calibration`
+- `a3.live_workflow_readiness.v1`
+- `GET /api/a3/live-workflow/readiness`
+- dashboard `Live Workflow Readiness`
+- static and API-backed dashboard wiring
+- docs:
+  - `docs/a3/p3_growth_auditor_peer_branch_calibration_2026_07_09.md`
+  - `docs/a3/p3_live_workflow_readiness_2026_07_09.md`
+
+The live readiness contract covers:
+
+- GitHub PR check live publishing
+- PR comment live publishing
+- reviewer approve / deny / waiver workflow
+- dashboard human operation records
+- billing/admin read-only usage and billing state
+- hosted report share-link revoke, expiry, and audit lifecycle
+
+A1/A2 calibration:
+
+- A1 remains owner of runner, auth, API gateway, usage ledger, billing provider,
+  quota enforcement, and live GitHub/CI credentials.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 consumes A1/A2 outputs and peer deltas as downstream dashboard/report/API
+  evidence only.
+
+Verification:
+
+```text
+node --test tests\a3\a3_live_workflow_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_peer_branch_calibration.test.mjs tests\a3\a3_tenant_event_source_artifact_contract.test.mjs
+```
+
+Result:
+
+- Focused round: 45 pass, 0 fail.
+- Full A3 Node suite: 249 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.

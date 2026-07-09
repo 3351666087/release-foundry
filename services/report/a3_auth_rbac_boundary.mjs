@@ -159,6 +159,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["RunResult", "TraceEvent", "Observation", "ToolCall schemas"],
     a2: ["GradeResult", "ReleaseGate", "result persistence schemas"]
   }),
+  operation("read_peer_branch_calibration", "GET /api/a3/peer-branches/calibration", "audit:read", "read_only", {
+    event: "peer_branch_calibration.read",
+    resourceType: "a1_a2_peer_branch_calibration",
+    a1: ["billing ledger", "route parity", "quota", "API key metadata", "evidence bundles"],
+    a2: ["cross-lane security context", "release unblock checklist", "SQL store report", "scenario backlog"]
+  }),
   operation("read_usage", "GET /api/a3/usage/ledger", "usage:read", "read_only", {
     event: "usage.read",
     resourceType: "usage_ledger",

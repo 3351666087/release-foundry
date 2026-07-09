@@ -14,6 +14,7 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
   const releaseUnblockChecklist = snapshot.releaseUnblockChecklist || snapshot.release_unblock_checklist || {};
   const crossLaneSecurityContext = snapshot.crossLaneSecurityContext || snapshot.cross_lane_security_context || {};
   const sqlStoreReport = snapshot.sqlStoreReport || snapshot.sql_store_report || {};
+  const peerBranchCalibration = snapshot.peerBranchCalibration || snapshot.peer_branch_calibration || {};
   const officialReadonlyManifest = snapshot.a1OfficialApiReadonlyManifest
     || snapshot.a1_official_api_readonly_manifest
     || evidenceReadiness.a1_official_api_readonly_manifest
@@ -119,6 +120,17 @@ export function buildA3SourceArtifacts(snapshot = {}, options = {}) {
       tenantScope,
       recordCount: Object.values(sqlStoreReport.table_counts || {}).reduce((sum, value) => sum + (Number(value) || 0), 0) || 1,
       requiredBy: ["db_backed_reports", "failure_analytics", "audit_export"]
+    }));
+  }
+  if (hasPayload(peerBranchCalibration)) {
+    artifacts.push(sourceArtifact("a3_peer_branch_calibration", "A3", ["PeerBranchCalibration"], peerBranchCalibration, {
+      source,
+      tenantScope,
+      recordCount: peerBranchCalibration.peer_delta_count
+        || (Array.isArray(peerBranchCalibration.peer_deltas) ? peerBranchCalibration.peer_deltas.length : 0)
+        || (Array.isArray(peerBranchCalibration.top_deltas) ? peerBranchCalibration.top_deltas.length : 0)
+        || 1,
+      requiredBy: ["peer_branch_calibration", "report_export", "artifact_registry", "audit_export"]
     }));
   }
 

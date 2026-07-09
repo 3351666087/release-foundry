@@ -55,6 +55,7 @@ export const primaryAreas = [
     meta: "access",
     children: [
       { href: "#saas-admin", label: "Login / team" },
+      { href: "#live-workflow-readiness", label: "Live workflow" },
       { href: "#cloud-shell", label: "API keys" },
       { href: "#saas-runtime", label: "Usage / quota" },
       { href: "#reviewer-workflow", label: "Reviewer workflow" }
@@ -67,6 +68,7 @@ export const primaryAreas = [
     children: [
       { href: "#enterprise-readiness", label: "Enterprise posture" },
       { href: "#schema-drift-radar", label: "Contract radar" },
+      { href: "#peer-branch-calibration", label: "Peer branches" },
       { href: "#release-gate", label: "Release gate" },
       { href: "#pr-gate", label: "PR gate" },
       { href: "#war-room", label: "War room" }
@@ -122,10 +124,12 @@ export const workspaceRailGroups = [
     label: "Platform",
     links: [
       { href: "#saas-runtime", label: "SaaS Runtime" },
+      { href: "#live-workflow-readiness", label: "Live Workflow" },
       { href: "#product-console", label: "Product Console" },
       { href: "#saas-admin", label: "SaaS Admin" },
       { href: "#enterprise-readiness", label: "Enterprise" },
       { href: "#schema-drift-radar", label: "Contracts" },
+      { href: "#peer-branch-calibration", label: "Peer Branches" },
       { href: "#cloud-shell", label: "Cloud Shell" }
     ]
   },

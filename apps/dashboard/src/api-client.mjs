@@ -96,6 +96,30 @@ export async function fetchA3BillingReadiness(options = {}) {
   return response.json();
 }
 
+export async function fetchA3LiveWorkflowReadiness(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/live-workflow/readiness?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API live workflow readiness load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchA3PeerBranchCalibration(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/peer-branches/calibration?source=${encodeURIComponent(source)}`, {
+    headers: {
+      "x-a3-role": options.role || "auditor"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API peer branch calibration load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchA3SchemaDriftRadar(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const response = await fetch(`${baseUrl}/api/a3/a1-a2/schema-drift`, {
