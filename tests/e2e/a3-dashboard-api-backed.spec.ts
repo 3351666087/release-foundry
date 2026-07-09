@@ -11,9 +11,14 @@ test.describe("A3 API-backed dashboard E2E", () => {
       response.url().includes("/api/a3/dashboard")
       && response.request().method() === "GET"
     ));
+    const schemaDriftResponse = page.waitForResponse((response) => (
+      response.url().includes("/api/a3/a1-a2/schema-drift")
+      && response.request().method() === "GET"
+    ));
 
     await page.goto(apiBackedPath);
     await expect((await dashboardResponse).status()).toBe(200);
+    await expect((await schemaDriftResponse).status()).toBe(200);
 
     await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
     await expect(page.locator("#metric-cases")).toHaveText("32");
@@ -40,6 +45,12 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(reviewerWorkflow).toContainText("Reviewer Workflow");
     await expect(reviewerWorkflow).toContainText("A1 trace");
     await expect(reviewerWorkflow).toContainText("A2 judge evidence");
+
+    const contractRadar = section(page, "#schema-drift-radar");
+    await expect(contractRadar).toContainText("A1/A2 Contract Radar");
+    await expect(contractRadar).toContainText("compatible");
+    await expect(contractRadar).toContainText("a1_run_result");
+    await expect(contractRadar).toContainText("raw schema payload not embedded");
 
     expect(consoleErrors, "API-backed dashboard should not emit browser console errors").toEqual([]);
   });

@@ -39,6 +39,7 @@ import {
   fetchA3ProductConsole,
   fetchA3ReportCenter,
   fetchA3ReviewWorkflow,
+  fetchA3SchemaDriftRadar,
   planA3AdminAction,
   submitA3AdminAction,
   revokeShareableA3Report,
@@ -80,6 +81,7 @@ const state = {
   usageLedger: {},
   reportCenter: {},
   artifactRegistry: {},
+  schemaDriftRadar: {},
   githubPublishEvidence: {},
   reviewWorkflow: {},
   releaseEvidence: {},
@@ -2794,6 +2796,31 @@ function renderEnterpriseReadiness() {
   renderEnterpriseReadinessPanel($("enterprise-readiness-body"), state.enterpriseReadiness);
 }
 
+function renderSchemaDriftRadar() {
+  const radar = state.schemaDriftRadar || {};
+  const status = radar.status || "not_attached";
+  const statusBadge = $("schema-drift-status");
+  statusBadge.textContent = status;
+  statusBadge.className = `badge ${status === "compatible" ? "pass" : status === "needs_attention" ? "fail" : "warn"}`;
+  const contracts = Array.isArray(radar.contracts) ? radar.contracts : [];
+  $("schema-drift-body").innerHTML = `
+    <div class="caption">${escapeHtml(radar.a3_action || "A1/A2 schema drift radar is not attached.")}</div>
+    <div class="health-grid">
+      ${healthTile(radar.contract_count || contracts.length || 0, "contracts")}
+      ${healthTile(radar.compatible_count || 0, "compatible")}
+      ${healthTile(radar.drift_count || 0, "drift")}
+      ${healthTile(radar.missing_count || 0, "missing")}
+    </div>
+    ${renderReportTable(["Contract", "Lane", "Status", "Hash"], contracts.slice(0, 8).map((item) => [
+      item.schema_contract_id,
+      item.source_lane,
+      item.status,
+      item.content_hash ? `${item.content_hash.slice(0, 12)}...` : "missing"
+    ]), "No A1/A2 schema radar contracts are loaded.")}
+    <div class="caption">Safety: raw schema payload ${radar.safety?.raw_schema_payload_embedded ? "embedded" : "not embedded"}, hashes only ${radar.safety?.schema_hashes_only ? "yes" : "unknown"}.</div>
+  `;
+}
+
 function refreshLocalProductConsole() {
   state.productConsole = buildA3ProductConsole({
     source: state.source,
@@ -2830,6 +2857,19 @@ async function loadDataSource(source) {
   state.source = source;
   if (isA3ApiSource(source)) {
     applyApiDashboardPayload(await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() }));
+    try {
+      state.schemaDriftRadar = await fetchA3SchemaDriftRadar({ source, baseUrl: getA3ApiBaseUrl() });
+    } catch (error) {
+      state.schemaDriftRadar = {
+        schema_version: "a3.schema_drift_dashboard_state.v1",
+        status: "unavailable",
+        a3_action: error.message,
+        safety: {
+          raw_schema_payload_embedded: false,
+          raw_secret_values_allowed: false
+        }
+      };
+    }
   } else if (source === "p3-media") {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");
@@ -2915,6 +2955,7 @@ async function loadDataSource(source) {
   renderSaasRuntime();
   renderSaasAdmin();
   renderEnterpriseReadiness();
+  renderSchemaDriftRadar();
   renderProductConsole();
   renderCoverageHealth();
   renderReleaseGate();
@@ -2973,6 +3014,25 @@ function resetCalibrationState() {
   state.releaseEvidence = {};
   state.releaseEvidenceReadbacks = {};
   state.githubPublishEvidence = {};
+  resetSchemaDriftRadar();
+}
+
+function resetSchemaDriftRadar() {
+  state.schemaDriftRadar = {
+    schema_version: "a3.schema_drift_dashboard_state.v1",
+    status: "not_attached",
+    contract_count: 0,
+    compatible_count: 0,
+    drift_count: 0,
+    missing_count: 0,
+    contracts: [],
+    a3_action: "Use API-backed mode to read the RBAC-protected A1/A2 schema drift radar.",
+    safety: {
+      raw_schema_payload_embedded: false,
+      schema_hashes_only: true,
+      raw_secret_values_allowed: false
+    }
+  };
 }
 
 function setupSectionNavigation() {

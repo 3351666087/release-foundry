@@ -92,6 +92,11 @@ test.describe("A3 dashboard commercial E2E", () => {
     await expect(enterprise).toContainText("A1/A2 Compatibility");
     await expect(enterprise).toContainText("A1 traces");
     await expect(enterprise).toContainText("A2 judges");
+
+    const contractRadar = section(page, "#schema-drift-radar");
+    await expect(contractRadar).toContainText("A1/A2 Contract Radar");
+    await expect(contractRadar).toContainText("not_attached");
+    await expect(contractRadar).toContainText("raw schema payload not embedded");
   });
 
   test("supports dashboard interactions without leaving the real page shell", async ({ page }) => {

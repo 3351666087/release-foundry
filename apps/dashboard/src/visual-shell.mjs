@@ -66,6 +66,7 @@ export const primaryAreas = [
     meta: "audit",
     children: [
       { href: "#enterprise-readiness", label: "Enterprise posture" },
+      { href: "#schema-drift-radar", label: "Contract radar" },
       { href: "#release-gate", label: "Release gate" },
       { href: "#pr-gate", label: "PR gate" },
       { href: "#war-room", label: "War room" }
@@ -124,6 +125,7 @@ export const workspaceRailGroups = [
       { href: "#product-console", label: "Product Console" },
       { href: "#saas-admin", label: "SaaS Admin" },
       { href: "#enterprise-readiness", label: "Enterprise" },
+      { href: "#schema-drift-radar", label: "Contracts" },
       { href: "#cloud-shell", label: "Cloud Shell" }
     ]
   },

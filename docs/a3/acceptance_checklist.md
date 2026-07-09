@@ -609,6 +609,7 @@
 - [x] Verify schema drift and G3 field-preservation round with focused Node tests, full A3 Node tests, E2E, commercial CL, hygiene CL, and diff check.
 - [x] Add optional A3 JSON/Markdown consumers for A2 cross-lane security context.
 - [x] Add optional A3 JSON/Markdown consumers and source-artifact hashing for A2 SQL store reports.
+- [x] Surface the A1/A2 schema drift radar in the dashboard with API-backed and static-safe states.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

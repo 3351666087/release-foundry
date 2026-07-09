@@ -76,6 +76,19 @@ export async function fetchA3ReviewWorkflow(options = {}) {
   return response.json();
 }
 
+export async function fetchA3SchemaDriftRadar(options = {}) {
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/a1-a2/schema-drift`, {
+    headers: {
+      "x-a3-role": options.role || "auditor"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`A3 API schema drift radar load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function planA3AdminAction(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

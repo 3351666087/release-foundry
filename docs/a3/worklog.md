@@ -5273,3 +5273,50 @@ Safety:
   was executed.
 - Synthetic test fixtures are public-safe and do not include raw keys, tokens,
   account identifiers, or private evidence.
+
+## 2026-07-09 - A3 Dashboard Contract Radar Surface
+
+Added a lightweight product surface for the A1/A2 schema drift radar in the A3
+dashboard so the compatibility work is visible to reviewers, not only available
+through a backend API.
+
+Changed:
+
+- Added `A1/A2 Contract Radar` panel below Enterprise Readiness.
+- Added left navigation and workspace rail anchors for `#schema-drift-radar`.
+- Added `fetchA3SchemaDriftRadar(...)` to the dashboard API client.
+- API-backed dashboard mode now reads `GET /api/a3/a1-a2/schema-drift` using
+  the local `auditor` role header.
+- Static fixture mode shows a safe `not_attached` state instead of failing when
+  no local API server is present.
+- Added `renderSchemaDriftRadar(...)` with status counts, contract rows, hash
+  prefixes, and a safety note that raw schema payloads are not embedded.
+- Added dashboard wiring and Playwright E2E assertions for both API-backed and
+  static dashboard modes.
+
+Validation so far:
+
+- `node --check apps/dashboard/src/app.mjs`
+- `node --check apps/dashboard/src/api-client.mjs`
+- `node --check apps/dashboard/src/visual-shell.mjs`
+- `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_schema_drift_radar.test.mjs`
+- Focused result: 35 tests passed, 0 failed.
+- E2E result: `npm.cmd run test:e2e` passed with 9 tests, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 243 tests, 0
+  failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- A3 reads the A1/A2 schema radar as a consumer-side dashboard status only.
+- A3 still does not modify A1 schema files, runner logic, trace semantics, A2
+  judge behavior, grade semantics, release-gate policy, or failure taxonomy.
+
+Safety:
+
+- The panel displays status, counts, schema contract IDs, source lanes, and hash
+  prefixes only.
+- It does not display raw schemas, API keys, cookies, account details, private
+  evidence, or signed URLs.

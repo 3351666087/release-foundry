@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, visualShell, styles] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/visual-shell.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
   ]);
-  return [html, app, visualShell, styles].join("\n");
+  return [html, app, apiClient, visualShell, styles].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -65,6 +66,23 @@ test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", a
   assert.match(html, /state\.frontendSummary/);
   assert.match(html, /state\.frontendMirror/);
   assert.match(html, /buildCsvReport\(state\.runs, state\.grades\)/);
+});
+
+test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="schema-drift-radar"/);
+  assert.match(html, /A1\/A2 Contract Radar/);
+  assertNavigationTarget(html, "#schema-drift-radar");
+  assert.match(html, /fetchA3SchemaDriftRadar/);
+  assert.match(html, /\/api\/a3\/a1-a2\/schema-drift/);
+  assert.match(html, /"x-a3-role": options\.role \|\| "auditor"/);
+  assert.match(html, /schemaDriftRadar: \{\}/);
+  assert.match(html, /state\.schemaDriftRadar = await fetchA3SchemaDriftRadar/);
+  assert.match(html, /function resetSchemaDriftRadar\(\)/);
+  assert.match(html, /function renderSchemaDriftRadar\(\)/);
+  assert.match(html, /raw_schema_payload_embedded/);
+  assert.match(html, /renderSchemaDriftRadar\(\)/);
 });
 
 test("A3 dashboard wires product-console operations panels", async () => {
