@@ -557,6 +557,14 @@
 - [x] Add SQL contract tables for `auth_contexts`, `rbac_policy_snapshots`, and `authz_decisions`.
 - [x] Add OpenAPI paths and schemas for Auth/RBAC boundary.
 - [x] Verify Auth/RBAC boundary round with focused tests, full A3 Node suite, Playwright E2E, CL commercial/hygiene, and diff check.
+- [x] Add A3 slim operating index to reduce future context load and identify done/deferred/next work.
+- [x] Add clean-room A3 UI concept preview with four screenshot options before changing the production dashboard style.
+- [x] Call the locally configured design LLM with a sanitized prompt and record guidance without exposing keys or private Ashr data.
+- [x] Apply the selected Quiet Review Console / Commercial Ledger blend to the production dashboard stylesheet.
+- [x] Improve SaaS console visuals for sidebar, topbar, metrics, panels, badges, expected-vs-actual, tool-call diff, media evidence, cloud/admin rows, and failure clusters.
+- [x] Fix narrow-screen dashboard overflow by converting the long A3 nav into a horizontal mobile scroller.
+- [x] Capture production visual-polish screenshots for desktop and mobile dashboard states.
+- [x] Verify the visual-polish round with dashboard/API Node tests, Playwright E2E, commercial CL, hygiene CL, and `git diff --check`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

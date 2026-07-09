@@ -4700,3 +4700,124 @@ Safety:
   cloud mutation.
 - No API key, token, cookie, real account value, email, raw signed URL, or
   payment secret written.
+
+## 2026-07-09 - A3 Slim Operating Index
+
+Created a short A3 operating index so future rounds can move faster without
+rereading every historical growth report.
+
+Added:
+
+- `docs/a3/a3_slim_operating_index_2026_07_09.md`
+
+The index records:
+
+- Which A3 capabilities are done enough for the student MVP.
+- Which gaps remain real commercial SaaS blockers.
+- Which old documents should be treated as evidence archives instead of
+  first-read files.
+- Which files future Codex rounds should read first.
+- Which work should be avoided or deferred.
+- The next high-value sequence: EventEnvelope, event outbox, idempotency,
+  RBAC-denied write paths, A1/A2 schema drift tests, and bundle reseal impact.
+
+Operational cleanup:
+
+- Closed unused historical subagents.
+- Did not delete project files or historical evidence.
+- Did not read `.env.local`.
+- Did not use or print any API key, token, cookie, real account value, signed
+  URL, or payment secret.
+
+## 2026-07-09 - A3 UI Visual Concept Preview
+
+Created a clean-room visual preview for A3 dashboard polish before changing the
+production dashboard CSS.
+
+Added:
+
+- `apps/dashboard/ui-concepts.html`
+- `docs/a3/a3_ui_visual_concepts_2026_07_09.md`
+- `docs/screenshots/a3-ui-concepts-overview-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-quiet-review-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-command-console-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-commercial-ledger-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-ops-matrix-2026-07-09.png`
+
+Concepts:
+
+- Quiet Review Console: recommended base for the main dashboard.
+- Engineering Command Console: useful for release gate, trace, and GitHub/CI
+  evidence sections.
+- Commercial Ledger Dashboard: useful for SaaS demo, report center, usage, and
+  trust polish.
+- Ops Matrix Console: useful for dense failure triage and observability replay.
+
+Safety:
+
+- No external website source, images, private frontend code, or assets were
+  copied.
+- The external design LLM API was not called because no safe
+  `A3_DESIGN_LLM_*` environment variables were present.
+- The API key previously sent in chat was not printed, written, committed, or
+  used in a shell command.
+
+## 2026-07-09 - A3 Production Dashboard Visual Polish
+
+Applied the selected clean-room visual direction to the real dashboard
+stylesheet while keeping A1/A2 data contracts and dashboard JavaScript wiring
+unchanged.
+
+Changed:
+
+- Updated `apps/dashboard/src/styles.css` with a lighter SaaS console shell,
+  calmer sidebar navigation, polished topbar, consistent buttons, denser metric
+  cards, unified panels, refined badges, report-table states, evidence rows,
+  expected-vs-actual blocks, tool-call diffs, media evidence, and failure
+  clusters.
+- Added mobile responsive fixes so the long A3 navigation becomes a horizontal
+  scroller and does not create page-wide horizontal overflow.
+- Called the local external design LLM through `A3_DESIGN_LLM_*` variables after
+  confirming the usable model id was `claude-opus-4-8`.
+- Wrote sanitized design guidance to
+  `docs/a3/a3_design_llm_review_2026_07_09.md`.
+- Updated `docs/a3/a3_ui_visual_concepts_2026_07_09.md` so the earlier
+  no-API note no longer misleads future agents.
+- Captured production dashboard screenshots:
+  - `docs/screenshots/a3-dashboard-visual-polish-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-polish-mobile-2026-07-09.png`
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, Trace, ToolCall, or RunResult logic was changed.
+- No A2 Scenario, Judge, GradeResult, pass/fail, score, or failure taxonomy
+  logic was changed.
+- Dashboard tests still verify raw A1, raw A2, API-backed mock, and P3 official
+  demo sources remain wired.
+
+Verification:
+
+```text
+git diff --check
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs
+npm.cmd run test:e2e
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+```
+
+Results:
+
+- Dashboard/API Node tests: 33 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- Mobile screenshot width check: `bodyScrollWidth` equals viewport width, so no
+  page-level horizontal overflow.
+
+Safety:
+
+- `.env.local` remained ignored by git.
+- API keys were read only from local environment variables and were not printed
+  or committed.
+- No token, cookie, account value, email, signed URL, payment secret, or raw
+  private Ashr data was written.
