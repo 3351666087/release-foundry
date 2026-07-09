@@ -800,3 +800,41 @@ Next 20 A1 growth points:
 18. Add Rust verifier hook for signed evidence bundle verification.
 19. Add Go artifact service durable storage readback and signed manifest hash.
 20. Add release gate integration that consumes durable usage/quota denial evidence.
+
+
+## Round29 usage quota route parity + paid media quota boundary - 2026-07-09T10:50:14Z
+
+Baseline:
+- Repo: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 head branch remains `codex/a1-local-sdk-runner`.
+- Fetched all remote branches and tags. PR #27 previous CL Gate run `29012107574` was green; A3/Rust jobs skipped by rule.
+- Peer movement noted from prior auditor on `origin/codex/a3-commercial-growth-round4`; no A2/A3 files staged.
+
+Implemented:
+- Added Go HTTP quota policy routes `POST /v1/projects/{project_id}/usage/quotas` and `POST /v1/projects/{project_id}/quota/limits`, routed through the existing usage read scope and `ConfigureUsageQuota`.
+- Updated Go route manifest and route scope docs so usage/quota readback and quota configuration appear in one `usage_quota` family.
+- Updated Python and TypeScript hosted route-scope requirements and validators for the new quota configure routes.
+- Added Go HTTP test proving quota configure route blocks a future mutation with `429 quota_exceeded` and preserves usage readback.
+- Regenerated Go route-scope docs and Go/Python/TS route parity evidence snapshots.
+
+Official API evidence:
+- Environment check observed an API key only by presence/length; no secret value was printed or stored.
+- Ran all-modality paid-media dry-run plan for text/image/audio/file/video; private dry-run: `docs/evidence/private_refs/a1_paid_media_all_modalities_dry_run_20260709_185014.json`; planned 17 estimated calls and 5 mutating modality steps.
+- Ran real small-batch paid-media mutating calibration with explicit audited quota override; private record: `docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json`.
+- Real execution completed 5 read steps and hit the official quota boundary at first text `create_request`; result `partial`, `quota_block_count=1`, `status_code=200`, error kind `api`, quota remaining present.
+- Public-safe summary written to `docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json`; index updated in `docs/a1/evidence/official_api_mutating_calibration_index.json`. No raw payloads, auth header values, request parameter values, or key material are present in public evidence.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> no whitespace errors; JSON line-ending normalization warnings only.
+
+Growth-Auditor follow-up:
+- P0 remains durable Postgres API key lifecycle plus protected Go HTTP auth/quota path.
+- Next commercial slice should implement durable hashed API keys, Postgres-backed preflight/rate-limit snapshot, restart durability proof, and route-level quota denial/readback/audit evidence.
+- P1 remains live RLS negative proof for tenant A/B isolation and official successful mutating evidence once hosted quota resets or plan changes.

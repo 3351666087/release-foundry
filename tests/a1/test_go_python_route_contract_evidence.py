@@ -150,7 +150,7 @@ def _go_route_scope_docs_fixture() -> dict:
         "raw_payloads_included": False,
         "source": "generated_from_go_route_manifest",
         "route_groups": [
-            group("usage_quota", ["usage"]),
+            group("usage_quota", ["usage", "usage_quota.configure"]),
             group("run_lifecycle", ["lifecycle"]),
             group("audit", ["audit.chain.verify", "audit_log"]),
         ],
@@ -355,8 +355,8 @@ def test_go_route_scope_docs_artifact_exports_required_route_families():
     assert set(groups) == {"usage_quota", "run_lifecycle", "audit"}
     assert groups["usage_quota"] == {
         "name": "usage_quota",
-        "operations": ["usage"],
-        "routes": ["GET /v1/projects/{project_id}/quota", "GET /v1/projects/{project_id}/usage"],
+        "operations": ["usage", "usage_quota.configure"],
+        "routes": ["GET /v1/projects/{project_id}/quota", "GET /v1/projects/{project_id}/usage", "POST /v1/projects/{project_id}/quota/limits", "POST /v1/projects/{project_id}/usage/quotas"],
         "scopes": ["usage:read"],
     }
     assert groups["run_lifecycle"] == {

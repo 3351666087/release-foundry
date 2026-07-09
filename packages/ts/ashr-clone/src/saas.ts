@@ -64,6 +64,8 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
   "GET /v1/projects/{project_id}/quota": [USAGE_READ_SCOPE],
   "GET /v1/projects/{project_id}/usage": [USAGE_READ_SCOPE],
+  "POST /v1/projects/{project_id}/quota/limits": [USAGE_READ_SCOPE],
+  "POST /v1/projects/{project_id}/usage/quotas": [USAGE_READ_SCOPE],
   "GET /v1/projects/{project_id}/worker-jobs": [WORKER_JOB_READ_SCOPE],
   "POST /v1/bootstrap": [],
   "POST /v1/projects/{project_id}/api-keys": [API_KEY_ADMIN_SCOPE],
@@ -1473,7 +1475,7 @@ function consumeGoRouteScopeDocs(docs: JsonRecord): JsonRecord {
   const missingGroups = [...requiredGroups].filter((name) => !groups.has(name)).sort();
   if (missingGroups.length > 0) throw new ValidationError(`route_scope_docs missing route families: ${missingGroups.join(",")}`);
 
-  assertRouteScopeGroup(groups.get("usage_quota")!, "usage_quota", new Set(["GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota"]), new Set(["usage:read"]));
+  assertRouteScopeGroup(groups.get("usage_quota")!, "usage_quota", new Set(["GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota", "POST /v1/projects/{project_id}/usage/quotas", "POST /v1/projects/{project_id}/quota/limits"]), new Set(["usage:read"]));
   assertRouteScopeGroup(groups.get("run_lifecycle")!, "run_lifecycle", new Set(["GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"]), new Set(["run:lifecycle:read"]));
   assertRouteScopeGroup(groups.get("audit")!, "audit", new Set(["GET /v1/projects/{project_id}/audit-log", "POST /v1/projects/{project_id}/audit-chain/verify"]), new Set(["audit:read"]));
 

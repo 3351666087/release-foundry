@@ -1364,3 +1364,22 @@ Results:
 - `python scripts/cl_guard.py hygiene`: pass, zero findings.
 - `git diff --check`: no whitespace errors; CRLF normalization warning for `docs/a1/evidence/official_api_mutating_calibration_index.json` only.
 - `gh pr checks 27`: CL Gate green; A3 checks skipped by rule, not failing.
+
+
+## Round29 usage quota route parity + paid media quota boundary - 2026-07-09T10:50:14Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb --untracked-files=all`; `gh pr view 27 --json ...`: baseline fetched; PR #27 green at run `29012107574`; local working tree had only A1 Round29 edits.
+- Growth-Auditor read-only audit: flagged durable Postgres API key/preflight, route-level quota proof, RLS live negative proof, and official quota exhaustion as next blockers; no files modified by auditor.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: no whitespace errors; JSON CRLF normalization warnings only.
+- `python -c "import os; ..."`: key presence/length only confirmed, value not printed.
+- `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_paid_media_all_modalities_dry_run_20260709_185014.json`: dry-run planned 17 estimated calls and 5 mutating modality steps.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --allow-paid-media --modality text,image,audio,file,video --allow-quota-override --quota-override-reason ... --output docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json`: real official call used env-only key; 5 read steps succeeded, first text mutating create_request hit quota boundary; result `partial`, quota block count 1.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json --output docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json`: wrote public-safe summary. A mistaken attempt to write summary into the mutating index was reverted with `git checkout -- docs/a1/evidence/official_api_mutating_calibration_index.json` before manual schema-safe index append.

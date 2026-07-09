@@ -22,6 +22,8 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ("evidence:read",),
     "GET /v1/projects/{project_id}/quota": ("usage:read",),
     "GET /v1/projects/{project_id}/usage": ("usage:read",),
+    "POST /v1/projects/{project_id}/quota/limits": ("usage:read",),
+    "POST /v1/projects/{project_id}/usage/quotas": ("usage:read",),
     "GET /v1/projects/{project_id}/worker-jobs": ("worker_job:read",),
     "POST /v1/bootstrap": (),
     "POST /v1/projects/{project_id}/api-keys": ("api_key:write",),
@@ -909,7 +911,7 @@ def _consume_go_route_scope_docs(docs: Mapping[str, Any]) -> JsonDict:
     if missing_groups:
         raise SaaSClientError(f"route_scope_docs missing route families: {','.join(missing_groups)}")
 
-    _assert_route_scope_group(groups["usage_quota"], "usage_quota", {"GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota"}, {"usage:read"})
+    _assert_route_scope_group(groups["usage_quota"], "usage_quota", {"GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota", "POST /v1/projects/{project_id}/usage/quotas", "POST /v1/projects/{project_id}/quota/limits"}, {"usage:read"})
     _assert_route_scope_group(groups["run_lifecycle"], "run_lifecycle", {"GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"}, {"run:lifecycle:read"})
     _assert_route_scope_group(groups["audit"], "audit", {"GET /v1/projects/{project_id}/audit-log", "POST /v1/projects/{project_id}/audit-chain/verify"}, {"audit:read"})
 

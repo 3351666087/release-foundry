@@ -44,8 +44,8 @@ function goOpenApiRouteScopeFixture(snapshot) {
       route_groups: [
         {
           name: "usage_quota",
-          operations: ["usage"],
-          routes: ["GET /v1/projects/{project_id}/quota", "GET /v1/projects/{project_id}/usage"],
+          operations: ["usage", "usage_quota.configure"],
+          routes: ["GET /v1/projects/{project_id}/quota", "GET /v1/projects/{project_id}/usage", "POST /v1/projects/{project_id}/quota/limits", "POST /v1/projects/{project_id}/usage/quotas"],
           scopes: ["usage:read"],
         },
         {
@@ -94,7 +94,7 @@ function goOpenApiRouteScopeFixture(snapshot) {
       notes: [
         "plan limits are public documentation references, not secret billing state",
         "route groups are derived from GoRouteManifestEntries",
-        "raw request and response payloads are intentionally excluded",
+        "captured HTTP bodies and tenant data are intentionally excluded",
       ],
     },
   };
@@ -135,6 +135,7 @@ test("TS hosted client consumes Go OpenAPI route_scope_docs", async () => {
   const consumption = consumeGoRouteScopeManifest(openapi);
 
   assert.equal(consumption.consumable_go_routes.includes("GET /v1/projects/{project_id}/usage"), true);
+  assert.equal(consumption.consumable_go_routes.includes("POST /v1/projects/{project_id}/usage/quotas"), true);
   assert.equal(consumption.consumable_go_routes.includes("GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"), true);
   assert.equal(consumption.route_scope_docs.schema_version, "ashr.clone.go_route_scope_docs.v1");
   assert.deepEqual(consumption.route_scope_docs.route_families, ["audit", "run_lifecycle", "usage_quota"]);

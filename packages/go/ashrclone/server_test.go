@@ -317,6 +317,8 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	}
 	want := map[string]bool{
 		"GET /v1/projects/{project_id}/usage":                             false,
+		"POST /v1/projects/{project_id}/usage/quotas":                     false,
+		"POST /v1/projects/{project_id}/quota/limits":                     false,
 		"GET /v1/projects/{project_id}/audit-chain/verify":                false,
 		"POST /v1/projects/{project_id}/audit-chain/verify":               false,
 		"POST /v1/projects/{project_id}/runs/{run_id}/upload":             false,

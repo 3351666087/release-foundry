@@ -36,6 +36,7 @@ type ControlPlaneBackend interface {
 	CreateArtifactManifest(tenantID, projectID, runID string, manifest JSONMap, options ArtifactManifestOptions) (Envelope[ArtifactManifest], error)
 	ListArtifactManifests(tenantID, projectID, runID string) (Envelope[ArtifactManifestList], error)
 	RunLifecycle(tenantID, projectID, runID string) (Envelope[RunLifecycle], error)
+	ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error)
 	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
 	AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error)
 	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
@@ -150,9 +151,15 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 		server.handleListWorkerJobs(writer, request, projectID)
 		return
 	}
-	if request.Method == http.MethodGet && len(parts) == 1 && (parts[0] == "usage" || parts[0] == "quota") {
-		server.handleUsageSnapshot(writer, request, projectID)
-		return
+	if len(parts) >= 1 && (parts[0] == "usage" || parts[0] == "quota") {
+		if request.Method == http.MethodGet && len(parts) == 1 {
+			server.handleUsageSnapshot(writer, request, projectID)
+			return
+		}
+		if request.Method == http.MethodPost && len(parts) == 2 && (parts[1] == "quotas" || parts[1] == "limits") {
+			server.handleConfigureUsageQuota(writer, request, projectID)
+			return
+		}
 	}
 	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "audit-log" {
 		server.handleAuditLog(writer, request, projectID)
@@ -203,6 +210,22 @@ func (server *HTTPServer) handleUsageSnapshot(writer http.ResponseWriter, reques
 		return
 	}
 	result, err := server.service.UsageSnapshot(auth.TenantID, projectID)
+	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+}
+
+func (server *HTTPServer) handleConfigureUsageQuota(writer http.ResponseWriter, request *http.Request, projectID string) {
+	body, ok := readJSONBody(writer, request)
+	if !ok {
+		return
+	}
+	auth, ok := resolveRequestAuth(writer, request, body, true, stringValue(body, "tenant_id"))
+	if !ok {
+		return
+	}
+	if !server.preflightRequest(writer, auth, projectID, ScopeUsageRead, "usage_quota.configure") {
+		return
+	}
+	result, err := server.service.ConfigureUsageQuota(auth.TenantID, projectID, stringValue(body, "operation"), intValue(body, "limit"))
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
 }
 
@@ -514,6 +537,8 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("POST", "/v1/projects/{project_id}/runs/submit", "sdk_submit", "run", ScopeRunSubmit),
 		goScopedRoute("GET", "/v1/projects/{project_id}/usage", "usage", "billing", ScopeUsageRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/quota", "usage", "billing", ScopeUsageRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/usage/quotas", "usage_quota.configure", "billing", ScopeUsageRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/quota/limits", "usage_quota.configure", "billing", ScopeUsageRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-log", "audit_log", "audit", ScopeAuditRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
@@ -571,7 +596,7 @@ func GoScopeManifest(entries []RouteManifestEntry) map[string][]ScopeManifestEnt
 
 func GoRouteScopeDocs(entries []RouteManifestEntry) RouteScopeDocs {
 	groups := []RouteScopeDocGroup{
-		goRouteScopeDocGroup(entries, "usage_quota", []string{"usage"}),
+		goRouteScopeDocGroup(entries, "usage_quota", []string{"usage", "usage_quota.configure"}),
 		goRouteScopeDocGroup(entries, "run_lifecycle", []string{"lifecycle"}),
 		goRouteScopeDocGroup(entries, "audit", []string{"audit.chain.verify", "audit_log"}),
 	}
