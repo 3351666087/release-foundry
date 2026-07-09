@@ -98,15 +98,15 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-real-api-round43-readonly-refresh",
+    "label": "a1-real-api-round44-readonly-refresh",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 400,
+    "total_records": 401,
     "status_counts": {
       "blocked": 3,
       "completed": 13,
       "error": 32,
       "failed": 1,
-      "ok": 220,
+      "ok": 221,
       "partial": 20,
       "passed": 11,
       "planned": 65,
@@ -147,7 +147,7 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 259,
+    "real_record_count": 260,
     "real_read_status_counts": {
       "error": 11,
       "ok": 172,

@@ -3,20 +3,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 from .api_client import redact_sensitive
 
 JsonDict = dict[str, Any]
 
 OBJECT_STORAGE_CONTRACT_VERSION = "ashr.clone.object_storage.v1"
+OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION = "ashr.clone.object_storage_manifest_signature.v1"
 OBJECT_STORAGE_VERIFICATION_VERSION = "ashr.clone.object_storage_verification.v1"
+OBJECT_STORAGE_ADAPTER_STATUS_VERSION = "ashr.clone.object_storage_adapter_status.v1"
 _SAFE_SCOPE_PART = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _SAFE_CATEGORY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _SAFE_SUFFIX = re.compile(r"^\.[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$")
 _SECRET_REF_PREFIXES = ("env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:", "secret-ref:")
+_RESOLVABLE_SECRET_REF_PREFIXES = ("env:",)
 _SENSITIVE_KEY_PARTS = ("access_key", "secret_key", "api_key", "authorization", "bearer", "password", "credential", "token")
 _ALLOWED_SAFETY_KEYS = {"raw_payload_included", "secret_value_present"}
 _SECRET_VALUE_PATTERNS = (
@@ -70,6 +74,8 @@ def build_object_manifest(
     bucket_ref: str | None = None,
     endpoint_ref: str | None = None,
     region_ref: str | None = None,
+    access_key_ref: str | None = None,
+    secret_key_ref: str | None = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> JsonDict:
     if backend not in {"local-filesystem", "s3-compatible"}:
@@ -83,8 +89,10 @@ def build_object_manifest(
         "bucket_ref": bucket_ref,
         "endpoint_ref": endpoint_ref,
         "region_ref": region_ref,
-        "access_key_ref_present": False,
-        "secret_key_ref_present": False,
+        "access_key_ref": access_key_ref,
+        "secret_key_ref": secret_key_ref,
+        "access_key_ref_present": access_key_ref is not None,
+        "secret_key_ref_present": secret_key_ref is not None,
     }
     if backend == "local-filesystem":
         backend_refs.update({"storage_uri": f"local://object-store/{object_key}"})
@@ -95,6 +103,12 @@ def build_object_manifest(
         _assert_ref("endpoint_ref", endpoint_ref)
         if region_ref is not None:
             _assert_ref("region_ref", region_ref)
+        if access_key_ref is not None:
+            _assert_ref("access_key_ref", access_key_ref)
+        if secret_key_ref is not None:
+            _assert_ref("secret_key_ref", secret_key_ref)
+        if (access_key_ref is None) != (secret_key_ref is None):
+            raise ObjectStorageContractError("s3-compatible credentials require both access_key_ref and secret_key_ref")
         backend_refs.update({"storage_uri": f"s3-compatible://{bucket_ref}/{object_key}"})
     manifest = {
         "schema_version": OBJECT_STORAGE_CONTRACT_VERSION,
@@ -112,8 +126,54 @@ def build_object_manifest(
         "backend_refs": backend_refs,
         "metadata": _public_safe_metadata(metadata or {}),
     }
+    manifest["manifest_signature"] = sign_object_manifest(manifest)
     assert_public_object_manifest_safe(manifest)
     return manifest
+
+
+def sign_object_manifest(manifest: Mapping[str, Any]) -> JsonDict:
+    digest = _canonical_manifest_sha256(manifest)
+    return {
+        "schema_version": OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION,
+        "algorithm": "sha256-canonical-json",
+        "digest": digest,
+        "signature_key_ref": "contract:self-sha256",
+        "raw_payload_included": False,
+        "secret_value_present": False,
+    }
+
+
+def verify_object_manifest_signature(manifest: Mapping[str, Any]) -> JsonDict:
+    signature = manifest.get("manifest_signature")
+    failures: list[JsonDict] = []
+    expected_digest = signature.get("digest") if isinstance(signature, Mapping) else None
+    actual_digest = _canonical_manifest_sha256(manifest)
+    if not isinstance(signature, Mapping):
+        failures.append({"reason": "manifest_signature_missing"})
+    elif signature.get("schema_version") != OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION:
+        failures.append({"reason": "manifest_signature_schema_mismatch", "actual": signature.get("schema_version")})
+    elif signature.get("algorithm") != "sha256-canonical-json":
+        failures.append({"reason": "manifest_signature_algorithm_mismatch", "actual": signature.get("algorithm")})
+    elif expected_digest != actual_digest:
+        failures.append({"reason": "manifest_signature_digest_mismatch", "expected": expected_digest, "actual": actual_digest})
+    return {
+        "schema_version": OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION,
+        "verified": not failures,
+        "digest": expected_digest,
+        "actual_digest": actual_digest,
+        "failures": failures,
+        "raw_payload_included": False,
+        "secret_value_present": False,
+    }
+
+
+def _canonical_manifest_sha256(manifest: Mapping[str, Any]) -> str:
+    public_manifest = dict(manifest)
+    public_manifest.pop("manifest_signature", None)
+    public_manifest.pop("write_readback_verification", None)
+    public_manifest.pop("adapter_status", None)
+    canonical = json.dumps(public_manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def assert_public_object_manifest_safe(manifest: Mapping[str, Any]) -> None:
@@ -136,6 +196,9 @@ def verify_object_bytes(manifest: Mapping[str, Any], content: bytes | str) -> Js
         failures.append({"reason": "raw_payload_included"})
     if bool(manifest.get("secret_value_present")):
         failures.append({"reason": "secret_value_present"})
+    signature_verification = verify_object_manifest_signature(manifest)
+    if not signature_verification["verified"]:
+        failures.append({"reason": "manifest_signature_mismatch", "details": signature_verification["failures"]})
     return {
         "schema_version": OBJECT_STORAGE_VERIFICATION_VERSION,
         "verified": not failures,
@@ -144,10 +207,155 @@ def verify_object_bytes(manifest: Mapping[str, Any], content: bytes | str) -> Js
         "actual_sha256": actual,
         "size_bytes": expected_size,
         "actual_size_bytes": len(raw),
+        "checksum": {
+            "algorithm": "sha256",
+            "expected": expected,
+            "actual": actual,
+            "verified": expected == actual,
+        },
+        "manifest_signature_verification": signature_verification,
         "failures": failures,
         "raw_payload_included": False,
         "secret_value_present": False,
     }
+
+
+@dataclass(slots=True)
+class S3CompatibleObjectStorage:
+    bucket_ref: str
+    endpoint_ref: str
+    region_ref: str | None = None
+    access_key_ref: str | None = None
+    secret_key_ref: str | None = None
+    adapter: Literal["boto3", "minio"] = "boto3"
+
+    def adapter_status(self) -> JsonDict:
+        missing: list[str] = []
+        if self.adapter == "boto3":
+            try:
+                __import__("boto3")
+            except ImportError:
+                missing.append("boto3")
+        elif self.adapter == "minio":
+            try:
+                __import__("minio")
+            except ImportError:
+                missing.append("minio")
+        else:
+            raise ObjectStorageContractError("adapter must be boto3 or minio")
+        return {
+            "schema_version": OBJECT_STORAGE_ADAPTER_STATUS_VERSION,
+            "backend": "s3-compatible",
+            "adapter": self.adapter,
+            "available": not missing,
+            "missing_dependencies": missing,
+            "network_allowed": False,
+            "raw_payload_included": False,
+            "secret_value_present": False,
+        }
+
+    def build_manifest(
+        self,
+        *,
+        tenant_id: str,
+        project_id: str,
+        run_id: str,
+        object_id: str,
+        content_type: str,
+        size_bytes: int,
+        sha256: str,
+        category: str = "artifacts",
+        suffix: str = ".bin",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> JsonDict:
+        object_key = scoped_object_key(tenant_id=tenant_id, project_id=project_id, run_id=run_id, object_id=object_id, category=category, suffix=suffix)
+        manifest = build_object_manifest(
+            backend="s3-compatible",
+            object_key=object_key,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            run_id=run_id,
+            object_id=object_id,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            sha256=sha256,
+            bucket_ref=self.bucket_ref,
+            endpoint_ref=self.endpoint_ref,
+            region_ref=self.region_ref,
+            access_key_ref=self.access_key_ref,
+            secret_key_ref=self.secret_key_ref,
+            metadata=metadata,
+        )
+        return {**manifest, "adapter_status": self.adapter_status()}
+
+    def read_object(self, manifest: Mapping[str, Any]) -> bytes:
+        client = self._client(network_allowed=True)
+        object_key = manifest.get("object_key")
+        if not isinstance(object_key, str):
+            raise ObjectStorageContractError("manifest object_key must be a string")
+        bucket = self._resolve_ref("bucket_ref", self.bucket_ref)
+        if self.adapter == "boto3":
+            response = client.get_object(Bucket=bucket, Key=object_key)
+            body = response["Body"]
+            return body.read()
+        response = client.get_object(bucket, object_key)
+        try:
+            return response.read()
+        finally:
+            close = getattr(response, "close", None)
+            release_conn = getattr(response, "release_conn", None)
+            if callable(close):
+                close()
+            if callable(release_conn):
+                release_conn()
+
+    def verify_object(self, manifest: Mapping[str, Any]) -> JsonDict:
+        content = self.read_object(manifest)
+        return verify_object_bytes(manifest, content)
+
+    def _client(self, *, network_allowed: bool) -> Any:
+        if not network_allowed:
+            raise ObjectStorageContractError("s3-compatible adapter requires explicit local/network opt-in")
+        endpoint = self._resolve_ref("endpoint_ref", self.endpoint_ref)
+        access_key = self._resolve_optional_ref("access_key_ref", self.access_key_ref)
+        secret_key = self._resolve_optional_ref("secret_key_ref", self.secret_key_ref)
+        region = self._resolve_optional_ref("region_ref", self.region_ref)
+        if self.adapter == "boto3":
+            try:
+                import boto3  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise ObjectStorageContractError("boto3 is not installed; install boto3 to enable s3-compatible network reads") from exc
+            return boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        if self.adapter == "minio":
+            try:
+                from minio import Minio  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise ObjectStorageContractError("minio is not installed; install minio to enable s3-compatible network reads") from exc
+            secure = not endpoint.startswith("http://")
+            endpoint_host = endpoint.removeprefix("https://").removeprefix("http://")
+            return Minio(endpoint_host, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
+        raise ObjectStorageContractError("adapter must be boto3 or minio")
+
+    def _resolve_optional_ref(self, name: str, ref: str | None) -> str | None:
+        if ref is None:
+            return None
+        return self._resolve_ref(name, ref)
+
+    def _resolve_ref(self, name: str, ref: str) -> str:
+        _assert_ref(name, ref)
+        if not any(ref.startswith(prefix) for prefix in _RESOLVABLE_SECRET_REF_PREFIXES):
+            raise ObjectStorageContractError(f"{name} cannot be resolved by the local adapter")
+        env_name = ref.split(":", 1)[1]
+        value = os.environ.get(env_name)
+        if not value:
+            raise ObjectStorageContractError(f"{name} environment reference is unset")
+        return value
 
 
 @dataclass(slots=True)

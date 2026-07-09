@@ -267,13 +267,13 @@
     "unknown": {
       "error_keys": [],
       "quota_block_count": 30,
-      "records": 132,
+      "records": 133,
       "response_keys": [],
       "response_summary_keys": [],
       "statuses": {
         "completed": 13,
         "failed": 1,
-        "ok": 43,
+        "ok": 44,
         "partial": 20,
         "passed": 11,
         "planned": 10
@@ -296,6 +296,6 @@
     }
   },
   "schema_version": "ashr.clone.response_field_map.v1",
-  "source_label": "a1-real-api-round43-readonly-refresh",
-  "source_total_records": 400
+  "source_label": "a1-real-api-round44-readonly-refresh",
+  "source_total_records": 401
 }

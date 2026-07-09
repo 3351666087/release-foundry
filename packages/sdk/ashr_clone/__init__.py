@@ -64,14 +64,18 @@ from .trace import (
 )
 from .saas import SAAS_CLIENT_VERSION, SaaSIngestionClient, SecretInputError, consume_official_api_mutating_calibration_index
 from .storage import (
+    OBJECT_STORAGE_ADAPTER_STATUS_VERSION,
     OBJECT_STORAGE_CONTRACT_VERSION,
+    OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION,
     LocalFilesystemObjectStorage,
     ObjectStorageContractError,
+    S3CompatibleObjectStorage,
     assert_public_object_manifest_safe,
     build_object_manifest,
     scoped_object_key,
     sha256_bytes,
     verify_object_bytes,
+    verify_object_manifest_signature,
 )
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
@@ -135,14 +139,18 @@ __all__ = [
     "SaaSIngestionClient",
     "SecretInputError",
     "consume_official_api_mutating_calibration_index",
+    "OBJECT_STORAGE_ADAPTER_STATUS_VERSION",
     "OBJECT_STORAGE_CONTRACT_VERSION",
+    "OBJECT_STORAGE_MANIFEST_SIGNATURE_VERSION",
     "LocalFilesystemObjectStorage",
     "ObjectStorageContractError",
+    "S3CompatibleObjectStorage",
     "assert_public_object_manifest_safe",
     "build_object_manifest",
     "scoped_object_key",
     "sha256_bytes",
     "verify_object_bytes",
+    "verify_object_manifest_signature",
     "TraceEvent",
     "TraceRecorder",
     "build_run_fixture",

@@ -1537,3 +1537,56 @@ Additional validation after Bus-Auditor fixes:
 - Fix: ran `python scripts/a2_regenerate_fixtures.py --write`, then staged only the four generated report files with real content diffs: `a2_commercial_readiness_report.json`, `a2_evidence_readiness_report.json`, `a2_release_gate_report.json`, and `a2_result_persistence_manifest.json`.
 - Verification: `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match; `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> `52 passed`.
 - No A2 judge semantics or source code changed; this is generated fixture alignment required by the A1 evidence label refresh.
+
+## Round44 worker/object/quota/API evidence hardening - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; PR #27 was green at commit `94716ce` before this round.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `gh pr list --state all --limit 20`, and `gh pr checks 27 --watch=false` were run before implementation.
+- Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`; no A3 files were touched.
+- Strategy reread: A1 remains responsible for Go backend, SQL/Postgres/RLS, SDK/API client, object storage, worker, quota/billing safety, and real API calibration.
+
+20 growth points advanced:
+1. Worker daemon summary now records retrying and dead-lettered counts separately from aggregate failed count.
+2. Worker daemon summary records lease seconds, max jobs, heartbeat enabled, heartbeat success count, and heartbeat error count.
+3. Heartbeat loop records heartbeat success/error evidence without making heartbeat failure fatal to handler completion.
+4. Worker tests cover lease -> heartbeat -> complete with usage/audit evidence.
+5. Worker tests cover retry release behavior with public-safe error metadata.
+6. Worker tests cover dead-letter behavior at max attempts.
+7. Go redaction now blocks free-text sensitive assignments such as `password=`, `secret=`, and `token=` in provider/worker errors.
+8. Go worker CLI tests cover config parsing without requiring Postgres DSN unless Postgres backend is selected.
+9. Object storage manifests now include canonical SHA-256 manifest signatures.
+10. Object storage tests verify signed manifest tamper detection.
+11. Object storage S3-compatible manifests carry credential refs only and reject incomplete credential ref pairs.
+12. Object storage has structured readback/checksum verification output.
+13. Optional boto3/minio adapter status/readback support is lazy and dependency-graceful.
+14. Object storage public evidence was updated to call out presigned/bearer URL non-public policy.
+15. Control-plane API-key scope gates were tightened across run upload, trace ingest, artifact manifest read/write, release evidence read/verify, billing checkout/portal, and billing webhook ingest.
+16. Denied auth attempts append public-safe `auth.denied` audit events.
+17. Denied auth attempts append zero-unit denied usage/quota receipts before side effects.
+18. New WSGI-boundary tests prove wrong/missing scopes deny mutation and do not leak bearer/API-key material.
+19. Official Ashr API Round44 read-only small batch refreshed private evidence and public summary.
+20. Public evidence index, field map, capability matrix, commercial kit, TS/Python gap matrix, and A2 generated reports were refreshed to the Round44 evidence label.
+
+Subagents:
+- Growth-Auditor identified the highest-ROI lane as Postgres-backed worker durability + MinIO/object-store write/readback + API-key/quota-gated ingestion.
+- Worker-GoRuntime added worker summary durability fields, heartbeat stats, retry/dead-letter coverage, and Go redaction hardening; `go test ./...` passed in `packages/go/ashrclone`.
+- Worker-ObjectStore added signed public manifests, signature verification, ref-only S3 credential handling, adapter status/readback contracts, and object storage tests; focused pytest passed.
+- Worker-QuotaAuth added WSGI-boundary API-key scope gates and denied audit/quota receipts for ingestion/billing/evidence surfaces; focused pytest passed.
+
+Official API evidence:
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round44_20260710_001500.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round44_summary_20260710_001500.json`.
+- Result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`, datasets count `3`, requests count `5`; no raw key, headers, request values, or private payloads were written to public files.
+- Public evidence index after merge: `401` total records, `16` functions, historical quota block count preserved at `48`, label `a1-real-api-round44-readonly-refresh`.
+- Mutating/paid API calls were not run because `mutating_small_batch_ready` remains false without a fresh quota-gate artifact.
+
+Validation plan/results in this round:
+- `python -B -m pytest tests/a1/test_object_storage_contract.py tests/a1/test_worker_quota_auth.py tests/a1/test_saas_platform.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> initial stale TS/Python matrix failure, then refreshed and focused subset passed.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match after Round44 evidence label refresh.
+
+Residual risks / next A1 queue:
+- Actual MinIO network PUT/HEAD/GET is still not in required CI because it needs running services; next round should add a local compose money-grade smoke if daemon/network stability allows.
+- Postgres-backed worker restart/lease-expiry proof remains opt-in; next round should add a compose or `A1_POSTGRES_TEST_DSN` backed test for restart recovery.
+- Billing/OAuth remain safety contracts, not live provider/account flows. Next round should add Stripe raw-body signature and OAuth PKCE/state replay tests before any live provider step.

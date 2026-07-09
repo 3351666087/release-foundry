@@ -3555,7 +3555,7 @@
       "judge_version": "a2.release_gate.v1",
       "policy_hash": "sha256:f9cbaebcd5b092a00329b9a779f0479e4fa50de3fafb49471d2e6eb2e57ccd65",
       "input_hash": "sha256:4e437da4b1cdbadc7dadbcefcfb4f76d12e5c5917b9fde69030e7cac427fbc07",
-      "output_hash": "sha256:497d0023eeb912d1a24573941d8e453d2c1e78db31bb107e2e4d8e1b00369995",
+      "output_hash": "sha256:f3634b308e4fdcb2ae7d043714c1104a8151101144d84a14c0cfb80e2201fc0d",
       "created_at": "2026-07-07T00:00:00Z",
       "decision": "block",
       "exit_code": 2,

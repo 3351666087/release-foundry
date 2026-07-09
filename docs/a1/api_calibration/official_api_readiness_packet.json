@@ -72,7 +72,7 @@
       "summary": "Official API calibration still does not prove API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, or webhook parity."
     }
   ],
-  "generated_at": "2026-07-09T15:34:35Z",
+  "generated_at": "2026-07-09T16:15:11Z",
   "next_read_only_calibration": {
     "acceptance_checks": [
       "real read-only command uses --execute --small-batch --max-retries 0",
@@ -242,7 +242,7 @@
       "summary_index_path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
       "total_steps": 5
     },
-    "private_record_count": 399,
+    "private_record_count": 400,
     "quota_block_count": 48,
     "read_only_manifest_step_count": 5,
     "read_only_missing_from_field_map": [],
@@ -251,7 +251,7 @@
       "completed": 13,
       "error": 32,
       "failed": 1,
-      "ok": 219,
+      "ok": 220,
       "partial": 20,
       "passed": 11,
       "planned": 65,

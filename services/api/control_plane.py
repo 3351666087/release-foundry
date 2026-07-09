@@ -22,6 +22,8 @@ RUN_UPLOAD_SCOPE = "run:upload"
 TRACE_INGEST_SCOPE = "trace:ingest"
 USAGE_READ_SCOPE = "usage:read"
 AUDIT_READ_SCOPE = "audit:read"
+BILLING_WRITE_SCOPE = "billing:write"
+BILLING_WEBHOOK_SCOPE = "billing:webhook"
 WORKER_JOB_WRITE_SCOPE = "worker_job:write"
 WORKER_JOB_READ_SCOPE = "worker_job:read"
 COMMERCIAL_CONFIG_WRITE_SCOPE = "commercial_config:write"
@@ -44,6 +46,9 @@ CONTROL_PLANE_SCOPES = {
     API_KEY_ADMIN_SCOPE,
     USAGE_READ_SCOPE,
     AUDIT_READ_SCOPE,
+    BILLING_WRITE_SCOPE,
+    BILLING_WEBHOOK_SCOPE,
+    "billing:read",
     WORKER_JOB_READ_SCOPE,
     WORKER_JOB_WRITE_SCOPE,
     COMMERCIAL_CONFIG_READ_SCOPE,
@@ -68,6 +73,7 @@ API_KEY_SCOPE_ALIASES = {
     "commercial:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
     "oauth:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
     "payment:write": {COMMERCIAL_CONFIG_READ_SCOPE, COMMERCIAL_CONFIG_WRITE_SCOPE},
+    "billing:admin": {BILLING_WRITE_SCOPE, BILLING_WEBHOOK_SCOPE, "billing:read"},
     API_KEY_ADMIN_SCOPE: {API_KEY_READ_SCOPE},
     ADMIN_ALL_SCOPE: set(CONTROL_PLANE_SCOPES),
 }
@@ -83,6 +89,7 @@ SAAS_QUOTA_LIMITS = {
     "worker.job.fail": 100_000,
     "audit_chain.verify": 10_000,
     "release_evidence.verify": 10_000,
+    "auth.denied": 100_000,
 }
 
 TERMINAL_WORKER_JOB_STATUSES = {"completed", "dead_lettered", "cancelled"}
@@ -236,6 +243,47 @@ class SaaSControlPlaneService:
             "api_key": _public_api_key(record),
             "secret_value_present": False,
         }
+
+    def require_api_key_scope(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        key_id: str | None,
+        scope: str,
+        operation: str,
+        target_id: str | None = None,
+        request_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> JsonDict:
+        required_scope = _normalize_scope(scope)
+        if not key_id:
+            self._append_denied_operation_receipt(
+                tenant_id,
+                project_id,
+                operation=operation,
+                required_scope=required_scope,
+                reason="missing_api_key_id",
+                target_id=target_id,
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+            )
+            raise ValidationError(f"{operation} requires api_key_id with {required_scope} scope")
+        try:
+            return self.authenticate_api_key(tenant_id, project_id, key_id=str(key_id), scope=required_scope, consume_rate=False)
+        except Exception as exc:
+            self._append_denied_operation_receipt(
+                tenant_id,
+                project_id,
+                operation=operation,
+                required_scope=required_scope,
+                reason=getattr(exc, "code", "auth_denied"),
+                target_id=target_id,
+                api_key_id=str(key_id),
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+            )
+            raise
 
 
     def verify_api_key_secret(self, tenant_id: str, project_id: str, *, key_id: str, secret: str, scope: str | None = None) -> JsonDict:
@@ -1058,6 +1106,61 @@ class SaaSControlPlaneService:
         self.store.usage_ledger[usage_event_id] = record
         return _jsonable(record)
 
+    def _append_denied_operation_receipt(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        operation: str,
+        required_scope: str,
+        reason: str,
+        target_id: str | None = None,
+        api_key_id: str | None = None,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> JsonDict:
+        usage_event_id = _new_id("usage")
+        receipt = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "usage_event_id": usage_event_id,
+            "tenant_id": str(tenant_id),
+            "project_id": str(project_id),
+            "run_id": target_id,
+            "api_key_id": api_key_id,
+            "operation": str(operation),
+            "units": 0,
+            "source": "local_control_plane",
+            "status": "denied",
+            "denied": True,
+            "required_scope": _normalize_scope(required_scope),
+            "reason": str(reason),
+            "idempotency_key": idempotency_key,
+            "request_id": request_id,
+            "raw_payload_included": False,
+            "secret_value_present": False,
+            "created_at": _utc_now(),
+        }
+        self.store.usage_ledger[usage_event_id] = receipt
+        audit = self._append_audit(
+            tenant_id,
+            project_id,
+            "auth.denied",
+            target_id=target_id,
+            api_key_id=api_key_id,
+            idempotency_key=idempotency_key,
+            request_id=request_id,
+            after={
+                "operation": str(operation),
+                "required_scope": _normalize_scope(required_scope),
+                "reason": str(reason),
+                "usage_event_id": usage_event_id,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+        )
+        receipt["audit_event_id"] = audit["audit_event_id"]
+        return _jsonable(receipt)
+
     def _append_audit(self, tenant_id: str, project_id: str, action: str, *, target_id: str | None = None, api_key_id: str | None = None, idempotency_key: str | None = None, request_id: str | None = None, before: Mapping[str, Any] | None = None, after: Mapping[str, Any] | None = None) -> JsonDict:
         event_id = _new_id("audit")
         before_payload = _jsonable(before or {})
@@ -1828,6 +1931,37 @@ class SaaSControlPlaneRouter:
                     return {"status_code": 200, "body": self.service.verify_audit_chain_snapshot(tenant_id, project_id, auth_key_id=auth_key_id, action=body.get("action"), target_id=body.get("target_id"), api_key_id=body.get("audit_api_key_id"), limit=limit, request_id=body.get("request_id"))}
                 if method == "GET" and len(parts) == 4 and parts[3] == "usage":
                     return {"status_code": 200, "body": self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id)}
+                if len(parts) >= 4 and parts[3] == "billing":
+                    if method == "POST" and len(parts) == 5 and parts[4] == "checkout-plan":
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WRITE_SCOPE, operation="billing.checkout_plan", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
+                        from .billing import build_checkout_session_plan
+
+                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}
+                        price = body.get("price") if isinstance(body.get("price"), Mapping) else {}
+                        usage_rollup = body.get("usage_rollup") if isinstance(body.get("usage_rollup"), Mapping) else {}
+                        metadata = body.get("metadata") if isinstance(body.get("metadata"), Mapping) else {}
+                        return {"status_code": 200, "body": build_checkout_session_plan(customer_ref=str(body.get("customer_ref") or ""), price=price, success_url=str(body.get("success_url") or ""), cancel_url=str(body.get("cancel_url") or ""), provider_config=provider_config, usage_rollup=usage_rollup, metadata=metadata, idempotency_key=body.get("idempotency_key"))}
+                    if method == "POST" and len(parts) == 5 and parts[4] == "portal-plan":
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WRITE_SCOPE, operation="billing.portal_plan", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
+                        from .billing import build_billing_portal_plan
+
+                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}
+                        return {"status_code": 200, "body": build_billing_portal_plan(customer_ref=str(body.get("customer_ref") or ""), return_url=str(body.get("return_url") or ""), provider_config=provider_config, idempotency_key=body.get("idempotency_key"))}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "webhooks" and parts[5] == "ingest":
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WEBHOOK_SCOPE, operation="billing.webhook_ingest", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
+                        envelope = verify_billing_webhook_envelope(
+                            tenant_id=tenant_id,
+                            project_id=project_id,
+                            provider=str(body.get("provider") or ""),
+                            mode=str(body.get("mode") or "test"),
+                            event_type=str(body.get("event_type") or ""),
+                            event_id=str(body.get("event_id") or ""),
+                            payload_sha256=str(body.get("payload_sha256") or ""),
+                            signature_header_present=bool(body.get("signature_header_present", False)),
+                            webhook_secret_ref=body.get("webhook_secret_ref"),
+                            livemode=body.get("livemode"),
+                        )
+                        return {"status_code": 202, "body": envelope}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                 if len(parts) >= 4 and parts[3] == "worker-jobs":
@@ -1878,9 +2012,11 @@ class SaaSControlPlaneRouter:
                     run_id = parts[4]
                     if method == "POST" and len(parts) == 6 and parts[5] == "upload":
                         result = body.get("result") if isinstance(body.get("result"), Mapping) else body
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=RUN_UPLOAD_SCOPE, operation="run.upload", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         return {"status_code": 202, "body": self.service.upload_run_result(tenant_id, project_id, run_id, result, upload_id=body.get("upload_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                     if method == "POST" and len(parts) == 6 and parts[5] == "trace-events":
                         observations = body.get("observations") if isinstance(body.get("observations"), list) else []
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=TRACE_INGEST_SCOPE, operation="trace.ingest", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         return {"status_code": 202, "body": self.service.ingest_trace(tenant_id, project_id, run_id, observations, batch_id=body.get("batch_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                     if method == "GET" and len(parts) == 6 and parts[5] == "lifecycle":
                         return {"status_code": 200, "body": self.service.lifecycle_snapshot(tenant_id, project_id, run_id)}
@@ -1890,9 +2026,7 @@ class SaaSControlPlaneRouter:
                         return {"status_code": 200, "body": self.service.evaluate_release_gate(tenant_id, project_id, run_id, policy=policy, auth_key_id=auth_key_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"), timeout_seconds=timeout_seconds)}
                     if method == "GET" and len(parts) == 6 and parts[5] == "release-evidence":
                         from .platform import build_release_evidence_packet, usage_billing_rollup
-                        if not auth_key_id:
-                            raise ValidationError("release evidence read requires auth_key_id with evidence:read scope")
-                        self.service.authenticate_api_key(tenant_id, project_id, key_id=str(auth_key_id), scope="evidence:read")
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope="evidence:read", operation="release_evidence.read", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
 
                         packet = build_release_evidence_packet(
                             tenant_id=tenant_id,
@@ -1905,6 +2039,7 @@ class SaaSControlPlaneRouter:
                         )
                         return {"status_code": 200, "body": packet}
                     if method == "POST" and len(parts) == 7 and parts[5] == "release-evidence" and parts[6] == "verify":
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope="evidence:read", operation="release_evidence.verify", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         packet = body.get("packet") if isinstance(body.get("packet"), Mapping) else None
                         if packet is None:
                             from .platform import build_release_evidence_packet, usage_billing_rollup
@@ -1925,8 +2060,10 @@ class SaaSControlPlaneRouter:
                         return {"status_code": 200, "body": {**verification, "source": source}}
                     if method == "POST" and len(parts) == 6 and parts[5] == "artifact-manifests":
                         manifest = body.get("manifest") if isinstance(body.get("manifest"), Mapping) else body
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope="artifact:upload", operation="artifact.manifest", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         return {"status_code": 202, "body": self.service.create_artifact_manifest(tenant_id, project_id, run_id, manifest, artifact_id=body.get("artifact_id"), api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                     if method == "GET" and len(parts) == 6 and parts[5] == "artifact-manifests":
+                        self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope="evidence:read", operation="artifact.manifest.list", target_id=run_id, request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         return {"status_code": 200, "body": {"artifact_manifests": self.service.list_artifact_manifests(tenant_id, project_id, run_id, auth_key_id=auth_key_id)}}
             raise ValidationError(f"unsupported route: {method} {path}")
         except Exception as exc:  # Public-safe local router envelope.

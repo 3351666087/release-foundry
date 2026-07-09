@@ -55,15 +55,27 @@ type WorkerDaemonRunSummary struct {
 	Leased        int         `json:"leased"`
 	Completed     int         `json:"completed"`
 	Failed        int         `json:"failed"`
+	Retrying      int         `json:"retrying"`
+	DeadLettered  int         `json:"dead_lettered"`
 	IdleLeases    int         `json:"idle_leases"`
+	LeaseSeconds  int         `json:"lease_seconds"`
+	MaxJobs       int         `json:"max_jobs"`
+	Heartbeat     bool        `json:"heartbeat_enabled"`
+	Heartbeats    int         `json:"heartbeats"`
+	HeartbeatErrs int         `json:"heartbeat_errors"`
 	Jobs          []WorkerJob `json:"jobs"`
 	StartedAt     time.Time   `json:"started_at"`
 	FinishedAt    time.Time   `json:"finished_at"`
 }
 
+type workerDaemonHeartbeatSummary struct {
+	count  int
+	errors int
+}
+
 func (daemon WorkerDaemon) Run(ctx context.Context) (summary WorkerDaemonRunSummary, err error) {
 	options := normalizeWorkerDaemonOptions(daemon.Options)
-	summary = WorkerDaemonRunSummary{SchemaVersion: ControlPlaneSchemaVersion, TenantID: options.TenantID, ProjectID: options.ProjectID, LeaseOwnerID: options.LeaseOwnerID, JobType: options.JobType, Jobs: []WorkerJob{}, StartedAt: time.Now().UTC()}
+	summary = WorkerDaemonRunSummary{SchemaVersion: ControlPlaneSchemaVersion, TenantID: options.TenantID, ProjectID: options.ProjectID, LeaseOwnerID: options.LeaseOwnerID, JobType: options.JobType, Jobs: []WorkerJob{}, LeaseSeconds: options.LeaseSeconds, MaxJobs: options.MaxJobs, Heartbeat: options.HeartbeatInterval > 0, StartedAt: time.Now().UTC()}
 	defer func() { summary.FinishedAt = time.Now().UTC() }()
 
 	if daemon.Repository == nil {
@@ -97,14 +109,20 @@ func (daemon WorkerDaemon) Run(ctx context.Context) (summary WorkerDaemonRunSumm
 
 		leasedJob := *lease.Result.Job
 		summary.Leased++
-		finished, err := daemon.handleLeasedJob(ctx, leasedJob, options)
+		finished, heartbeatSummary, err := daemon.handleLeasedJob(ctx, leasedJob, options)
 		if err != nil {
 			return summary, err
 		}
+		summary.Heartbeats += heartbeatSummary.count
+		summary.HeartbeatErrs += heartbeatSummary.errors
 		if finished.Status == WorkerJobStatusCompleted {
 			summary.Completed++
-		} else if finished.Status == WorkerJobStatusRetrying || finished.Status == WorkerJobStatusDeadLettered {
+		} else if finished.Status == WorkerJobStatusRetrying {
 			summary.Failed++
+			summary.Retrying++
+		} else if finished.Status == WorkerJobStatusDeadLettered {
+			summary.Failed++
+			summary.DeadLettered++
 		}
 		summary.Jobs = append(summary.Jobs, finished)
 	}
@@ -120,40 +138,42 @@ func (daemon WorkerDaemon) RunOnce(ctx context.Context) (WorkerDaemonRunSummary,
 	return copy.Run(ctx)
 }
 
-func (daemon WorkerDaemon) handleLeasedJob(ctx context.Context, job WorkerJob, options WorkerDaemonOptions) (WorkerJob, error) {
+func (daemon WorkerDaemon) handleLeasedJob(ctx context.Context, job WorkerJob, options WorkerDaemonOptions) (WorkerJob, workerDaemonHeartbeatSummary, error) {
 	var stopHeartbeat chan struct{}
-	var heartbeatDone chan struct{}
+	var heartbeatDone chan workerDaemonHeartbeatSummary
 	if options.HeartbeatInterval > 0 {
 		stopHeartbeat = make(chan struct{})
-		heartbeatDone = make(chan struct{})
+		heartbeatDone = make(chan workerDaemonHeartbeatSummary, 1)
 		go daemon.heartbeatUntilStopped(options, job.JobID, stopHeartbeat, heartbeatDone)
 	}
 
 	result, handlerErr := daemon.Handler.HandleWorkerJob(ctx, job)
+	heartbeatSummary := workerDaemonHeartbeatSummary{}
 	if stopHeartbeat != nil {
 		close(stopHeartbeat)
-		<-heartbeatDone
+		heartbeatSummary = <-heartbeatDone
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return job, ctxErr
+		return job, heartbeatSummary, ctxErr
 	}
 	if handlerErr != nil {
 		failure := publicWorkerDaemonFailure(handlerErr)
 		failed, err := daemon.Repository.FailWorkerJob(options.TenantID, options.ProjectID, job.JobID, options.LeaseOwnerID, failure, FailWorkerJobOptions{RetryAfterSeconds: options.RetryAfterSeconds, APIKeyID: options.APIKeyID, RequestID: options.RequestID})
 		if err != nil {
-			return job, err
+			return job, heartbeatSummary, err
 		}
-		return failed.Result, nil
+		return failed.Result, heartbeatSummary, nil
 	}
 	completed, err := daemon.Repository.CompleteWorkerJob(options.TenantID, options.ProjectID, job.JobID, options.LeaseOwnerID, defaultJSONMap(result), CompleteWorkerJobOptions{APIKeyID: options.APIKeyID, RequestID: options.RequestID})
 	if err != nil {
-		return job, err
+		return job, heartbeatSummary, err
 	}
-	return completed.Result, nil
+	return completed.Result, heartbeatSummary, nil
 }
 
-func (daemon WorkerDaemon) heartbeatUntilStopped(options WorkerDaemonOptions, jobID string, stop <-chan struct{}, done chan<- struct{}) {
-	defer close(done)
+func (daemon WorkerDaemon) heartbeatUntilStopped(options WorkerDaemonOptions, jobID string, stop <-chan struct{}, done chan<- workerDaemonHeartbeatSummary) {
+	summary := workerDaemonHeartbeatSummary{}
+	defer func() { done <- summary }()
 	ticker := time.NewTicker(options.HeartbeatInterval)
 	defer ticker.Stop()
 	for {
@@ -161,7 +181,11 @@ func (daemon WorkerDaemon) heartbeatUntilStopped(options WorkerDaemonOptions, jo
 		case <-stop:
 			return
 		case <-ticker.C:
-			_, _ = daemon.Repository.HeartbeatWorkerJob(options.TenantID, options.ProjectID, jobID, options.LeaseOwnerID, options.LeaseSeconds)
+			if _, err := daemon.Repository.HeartbeatWorkerJob(options.TenantID, options.ProjectID, jobID, options.LeaseOwnerID, options.LeaseSeconds); err != nil {
+				summary.errors++
+			} else {
+				summary.count++
+			}
 		}
 	}
 }

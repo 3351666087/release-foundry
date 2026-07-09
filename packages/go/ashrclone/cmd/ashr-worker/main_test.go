@@ -49,6 +49,20 @@ func TestWorkerCommandConfigFromEnvParsesHeartbeatSeconds(t *testing.T) {
 	}
 }
 
+func TestWorkerCommandConfigFromEnvDoesNotRequirePostgresDSN(t *testing.T) {
+	config, err := workerCommandConfigFromEnv(mapLookup(map[string]string{
+		"ASHR_WORKER_TENANT_ID":      "tenant_a",
+		"ASHR_WORKER_PROJECT_ID":     "project_a",
+		"ASHR_WORKER_LEASE_OWNER_ID": "worker_a",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Options.TenantID != "tenant_a" || config.Options.ProjectID != "project_a" || config.Options.LeaseOwnerID != "worker_a" {
+		t.Fatalf("unexpected worker options without postgres DSN: %#v", config.Options)
+	}
+}
+
 func TestWorkerCommandConfigFromEnvRejectsInvalidNumbers(t *testing.T) {
 	_, err := workerCommandConfigFromEnv(mapLookup(map[string]string{"ASHR_WORKER_MAX_JOBS": "many"}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_WORKER_MAX_JOBS") {

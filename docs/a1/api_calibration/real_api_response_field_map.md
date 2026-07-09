@@ -3,8 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Schema | `ashr.clone.response_field_map.v1` |
-| Source label | `a1-real-api-round43-readonly-refresh` |
-| Source records | `400` |
+| Source label | `a1-real-api-round44-readonly-refresh` |
+| Source records | `401` |
 | Field map version | `a1-api-calibration-2026-07-04` |
 
 ## Function Coverage
@@ -25,7 +25,7 @@
 | `plan_batch` | 13 | `blocked`: 3, `planned`: 10 | `plan` | - | - | 0 |
 | `poll_request` | 1 | `planned`: 1 | `plan` | - | - | 0 |
 | `poll_run` | 2 | `planned`: 2 | `plan` | - | - | 0 |
-| `unknown` | 132 | `completed`: 13, `failed`: 1, `ok`: 43, `partial`: 20, `passed`: 11, `planned`: 10 | - | - | - | 30 |
+| `unknown` | 133 | `completed`: 13, `failed`: 1, `ok`: 44, `partial`: 20, `passed`: 11, `planned`: 10 | - | - | - | 30 |
 | `validate_gate` | 3 | `error`: 1, `ok`: 2 | `validation` | - | - | 0 |
 
 ## Commercial Readiness Notes

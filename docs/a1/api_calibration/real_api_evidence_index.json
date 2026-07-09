@@ -20,11 +20,11 @@
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-real-api-round43-readonly-refresh",
+  "label": "a1-real-api-round44-readonly-refresh",
   "output_policy_counts": {
     "by_producer": {},
     "by_record_class": {},
-    "missing": 394,
+    "missing": 395,
     "none": 0,
     "nonprivate_file": 0,
     "nonprivate_override": 0,
@@ -3230,6 +3230,21 @@
       "error_kind": null,
       "function": null,
       "path": "docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json",
+      "request_keys": [],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": null,
+      "top_counts": {}
+    },
+    {
+      "attempts": null,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "function": null,
+      "path": "docs/evidence/private_refs/a1_readonly_api_round44_20260710_001500.json",
       "request_keys": [],
       "response_keys": [],
       "response_status": null,
@@ -9378,11 +9393,11 @@
     "completed": 13,
     "error": 32,
     "failed": 1,
-    "ok": 220,
+    "ok": 221,
     "partial": 20,
     "passed": 11,
     "planned": 65,
     "timeout": 1
   },
-  "total_records": 400
+  "total_records": 401
 }

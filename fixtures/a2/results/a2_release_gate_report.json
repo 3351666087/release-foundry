@@ -68,9 +68,9 @@
     "status": "ready",
     "ready": true,
     "source_schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-real-api-round43-readonly-refresh",
+    "label": "a1-real-api-round44-readonly-refresh",
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
-    "total_records": 400,
+    "total_records": 401,
     "dangerous_counts": {
       "unsafe_real_nonprivate_override": 0,
       "private_required_but_not_private": 0
