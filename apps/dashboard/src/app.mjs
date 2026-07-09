@@ -61,6 +61,8 @@ const state = {
   caseBook: {},
   regressionReplay: {},
   commercialReadiness: {},
+  resultPersistence: {},
+  releaseUnblockChecklist: {},
   releaseGate: {},
   requestProvenance: {},
   usageQuota: {},
@@ -2405,6 +2407,8 @@ function exportReport(format) {
         caseBook: state.caseBook,
         regressionReplay: state.regressionReplay,
         commercialReadiness: state.commercialReadiness,
+        resultPersistence: state.resultPersistence,
+        releaseUnblockChecklist: state.releaseUnblockChecklist,
         releaseGate: state.releaseGate
       },
       state.artifactRegistry,
@@ -2437,6 +2441,8 @@ function exportReport(format) {
       caseBook: state.caseBook,
       regressionReplay: state.regressionReplay,
       commercialReadiness: state.commercialReadiness,
+      resultPersistence: state.resultPersistence,
+      releaseUnblockChecklist: state.releaseUnblockChecklist,
       releaseGate: state.releaseGate
     },
     state.artifactRegistry,
@@ -2877,6 +2883,8 @@ async function loadDataSource(source) {
     state.caseBook = await loadOptionalJson("../../fixtures/a2/results/a2_case_book.json");
     state.regressionReplay = await loadOptionalJson("../../fixtures/a2/results/a2_regression_replay_report.json");
     state.commercialReadiness = await loadOptionalJson("../../fixtures/a2/results/a2_commercial_readiness_report.json");
+    state.resultPersistence = await loadOptionalJson("../../fixtures/a2/results/a2_result_persistence_manifest.json");
+    state.releaseUnblockChecklist = await loadOptionalJson("../../fixtures/a2/results/a2_release_unblock_checklist.json");
     state.releaseGate = await loadOptionalJson("../../fixtures/a2/results/a2_release_gate_report.json");
     state.releaseEvidence = await loadReleaseEvidenceFixtures();
     state.githubPublishEvidence = await loadGithubPublishEvidenceFixtures();
@@ -2955,6 +2963,8 @@ function resetCalibrationState() {
   state.caseBook = {};
   state.regressionReplay = {};
   state.commercialReadiness = {};
+  state.resultPersistence = {};
+  state.releaseUnblockChecklist = {};
   state.releaseGate = {};
   state.reportCenter = {};
   state.artifactRegistry = {};

@@ -4211,3 +4211,42 @@ This is not a new product screen; it is a durability upgrade for the whole proje
 ### Current interpretation
 
 A3 PR Gate now has a stronger audit story: generated check/comment/required-check evidence can travel through report export and Artifact Registry. The next enterprise step is hashing those receipts into the audit bundle and verifying real branch protection.
+
+## 2026-07-09 - A2 Persistence and Unblock Export Bridge
+
+### Goal
+
+Continue A3 commercial growth after PR #23 by consuming newer A2 release evidence without changing A2 semantics. This follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`: A3 should turn A1/A2 evidence into product console, report center, review workflow, audit export, and release-gate buyer value.
+
+### Work completed
+
+- Added A3 summary support for `a2.result_persistence_manifest.v1`.
+- Added A3 summary support for `a2.release_unblock_checklist.v1`.
+- Extended the A2 readiness bundle accepted by report exports with:
+  - `resultPersistence`
+  - `resultPersistenceManifest`
+  - `releaseUnblockChecklist`
+- Added `a2_result_persistence` and `a2_release_unblock_checklist` to JSON report export.
+- Added Markdown report sections:
+  - `A2 Result Persistence`
+  - `A2 Release Unblock Checklist`
+- Wired dashboard export loading for:
+  - `fixtures/a2/results/a2_result_persistence_manifest.json`
+  - `fixtures/a2/results/a2_release_unblock_checklist.json`
+- Added tests proving dashboard export wiring and report-builder summaries.
+- Added implementation note:
+  - `docs/a3/p3_a2_persistence_unblock_export_2026_07_09.md`
+
+### A1/A2 calibration
+
+- A1 runner, trace, observation, tool-call, and ingestion semantics were not changed.
+- A2 judge, grade, failure taxonomy, release-gate, and unblock semantics were not changed.
+- A3 only summarizes A2-owned fixtures and schemas for product/report/review consumption.
+
+### Safety boundary
+
+- No `.env.local` read.
+- No Ashr API key read, printed, or written.
+- No live Ashr API call.
+- No hosted auth, billing, team, API-key, Trust, database, object storage, or cloud mutation.
+- A2 private evidence refs remain named anchors only; raw private payloads were not read.

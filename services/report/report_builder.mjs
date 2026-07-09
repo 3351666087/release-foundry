@@ -620,6 +620,116 @@ export function summarizeCommercialReadiness(commercialFixture = {}) {
   };
 }
 
+export function summarizeA2ResultPersistence(resultPersistenceFixture = {}) {
+  const available = isObject(resultPersistenceFixture) && Object.keys(resultPersistenceFixture).length > 0;
+  const metadata = objectOr(resultPersistenceFixture.metadata);
+  const records = Array.isArray(resultPersistenceFixture.records) ? resultPersistenceFixture.records : [];
+  const releaseGateRecords = records.filter((record) => record.record_type === "release_gate");
+  const scenarioSelectionRecords = records.filter((record) => record.record_type === "scenario_selection");
+  const judgeRecords = records.filter((record) => record.record_type === "judge_result");
+  const safetyBlockingRecords = judgeRecords.filter((record) => record.safety_blocking === true);
+  const failedJudgeRecords = judgeRecords.filter((record) => record.passed === false);
+
+  return {
+    available,
+    schema_version: available ? resultPersistenceFixture.schema_version || "unknown" : "none",
+    manifest_id: resultPersistenceFixture.manifest_id || "none",
+    tenant_id: resultPersistenceFixture.tenant_id || resultPersistenceFixture.org || "unknown",
+    project: resultPersistenceFixture.project || "unknown",
+    run: resultPersistenceFixture.run || "unknown",
+    dataset_id: resultPersistenceFixture.dataset_id || null,
+    record_count: resultPersistenceFixture.record_count || records.length,
+    record_type_counts: objectOr(resultPersistenceFixture.record_type_counts),
+    judge_result_count: judgeRecords.length,
+    failed_judge_result_count: failedJudgeRecords.length,
+    safety_blocking_result_count: safetyBlockingRecords.length,
+    release_gate_record_count: releaseGateRecords.length,
+    scenario_selection_record_count: scenarioSelectionRecords.length,
+    source_refs: objectOr(resultPersistenceFixture.source_refs),
+    public_safe: metadata.public_safe === true,
+    canonical_json_hashing: metadata.canonical_json_hashing === true,
+    raw_private_evidence_not_recorded: metadata.raw_private_evidence_not_recorded === true,
+    secrets_not_recorded: metadata.secrets_not_recorded === true,
+    intended_consumers: Array.isArray(metadata.intended_consumers) ? metadata.intended_consumers : [],
+    latest_records: records.slice(-5).map((record) => ({
+      record_type: record.record_type,
+      case_id: record.case_id,
+      scenario_id: record.scenario_id,
+      judge_id: record.judge_id,
+      judge_version: record.judge_version,
+      passed: record.passed,
+      score: record.score,
+      primary_failure_class: record.primary_failure_class,
+      safety_blocking: record.safety_blocking === true,
+      decision: record.decision || null,
+      output_hash: record.output_hash
+    })),
+    recommendation: available
+      ? "Use the A2 result persistence manifest as the audit bridge between judge outputs, release gate decisions, and A3 report exports."
+      : "Attach A2 result persistence manifest before claiming judge and release-gate evidence is durable."
+  };
+}
+
+export function summarizeA2ReleaseUnblockChecklist(unblockFixture = {}) {
+  const available = isObject(unblockFixture) && Object.keys(unblockFixture).length > 0;
+  const gateItems = Array.isArray(unblockFixture.gate_items) ? unblockFixture.gate_items : [];
+  const a3Summary = objectOr(unblockFixture.a3_consumption_summary);
+  const reviewWorkflow = objectOr(unblockFixture.review_workflow);
+  const blockingItems = gateItems.filter((item) => item.blocks_release === true);
+  const requiredActions = gateItems.flatMap((item) => (
+    Array.isArray(item.required_actions)
+      ? item.required_actions.map((action) => ({ ...action, gate: item.gate, owner_role: item.owner_role }))
+      : []
+  ));
+  const privateEvidenceActions = requiredActions.filter((action) => action.private_evidence_required === true);
+
+  return {
+    available,
+    schema_version: available ? unblockFixture.schema_version || "unknown" : "none",
+    checklist_id: unblockFixture.checklist_id || "none",
+    source_release_gate: unblockFixture.source_release_gate || "unknown",
+    overall_status: unblockFixture.overall_status || "unknown",
+    release_gate_decision: unblockFixture.release_gate_decision || "unknown",
+    release_gate_exit_code: unblockFixture.release_gate_exit_code ?? null,
+    release_gate_risk_score: unblockFixture.release_gate_risk_score ?? null,
+    blocked_gate_count: unblockFixture.blocked_gate_count || blockingItems.length,
+    blocking_gate_ids: blockingItems.map((item) => item.gate).filter(Boolean),
+    dashboard_sections: Array.isArray(a3Summary.dashboard_sections) ? a3Summary.dashboard_sections : [],
+    primary_action: a3Summary.primary_action || requiredActions[0]?.action || "",
+    required_reviewer_roles: Array.isArray(reviewWorkflow.required_reviewers) ? reviewWorkflow.required_reviewers : [],
+    required_action_count: requiredActions.length,
+    private_evidence_required_count: privateEvidenceActions.length,
+    evidence_refs: Array.isArray(unblockFixture.evidence_refs) ? unblockFixture.evidence_refs : [],
+    gate_items: gateItems.map((item) => ({
+      gate: item.gate,
+      title: item.title,
+      status: item.status,
+      blocks_release: item.blocks_release === true,
+      owner_role: item.owner_role,
+      missing_count: item.missing_count || 0,
+      required_action_count: Array.isArray(item.required_actions) ? item.required_actions.length : 0,
+      evidence_refs: Array.isArray(item.evidence_refs) ? item.evidence_refs : []
+    })),
+    next_unblock_actions: requiredActions.slice(0, 5).map((action) => ({
+      gate: action.gate,
+      action_id: action.action_id,
+      action: action.action,
+      owner_role: action.owner_role,
+      private_evidence_required: action.private_evidence_required === true,
+      missing_count: action.missing_count || 0
+    })),
+    safety: {
+      public_safe: unblockFixture.metadata?.public_safe === true,
+      deterministic: unblockFixture.metadata?.deterministic === true,
+      does_not_execute_live_calls: unblockFixture.metadata?.does_not_execute_live_calls === true,
+      does_not_read_private_evidence: unblockFixture.metadata?.does_not_read_private_evidence === true
+    },
+    recommendation: available
+      ? "Show this checklist beside A3 release gate and reviewer workflow so owners know exactly what evidence must be reviewed before unblocking."
+      : "Attach A2 release unblock checklist before claiming blocked releases have an auditable unblock path."
+  };
+}
+
 function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageApiProbe = {}, bundle = {}, releaseGateCandidate = {}) {
   const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
   const schema = (value) => isObject(value) ? String(value.schema_version || "") : "";
@@ -634,7 +744,9 @@ function normalizeA2ReadinessArgs(requestFixture = {}, usageFixture = {}, usageA
     caseBookFixture: explicit.caseBook || explicit.case_book || (legacyA2Args ? requestFixture : {}),
     regressionReplayFixture: explicit.regressionReplay || explicit.regression_replay || (legacyA2Args ? usageFixture : {}),
     commercialReadinessFixture: explicit.commercialReadiness || explicit.commercial_readiness || (legacyA2Args ? usageApiProbe : {}),
-    releaseGateFixture: explicit.releaseGate || explicit.release_gate || (legacyA2Args ? releaseGateCandidate : {})
+    releaseGateFixture: explicit.releaseGate || explicit.release_gate || (legacyA2Args ? releaseGateCandidate : {}),
+    resultPersistenceFixture: explicit.resultPersistence || explicit.result_persistence || explicit.resultPersistenceManifest || explicit.result_persistence_manifest || {},
+    releaseUnblockChecklistFixture: explicit.releaseUnblockChecklist || explicit.release_unblock_checklist || {}
   };
 }
 
@@ -652,6 +764,12 @@ function isA2ReadinessBundle(value = {}) {
     || isObject(value.commercial_readiness)
     || isObject(value.releaseGate)
     || isObject(value.release_gate)
+    || isObject(value.resultPersistence)
+    || isObject(value.result_persistence)
+    || isObject(value.resultPersistenceManifest)
+    || isObject(value.result_persistence_manifest)
+    || isObject(value.releaseUnblockChecklist)
+    || isObject(value.release_unblock_checklist)
   );
 }
 
@@ -4008,6 +4126,8 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const evidenceReadiness = summarizeEvidenceReadiness(evidenceReadinessFixture);
   const regressionReadiness = summarizeRegressionReadiness(a2Readiness.caseBookFixture, a2Readiness.regressionReplayFixture);
   const commercialReadiness = summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture);
+  const resultPersistence = summarizeA2ResultPersistence(a2Readiness.resultPersistenceFixture);
+  const releaseUnblockChecklist = summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture);
   const requestProvenance = summarizeRequestProvenance(requestFixture);
   const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
   const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture);
@@ -4472,6 +4592,48 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     );
   }
 
+  if (resultPersistence.available) {
+    lines.push(
+      "## A2 Result Persistence",
+      "",
+      `- Manifest: ${resultPersistence.manifest_id}`,
+      `- Tenant: ${resultPersistence.tenant_id}`,
+      `- Project/run: ${resultPersistence.project} / ${resultPersistence.run}`,
+      `- Records: ${resultPersistence.record_count}`,
+      `- Judge results: ${resultPersistence.judge_result_count}`,
+      `- Failed judge results: ${resultPersistence.failed_judge_result_count}`,
+      `- Safety blocking results: ${resultPersistence.safety_blocking_result_count}`,
+      `- Release gate records: ${resultPersistence.release_gate_record_count}`,
+      `- Scenario selection records: ${resultPersistence.scenario_selection_record_count}`,
+      `- Public safe: ${resultPersistence.public_safe ? "yes" : "no"}`,
+      `- Secrets recorded: ${resultPersistence.secrets_not_recorded ? "no" : "unknown"}`,
+      `- Recommendation: ${resultPersistence.recommendation}`,
+      ""
+    );
+  }
+
+  if (releaseUnblockChecklist.available) {
+    lines.push(
+      "## A2 Release Unblock Checklist",
+      "",
+      `- Status: ${releaseUnblockChecklist.overall_status}`,
+      `- Release decision: ${releaseUnblockChecklist.release_gate_decision}`,
+      `- Risk score: ${releaseUnblockChecklist.release_gate_risk_score}`,
+      `- Blocking gates: ${releaseUnblockChecklist.blocking_gate_ids.join(", ") || "none"}`,
+      `- Required actions: ${releaseUnblockChecklist.required_action_count}`,
+      `- Private evidence required: ${releaseUnblockChecklist.private_evidence_required_count}`,
+      `- Required reviewers: ${releaseUnblockChecklist.required_reviewer_roles.join(", ") || "none"}`,
+      `- Dashboard sections: ${releaseUnblockChecklist.dashboard_sections.join(", ") || "none"}`,
+      `- Primary action: ${releaseUnblockChecklist.primary_action || "none"}`,
+      `- Safety: public ${releaseUnblockChecklist.safety.public_safe ? "yes" : "no"}, no live calls ${releaseUnblockChecklist.safety.does_not_execute_live_calls ? "yes" : "no"}`,
+      ""
+    );
+    for (const item of releaseUnblockChecklist.gate_items) {
+      lines.push(`- ${item.gate}: ${item.status}, missing ${item.missing_count}, owner ${item.owner_role}`);
+    }
+    lines.push("");
+  }
+
   if (requestProvenance.available) {
     const latest = requestProvenance.latest_request;
     lines.push(
@@ -4827,6 +4989,8 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     evidence_readiness: summarizeEvidenceReadiness(evidenceReadinessFixture),
     regression_readiness: summarizeRegressionReadiness(a2Readiness.caseBookFixture, a2Readiness.regressionReplayFixture),
     commercial_readiness: summarizeCommercialReadiness(a2Readiness.commercialReadinessFixture),
+    a2_result_persistence: summarizeA2ResultPersistence(a2Readiness.resultPersistenceFixture),
+    a2_release_unblock_checklist: summarizeA2ReleaseUnblockChecklist(a2Readiness.releaseUnblockChecklistFixture),
     request_provenance: summarizeRequestProvenance(requestFixture),
     usage_quota: summarizeUsageQuota(usageFixture, usageApiProbe),
     media_readiness: summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture),

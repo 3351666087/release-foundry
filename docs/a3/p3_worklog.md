@@ -2892,3 +2892,81 @@ This round makes A3 more durable rather than more flashy. It gives the repo a lo
 Remaining production gap:
 
 Publish receipts still need audit-bundle hashing, dedicated dashboard cards, and real branch-protection verification.
+
+## 2026-07-09 - Commercial Growth Round 2
+
+Continued from PR #23 / `codex/a3-commercial-growth-round2` with latest `origin/main` and `docs/strategy/large-saas-a1-a2-a3-full-plan.md` as the commercial bus. This round pushed A3 in three parallel directions: Playwright E2E proof, A2 persistence/unblock export consumption, and a machine-readable commercial growth manifest.
+
+Implemented:
+
+- Added Playwright TS E2E infrastructure:
+  - `package.json`
+  - `package-lock.json`
+  - `playwright.config.ts`
+  - `tests/e2e/static-dashboard-server.mjs`
+  - `tests/e2e/a3-dashboard-commercial.spec.ts`
+- Verified the real dashboard page `apps/dashboard/index.html?source=p3-official-demo`.
+- Captured screenshot evidence:
+  - `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`
+- Added A2 persistence/unblock export bridge:
+  - `summarizeA2ResultPersistence`
+  - `summarizeA2ReleaseUnblockChecklist`
+  - JSON report fields `a2_result_persistence` and `a2_release_unblock_checklist`
+  - Markdown report sections `A2 Result Persistence` and `A2 Release Unblock Checklist`
+- Wired dashboard report export to load:
+  - `fixtures/a2/results/a2_result_persistence_manifest.json`
+  - `fixtures/a2/results/a2_release_unblock_checklist.json`
+- Added commercial growth manifest:
+  - `services/report/a3_commercial_growth_manifest.mjs`
+  - `tests/a3/a3_commercial_growth_manifest.test.mjs`
+  - `fixtures/a3/p3/a3_commercial_growth_manifest.redacted.json`
+  - `docs/a3/p3_commercial_growth_manifest_2026_07_09.md`
+- Added Money-Grade Auditor report:
+  - `docs/a3/p3_growth_auditor_money_grade_round2_2026_07_09.md`
+- Added implementation notes:
+  - `docs/a3/p3_a2_persistence_unblock_export_2026_07_09.md`
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+- Updated `.gitignore` for Node dependencies and transient Playwright output.
+
+Verification:
+
+```text
+node --check services/report/report_builder.mjs
+node --check apps/dashboard/src/app.mjs
+node --check services/report/a3_commercial_growth_manifest.mjs
+node --check tests/e2e/static-dashboard-server.mjs
+node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+node --test tests/a3/a3_commercial_growth_manifest.test.mjs
+npm.cmd run test:e2e
+```
+
+Results so far:
+
+- Report/dashboard contract tests passed: 73 pass, 0 fail.
+- Commercial growth manifest tests passed: 5 pass, 0 fail.
+- Playwright E2E passed: 4 pass, 0 fail.
+- Playwright screenshot rendered and was visually inspected.
+- Final pre-commit CL commercial gate passed with 0 blockers.
+- Final pre-commit CL hygiene gate passed with no findings.
+- Final combined A3 Node tests passed: 78 pass, 0 fail.
+- Final `git diff --check` passed.
+- Final ignored-file check confirmed `.env.local`, `node_modules/`, and transient Playwright results are ignored.
+
+A1/A2 calibration:
+
+- A1 runner/trace/tool-call semantics were not changed.
+- A2 judge/release-gate semantics were not changed.
+- A3 now consumes newer A2 result persistence and release unblock checklist artifacts downstream in reports.
+- Commercial growth manifest binds growth points to A1/A2/A3 evidence or explicit gaps.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, email, raw signed URL, or account value committed.
+- No live Ashr API call in this round.
+- No hosted auth, billing, team, API-key, Trust, database, object storage, or cloud mutation.
+- Playwright used local redacted/static fixtures only.
+
+Current interpretation:
+
+This round turns A3 from "dashboard with many panels" toward "testable commercial product surface." The important movement is executable browser proof plus stronger A2 release evidence in exports plus a growth manifest that forces future work to name evidence, contracts, tenant/RBAC/usage/audit impact, and commercial value.

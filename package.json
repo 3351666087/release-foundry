@@ -1,0 +1,14 @@
+{
+  "name": "ashr-codex-factory",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "e2e": "playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "playwright:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}
