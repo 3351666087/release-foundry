@@ -245,6 +245,30 @@
       "When present, A2 uses it as public API reachability context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_official_api_mutating_index": {
+    "available": false,
+    "path": "docs/a1/evidence/official_api_mutating_calibration_index.json",
+    "schema_version": "",
+    "public_safe": false,
+    "raw_payloads_included": false,
+    "secret_values_included": false,
+    "record_count": 0,
+    "status_counts": {},
+    "modalities": [],
+    "mutating_step_ids": [],
+    "observed_error_kinds": [],
+    "total_steps": 0,
+    "read_step_count": 0,
+    "mutating_step_count": 0,
+    "quota_block_count": 0,
+    "private_manifest_count": 0,
+    "ready_for_a2_evidence_context": false,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 official API mutating calibration index is not available yet.",
+      "When present, A2 uses it as public quota/error behavior context, not as C3 server-side grading evidence."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",

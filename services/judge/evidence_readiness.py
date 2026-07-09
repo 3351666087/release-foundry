@@ -10,6 +10,7 @@ from typing import Any
 DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_map.json")
 DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
 DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST = Path("docs/a1/evidence/official_api_readonly_manifest_summary.json")
+DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX = Path("docs/a1/evidence/official_api_mutating_calibration_index.json")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -45,6 +46,7 @@ def build_evidence_readiness_report(
     ashr_case_map_path: str | Path = DEFAULT_ASHR_CASE_MAP,
     a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
     a1_official_api_readonly_manifest_path: str | Path = DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST,
+    a1_official_api_mutating_index_path: str | Path = DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -78,6 +80,9 @@ def build_evidence_readiness_report(
     a1_real_api_evidence = _a1_real_api_evidence_summary(a1_real_api_evidence_index_path)
     a1_official_api_readonly_manifest = _a1_official_api_readonly_manifest_summary(
         a1_official_api_readonly_manifest_path
+    )
+    a1_official_api_mutating_index = _a1_official_api_mutating_index_summary(
+        a1_official_api_mutating_index_path
     )
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
@@ -126,6 +131,7 @@ def build_evidence_readiness_report(
         },
         "a1_real_api_evidence": a1_real_api_evidence,
         "a1_official_api_readonly_manifest": a1_official_api_readonly_manifest,
+        "a1_official_api_mutating_index": a1_official_api_mutating_index,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -439,6 +445,103 @@ def _a1_official_api_readonly_manifest_summary(path: str | Path) -> dict[str, An
     }
 
 
+def _a1_official_api_mutating_index_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_mutating_index(target, "A1 official API mutating calibration index is not available yet.")
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_mutating_index(target, "A1 official API mutating calibration index is not a JSON object.")
+
+    records = [record for record in payload.get("records", []) if isinstance(record, dict)]
+    mutating_step_ids = sorted(
+        {
+            str(step_id)
+            for record in records
+            for step_id in record.get("mutating_step_ids", [])
+            if str(step_id).strip()
+        }
+    )
+    modalities = sorted(
+        {
+            str(modality)
+            for record in records
+            for modality in record.get("summary_modalities", [])
+            if str(modality).strip()
+        }
+    )
+    observed_error_kinds = sorted(
+        {
+            str(error_kind)
+            for record in records
+            for error_kind in record.get("observed_error_kinds", [])
+            if str(error_kind).strip()
+        }
+    )
+    raw_payloads_included = (
+        payload.get("raw_payloads_included") is True
+        or any(record.get("raw_payloads_included") is True for record in records)
+    )
+    secret_values_included = payload.get("secret_values_included") is True
+    public_safe = (
+        payload.get("public_safe") is True
+        and raw_payloads_included is False
+        and secret_values_included is False
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "public_safe": public_safe,
+        "raw_payloads_included": raw_payloads_included,
+        "secret_values_included": secret_values_included,
+        "record_count": len(records),
+        "status_counts": _count_records(records, "status"),
+        "modalities": modalities,
+        "mutating_step_ids": mutating_step_ids,
+        "observed_error_kinds": observed_error_kinds,
+        "total_steps": sum(_int_value(record.get("total_steps")) for record in records),
+        "read_step_count": sum(_int_value(record.get("read_steps")) for record in records),
+        "mutating_step_count": len(mutating_step_ids),
+        "quota_block_count": sum(_int_value(record.get("quota_block_count")) for record in records),
+        "private_manifest_count": sum(1 for record in records if record.get("private_manifest")),
+        "ready_for_a2_evidence_context": public_safe and bool(records),
+        "c3_grading_ready": False,
+        "notes": [
+            "A1 mutating calibration index is public-safe quota/error shape evidence for official create-request calls.",
+            "It does not count as reviewed ashr_grading rows for C3.",
+        ],
+    }
+
+
+def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "public_safe": False,
+        "raw_payloads_included": False,
+        "secret_values_included": False,
+        "record_count": 0,
+        "status_counts": {},
+        "modalities": [],
+        "mutating_step_ids": [],
+        "observed_error_kinds": [],
+        "total_steps": 0,
+        "read_step_count": 0,
+        "mutating_step_count": 0,
+        "quota_block_count": 0,
+        "private_manifest_count": 0,
+        "ready_for_a2_evidence_context": False,
+        "c3_grading_ready": False,
+        "notes": [
+            reason,
+            "When present, A2 uses it as public quota/error behavior context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
 def _official_manifest_public_safe(public_safety: dict[str, Any]) -> bool:
     return (
         public_safety.get("raw_key_material_present") is False
@@ -497,6 +600,14 @@ def _count_records(records: list[dict[str, Any]], key: str) -> dict[str, int]:
             continue
         counts[str(value)] = counts.get(str(value), 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _int_value(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    return 0
 
 
 def _quota_gate_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
