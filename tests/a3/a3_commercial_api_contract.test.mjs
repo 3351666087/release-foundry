@@ -17,6 +17,7 @@ import { buildA3SqlMigrationPlan } from "../../services/report/a3_sql_migrations
 
 const FIXTURE_PATH = new URL("../../fixtures/a3/p3/a3_commercial_api_contract.redacted.json", import.meta.url);
 const DOC_PATH = new URL("../../docs/a3/p3_commercial_api_contract_2026_07_09.md", import.meta.url);
+const BILLING_MIGRATION_API_DOC_PATH = new URL("../../docs/a3/p3_billing_migration_api_contract_2026_07_09.md", import.meta.url);
 
 test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", async () => {
   const contract = buildA3CommercialApiContract();
@@ -45,10 +46,19 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "POST /v1/release-gates/{release_gate_id}/denials",
     "POST /v1/reports/{report_id}/share",
     "GET /v1/usage",
+    "GET /v1/billing/migration-readiness",
     "POST /v1/billing/checkout"
   ]) {
     assert.equal(routes.has(route), true, `missing route ${route}`);
   }
+
+  const migrationReadiness = contract.endpoint_matrix.find((endpoint) => endpoint.route === "GET /v1/billing/migration-readiness");
+  assert.equal(migrationReadiness.local_a3_route, "GET /api/a3/billing/migration-readiness");
+  assert.equal(migrationReadiness.rbac, "billing:read");
+  assert.equal(migrationReadiness.a3_status, "read_only_local_a3");
+  assert.equal(migrationReadiness.db_tables.includes("billing_migration_readiness"), true);
+  assert.equal(migrationReadiness.events.includes("billing.migration_readiness_read"), true);
+  assert.match(migrationReadiness.notes, /A3 remains read-only/);
 
   assert.equal(contract.source_authority.a1.must_not_change.includes("does not mutate A1"), true);
   assert.equal(contract.source_authority.a2.must_not_change.includes("does not change judge"), true);
@@ -85,6 +95,20 @@ test("A3 commercial API contract fixture and docs are generated and secret-free"
   ]) {
     assert.ok(doc.includes(term), `missing doc term ${term}`);
   }
+
+  const billingMigrationDoc = await readFile(BILLING_MIGRATION_API_DOC_PATH, "utf8");
+  for (const term of [
+    "ANCHOR: A3_BILLING_MIGRATION_API_CONTRACT",
+    "a3.billing_migration_readiness.v1",
+    "GET /api/a3/billing/migration-readiness",
+    "billing:read",
+    "billing_migration_readiness",
+    "read-only A1 billing ledger",
+    "No A3 billing mutation"
+  ]) {
+    assert.ok(billingMigrationDoc.includes(term), `missing billing migration API doc term ${term}`);
+  }
+  assert.equal(findCommercialApiContractLeaks(billingMigrationDoc).length, 0);
   assert.equal(findCommercialApiContractLeaks(doc).length, 0);
 });
 
@@ -102,6 +126,11 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
     assert.equal(payload.tenant_scope.project_id, "project-local");
     assert.equal(payload.tenant_scope.environment_id, "staging");
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.route === "GET /v1/usage"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => (
+      endpoint.local_a3_route === "GET /api/a3/billing/migration-readiness"
+      && endpoint.rbac === "billing:read"
+      && endpoint.db_tables.includes("billing_migration_readiness")
+    )), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/review/denials"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/billing/readiness"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("payload_hash"), true);
@@ -116,4 +145,5 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
   assert.equal(A3_DB_CONTRACT.api_surfaces.includes("GET /api/a3/commercial-api/contract"), true);
   const migrations = buildA3SqlMigrationPlan();
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("commercial_api_contracts")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("billing_migration_readiness")), true);
 });

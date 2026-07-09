@@ -42,6 +42,7 @@ import {
   fetchA3SchemaDriftRadar,
   fetchA3UsageLedger,
   fetchA3BillingReadiness,
+  fetchA3BillingMigrationReadiness,
   fetchA3LiveWorkflowReadiness,
   fetchA3LiveOpsControlPlane,
   fetchA3PeerBranchCalibration,
@@ -92,6 +93,7 @@ const state = {
   productConsole: {},
   usageLedger: {},
   billingReadiness: {},
+  billingMigrationReadiness: {},
   liveWorkflowReadiness: {},
   liveOpsControlPlane: {},
   reportCenter: {},
@@ -160,6 +162,95 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function buildA3BillingMigrationReadiness(options = {}) {
+  return {
+    schema_version: "a3.billing_migration_readiness.v1",
+    contract_id: "a3_billing_migration_readiness_browser_view",
+    source_branch: "origin/codex/a1-local-sdk-runner",
+    tenant_scope: {
+      organization_id: options.organizationId || "org-local",
+      project_id: options.projectId || "project-local",
+      environment_id: options.environmentId || "staging"
+    },
+    purpose: "Browser-safe A3 view of A1 billing ledger migration readiness. The complete hashed contract is served by the local A3 API.",
+    summary: {
+      status: "read_only_migration_contract_ready",
+      ready_for_live_customer_billing: false,
+      consumed_evidence_count: 4,
+      upstream_commit_count: 3,
+      a3_customer_claim: "A3 can display billing migration readiness and safety boundaries, but cannot claim live billing until A1 exposes authenticated billing ledger APIs."
+    },
+    upstream_evidence: {
+      durable_billing_ledger_migration: {
+        source_commit: "91213fc",
+        a3_consumption_state: "schema_and_safety_contract_consumed"
+      },
+      replay_evidence: {
+        source_commit: "f8ee956",
+        fixture_path: "docs/a1/evidence/billing_replay_fixture_round35.json",
+        a3_consumption_state: "public_replay_fixture_consumed_as_redacted_read_model"
+      },
+      live_smoke: {
+        source_commit: "11ac03e",
+        a3_consumption_state: "live_smoke_contract_read_from_diff_not_replayed"
+      },
+      official_api_readonly_summary: {
+        source_commit: "f8ee956",
+        summary_path: "docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json",
+        status: "ok"
+      }
+    },
+    db_contract: {
+      durable_backend_owner: "A1",
+      a3_db_mutation_required: false,
+      tables: [
+        {
+          name: "billing_accounts",
+          purpose: "Provider customer/account reference per organization and project.",
+          tenant_column: "organization_id",
+          project_column: "project_id"
+        },
+        {
+          name: "billing_provider_events",
+          purpose: "Provider webhook idempotency, signature summary, replay status, and hash-only payload reference.",
+          tenant_column: "organization_id",
+          project_column: "project_id"
+        },
+        {
+          name: "billing_ledger_events",
+          purpose: "Append-only normalized billing ledger rows for invoices, refunds, cancellations, checkout, and usage reconciliation.",
+          tenant_column: "organization_id",
+          project_column: "project_id"
+        }
+      ]
+    },
+    api_contract: [
+      {
+        route: "GET /api/a3/billing/readiness",
+        owner_lane: "A3",
+        status: "existing_read_only_surface"
+      },
+      {
+        route: "future GET /v1/projects/{project_id}/billing/ledger-summary",
+        owner_lane: "A1",
+        status: "required_before_live_a3_customer_display"
+      },
+      {
+        route: "future GET /v1/projects/{project_id}/billing/provider-events",
+        owner_lane: "A1",
+        status: "required_for_audit_readback"
+      }
+    ],
+    safety: {
+      browser_safe_view: true,
+      env_local_read: false,
+      real_api_called_by_a3: false,
+      real_payment_provider_called: false,
+      billing_mutation_performed_by_a3: false
+    }
+  };
 }
 
 function fillSelect(selectId, values) {
@@ -1486,6 +1577,7 @@ function renderReportCenter() {
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration);
   const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
   const liveOpsControlPlane = state.liveOpsControlPlane || {};
+  const billingMigrationReadiness = state.billingMigrationReadiness || {};
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
   const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
   const regressionFactory = summarizeRegressionFactory(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
@@ -1518,6 +1610,9 @@ function renderReportCenter() {
     }
     if (liveOpsControlPlane.schema_version) {
       tiles.push(reportTile("Live Ops Control Plane", `${liveOpsControlPlane.status}: ${liveOpsControlPlane.counts?.api_backed_count || 0}/${liveOpsControlPlane.counts?.lane_count || 0} API-backed lane(s), ${liveOpsControlPlane.counts?.audit_backed_count || 0} audit-backed, ${liveOpsControlPlane.counts?.local_external_mutation_count || 0} local external mutation(s).`));
+    }
+    if (billingMigrationReadiness.schema_version) {
+      tiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: ${billingMigrationReadiness.summary?.upstream_commit_count || 0} A1 commit(s), ${billingMigrationReadiness.db_contract?.tables?.length || 0} billing table(s), live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
     }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
@@ -2711,6 +2806,10 @@ async function refreshReportEvidence() {
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
   });
+  state.billingMigrationReadiness = await fetchA3BillingMigrationReadiness({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
   state.liveWorkflowReadiness = await fetchA3LiveWorkflowReadiness({
     source: state.source,
     baseUrl: getA3ApiBaseUrl()
@@ -2729,6 +2828,7 @@ async function refreshReportEvidence() {
   renderProductConsole();
   renderReviewerWorkflowBoard();
   renderReleaseEvidenceSummary();
+  renderBillingMigrationReadiness();
   renderLiveWorkflowReadiness();
   renderLiveOpsControlPlane();
   renderPeerBranchCalibration();
@@ -2779,6 +2879,7 @@ function applyApiDashboardPayload(payload) {
   state.productConsole = payload.product_console || {};
   state.usageLedger = payload.usage_ledger || {};
   state.billingReadiness = payload.billing_readiness || {};
+  state.billingMigrationReadiness = payload.billing_migration_readiness || {};
   state.liveWorkflowReadiness = payload.live_workflow_readiness || {};
   state.liveOpsControlPlane = payload.live_ops_control_plane || {};
   state.reportCenter = payload.report_center || {};
@@ -2833,6 +2934,7 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/review/workflow",
         "GET /api/a3/usage/ledger",
         "GET /api/a3/billing/readiness",
+        "GET /api/a3/billing/migration-readiness",
         "GET /api/a3/live-workflow/readiness",
         "GET /api/a3/live-ops/control-plane",
         "GET /api/a3/peer-branches/calibration",
@@ -2841,7 +2943,7 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/reports/center",
         "GET /api/a3/artifacts/registry"
       ],
-      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "live_ops_control_plane", "trust_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "billing_migration_readiness", "live_ops_control_plane", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
@@ -3085,6 +3187,50 @@ function refreshLiveWorkflowReadiness() {
   });
 }
 
+function refreshBillingMigrationReadiness() {
+  state.billingMigrationReadiness = buildA3BillingMigrationReadiness({
+    source: state.source,
+    organizationId: state.usageLedger?.tenant_scope?.organization_id,
+    projectId: state.usageLedger?.tenant_scope?.project_id
+  });
+}
+
+function renderBillingMigrationReadiness() {
+  const readiness = state.billingMigrationReadiness || {};
+  const statusBadge = $("billing-migration-status");
+  const status = readiness.summary?.status || readiness.status || "checking";
+  statusBadge.textContent = status;
+  statusBadge.className = `badge ${readiness.summary?.ready_for_live_customer_billing ? "pass" : readiness.schema_version ? "warn" : "neutral"}`;
+  const upstream = readiness.upstream_evidence || {};
+  const dbTables = Array.isArray(readiness.db_contract?.tables) ? readiness.db_contract.tables : [];
+  const apiRoutes = Array.isArray(readiness.api_contract) ? readiness.api_contract : [];
+  $("billing-migration-body").innerHTML = `
+    <div class="caption">${escapeHtml(readiness.purpose || "Billing migration readiness is not attached.")}</div>
+    <div class="health-grid">
+      ${healthTile(readiness.summary?.upstream_commit_count || 0, "A1 commits")}
+      ${healthTile(dbTables.length, "billing tables")}
+      ${healthTile(readiness.summary?.consumed_evidence_count || 0, "evidence inputs")}
+      ${healthTile(readiness.summary?.ready_for_live_customer_billing ? "yes" : "no", "live billing")}
+    </div>
+    ${renderReportTable(["A1 evidence", "Source", "A3 state"], Object.entries(upstream).slice(0, 5).map(([key, item]) => [
+      key,
+      item.source_commit || item.summary_path || item.fixture_path || "local",
+      item.a3_consumption_state || item.status || "mapped"
+    ]), "No A1 billing migration evidence is loaded.")}
+    ${renderReportTable(["DB table", "Purpose", "Tenant scope"], dbTables.map((table) => [
+      table.name,
+      table.purpose,
+      `${table.tenant_column || "organization_id"} / ${table.project_column || "project_id"}`
+    ]), "No billing migration DB tables are mapped.")}
+    ${renderReportTable(["API route", "Owner", "Status"], apiRoutes.map((route) => [
+      route.route,
+      route.owner_lane,
+      route.status
+    ]), "No billing migration API routes are mapped.")}
+    <div class="caption">A3 claim: ${escapeHtml(readiness.summary?.a3_customer_claim || "A3 stays read-only until A1 exposes authenticated billing ledger APIs.")}</div>
+  `;
+}
+
 function refreshLiveOpsControlPlane() {
   state.liveOpsControlPlane = buildA3LiveOpsControlPlane({
     source: state.source,
@@ -3225,9 +3371,10 @@ async function loadDataSource(source) {
         }]
       };
     }
-    const [usageLedgerResult, billingReadinessResult, liveWorkflowResult, liveOpsResult] = await Promise.allSettled([
+    const [usageLedgerResult, billingReadinessResult, billingMigrationResult, liveWorkflowResult, liveOpsResult] = await Promise.allSettled([
       fetchA3UsageLedger({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3BillingReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
+      fetchA3BillingMigrationReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3LiveWorkflowReadiness({ source, baseUrl: getA3ApiBaseUrl() }),
       fetchA3LiveOpsControlPlane({ source, baseUrl: getA3ApiBaseUrl() })
     ]);
@@ -3236,6 +3383,9 @@ async function loadDataSource(source) {
     }
     if (billingReadinessResult.status === "fulfilled") {
       state.billingReadiness = billingReadinessResult.value;
+    }
+    if (billingMigrationResult.status === "fulfilled") {
+      state.billingMigrationReadiness = billingMigrationResult.value;
     }
     if (liveWorkflowResult.status === "fulfilled") {
       state.liveWorkflowReadiness = liveWorkflowResult.value;
@@ -3309,6 +3459,7 @@ async function loadDataSource(source) {
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
     refreshLocalArtifactRegistry();
+    refreshBillingMigrationReadiness();
     refreshLiveWorkflowReadiness();
     refreshLiveOpsControlPlane();
   }
@@ -3335,6 +3486,7 @@ async function loadDataSource(source) {
   renderEnterpriseReadiness();
   renderSchemaDriftRadar();
   renderPeerBranchCalibration();
+  renderBillingMigrationReadiness();
   renderLiveWorkflowReadiness();
   renderLiveOpsControlPlane();
   renderProductConsole();
@@ -3393,6 +3545,7 @@ function resetCalibrationState() {
   state.artifactRegistry = {};
   state.reviewWorkflow = {};
   state.billingReadiness = {};
+  state.billingMigrationReadiness = {};
   state.liveWorkflowReadiness = {};
   state.liveOpsControlPlane = {};
   state.peerBranchCalibration = {};

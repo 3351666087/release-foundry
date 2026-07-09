@@ -522,6 +522,16 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A1 usage ledger", "A2 model cost policy", "A3 usage UI"]
   }),
+  endpoint("GET /v1/billing/migration-readiness", "A1/A3", "usage_billing", "GET /api/a3/billing/migration-readiness", {
+    status: "read_only",
+    rbac: "billing:read",
+    db: ["billing_migration_readiness", "billing_ledger_events", "billing_provider_events", "audit_events"],
+    events: ["billing.migration_readiness_read", "billing.ledger_summary_read"],
+    artifacts: ["billing_migration_readiness_snapshot"],
+    usage: ["api_requests", "billing_readiness_reads"],
+    dependencies: ["A1 read-only billing ledger summary", "A1 durable billing migration manifest", "A3 billing UI"],
+    notes: "Maps future commercial billing migration readiness to A1 ledger/migration summaries; A3 remains read-only and cannot mutate billing provider state."
+  }),
   endpoint("GET /v1/billing/subscription", "A1/A3", "usage_billing", "GET /api/a3/billing/readiness", {
     status: "read_only",
     rbac: "billing_admin",

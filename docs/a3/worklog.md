@@ -5531,3 +5531,73 @@ Validation:
 - Hygiene CL: passed.
 - `git diff --check`: passed.
 - `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+## 2026-07-09 - Live Publish / Review / Billing / Share Closeout
+
+Goal: close the team lead's six next A3 SaaS workflow asks against the current
+API-backed dashboard, store, report, audit, and test contracts.
+
+Confirmed wired surfaces:
+
+- GitHub check publishing route:
+  - `POST /api/a3/github/check-run/publish`
+- GitHub PR comment publishing route:
+  - `POST /api/a3/github/pr-comment/publish`
+- Reviewer workflow routes:
+  - `POST /api/a3/review/waivers`
+  - `POST /api/a3/review/approvals`
+  - `POST /api/a3/review/denials`
+- Human operation records:
+  - `saas_admin_action_requests`
+  - `review_workflow_records`
+  - `audit_events`
+  - `event_outbox`
+  - `github_publish_receipts`
+- Billing/admin read routes:
+  - `GET /api/a3/usage/ledger`
+  - `GET /api/a3/billing/readiness`
+  - `GET /api/a3/billing/migration-readiness`
+- Hosted/share report lifecycle routes:
+  - `POST /api/a3/reports/share`
+  - `GET /reports/:reportId`
+  - `GET /r/:shareToken`
+  - `POST /api/a3/reports/:reportId/view`
+  - `POST /api/a3/reports/:reportId/revoke`
+
+Docs added:
+
+- `docs/a3/p3_live_publish_review_billing_share_closeout_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted auth, GitHub credentials/workers, production DB,
+  durable usage events, billing ledger, provider webhooks, and runner outputs.
+- A2 remains owner of score, pass/fail, release policy, failure taxonomy,
+  security verification, and judge semantics.
+- A3 records downstream product workflow state and does not mutate A1 or A2
+  source semantics.
+
+Validation:
+
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+
+Results:
+
+- Full A3 Node suite: 260 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key rotation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, signed URL, local path, payment secret, or
+  raw share token was written.

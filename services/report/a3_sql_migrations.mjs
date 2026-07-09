@@ -21,6 +21,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
+      "Billing migration readiness rows must be tenant-scoped, read-only A3 projections of A1 ledger/migration evidence; A3 must never store provider secrets, card data, or raw provider payloads.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -488,6 +489,32 @@ CREATE TABLE IF NOT EXISTS event_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_event_outbox_project ON event_outbox(project_id, event_type, delivery_status, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_outbox_resource_hash ON event_outbox(project_id, resource_type, resource_id, payload_hash);`)
+    ,
+    statement("014_billing_migration_readiness", ["billing_migration_readiness"], `
+CREATE TABLE IF NOT EXISTS billing_migration_readiness (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  readiness_schema_version TEXT NOT NULL,
+  source_owner_lane TEXT NOT NULL DEFAULT 'A1',
+  source_ledger_summary_ref TEXT,
+  migration_manifest_hash TEXT NOT NULL,
+  provider_event_count INTEGER NOT NULL DEFAULT 0,
+  ledger_event_count INTEGER NOT NULL DEFAULT 0,
+  replay_status_summary ${types.json} NOT NULL,
+  billing_mutations_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_provider_payload_embedded BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_provider_secret_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_card_data_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_migration_readiness_scope ON billing_migration_readiness(organization_id, tenant_id, workspace_id, project_id, environment_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_migration_readiness_hash ON billing_migration_readiness(project_id, environment_id, payload_hash);`)
   ];
 }
 

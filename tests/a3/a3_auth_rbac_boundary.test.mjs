@@ -84,7 +84,8 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
     "capture_release_readback",
     "read_event_outbox",
     "read_schema_drift",
-    "read_peer_branch_calibration"
+    "read_peer_branch_calibration",
+    "read_billing_migration_readiness"
   ]) {
     assert.ok(operations[operation], `${operation} should be covered by RBAC policy`);
     assert.equal(operations[operation].denied_state_required, true);
@@ -96,10 +97,17 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   assert.deepEqual(operations.read_event_outbox.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
   assert.deepEqual(operations.read_schema_drift.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
   assert.deepEqual(operations.read_peer_branch_calibration.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
+  assert.equal(operations.read_billing_migration_readiness.route, "GET /api/a3/billing/migration-readiness");
+  assert.equal(operations.read_billing_migration_readiness.required_permission, "billing:read");
+  assert.equal(operations.read_billing_migration_readiness.mode, "read_only");
+  assert.deepEqual(operations.read_billing_migration_readiness.roles_allowed, ["billing_admin", "owner"]);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).allowed, false);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("plan_admin_action", { role: "viewer" }).allowed, false);
   assert.equal(authorizeA3Operation("plan_admin_action", { role: "billing_admin" }).decision, "allowed_plan_only");
+  assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "billing_admin" }).decision, "allowed_read_only");
+  assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "viewer" }).decision, "denied_missing_permission");
+  assert.equal(authorizeA3Operation("read_billing_migration_readiness", { role: "auditor" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("unknown_mutation", { role: "owner" }).decision, "denied_unknown_operation");
 });
 
@@ -182,12 +190,15 @@ test("A3 auth/RBAC boundary is represented in API, DB, and OpenAPI contracts", a
   assert.equal(migration.tenancy_columns.includes("tenant_id"), true);
   assert.equal(migration.statements.some((item) => item.tables.includes("auth_contexts")), true);
   assert.match(migration.statements.map((item) => item.sql).join("\n"), /CREATE TABLE IF NOT EXISTS authz_decisions/);
+  assert.match(migration.statements.map((item) => item.sql).join("\n"), /CREATE TABLE IF NOT EXISTS billing_migration_readiness/);
 
   const openapi = await loadJson("../../docs/a3/openapi/a3_commercial_api.openapi.json");
   assert.ok(openapi.paths["/api/a3/auth/context"]);
   assert.ok(openapi.paths["/api/a3/auth/rbac-policy"]);
   assert.ok(openapi.paths["/api/a3/auth/authorize"]);
+  assert.equal(openapi.paths["/api/a3/billing/migration-readiness"].get["x-rbac"].permission, "billing:read");
   assert.ok(openapi.components.schemas.AuthzDecision);
+  assert.ok(openapi.components.schemas.BillingMigrationReadiness);
 });
 
 async function loadJson(path) {

@@ -12,21 +12,21 @@
   },
   "purpose": "Map commercial /v1 SaaS endpoints to current A3 product surfaces without claiming A1/A2 backend ownership.",
   "summary": {
-    "endpoint_count": 30,
-    "implemented_or_read_only_count": 19,
+    "endpoint_count": 31,
+    "implemented_or_read_only_count": 20,
     "plan_only_count": 8,
     "blocked_by_auth_count": 3,
     "by_status": {
       "blocked_until_A1_auth_RBAC": 3,
       "implemented_local_a3": 11,
       "plan_only_until_backend": 8,
-      "read_only_local_a3": 8
+      "read_only_local_a3": 9
     },
     "by_owner_lane": {
       "A1": 13,
       "A1/A2": 4,
       "A1/A2/A3": 1,
-      "A1/A3": 5,
+      "A1/A3": 6,
       "A2/A3": 4,
       "A3": 3
     },
@@ -38,7 +38,7 @@
       "release_gate": 2,
       "report_center": 3,
       "review_workflow": 3,
-      "usage_billing": 4
+      "usage_billing": 5
     },
     "sellable_claim": "A3 can show customers which release-intelligence workflow is product-ready, which API is only planned, and which backend owner must close the gap before live SaaS launch."
   },
@@ -980,6 +980,42 @@
       "secret_values_allowed": false
     },
     {
+      "route": "GET /v1/billing/migration-readiness",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/billing/migration-readiness",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "billing:read",
+      "db_tables": [
+        "billing_migration_readiness",
+        "billing_ledger_events",
+        "billing_provider_events",
+        "audit_events"
+      ],
+      "events": [
+        "billing.migration_readiness_read",
+        "billing.ledger_summary_read"
+      ],
+      "artifacts": [
+        "billing_migration_readiness_snapshot"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "billing_readiness_reads"
+      ],
+      "a1_a2_dependencies": [
+        "A1 read-only billing ledger summary",
+        "A1 durable billing migration manifest",
+        "A3 billing UI"
+      ],
+      "notes": "Maps future commercial billing migration readiness to A1 ledger/migration summaries; A3 remains read-only and cannot mutate billing provider state.",
+      "order": 28,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
       "route": "GET /v1/billing/subscription",
       "owner_lane": "A1/A3",
       "a3_surface": "usage_billing",
@@ -1007,7 +1043,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 28,
+      "order": 29,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1040,7 +1076,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 29,
+      "order": 30,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1073,7 +1109,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 30,
+      "order": 31,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1192,6 +1228,7 @@
       "meters": [
         "api_requests",
         "artifact_bytes_uploaded",
+        "billing_readiness_reads",
         "case_count",
         "judge_invocations",
         "report_exports",
@@ -1216,6 +1253,8 @@
         "audit.mutation_recorded",
         "auth.session_read",
         "billing.checkout_requested",
+        "billing.ledger_summary_read",
+        "billing.migration_readiness_read",
         "billing.mutation_blocked",
         "billing.portal_requested",
         "billing.subscription_read",
@@ -1268,5 +1307,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "d193f713e763dfa8b3e304d08e4aa2125df8f1903cb8ad15167ec4e9386efad1"
+  "contract_hash": "f4e66ce3c09d347998f1d83dc03c01ad538a59b27ff8776bd28888e5e129b26f"
 }

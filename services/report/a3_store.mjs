@@ -6,8 +6,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   buildDashboardSummary,
   normalizeCases,
-  summarizeReleaseEvidenceSummary
+  summarizeReleaseEvidenceSummary,
+  summarizeReleaseWorkflow
 } from "./report_builder.mjs";
+import {
+  publishGitHubCheckRun as publishGitHubCheckRunReceipt,
+  publishPrCommentUpsert as publishPrCommentUpsertReceipt
+} from "./a3_github_integration.mjs";
 import { mapAshrSampleToA3Fixtures } from "./p3_ashr_mapper.mjs";
 import { buildShareableReportPayload } from "./a3_shareable_report.mjs";
 import {
@@ -27,6 +32,7 @@ import { buildReportCenterManifest } from "./a3_report_center_manifest.mjs";
 import { buildA3SqlMigrationPlan } from "./a3_sql_migrations.mjs";
 import { buildA3UsageLedger } from "./a3_usage_ledger.mjs";
 import { buildA3BillingReadiness } from "./a3_billing_readiness.mjs";
+import { buildA3BillingMigrationReadiness } from "./a3_billing_migration_readiness.mjs";
 import { buildA3ProductConsole } from "./a3_product_console.mjs";
 import { buildA3ArtifactRegistry } from "./a3_artifact_registry.mjs";
 import { buildA3CommercialApiContract } from "./a3_commercial_api_contract.mjs";
@@ -142,10 +148,12 @@ export const A3_DB_CONTRACT = {
     "release_evidence_snapshots",
     "release_evidence_diffs",
     "release_evidence_readbacks",
+    "github_publish_receipts",
     "idempotency_keys",
     "api_import_receipts",
     "audit_events",
     "usage_ledger",
+    "billing_migration_readiness",
     "commercial_api_contracts",
     "peer_branch_calibrations",
     "live_workflow_readiness",
@@ -182,6 +190,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/db-migrations",
     "GET /api/a3/usage/ledger",
     "GET /api/a3/billing/readiness",
+    "GET /api/a3/billing/migration-readiness",
     "GET /api/a3/live-workflow/readiness",
     "GET /api/a3/live-ops/control-plane",
     "GET /api/a3/commercial-api/contract",
@@ -192,6 +201,8 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/reports/:reportId/manifest",
     "GET /api/a3/artifacts/registry",
     "GET /api/a3/releases/:releaseId/evidence-summary",
+    "POST /api/a3/github/check-run/publish",
+    "POST /api/a3/github/pr-comment/publish",
     "POST /api/a3/releases/:releaseId/readbacks",
     "GET /api/a3/releases/:releaseId/readbacks"
   ],
@@ -279,6 +290,7 @@ export function createMemoryA3Store(seed = {}) {
   const adminActionRequests = [];
   const reviewWorkflowRecords = [];
   const releaseEvidenceReadbacks = [];
+  const githubPublishReceipts = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -314,6 +326,9 @@ export function createMemoryA3Store(seed = {}) {
   for (const readback of seed.releaseEvidenceReadbacks || []) {
     releaseEvidenceReadbacks.push(sanitizeReleaseEvidenceReadback(readback));
   }
+  for (const receipt of seed.githubPublishReceipts || []) {
+    githubPublishReceipts.push(sanitizeGitHubPublishReceipt(receipt));
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -335,6 +350,7 @@ export function createMemoryA3Store(seed = {}) {
         adminActionRequests,
         reviewWorkflowRecords,
         releaseEvidenceReadbacks,
+        githubPublishReceipts,
         importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
     },
@@ -530,9 +546,26 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async getBillingMigrationReadiness(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      return buildA3BillingMigrationReadiness({
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId,
+        environmentId: scopedSnapshot.environmentId
+      });
+    },
+
     async getLiveWorkflowReadiness(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const releaseEvidenceInput = mergeReleaseEvidenceWithGitHubReceipts(snapshot.releaseEvidence, githubPublishReceipts, {
+        source: snapshot.source,
+        releaseId: releaseEvidenceReleaseId(snapshot),
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
       const usageLedger = await this.getUsageLedger(options);
       const billingReadiness = await this.getBillingReadiness(options);
       const reportCenter = await this.getReportCenter(options);
@@ -555,7 +588,7 @@ export function createMemoryA3Store(seed = {}) {
       });
       return buildA3LiveWorkflowReadiness({
         source: snapshot.source,
-        releaseEvidence: snapshot.releaseEvidence,
+        releaseEvidence: releaseEvidenceInput,
         reviewWorkflow,
         usageLedger,
         billingReadiness,
@@ -572,6 +605,12 @@ export function createMemoryA3Store(seed = {}) {
     async getLiveOpsControlPlane(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source);
       const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const releaseEvidenceInput = mergeReleaseEvidenceWithGitHubReceipts(snapshot.releaseEvidence, githubPublishReceipts, {
+        source: snapshot.source,
+        releaseId: releaseEvidenceReleaseId(snapshot),
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
       const usageLedger = await this.getUsageLedger(options);
       const billingReadiness = await this.getBillingReadiness(options);
       const reportCenter = await this.getReportCenter(options);
@@ -587,7 +626,7 @@ export function createMemoryA3Store(seed = {}) {
       const liveWorkflowReadiness = await this.getLiveWorkflowReadiness(options);
       return buildA3LiveOpsControlPlane({
         source: snapshot.source,
-        releaseEvidence: snapshot.releaseEvidence,
+        releaseEvidence: releaseEvidenceInput,
         reviewWorkflow,
         usageLedger,
         billingReadiness,
@@ -935,6 +974,148 @@ export function createMemoryA3Store(seed = {}) {
         projectId: options.projectId || snapshot.projectId,
         durableStorageReady: true
       });
+    },
+
+    async publishGitHubCheckRun(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (!snapshotMatchesTenantScope(snapshot, options)) {
+        return null;
+      }
+      const gatePayload = buildGitHubPublishGatePayload(snapshot, options);
+      const dryRun = options.dryRun !== false;
+      const payloadHash = sha256(stableJson({
+        kind: "github_check",
+        source: snapshot.source,
+        release_id: canonicalReleaseId,
+        repo: options.repo,
+        head_sha: options.headSha,
+        details_url: options.detailsUrl,
+        check_run_id: options.checkRunId || null,
+        dry_run: dryRun,
+        github_check_run: gatePayload.github_check_run
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "github_check_publish", snapshot.source, options.idempotencyKey, payloadHash);
+      if (replay) {
+        return replay;
+      }
+      const receipt = await publishGitHubCheckRunReceipt(gatePayload, {
+        repo: options.repo,
+        headSha: options.headSha,
+        detailsUrl: options.detailsUrl,
+        checkRunId: options.checkRunId,
+        apiBaseUrl: options.apiBaseUrl,
+        token: options.token,
+        tokenEnvName: options.tokenEnvName,
+        dryRun,
+        fetchImpl: options.fetchImpl
+      });
+      const storedReceipt = sanitizeGitHubPublishReceipt({
+        ...receipt,
+        resource_kind: "github_check",
+        source: snapshot.source,
+        release_id: canonicalReleaseId,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        actor_hash: options.actor ? sha256(String(options.actor)).slice(0, 16) : options.actorHash || "actor_[REDACTED_HASH]",
+        published_at: options.publishedAt || new Date().toISOString(),
+        payload_hash: payloadHash
+      });
+      githubPublishReceipts.push(storedReceipt);
+      const auditEvent = githubPublishAuditEvent(storedReceipt, auditEvents.length);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "github.check_publish_requested",
+        resourceType: "github_publish_receipt",
+        resourceId: storedReceipt.publish_id,
+        tenantScope: {
+          organization_id: storedReceipt.organization_id,
+          tenant_id: snapshot.tenantId,
+          workspace_id: snapshot.workspaceId,
+          project_id: storedReceipt.project_id,
+          environment_id: snapshot.environmentId
+        },
+        actorHash: storedReceipt.actor_hash,
+        createdAt: storedReceipt.published_at,
+        payload: storedReceipt,
+        usageMeter: {
+          meter: "github_check_publish_requests",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(storedReceipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "github_check_publish", snapshot.source, options.idempotencyKey, payloadHash, receiptWithEvent);
+      return receiptWithEvent;
+    },
+
+    async publishGitHubPrComment(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source);
+      const canonicalReleaseId = releaseEvidenceReleaseId(snapshot);
+      if (!snapshotMatchesTenantScope(snapshot, options)) {
+        return null;
+      }
+      const gatePayload = buildGitHubPublishGatePayload(snapshot, options);
+      const dryRun = options.dryRun !== false;
+      const payloadHash = sha256(stableJson({
+        kind: "pr_comment",
+        source: snapshot.source,
+        release_id: canonicalReleaseId,
+        repo: options.repo,
+        pull_number: options.pullNumber,
+        dry_run: dryRun,
+        pr_comment_markdown: gatePayload.pr_comment_markdown
+      }));
+      const replay = getIdempotentReplay(idempotencyReceipts, "github_pr_comment_publish", snapshot.source, options.idempotencyKey, payloadHash);
+      if (replay) {
+        return replay;
+      }
+      const receipt = await publishPrCommentUpsertReceipt(gatePayload, {
+        repo: options.repo,
+        pullNumber: options.pullNumber,
+        apiBaseUrl: options.apiBaseUrl,
+        token: options.token,
+        tokenEnvName: options.tokenEnvName,
+        dryRun,
+        fetchImpl: options.fetchImpl
+      });
+      const storedReceipt = sanitizeGitHubPublishReceipt({
+        ...receipt,
+        resource_kind: "pr_comment",
+        source: snapshot.source,
+        release_id: canonicalReleaseId,
+        organization_id: options.organizationId || snapshot.organizationId,
+        project_id: options.projectId || snapshot.projectId,
+        actor_hash: options.actor ? sha256(String(options.actor)).slice(0, 16) : options.actorHash || "actor_[REDACTED_HASH]",
+        published_at: options.publishedAt || new Date().toISOString(),
+        payload_hash: payloadHash
+      });
+      githubPublishReceipts.push(storedReceipt);
+      const auditEvent = githubPublishAuditEvent(storedReceipt, auditEvents.length);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "github.pr_comment_publish_requested",
+        resourceType: "github_publish_receipt",
+        resourceId: storedReceipt.publish_id,
+        tenantScope: {
+          organization_id: storedReceipt.organization_id,
+          tenant_id: snapshot.tenantId,
+          workspace_id: snapshot.workspaceId,
+          project_id: storedReceipt.project_id,
+          environment_id: snapshot.environmentId
+        },
+        actorHash: storedReceipt.actor_hash,
+        createdAt: storedReceipt.published_at,
+        payload: storedReceipt,
+        usageMeter: {
+          meter: "github_pr_comment_publish_requests",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(attachEventEnvelopeReceipt(storedReceipt, outboxRow), options.idempotencyKey);
+      rememberIdempotentReceipt(idempotencyReceipts, "github_pr_comment_publish", snapshot.source, options.idempotencyKey, payloadHash, receiptWithEvent);
+      return receiptWithEvent;
     },
 
     async submitReleaseEvidenceReadback(releaseId = "current", readback = {}, options = {}) {
@@ -1769,7 +1950,20 @@ function normalizeSnapshot(snapshot = {}) {
 
 function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const cases = normalizeCases(snapshot.runFixture, snapshot.gradeFixture);
-  const releaseEvidenceSummary = summarizeReleaseEvidenceSummary(snapshot.releaseEvidence);
+  const releaseId = releaseEvidenceReleaseId(snapshot);
+  const githubPublishReceiptDashboard = buildGitHubPublishReceiptDashboard(options.githubPublishReceipts || [], {
+    source: snapshot.source,
+    releaseId,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
+  const releaseEvidenceInput = mergeReleaseEvidenceWithGitHubReceipts(snapshot.releaseEvidence, options.githubPublishReceipts || [], {
+    source: snapshot.source,
+    releaseId,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId
+  });
+  const releaseEvidenceSummary = summarizeReleaseEvidenceSummary(releaseEvidenceInput);
   const sourceArtifacts = buildA3SourceArtifacts(snapshot, {
     source: snapshot.source,
     organizationId: snapshot.organizationId,
@@ -1778,7 +1972,6 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     projectId: snapshot.projectId,
     environmentId: snapshot.environmentId
   });
-  const releaseId = releaseEvidenceReleaseId(snapshot);
   const releaseEvidenceReadbackHistory = buildReleaseEvidenceReadbackDashboardHistory(options.releaseEvidenceReadbacks || [], {
     source: snapshot.source,
     releaseId,
@@ -1832,6 +2025,12 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     organizationId: snapshot.organizationId,
     projectId: snapshot.projectId
   });
+  const billingMigrationReadiness = buildA3BillingMigrationReadiness({
+    source: snapshot.source,
+    organizationId: snapshot.organizationId,
+    projectId: snapshot.projectId,
+    environmentId: snapshot.environmentId
+  });
   const eventOutboxDashboard = buildEventOutboxDashboard(options.eventOutbox || [], {
     source: snapshot.source,
     organizationId: snapshot.organizationId,
@@ -1851,7 +2050,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   });
   const liveWorkflowReadiness = buildA3LiveWorkflowReadiness({
     source: snapshot.source,
-    releaseEvidence: snapshot.releaseEvidence,
+    releaseEvidence: releaseEvidenceInput,
     reviewWorkflow,
     usageLedger,
     billingReadiness,
@@ -1865,7 +2064,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   });
   const liveOpsControlPlane = buildA3LiveOpsControlPlane({
     source: snapshot.source,
-    releaseEvidence: snapshot.releaseEvidence,
+    releaseEvidence: releaseEvidenceInput,
     reviewWorkflow,
     usageLedger,
     billingReadiness,
@@ -1902,9 +2101,12 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
+    github_publish_receipts: githubPublishReceiptDashboard,
+    github_publish_evidence: githubPublishReceiptDashboard,
     event_outbox: eventOutboxDashboard,
     source_artifacts: sourceArtifacts,
     billing_readiness: billingReadiness,
+    billing_migration_readiness: billingMigrationReadiness,
     live_workflow_readiness: liveWorkflowReadiness,
     live_ops_control_plane: liveOpsControlPlane,
     release_evidence_api: {
@@ -2506,6 +2708,183 @@ function buildReleaseEvidenceReadbackDashboardHistory(readbacks = [], options = 
       raw_secret_values_allowed: false,
       raw_actor_identity_exposed: false
     }
+  };
+}
+
+function mergeReleaseEvidenceWithGitHubReceipts(releaseEvidence = {}, receipts = [], options = {}) {
+  const filtered = filterGitHubPublishReceipts(receipts, options);
+  const latestCheck = [...filtered].reverse().find((item) => item.resource_kind === "github_check");
+  const latestPrComment = [...filtered].reverse().find((item) => item.resource_kind === "pr_comment");
+  return {
+    ...(releaseEvidence || {}),
+    githubCheckPublishReceipt: latestCheck || releaseEvidence.githubCheckPublishReceipt || releaseEvidence.github_check_publish_receipt || releaseEvidence.github_check_publish || {},
+    github_check_publish_receipt: latestCheck || releaseEvidence.github_check_publish_receipt || releaseEvidence.githubCheckPublishReceipt || releaseEvidence.github_check_publish || {},
+    githubPrCommentPublishReceipt: latestPrComment || releaseEvidence.githubPrCommentPublishReceipt || releaseEvidence.github_pr_comment_publish_receipt || releaseEvidence.github_pr_comment_publish || {},
+    github_pr_comment_publish_receipt: latestPrComment || releaseEvidence.github_pr_comment_publish_receipt || releaseEvidence.githubPrCommentPublishReceipt || releaseEvidence.github_pr_comment_publish || {}
+  };
+}
+
+function buildGitHubPublishGatePayload(snapshot = {}, options = {}) {
+  const releaseWorkflow = summarizeReleaseWorkflow(
+    snapshot.runFixture,
+    snapshot.gradeFixture,
+    snapshot.coverage,
+    snapshot.mediaSignedUrlCoverage,
+    {
+      release_version: options.releaseVersion,
+      environment: options.environment,
+      headSha: options.headSha,
+      generatedAt: options.generatedAt
+    }
+  );
+  return {
+    schema_version: "a3.github_publish_gate_payload.v1",
+    source: snapshot.source || "mock",
+    summary: buildDashboardSummary(snapshot.runFixture, snapshot.gradeFixture),
+    release_workflow: releaseWorkflow,
+    github_check_run: releaseWorkflow.github_check,
+    pr_comment_markdown: releaseWorkflow.pr_comment_markdown
+  };
+}
+
+function sanitizeGitHubPublishReceipt(receipt = {}) {
+  const sanitized = redactPotentialSecret(receipt || {});
+  const resourceKind = normalizeGitHubPublishResourceKind(sanitized.resource_kind || sanitized.resourceKind || (
+    sanitized.schema_version === "a3.github_pr_comment_publish_receipt.v1" ? "pr_comment" : "github_check"
+  ));
+  const payloadHash = sanitized.payload_hash || sha256(stableJson({
+    schema_version: sanitized.schema_version,
+    resource_kind: resourceKind,
+    mode: sanitized.mode,
+    dry_run: sanitized.dry_run,
+    posted: sanitized.posted,
+    status: sanitized.status,
+    http_status: sanitized.http_status,
+    request: sanitized.request || sanitized.plan
+  }));
+  return {
+    schema_version: "a3.github_publish_receipt_record.v1",
+    original_schema_version: sanitized.schema_version || "unknown",
+    publish_id: sanitized.publish_id || `ghpub_${sha256(`${resourceKind}:${payloadHash}`).slice(0, 16)}`,
+    provider: "github",
+    resource_kind: resourceKind,
+    source: normalizeSourceKey(sanitized.source || "mock"),
+    release_id: sanitized.release_id || "current",
+    organization_id: sanitized.organization_id || "org-local",
+    project_id: sanitized.project_id || "project-local",
+    mode: sanitized.mode || "unknown",
+    status: sanitized.status || "unknown",
+    dry_run: sanitized.dry_run !== false,
+    posted: sanitized.posted === true,
+    http_status: sanitized.http_status ?? null,
+    github_request_id: sanitized.github_request_id || null,
+    external_id_alias: sanitized.check_run?.id || sanitized.comment?.id || sanitized.plan?.existing_comment_id || null,
+    check_name: sanitized.request?.body?.name || sanitized.check_run?.name || "Ashr++ Release Gate",
+    pull_number: sanitized.plan?.pull_number || null,
+    repo: sanitized.request?.repo || sanitized.plan?.repo || null,
+    payload_hash: payloadHash,
+    actor_hash: sanitized.actor_hash || "actor_[REDACTED_HASH]",
+    published_at: sanitized.published_at || new Date().toISOString(),
+    safety: {
+      ...(sanitized.safety || {}),
+      token_included: false,
+      secret_values_allowed: false,
+      raw_response_body_stored: false,
+      live_external_mutation_performed: sanitized.posted === true && sanitized.dry_run === false
+    }
+  };
+}
+
+function buildGitHubPublishReceiptDashboard(receipts = [], options = {}) {
+  const filtered = filterGitHubPublishReceipts(receipts, options);
+  const latestRecords = filtered.slice(-8).map((receipt) => ({
+    publish_id: receipt.publish_id,
+    provider: receipt.provider,
+    resource_kind: receipt.resource_kind,
+    status: receipt.status,
+    dry_run: receipt.dry_run,
+    posted: receipt.posted,
+    mode: receipt.mode,
+    http_status: receipt.http_status,
+    check_name: receipt.check_name,
+    pull_number: receipt.pull_number,
+    payload_hash_prefix: typeof receipt.payload_hash === "string" ? receipt.payload_hash.slice(0, 16) : null,
+    published_at: receipt.published_at,
+    actor_hash: receipt.actor_hash
+  }));
+  return {
+    schema_version: "a3.github_publish_receipt_dashboard.v1",
+    source: options.source || "unknown",
+    release_id: options.releaseId || "current",
+    tenant_scope: {
+      organization_id: options.organizationId || "org-local",
+      project_id: options.projectId || "project-local"
+    },
+    available: filtered.length > 0,
+    receipt_count: filtered.length,
+    posted_count: filtered.filter((item) => item.posted).length,
+    dry_run_count: filtered.filter((item) => item.dry_run).length,
+    status_counts: countBy(filtered, "status"),
+    resource_counts: countBy(filtered, "resource_kind"),
+    latest_records: latestRecords,
+    a1_a2_boundary: "Publish receipts are A3 control-plane evidence; A1 RunResult and A2 GradeResult remain unchanged and readback must confirm external GitHub state.",
+    safety: {
+      token_included: false,
+      raw_response_body_stored: false,
+      raw_secret_values_allowed: false,
+      real_github_mutation_possible_only_with_explicit_live_mode: true
+    }
+  };
+}
+
+function filterGitHubPublishReceipts(receipts = [], options = {}) {
+  const source = options.source ? normalizeSourceKey(options.source) : null;
+  const releaseId = options.releaseId || "current";
+  const organizationId = options.organizationId || "org-local";
+  const projectId = options.projectId || "project-local";
+  return (Array.isArray(receipts) ? receipts : []).filter((item) => (
+    (!source || normalizeSourceKey(item.source || "unknown") === source)
+    && (item.release_id || "current") === releaseId
+    && (item.organization_id || "org-local") === organizationId
+    && (item.project_id || "project-local") === projectId
+  ));
+}
+
+function normalizeGitHubPublishResourceKind(value) {
+  const kind = String(value || "github_check").toLowerCase();
+  if (["check_run", "github_check"].includes(kind)) {
+    return "github_check";
+  }
+  if (["pr_comment", "pull_request_comment"].includes(kind)) {
+    return "pr_comment";
+  }
+  return kind;
+}
+
+function githubPublishAuditEvent(receipt = {}, index = 0) {
+  return {
+    event_id: `ghpub_evt_${sha256(`${receipt.publish_id || "missing"}:${index}`).slice(0, 12)}`,
+    organization_id: receipt.organization_id || "org-local",
+    project_id: receipt.project_id || "project-local",
+    event_type: receipt.resource_kind === "pr_comment"
+      ? "github.pr_comment_publish_requested"
+      : "github.check_publish_requested",
+    subject_id: receipt.publish_id,
+    payload: {
+      schema_version: receipt.schema_version,
+      publish_id: receipt.publish_id,
+      release_id: receipt.release_id,
+      resource_kind: receipt.resource_kind,
+      mode: receipt.mode,
+      status: receipt.status,
+      dry_run: receipt.dry_run,
+      posted: receipt.posted,
+      payload_hash: receipt.payload_hash,
+      token_included: false,
+      secret_values_included: false
+    },
+    created_at: receipt.published_at || new Date().toISOString(),
+    redacted: true
   };
 }
 

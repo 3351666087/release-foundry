@@ -67,7 +67,8 @@ export const A3_RBAC_ROLES = {
   service_account: [
     "project:read",
     "project:ingest",
-    "reports:create"
+    "reports:create",
+    "release:review"
   ],
   viewer: [
     "project:read"
@@ -149,6 +150,18 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["GitHub readback worker boundary"],
     a2: ["ReleaseGate evidence state"]
   }),
+  operation("publish_github_check", "POST /api/a3/github/check-run/publish", "release:review", "local_write", {
+    event: "github.check_publish_requested",
+    resourceType: "github_publish_receipt",
+    a1: ["GitHub App or Actions worker boundary", "hosted secret storage"],
+    a2: ["ReleaseGate evidence state"]
+  }),
+  operation("publish_github_pr_comment", "POST /api/a3/github/pr-comment/publish", "release:review", "local_write", {
+    event: "github.pr_comment_publish_requested",
+    resourceType: "github_publish_receipt",
+    a1: ["GitHub App or Actions worker boundary", "hosted secret storage"],
+    a2: ["ReleaseGate evidence state"]
+  }),
   operation("read_event_outbox", "GET /api/a3/events/outbox", "audit:read", "read_only", {
     event: "event_outbox.read",
     resourceType: "event_outbox"
@@ -175,6 +188,13 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "billing.readiness_read",
     resourceType: "billing_readiness",
     a1: ["billing ledger"]
+  }),
+  operation("read_billing_migration_readiness", "GET /api/a3/billing/migration-readiness", "billing:read", "read_only", {
+    event: "billing.migration_readiness_read",
+    resourceType: "billing_migration_readiness",
+    surface: "usage_billing",
+    a1: ["read-only billing ledger summary", "durable billing migration manifest", "provider event replay evidence"],
+    a2: ["security verification", "model cost policy"]
   }),
   operation("rotate_api_key", "POST /v1/api-keys/{api_key_id}/rotate", "api_keys:manage", "hosted_mutation", {
     event: "api_key.rotate_requested",

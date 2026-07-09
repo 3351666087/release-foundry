@@ -3674,3 +3674,67 @@ Verification:
 - Hygiene CL: passed.
 - `git diff --check`: passed.
 - `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+## 2026-07-09 - Live Publish / Review / Billing / Share Closeout
+
+Goal: verify and document the latest A3 implementation pass for the six SaaS
+workflow asks:
+
+1. GitHub PR check live publishing.
+2. PR comment live publishing.
+3. Reviewer approve / deny / waiver workflow.
+4. Dashboard-visible human operation records.
+5. Billing/admin reads usage and billing state.
+6. Report share link revoke, expiry, and audit lifecycle.
+
+Completed:
+
+- Confirmed local A3 API routes for GitHub check and PR comment publishing.
+- Confirmed GitHub publish defaults to dry-run and live mode is gated by hosted
+  session or service-account context.
+- Confirmed reviewer waiver, approval, and denial routes write sanitized local
+  receipts, audit events, and event-outbox rows.
+- Confirmed dashboard/report payloads expose `github_publish_receipts`,
+  `review_workflow_records`, `saas_admin_action_requests`, `audit_events`, and
+  event-outbox summaries as human operation evidence.
+- Confirmed usage/billing/admin read routes stay read-only and downstream of
+  A1 billing/usage ownership.
+- Confirmed hosted report links support create, view, revoke, expiry, denied
+  access, and audit records without exposing raw share tokens.
+- Added closeout doc:
+  - `docs/a3/p3_live_publish_review_billing_share_closeout_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 owns hosted auth, service accounts, GitHub credentials/workers, production
+  DB persistence, durable usage events, billing ledger, provider webhooks, and
+  runner outputs.
+- A2 owns score, pass/fail, release policy, failure taxonomy, security
+  verification, and judge semantics.
+- A3 only presents workflow, review, report, billing-readiness, and audit
+  state derived from those sources.
+
+Verification:
+
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+
+Results:
+
+- Full A3 Node suite: 260 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, account value, signed URL, local path,
+  payment secret, or raw share token was written.

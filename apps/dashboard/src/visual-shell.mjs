@@ -59,6 +59,7 @@ export const primaryAreas = [
       { href: "#live-ops-control-plane", label: "Live ops" },
       { href: "#cloud-shell", label: "API keys" },
       { href: "#saas-runtime", label: "Usage / quota" },
+      { href: "#billing-migration-readiness", label: "Billing migration" },
       { href: "#reviewer-workflow", label: "Reviewer workflow" }
     ]
   },
@@ -125,6 +126,7 @@ export const workspaceRailGroups = [
     label: "Platform",
     links: [
       { href: "#saas-runtime", label: "SaaS Runtime" },
+      { href: "#billing-migration-readiness", label: "Billing Migration" },
       { href: "#live-workflow-readiness", label: "Live Workflow" },
       { href: "#live-ops-control-plane", label: "Live Ops" },
       { href: "#product-console", label: "Product Console" },

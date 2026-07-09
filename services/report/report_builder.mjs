@@ -1092,6 +1092,157 @@ export function summarizeBillingUsage(runFixture = {}, gradeFixture = {}, usageF
   };
 }
 
+export function summarizeBillingMigrationReadiness(billingMigrationFixture = {}) {
+  const available = billingMigrationFixture?.schema_version === "a3.billing_migration_readiness.v1"
+    || Boolean(billingMigrationFixture?.summary || billingMigrationFixture?.db_contract || billingMigrationFixture?.upstream_evidence);
+  if (!available) {
+    return {
+      schema_version: "a3.billing_migration_readiness_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach a3.billing_migration_readiness.v1 before claiming billing ledger migration readiness in customer reports."
+    };
+  }
+
+  const summary = objectOr(billingMigrationFixture.summary);
+  const upstreamEvidence = objectOr(billingMigrationFixture.upstream_evidence);
+  const durableMigration = objectOr(upstreamEvidence.durable_billing_ledger_migration);
+  const replayEvidence = objectOr(upstreamEvidence.replay_evidence);
+  const liveSmoke = objectOr(upstreamEvidence.live_smoke);
+  const officialReadonly = objectOr(upstreamEvidence.official_api_readonly_summary);
+  const dbContract = objectOr(billingMigrationFixture.db_contract);
+  const eventContract = objectOr(billingMigrationFixture.event_contract);
+  const artifactContract = objectOr(billingMigrationFixture.artifact_contract);
+  const boundary = objectOr(billingMigrationFixture.tenant_auth_rbac_usage_audit);
+  const tenantBoundary = objectOr(boundary.tenant);
+  const authBoundary = objectOr(boundary.auth);
+  const rbacBoundary = objectOr(boundary.rbac);
+  const usageBoundary = objectOr(boundary.usage);
+  const auditBoundary = objectOr(boundary.audit);
+  const safety = objectOr(billingMigrationFixture.safety);
+  const consumerState = objectOr(billingMigrationFixture.a3_consumer_state);
+  const blockedForLiveBilling = Array.isArray(consumerState.blocked_for_live_customer_billing)
+    ? consumerState.blocked_for_live_customer_billing
+    : [];
+  const notClaimedByA3 = Array.isArray(consumerState.not_claimed_by_a3)
+    ? consumerState.not_claimed_by_a3
+    : [];
+  const tables = Array.isArray(dbContract.tables) ? dbContract.tables : [];
+  const apiContracts = Array.isArray(billingMigrationFixture.api_contract) ? billingMigrationFixture.api_contract : [];
+  const upstreamCommits = Array.isArray(billingMigrationFixture.upstream_commits) ? billingMigrationFixture.upstream_commits : [];
+  const missingControls = summary.ready_for_live_customer_billing === true
+    ? []
+    : [
+      "a1_authenticated_billing_ledger_read_api",
+      "hosted_auth_rbac_enforcement",
+      "a1_provider_webhook_executor",
+      "live_billing_readback_receipts"
+    ];
+
+  const exportSummary = {
+    schema_version: "a3.billing_migration_readiness_export.v1",
+    source_schema_version: billingMigrationFixture.schema_version || "unknown",
+    available: true,
+    contract_id: billingMigrationFixture.contract_id || "unknown",
+    contract_hash_prefix: hashPrefix(billingMigrationFixture.contract_hash || ""),
+    source_branch: billingMigrationFixture.source_branch || "unknown",
+    status: summary.status || "unknown",
+    ready_for_live_customer_billing: summary.ready_for_live_customer_billing === true,
+    consumed_evidence_count: summary.consumed_evidence_count || 0,
+    upstream_commit_count: summary.upstream_commit_count || upstreamCommits.length,
+    upstream_commits: upstreamCommits.map((commit) => ({
+      sha: commit.sha || "unknown",
+      evidence_kind: commit.evidence_kind || "unknown",
+      a3_consumption_status: commit.a3_consumption_status || "unknown"
+    })),
+    consumed_states: objectOr(summary.consumed_states),
+    customer_claim: summary.a3_customer_claim || "Billing migration readiness is available as read-only A3 evidence only.",
+    db_contract: {
+      durable_backend_owner: dbContract.durable_backend_owner || "unknown",
+      a3_db_mutation_required: dbContract.a3_db_mutation_required === true,
+      migration_manifest_schema: dbContract.migration_manifest_schema || durableMigration.source_schema_version || "unknown",
+      table_names: tables.map((table) => table.name).filter(Boolean),
+      table_count: tables.length,
+      function_names: (Array.isArray(dbContract.functions) ? dbContract.functions : [])
+        .map((item) => item.name)
+        .filter(Boolean),
+      rls_enabled_and_forced: dbContract.required_safety?.rls_enabled_and_forced === true,
+      raw_payload_column_allowed: dbContract.required_safety?.raw_payload_column_allowed === true,
+      raw_provider_secret_allowed: dbContract.required_safety?.raw_provider_secret_allowed === true
+    },
+    replay_evidence: {
+      provider_event_count: replayEvidence.provider_event_count || 0,
+      ledger_event_count: replayEvidence.ledger_event_count || 0,
+      usage_units: replayEvidence.usage_units || 0,
+      replay_statuses_observed: Array.isArray(replayEvidence.replay_statuses_observed) ? replayEvidence.replay_statuses_observed : [],
+      ledger_event_types_observed: Array.isArray(replayEvidence.ledger_event_types_observed) ? replayEvidence.ledger_event_types_observed : [],
+      raw_payload_included: replayEvidence.raw_payload_included === true,
+      secret_value_present: replayEvidence.secret_value_present === true
+    },
+    live_smoke: {
+      execution_model: liveSmoke.execution_model || "unknown",
+      executed_by_a3: liveSmoke.executed_by_a3 === true,
+      replay_statuses_expected: Array.isArray(liveSmoke.replay_statuses_expected) ? liveSmoke.replay_statuses_expected : []
+    },
+    official_api_readonly: {
+      status: officialReadonly.status || "unknown",
+      read_steps: officialReadonly.read_steps || 0,
+      mutating_steps: officialReadonly.mutating_steps || 0,
+      public_summary_fields_only: officialReadonly.public_summary_fields_only === true
+    },
+    api_contracts: apiContracts.map((route) => ({
+      route: route.route || "unknown",
+      owner_lane: route.owner_lane || "unknown",
+      status: route.status || "unknown",
+      a3_side_effect: route.a3_side_effect || "unknown"
+    })),
+    event_contract: {
+      event_envelope_schema: eventContract.event_envelope_schema || "unknown",
+      provider_event_type_count: Array.isArray(eventContract.provider_event_types) ? eventContract.provider_event_types.length : 0,
+      ledger_event_types: Array.isArray(eventContract.ledger_event_types) ? eventContract.ledger_event_types : [],
+      replay_statuses: Array.isArray(eventContract.replay_statuses) ? eventContract.replay_statuses : [],
+      payload_policy: eventContract.payload_policy || "hashes, refs, statuses, counts, and normalized totals only"
+    },
+    artifact_contract: {
+      upstream_input_count: Array.isArray(artifactContract.upstream_inputs) ? artifactContract.upstream_inputs.length : 0,
+      a3_output_count: Array.isArray(artifactContract.a3_outputs) ? artifactContract.a3_outputs.length : 0,
+      retention_policy: artifactContract.retention_policy || "public-safe contract artifacts only"
+    },
+    boundary: {
+      tenant_scope_keys: Array.isArray(tenantBoundary.required_scope) ? tenantBoundary.required_scope : [],
+      auth_raw_credentials_allowed: authBoundary.raw_credentials_allowed === true,
+      read_roles: Array.isArray(rbacBoundary.read_roles) ? rbacBoundary.read_roles : [],
+      a3_mutation_roles_enabled: Array.isArray(rbacBoundary.a3_mutation_roles_enabled) ? rbacBoundary.a3_mutation_roles_enabled : [],
+      usage_source_of_truth: usageBoundary.source_of_truth || "A1 billing ledger and usage rollups",
+      billable_meters: Array.isArray(usageBoundary.billable_meters) ? usageBoundary.billable_meters : [],
+      billing_mutations_enabled: usageBoundary.billing_mutations_enabled === true,
+      audit_append_only_required: auditBoundary.append_only_required === true,
+      audit_raw_payload_logged: auditBoundary.raw_payload_logged === true
+    },
+    safety: {
+      env_local_read: safety.env_local_read === true,
+      real_api_called_by_a3: safety.real_api_called_by_a3 === true,
+      live_database_migration_run_by_a3: safety.live_database_migration_run_by_a3 === true,
+      real_payment_provider_called: safety.real_payment_provider_called === true,
+      billing_mutation_performed_by_a3: safety.billing_mutation_performed_by_a3 === true,
+      provider_secret_values_included: safety.provider_secret_values_included === true,
+      raw_provider_payload_included: safety.raw_provider_payload_included === true,
+      raw_card_data_included: safety.raw_card_data_included === true,
+      raw_customer_email_included: safety.raw_customer_email_included === true,
+      raw_signed_urls_included: safety.raw_signed_urls_included === true
+    },
+    missing_controls: missingControls,
+    blocked_for_live_customer_billing: blockedForLiveBilling,
+    not_claimed_by_a3: notClaimedByA3,
+    customer_value: "Shows buyers billing-ledger migration readiness without exposing provider secrets or claiming live payment mutations.",
+    billable_value: "Maps future invoice-preview and usage-unit meters while keeping A3 billing mutations disabled.",
+    self_host_value: "Preserves A1-owned Postgres migration, RLS, and table/function contract as self-host deployment evidence.",
+    audit_value: "Records hash-only provider-event, replay-status, tenant-scope, RBAC, and no-raw-payload controls for audit packets.",
+    recommendation: "Use this report section as customer-safe migration evidence until A1 exposes authenticated billing ledger read APIs and live receipts."
+  };
+  return redactExport(exportSummary, { surface: "billing_migration_readiness_summary" }).value;
+}
+
 export function summarizeMediaReadiness(runFixture = {}, gradeFixture = {}, usageFixture = {}, mediaSignedUrlFixture = {}) {
   const cases = normalizeCases(runFixture, gradeFixture);
   const mediaCases = cases.filter(hasMediaEvidence);
@@ -4489,6 +4640,11 @@ export function summarizeArtifactRegistryExport(artifactRegistryFixture = {}) {
 
   const entries = Array.isArray(artifactRegistryFixture.entries) ? artifactRegistryFixture.entries : [];
   const summary = artifactRegistryFixture.summary || {};
+  const topArtifactEntries = entries.slice(0, 8);
+  const billingMigrationEntry = entries.find((item) => item.artifact_type === "billing_migration_readiness");
+  if (billingMigrationEntry && !topArtifactEntries.includes(billingMigrationEntry)) {
+    topArtifactEntries.push(billingMigrationEntry);
+  }
   return {
     schema_version: "a3.artifact_registry_export.v1",
     available: true,
@@ -4506,14 +4662,18 @@ export function summarizeArtifactRegistryExport(artifactRegistryFixture = {}) {
       status: item.status,
       missing_artifact_types: item.missing_artifact_types || []
     })),
-    top_artifacts: entries.slice(0, 8).map((item) => ({
+    top_artifacts: topArtifactEntries.map((item) => ({
       artifact_id: item.artifact_id,
       artifact_type: item.artifact_type,
       lifecycle_state: item.lifecycle_state,
       hash_status: item.hash_status,
       redaction_status: item.redaction_status,
       billable_meter: item.billable_meter,
-      customer_value: item.customer_value
+      customer_value: item.customer_value,
+      billable_value: item.billable_value || null,
+      self_host_value: item.self_host_value || null,
+      audit_value: item.audit_value || null,
+      missing_controls: Array.isArray(item.missing_controls) ? item.missing_controls : []
     })),
     safety: {
       raw_secret_values_allowed: artifactRegistryFixture.safety?.raw_secret_values_allowed === true,
@@ -4958,7 +5118,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -4991,6 +5151,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const requestProvenance = summarizeRequestProvenance(requestFixture);
   const usageQuota = summarizeUsageQuota(usageFixture, usageApiProbe);
   const billingUsage = summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe);
+  const billingMigrationReadiness = summarizeBillingMigrationReadiness(billingMigrationReadinessFixture);
   const mediaReadiness = summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture);
   const cloudConsoleShell = summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe);
   const officialGap = summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe);
@@ -5193,6 +5354,12 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       lines.push("### Registry Entries", "");
       for (const artifact of artifactRegistry.top_artifacts) {
         lines.push(`- ${artifact.artifact_type}: ${artifact.lifecycle_state}, ${artifact.hash_status}, ${artifact.redaction_status}, meter ${artifact.billable_meter}`);
+        if (artifact.artifact_type === "billing_migration_readiness") {
+          lines.push(`  - Missing controls: ${artifact.missing_controls.join(", ") || "none"}`);
+          lines.push(`  - Billable value: ${artifact.billable_value || artifact.customer_value}`);
+          lines.push(`  - Self-host value: ${artifact.self_host_value || "n/a"}`);
+          lines.push(`  - Audit value: ${artifact.audit_value || "n/a"}`);
+        }
       }
       lines.push("");
     }
@@ -5604,6 +5771,35 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     );
   }
 
+  if (billingMigrationReadiness.available) {
+    lines.push(
+      "## Billing Migration Readiness",
+      "",
+      `- Status: ${billingMigrationReadiness.status}`,
+      `- Live customer billing ready: ${billingMigrationReadiness.ready_for_live_customer_billing ? "yes" : "no"}`,
+      `- Consumed evidence: ${billingMigrationReadiness.consumed_evidence_count}`,
+      `- Upstream commits: ${billingMigrationReadiness.upstream_commit_count}`,
+      `- A1 DB tables: ${billingMigrationReadiness.db_contract.table_names.join(", ") || "none"}`,
+      `- DB mutations required in A3: ${billingMigrationReadiness.db_contract.a3_db_mutation_required ? "yes" : "no"}`,
+      `- Replay evidence: provider events ${billingMigrationReadiness.replay_evidence.provider_event_count}, ledger events ${billingMigrationReadiness.replay_evidence.ledger_event_count}, usage units ${billingMigrationReadiness.replay_evidence.usage_units}`,
+      `- Live smoke executed by A3: ${billingMigrationReadiness.live_smoke.executed_by_a3 ? "yes" : "no"}`,
+      `- Official API readonly: ${billingMigrationReadiness.official_api_readonly.status}, mutating steps ${billingMigrationReadiness.official_api_readonly.mutating_steps}`,
+      `- Billing mutations enabled: ${billingMigrationReadiness.boundary.billing_mutations_enabled ? "yes" : "no"}`,
+      `- Missing controls: ${billingMigrationReadiness.missing_controls.join(", ") || "none"}`,
+      `- Customer value: ${billingMigrationReadiness.customer_value}`,
+      `- Self-host value: ${billingMigrationReadiness.self_host_value}`,
+      `- Audit value: ${billingMigrationReadiness.audit_value}`,
+      ""
+    );
+    if (billingMigrationReadiness.blocked_for_live_customer_billing.length) {
+      lines.push("### Billing Migration Blockers", "");
+      for (const blocker of billingMigrationReadiness.blocked_for_live_customer_billing) {
+        lines.push(`- ${blocker}`);
+      }
+      lines.push("");
+    }
+  }
+
   if (mediaReadiness.available) {
     lines.push(
       "## Media Readiness",
@@ -5901,7 +6097,7 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}) {
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5939,6 +6135,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     request_provenance: summarizeRequestProvenance(requestFixture),
     usage_quota: summarizeUsageQuota(usageFixture, usageApiProbe),
     billing_usage_summary: summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe),
+    billing_migration_readiness: summarizeBillingMigrationReadiness(billingMigrationReadinessFixture),
     media_readiness: summarizeMediaReadiness(runFixture, gradeFixture, usageFixture, reportMediaSignedUrlFixture),
     cloud_console_shell: summarizeCloudConsoleShell(authFixture, frontendFixture, requestFixture, usageFixture, usageApiProbe),
     official_ashr_gap: summarizeOfficialAshrGap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe),

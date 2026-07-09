@@ -664,3 +664,20 @@
 - [x] Add admin action guardrail E2E.
 - [x] Add reviewer waiver/approval receipt E2E.
 - [x] Add revoked/missing hosted report denied-state E2E.
+
+## A3 Live Publish / Review / Billing / Share Closeout - 2026-07-09
+
+- [x] Expose local A3 API routes for GitHub check and PR comment publishing.
+- [x] Keep GitHub publish dry-run by default and gate live mode behind hosted session or service account.
+- [x] Store sanitized GitHub publish receipts without raw tokens.
+- [x] Support reviewer waiver, approval, and denial records.
+- [x] Record human operation evidence through review records, SaaS admin requests, audit events, event outbox, and GitHub publish receipts.
+- [x] Read usage, billing readiness, and billing migration readiness through API-backed A3 routes.
+- [x] Keep billing/admin read-only; no checkout, invoice, subscription, provider webhook, or payment mutation.
+- [x] Support report share, view, revoke, expiry, denied access, and audit lifecycle.
+- [x] Keep raw share tokens out of persisted docs, fixtures, reports, and API reads.
+- [x] Re-verify full A3 Node suite after the closeout: 260 pass, 0 fail.
+- [x] Re-verify Playwright E2E after the closeout: 10 pass, 0 fail.
+- [ ] Run live GitHub check/comment readback only after maintainer-approved GitHub App or CI integration exists.
+- [ ] Replace local store persistence with A1-owned hosted Postgres/RLS once available.
+- [ ] Replace read-only billing projections with A1 durable billing ledger and provider webhook evidence before production billing claims.

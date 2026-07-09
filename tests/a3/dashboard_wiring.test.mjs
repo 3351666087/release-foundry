@@ -546,6 +546,7 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/artifacts\/registry/);
   assert.match(html, /GET \/api\/a3\/usage\/ledger/);
   assert.match(html, /GET \/api\/a3\/billing\/readiness/);
+  assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
   assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
   assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
   assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
@@ -560,6 +561,24 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
   assert.match(html, /manifest-ready report/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
+});
+
+test("A3 dashboard wires billing migration readiness into API-backed and static console", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /id="billing-migration-readiness"/);
+  assert.match(html, /Billing Migration Readiness/);
+  assertNavigationTarget(html, "#billing-migration-readiness");
+  assert.match(html, /billingMigrationReadiness: \{\}/);
+  assert.match(html, /buildA3BillingMigrationReadiness/);
+  assert.match(html, /fetchA3BillingMigrationReadiness/);
+  assert.match(html, /function refreshBillingMigrationReadiness\(\)/);
+  assert.match(html, /function renderBillingMigrationReadiness\(\)/);
+  assert.match(html, /state\.billingMigrationReadiness = await fetchA3BillingMigrationReadiness/);
+  assert.match(html, /billing_migration_readiness/);
+  assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
+  assert.match(html, /A1 billing ledger migration, replay, and read-only billing API evidence/);
+  assert.match(html, /billing_migration_readiness/);
 });
 
 test("A3 dashboard wires live workflow readiness for GitHub, review, billing, and hosted reports", async () => {

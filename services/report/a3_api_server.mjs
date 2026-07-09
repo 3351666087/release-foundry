@@ -99,6 +99,14 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/billing/migration-readiness") {
+        return sendJson(response, 200, await store.getBillingMigrationReadiness({
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/live-workflow/readiness") {
         return sendJson(response, 200, await store.getLiveWorkflowReadiness({
           source: sourceFrom(url),
@@ -248,6 +256,68 @@ export function createA3ApiHandler(options = {}) {
         return diff
           ? sendJson(response, 200, diff)
           : sendJson(response, 404, notFound("release_evidence", releaseEvidenceDiffMatch[1]));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/github/check-run/publish") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "publish_github_check", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const liveGuard = authorizeLiveGitHubPublish(request, url, body);
+        if (!liveGuard.allowed) {
+          return sendJson(response, 403, liveGitHubPublishDenied(liveGuard));
+        }
+        const receipt = await store.publishGitHubCheckRun({
+          source: body.source || sourceFrom(url),
+          repo: body.repo,
+          headSha: body.head_sha || body.headSha,
+          detailsUrl: body.details_url || body.detailsUrl,
+          checkRunId: body.check_run_id || body.checkRunId,
+          dryRun: liveGuard.dryRun,
+          tokenEnvName: body.token_env || body.tokenEnvName || "GITHUB_TOKEN",
+          apiBaseUrl: body.api_base_url || body.apiBaseUrl,
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("github_publish_scope", body.source || sourceFrom(url)));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/github/pr-comment/publish") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "publish_github_pr_comment", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const liveGuard = authorizeLiveGitHubPublish(request, url, body);
+        if (!liveGuard.allowed) {
+          return sendJson(response, 403, liveGitHubPublishDenied(liveGuard));
+        }
+        const receipt = await store.publishGitHubPrComment({
+          source: body.source || sourceFrom(url),
+          repo: body.repo,
+          pullNumber: body.pull_number || body.pullNumber,
+          dryRun: liveGuard.dryRun,
+          tokenEnvName: body.token_env || body.tokenEnvName || "GITHUB_TOKEN",
+          apiBaseUrl: body.api_base_url || body.apiBaseUrl,
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          releaseVersion: body.release_version,
+          environment: body.environment,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        });
+        return receipt
+          ? sendJson(response, 202, receipt)
+          : sendJson(response, 404, notFound("github_publish_scope", body.source || sourceFrom(url)));
       }
 
       const releaseEvidenceReadbacksMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/readbacks$/);
@@ -652,6 +722,55 @@ function forbiddenPayload(decision = {}) {
       raw_actor_identity_exposed: false,
       raw_secret_values_allowed: false,
       real_cloud_mutation_performed: false
+    }
+  };
+}
+
+function authorizeLiveGitHubPublish(request, url, body = {}) {
+  const liveRequested = body.allow_live === true || body.live === true || body.dry_run === false || body.dryRun === false;
+  if (!liveRequested) {
+    return {
+      allowed: true,
+      dryRun: true,
+      liveRequested: false,
+      reason: "Dry-run GitHub publish request; no external mutation is allowed."
+    };
+  }
+  const authContext = buildAuthContextFromRequest(request, url, body);
+  const hostedOrService = authContext.auth_state === "hosted_session" || authContext.auth_state === "service_account";
+  return {
+    allowed: hostedOrService,
+    dryRun: false,
+    liveRequested: true,
+    auth_state: authContext.auth_state,
+    role: authContext.role,
+    tenant_scope: authContext.tenant_scope,
+    reason: hostedOrService
+      ? "Live GitHub publish is explicitly requested by hosted/session or service-account context."
+      : "Live GitHub publish requires hosted session or service-account context."
+  };
+}
+
+function liveGitHubPublishDenied(guard = {}) {
+  return {
+    schema_version: "a3.github_live_publish_denied.v1",
+    error: "live_publish_requires_hosted_or_service_account",
+    decision: "denied_requires_hosted_auth_or_service_account",
+    live_requested: guard.liveRequested === true,
+    auth_state: guard.auth_state || "unknown",
+    role: guard.role || "unknown",
+    reason: guard.reason,
+    tenant_scope: guard.tenant_scope,
+    denied_state: {
+      http_status: 403,
+      customer_message: "Live GitHub publishing requires hosted auth or a service account. Retry as dry-run or from CI/GitHub App worker."
+    },
+    safety: {
+      raw_request_body_echoed: false,
+      raw_actor_identity_exposed: false,
+      raw_secret_values_allowed: false,
+      token_included: false,
+      real_github_mutation_performed: false
     }
   };
 }

@@ -96,6 +96,16 @@ export async function fetchA3BillingReadiness(options = {}) {
   return response.json();
 }
 
+export async function fetchA3BillingMigrationReadiness(options = {}) {
+  const source = apiSourceTarget(options.source || "mock");
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const response = await fetch(`${baseUrl}/api/a3/billing/migration-readiness?source=${encodeURIComponent(source)}`);
+  if (!response.ok) {
+    throw new Error(`A3 API billing migration readiness load failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchA3LiveWorkflowReadiness(options = {}) {
   const source = apiSourceTarget(options.source || "mock");
   const baseUrl = normalizeBaseUrl(options.baseUrl);

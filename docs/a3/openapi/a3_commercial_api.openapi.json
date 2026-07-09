@@ -1459,6 +1459,73 @@
         }
       }
     },
+    "/api/a3/billing/migration-readiness": {
+      "get": {
+        "operationId": "getA3BillingMigrationReadiness",
+        "summary": "Read A1 billing migration readiness without A3 billing mutation.",
+        "tags": [
+          "Billing"
+        ],
+        "x-schema-version": "a3.billing_migration_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "read_only_preview",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "billing:read",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests",
+            "billing_readiness_reads"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "billing.migration_readiness_read",
+            "billing.ledger_summary_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "read-only billing ledger summary",
+            "durable billing migration manifest",
+            "provider event replay evidence"
+          ],
+          "a2": [
+            "security verification",
+            "model cost policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Billing migration readiness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingMigrationReadiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/a3/usage/ledger": {
       "get": {
         "operationId": "getA3UsageLedger",
@@ -2274,6 +2341,72 @@
           },
           "plan": {
             "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "BillingMigrationReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "tenant_scope",
+          "billing_mutations_enabled",
+          "source_owner_lane",
+          "migration_manifest_hash",
+          "ledger_summary",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.billing_migration_readiness.v1"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "billing_mutations_enabled": {
+            "type": "boolean",
+            "const": false
+          },
+          "source_owner_lane": {
+            "type": "string",
+            "const": "A1"
+          },
+          "source_ledger_summary_ref": {
+            "type": "string"
+          },
+          "migration_manifest_hash": {
+            "type": "string"
+          },
+          "provider_event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ledger_event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ledger_summary": {
+            "type": "object",
+            "description": "Currency totals, usage units, provider event counts, ledger event counts, refs, hashes, and statuses only."
+          },
+          "replay_status_summary": {
+            "type": "object"
+          },
+          "raw_provider_secret_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_provider_payload_embedded": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_card_data_allowed": {
+            "type": "boolean",
+            "const": false
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
           }
         },
         "additionalProperties": true

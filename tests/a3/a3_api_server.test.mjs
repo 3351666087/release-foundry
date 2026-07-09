@@ -155,6 +155,13 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(billingReadiness.required_events.includes("billing.subscription_changed"));
     assert.doesNotMatch(JSON.stringify(billingReadiness), /Bearer|sk-|ghp_|owner@example.com/);
 
+    const billingMigrationReadiness = await getJson(`${url}/api/a3/billing/migration-readiness?source=mock`);
+    assert.equal(billingMigrationReadiness.schema_version, "a3.billing_migration_readiness.v1");
+    assert.equal(billingMigrationReadiness.summary.ready_for_live_customer_billing, false);
+    assert.equal(billingMigrationReadiness.db_contract.tables.some((table) => table.name === "billing_ledger_events"), true);
+    assert.equal(billingMigrationReadiness.tenant_auth_rbac_usage_audit.usage.billing_mutations_enabled, false);
+    assert.doesNotMatch(JSON.stringify(billingMigrationReadiness), /Bearer|sk-|ghp_|owner@example.com|C:\\Users/);
+
     const liveWorkflowReadiness = await getJson(`${url}/api/a3/live-workflow/readiness?source=mock`);
     assert.equal(liveWorkflowReadiness.schema_version, "a3.live_workflow_readiness.v1");
     assert.equal(liveWorkflowReadiness.capability_count, 6);
@@ -172,6 +179,74 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(liveOpsControlPlane.safety.real_github_mutation_performed_locally, false);
     assert.equal(liveOpsControlPlane.a1_a2_alignment.a3_mutates_a1_a2_semantics, false);
     assert.doesNotMatch(JSON.stringify(liveOpsControlPlane), /Bearer|sk-|ghp_|owner@example.com/);
+
+    const checkPublishResponse = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-check-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        details_url: "https://example.invalid/a3-gate",
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(checkPublishResponse.status, 202);
+    const checkPublishReceipt = await checkPublishResponse.json();
+    assert.equal(checkPublishReceipt.schema_version, "a3.github_publish_receipt_record.v1");
+    assert.equal(checkPublishReceipt.resource_kind, "github_check");
+    assert.equal(checkPublishReceipt.dry_run, true);
+    assert.equal(checkPublishReceipt.posted, false);
+    assert.equal(checkPublishReceipt.event_outbox_delivery_status, "pending");
+    assert.equal(checkPublishReceipt.idempotency.status, "recorded");
+    assert.doesNotMatch(JSON.stringify(checkPublishReceipt), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const commentPublishResponse = await fetch(`${url}/api/a3/github/pr-comment/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-comment-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        pull_number: 17,
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(commentPublishResponse.status, 202);
+    const commentPublishReceipt = await commentPublishResponse.json();
+    assert.equal(commentPublishReceipt.schema_version, "a3.github_publish_receipt_record.v1");
+    assert.equal(commentPublishReceipt.resource_kind, "pr_comment");
+    assert.equal(commentPublishReceipt.dry_run, true);
+    assert.equal(commentPublishReceipt.posted, false);
+    assert.equal(commentPublishReceipt.event_outbox_delivery_status, "pending");
+    assert.equal(commentPublishReceipt.idempotency.status, "recorded");
+    assert.doesNotMatch(JSON.stringify(commentPublishReceipt), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
+
+    const duplicateCheckPublish = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "idem-gh-check-1", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        source: "mock",
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        details_url: "https://example.invalid/a3-gate",
+        actor: ["release-reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(duplicateCheckPublish.status, 202);
+    const duplicateCheckReceipt = await duplicateCheckPublish.json();
+    assert.equal(duplicateCheckReceipt.idempotency.duplicate, true);
+
+    const dashboardAfterPublish = await getJson(`${url}/api/a3/dashboard?source=mock`);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.schema_version, "a3.github_publish_receipt_dashboard.v1");
+    assert.equal(dashboardAfterPublish.github_publish_receipts.receipt_count, 2);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.dry_run_count, 2);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.resource_counts.github_check, 1);
+    assert.equal(dashboardAfterPublish.github_publish_receipts.resource_counts.pr_comment, 1);
+    assert.equal(dashboardAfterPublish.live_ops_control_plane.lanes.some((item) => (
+      item.id === "github_pr_check_live_publishing"
+      && item.current_mode === "dry_run_publish_plan"
+    )), true);
+    assert.doesNotMatch(JSON.stringify(dashboardAfterPublish.github_publish_receipts), /release-reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
 
     const peerCalibration = await getJson(`${url}/api/a3/peer-branches/calibration?source=mock&role=auditor`);
     assert.equal(peerCalibration.schema_version, "a3.peer_branch_calibration.v1");
@@ -538,6 +613,8 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(outbox.event_count >= 7);
     for (const eventType of [
       "release_evidence.readback_captured",
+      "github.check_publish_requested",
+      "github.pr_comment_publish_requested",
       "admin.action_requested",
       "waiver.submitted",
       "approval.submitted",
@@ -611,6 +688,45 @@ test("A3 API server fails closed on unauthorized write and audit routes", async 
     assert.equal(deniedReadbackPayload.operation, "capture_release_readback");
     assert.equal(deniedReadbackPayload.decision, "denied_missing_permission");
     assert.doesNotMatch(JSON.stringify(deniedReadbackPayload), /should_not_persist/);
+
+    const deniedCheckPublish = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({
+        repo: "acme/refund-agent",
+        head_sha: "abc123",
+        actor: ["viewer", "example.com"].join("@"),
+        authorization: "Bearer should-not-leak"
+      })
+    });
+    assert.equal(deniedCheckPublish.status, 403);
+    const deniedCheckPublishPayload = await deniedCheckPublish.json();
+    assert.equal(deniedCheckPublishPayload.operation, "publish_github_check");
+    assert.equal(deniedCheckPublishPayload.decision, "denied_missing_permission");
+    assert.doesNotMatch(JSON.stringify(deniedCheckPublishPayload), /viewer@example.com|should-not-leak|Bearer|abc123/);
+
+    const deniedLivePublish = await fetch(`${url}/api/a3/github/pr-comment/publish?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "reviewer"
+      },
+      body: JSON.stringify({
+        repo: "acme/refund-agent",
+        pull_number: 17,
+        allow_live: true,
+        actor: ["reviewer", "example.com"].join("@")
+      })
+    });
+    assert.equal(deniedLivePublish.status, 403);
+    const deniedLivePublishPayload = await deniedLivePublish.json();
+    assert.equal(deniedLivePublishPayload.schema_version, "a3.github_live_publish_denied.v1");
+    assert.equal(deniedLivePublishPayload.decision, "denied_requires_hosted_auth_or_service_account");
+    assert.equal(deniedLivePublishPayload.safety.real_github_mutation_performed, false);
+    assert.doesNotMatch(JSON.stringify(deniedLivePublishPayload), /reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
 
     const deniedAdminPlan = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
       method: "POST",

@@ -60,6 +60,7 @@ test("A3 commercial OpenAPI artifact has the expected schema version and focus s
     "/api/a3/admin/console",
     "/api/a3/review/denials",
     "/api/a3/billing/readiness",
+    "/api/a3/billing/migration-readiness",
     "/api/a3/usage/ledger",
     "/api/a3/enterprise/readiness"
   ]) {
@@ -121,10 +122,24 @@ test("A3 commercial OpenAPI artifact preserves A1/A2 source authority references
     "POST /api/a3/reports/share",
     "GET /api/a3/admin/console",
     "GET /api/a3/billing/readiness",
+    "GET /api/a3/billing/migration-readiness",
     "GET /api/a3/usage/ledger"
   ]) {
     assert.equal(commercialRoutes.has(localRoute), true, `existing commercial contract missing ${localRoute}`);
   }
+
+  const migrationReadiness = spec.paths["/api/a3/billing/migration-readiness"].get;
+  assert.equal(migrationReadiness["x-schema-version"], "a3.billing_migration_readiness.v1");
+  assert.equal(migrationReadiness["x-rbac"].permission, "billing:read");
+  assert.deepEqual(migrationReadiness["x-a1-a2-contract"].a1, [
+    "read-only billing ledger summary",
+    "durable billing migration manifest",
+    "provider event replay evidence"
+  ]);
+  assert.equal(
+    migrationReadiness.responses["200"].content["application/json"].schema.$ref,
+    "#/components/schemas/BillingMigrationReadiness"
+  );
 });
 
 test("A3 commercial OpenAPI artifact is redacted and safe to publish", async () => {
@@ -140,6 +155,9 @@ test("A3 commercial OpenAPI artifact is redacted and safe to publish", async () 
   assert.equal(spec["x-secret-policy"].raw_signed_urls_allowed, false);
   assert.equal(spec.components.schemas.SafetyEnvelope.properties.contains_secret_values.const, false);
   assert.equal(spec.components.schemas.BillingReadiness.properties.billing_mutations_enabled.const, false);
+  assert.equal(spec.components.schemas.BillingMigrationReadiness.properties.billing_mutations_enabled.const, false);
+  assert.equal(spec.components.schemas.BillingMigrationReadiness.properties.raw_provider_secret_allowed.const, false);
+  assert.equal(spec.components.schemas.BillingMigrationReadiness.properties.raw_provider_payload_embedded.const, false);
 
   for (const forbidden of [
     /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/,

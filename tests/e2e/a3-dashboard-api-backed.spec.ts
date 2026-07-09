@@ -55,6 +55,43 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(consoleErrors, "API-backed dashboard should not emit browser console errors").toEqual([]);
   });
 
+  test("renders Billing Migration Readiness evidence from the local A3 API", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+
+    await page.goto(apiBackedPath);
+    const migrationPanel = section(page, "#billing-migration-readiness");
+    await expect(migrationPanel).toContainText("Billing Migration Readiness");
+    await expect(migrationPanel).toContainText("Waiting for A1 billing ledger migration");
+
+    const migrationResponse = await page.request.get(apiUrl(page, "/api/a3/billing/migration-readiness?source=mock"), {
+      headers: {
+        "x-a3-role": "auditor"
+      }
+    });
+    await expect(migrationResponse.status()).toBe(200);
+    const migration = await migrationResponse.json();
+    expect(migration.schema_version).toBe("a3.billing_migration_readiness.v1");
+    expect(migration.summary.status).toBe("read_only_migration_contract_ready");
+    expect(migration.summary.ready_for_live_customer_billing).toBe(false);
+    expect(migration.safety.env_local_read).toBe(false);
+    expect(migration.safety.real_api_called_by_a3).toBe(false);
+    expect(migration.safety.real_payment_provider_called).toBe(false);
+    expect(migration.api_contract.some((route: { route?: string }) => route.route === "GET /api/a3/billing/readiness")).toBe(true);
+    expect(migration.db_contract.tables.some((table: { name?: string }) => table.name === "billing_provider_events")).toBe(true);
+    expect(migration.event_contract.ledger_event_types).toContain("usage_reconciled");
+    expect(JSON.stringify(migration)).not.toMatch(/Bearer|sk-|ghp_|github_pat_|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+
+    await expect(page.locator("body")).not.toContainText("owner@example.com");
+    await expect(page.locator("body")).not.toContainText("teammate@example.com");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-billing-migration-readiness-api-backed-2026-07-09.png",
+      fullPage: true
+    });
+
+    expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
+  });
+
   test("creates and revokes a hosted report through the local A3 API", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);

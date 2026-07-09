@@ -35,6 +35,7 @@ import {
   summarizeReviewWorkflowExport,
   summarizeSaasAdminExport,
   summarizeBillingUsage,
+  summarizeBillingMigrationReadiness,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
@@ -717,6 +718,7 @@ test("A3 report exports include SaaS admin login, team, API-key, usage, trust, a
 test("A3 report exports include Artifact Registry evidence catalog", async () => {
   const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
   const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const billingMigrationReadiness = await loadJson("../../fixtures/a3/p3/a3_billing_migration_readiness.redacted.json");
   const artifactRegistry = buildA3ArtifactRegistry({
     source: "mock",
     reportCenter: {
@@ -734,7 +736,8 @@ test("A3 report exports include Artifact Registry evidence catalog", async () =>
     usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "runs", quantity: 1 }] },
     migrationPlan: { schema_version: "a3.sql_migration_plan.v1", status: "contract_ready", migration_count: 7 },
     productConsole: { schema_version: "a3.product_console.v1" },
-    saasAdmin: { schema_version: "a3.saas_admin_console.v1" }
+    saasAdmin: { schema_version: "a3.saas_admin_console.v1" },
+    billingMigrationReadiness
   });
 
   const summary = summarizeArtifactRegistryExport(artifactRegistry);
@@ -747,14 +750,111 @@ test("A3 report exports include Artifact Registry evidence catalog", async () =>
   assert.equal(json.artifact_registry.schema_version, "a3.artifact_registry_export.v1");
   assert.equal(json.artifact_registry.available, true);
   assert.ok(json.artifact_registry.top_artifacts.some((item) => item.artifact_type === "hosted_report"));
+  const billingArtifact = json.artifact_registry.top_artifacts.find((item) => item.artifact_type === "billing_migration_readiness");
+  assert.equal(billingArtifact.lifecycle_state, "generated");
+  assert.equal(billingArtifact.missing_controls.includes("a1_authenticated_billing_ledger_read_api"), true);
+  assert.match(billingArtifact.customer_value, /billing ledger migration readiness/);
+  assert.match(billingArtifact.billable_value, /invoice-preview/);
+  assert.match(billingArtifact.self_host_value, /Postgres billing ledger/);
+  assert.match(billingArtifact.audit_value, /provider-event hash/);
 
   const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, artifactRegistry);
   assert.match(markdown, /## Artifact Registry/);
   assert.match(markdown, /Artifact Packet Presets/);
+  assert.match(markdown, /billing_migration_readiness/);
 
   const missing = summarizeArtifactRegistryExport({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /Attach Artifact Registry/);
+});
+
+test("A3 report exports include billing migration readiness without leaking provider secrets", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const billingMigrationReadiness = await loadJson("../../fixtures/a3/p3/a3_billing_migration_readiness.redacted.json");
+  const unsafeProbe = {
+    ...billingMigrationReadiness,
+    ignored_provider_secret: "sk_live_should_not_escape_1234567890",
+    ignored_webhook_secret: "whsec_should_not_escape_1234567890",
+    ignored_email: "billing-owner@example.com",
+    ignored_path: "C:\\Users\\private\\billing.env",
+    ignored_header: "Authorization: Bearer should-not-escape"
+  };
+
+  const summary = summarizeBillingMigrationReadiness(unsafeProbe);
+  assert.equal(summary.schema_version, "a3.billing_migration_readiness_export.v1");
+  assert.equal(summary.source_schema_version, "a3.billing_migration_readiness.v1");
+  assert.equal(summary.available, true);
+  assert.equal(summary.status, "read_only_migration_contract_ready");
+  assert.equal(summary.ready_for_live_customer_billing, false);
+  assert.equal(summary.db_contract.table_names.includes("billing_provider_events"), true);
+  assert.equal(summary.db_contract.a3_db_mutation_required, false);
+  assert.equal(summary.replay_evidence.raw_payload_included, false);
+  assert.equal(summary.boundary.billing_mutations_enabled, false);
+  assert.equal(summary.safety.env_local_read, false);
+  assert.equal(summary.missing_controls.includes("hosted_auth_rbac_enforcement"), true);
+  assert.match(summary.customer_value, /billing-ledger migration readiness/);
+  assert.match(summary.self_host_value, /Postgres migration/);
+  assert.match(summary.audit_value, /tenant-scope/);
+
+  const json = buildJsonReport(...[
+    runs,
+    grades,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    unsafeProbe
+  ]);
+  assert.equal(json.billing_migration_readiness.available, true);
+  assert.equal(json.billing_migration_readiness.ready_for_live_customer_billing, false);
+  assert.equal(json.billing_migration_readiness.db_contract.raw_provider_secret_allowed, false);
+  assert.equal(json.billing_migration_readiness.live_smoke.executed_by_a3, false);
+  assert.equal(json.billing_migration_readiness.official_api_readonly.mutating_steps, 0);
+
+  const markdown = buildMarkdownReport(...[
+    runs,
+    grades,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    unsafeProbe
+  ]);
+  assert.match(markdown, /## Billing Migration Readiness/);
+  assert.match(markdown, /Live customer billing ready: no/);
+  assert.match(markdown, /billing_accounts, billing_provider_events, billing_ledger_events/);
+  assert.match(markdown, /Billing mutations enabled: no/);
+
+  const serialized = JSON.stringify(json) + markdown + JSON.stringify(summary);
+  assert.doesNotMatch(serialized, /sk_live_should_not_escape|whsec_should_not_escape|billing-owner@example\.com|C:\\Users|Authorization: Bearer/);
 });
 
 test("A3 report exports include durable review workflow records", async () => {
