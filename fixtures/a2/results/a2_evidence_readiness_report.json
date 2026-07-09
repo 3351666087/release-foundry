@@ -98,13 +98,13 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "label": "a2-real-api-2026-07-09-readonly-and-quota-gated-create-request",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 368,
+    "total_records": 370,
     "status_counts": {
-      "blocked": 2,
+      "blocked": 3,
       "completed": 13,
-      "error": 27,
+      "error": 28,
       "failed": 1,
       "ok": 214,
       "partial": 13,
@@ -113,7 +113,7 @@
       "timeout": 1
     },
     "function_counts": {
-      "create_request": 35,
+      "create_request": 36,
       "create_run": 2,
       "get_dataset": 8,
       "get_request": 11,
@@ -124,12 +124,12 @@
       "list_datasets": 39,
       "list_requests": 42,
       "list_runs": 5,
-      "plan_batch": 3,
+      "plan_batch": 4,
       "poll_request": 1,
       "poll_run": 2,
       "validate_gate": 3
     },
-    "quota_block_count": 43,
+    "quota_block_count": 44,
     "real_ok_functions": [
       "create_request",
       "create_run",
@@ -147,22 +147,22 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 241,
+    "real_record_count": 242,
     "real_read_status_counts": {
       "error": 11,
       "ok": 172,
       "timeout": 1
     },
     "real_create_request_status_counts": {
-      "error": 15,
+      "error": 16,
       "ok": 2
     },
     "real_create_request_error_kind_counts": {
-      "api": 15
+      "api": 16
     },
     "real_quota_gate": {
       "blocked": true,
-      "blocked_count": 13,
+      "blocked_count": 14,
       "blocked_functions": [
         "create_request"
       ],
@@ -188,17 +188,18 @@
         "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260707_121848/python/a1_python_api_calibration_create-request-text_real.json",
-        "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json"
+        "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_real_create_request_text_20260709.json"
       ],
       "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
     },
     "api_probe_gate_validation": {
       "available": true,
       "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
-      "plan_batch_count": 3,
+      "plan_batch_count": 4,
       "validate_gate_count": 3,
       "plan_batch_status_counts": {
-        "blocked": 2,
+        "blocked": 3,
         "planned": 1
       },
       "validate_gate_status_counts": {
@@ -207,14 +208,15 @@
       },
       "ok_validate_gate_count": 2,
       "error_validate_gate_count": 1,
-      "blocked_plan_batch_count": 2,
+      "blocked_plan_batch_count": 3,
       "private_record_refs": [
         "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
         "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
         "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
         "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
         "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
-        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json"
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json",
+        "docs/evidence/private_refs/a2_real_create_request_text_plan_20260709.json"
       ],
       "release_interpretation": "mixed_gate_evidence_review_required"
     },
@@ -353,7 +355,7 @@
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
     "schema_version": "a2.real_api_smoke.v1",
-    "generated_at": "2026-07-07T04:14:18Z",
+    "generated_at": "2026-07-09T13:35:50Z",
     "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
     "base_url": "https://api.ashr.io/testing-platform-api",
     "api_call_count": 6,

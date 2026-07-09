@@ -1,10 +1,10 @@
 {
   "error_kind_counts": {
-    "api": 23
+    "api": 24
   },
   "field_map_version": "a1-api-calibration-2026-07-04",
   "function_counts": {
-    "create_request": 35,
+    "create_request": 36,
     "create_run": 2,
     "get_dataset": 8,
     "get_request": 11,
@@ -15,22 +15,22 @@
     "list_datasets": 39,
     "list_requests": 42,
     "list_runs": 5,
-    "plan_batch": 3,
+    "plan_batch": 4,
     "poll_request": 1,
     "poll_run": 2,
     "validate_gate": 3
   },
-  "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+  "label": "a2-real-api-2026-07-09-readonly-and-quota-gated-create-request",
   "output_policy_counts": {
     "by_producer": {},
     "by_record_class": {},
-    "missing": 363,
+    "missing": 364,
     "none": 0,
     "nonprivate_file": 0,
     "nonprivate_override": 0,
-    "present": 5,
-    "private_file": 5,
-    "private_not_required": 0,
+    "present": 6,
+    "private_file": 6,
+    "private_not_required": 1,
     "private_required": 5,
     "private_required_but_not_private": 0,
     "resolved_outside_repo": 0,
@@ -38,7 +38,7 @@
     "sink": {
       "none": 0,
       "nonprivate_file": 0,
-      "private_file": 5,
+      "private_file": 6,
       "stdout": 0
     },
     "stdout": 0,
@@ -46,7 +46,7 @@
     "stdout_full_record_requested": 0,
     "unsafe_real_nonprivate_override": 0
   },
-  "quota_block_count": 43,
+  "quota_block_count": 44,
   "records": [
     {
       "attempts": 0,
@@ -1798,7 +1798,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "datasets": 1
+        "datasets": 2
       }
     },
     {
@@ -1847,7 +1847,7 @@
       "status": "ok",
       "status_code": 200,
       "top_counts": {
-        "requests": 1
+        "requests": 2
       }
     },
     {
@@ -8714,13 +8714,89 @@
       "status": "partial",
       "status_code": null,
       "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "function": "create_request",
+      "path": "docs/evidence/private_refs/a2_real_create_request_text_20260709.json",
+      "quota": {
+        "blocked": true,
+        "limit_present": true,
+        "message": "Usage limit exceeded; exact quota details are kept in private evidence",
+        "quota_keys": [
+          "asset_type",
+          "error",
+          "limit",
+          "remaining",
+          "requested",
+          "used"
+        ],
+        "remaining_present": true,
+        "requested_present": true,
+        "used_present": true
+      },
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params",
+        "preflight"
+      ],
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "top_counts": {}
+    },
+    {
+      "attempts": 0,
+      "dry_run": true,
+      "error_keys": [],
+      "error_kind": null,
+      "function": "plan_batch",
+      "output_policy": {
+        "allow_nonprivate_output": false,
+        "full_record_stdout_blocked": false,
+        "nonprivate_output_override_used": false,
+        "output_is_private": true,
+        "private_output_required": false,
+        "private_root": "docs/evidence/private_refs",
+        "resolved_under_repo": "docs/evidence/private_refs/a2_real_create_request_text_plan_20260709.json",
+        "schema_version": "ashr.clone.output_policy.v1",
+        "sink": "private_file"
+      },
+      "path": "docs/evidence/private_refs/a2_real_create_request_text_plan_20260709.json",
+      "request_keys": [
+        "estimated_calls",
+        "function",
+        "mutates",
+        "params"
+      ],
+      "response_keys": [
+        "plan"
+      ],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "blocked",
+      "status_code": null,
+      "top_counts": {}
     }
   ],
   "schema_version": "ashr.clone.evidence_index.v1",
   "status_counts": {
-    "blocked": 2,
+    "blocked": 3,
     "completed": 13,
-    "error": 27,
+    "error": 28,
     "failed": 1,
     "ok": 214,
     "partial": 13,
@@ -8728,5 +8804,5 @@
     "planned": 53,
     "timeout": 1
   },
-  "total_records": 368
+  "total_records": 370
 }
