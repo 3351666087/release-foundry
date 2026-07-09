@@ -1215,3 +1215,54 @@ Next 20 A1 growth points:
 18. Add self-host compose hook applying migrations 001+002.
 19. Add official Ashr dashboard/API usage quota read-only comparison if exposed.
 20. After Ashr quota reset/plan change, execute successful text mutation then paid media probes one modality at a time.
+
+## Round 38 - billing route contract + payment provider readiness (2026-07-09)
+
+Baseline and peer impact:
+- Repo: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 remained draft and latest pre-round CI was green.
+- Ran `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb`, `gh pr list --state all --limit 20`, and `gh pr checks 27 --watch=false`.
+- Peer PRs observed: A2 PR #29 draft, A3 PR #28 open. No A2/A3 files were intentionally modified.
+- Growth-Auditor Hooke recommended Go/OpenAPI billing route contract for checkout plan, portal plan, webhook ingest, and ledger readback.
+
+Implemented:
+- Go billing route contract in `packages/go/ashrclone`: scopes `billing:read`, `billing:write`, `billing:webhook`; deterministic checkout/portal/webhook/ledger DTOs; memory-service behavior; HTTP routes; route manifest/scope-doc runtime coverage; Postgres backend compile-safe contract fallback.
+- Python SaaS client route constants and wrappers for `billing_checkout_plan`, `billing_portal_plan`, `billing_webhook_ingest`, and `billing_ledger` using existing public-safe `services.api.billing` contracts.
+- TypeScript SaaS parity: billing scopes, hosted/local billing wrappers, TS OpenAPI billing paths, Python-canonical `usage_snapshot`/`lifecycle_snapshot` envelopes.
+- Public-safe payment provider readiness packet covering Stripe test/live hosted checkout/portal, hosted WeChat Pay/Alipay, real-card human-controlled test boundary, secret-reference policy, webhook hash envelopes, and evidence object path classification.
+- Route parity snapshot and TS/Python gap matrix refreshed for billing routes and wrappers.
+- Docker daemon smoke now skips on daemon probe timeout instead of failing the whole A1 suite when Docker Desktop/WSL networking is unhealthy.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 335 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 378 passed, 1 skipped (Docker daemon probe timeout skip).
+- Focused Python billing/route/payment tests -> 51 passed.
+- Official Ashr API read-only calibration: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json` -> status ok, 5 read steps, 0 mutating steps.
+
+Evidence:
+- Public readiness: `docs/a1/payment_provider_readiness.md`, `docs/a1/evidence/payment_provider_readiness_public.json`, `docs/a1/schemas/payment_provider_readiness.schema.json`.
+- Public official summary: `docs/a1/evidence/official_api_readonly_round38_summary_20260709_215947.json`.
+- Private raw API record stayed under ignored `docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json`.
+
+Known gaps / next 20 growth points:
+1. Durable Postgres billing persistence behind migration 002 instead of current Go contract fallback.
+2. Transactional billing webhook idempotency in Go/Postgres matching SQL duplicate/conflict semantics.
+3. Go HTTP billing auth negative tests for missing/wrong scopes and wrong tenant.
+4. TS router local HTTP billing route handling, not only client/OpenAPI wrappers.
+5. Python CLI commands for billing plan/webhook/ledger operations.
+6. Public-safe live Stripe test-mode dry-run plan that records exact human action boundary.
+7. Stripe test webhook signature verification harness using secret references only.
+8. WeChat Pay hosted provider adapter contract with cert/key reference schema.
+9. Alipay hosted provider adapter contract with app/private-key reference schema.
+10. Billing usage-rollup export from Go usage ledger into billing ledger event.
+11. Object storage evidence bundle pointer for payment provider event proof.
+12. Quota ledger to billing ledger reconciliation tests.
+13. Worker job for billing webhook normalization and dead-letter.
+14. Terraform/HCL secret-manager references for payment provider credentials.
+15. Docker compose service profile for webhook receiver local smoke.
+16. OAuth login foundations before live billing admin surfaces.
+17. API key create/revoke/limit routes tied to billing scopes and audit events.
+18. Official Ashr API small-batch calibration for billing/usage fields if public API exposes them.
+19. Paid mutating Ashr API calibration remains planned but must use dry-run plan -> small batch -> bounded batch and never log raw key.
+20. A1 push gate should include root-safe command matrix to avoid invalid monorepo `go test ./...` from root.

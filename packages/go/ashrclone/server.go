@@ -38,6 +38,10 @@ type ControlPlaneBackend interface {
 	RunLifecycle(tenantID, projectID, runID string) (Envelope[RunLifecycle], error)
 	ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error)
 	UsageSnapshot(tenantID, projectID string) (Envelope[UsageSnapshot], error)
+	CreateBillingCheckoutPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingCheckoutPlan], error)
+	CreateBillingPortalPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingPortalPlan], error)
+	IngestBillingWebhook(tenantID, projectID string, event BillingWebhookIngest, options IdempotencyOptions) (Envelope[BillingWebhookIngest], error)
+	BillingLedger(tenantID, projectID string) (Envelope[BillingLedger], error)
 	AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error)
 	VerifyAuditChain(tenantID, projectID string) (Envelope[AuditChainVerification], error)
 	BuildReleaseEvidencePacket(tenantID, projectID, runID string) (Envelope[ReleaseEvidencePacket], error)
@@ -210,6 +214,10 @@ func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *htt
 			return
 		}
 	}
+	if len(parts) >= 1 && parts[0] == "billing" {
+		server.handleBilling(writer, request, projectID, parts[1:])
+		return
+	}
 	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "audit-log" {
 		server.handleAuditLog(writer, request, projectID)
 		return
@@ -279,6 +287,54 @@ func (server *HTTPServer) handleConfigureUsageQuota(writer http.ResponseWriter, 
 	}
 	result, err := server.service.ConfigureUsageQuota(auth.TenantID, projectID, stringValue(body, "operation"), intValue(body, "limit"))
 	writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+}
+
+func (server *HTTPServer) handleBilling(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
+	body, ok := readJSONBodyAllowGET(writer, request)
+	if !ok {
+		return
+	}
+	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), stringValue(body, "tenant_id"))
+	auth, ok := resolveRequestAuth(writer, request, body, true, tenantID)
+	if !ok {
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "checkout-plan" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingWrite, "billing.checkout_plan") {
+			return
+		}
+		billingRequest := billingPlanRequestFromBody(auth.TenantID, projectID, body)
+		result, err := server.service.CreateBillingCheckoutPlan(auth.TenantID, projectID, billingRequest, IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: auth.APIKeyID})
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "portal-plan" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingWrite, "billing.portal_plan") {
+			return
+		}
+		billingRequest := billingPlanRequestFromBody(auth.TenantID, projectID, body)
+		result, err := server.service.CreateBillingPortalPlan(auth.TenantID, projectID, billingRequest, IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: auth.APIKeyID})
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 2 && parts[0] == "webhooks" && parts[1] == "ingest" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingWebhookIngest, "billing.webhook_ingest") {
+			return
+		}
+		event := billingWebhookFromBody(auth.TenantID, projectID, body)
+		result, err := server.service.IngestBillingWebhook(auth.TenantID, projectID, event, IdempotencyOptions{Key: idempotencyKey(request, body), RequestID: requestID(request, body), APIKeyID: auth.APIKeyID})
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "ledger" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "billing.ledger") {
+			return
+		}
+		result, err := server.service.BillingLedger(auth.TenantID, projectID)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	writeError(writer, http.StatusNotFound, "not_found", "route not found")
 }
 
 func (server *HTTPServer) handleAPIKeys(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
@@ -630,6 +686,10 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("GET", "/v1/projects/{project_id}/quota", "usage", "billing", ScopeUsageRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/usage/quotas", "usage_quota.configure", "billing", ScopeUsageRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/quota/limits", "usage_quota.configure", "billing", ScopeUsageRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/checkout-plan", "billing.checkout_plan", "billing", ScopeBillingWrite),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/portal-plan", "billing.portal_plan", "billing", ScopeBillingWrite),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/webhooks/ingest", "billing.webhook_ingest", "billing", ScopeBillingWebhookIngest),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/ledger", "billing.ledger", "billing", ScopeBillingRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-log", "audit_log", "audit", ScopeAuditRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
@@ -688,6 +748,7 @@ func GoScopeManifest(entries []RouteManifestEntry) map[string][]ScopeManifestEnt
 func GoRouteScopeDocs(entries []RouteManifestEntry) RouteScopeDocs {
 	groups := []RouteScopeDocGroup{
 		goRouteScopeDocGroup(entries, "usage_quota", []string{"usage", "usage_quota.configure"}),
+		goRouteScopeDocGroup(entries, "billing_contract", []string{"billing.checkout_plan", "billing.portal_plan", "billing.webhook_ingest", "billing.ledger"}),
 		goRouteScopeDocGroup(entries, "run_lifecycle", []string{"lifecycle"}),
 		goRouteScopeDocGroup(entries, "audit", []string{"audit.chain.verify", "audit_log"}),
 	}
@@ -948,6 +1009,14 @@ func stringFromAny(value any) string {
 }
 
 func mapValue(body JSONMap, key string) JSONMap { return jsonMapFromAny(body[key]) }
+
+func billingPlanRequestFromBody(tenantID, projectID string, body JSONMap) BillingPlanRequest {
+	return BillingPlanRequest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: stringValue(body, "plan_id"), BillingCycle: stringValue(body, "billing_cycle"), ReturnURL: stringValue(body, "return_url"), Metadata: mapValue(body, "metadata")}
+}
+
+func billingWebhookFromBody(tenantID, projectID string, body JSONMap) BillingWebhookIngest {
+	return BillingWebhookIngest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, EventID: stringValue(body, "event_id"), EventType: stringValue(body, "event_type"), Provider: stringValue(body, "provider"), PlanID: stringValue(body, "plan_id"), Status: stringValue(body, "status"), Metadata: mapValue(body, "metadata")}
+}
 
 func jsonMapFromAny(value any) JSONMap {
 	switch typed := value.(type) {

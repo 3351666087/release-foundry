@@ -1,0 +1,252 @@
+{
+  "schema_version": "ashr.clone.a1.payment_provider_readiness.v1",
+  "generated_at": "2026-07-09T00:00:00Z",
+  "owner": "A1 Worker-PaymentDocsEvidence",
+  "public_safe": true,
+  "payment_call_policy": {
+    "provider_called": false,
+    "checkout_or_portal_called": false,
+    "real_charge_possible": false,
+    "ci_payment_calls_allowed": false,
+    "notes": [
+      "This packet is documentation and contract evidence only.",
+      "A1 tests may build hosted checkout, portal, and webhook verification plans, but must not call payment provider APIs.",
+      "Live-mode evidence may only name control readiness and secret references; execution is a human-controlled operational activity outside CI."
+    ]
+  },
+  "provider_secret_policy": {
+    "raw_secret_values_allowed": false,
+    "secret_reference_prefixes": ["env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:"],
+    "forbidden_material": [
+      "Stripe secret keys or restricted keys",
+      "Stripe webhook signing secrets",
+      "WeChat merchant private keys, API v3 keys, certificates, or certificate serials that are not references",
+      "Alipay app private keys, public key material, gateway signatures, or access tokens",
+      "card PAN, CVC, magnetic stripe data, one-time passwords, or buyer identity documents",
+      "raw provider webhook payload bodies"
+    ],
+    "private_storage_root": "docs/evidence/private_refs",
+    "public_evidence_rule": "Public files may contain only stable references and hashes. Private captures, if any, stay out of docs/a1 and under the private evidence root."
+  },
+  "providers": [
+    {
+      "provider": "stripe",
+      "modes": ["test", "live"],
+      "hosted_surface": "Stripe-hosted Checkout and Billing Portal plans only",
+      "payment_methods": ["card", "alipay", "wechat_pay"],
+      "secret_refs": {
+        "test": "env:STRIPE_TEST_REF",
+        "live": "env:STRIPE_LIVE_REF"
+      },
+      "webhook_secret_refs": {
+        "test": "env:STRIPE_WEBHOOK_REF_TEST",
+        "live": "env:STRIPE_WEBHOOK_REF_LIVE"
+      },
+      "account_refs": {
+        "test": "provider-ref:stripe/test/account",
+        "live": "provider-ref:stripe/live/account"
+      },
+      "side_effects": {
+        "provider_called": false,
+        "checkout_or_portal_called": false,
+        "real_charge_possible": false
+      },
+      "live_readiness_boundary": "Live mode requires live_mode_ack, secret indirection, hosted redirect URLs, and a human operator. This evidence does not create live sessions or charge cards.",
+      "evidence_paths": [
+        "docs/a1/payment_provider_readiness.md",
+        "docs/a1/evidence/payment_provider_readiness_public.json",
+        "tests/a1/test_payment_provider_readiness_docs.py"
+      ]
+    },
+    {
+      "provider": "wechat_pay",
+      "modes": ["test", "live"],
+      "hosted_surface": "Hosted WeChat Pay/NATIVE QR provider handoff contract",
+      "payment_methods": ["wechat_pay"],
+      "secret_refs": {
+        "test": "vault:wechat/test/mch_private_key",
+        "live": "vault:wechat/live/mch_private_key"
+      },
+      "webhook_secret_refs": {
+        "test": "vault:wechat/test/webhook_key_ref",
+        "live": "vault:wechat/live/webhook_key_ref"
+      },
+      "account_refs": {
+        "test": "provider-ref:wechat/test/mch",
+        "live": "provider-ref:wechat/live/mch"
+      },
+      "side_effects": {
+        "provider_called": false,
+        "checkout_or_portal_called": false,
+        "real_charge_possible": false
+      },
+      "live_readiness_boundary": "Hosted provider handoff is contract-only until a human operator provisions merchant credentials and runs a live check outside CI.",
+      "evidence_paths": [
+        "docs/a1/payment_provider_readiness.md",
+        "docs/a1/evidence/payment_provider_readiness_public.json",
+        "tests/a1/test_payment_provider_readiness_docs.py"
+      ]
+    },
+    {
+      "provider": "alipay",
+      "modes": ["test", "live"],
+      "hosted_surface": "Hosted Alipay trade page/provider handoff contract",
+      "payment_methods": ["alipay"],
+      "secret_refs": {
+        "test": "vault:alipay/test/app_private_key",
+        "live": "vault:alipay/live/app_private_key"
+      },
+      "webhook_secret_refs": {
+        "test": "vault:alipay/test/webhook_key_ref",
+        "live": "vault:alipay/live/webhook_key_ref"
+      },
+      "account_refs": {
+        "test": "provider-ref:alipay/test/app",
+        "live": "provider-ref:alipay/live/app"
+      },
+      "side_effects": {
+        "provider_called": false,
+        "checkout_or_portal_called": false,
+        "real_charge_possible": false
+      },
+      "live_readiness_boundary": "Hosted provider handoff is contract-only until a human operator provisions application credentials and runs a live check outside CI.",
+      "evidence_paths": [
+        "docs/a1/payment_provider_readiness.md",
+        "docs/a1/evidence/payment_provider_readiness_public.json",
+        "tests/a1/test_payment_provider_readiness_docs.py"
+      ]
+    }
+  ],
+  "human_real_card_testing": {
+    "allowed": true,
+    "automation_allowed": false,
+    "stored_card_data_allowed": false,
+    "evidence_allowed": [
+      "operator initials or reviewer handle",
+      "provider dashboard object reference",
+      "test/live mode label",
+      "amount and currency already visible in the public price contract",
+      "timestamp rounded to the minute or coarser",
+      "redacted screenshot or private object path when legal/compliance review permits it",
+      "refund or void object reference when a live penny test is performed"
+    ],
+    "operator_controls": [
+      "Human starts checkout in provider-hosted UI and enters payment details manually.",
+      "Automation must stop before entering card, wallet, OTP, or identity data.",
+      "A live real-card test must use a pre-approved low amount, immediate void/refund procedure, and private evidence storage.",
+      "Public evidence must record only object references and hashes, never payment credentials or raw provider payloads."
+    ]
+  },
+  "webhook_hash_envelopes": [
+    {
+      "provider": "stripe",
+      "mode": "test",
+      "event_type": "checkout.session.completed",
+      "event_id_ref": "evt_ref:stripe/test/checkout_completed",
+      "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "signature_header_present": true,
+      "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF_TEST",
+      "verified": true,
+      "raw_payload_included": false,
+      "secret_value_present": false,
+      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/test/checkout_completed.hash-envelope.json"
+    },
+    {
+      "provider": "wechat_pay",
+      "mode": "test",
+      "event_type": "wechat_pay.transaction.success",
+      "event_id_ref": "evt_ref:wechat/test/transaction_success",
+      "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "signature_header_present": true,
+      "webhook_secret_ref": "vault:wechat/test/webhook_key_ref",
+      "verified": true,
+      "raw_payload_included": false,
+      "secret_value_present": false,
+      "object_evidence_path": "docs/evidence/private_refs/payments/wechat/test/transaction_success.hash-envelope.json"
+    },
+    {
+      "provider": "alipay",
+      "mode": "test",
+      "event_type": "alipay.trade.success",
+      "event_id_ref": "evt_ref:alipay/test/trade_success",
+      "payload_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "signature_header_present": true,
+      "webhook_secret_ref": "vault:alipay/test/webhook_key_ref",
+      "verified": true,
+      "raw_payload_included": false,
+      "secret_value_present": false,
+      "object_evidence_path": "docs/evidence/private_refs/payments/alipay/test/trade_success.hash-envelope.json"
+    },
+    {
+      "provider": "stripe",
+      "mode": "live",
+      "event_type": "invoice.paid",
+      "event_id_ref": "dashboard-ref:stripe/live/invoice_paid/manual_only",
+      "payload_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "signature_header_present": true,
+      "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF_LIVE",
+      "verified": true,
+      "raw_payload_included": false,
+      "secret_value_present": false,
+      "object_evidence_path": "docs/evidence/private_refs/payments/stripe/live/invoice_paid.hash-envelope.json"
+    }
+  ],
+  "object_evidence_paths": [
+    {
+      "path": "docs/a1/payment_provider_readiness.md",
+      "classification": "public_contract",
+      "allowed_in_public_repo": true,
+      "contains_raw_provider_payload": false,
+      "contains_raw_secret": false,
+      "contains_card_data": false
+    },
+    {
+      "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+      "classification": "public_contract",
+      "allowed_in_public_repo": true,
+      "contains_raw_provider_payload": false,
+      "contains_raw_secret": false,
+      "contains_card_data": false
+    },
+    {
+      "path": "docs/a1/schemas/payment_provider_readiness.schema.json",
+      "classification": "public_contract",
+      "allowed_in_public_repo": true,
+      "contains_raw_provider_payload": false,
+      "contains_raw_secret": false,
+      "contains_card_data": false
+    },
+    {
+      "path": "docs/evidence/private_refs/payments/{provider}/{mode}/{object}.hash-envelope.json",
+      "classification": "private_ref",
+      "allowed_in_public_repo": false,
+      "contains_raw_provider_payload": false,
+      "contains_raw_secret": false,
+      "contains_card_data": false
+    },
+    {
+      "path": "docs/evidence/private_refs/payments/{provider}/{mode}/{object}.operator-note.md",
+      "classification": "operator_runbook",
+      "allowed_in_public_repo": false,
+      "contains_raw_provider_payload": false,
+      "contains_raw_secret": false,
+      "contains_card_data": false
+    }
+  ],
+  "validation": {
+    "pytest_target": "tests/a1/test_payment_provider_readiness_docs.py",
+    "schema_path": "docs/a1/schemas/payment_provider_readiness.schema.json",
+    "forbidden_public_markers": [
+      "Stripe test secret key prefix",
+      "Stripe live secret key prefix",
+      "Stripe live restricted key prefix",
+      "Stripe webhook signing secret prefix",
+      "private key PEM header",
+      "api_v3_key",
+      "card data field names",
+      "card security code field names",
+      "truthy provider-called markers",
+      "truthy real-charge markers"
+    ]
+  }
+}

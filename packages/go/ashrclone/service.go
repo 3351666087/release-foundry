@@ -25,6 +25,7 @@ type MemoryService struct {
 	apiKeyRateLimits  map[string]APIKeyRateLimit
 	usageEvents       []usageEvent
 	usageQuotaLimits  map[string]int
+	billingEvents     []BillingWebhookIngest
 	auditEvents       []AuditEvent
 	idem              map[string]idemRecord
 	nextID            int
@@ -52,6 +53,7 @@ func NewMemoryService() *MemoryService {
 		apiKeyRateLimits:  map[string]APIKeyRateLimit{},
 		usageEvents:       []usageEvent{},
 		usageQuotaLimits:  map[string]int{},
+		billingEvents:     []BillingWebhookIngest{},
 		auditEvents:       []AuditEvent{},
 		idem:              map[string]idemRecord{},
 		nextID:            1,
@@ -383,6 +385,87 @@ func (service *MemoryService) ConfigureUsageQuota(tenantID, projectID, operation
 	used := service.usageUnitsLocked(tenantID, projectID, operation)
 	result := UsageOperationTotal{Operation: operation, Units: used}
 	return Envelope[UsageOperationTotal]{Operation: "usage_quota.configure", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) CreateBillingCheckoutPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingCheckoutPlan], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[BillingCheckoutPlan]{}, NotFoundError{Resource: "project"}
+	}
+	planID := normalizeBillingPlanID(request.PlanID)
+	if planID == "" {
+		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing plan_id is required")
+	}
+	cycle := normalizeBillingCycle(request.BillingCycle)
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "billing_cycle": cycle, "idempotency_key": options.Key})
+	result := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, BillingCycle: cycle, CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: "deterministic_contract", Provider: "local_contract", PublicSafe: true, RawSecretsIncluded: false, Metadata: sanitizedBillingMetadata(request.Metadata), CreatedAt: time.Now().UTC()}
+	service.appendAuditEventLocked(tenantID, projectID, "billing.checkout_plan", result.CheckoutID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"checkout_id": result.CheckoutID, "plan_id": planID, "billing_cycle": cycle, "provider": result.Provider}, result.CreatedAt)
+	return Envelope[BillingCheckoutPlan]{Operation: "billing.checkout_plan", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) CreateBillingPortalPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingPortalPlan], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[BillingPortalPlan]{}, NotFoundError{Resource: "project"}
+	}
+	planID := normalizeBillingPlanID(request.PlanID)
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "plan_id": planID, "idempotency_key": options.Key})
+	result := BillingPortalPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, PlanID: planID, PortalSessionID: "portal_" + fingerprint[:16], PortalURL: "https://billing.local.ashr.invalid/portal/" + fingerprint[:24], Mode: "deterministic_contract", Provider: "local_contract", PublicSafe: true, RawSecretsIncluded: false, CreatedAt: time.Now().UTC()}
+	service.appendAuditEventLocked(tenantID, projectID, "billing.portal_plan", result.PortalSessionID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"portal_session_id": result.PortalSessionID, "plan_id": planID, "provider": result.Provider}, result.CreatedAt)
+	return Envelope[BillingPortalPlan]{Operation: "billing.portal_plan", Status: "ok", Result: result}, nil
+}
+
+func (service *MemoryService) IngestBillingWebhook(tenantID, projectID string, event BillingWebhookIngest, options IdempotencyOptions) (Envelope[BillingWebhookIngest], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[BillingWebhookIngest]{}, NotFoundError{Resource: "project"}
+	}
+	event.TenantID = tenantID
+	event.ProjectID = projectID
+	event.SchemaVersion = ControlPlaneSchemaVersion
+	event.EventType = strings.TrimSpace(event.EventType)
+	if event.EventType == "" {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook event_type is required")
+	}
+	event.Provider = normalizeBillingProvider(event.Provider)
+	event.PlanID = normalizeBillingPlanID(event.PlanID)
+	event.Status = normalizeBillingStatus(event.Status)
+	event.Metadata = sanitizedBillingMetadata(event.Metadata)
+	event.RawPayloadIncluded = false
+	payloadFingerprint := mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType, "provider": event.Provider, "plan_id": event.PlanID, "status": event.Status, "metadata": event.Metadata})
+	event.PayloadSHA256 = payloadFingerprint
+	if strings.TrimSpace(event.EventID) == "" {
+		event.EventID = "billing_evt_" + payloadFingerprint[:16]
+	}
+	event.ReceivedAt = time.Now().UTC()
+	service.billingEvents = append(service.billingEvents, event)
+	service.appendAuditEventLocked(tenantID, projectID, "billing.webhook_ingest", event.EventID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"event_id": event.EventID, "event_type": event.EventType, "payload_sha256": event.PayloadSHA256, "raw_payload_included": false}, event.ReceivedAt)
+	return Envelope[BillingWebhookIngest]{Operation: "billing.webhook_ingest", Status: "ok", Result: event}, nil
+}
+
+func (service *MemoryService) BillingLedger(tenantID, projectID string) (Envelope[BillingLedger], error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
+		return Envelope[BillingLedger]{}, NotFoundError{Resource: "project"}
+	}
+	events := []BillingWebhookIngest{}
+	for _, event := range service.billingEvents {
+		if event.TenantID == tenantID && event.ProjectID == projectID {
+			events = append(events, event)
+		}
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if !events[i].ReceivedAt.Equal(events[j].ReceivedAt) {
+			return events[i].ReceivedAt.Before(events[j].ReceivedAt)
+		}
+		return events[i].EventID < events[j].EventID
+	})
+	result := BillingLedger{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, Events: events, Count: len(events), GeneratedAt: time.Now().UTC()}
+	return Envelope[BillingLedger]{Operation: "billing.ledger", Status: "ok", Result: result}, nil
 }
 
 func (service *MemoryService) AuditLog(tenantID, projectID string, options AuditLogOptions) (Envelope[AuditEventList], error) {
@@ -1067,6 +1150,45 @@ func secretHash(secret string) string {
 func stringHasRawSecretShape(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	return strings.HasPrefix(trimmed, "sk-") || strings.HasPrefix(trimmed, "ashr_")
+}
+
+func normalizeBillingPlanID(planID string) string {
+	return strings.ToLower(strings.TrimSpace(planID))
+}
+
+func normalizeBillingCycle(cycle string) string {
+	switch strings.ToLower(strings.TrimSpace(cycle)) {
+	case "", "month", "monthly":
+		return "monthly"
+	case "year", "annual", "yearly":
+		return "yearly"
+	default:
+		return strings.ToLower(strings.TrimSpace(cycle))
+	}
+}
+
+func normalizeBillingProvider(provider string) string {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		return "local_contract"
+	}
+	return provider
+}
+
+func normalizeBillingStatus(status string) string {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "" {
+		return "received"
+	}
+	return status
+}
+
+func sanitizedBillingMetadata(metadata JSONMap) JSONMap {
+	redacted, ok := RedactSensitive(metadata).(map[string]any)
+	if !ok || len(redacted) == 0 {
+		return nil
+	}
+	return cloneMap(JSONMap(redacted))
 }
 
 func fingerprint(value any) (string, error) {

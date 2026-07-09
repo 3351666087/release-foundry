@@ -17,6 +17,7 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "GET /v1/projects/{project_id}/api-keys": ("api_key:read",),
     "GET /v1/projects/{project_id}/api-keys/rate-limits": ("api_key:read",),
     "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
+    "GET /v1/projects/{project_id}/billing/ledger": ("billing:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("evidence:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ("run:lifecycle:read",),
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ("evidence:read",),
@@ -31,6 +32,9 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke": ("api_key:write",),
     "POST /v1/projects/{project_id}/api-keys/{key_id}/verify": (),
     "POST /v1/projects/{project_id}/audit-chain/verify": ("audit:read",),
+    "POST /v1/projects/{project_id}/billing/checkout-plan": ("billing:write",),
+    "POST /v1/projects/{project_id}/billing/portal-plan": ("billing:write",),
+    "POST /v1/projects/{project_id}/billing/webhooks/ingest": ("billing:webhook",),
     "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("artifact:upload",),
     "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ("evidence:read",),
     "POST /v1/projects/{project_id}/runs/{run_id}/trace-events": ("trace:ingest",),
@@ -123,6 +127,7 @@ class SaaSIngestionClient:
         if self.base_url is None and service is None:
             service = _new_service()
         self.service = service
+        self._billing_ledger = None
 
     @classmethod
     def from_state_file(cls, path: str | Path) -> "SaaSIngestionClient":
@@ -459,6 +464,147 @@ class SaaSIngestionClient:
         _reject_hosted_bearer_headers(auth_headers)
         return _envelope("usage_snapshot", self.service.usage_snapshot(tenant_id, project_id, auth_key_id=auth_key_id))
 
+    def billing_checkout_plan(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        customer_ref: str,
+        price: Mapping[str, Any],
+        success_url: str,
+        cancel_url: str,
+        provider_config: Mapping[str, Any] | None = None,
+        usage_rollup: Mapping[str, Any] | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "customer_ref": customer_ref,
+            "price": dict(price),
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "provider_config": dict(provider_config or {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}),
+            "usage_rollup": dict(usage_rollup or {}),
+            "metadata": dict(metadata or {}),
+            "idempotency_key": idempotency_key,
+            "auth_key_id": auth_key_id,
+        }
+        if self.uses_http:
+            return self._request("billing_checkout_plan", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        from services.api.billing import build_checkout_session_plan
+
+        return _envelope("billing_checkout_plan", build_checkout_session_plan(**payload))
+
+    def billing_portal_plan(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        customer_ref: str,
+        return_url: str,
+        provider_config: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "customer_ref": customer_ref,
+            "return_url": return_url,
+            "provider_config": dict(provider_config or {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}),
+            "idempotency_key": idempotency_key,
+            "auth_key_id": auth_key_id,
+        }
+        if self.uses_http:
+            return self._request("billing_portal_plan", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        from services.api.billing import build_billing_portal_plan
+
+        return _envelope("billing_portal_plan", build_billing_portal_plan(**payload))
+
+    def billing_webhook_ingest(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        mode: str,
+        event_type: str,
+        event_id: str,
+        payload_sha256: str,
+        signature_header_present: bool,
+        webhook_secret_ref: str | None = None,
+        livemode: bool | None = None,
+        customer_ref: str | None = None,
+        amount_minor: int = 0,
+        currency: str = "usd",
+        invoice_ref: str | None = None,
+        usage_units: int = 0,
+        metadata: Mapping[str, Any] | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {
+            "tenant_id": tenant_id,
+            "project_id": project_id,
+            "provider": provider,
+            "mode": mode,
+            "event_type": event_type,
+            "event_id": event_id,
+            "payload_sha256": payload_sha256,
+            "signature_header_present": bool(signature_header_present),
+            "webhook_secret_ref": webhook_secret_ref,
+            "livemode": livemode,
+            "customer_ref": customer_ref,
+            "amount_minor": int(amount_minor),
+            "currency": currency,
+            "invoice_ref": invoice_ref,
+            "usage_units": int(usage_units),
+            "metadata": dict(metadata or {}),
+            "auth_key_id": auth_key_id,
+        }
+        if self.uses_http:
+            return self._request("billing_webhook_ingest", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        from services.api.billing import BillingLedger, verify_billing_webhook_envelope
+
+        if self._billing_ledger is None:
+            self._billing_ledger = BillingLedger()
+        envelope_result = verify_billing_webhook_envelope(**payload)
+        result = self._billing_ledger.ingest_provider_webhook(
+            envelope_result,
+            customer_ref=customer_ref,
+            amount_minor=int(amount_minor),
+            currency=currency,
+            invoice_ref=invoice_ref,
+            usage_units=int(usage_units),
+            metadata=dict(metadata or {}),
+        )
+        return _envelope("billing_webhook_ingest", result)
+
+    def billing_ledger(self, tenant_id: str, project_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        if self.uses_http:
+            return self._request("billing_ledger", {"tenant_id": tenant_id, "project_id": project_id, "auth_key_id": auth_key_id}, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        from services.api.billing import BillingLedger
+
+        if self._billing_ledger is None:
+            self._billing_ledger = BillingLedger()
+        return _envelope("billing_ledger", self._billing_ledger.public_ledger(tenant_id=tenant_id, project_id=project_id))
+
     def audit_log(
         self,
         tenant_id: str,
@@ -702,6 +848,7 @@ _GET_OPERATIONS = {
     "lifecycle_snapshot",
     "quota_snapshot",
     "usage_snapshot",
+    "billing_ledger",
     "audit_log",
     "list_artifact_manifests",
     "list_worker_jobs",
@@ -744,6 +891,14 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/runs/{_quote_path(run_id)}/{suffix}"
     if operation in {"quota_snapshot", "usage_snapshot"}:
         suffix = "quota" if operation == "quota_snapshot" else "usage"
+        return method, f"{project_path}/{suffix}"
+    if operation in {"billing_checkout_plan", "billing_portal_plan", "billing_webhook_ingest", "billing_ledger"}:
+        suffix = {
+            "billing_checkout_plan": "billing/checkout-plan",
+            "billing_portal_plan": "billing/portal-plan",
+            "billing_webhook_ingest": "billing/webhooks/ingest",
+            "billing_ledger": "billing/ledger",
+        }[operation]
         return method, f"{project_path}/{suffix}"
     if operation in {"enqueue_worker_job", "lease_worker_job", "list_worker_jobs"}:
         suffix = {"enqueue_worker_job": "worker-jobs/enqueue", "lease_worker_job": "worker-jobs/lease", "list_worker_jobs": "worker-jobs"}[operation]

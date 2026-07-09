@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/payment_provider_readiness.schema.json",
+  "title": "A1 Payment Provider Readiness Evidence Contract",
+  "description": "Public-safe payment provider readiness packet. It records provider modes, secret references, hosted checkout boundaries, hash-only webhook envelopes, and evidence paths without raw secrets, card data, or payment-call payloads.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "owner",
+    "public_safe",
+    "payment_call_policy",
+    "provider_secret_policy",
+    "providers",
+    "human_real_card_testing",
+    "webhook_hash_envelopes",
+    "object_evidence_paths",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {"const": "ashr.clone.a1.payment_provider_readiness.v1"},
+    "generated_at": {"type": "string"},
+    "owner": {"type": "string"},
+    "public_safe": {"const": true},
+    "payment_call_policy": {
+      "type": "object",
+      "required": ["provider_called", "checkout_or_portal_called", "real_charge_possible", "ci_payment_calls_allowed"],
+      "properties": {
+        "provider_called": {"const": false},
+        "checkout_or_portal_called": {"const": false},
+        "real_charge_possible": {"const": false},
+        "ci_payment_calls_allowed": {"const": false},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "provider_secret_policy": {
+      "type": "object",
+      "required": ["raw_secret_values_allowed", "secret_reference_prefixes", "forbidden_material"],
+      "properties": {
+        "raw_secret_values_allowed": {"const": false},
+        "secret_reference_prefixes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "forbidden_material": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["provider", "modes", "hosted_surface", "payment_methods", "secret_refs", "webhook_secret_refs", "side_effects", "live_readiness_boundary"],
+        "properties": {
+          "provider": {"enum": ["stripe", "wechat_pay", "alipay"]},
+          "modes": {"type": "array", "items": {"enum": ["test", "live"]}, "contains": {"const": "test"}},
+          "hosted_surface": {"type": "string"},
+          "payment_methods": {"type": "array", "items": {"type": "string"}},
+          "secret_refs": {"$ref": "#/$defs/ref_map"},
+          "webhook_secret_refs": {"$ref": "#/$defs/ref_map"},
+          "account_refs": {"$ref": "#/$defs/ref_map"},
+          "side_effects": {
+            "type": "object",
+            "required": ["provider_called", "real_charge_possible"],
+            "properties": {
+              "provider_called": {"const": false},
+              "real_charge_possible": {"const": false}
+            },
+            "additionalProperties": true
+          },
+          "live_readiness_boundary": {"type": "string"},
+          "evidence_paths": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "human_real_card_testing": {
+      "type": "object",
+      "required": ["allowed", "automation_allowed", "stored_card_data_allowed", "evidence_allowed"],
+      "properties": {
+        "allowed": {"const": true},
+        "automation_allowed": {"const": false},
+        "stored_card_data_allowed": {"const": false},
+        "evidence_allowed": {"type": "array", "items": {"type": "string"}},
+        "operator_controls": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "webhook_hash_envelopes": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["provider", "mode", "event_type", "payload_sha256", "signature_header_present", "webhook_secret_ref", "raw_payload_included", "secret_value_present"],
+        "properties": {
+          "provider": {"enum": ["stripe", "wechat_pay", "alipay"]},
+          "mode": {"enum": ["test", "live"]},
+          "event_type": {"type": "string"},
+          "event_id_ref": {"type": "string"},
+          "payload_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "signature_header_present": {"type": "boolean"},
+          "webhook_secret_ref": {"type": "string"},
+          "verified": {"type": "boolean"},
+          "raw_payload_included": {"const": false},
+          "secret_value_present": {"const": false},
+          "object_evidence_path": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "object_evidence_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "classification", "allowed_in_public_repo"],
+        "properties": {
+          "path": {"type": "string"},
+          "classification": {"enum": ["public_contract", "private_ref", "operator_runbook"]},
+          "allowed_in_public_repo": {"type": "boolean"},
+          "contains_raw_provider_payload": {"const": false},
+          "contains_raw_secret": {"const": false},
+          "contains_card_data": {"const": false}
+        },
+        "additionalProperties": true
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["pytest_target", "forbidden_public_markers", "schema_path"],
+      "properties": {
+        "pytest_target": {"type": "string"},
+        "forbidden_public_markers": {"type": "array", "items": {"type": "string"}},
+        "schema_path": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "ref_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(env|vault|kms|provider-ref|dashboard-ref):[A-Za-z0-9_./:-]+$"
+      }
+    }
+  },
+  "additionalProperties": true
+}

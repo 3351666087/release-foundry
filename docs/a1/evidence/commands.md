@@ -1500,3 +1500,15 @@ Results:
 - `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
 - `git diff --check`: pass.
 - Docker note: `docker version --format '{.Server.Version}'` hung and was stopped by terminating the command process only; live Postgres proof not run locally.
+
+### Round 38 billing route contract + payment provider readiness
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` -> completed.
+- `gh pr checks 27 --watch=false` -> latest pre-round PR #27 checks green; A3 checks skipped by gate policy.
+- `go test ./...` from repo root -> invalid monorepo entry (`directory prefix . does not contain main module`); use package module paths instead.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "billing|route|SaaS"` -> 335 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 335 passed.
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_billing_provider_contract.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider` -> 51 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 378 passed, 1 skipped; Docker daemon probe timed out and skipped compose validation.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json` -> status ok, 5 read steps, 0 mutating steps; public summary at `docs/a1/evidence/official_api_readonly_round38_summary_20260709_215947.json`.

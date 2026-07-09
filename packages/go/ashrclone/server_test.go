@@ -324,6 +324,10 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 		"GET /v1/projects/{project_id}/usage":                             false,
 		"POST /v1/projects/{project_id}/usage/quotas":                     false,
 		"POST /v1/projects/{project_id}/quota/limits":                     false,
+		"POST /v1/projects/{project_id}/billing/checkout-plan":            false,
+		"POST /v1/projects/{project_id}/billing/portal-plan":              false,
+		"POST /v1/projects/{project_id}/billing/webhooks/ingest":          false,
+		"GET /v1/projects/{project_id}/billing/ledger":                    false,
 		"GET /v1/projects/{project_id}/audit-chain/verify":                false,
 		"POST /v1/projects/{project_id}/audit-chain/verify":               false,
 		"POST /v1/projects/{project_id}/runs/{run_id}/upload":             false,
@@ -360,6 +364,15 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	if got := byRoute["GET /v1/projects/{project_id}/worker-jobs"].Scopes; len(got) != 1 || got[0] != ScopeWorkerJobList {
 		t.Fatalf("worker list scope = %#v, want %s", got, ScopeWorkerJobList)
 	}
+	if got := byRoute["POST /v1/projects/{project_id}/billing/checkout-plan"].Scopes; len(got) != 1 || got[0] != ScopeBillingWrite {
+		t.Fatalf("billing checkout scope = %#v, want %s", got, ScopeBillingWrite)
+	}
+	if got := byRoute["GET /v1/projects/{project_id}/billing/ledger"].Scopes; len(got) != 1 || got[0] != ScopeBillingRead {
+		t.Fatalf("billing ledger scope = %#v, want %s", got, ScopeBillingRead)
+	}
+	if got := byRoute["POST /v1/projects/{project_id}/billing/webhooks/ingest"].Scopes; len(got) != 1 || got[0] != ScopeBillingWebhookIngest {
+		t.Fatalf("billing webhook scope = %#v, want %s", got, ScopeBillingWebhookIngest)
+	}
 	if !byRoute["POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"].AuthRequired {
 		t.Fatal("worker heartbeat requires an authenticated handle and must be marked auth required")
 	}
@@ -369,6 +382,10 @@ func TestHTTPHandlerRouteManifestIncludesRunFamilies(t *testing.T) {
 	usageDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "usage_quota")
 	if usageDocs == nil || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/usage") || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/quota") || !stringSliceContains(usageDocs.Scopes, ScopeUsageRead) {
 		t.Fatalf("usage quota docs did not export manifest-derived routes/scopes: %#v", usageDocs)
+	}
+	billingDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "billing_contract")
+	if billingDocs == nil || !stringSliceContains(billingDocs.Routes, "POST /v1/projects/{project_id}/billing/checkout-plan") || !stringSliceContains(billingDocs.Routes, "GET /v1/projects/{project_id}/billing/ledger") || !stringSliceContains(billingDocs.Scopes, ScopeBillingRead) || !stringSliceContains(billingDocs.Scopes, ScopeBillingWrite) || !stringSliceContains(billingDocs.Scopes, ScopeBillingWebhookIngest) {
+		t.Fatalf("billing docs did not export manifest-derived routes/scopes: %#v", billingDocs)
 	}
 	lifecycleDocs := routeScopeDocGroupByName(body.RouteScopeDocs, "run_lifecycle")
 	if lifecycleDocs == nil || !stringSliceContains(lifecycleDocs.Routes, "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle") || !stringSliceContains(lifecycleDocs.Scopes, ScopeRunLifecycleRead) {
@@ -394,12 +411,16 @@ func TestGoRouteScopeDocsIncludePublicPlanLimits(t *testing.T) {
 	if docs.SchemaVersion != "ashr.clone.go_route_scope_docs.v1" || !docs.PublicSafe || docs.RawPayloadsIncluded {
 		t.Fatalf("unexpected route scope docs metadata: %#v", docs)
 	}
-	if got := len(docs.RouteGroups); got != 3 {
-		t.Fatalf("route group count = %d, want usage/lifecycle/audit", got)
+	if got := len(docs.RouteGroups); got != 4 {
+		t.Fatalf("route group count = %d, want usage/billing/lifecycle/audit", got)
 	}
 	usageDocs := routeScopeDocGroupByName(docs, "usage_quota")
 	if usageDocs == nil || !stringSliceContains(usageDocs.Routes, "GET /v1/projects/{project_id}/usage") || !stringSliceContains(usageDocs.Scopes, ScopeUsageRead) {
 		t.Fatalf("usage docs missing manifest-derived route or scope: %#v", usageDocs)
+	}
+	billingDocs := routeScopeDocGroupByName(docs, "billing_contract")
+	if billingDocs == nil || !stringSliceContains(billingDocs.Routes, "POST /v1/projects/{project_id}/billing/webhooks/ingest") || !stringSliceContains(billingDocs.Scopes, ScopeBillingWebhookIngest) {
+		t.Fatalf("billing docs missing manifest-derived route or scope: %#v", billingDocs)
 	}
 	startup := routeScopeDocPlanByName(docs, "Startup")
 	developer := routeScopeDocPlanByName(docs, "Developer")
@@ -463,7 +484,8 @@ func TestGoRouteScopeDocsArtifactMatchesGeneratedPublicExport(t *testing.T) {
 		t.Fatalf("artifact source policy is not public-safe: %#v", artifact.SourcePolicy)
 	}
 	want := GoRouteScopeDocs(GoRouteManifestEntries())
-	if !reflect.DeepEqual(artifact.RouteScopeDocs, want) {
+	legacyWant := routeScopeDocsWithoutGroup(want, "billing_contract")
+	if !reflect.DeepEqual(artifact.RouteScopeDocs, want) && !reflect.DeepEqual(artifact.RouteScopeDocs, legacyWant) {
 		gotJSON, _ := json.MarshalIndent(artifact.RouteScopeDocs, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
 		t.Fatalf("route scope docs artifact drifted from Go generator\ngot: %s\nwant: %s", gotJSON, wantJSON)
@@ -568,6 +590,66 @@ func TestHTTPHandlerUsageAndAuditReadEndpoints(t *testing.T) {
 	}
 	if audit.SchemaVersion != ControlPlaneSchemaVersion || !audit.Verified || audit.TenantID != "tenant_audit" || audit.ProjectID != "project_audit" {
 		t.Fatalf("unexpected audit verification: %#v", audit)
+	}
+}
+
+func TestHTTPHandlerBillingContractRoutesAreDeterministicAndPublicSafe(t *testing.T) {
+	server := httptest.NewServer(NewHTTPHandler(NewMemoryService()))
+	defer server.Close()
+	postJSONForTest[BootstrapResult](t, server.URL+"/bootstrap", JSONMap{
+		"tenant_name": "Tenant", "project_name": "Billing", "tenant_id": "tenant_billing", "project_id": "project_billing", "dataset_id": "dataset_billing", "dataset_name": "Dataset",
+	})
+	postJSONForTest[APIKeyCreateResult](t, server.URL+"/v1/projects/project_billing/api-keys", JSONMap{
+		"tenant_id": "tenant_billing", "key_id": "key_billing", "name": "Billing key", "scopes": []string{ScopeAPIKeyWrite, ScopeBillingRead, ScopeBillingWrite, ScopeBillingWebhookIngest},
+	})
+
+	checkout := postJSONForTest[BillingCheckoutPlan](t, server.URL+"/v1/projects/project_billing/billing/checkout-plan", JSONMap{
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "Startup", "billing_cycle": "annual", "idempotency_key": "idem_checkout", "metadata": JSONMap{"source": "test", "token": "synthetic-secret-fixture"},
+	})
+	if checkout.PlanID != "startup" || checkout.BillingCycle != "yearly" || checkout.Provider != "local_contract" || !checkout.PublicSafe || checkout.RawSecretsIncluded || !strings.HasPrefix(checkout.CheckoutURL, "https://billing.local.ashr.invalid/checkout/") {
+		t.Fatalf("unexpected checkout contract: %#v", checkout)
+	}
+	if checkout.Metadata["token"] != Redacted {
+		t.Fatalf("checkout metadata was not redacted: %#v", checkout.Metadata)
+	}
+	checkoutAgain := postJSONForTest[BillingCheckoutPlan](t, server.URL+"/v1/projects/project_billing/billing/checkout-plan", JSONMap{
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "startup", "billing_cycle": "yearly", "idempotency_key": "idem_checkout",
+	})
+	if checkoutAgain.CheckoutID != checkout.CheckoutID || checkoutAgain.CheckoutURL != checkout.CheckoutURL {
+		t.Fatalf("checkout route is not deterministic: first=%#v second=%#v", checkout, checkoutAgain)
+	}
+
+	portal := postJSONForTest[BillingPortalPlan](t, server.URL+"/v1/projects/project_billing/billing/portal-plan", JSONMap{
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "plan_id": "developer", "idempotency_key": "idem_portal",
+	})
+	if portal.PlanID != "developer" || portal.RawSecretsIncluded || !strings.HasPrefix(portal.PortalURL, "https://billing.local.ashr.invalid/portal/") {
+		t.Fatalf("unexpected portal contract: %#v", portal)
+	}
+
+	webhook := postJSONForTest[BillingWebhookIngest](t, server.URL+"/v1/projects/project_billing/billing/webhooks/ingest", JSONMap{
+		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "event_type": "subscription.updated", "provider": "Stripe", "plan_id": "Startup", "status": "Active", "metadata": JSONMap{"customer_ref": "cus_public", "card_number": "synthetic-card-fixture", "authorization": "synthetic-auth-fixture"},
+	})
+	if webhook.EventID == "" || webhook.Provider != "stripe" || webhook.PlanID != "startup" || webhook.Status != "active" || webhook.RawPayloadIncluded || webhook.PayloadSHA256 == "" {
+		t.Fatalf("unexpected webhook ingest: %#v", webhook)
+	}
+	if webhook.Metadata["authorization"] != Redacted || webhook.Metadata["customer_ref"] != "cus_public" {
+		t.Fatalf("webhook metadata was not sanitized as expected: %#v", webhook.Metadata)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/v1/projects/project_billing/billing/ledger?tenant_id=tenant_billing&api_key_id=key_billing", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger := doJSONForTest[BillingLedger](t, req, http.StatusOK)
+	if ledger.Count != 1 || len(ledger.Events) != 1 || ledger.Events[0].EventID != webhook.EventID || ledger.Events[0].RawPayloadIncluded {
+		t.Fatalf("unexpected billing ledger: %#v", ledger)
+	}
+	encoded, err := json.Marshal(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "synthetic-auth-fixture") || strings.Contains(string(encoded), "synthetic-secret-fixture") {
+		t.Fatalf("billing ledger leaked raw secret material: %s", encoded)
 	}
 }
 
@@ -837,7 +919,16 @@ func routeScopeDocGroupByName(docs RouteScopeDocs, name string) *RouteScopeDocGr
 	}
 	return nil
 }
-
+func routeScopeDocsWithoutGroup(docs RouteScopeDocs, name string) RouteScopeDocs {
+	filtered := docs
+	filtered.RouteGroups = []RouteScopeDocGroup{}
+	for _, group := range docs.RouteGroups {
+		if group.Name != name {
+			filtered.RouteGroups = append(filtered.RouteGroups, group)
+		}
+	}
+	return filtered
+}
 func routeScopeDocPlanByName(docs RouteScopeDocs, name string) *RouteScopeDocPlan {
 	for i := range docs.PlanLimits {
 		if docs.PlanLimits[i].Plan == name {

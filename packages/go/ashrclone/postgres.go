@@ -935,6 +935,34 @@ ORDER BY operation ASC
 	return Envelope[UsageSnapshot]{Operation: "usage", Status: "ok", Result: result}, nil
 }
 
+func (repository *PostgresRepository) CreateBillingCheckoutPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingCheckoutPlan], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[BillingCheckoutPlan]{}, err
+	}
+	return Envelope[BillingCheckoutPlan]{}, repository.notImplemented("billing.checkout_plan")
+}
+
+func (repository *PostgresRepository) CreateBillingPortalPlan(tenantID, projectID string, request BillingPlanRequest, options IdempotencyOptions) (Envelope[BillingPortalPlan], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[BillingPortalPlan]{}, err
+	}
+	return Envelope[BillingPortalPlan]{}, repository.notImplemented("billing.portal_plan")
+}
+
+func (repository *PostgresRepository) IngestBillingWebhook(tenantID, projectID string, event BillingWebhookIngest, options IdempotencyOptions) (Envelope[BillingWebhookIngest], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[BillingWebhookIngest]{}, err
+	}
+	return Envelope[BillingWebhookIngest]{}, repository.notImplemented("billing.webhook_ingest")
+}
+
+func (repository *PostgresRepository) BillingLedger(tenantID, projectID string) (Envelope[BillingLedger], error) {
+	if err := repository.requireDB(); err != nil {
+		return Envelope[BillingLedger]{}, err
+	}
+	return Envelope[BillingLedger]{}, repository.notImplemented("billing.ledger")
+}
+
 func (repository *PostgresRepository) AppendQuotaUsage(tenantID, projectID string, event QuotaUsageAppend) (Envelope[UsageOperationTotal], error) {
 	if err := repository.requireDB(); err != nil {
 		return Envelope[UsageOperationTotal]{}, err

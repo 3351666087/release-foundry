@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { BillingLedger, buildBillingPortalPlan, buildCheckoutSessionPlan, verifyBillingWebhookEnvelope } from "./billing.js";
 import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
@@ -35,6 +36,9 @@ export const ARTIFACT_MANIFEST_SCOPE = "artifact:upload";
 export const ADMIN_ALL_SCOPE = "admin:all";
 export const USAGE_READ_SCOPE = "usage:read";
 export const AUDIT_READ_SCOPE = "audit:read";
+export const BILLING_READ_SCOPE = "billing:read";
+export const BILLING_WRITE_SCOPE = "billing:write";
+export const BILLING_WEBHOOK_SCOPE = "billing:webhook";
 export const WORKER_JOB_READ_SCOPE = "worker_job:read";
 export const WORKER_JOB_WRITE_SCOPE = "worker_job:write";
 
@@ -49,6 +53,8 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "artifacts:write": [ARTIFACT_MANIFEST_SCOPE],
   "worker:read": [WORKER_JOB_READ_SCOPE],
   "worker:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
+  "billing:admin": [BILLING_READ_SCOPE, BILLING_WRITE_SCOPE, BILLING_WEBHOOK_SCOPE],
+  "billing:write": [BILLING_READ_SCOPE],
   "queue:read": [WORKER_JOB_READ_SCOPE],
   "queue:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
   [API_KEY_ADMIN_SCOPE]: [API_KEY_READ_SCOPE],
@@ -59,6 +65,7 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "GET /v1/projects/{project_id}/api-keys": [API_KEY_READ_SCOPE],
   "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
   "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
+  "GET /v1/projects/{project_id}/billing/ledger": [BILLING_READ_SCOPE],
   "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ["evidence:read"],
   "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ["run:lifecycle:read"],
   "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
@@ -74,6 +81,9 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke": [API_KEY_ADMIN_SCOPE],
   "POST /v1/projects/{project_id}/api-keys/{key_id}/verify": [],
   "POST /v1/projects/{project_id}/audit-chain/verify": [AUDIT_READ_SCOPE],
+  "POST /v1/projects/{project_id}/billing/checkout-plan": [BILLING_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/billing/portal-plan": [BILLING_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/billing/webhooks/ingest": [BILLING_WEBHOOK_SCOPE],
   "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": [ARTIFACT_MANIFEST_SCOPE],
   "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ["evidence:read"],
   "POST /v1/projects/{project_id}/runs/{run_id}/release-gate": [AUDIT_READ_SCOPE],
@@ -171,8 +181,14 @@ export type SaaSClientOperation =
   | "upload_run"
   | "ingest_trace"
   | "lifecycle"
+  | "lifecycle_snapshot"
   | "usage"
+  | "usage_snapshot"
   | "quota_snapshot"
+  | "billing_checkout_plan"
+  | "billing_portal_plan"
+  | "billing_webhook_ingest"
+  | "billing_ledger"
   | "audit_log"
   | "audit_chain_verify"
   | "release_gate"
@@ -277,10 +293,12 @@ export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore>
 export class SaaSControlPlaneService {
   readonly cloud: CloudApiService;
   readonly store: SaaSControlPlaneStore;
+  readonly billingLedger: BillingLedger;
 
   constructor(options: { cloud?: CloudApiService; store?: Partial<SaaSControlPlaneStore> } = {}) {
     this.cloud = options.cloud ?? new CloudApiService();
     this.store = createSaaSControlPlaneStore(options.store);
+    this.billingLedger = new BillingLedger();
   }
 
   bootstrapProject(options: { tenantName: string; projectName: string; tenantId?: string; projectId?: string }): JsonRecord {
@@ -596,6 +614,39 @@ export class SaaSControlPlaneService {
       totals[op] = (totals[op] ?? 0) + Number(event.units ?? 0);
     }
     return { schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, events, totals, quota: this.cloud.quotaSnapshot(tenantId, projectId) };
+  }
+
+  billingCheckoutPlan(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WRITE_SCOPE });
+    return buildCheckoutSessionPlan({ ...options, tenantId, projectId } as Parameters<typeof buildCheckoutSessionPlan>[0]);
+  }
+
+  billingPortalPlan(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WRITE_SCOPE });
+    return buildBillingPortalPlan({ ...options, tenantId, projectId });
+  }
+
+  billingWebhookIngest(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WEBHOOK_SCOPE });
+    const envelopeResult = verifyBillingWebhookEnvelope({ ...options, tenantId, projectId, signatureHeaderPresent: Boolean(options.signatureHeaderPresent ?? options.signature_header_present) } as Parameters<typeof verifyBillingWebhookEnvelope>[0]);
+    return this.billingLedger.ingestProviderWebhook({
+      envelope: envelopeResult,
+      customerRef: clientString(options, "customerRef", "customer_ref"),
+      amountMinor: Number(options.amountMinor ?? options.amount_minor ?? 0),
+      currency: clientString(options, "currency") || "usd",
+      invoiceRef: clientString(options, "invoiceRef", "invoice_ref"),
+      usageUnits: Number(options.usageUnits ?? options.usage_units ?? 0),
+      metadata: isRecord(options.metadata) ? options.metadata : {},
+    });
+  }
+
+  billingLedgerSnapshot(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_READ_SCOPE });
+    return this.billingLedger.publicLedger({ tenantId, projectId });
   }
 
   createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
@@ -1338,6 +1389,10 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": { post: { operationId: "verifyReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release evidence packet verification") } } },
       "/v1/projects/{project_id}/quota": { get: { operationId: "quotaSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Quota snapshot") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
+      "/v1/projects/{project_id}/billing/checkout-plan": { post: { operationId: "billingCheckoutPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing checkout plan") } } },
+      "/v1/projects/{project_id}/billing/portal-plan": { post: { operationId: "billingPortalPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing portal plan") } } },
+      "/v1/projects/{project_id}/billing/webhooks/ingest": { post: { operationId: "billingWebhookIngest", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing webhook ingest") } } },
+      "/v1/projects/{project_id}/billing/ledger": { get: { operationId: "billingLedger", parameters: pathTenantParameters(), responses: { "200": response("Billing ledger") } } },
       "/v1/projects/{project_id}/audit-log": { get: { operationId: "auditSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Audit log snapshot") } } },
       "/v1/projects/{project_id}/worker-jobs": { get: { operationId: "listWorkerJobs", parameters: pathTenantParameters(), responses: { "200": response("Worker jobs") } } },
       "/v1/projects/{project_id}/worker-jobs/enqueue": { post: { operationId: "enqueueWorkerJob", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "202": response("Enqueued worker job") } } },
@@ -1711,6 +1766,22 @@ export class SaaSIngestionClient {
     return envelope("quota_snapshot", this.service.usageSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
   }
 
+  billingCheckoutPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_checkout_plan", this.service.billingCheckoutPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingPortalPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_portal_plan", this.service.billingPortalPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingWebhookIngest(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_webhook_ingest", this.service.billingWebhookIngest(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingLedger(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
+    return envelope("billing_ledger", this.service.billingLedgerSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
   auditLog(tenantId: string, projectId: string, options: SaaSClientOptions & { runId?: string; run_id?: string; actionPrefix?: string; action_prefix?: string; authKeyId?: string; auth_key_id?: string; limit?: number } = {}): JsonRecord {
     return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, {
       runId: clientString(options, "runId", "run_id"),
@@ -1859,17 +1930,41 @@ export class SaaSIngestionClient {
 
   async lifecycleHttp(tenantId: string, projectId: string, runId: string): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/lifecycle`, { tenant_id: tenantId });
-    return envelope("lifecycle", body);
+    return envelope("lifecycle_snapshot", body);
   }
 
-  async usageHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId }, clientAuthHeaders(options as SaaSClientOptions));
-    return envelope("usage", body);
+  async usageHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("usage_snapshot", body);
+  }
+
+  async usageSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    return this.usageHttp(tenantId, projectId, options);
   }
 
   async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
     return envelope("quota_snapshot", body);
+  }
+
+  async billingCheckoutPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/checkout-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_checkout_plan", body);
+  }
+
+  async billingPortalPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/portal-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_portal_plan", body);
+  }
+
+  async billingWebhookIngestHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/webhooks/ingest`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_webhook_ingest", body);
+  }
+
+  async billingLedgerHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/billing/ledger`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_ledger", body);
   }
 
   async auditLogHttp(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): Promise<JsonRecord> {

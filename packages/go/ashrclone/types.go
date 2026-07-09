@@ -151,6 +151,70 @@ type UsageSnapshot struct {
 	GeneratedAt     time.Time             `json:"generated_at"`
 }
 
+type BillingPlanRequest struct {
+	SchemaVersion string  `json:"schema_version"`
+	TenantID      string  `json:"tenant_id"`
+	ProjectID     string  `json:"project_id"`
+	PlanID        string  `json:"plan_id"`
+	BillingCycle  string  `json:"billing_cycle,omitempty"`
+	ReturnURL     string  `json:"return_url,omitempty"`
+	Metadata      JSONMap `json:"metadata,omitempty"`
+}
+
+type BillingCheckoutPlan struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	PlanID             string    `json:"plan_id"`
+	BillingCycle       string    `json:"billing_cycle"`
+	CheckoutID         string    `json:"checkout_id"`
+	CheckoutURL        string    `json:"checkout_url"`
+	Mode               string    `json:"mode"`
+	Provider           string    `json:"provider"`
+	PublicSafe         bool      `json:"public_safe"`
+	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	Metadata           JSONMap   `json:"metadata,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type BillingPortalPlan struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	PlanID             string    `json:"plan_id,omitempty"`
+	PortalSessionID    string    `json:"portal_session_id"`
+	PortalURL          string    `json:"portal_url"`
+	Mode               string    `json:"mode"`
+	Provider           string    `json:"provider"`
+	PublicSafe         bool      `json:"public_safe"`
+	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type BillingWebhookIngest struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	EventID            string    `json:"event_id"`
+	EventType          string    `json:"event_type"`
+	Provider           string    `json:"provider"`
+	PlanID             string    `json:"plan_id,omitempty"`
+	Status             string    `json:"status"`
+	PayloadSHA256      string    `json:"payload_sha256"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	Metadata           JSONMap   `json:"metadata,omitempty"`
+	ReceivedAt         time.Time `json:"received_at"`
+}
+
+type BillingLedger struct {
+	SchemaVersion string                 `json:"schema_version"`
+	TenantID      string                 `json:"tenant_id"`
+	ProjectID     string                 `json:"project_id"`
+	Events        []BillingWebhookIngest `json:"events"`
+	Count         int                    `json:"count"`
+	GeneratedAt   time.Time              `json:"generated_at"`
+}
+
 type AuditEvent struct {
 	SchemaVersion   string    `json:"schema_version"`
 	TenantID        string    `json:"tenant_id"`

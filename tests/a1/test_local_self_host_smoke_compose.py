@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 import shutil
@@ -108,15 +108,18 @@ def test_a1_docker_compose_config_is_valid_when_daemon_is_reachable():
     if docker is None:
         pytest.skip("Docker CLI is not installed on this host")
 
-    daemon = subprocess.run(
-        [docker, "info", "--format", "{{.ServerVersion}}"],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=15,
-        check=False,
-    )
+    try:
+        daemon = subprocess.run(
+            [docker, "info", "--format", "{{.ServerVersion}}"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip("Docker daemon probe timed out before compose validation")
     if daemon.returncode != 0:
         pytest.skip(f"Docker daemon is not reachable: {_one_line(daemon.stderr or daemon.stdout)}")
 
