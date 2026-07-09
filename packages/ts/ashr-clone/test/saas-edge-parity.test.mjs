@@ -278,3 +278,30 @@ test("TS SaaS client baseUrl constructor stores HTTP transport", () => {
   const client = SaaSIngestionClient.forBaseUrl("http://127.0.0.1:9", { fetch: async () => ({ ok: true, status: 200, async json() { return {}; }, async text() { return "{}"; } }) });
   assert.notEqual(client.transport, undefined);
 });
+
+test("TS SaaS hosted billing wrappers keep Python operation and route parity", async () => {
+  const calls = [];
+  const client = new SaaSIngestionClient({
+    transport: {
+      async requestJson(method, path, body, options = {}) {
+        calls.push({ method, path, body, headers: options.headers ?? {} });
+        return { ok: true, method, path };
+      },
+    },
+  });
+
+  const usage = await client.usageSnapshotHttp("tenant_bill", "project_bill", { auth_key_id: "key_usage", bearerApiKey: "Bearer hosted_test_key" });
+  const quota = await client.quotaSnapshotHttp("tenant_bill", "project_bill", { auth_key_id: "key_usage" });
+  const lifecycle = await client.lifecycleHttp("tenant_bill", "project_bill", "run_bill");
+
+  assert.equal(usage.operation, "usage_snapshot");
+  assert.equal(quota.operation, "quota_snapshot");
+  assert.equal(lifecycle.operation, "lifecycle_snapshot");
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), [
+    "GET /v1/projects/project_bill/usage",
+    "GET /v1/projects/project_bill/quota",
+    "GET /v1/projects/project_bill/runs/run_bill/lifecycle",
+  ]);
+  assert.equal(calls[0].body.auth_key_id, "key_usage");
+  assert.equal(calls[0].headers.Authorization, "Bearer hosted_test_key");
+});

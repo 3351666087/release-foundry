@@ -113,6 +113,10 @@ def test_sdk_saas_client_exposes_audit_and_release_evidence_verification():
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True
     assert audit["result"]["event_count"] >= 3
+    audit_listing = client.audit_log("tenant_verify", "project_verify", auth_key_id="key_verify", target_id="run_verify", limit=2)
+    assert audit_listing["operation"] == "audit_log"
+    assert audit_listing["result"]["event_count"] <= 2
+    assert audit_listing["result"]["chain"]["verified"] is True
 
     packet = client.build_release_evidence_packet("tenant_verify", "project_verify", "run_verify", auth_key_id="key_verify")["result"]
     verified = client.verify_release_evidence_packet("tenant_verify", "project_verify", "run_verify", packet=packet, auth_key_id="key_verify")
@@ -225,9 +229,95 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
     quota = cli("--state-input", str(state), "quota", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")
     assert quota["result"]["used"]["trace.ingest"] == 1
 
+    checkout = cli(
+        "--state-input",
+        str(state),
+        "billing-checkout-plan",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--price-json",
+        '{"lookupKey":"team","unitAmountMinor":9900,"currency":"usd"}',
+        "--success-url",
+        "https://app.ashr-clone.invalid/billing/success",
+        "--cancel-url",
+        "https://app.ashr-clone.invalid/billing/cancel",
+        "--metadata-json",
+        '{"safe_note":"checkout"}',
+        "--idempotency-key",
+        "checkout_python_cli",
+    )
+    assert checkout["operation"] == "billing_checkout_plan"
+    assert checkout["result"]["provider_request"]["operation"] == "checkout.sessions.create"
+    portal = cli(
+        "--state-input",
+        str(state),
+        "billing-portal-plan",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--return-url",
+        "https://app.ashr-clone.invalid/billing",
+        "--idempotency-key",
+        "portal_python_cli",
+    )
+    assert portal["operation"] == "billing_portal_plan"
+    webhook = cli(
+        "--state-input",
+        str(state),
+        "--state-output",
+        str(state),
+        "billing-webhook-ingest",
+        "--tenant-id",
+        "tenant_sdk_cli",
+        "--project-id",
+        "project_sdk_cli",
+        "--provider",
+        "stripe",
+        "--mode",
+        "test",
+        "--event-type",
+        "invoice.paid",
+        "--event-id",
+        "evt_python_cli",
+        "--payload-sha256",
+        "d" * 64,
+        "--signature-header-present",
+        "--webhook-secret-ref",
+        "env:STRIPE_WEBHOOK_REF_TEST",
+        "--customer-ref",
+        "cus_cli_sdk",
+        "--amount-minor",
+        "9900",
+        "--currency",
+        "usd",
+        "--invoice-ref",
+        "in_python_cli",
+        "--metadata-json",
+        '{"billing_period":"2026-07"}',
+    )
+    assert webhook["operation"] == "billing_webhook_ingest"
+    assert webhook["result"]["raw_payload_included"] is False
+    billing_ledger = cli("--state-input", str(state), "billing-ledger", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")
+    assert billing_ledger["operation"] == "billing_ledger"
+    assert billing_ledger["result"]["ledger_event_count"] == 1
+    assert billing_ledger["result"]["totals_by_currency_minor"] == {"usd": 9900}
+    billing_text = json.dumps([checkout, portal, webhook, billing_ledger], sort_keys=True)
+    assert "whsec" not in billing_text
+    assert "4242 4242" not in billing_text
+
     audit = cli("--state-input", str(state), "audit-chain-verify", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli")
     assert audit["operation"] == "verify_audit_chain"
     assert audit["result"]["verification"]["verified"] is True
+    audit_listing = cli("--state-input", str(state), "audit-log", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--auth-key-id", "key_sdk_cli", "--run-id", "run_sdk_cli", "--limit", "2")
+    assert audit_listing["operation"] == "audit_log"
+    assert audit_listing["result"]["event_count"] <= 2
 
     packet = cli("--state-input", str(state), "release-evidence", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli", "--run-id", "run_sdk_cli", "--auth-key-id", "key_sdk_cli")["result"]
     packet_path = tmp_path / "packet.json"
@@ -302,6 +392,11 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
             return {"used": {"run.submit": 1}}
         if parsed.path.endswith("/v1/projects/project_http/audit-chain/verify"):
             return {"verification": {"verified": True}, "event_count": 1}
+        if parsed.path.endswith("/v1/projects/project_http/audit-log"):
+            assert method == "GET"
+            assert data == {}
+            assert query["run_id"] == "run_http"
+            return {"chain": {"verified": True}, "event_count": 1, "events": [{"audit_event_id": "audit_http"}]}
         if parsed.path.endswith("/v1/projects/project_http/runs/run_http/release-evidence/verify"):
             return {"verified": True, "packet_id": data["packet"]["packet_id"]}
         if parsed.path.endswith("/v1/projects/project_http/worker-jobs/enqueue") and data.get("job_type") == "run.replay":
@@ -355,6 +450,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
     assert trace["result"]["observation_count"] == 1
     assert client.quota_snapshot("tenant_http", "project_http")["result"]["used"]["run.submit"] == 1
     assert client.verify_audit_chain("tenant_http", "project_http", auth_key_id="key_http")["result"]["verification"]["verified"] is True
+    assert client.audit_log("tenant_http", "project_http", auth_key_id="key_http", run_id="run_http")["result"]["events"][0]["audit_event_id"] == "audit_http"
     assert client.verify_release_evidence_packet("tenant_http", "project_http", "run_http", packet={"packet_id": "packet_http"}, auth_key_id="key_http")["result"]["packet_id"] == "packet_http"
     enqueued = client.enqueue_worker_job(
         "tenant_http",
@@ -377,6 +473,7 @@ def test_sdk_saas_client_base_url_uses_http_transport_without_real_keys():
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/trace-events"),
         ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/quota"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/audit-chain/verify"),
+        ("GET", "http://127.0.0.1:8765/a1/v1/projects/project_http/audit-log"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/runs/run_http/release-evidence/verify"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/enqueue"),
         ("POST", "http://127.0.0.1:8765/a1/v1/projects/project_http/worker-jobs/lease"),
@@ -398,6 +495,81 @@ def test_sdk_saas_client_base_url_rejects_raw_api_key_before_transport():
     with pytest.raises(SecretInputError, match="raw API key values are not accepted"):
         client.sdk_submit("tenant", "project", dataset_id="dataset", agent_ref="mock", api_key="tp_not_allowed")
     assert called is False
+
+
+def test_sdk_saas_client_base_url_sends_bearer_secret_as_authorization_header_only():
+    captured: dict[str, object] = {}
+
+    def transport(url: str, payload: Mapping[str, object], *, method: str, headers: Mapping[str, str]) -> Mapping[str, object]:
+        captured["url"] = url
+        captured["payload"] = dict(payload)
+        captured["method"] = method
+        captured["headers"] = dict(headers)
+        return {"schema_version": "remote.v1", "operation": "sdk_submit", "result": {"accepted": True}}
+
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=transport)
+    result = client.sdk_submit(
+        "tenant",
+        "project",
+        dataset_id="dataset",
+        agent_ref="mock",
+        api_key_secret="tp_hosted_secret",
+    )
+
+    assert result["result"] == {"accepted": True}
+    assert captured["method"] == "POST"
+    assert captured["url"] == "http://localhost:9000/v1/projects/project/sdk-submit"
+    assert captured["headers"] == {"Authorization": "Bearer tp_hosted_secret"}
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert "api_key" not in payload
+    assert "api_key_secret" not in payload
+    assert "bearer_api_key" not in payload
+    assert "tp_hosted_secret" not in json.dumps(payload, sort_keys=True)
+    assert "tp_hosted_secret" not in json.dumps(result, sort_keys=True)
+
+
+def test_sdk_saas_client_base_url_accepts_bearer_api_key_alias_and_normalizes_prefix():
+    captured: dict[str, object] = {}
+
+    def transport(url: str, payload: Mapping[str, object], *, method: str, headers: Mapping[str, str]) -> Mapping[str, object]:
+        captured["payload"] = dict(payload)
+        captured["headers"] = dict(headers)
+        return {"used": {"run.submit": 1}}
+
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=transport)
+    result = client.usage_snapshot("tenant", "project", bearer_api_key="Bearer tp_alias_secret")
+
+    assert result["result"]["used"] == {"run.submit": 1}
+    assert captured["headers"] == {"Authorization": "Bearer tp_alias_secret"}
+    assert "tp_alias_secret" not in json.dumps(captured["payload"], sort_keys=True)
+
+
+def test_sdk_saas_client_bearer_secret_options_are_mutually_exclusive():
+    client = SaaSIngestionClient.from_base_url("http://localhost:9000", http_transport=lambda *_args, **_kwargs: {})
+
+    with pytest.raises(SecretInputError, match="provide only one hosted bearer API key option"):
+        client.sdk_submit(
+            "tenant",
+            "project",
+            dataset_id="dataset",
+            agent_ref="mock",
+            api_key_secret="tp_one",
+            bearer_api_key="tp_two",
+        )
+
+
+def test_sdk_saas_client_bearer_secret_options_require_http_transport():
+    client = SaaSIngestionClient()
+
+    with pytest.raises(SecretInputError, match="only supported with base_url HTTP transport"):
+        client.sdk_submit(
+            "tenant",
+            "project",
+            dataset_id="dataset",
+            agent_ref="mock",
+            api_key_secret="tp_hosted_secret",
+        )
 
 
 

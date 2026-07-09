@@ -1,4 +1,26 @@
-name: ashr-a1-go-api-smoke
+name: ashr-a1-self-host-commercial
+
+x-a1-secret-ref-env: &a1-secret-ref-env
+  ASHR_RUNTIME_ENV: self-host
+  ASHR_SECRET_PROVIDER: env-ref
+  ASHR_POSTGRES_DSN_REF: env:ASHR_POSTGRES_DSN
+  ASHR_BILLING_PROVIDER_SECRET_REF: env:ASHR_BILLING_PROVIDER_SECRET_REF
+  ASHR_BILLING_WEBHOOK_SECRET_REF: env:ASHR_BILLING_WEBHOOK_SECRET_REF
+  ASHR_OBJECT_STORE_ACCESS_KEY_REF: env:ASHR_OBJECT_STORE_ACCESS_KEY_REF
+  ASHR_OBJECT_STORE_SECRET_KEY_REF: env:ASHR_OBJECT_STORE_SECRET_KEY_REF
+
+x-a1-runtime-env: &a1-runtime-env
+  <<: *a1-secret-ref-env
+  ASHR_GO_BACKEND: postgres
+  ASHR_POSTGRES_DSN: postgres://ashr@postgres:5432/ashr?sslmode=disable
+  ASHR_OBJECT_STORE_ENDPOINT: file:///object-store
+  ASHR_OBJECT_STORE_BUCKET: ashr-local-artifacts
+  ASHR_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+  ASHR_QUOTA_LEDGER_TABLE: ashr_quota_ledger
+  ASHR_ARTIFACT_MANIFEST_TABLE: ashr_artifact_manifests
+  ASHR_WORKER_JOBS_TABLE: ashr_worker_jobs
+  ASHR_BILLING_WEBHOOK_PUBLIC_URL: http://billing-webhook:8788/a1/billing/webhook
+  ASHR_BILLING_WEBHOOK_MODE: receiver-only
 
 services:
   postgres:
@@ -25,9 +47,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      <<: *a1-runtime-env
       ASHR_GO_API_ADDR: 0.0.0.0:8787
-      ASHR_GO_BACKEND: postgres
-      ASHR_POSTGRES_DSN: postgres://ashr@postgres:5432/ashr?sslmode=disable
       ASHR_A1_SMOKE_MODE: local_self_host
     ports:
       - "127.0.0.1:18787:8787"
@@ -51,7 +72,80 @@ services:
       retries: 12
       start_period: 20s
 
+  worker:
+    image: golang:1.22-bookworm
+    working_dir: /workspace/packages/go/ashrclone
+    command:
+      - sh
+      - -lc
+      - >-
+        while true; do
+          go test ./... -run TestServiceWorkerQueueLifecycle -count=1;
+          sleep "$${ASHR_WORKER_POLL_INTERVAL_SECONDS}";
+        done
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      object-store:
+        condition: service_started
+    environment:
+      <<: *a1-runtime-env
+      ASHR_WORKER_MODE: long-running
+      ASHR_WORKER_QUEUE: ashr_worker_jobs
+      ASHR_WORKER_LEASE_SECONDS: "300"
+      ASHR_WORKER_POLL_INTERVAL_SECONDS: "30"
+      ASHR_WORKER_MAX_ATTEMPTS: "3"
+      ASHR_WORKER_EVIDENCE_WRITES: object-store
+    volumes:
+      - ../../:/workspace:ro
+      - a1-go-mod-cache:/go/pkg/mod
+      - a1-go-build-cache:/root/.cache/go-build
+      - a1-worker-state:/var/lib/ashr/worker
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  billing-webhook:
+    image: golang:1.22-bookworm
+    working_dir: /workspace/packages/go/ashrclone
+    command:
+      - sh
+      - -lc
+      - >-
+        go run ./cmd/ashr-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *a1-runtime-env
+      ASHR_GO_API_ADDR: 0.0.0.0:8788
+      ASHR_BILLING_WEBHOOK_RECEIVER: enabled
+      ASHR_BILLING_LEDGER_TABLE: ashr_billing_ledger
+      ASHR_BILLING_QUOTA_LEDGER_TABLE: ashr_quota_ledger
+      ASHR_BILLING_WEBHOOK_SECRET_REQUIRED: "true"
+    ports:
+      - "127.0.0.1:18788:8788"
+    volumes:
+      - ../../:/workspace:ro
+      - a1-go-mod-cache:/go/pkg/mod
+      - a1-go-build-cache:/root/.cache/go-build
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  object-store:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /object-store/ashr-local-artifacts/evidence/a1/self-host && tail -f /dev/null"]
+    volumes:
+      - a1-object-store:/object-store
+
 volumes:
   a1-postgres-smoke:
   a1-go-mod-cache:
   a1-go-build-cache:
+  a1-worker-state:
+  a1-object-store:

@@ -10,6 +10,8 @@ from packages.sdk.ashr_clone.evidence import (
     build_response_field_map,
     merge_evidence_indices,
     render_response_field_map_markdown,
+    scan_public_evidence_artifact_text,
+    scan_tracked_public_evidence_artifacts,
     validate_public_evidence_index,
     write_private_evidence_index,
     write_response_field_map_markdown,
@@ -174,6 +176,45 @@ def test_public_evidence_linter_scans_raw_secret_like_values_before_redaction():
     assert [issue["kind"] for issue in issues].count("secret_like_text") == 4
 
 
+def test_public_evidence_artifact_scanner_catches_secret_and_payload_markers():
+    text = "\n".join(
+        [
+            "authorization: Bearer syntheticfixture",
+            "X-API-Key: sk-syntheticfixture",
+            "raw_payload_included: true",
+            "-----BEGIN " + "PRIVATE KEY-----",
+        ]
+    )
+
+    issues = scan_public_evidence_artifact_text(text, path="docs/a1/evidence/example.md")
+
+    kinds = {issue["kind"] for issue in issues}
+    assert kinds >= {"secret_like_text", "authorization_header", "api_key_header", "raw_private_payload_included", "private_key_block"}
+    assert all(issue["path"] == "docs/a1/evidence/example.md" for issue in issues)
+
+
+def test_tracked_public_evidence_artifact_scanner_ignores_untracked_private_refs(tmp_path: Path):
+    repo = tmp_path / "repo"
+    public = repo / "docs" / "a1" / "evidence"
+    private = repo / "docs" / "evidence" / "private_refs"
+    public.mkdir(parents=True)
+    private.mkdir(parents=True)
+    (public / "ok.md").write_text("raw_payload_included: false\nAuthorization headers are rejected.\n", encoding="utf-8")
+    (private / "raw.json").write_text('{"authorization":"Bearer syntheticfixture"}\n', encoding="utf-8")
+
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "add", "docs/a1/evidence/ok.md"], cwd=repo, check=True, capture_output=True, text=True)
+
+    assert scan_tracked_public_evidence_artifacts(repo) == []
+
+
+def test_tracked_a1_public_evidence_artifacts_are_secret_safe():
+    root = Path(__file__).resolve().parents[2]
+
+    assert scan_tracked_public_evidence_artifacts(root) == []
+
 
 def test_public_evidence_linter_blocks_real_nonprivate_output_override():
     index = {
@@ -223,6 +264,21 @@ def test_evidence_index_from_dir_and_write_roundtrip(tmp_path: Path):
     assert loaded["records"][0]["response_keys"] == ["status", "user"]
 
 
+def test_evidence_index_from_repo_private_refs_uses_relative_paths():
+    root = Path(__file__).resolve().parents[2]
+    record = root / "docs" / "evidence" / "private_refs" / "pytest_relative_path_record.json"
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps({"function": "init", "status": "ok", "response": {"status": "ok"}}), encoding="utf-8")
+    try:
+        index = build_private_evidence_index([record], label="relative-path-check")
+    finally:
+        record.unlink(missing_ok=True)
+
+    assert index["records"][0]["path"] == "docs/evidence/private_refs/pytest_relative_path_record.json"
+    assert ":" not in index["records"][0]["path"]
+    assert "\\" not in index["records"][0]["path"]
+
+
 def test_public_evidence_index_matches_schema():
     root = Path(__file__).resolve().parents[2]
     schema = json.loads((root / "docs" / "a1" / "schemas" / "evidence_index.schema.json").read_text(encoding="utf-8"))
@@ -238,6 +294,17 @@ def test_public_evidence_index_matches_schema():
         assert isinstance(record["request_keys"], list)
         assert isinstance(record["response_keys"], list)
         assert isinstance(record["top_counts"], dict)
+
+
+def test_public_evidence_index_includes_round39_paid_media_gate_summary():
+    root = Path(__file__).resolve().parents[2]
+    index = json.loads((root / "docs" / "a1" / "api_calibration" / "real_api_evidence_index.json").read_text(encoding="utf-8"))
+    paths = {record["path"] for record in index["records"]}
+
+    assert "docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json" in paths
+    assert "docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json" in paths
+    assert index["quota_block_count"] >= 1
+    assert index["function_counts"]["create_request"] >= 1
 
 
 def test_merge_evidence_indices_preserves_existing_public_records(tmp_path: Path):

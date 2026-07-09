@@ -7,6 +7,7 @@ from services.api.db_migrator import build_go_postgres_vertical_slice_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "services/api/migrations/001_a1_large_saas_foundation.sql"
+BILLING_MIGRATION = ROOT / "services/api/migrations/002_a1_billing_ledger.sql"
 
 REQUIRED_TABLES = {
     "organizations",
@@ -23,6 +24,7 @@ REQUIRED_TABLES = {
     "api_keys",
     "webhook_endpoints",
     "usage_ledger",
+    "usage_rollups",
     "quota_policies",
     "jobs",
     "idempotency_keys",
@@ -32,6 +34,9 @@ REQUIRED_TABLES = {
 REQUIRED_FUNCTIONS = {
     "ensure_idempotency_fingerprint",
     "rollup_usage",
+    "usage_rollup_period_bounds",
+    "upsert_usage_rollup_from_ledger",
+    "audit_quota_policy_change",
     "audit_chain_tail",
 }
 
@@ -53,6 +58,8 @@ REQUIRED_INDEXES = {
     "idx_usage_ledger_idempotency_key_unique",
     "idx_usage_ledger_scope_meter_period",
     "idx_usage_ledger_workspace_meter_period",
+    "idx_usage_rollups_scope_meter_period",
+    "idx_usage_rollups_workspace_meter_period",
     "idx_quota_policies_scope_meter",
     "idx_jobs_ready_queue",
     "idx_jobs_project_status",
@@ -72,16 +79,28 @@ PROJECT_SCOPED_TABLES = {
     "evidence_bundles",
     "webhook_endpoints",
     "usage_ledger",
+    "usage_rollups",
     "quota_policies",
     "jobs",
     "idempotency_keys",
     "audit_log",
 }
 
+BILLING_RLS_TABLES = {
+    "billing_accounts",
+    "billing_provider_events",
+    "billing_ledger_events",
+}
+
 
 def _migration_sql() -> str:
     assert MIGRATION.exists(), f"missing migration: {MIGRATION}"
     return MIGRATION.read_text(encoding="utf-8")
+
+
+def _billing_migration_sql() -> str:
+    assert BILLING_MIGRATION.exists(), f"missing migration: {BILLING_MIGRATION}"
+    return BILLING_MIGRATION.read_text(encoding="utf-8")
 
 
 def _normalize(sql: str) -> str:
@@ -97,6 +116,29 @@ def _table_body(sql: str, table: str) -> str:
     match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
     assert match, f"missing CREATE TABLE body for {table}"
     return _normalize(match.group(1))
+
+
+def _policy_body(sql: str, table: str) -> str:
+    policy_name = f"{table}_organization_isolation"
+    pattern = rf"create\s+policy\s+{policy_name}\s+on\s+{table}\s+(.*?);"
+    match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
+    assert match, f"missing RLS policy {policy_name} on {table}"
+    return _normalize(match.group(1))
+
+
+def _assert_organization_rls_contract(sql: str, tables: set[str]) -> None:
+    normalized = _normalize(sql)
+
+    for table in sorted(tables):
+        policy_name = f"{table}_organization_isolation"
+        expected_predicate = "id = a1_current_organization_id()" if table == "organizations" else "organization_id = a1_current_organization_id()"
+        policy = _policy_body(sql, table)
+
+        assert f"alter table {table} enable row level security" in normalized, f"{table} must enable RLS"
+        assert f"alter table {table} force row level security" in normalized, f"{table} must force RLS for owners"
+        assert f"drop policy if exists {policy_name} on {table}" in normalized, f"{table} policy must be idempotent"
+        assert f"using ({expected_predicate})" in policy, f"{policy_name} must filter reads by app tenant"
+        assert f"with check ({expected_predicate})" in policy, f"{policy_name} must reject cross-tenant writes"
 
 
 def test_a1_foundation_migration_declares_required_objects() -> None:
@@ -135,6 +177,7 @@ def test_a1_foundation_migration_scopes_nullable_child_references() -> None:
         "references trace_events(id)",
         "references runs(id)",
         "references datasets(id)",
+        "references idempotency_keys(id)",
     ]:
         assert forbidden not in normalized, f"global child FK is not tenant/project scoped: {forbidden}"
 
@@ -156,6 +199,9 @@ def test_a1_foundation_migration_scopes_nullable_child_references() -> None:
 def test_a1_foundation_migration_has_idempotency_usage_and_audit_guards() -> None:
     normalized = _normalize(_migration_sql())
 
+    quota_meters = "'runs', 'observations', 'media', 'voice_minutes', 'projects', 'storage_bytes'"
+
+    assert "constraint idempotency_keys_org_project_id_key unique (organization_id, project_id, id)" in normalized
     assert "constraint idempotency_keys_org_project_key_unique unique (organization_id, project_id, idempotency_key)" in normalized
     assert "constraint idempotency_keys_scope_fingerprint_unique unique (organization_id, project_id, request_method, request_path, fingerprint)" in normalized
     assert "raise exception 'idempotency key conflict" in normalized
@@ -164,9 +210,20 @@ def test_a1_foundation_migration_has_idempotency_usage_and_audit_guards() -> Non
 
     assert "create unique index if not exists idx_usage_ledger_idempotency_key_unique on usage_ledger" in normalized
     assert "usage_ledger(organization_id, project_id, idempotency_key_id) where idempotency_key_id is not null" in normalized
+    assert f"constraint usage_ledger_meter_check check (meter in ({quota_meters}))" in normalized
+    assert "constraint usage_ledger_idempotency_scope_fk foreign key (organization_id, project_id, idempotency_key_id)" in normalized
+    assert "constraint audit_log_idempotency_scope_fk foreign key (organization_id, project_id, idempotency_key_id)" in normalized
     assert "create or replace function rollup_usage" in normalized
     assert "from usage_ledger u" in normalized
     assert "coalesce(sum(u.quantity), 0)::numeric" in normalized
+    assert f"constraint usage_rollups_meter_check check (meter in ({quota_meters}))" in normalized
+    assert "primary key (organization_id, project_id, meter, period, period_start)" in normalized
+    assert "create trigger usage_ledger_rollup_after_insert after insert on usage_ledger" in normalized
+    assert "execute function upsert_usage_rollup_from_ledger()" in normalized
+
+    assert f"constraint quota_policies_meter_check check (meter in ({quota_meters}))" in normalized
+    assert "create trigger quota_policies_audit_after_change after insert or update or delete on quota_policies" in normalized
+    assert "execute function audit_quota_policy_change()" in normalized
 
     assert "create or replace function audit_chain_tail" in normalized
     assert "from audit_log" in normalized
@@ -174,6 +231,60 @@ def test_a1_foundation_migration_has_idempotency_usage_and_audit_guards() -> Non
     assert "prev_hash text" in normalized
     assert "entry_hash text not null" in normalized
     assert "constraint audit_log_entry_hash_key unique (entry_hash)" in normalized
+
+
+def test_a1_foundation_migration_enforces_rls_with_app_organization_setting() -> None:
+    sql = _migration_sql()
+    normalized = _normalize(sql)
+
+    assert "create or replace function a1_current_organization_id()" in normalized
+    assert "current_setting('app.a1_organization_id', true)" in normalized
+    assert "nullif(current_setting('app.a1_organization_id', true), '')::uuid" in normalized
+
+    _assert_organization_rls_contract(sql, REQUIRED_TABLES)
+
+
+def test_a1_foundation_audit_paths_are_tenant_scoped_and_triggered() -> None:
+    normalized = _normalize(_migration_sql())
+
+    for fragment in [
+        "create trigger quota_policies_audit_after_change after insert or update or delete on quota_policies",
+        "for each row execute function audit_quota_policy_change()",
+        "target_policy.organization_id",
+        "target_policy.project_id",
+        "'quota_policy.' || lower(tg_op)",
+        "select audit_chain_tail(target_policy.organization_id, target_policy.project_id)",
+        "insert into audit_log",
+        "p_organization_id",
+        "p_project_id",
+        "'quota.denied'",
+        "encode(digest(coalesce(previous_hash, '')",
+        "audit_payload::text || now()::text, 'sha256'), 'hex')",
+    ]:
+        assert fragment in normalized
+
+
+def test_a1_billing_migration_inherits_forced_rls_contract() -> None:
+    sql = _billing_migration_sql()
+    normalized = _normalize(sql)
+
+    _assert_organization_rls_contract(sql, BILLING_RLS_TABLES)
+
+    for table in sorted(BILLING_RLS_TABLES):
+        body = _table_body(sql, table)
+        assert "organization_id uuid not null" in body
+        assert "project_id uuid not null" in body
+
+    for fragment in [
+        "constraint billing_provider_events_account_scope_fk foreign key (organization_id, project_id, billing_account_id)",
+        "constraint billing_ledger_events_provider_event_scope_fk foreign key (organization_id, project_id, provider_event_id)",
+        "constraint billing_ledger_events_account_scope_fk foreign key (organization_id, project_id, billing_account_id)",
+        "from billing_provider_events",
+        "from billing_ledger_events",
+        "where organization_id = p_organization_id",
+        "and project_id = p_project_id",
+    ]:
+        assert fragment in normalized
 
 
 def test_a1_foundation_migration_has_worker_persistence_repository_contract() -> None:
@@ -191,9 +302,19 @@ def test_a1_foundation_migration_has_worker_persistence_repository_contract() ->
         "usage_ledger": [
             "organization_id uuid not null",
             "project_id uuid not null",
-            "idempotency_key_id uuid references idempotency_keys(id) on delete set null (idempotency_key_id)",
+            "idempotency_key_id uuid",
             "quantity numeric(20, 6) not null check (quantity >= 0)",
+            "constraint usage_ledger_idempotency_scope_fk foreign key (organization_id, project_id, idempotency_key_id)",
             "constraint usage_ledger_period_check check (period_end > period_start)",
+        ],
+        "usage_rollups": [
+            "organization_id uuid not null",
+            "project_id uuid not null",
+            "meter text not null",
+            "period text not null check (period in ('hour', 'day', 'month'))",
+            "total_quantity numeric(20, 6) not null default 0 check (total_quantity >= 0)",
+            "ledger_entries bigint not null default 0 check (ledger_entries >= 0)",
+            "constraint usage_rollups_project_scope_fk foreign key (organization_id, project_id)",
         ],
         "jobs": [
             "organization_id uuid not null",
@@ -209,6 +330,7 @@ def test_a1_foundation_migration_has_worker_persistence_repository_contract() ->
             "action text not null",
             "entry_hash text not null",
             "constraint audit_log_entry_hash_key unique (entry_hash)",
+            "constraint audit_log_idempotency_scope_fk foreign key (organization_id, project_id, idempotency_key_id)",
         ],
     }
 
@@ -219,6 +341,8 @@ def test_a1_foundation_migration_has_worker_persistence_repository_contract() ->
 
     for index_fragment in [
         "create unique index if not exists idx_usage_ledger_idempotency_key_unique on usage_ledger(organization_id, project_id, idempotency_key_id) where idempotency_key_id is not null",
+        "create index if not exists idx_usage_rollups_scope_meter_period on usage_rollups(organization_id, project_id, meter, period, period_start desc)",
+        "create index if not exists idx_usage_rollups_workspace_meter_period on usage_rollups(organization_id, workspace_id, meter, period, period_start desc)",
         "create index if not exists idx_jobs_ready_queue on jobs(status, run_after, priority, created_at) where status = 'queued'",
         "create index if not exists idx_jobs_project_status on jobs(organization_id, project_id, status, created_at desc)",
         "create index if not exists idx_audit_log_scope_created on audit_log(organization_id, project_id, created_at desc)",

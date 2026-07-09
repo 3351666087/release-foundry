@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,9 @@ from services.api.db_migrator import (
     validate_sqlite_drift,
     validate_tenant_indexes,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
+LARGE_SAAS_MIGRATION_PATH = ROOT / "services" / "api" / "migrations" / "001_a1_large_saas_foundation.sql"
 
 
 def test_db_migrator_generates_deterministic_sqlite_plan_from_data_model():
@@ -79,6 +83,34 @@ def test_db_migrator_exposes_go_postgres_vertical_slice_contract():
     assert "idx_runs_project_status" in contract["runs"]["required_indexes"]
     assert "idx_usage_ledger_idempotency_key_unique" in contract["usage_ledger"]["required_indexes"]
     assert "idx_jobs_ready_queue" in contract["jobs"]["required_indexes"]
+
+
+def test_large_saas_postgres_migration_declares_organization_rls_contract():
+    migration_sql = LARGE_SAAS_MIGRATION_PATH.read_text(encoding="utf-8")
+    normalized_sql = re.sub(r"\s+", " ", migration_sql).lower()
+    table_names = re.findall(r"^CREATE TABLE IF NOT EXISTS (\w+) ", migration_sql, flags=re.MULTILINE)
+
+    assert "current_setting('app.a1_organization_id', true)" in normalized_sql
+    assert table_names
+
+    for table_name in table_names:
+        assert f"alter table {table_name} enable row level security" in normalized_sql
+        assert f"alter table {table_name} force row level security" in normalized_sql
+        assert f"drop policy if exists {table_name}_organization_isolation on {table_name}" in normalized_sql
+        assert f"create policy {table_name}_organization_isolation on {table_name}" in normalized_sql
+
+    for table_name in set(table_names) - {"organizations"}:
+        assert (
+            f"create policy {table_name}_organization_isolation on {table_name} "
+            "using (organization_id = a1_current_organization_id()) "
+            "with check (organization_id = a1_current_organization_id())"
+        ) in normalized_sql
+
+    assert (
+        "create policy organizations_organization_isolation on organizations "
+        "using (id = a1_current_organization_id()) "
+        "with check (id = a1_current_organization_id())"
+    ) in normalized_sql
 
 
 def test_db_migrator_rollback_plan_drops_indexes_tables_and_ledger_entry():

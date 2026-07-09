@@ -7,8 +7,13 @@ const (
 	ScopeRunSubmit             = "run:submit"
 	ScopeRunUpload             = "run:upload"
 	ScopeTraceIngest           = "trace:ingest"
+	ScopeRunLifecycleRead      = "run:lifecycle:read"
 	ScopeUsageRead             = "usage:read"
+	ScopeBillingWrite          = "billing:write"
+	ScopeBillingRead           = "billing:read"
+	ScopeBillingWebhookIngest  = "billing:webhook"
 	ScopeAuditRead             = "audit:read"
+	ScopeEvidenceRead          = "evidence:read"
 	ScopeWorkerJobEnqueue      = "worker_job:enqueue"
 	ScopeWorkerJobLease        = "worker_job:lease"
 	ScopeWorkerJobComplete     = "worker_job:complete"
@@ -16,6 +21,9 @@ const (
 	ScopeWorkerJobList         = "worker_job:list"
 	ScopeArtifactManifestRead  = "artifact_manifest:read"
 	ScopeArtifactManifestWrite = "artifact_manifest:write"
+	ScopeAPIKeyWrite           = "api_key:write"
+	ScopeAPIKeyRead            = "api_key:read"
+	ScopeAPIKeyPreflight       = "api_key:preflight"
 )
 
 type APIKeyHandle struct {

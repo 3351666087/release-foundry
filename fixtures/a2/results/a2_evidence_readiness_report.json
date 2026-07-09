@@ -98,22 +98,22 @@
     "available": true,
     "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
     "schema_version": "ashr.clone.evidence_index.v1",
-    "label": "a1-a2-real-api-2026-07-07-main-replenish-a1-a2-union",
+    "label": "a1-real-api-round44-readonly-refresh",
     "field_map_version": "a1-api-calibration-2026-07-04",
-    "total_records": 368,
+    "total_records": 401,
     "status_counts": {
-      "blocked": 2,
+      "blocked": 3,
       "completed": 13,
-      "error": 27,
+      "error": 32,
       "failed": 1,
-      "ok": 214,
-      "partial": 13,
+      "ok": 221,
+      "partial": 20,
       "passed": 11,
-      "planned": 53,
+      "planned": 65,
       "timeout": 1
     },
     "function_counts": {
-      "create_request": 35,
+      "create_request": 40,
       "create_run": 2,
       "get_dataset": 8,
       "get_request": 11,
@@ -124,12 +124,12 @@
       "list_datasets": 39,
       "list_requests": 42,
       "list_runs": 5,
-      "plan_batch": 3,
+      "plan_batch": 13,
       "poll_request": 1,
       "poll_run": 2,
       "validate_gate": 3
     },
-    "quota_block_count": 43,
+    "quota_block_count": 48,
     "real_ok_functions": [
       "create_request",
       "create_run",
@@ -147,22 +147,22 @@
       "create_request",
       "create_run"
     ],
-    "real_record_count": 241,
+    "real_record_count": 260,
     "real_read_status_counts": {
       "error": 11,
       "ok": 172,
       "timeout": 1
     },
     "real_create_request_status_counts": {
-      "error": 15,
+      "error": 20,
       "ok": 2
     },
     "real_create_request_error_kind_counts": {
-      "api": 15
+      "api": 20
     },
     "real_quota_gate": {
       "blocked": true,
-      "blocked_count": 13,
+      "blocked_count": 18,
       "blocked_functions": [
         "create_request"
       ],
@@ -176,8 +176,13 @@
         "used"
       ],
       "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json",
         "docs/evidence/private_refs/a1_api_text_batch_create_request_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-audio_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-file_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-image_real.json",
         "docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-video_real.json",
         "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
         "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
@@ -195,11 +200,11 @@
     "api_probe_gate_validation": {
       "available": true,
       "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
-      "plan_batch_count": 3,
+      "plan_batch_count": 13,
       "validate_gate_count": 3,
       "plan_batch_status_counts": {
-        "blocked": 2,
-        "planned": 1
+        "blocked": 3,
+        "planned": 10
       },
       "validate_gate_status_counts": {
         "error": 1,
@@ -207,14 +212,24 @@
       },
       "ok_validate_gate_count": 2,
       "error_validate_gate_count": 1,
-      "blocked_plan_batch_count": 2,
+      "blocked_plan_batch_count": 3,
       "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json",
         "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
         "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+        "docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172342.json",
+        "docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172414.json",
+        "docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172342.json",
+        "docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172421.json",
+        "docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172341.json",
+        "docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172407.json",
+        "docs/evidence/private_refs/a1_mutating_all_modalities_quota_gate_20260709_172259.json",
         "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
         "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
         "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
-        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json"
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172343.json",
+        "docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172428.json"
       ],
       "release_interpretation": "mixed_gate_evidence_review_required"
     },

@@ -16,6 +16,40 @@ PUBLIC_INPUT_SOURCES = [
     "packages/ts/ashr-clone public package metadata and src source",
     "tests/a1 generated public parity generator",
 ]
+REQUIRED_HOSTED_ROUTE_LITERALS = [
+    "/v1/bootstrap",
+    "/v1/projects/{project_id}/audit-log",
+    "/v1/projects/{project_id}/audit-chain/verify",
+    "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
+    "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
+]
+PYTHON_ROUTE_EXAMPLES = {
+    "bootstrap_project": {"project_id": "project_contract", "run_id": "run_contract", "key_id": "key_contract", "job_id": "job_contract"},
+    "create_api_key": {"project_id": "project_contract"},
+    "list_api_keys": {"project_id": "project_contract"},
+    "verify_api_key_secret": {"project_id": "project_contract", "key_id": "key_contract"},
+    "configure_api_key_rate_limit": {"project_id": "project_contract", "key_id": "key_contract"},
+    "api_key_rate_limit_snapshot": {"project_id": "project_contract"},
+    "revoke_api_key": {"project_id": "project_contract", "key_id": "key_contract"},
+    "sdk_submit": {"project_id": "project_contract"},
+    "upload_run": {"project_id": "project_contract", "run_id": "run_contract"},
+    "ingest_trace": {"project_id": "project_contract", "run_id": "run_contract"},
+    "lifecycle_snapshot": {"project_id": "project_contract", "run_id": "run_contract"},
+    "quota_snapshot": {"project_id": "project_contract"},
+    "usage_snapshot": {"project_id": "project_contract"},
+    "audit_log": {"project_id": "project_contract"},
+    "create_artifact_manifest": {"project_id": "project_contract", "run_id": "run_contract"},
+    "list_artifact_manifests": {"project_id": "project_contract", "run_id": "run_contract"},
+    "enqueue_worker_job": {"project_id": "project_contract"},
+    "lease_worker_job": {"project_id": "project_contract"},
+    "list_worker_jobs": {"project_id": "project_contract"},
+    "heartbeat_worker_job": {"project_id": "project_contract", "job_id": "job_contract"},
+    "complete_worker_job": {"project_id": "project_contract", "job_id": "job_contract"},
+    "fail_worker_job": {"project_id": "project_contract", "job_id": "job_contract"},
+    "release_evidence": {"project_id": "project_contract", "run_id": "run_contract"},
+    "release_evidence_verify": {"project_id": "project_contract", "run_id": "run_contract"},
+    "verify_audit_chain": {"project_id": "project_contract"},
+}
 
 
 def repo_path(path: Path) -> str:
@@ -138,6 +172,36 @@ def route_literals(path: Path) -> list[str]:
     return sorted_unique(normalized)
 
 
+def python_hosted_route_literals() -> list[str]:
+    sdk_root = ROOT / "packages" / "sdk"
+    if str(sdk_root) not in sys.path:
+        sys.path.insert(0, str(sdk_root))
+    from ashr_clone.saas import _operation_route
+
+    routes: list[str] = []
+    for operation, payload in PYTHON_ROUTE_EXAMPLES.items():
+        _method, path = _operation_route(operation, payload)
+        normalized = path.replace("project_contract", "{project_id}").replace("run_contract", "{run_id}").replace("key_contract", "{key_id}").replace("job_contract", "{job_id}")
+        routes.append(normalized)
+    return sorted_unique(routes)
+
+
+def canonical_hosted_routes(routes: list[str]) -> set[str]:
+    canonical: set[str] = set()
+    for route in routes:
+        value_index = 0
+
+        def replace_value(_: re.Match[str]) -> str:
+            nonlocal value_index
+            replacements = ["{project_id}", "{run_id}", "{key_id}", "{job_id}"]
+            replacement = replacements[value_index] if value_index < len(replacements) else "{value}"
+            value_index += 1
+            return replacement
+
+        canonical.add(re.sub(r"\{value\}", replace_value, route))
+    return canonical
+
+
 def status_from_sets(left: set[str], right: set[str]) -> str:
     if left == right:
         return "parity"
@@ -162,7 +226,7 @@ def generate_matrix() -> dict[str, Any]:
     py_calibrate_flags = python_cli_flags(py_pkg / "calibrate.py")
     ts_commands = ts_command_surfaces(ts_src)
 
-    py_routes = route_literals(py_pkg / "saas.py")
+    py_routes = python_hosted_route_literals()
     ts_routes = route_literals(ts_src / "saas.ts")
 
     py_media = {
@@ -182,6 +246,9 @@ def generate_matrix() -> dict[str, Any]:
     ts_command_set = {command for commands in ts_commands.values() for command in commands}
     py_route_set = set(py_routes)
     ts_route_set = set(ts_routes)
+    py_hosted_route_set = canonical_hosted_routes(py_routes)
+    ts_hosted_route_set = canonical_hosted_routes(ts_routes)
+    required_route_set = set(REQUIRED_HOSTED_ROUTE_LITERALS)
     ts_calibration_exports = set(ts_symbols_by_module.get("calibrate", []))
     ts_calibration_contract = {
         "barrel_module_exported": "calibrate" in ts_modules,
@@ -233,11 +300,14 @@ def generate_matrix() -> dict[str, Any]:
                 "typescript_only_saas_command_names": sorted(ts_command_set - py_command_set),
             },
             "routes": {
+                "required_hosted_route_literals": REQUIRED_HOSTED_ROUTE_LITERALS,
                 "python_saas_route_literals": py_routes,
                 "typescript_saas_route_literals": ts_routes,
                 "shared_route_literals": sorted(py_route_set & ts_route_set),
                 "python_only_route_literals": sorted(py_route_set - ts_route_set),
                 "typescript_only_route_literals": sorted(ts_route_set - py_route_set),
+                "missing_required_python_hosted_routes": sorted(required_route_set - py_hosted_route_set),
+                "missing_required_typescript_hosted_routes": sorted(required_route_set - ts_hosted_route_set),
             },
             "media": {
                 "required_modalities": MEDIA_MODALITIES,
@@ -291,6 +361,9 @@ def generate_matrix() -> dict[str, Any]:
                 "python_leads": sorted(py_route_set - ts_route_set),
                 "typescript_leads": sorted(ts_route_set - py_route_set),
                 "shared": sorted(py_route_set & ts_route_set),
+                "required_hosted_route_literals": REQUIRED_HOSTED_ROUTE_LITERALS,
+                "missing_required_python_hosted_routes": sorted(required_route_set - py_hosted_route_set),
+                "missing_required_typescript_hosted_routes": sorted(required_route_set - ts_hosted_route_set),
                 "evidence": ["packages/sdk/ashr_clone/saas.py", "packages/ts/ashr-clone/src/saas.ts"],
             },
             {

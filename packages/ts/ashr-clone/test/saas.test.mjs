@@ -335,6 +335,54 @@ test("TS SaaS ingestion client can call baseUrl JSON transport", async () => {
   }
 });
 
+test("TS SaaS HTTP client sends Bearer API key auth for protected ingestion routes", async () => {
+  const { createServer } = await import("node:http");
+  const service = new SaaSControlPlaneService();
+  service.bootstrapProject({ tenantName: "Tenant", projectName: "Project", tenantId: "tenant_ts_bearer", projectId: "project_ts_bearer" });
+  service.cloud.createDataset("tenant_ts_bearer", "project_ts_bearer", { datasetId: "dataset_ts_bearer", name: "Dataset", cases: [{ id: "case-1" }] });
+  const created = service.createApiKey("tenant_ts_bearer", "project_ts_bearer", { name: "bearer", scopes: ["sdk:submit", "run:upload", "trace:ingest", "artifact:write", "usage:read", "evidence:read"], keyId: "key_ts_bearer", revealSecret: true });
+  const secret = created.one_time_secret;
+  const router = new SaaSControlPlaneRouter(service);
+  const seen = [];
+
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => { raw += chunk; });
+    req.on("end", () => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      const body = raw ? JSON.parse(raw) : Object.fromEntries(url.searchParams.entries());
+      seen.push({ method: req.method, path: url.pathname, authorization: req.headers.authorization, body });
+      const routed = router.handle(req.method ?? "GET", url.pathname, body, { headers: req.headers });
+      res.statusCode = routed.status_code;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify(routed.body));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    const client = SaaSIngestionClient.forBaseUrl(`http://127.0.0.1:${address.port}`);
+    await client.sdkSubmitHttp("tenant_ts_bearer", "project_ts_bearer", { dataset_id: "dataset_ts_bearer", agent_ref: "mock", run_id: "run_ts_bearer", bearerApiKey: secret });
+    await client.uploadRunHttp("tenant_ts_bearer", "project_ts_bearer", "run_ts_bearer", { status: "completed", api_key: "tp_should_not_leak" }, { upload_id: "upload_ts_bearer", bearerApiKey: secret });
+    await client.ingestTraceHttp("tenant_ts_bearer", "project_ts_bearer", "run_ts_bearer", [{ observation_id: "obs_ts_bearer" }], { batch_id: "trace_ts_bearer", bearerApiKey: secret });
+    await client.createArtifactManifestHttp("tenant_ts_bearer", "project_ts_bearer", "run_ts_bearer", { files: [{ name: "trace.json", authorization: "Bearer should-redact" }] }, { artifactId: "artifact_ts_bearer", bearerApiKey: secret });
+    const listed = await client.listArtifactManifestsHttp("tenant_ts_bearer", "project_ts_bearer", "run_ts_bearer", { bearerApiKey: secret });
+    const usage = await client.usageHttp("tenant_ts_bearer", "project_ts_bearer", { bearerApiKey: secret });
+    const quota = await client.quotaSnapshotHttp("tenant_ts_bearer", "project_ts_bearer", { bearerApiKey: secret });
+
+    assert.equal(listed.result.artifact_manifests.length, 1);
+    assert.equal(usage.result.totals["trace.ingest"], 1);
+    assert.equal(quota.result.totals["artifact.manifest"], 1);
+    assert.equal(seen.every((call) => call.authorization === `Bearer ${secret}`), true);
+    assert.equal(seen.every((call) => call.body.api_key_id === undefined && call.body.auth_key_id === undefined), true);
+    assert.equal(JSON.stringify([listed, usage, quota]).includes(secret), false);
+    assert.equal(JSON.stringify([listed, usage, quota]).includes("tp_should_not_leak"), false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 
 test("TS SaaS artifact manifests and usage parity are redacted and idempotent", () => {
   const service = new SaaSControlPlaneService();
@@ -580,8 +628,22 @@ test("TS SaaS CLI covers API key reveal verify and rate-limit parity", async () 
     assert.equal(snapshot.result.rate_limits[0].key_id, "key_ts_cli");
     assert.equal(snapshot.result.rate_limits[0].remaining, 3);
 
-    const persisted = JSON.parse(await readFile(stateAfterRate, "utf8"));
+    const stateAfterRevoke = join(tempDir, "state-revoke.json");
+    const revoked = runSaasCli([
+      "--state-input", stateAfterRate,
+      "--state-output", stateAfterRevoke,
+      "api-key-revoke",
+      "--tenant-id", "tenant_ts_cli",
+      "--project-id", "project_ts_cli",
+      "--key-id", "key_ts_cli",
+    ]);
+    assert.equal(revoked.operation, "revoke_api_key");
+    assert.equal(revoked.result.status, "revoked");
+    assert.equal(revoked.result.secret_value_present, false);
+
+    const persisted = JSON.parse(await readFile(stateAfterRevoke, "utf8"));
     assert.equal(Object.keys(persisted.control_plane.api_key_rate_limits).length, 1);
+    assert.equal(persisted.control_plane.api_keys.key_ts_cli.status, "revoked");
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

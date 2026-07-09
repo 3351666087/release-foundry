@@ -1,3 +1,58 @@
+## Round42 commercial SaaS backend growth - 2026-07-09T23:55:00Z
+
+Baseline:
+- Started after PR #27 CL was green on head `9891881`: Plan/hygiene, Go, Python A1/A2, TypeScript, and CL summary passed; A3/Rust skipped by gate policy.
+- A2/A3 fixture exception was closed; this round returned to A1-owned commercial backend/SDK/infra scope.
+- Growth-Auditor verdict: A1 is a strong local-commercial foundation but not money-grade SaaS; next spine should be Go/Postgres/OpenAPI/object storage/billing provider paths.
+
+Implemented:
+- Added Go `WorkerDaemon` library loop for bounded lease/handle/complete/fail with optional heartbeat and public-safe failure conversion.
+- Added memory-service worker audit-chain events for enqueue, lease, heartbeat, complete, and fail so worker mutations are enterprise-auditable in local and Go contract tests.
+- Expanded self-host Docker commercial profile with API/worker/daemon profiles, Postgres/Redis/MinIO wiring, MinIO bucket bootstrap, healthchecks, and secret-ref-only env example.
+- Added payment/OAuth commercial safety surfaces in the Python control plane and SDK: GitHub/Google OAuth provider refs, OAuth sessions, commercial provider configs, Stripe test/live mode boundary evidence, and commercial auth/payment snapshot route.
+- Added TS commercial control-plane evidence kit and exported it from the TS SDK barrel.
+- Closed a TS CLI parity gap by exposing `api-key-revoke` in the TS SaaS CLI and HTTP client; refreshed `tests/a1/docs/a1/ts_python_gap_matrix.json` so Python-only SaaS CLI commands are now empty.
+
+Validation:
+- `gh pr checks 27 --watch=false` before this round -> CL green.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `go test ./...` from `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 342 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 406 passed, 1 skipped.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> 26 passed, 1 skipped.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed.
+
+Safety and evidence:
+- No desktop key file was read; no raw API key/provider secret/card data was written.
+- No real Ashr API call was made in this implementation slice; Round39 paid-media quota/API gate remains the latest mutating calibration evidence, so next paid API work should first run a fresh quota/usage gate or a bounded read-only batch.
+- Live Stripe/real card/merchant/OAuth account actions remain human-confirmed steps; code currently records safety contracts and ref-only configuration.
+
+Next top A1 growth points:
+1. Wire Go `WorkerDaemon` into a CLI/process entrypoint and self-host daemon command.
+2. Promote Go/Postgres as canonical API backend for commercial auth/payment and worker daemon paths.
+3. Add object storage upload-url/complete/read contract backed by MinIO/S3 refs.
+4. Add SQL RLS/audit trigger coverage for OAuth/payment/provider config and worker daemon mutations.
+5. Run purposeful official Ashr read-only small-batch plus fresh quota-gated mutating probe only after gate record is reviewed.
+## Round41 CL fixture unblock - 2026-07-09T23:10:00Z
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner-clean` / PR #27 after commit `8164156` pushed.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed peer movement on `origin/codex/a3-commercial-growth-round4`; PR #27 still targets `codex/a1-local-sdk-runner`.
+- CI failure root cause was A2 generated fixture drift after A1 real API evidence index label/count updates in Round40, not judge semantic drift.
+- WSL/bash check during this round returned `/bin/bash` missing from the current WSL relay; treat Linux shell availability as an environment item to revisit before daemon/container work.
+
+Implemented:
+- Ran `python scripts/a2_regenerate_fixtures.py --write` as a CL unblock exception and refreshed the generated A2 fixture snapshot set under `fixtures/a2`.
+- No secret files were read; no Ashr API call was made in this CI-unblock slice.
+
+Validation:
+- `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> 52 passed.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> 1 passed.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Next:
+- Commit/push the fixture unblock, watch PR #27 checks, then return to A1 large-SaaS growth: Go runtime daemon, SQL/RLS quota ledger, TS parity, provider webhook/OAuth/login scaffolds, object storage bundle persistence, and purposeful official API calibration.
 # A1 Worklog
 
 ## 2026-07-09 - Go ingress auth handle enforcement and TS/Python parity gate
@@ -195,3 +250,1343 @@ Real API calibration addendum:
 - Public summary: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; modalities `[]`.
 - Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_ts316_go_key_quota_readonly_20260709_131208.json`.
 - Raw key remained env-only; no desktop key file was read.
+
+## 2026-07-09 - Worker-Evidence-API public-safe WSL/API evidence
+
+Round goal:
+- Record public-safe evidence that `Ubuntu-24.04-Ashr` is installed at `D:\WSL\Ubuntu-24.04-Ashr` and can run Bash.
+- Run one purposeful official Ashr API read-only small-batch calibration using environment auth only, if available.
+- Inspect the current official API readiness packet and propose next code tasks for API parity.
+
+Implemented / integrated files:
+- `docs/a1/evidence/round21_worker_evidence_api.md`
+- `docs/a1/worklog.md`
+
+Validation / command results:
+- `Test-Path -LiteralPath 'D:\WSL\Ubuntu-24.04-Ashr'` -> `True`.
+- `wsl.exe --list --verbose` -> `Ubuntu-24.04-Ashr` present as a WSL2 distro; initially stopped, then launched for verification.
+- `wsl.exe -d Ubuntu-24.04-Ashr -- bash -lc 'echo shell=$SHELL; bash --version | sed -n "1p"; uname -srm; pwd'` -> `/bin/bash`, GNU Bash `5.2.21(1)-release`, WSL2 kernel `6.18.33.2-microsoft-standard-WSL2 x86_64`, cwd `/mnt/c/Users/33516/Documents/Ashr`.
+- Environment presence check showed `ASHR_API_KEY=true`, `ASHR_LABS_API_KEY=false`, `ASHR_LABS_BASE_URL=false`; no values were printed.
+- Official read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`.
+- Official read-only result: status `ok`; read steps `5`; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls `7`; modalities `[]`.
+- Public-safe response key summary observed: `init` -> `features,notes,status,tenant,user`; `health-check` -> `db,message,status`; `list-agents` -> `_user,agents,status`; `list-datasets` -> `_user,datasets,next_cursor,status`; `list-requests` -> `_user,next_cursor,requests,status`.
+
+Private evidence:
+- Manifest: `docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`.
+- Observed manifest size: 5,547 bytes.
+- Per-step private records referenced by the manifest remain under ignored `docs/evidence/private_refs/`.
+- No desktop key file was read; raw key material and raw official API payloads were not copied into public docs.
+
+Readiness packet findings / next code tasks:
+1. Add a public-safe summary builder for private official API manifests so future A1 notes are reproducible without hand extraction.
+2. Add read-only usage/quota/error-shape probing when hosted endpoints are available, with private output and public key/status summaries only.
+3. Add quota-gate freshness verification for `create-request-text` before any mutating official calibration is allowed.
+4. Add a tiny text mutation readiness test path requiring `--include-mutating`, explicit `--modality text`, zero retries, a private output sink, and a fresh quota-gate record.
+5. Expand paid media calibration one modality at a time after reviewed text mutation evidence: image, audio, file, then video.
+6. Add local parity stubs/tests for hosted API-key lifecycle, usage ledger, trace ingestion, artifact upload, release evidence, and webhooks.
+7. Add public-safety regression scanning for raw payload/auth/key markers in generated A1 public docs while allowing private path references.
+
+## 2026-07-09 - A1 Go/Python/TS audit and release evidence parity
+
+Round goal:
+- Close the A1 commercial control-plane gap for audit-log listing and release evidence packet build/verify across Go backend, Python SDK/CLI, TS/Python parity evidence, and route snapshots.
+- Keep official Ashr API usage env-only and record WSL-on-D evidence for future bash/Docker work.
+
+Implemented / integrated files:
+- packages/go/ashrclone/auth.go: added evidence:read scope.
+- packages/go/ashrclone/types.go: added audit-log list and release evidence packet/verification DTOs.
+- packages/go/ashrclone/service.go: added audit event recording/listing, packet build/verify, stable JSON packet hashing, and filter helpers.
+- packages/go/ashrclone/postgres.go: added Postgres audit-log listing and release packet build/verify over durable run/upload/trace/artifact/audit tables.
+- packages/go/ashrclone/server.go: added GET /audit-log, GET /runs/{run_id}/release-evidence, POST /runs/{run_id}/release-evidence/verify, scope preflights, and manifest routes.
+- packages/go/ashrclone/service_test.go and packages/go/ashrclone/server_test.go: added audit filtering, release evidence roundtrip/tamper, manifest, and scoped evidence rejection coverage.
+- packages/sdk/ashr_clone/saas.py and packages/sdk/ashr_clone/saas_cli.py: added Python `audit_log` hosted route/CLI parity and release verify aliasing.
+- `tests/a1/test_saas_sdk_client.py`, `tests/a1/test_ts_python_gap_matrix.py`, `tests/a1/ts_python_parity_matrix.py`, `tests/a1/docs/a1/ts_python_gap_matrix.json`: refreshed required hosted-route parity.
+- docs/a1/evidence/go_python_ts_route_parity_snapshot.json: refreshed public-safe route evidence after Go audit/release routes landed.
+- docs/a1/evidence/round21_worker_evidence_api.md: recorded D-drive Ubuntu WSL and official read-only API calibration evidence.
+
+Validation / command results:
+- go test ./... in packages/go/ashrclone -> passed.
+- go test ./... in tests/integration/go -> passed.
+- npm test in packages/ts/ashr-clone -> passed, 316 tests.
+- python -B tests/a1/ts_python_parity_matrix.py --check -> passed.
+- python -B -m pytest tests/a1 -q -p no:cacheprovider -> passed, 314 tests.
+- docker compose -f services/runner/docker-compose.a1.yml config -> passed.
+- docker compose -f infra/docker/docker-compose.self-host.yml config -> passed.
+- wsl.exe -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; echo WSL_BASH_OK; pwd; command -v bash; bash --version | sed -n '1p'" -> passed; distro is mounted at workspace and Bash 5.2.21 is available.
+
+Official API / private evidence:
+- Read-only small-batch official calibration was run by Worker-Evidence-API with env-only auth: python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json.
+- Public-safe summary: status ok; read steps 5; mutating steps `0`; error steps `0`; quota blocks `0`; estimated calls 7.
+- Private evidence remains ignored under docs/evidence/private_refs/; no desktop key file was read and no raw official payload/key was copied to public docs.
+
+Peer changes / impact:
+- PR #22 latest pushed commit 9a217f4 had green CL Gate before this round and is BEHIND main.
+- Remote peer work observed: A3 PR #25 open, A3 PRs #23/#24 merged. Local A3 files still have unrelated line-ending noise and must remain excluded from A1 staging.
+
+Known gaps / next 20:
+1. Add Go GET /quota alias or intentionally document usage vs quota route vocabulary.
+2. Add Go GET /runs/{run_id}/lifecycle route parity or mark Go lifecycle intentionally SDK-only.
+3. Add generated Go route/scope manifest instead of a static route list.
+4. Add per-route insufficient-scope tests for audit-log, usage, artifact read, worker list, release evidence, and future quota/lifecycle.
+5. Add live-gated Postgres tests for release evidence packet build over durable tables.
+6. Add live-gated Postgres API-key secret hash persistence tests.
+7. Add live-gated SQL/RLS tenant-isolation tests for runs, artifacts, quota, audit, and worker jobs.
+8. Add migration checksum/version ledger.
+9. Add quota consume/refund helper tests across submit, upload, trace, artifact, release evidence, and worker operations.
+10. Add billing-grade quota rollup fixtures by tenant/project/key/operation/day.
+11. Add Docker live smoke for Go API + Postgres + worker daemon.
+12. Add Python SDK smoke against compiled Go server for API-key lifecycle, quota, worker, audit, and release evidence.
+13. Add TS generated client parity for any remaining Python-only public export or mark intentional gaps.
+14. Add official read-only usage/quota/error-shape probe summaries when hosted endpoints surface them.
+15. Prepare quota-gated text mutation calibration only after reviewed fresh quota gate, zero retries, and private evidence path.
+16. Expand paid media calibration one modality at a time after text mutation evidence: image, audio, file, video.
+17. Add public-safe manifest summarizer for private official API manifests.
+18. Add Rust verifier fixture coverage against Go release evidence packets.
+19. Add Terraform/self-host validation to A1 gate.
+20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.
+
+### 2026-07-09 A1 public-safe official API manifest summary
+
+- Added a public-safe private official API manifest summarizer in `packages/sdk/ashr_clone/calibrate.py`.
+- The summarizer reads only an explicitly provided/private ignored manifest path and emits redacted summary fields: status/counts, step statuses, response key names, top-level list counts, quota-block booleans, and guardrail booleans.
+- Generated tracked evidence artifact `docs/a1/evidence/official_api_readonly_manifest_summary.json` for the default private manifest path `docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json`; that ignored file is absent in this worktree, so the public artifact records `status: missing` with zero counts.
+- Added Python calibrator tests covering fake raw API keys, bearer strings, auth headers, request params, private record paths, and private payload bodies to ensure they do not leak into public summaries.
+- Validation: `python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider` -> passed, 32 tests.
+- No desktop key file was read. No official API calls were run in this summarizer subround.
+
+## 2026-07-09 - A1 release evidence verifier hardening and public API summary artifact
+
+Round goal:
+- Continue PR #27 on a clean `origin/main` base while keeping A1 scope tight.
+- Harden Go release evidence verification so submitted packets fail closed instead of accepting incomplete audit evidence.
+- Add a repeatable public-safe official API manifest summary helper/artifact that never copies private records or raw keys into tracked docs.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/service.go`: release evidence verification now requires core packet fields and `audit_verification.verified == true` before hash verification can pass.
+- `packages/go/ashrclone/service_test.go`: added negative coverage for missing `audit_verification`, false audit verification, missing `packet_sha256`, missing core fields, tampered scope with recomputed hash, and tampered content/hash mismatch.
+- `packages/sdk/ashr_clone/calibrate.py`: added public-safe official API private-manifest summarizer and writer helpers.
+- `tests/a1/test_python_calibrator.py`: added tests proving the public summary omits raw response bodies, request parameters, auth header names/values, raw key material, and private record locations.
+- `docs/a1/evidence/official_api_readonly_manifest_summary.json`: generated public-safe summary artifact. In the clean worktree the private manifest is absent, so the summary records `status=missing` with zero steps and no private values.
+- `docs/a1/worklog.md`: fixed previous PowerShell escape artifacts in path/test command evidence.
+
+Validation / command results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_python_calibrator.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> passed, 52 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `git diff --check` -> passed.
+- `python -c "from packages.sdk.ashr_clone.calibrate import write_public_official_api_manifest_summary; ..."` -> wrote `docs/a1/evidence/official_api_readonly_manifest_summary.json` with schema `ashr.clone.public_official_api_manifest_summary.v1`, `source_private_manifest_present=false`, and `status=missing`.
+
+PR / CI status:
+- PR #27 remains open/draft and cleanly scoped to A1 files. Existing CL Gate execution has Plan/Python/Go success with A3/TS/Rust skipped by selective plan; `CL Gate summary` is still queued on GitHub `ubuntu-latest` runner, not failed.
+
+Known gaps / next 20:
+1. Re-run public manifest summary in a workspace where the ignored private official API manifest exists and commit only the redacted summary artifact.
+2. Add CLI flag for writing the public official API manifest summary from `calibrate.py`.
+3. Add generated Go route/scope manifest instead of static route list.
+4. Add Go `GET /quota` alias or document usage/quota divergence.
+5. Add Go `GET /runs/{run_id}/lifecycle` route parity.
+6. Add Python SDK smoke against compiled Go server.
+7. Add live Postgres release evidence build/verify tests gated by `A1_POSTGRES_TEST_DSN`.
+8. Add Postgres API-key secret hash persistence tests.
+9. Add RLS tenant isolation tests for quota/audit/artifact/worker tables.
+10. Add migration checksum/version ledger.
+11. Add quota ledger entries for audit-log and release evidence reads if commercially billable.
+12. Add Rust verifier fixture coverage for Go release evidence packets.
+13. Add release evidence JSON schema fixture under A1 tests.
+14. Add audit-log pagination/cursor and exact action/API-key/request-id filters.
+15. Add per-route auth matrix tests for missing/wrong/revoked/scopeless keys.
+16. Add official read-only usage/quota/error-shape probe when hosted endpoints expose them.
+17. Prepare quota-gated paid text mutation calibration with zero retries.
+18. Expand paid media calibration one modality at a time: image, audio, file, video.
+19. Add Terraform/self-host validation to A1 gate.
+20. Convert A1 worklog/evidence entries into stricter release packet format with independent verifier result.
+
+Post-handoff verification addendum:
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 319 tests.
+- `npm install` in `packages/ts/ashr-clone` repaired the local clean-worktree TypeScript toolchain; no package metadata changed.
+- `npm test` in `packages/ts/ashr-clone` -> passed, 316 tests.
+- `docker compose -f services/runner/docker-compose.a1.yml config` -> passed.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config` -> passed.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider` -> passed, 20 tests.
+- `go test ./...` at repository root -> expected setup failure because repo root is not a Go module; reran in `packages/go/ashrclone` and passed.
+- `wsl.exe -d Ubuntu-24.04-Ashr -e /bin/bash -lc 'pwd; uname -a; echo bash-ok'` -> passed; D-drive Ubuntu WSL2 distro is available for future rounds.
+- `ASHR_API_KEY` is present in the process environment by length check only; no key value was read or written.
+
+## 2026-07-09 - A1 route/scope manifest, evidence scanner, and SQL tenant isolation hardening
+
+Round goal:
+- Continue the large SaaS A1 bus after pushing PR #27 head `10de02d`.
+- Push a multi-lane backend slice instead of a narrow runner-only change: Go API route/scope manifest, TS/Python client consumption, public evidence leak scanner, and SQL tenant isolation hardening.
+- Keep all official API material env-only/private; no desktop key file was read and no raw private refs were staged.
+
+Parallel growth points advanced:
+1. Go route/scope manifest exposed through `/openapi.json` and `/v1/openapi.json` with `manifest_schema_version=ashr.clone.go_route_scope_manifest.v1`.
+2. Go route metadata now includes method, path, route, operation, category, auth_required, scopes, and public_safe fields.
+3. Go manifest keeps legacy `routes` compatibility while adding structured `route_manifest` and scope projection.
+4. Go tests assert deterministic route ordering, no fixture IDs, public-safe metadata, and route-to-scope mappings.
+5. Python SDK SaaS layer added hosted route scope requirements and public-safe Go manifest consumption helpers.
+6. TS SDK SaaS layer added matching route scope requirements and Go manifest consumption helpers.
+7. TS added route-scope manifest tests and rejects private path consumption.
+8. Public route parity snapshot was refreshed so `audit-log` is shared by Python and TS instead of TS-only.
+9. A1 route contract tests now validate structured Go route/scope metadata and Python consumption assertions.
+10. Public evidence scanner added tracked-only scanning through `git ls-files`.
+11. Scanner detects raw key-looking values, bearer/header assignments, private key blocks, and raw-payload-included markers.
+12. Scanner explicitly excludes ignored `docs/evidence/private_refs/**` from public artifact checks.
+13. Historical public evidence prose with synthetic token-looking literals was redacted.
+14. SQL migration added `a1_current_organization_id()` based on `app.a1_organization_id` session setting.
+15. SQL migration enables and forces RLS across the A1 SaaS foundation tables.
+16. SQL migration adds replay-tolerant organization isolation policies for every declared table.
+17. DB migrator tests parse the migration and verify RLS/session-policy coverage for all declared tables.
+18. TS/Python parity matrix regenerated after route-scope consumption APIs landed.
+19. D-drive Ubuntu WSL2 remains available for future Bash/Linux validation.
+20. PR #27 CL after push showed Plan/hygiene pass, Go/Python pending on GitHub runner queue, and A3/TS/Rust skipped by selective plan at the time of snapshot.
+
+Changed files in this round:
+- `packages/go/ashrclone/server.go`
+- `packages/go/ashrclone/server_test.go`
+- `packages/sdk/ashr_clone/saas.py`
+- `packages/sdk/ashr_clone/evidence.py`
+- `packages/ts/ashr-clone/src/saas.ts`
+- `packages/ts/ashr-clone/test/route-scope-manifest.test.mjs`
+- `services/api/migrations/001_a1_large_saas_foundation.sql`
+- `tests/a1/test_go_python_route_contract_evidence.py`
+- `tests/a1/test_evidence_index.py`
+- `tests/a1/test_db_migrator.py`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`
+- `docs/a1/evidence/commands.md`
+- `docs/a1/evidence/round11_growth_auditor.md`
+
+Validation / command results:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> passed, 10 tests.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_evidence_index.py tests/a1/test_db_migrator.py -q -p no:cacheprovider` -> passed, 38 tests.
+- `npm test` in `packages/ts/ashr-clone` -> passed, 318 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` refreshed the TS/Python gap matrix.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> passed, 11 tests.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` initially failed only because the generated TS/Python matrix was stale; after refresh the targeted gap test passed. Full suite still needs rerun before commit.
+
+Real API / private evidence:
+- `ASHR_API_KEY` remains available by environment presence/length checks only.
+- No desktop key file was read, and no raw key or private hosted payload was written to code, docs, public evidence, or git diff.
+- This implementation slice did not make new official API calls; next API calibration should use a dry-run plan, small read-only/private evidence capture, then redacted summary regeneration.
+
+Next 20 A1 growth points:
+1. Rerun full A1 suite after matrix refresh and scanner additions.
+2. Run Docker compose A1/self-host config checks after SQL/RLS migration changes.
+3. Add Go `/v1/projects/{project_id}/quota` alias or converge Python/TS quota naming.
+4. Add Go `/runs/{run_id}/lifecycle` route parity or explicitly mark unsupported in route manifest.
+5. Add Go `/release-gate` route or route-manifest intentional gap for TS release gate.
+6. Add generated OpenAPI document from the route/scope manifest instead of static TS path mirrors.
+7. Add Python SDK smoke against compiled Go server for all route/scope manifest entries.
+8. Add TS SDK smoke against compiled Go server route/scope manifest entries.
+9. Add live Postgres RLS tests gated by `A1_POSTGRES_TEST_DSN`.
+10. Add migration checksum/version ledger and CI validation.
+11. Add SQL usage rollup views for route/scope categories and billable units.
+12. Add Go usage rollup worker for audit/evidence/trace/artifact operations.
+13. Add MinIO/S3/R2 artifact storage abstraction and manifest hash binding.
+14. Add Terraform skeleton validation for DB/object store/secret manager/service identity.
+15. Add Docker healthcheck smoke using the Go route/scope manifest.
+16. Add Rust verifier CLI that validates release evidence packet hashes independent of Go/Python/TS.
+17. Add official API read-only field drift detector into private evidence + public summary.
+18. Prepare quota-gated paid text calibration with zero retries and redacted public summary.
+19. Add media modality calibration evidence for image/audio/file/video with equal priority to text.
+20. Keep A2/A3 files out of A1 commits unless explicitly unblocking CL.
+
+Post-validation addendum:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 325 tests after TS/Python gap matrix refresh.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `docker compose -f services/runner/docker-compose.a1.yml config` -> passed from repo root.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config` -> passed from repo root.
+- `python -B -m pytest tests/a1/test_evidence_index.py -q -p no:cacheprovider` -> passed, 17 tests.
+- `git diff --check` -> passed.
+- Misrun note: `go test ./...` at repo root and repo-relative Docker/Python commands from `tests/integration/go` failed because those cwd values are not module/repo roots; each was rerun from the correct directory and passed.
+
+Lifecycle route-scope audit fix:
+- Bus-Auditor found `GET /v1/projects/{project_id}/runs/{run_id}/lifecycle` was shared by Python/TS hosted clients but absent from the new route-scope requirement maps.
+- Added lifecycle to Python and TS hosted route scope requirements with `run:read`.
+- Added a test that every Python/TS shared hosted route is declared in the route-scope manifest.
+- Re-ran `python -B tests/a1/ts_python_parity_matrix.py --write` after the route-scope API changed.
+- Validation: `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> passed, 12 tests.
+- Validation: `npm test --prefix packages/ts/ashr-clone` -> passed, 318 tests.
+- Validation: `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 326 tests.
+
+## Round24 A1 lifecycle/quota parity, route drift hardening, and real API read-only calibration - 2026-07-09
+
+Baseline / peer changes:
+- Repo root: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains `origin/codex/a1-local-sdk-runner` for PR #27.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` completed. PR #27 CL was green before this slice; A3 checks skipped by plan.
+- Peer changes observed on A2/A3 branches and open PR #28, with no A1-owned file impact in this slice. A2/A3 files stay out of this commit.
+- `docs/strategy/large-saas-a1-a2-a3-full-plan.md` was read at round start; current strategy still pushes A1 toward Go API gateway/worker, TS SDK/CLI parity, Python calibration/tooling, SQL/PLpgSQL tenant/RLS, Docker/YAML/Terraform infra, and Rust verifier/security later.
+
+Implemented A1 growth points:
+1. Go hosted API now exposes `GET /v1/projects/{project_id}/runs/{run_id}/lifecycle` with `run:lifecycle:read` scope.
+2. Go hosted API now exposes `GET /v1/projects/{project_id}/quota` as the quota/usage read alias.
+3. Go memory backend returns run lifecycle state without requiring Postgres.
+4. Go Postgres repository can read lifecycle and tenant/project-bound run status.
+5. Go hosted client `LifecycleHTTP` accepts optional auth-key options.
+6. Go server tests cover lifecycle and quota alias behavior.
+7. Python hosted route scope map includes shared quota route coverage.
+8. TS hosted route scope map and OpenAPI exposure include shared quota route coverage.
+9. Python route manifest validation now requires explicit unsupported-Go gap records for Go routes not consumed by hosted SDKs.
+10. TS route manifest validation now rejects missing or stale unsupported-Go gap records.
+11. Python and TS tests assert shared hosted routes cannot drift out of scope coverage silently.
+12. Public Go/Python/TS route parity snapshot was refreshed.
+13. TS/Python parity gap matrix was regenerated and checked after route-scope API changes.
+14. Python calibrator now supports `summarize-private-manifest` for public-safe summaries of ignored private API manifests.
+15. Python calibrator now supports `write-readiness-packet` for dry-run public readiness artifacts.
+16. Public readiness packet records next read-only calibration targets and guardrails without raw key material.
+17. Public official API summary was regenerated from a real read-only private manifest.
+18. SQL/RLS migration manifest hook declares required tables, key columns, indexes, RLS force/enable state, policies, and helper functions.
+19. Migration manifest tests verify the A1 large-SaaS foundation SQL shape without requiring a live DB.
+20. WSL `Ubuntu-24.04-Ashr` and Docker daemon availability were checked and recorded for future Linux/self-host validation.
+
+Real API / private evidence:
+- `ASHR_API_KEY` was confirmed by environment presence only; raw values were never printed, stored in tracked files, or read from desktop key files.
+- Read-only small batch command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json`.
+- Result: status `ok`, 5 read steps, 0 mutating steps, 0 errors, estimated 7 calls.
+- Private raw evidence path: `docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json` (ignored, not staged).
+- Public summary path: `docs/a1/evidence/official_api_readonly_manifest_summary.json`.
+- Public readiness path: `docs/a1/api_calibration/official_api_readiness_packet.json`.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 321 tests.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 336 tests.
+- Focused Python route/calibrator/migration/parity suite -> passed, 54 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Failures / notes:
+- One attempted `summarize-private-manifest --input-manifest ...` command used a stale flag name and failed before reading or writing data. It was rerun correctly with `--input` and passed.
+- `command -v go` inside WSL returned empty in this quick check, while Python 3 was present. Future Go-on-Linux validation should install or expose Go in `Ubuntu-24.04-Ashr` if required.
+- Live Postgres migration tests remain gated by `A1_POSTGRES_TEST_DSN` / `A1_PSQL_BIN` and are not required by default.
+
+Next 20 A1 growth points:
+1. Install/validate Go inside `Ubuntu-24.04-Ashr` and run Go tests under WSL for Linux parity.
+2. Add Docker Compose smoke that boots Go API plus Postgres and runs route-scope health checks.
+3. Add live Postgres RLS validation with a local disposable container and `A1_POSTGRES_TEST_DSN`.
+4. Add Go API key lifecycle endpoints matching TS/Python SaaS capability surface.
+5. Add Go trace ingestion endpoint with media-safe envelopes for text/audio/file/image/video equally.
+6. Add Go artifact upload/download manifest service with hash binding.
+7. Add Go worker lease/heartbeat/dead-letter routes to match TS local control-plane parity.
+8. Add Go release evidence verification route or explicit planned gap with owner/action.
+9. Generate an OpenAPI artifact from the Go route-scope manifest and consume it in TS tests.
+10. Add TS generated client smoke from the OpenAPI artifact.
+11. Add Python generated client or route smoke against the same OpenAPI artifact.
+12. Promote official API read-only calibration into a repeatable public summary index merge without leaking private payloads.
+13. Prepare quota-gated text-only mutating official API calibration with dry-run plan, reviewed gate, and private output.
+14. Add paid media calibration gates for image/audio/file/video after text mutation proves safe.
+15. Add quota ledger rollup SQL view and Go repository method.
+16. Add audit-chain tail verification across Go/Python/TS fixtures.
+17. Add Terraform/HCL skeleton for Postgres/object storage/secret manager with static validation.
+18. Add Rust verifier CLI for release evidence packet hashes and bind it into CI when touched.
+19. Add self-host startup README that uses WSL/Docker paths and fresh setup commands.
+20. Keep A1 commits scoped to A1-owned dirs and continue monitoring peer A2/A3 PRs without staging them.
+
+Growth-Auditor follow-up:
+- Auditor found lifecycle scope drift: Go required `run:lifecycle:read` while Python/TS still declared `run:read`.
+- Fixed by aligning Python and TS hosted route scope requirements to `run:lifecycle:read`.
+- Added `test_shared_go_python_hosted_routes_have_matching_scope_values` so shared Go/Python hosted route scope values cannot drift silently again.
+- Auditor found stale README language saying the public official API summary was `missing`; updated README to match the real read-only private manifest summary (`status=ok`, 5 reads, 7 estimated calls, 0 errors).
+
+## Round25 WSL self-host Go readiness kickoff - 2026-07-09
+
+Baseline continuation:
+- PR #27 head `ad194e48ca58aef640a4420368ca9bbf9e8017f4` has Plan/hygiene, Go, Python, and TS checks passing; A3/Rust are skipped by plan; CL summary remains queued on GitHub with no failure logs.
+- Worktree was clean at round start. Peer PR #28 remains A3-owned; no A1 impact staged.
+
+Main-thread self-host progress:
+- Verified `Ubuntu-24.04-Ashr` starts from WSL and enters the current repo path.
+- Installed Go in WSL via apt, resulting in `go version go1.22.2 linux/amd64`.
+- Ran `go test ./...` from `/mnt/c/Users/33516/Documents/Ashr_a1_clean_rebase/packages/go/ashrclone` under WSL; result passed.
+- This closes the previous WSL rough edge where Bash was available but Go was not, and gives A1 a Linux/self-host validation lane for the Go backend.
+
+Parallel workers launched:
+1. Worker-GoRuntime: Go route/runtime/OpenAPI/usage evidence slice under `packages/go/ashrclone`.
+2. Worker-SQLQuota: SQL/RLS quota ledger/rollup manifest slice under `services/api/migrations`, `docs/a1/schemas`, and tests.
+3. Worker-TSParity: TS SDK quickstart/client parity slice under `packages/ts/ashr-clone`.
+4. Worker-APIEvidence: official API evidence workflow guard/index slice under Python SDK/evidence docs.
+
+Next integration checkpoint:
+- Wait for worker outputs, resolve conflicts, rerun Go/TS/Python/SQL focused tests, then full A1/CL hygiene before commit.
+
+Round25 integrated results:
+- Go runtime added `route_scope_docs` under the OpenAPI payload for usage/quota, lifecycle, and audit route families, including public plan-limit references for graded scenarios, observations, voice minutes, and projects.
+- SQL foundation added quota meter dimensions (`runs`, `observations`, `media`, `voice_minutes`, `projects`, `storage_bytes`), `usage_rollups`, tenant/project-scoped idempotency references, rollup trigger contracts, and quota-policy audit trigger contracts.
+- TS quickstart parity now reports dataset/run/submit-facing summary data, expected-vs-actual, tool calls, replay availability, and optional hosted SDK submission metadata; wrong expected tool calls now fail grading.
+- API evidence readiness packet now emits `private_manifest_summary` and `private_manifest_claim_guard`, preventing public docs from claiming missing private evidence when the public-safe summary says it is present.
+- WSL/Linux self-host lane now has Go installed and Go package tests passing under Ubuntu.
+
+Round25 validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 322 tests.
+- SQL/self-host focused pytest -> passed, 18 tests; 2 live DB tests skipped by env gate.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` refreshed the matrix after TS export growth.
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 340 tests.
+- Docker compose configs for A1 and self-host -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed with zero findings.
+- `git diff --check` -> passed with CRLF warnings only.
+
+Round25 next 20 A1 growth points:
+1. Run live Postgres migration/RLS tests with a disposable Docker Postgres and `A1_POSTGRES_TEST_DSN`.
+2. Promote Go `route_scope_docs` into a generated JSON artifact consumed by TS/Python parity tests.
+3. Add runtime quota enforcement in Go backed by SQL `usage_rollups`.
+4. Add Go API key lifecycle routes to match TS/Python commercial control plane coverage.
+5. Add Go trace ingestion route support for equal text/audio/file/image/video envelopes.
+6. Add Go artifact storage abstraction with hash-bound manifest persistence.
+7. Add Go worker job lease/heartbeat/dead-letter parity to the hosted HTTP surface if still incomplete.
+8. Add OpenAPI diff guard that fails when route scopes change without TS/Python updates.
+9. Wire TS quickstart hosted submitter to SaaSIngestionClient in a dependency-safe package split.
+10. Add TS VM stream replay frames to quickstart summary instead of `vm_stream_count: 0`.
+11. Add Python quickstart parity summary matching the new TS dataset/run/submit/tool-call shape.
+12. Add official API read-only batch index merge for repeated private manifests.
+13. Prepare quota-gated text-only mutating official API calibration with explicit gate record.
+14. Add equal paid-media calibration plans for image/audio/file/video after text mutation proves safe.
+15. Add Terraform skeleton validation for Postgres/object store/secret manager/service identity.
+16. Add Rust verifier CLI for release-evidence packet hashes and audit-chain tail.
+17. Add self-host Makefile or PowerShell entrypoint that boots compose and runs health checks.
+18. Add customer-facing route/scope/plan-limit proof note under docs/a1.
+19. Add staging guard test that fails if `docs/evidence/private_refs` ever appears in staged paths.
+20. Keep A2/A3 peer branches monitored, but do not stage their files unless unblocking CL by explicit instruction.
+
+## Round26 route docs, quota enforcement, live Postgres, mutating media calibration - 2026-07-09
+
+Baseline and peer changes:
+- Worktree: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains PR #27 branch `codex/a1-local-sdk-runner`.
+- Fetched all remote heads and tags. Peer movement observed: `origin/codex/a3-commercial-growth-round4` advanced and `origin/dev/g3-a2-calibration` advanced. No A2/A3 files were staged for this A1 commit.
+- PR #27 remains open against `main`; PR #28 remains A3-owned.
+
+Parallel workers and integration:
+- Worker-RouteArtifact created checked-in public `docs/a1/evidence/go_route_scope_docs.json`, schema `docs/a1/schemas/go_route_scope_docs.schema.json`, Go artifact drift/public-safety tests, and Python evidence checks.
+- Worker-GoQuota added in-memory Go quota enforcement for `sdk.submit`, `run.upload`, `trace.ingest`, and `artifact.manifest`, including idempotency replay and tenant/project scoping tests.
+- Worker-TSPythonConsumption added Python and TypeScript consumers for legacy snapshots, Go OpenAPI `paths`, and future artifact wrappers carrying `route_scope_docs`.
+- Main thread integrated worker outputs, removed public artifact wording that looked like raw request payload capture, and closed all workers.
+
+Implemented this round:
+- Promoted Go route scope docs into a public-safe artifact and JSON schema that TS/Python can consume without invoking Go.
+- Added route-family and plan-limit validation in Python and TypeScript for `usage_quota`, `run_lifecycle`, and `audit` families.
+- Added Go runtime quota enforcement aligned to SaaS writes and protected idempotent replay from double metering.
+- Fixed live Postgres test helper so Docker-container `psql` supports `check=False`, then proved migration/helper/idempotency behavior in a disposable `postgres:16-alpine` container.
+- Renamed the live migration period check constraint to avoid duplicate constraint-name collisions in real Postgres.
+- Removed UTF-8 BOMs from the SQL migration and live integration test after Growth-Auditor flagged Linux/psql portability risk.
+- Ran real official API calibration using env-only `ASHR_API_KEY`: read-only small batch succeeded, then mutating all-modality and per-media small batches reached official `create_request` boundaries and returned quota-blocked partial manifests.
+- Added public-safe mutating evidence index at `docs/a1/evidence/official_api_mutating_calibration_index.json`, covering text/image/audio/file/video without raw payloads or key material.
+- Added Python test coverage for the public mutating index.
+
+Official API evidence:
+- Read-only private manifest: `docs/evidence/private_refs/a1_official_api_readonly_20260709_172042.json` (`status=ok`, 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls).
+- Mutating dry-run plan: `docs/evidence/private_refs/a1_official_api_mutating_all_modalities_dryrun_20260709_172241.json` (`status=planned`, 5 mutating modalities, estimated 17 calls).
+- Mutating all-modality private manifest: `docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json` (`status=partial`, `create-request-text`, `quota_block_count=1`).
+- Per-media private manifests: `a1_official_api_mutating_image_20260709_172407.json`, `a1_official_api_mutating_audio_20260709_172414.json`, `a1_official_api_mutating_file_20260709_172421.json`, and `a1_official_api_mutating_video_20260709_172428.json`; each reached one official mutating attempt and recorded quota-blocked partial status.
+- Public summaries: `docs/a1/evidence/official_api_readonly_manifest_summary.json`, `docs/a1/api_calibration/official_api_readiness_packet.json`, and `docs/a1/evidence/official_api_mutating_calibration_index.json`.
+- Raw private manifests and quota gates remain ignored under `docs/evidence/private_refs/`; no raw key values were printed, stored in tracked files, or staged.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 325 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` and `--check` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 347 tests.
+- `python -B -m pytest tests/a1/test_python_calibrator.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py -q -p no:cacheprovider` -> passed, 50 tests.
+- Disposable Docker Postgres live proof with `A1_POSTGRES_TEST_DSN=docker://ashr-a1-live-pg` and `A1_PSQL_DOCKER_CONTAINER=ashr-a1-live-pg` -> passed, 2 tests.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` and `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed with zero findings.
+- `git diff --check` -> no whitespace errors; CRLF normalization warnings only.
+- WSL `Ubuntu-24.04-Ashr` and Docker daemon verified usable: Bash, Go 1.22.2, Python 3.12.3, Docker server 29.6.1.
+
+Growth-Auditor follow-up:
+- Auditor said evidence was pushable if scoped precisely, but P1 risks remained: live Postgres proof must be attached, BOMs should be removed, Go quota is still in-memory only, SQL operation-to-meter mapping is not durable, and TS/Python route consumption is validation rather than generated-client replacement.
+- Main thread resolved the live proof and BOM P1s in this round. Remaining P1s are durable SQL quota enforcement, operation-to-meter mapping, generated SDK route maps, and structured live migration assertions.
+
+Round26 next 20 A1 growth points:
+1. Wire Go quota enforcement to durable Postgres `quota_policies`, `usage_ledger`, and `usage_rollups`.
+2. Add SQL operation-to-meter mapping for `sdk.submit -> runs`, `trace.ingest -> observations`, `run.upload -> media/voice_minutes`, and `artifact.manifest -> storage_bytes`.
+3. Add transactional SQL quota check plus ledger insert to prevent concurrent overspend.
+4. Add Go repository interfaces for quota policy read, usage append, and rollup readback.
+5. Add Postgres-backed Go service mode parallel to `MemoryService`.
+6. Add SQL hard-vs-soft quota policy tests and audit events for denied quota decisions.
+7. Add idempotency-aware SQL usage inserts so replays do not double-bill.
+8. Replace live migration stdout substring checks with structured JSON assertions.
+9. Add CI service-container job for live Postgres migration proof.
+10. Generate OpenAPI directly from Go route manifest and publish route docs hash.
+11. Generate Python/TS route-scope maps from the Go/OpenAPI artifact instead of hand-maintained maps.
+12. Add Go HTTP quota-exceeded tests for submit/upload/trace/artifact endpoints.
+13. Add shared public-safe quota error schema across Go, TS, and Python.
+14. Add official API quota/error fixture normalization from the new mutating partial manifests.
+15. Add per-modality paid media calibration retry policy that stops on first quota block but indexes response keys.
+16. Add API-key lifecycle official calibration plan and protected gate for create/revoke/verify/list.
+17. Add artifact manifest durable storage proof through Go API -> SQL -> SDK readback.
+18. Add trace ingestion durable storage proof through Go API -> SQL -> SDK readback.
+19. Add billing-grade invoice/export mock from usage rollups.
+20. Add A1 push gate script that runs Go, Python A1, TS package, compose, and optional live Docker proof with pass/skip matrix.
+
+## Round27 durable quota catalog + SDK evidence consumption - 2026-07-09
+
+Baseline:
+- Repo remains `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains PR #27 branch `codex/a1-local-sdk-runner`.
+- `gh pr checks 27` still showed Plan/hygiene queued for run `29008613785` at baseline, with no failure logs or steps.
+- Remote `origin/codex/a3-commercial-growth-round4` advanced again; A3 files were not staged.
+
+Implemented this round:
+- SQL durable quota grew from ledger-only proof to DB-native enforcement primitives: `operation_meter_mapping`, `current_quota_policy`, `check_quota_and_insert_usage`, advisory transaction lock, idempotency replay, and `quota.denied` audit event insertion.
+- `usage_ledger` now has an `operation` column and operation-period index so billing/debugging can distinguish SDK submit, trace ingest, artifact storage, and worker lifecycle operations.
+- Go added `quota.go` with operation catalog, canonical meter mapping, repository interfaces, and append event contracts.
+- Go public quota errors now expose `code`, `operation`, canonical `meter`, `unit`, `limit`, `used`, `requested`, `remaining`, and public message for API/SDK consumers.
+- Go Postgres repository gained quota usage append/readback readiness; MemoryService uses the same operation catalog.
+- Python and TypeScript SDKs now consume `official_api_mutating_calibration_index.json` via public-safe loaders and reject private evidence paths.
+- Added `docs/a1/schemas/official_api_mutating_calibration_index.schema.json` so official mutating text/image/audio/file/video evidence is schema-bound.
+- Growth-Auditor flagged SQL/Go meter vocabulary drift as P1. Main thread fixed it immediately: Go now uses SQL canonical meters (`runs`, `media`, `observations`, `storage_bytes`) and unknown operations no longer silently become meters.
+- Added cross-file static test that parses SQL `operation_meter_mapping` and Go `quota.go` so billing meter vocabulary cannot drift silently again.
+
+Official API evidence:
+- Refreshed read-only official API small batch with env-only `ASHR_API_KEY`: `docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json`, status `ok`, 5 read steps, 0 errors, estimated 7 calls.
+- Regenerated public-safe summary `docs/a1/evidence/official_api_readonly_manifest_summary.json` and readiness packet `docs/a1/api_calibration/official_api_readiness_packet.json`.
+- Existing mutating paid-media evidence remains represented by `docs/a1/evidence/official_api_mutating_calibration_index.json`; Python/TS now consume it as SDK contract.
+
+Validation:
+- `python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider` -> passed, 40 tests.
+- `npm run build --prefix packages/ts/ashr-clone` -> passed.
+- `node --test packages/ts/ashr-clone/test/route-scope-manifest.test.mjs` -> passed, 10 tests.
+- Focused SQL/schema/Python evidence suite -> passed, 82 tests before meter fix; focused migration manifest after meter fix -> passed, 10 tests.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- Disposable Docker Postgres live migration proof -> passed, 2 tests.
+- `npm test --prefix packages/ts/ashr-clone` -> passed, 327 tests.
+- `python -B tests/a1/ts_python_parity_matrix.py --write` and `--check` -> passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> passed, 354 tests.
+- Docker compose configs passed; `python scripts/cl_guard.py hygiene` passed with zero findings; `git diff --check` only produced CRLF normalization warnings.
+
+Growth-Auditor follow-up:
+- Resolved this round: SQL/Go meter vocabulary drift, untracked schema/Go quota files noted for commit inclusion.
+- Still open P1: Go Postgres repository does not yet call `check_quota_and_insert_usage`; durable mutating paths are not proven end-to-end; live Postgres does not yet assert allowed/denied/idempotent quota function behavior; official mutating evidence freshness/digest/provenance is not enforced by SDK loaders.
+
+Round27 next 20 A1 growth points:
+1. Wire Go Postgres mutating paths to SQL `check_quota_and_insert_usage`.
+2. Implement `PostgresRepository.ConfigureUsageQuota` against `quota_policies`.
+3. Add live Postgres tests for allowed quota usage insert.
+4. Add live Postgres tests for hard quota denial and `quota.denied` audit insertion.
+5. Add live Postgres tests for idempotent replay with same idempotency key.
+6. Add conflict guard for reused idempotency key with different operation/quantity/request digest.
+7. Add concurrency contention test with two transactions racing the same quota policy.
+8. Add durable end-to-end path: API key auth -> mutating operation -> SQL usage ledger -> quota denial -> audit log -> customer-safe 429.
+9. Add OpenAPI schema components for quota policy and quota error responses.
+10. Add admin API route for quota policy create/update/revoke.
+11. Add Python typed quota error object and parser.
+12. Add TS typed quota error object and parser.
+13. Add usage rollup reconciliation test from raw `usage_ledger` to `usage_rollups` to Go `UsageSnapshot`.
+14. Require nonzero artifact byte quantity when storage quota enforcement is enabled.
+15. Add official mutating evidence digest fields to the public index.
+16. Add freshness window validation for official mutating evidence loaders.
+17. Add release-gate rule that blocks stale/missing official mutating evidence by modality.
+18. Add billing export artifact from usage rollups.
+19. Add self-host push gate script wrapping Go/TS/Python/compose/live Postgres optional checks.
+20. Keep monitoring A2/A3 branches but stage only A1-owned files.
+
+
+## Round28 durable quota runtime wiring + paid media mutating proof - 2026-07-09T10:33:59Z
+
+Baseline:
+- Repo: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 target branch `codex/a1-local-sdk-runner`.
+- Fetched remote refs; peer change observed on `origin/dev/g3-a2-calibration`; no A2/A3 files staged.
+- PR #27 CL Gate run `29010797860` completed green. A3 checks were skipped by CL rules, not failing.
+
+Implemented:
+- Wired Go Postgres quota paths toward commercial SQL quota enforcement. `ConfigureUsageQuota` now persists quota policy into SaaS `quota_policies` when the commercial schema exists, otherwise falls back to lightweight `ashr_usage_quota_policies` for fresh local setup.
+- `appendPostgresUsageEvent` now first attempts the durable SaaS `check_quota_and_insert_usage` path for UUID tenant/project IDs, maps SQL denial to Go `QuotaExceededError`, then falls back to local quota policy plus `ashr_quota_ledger` when the SaaS migration is absent.
+- Added local Postgres quota policy schema and Go static wiring test for the 12-argument `check_quota_and_insert_usage` signature.
+- Fixed SQL PLpgSQL ambiguity in `check_quota_and_insert_usage` by qualifying `quota_policies.meter`.
+- Added live Docker Postgres proof for allowed usage, idempotent replay without double insert, quota-denied response, and `quota.denied` audit payload.
+- Updated public official mutating calibration index to include the new paid-media real attempt while keeping raw payloads and private response data under ignored private evidence.
+
+Official API evidence:
+- Real paid media mutating request was attempted with env-only `ASHR_API_KEY`, `--allow-mutate`, `--allow-media-generation`, and `--allow-non-text-inputs`.
+- Dry-run/plan evidence: `docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json`, status `blocked`.
+- Real private evidence: `docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json`, `function=create_request`, `status=error`, `status_code=200`, `attempts=1`, duration about 2969ms.
+- Public-safe observed result: official request quota blocked the write path with counters `limit=5`, `used=5`, `requested=1`, `remaining=0`. No raw response body or key material was copied to public files.
+- Public index updated: `docs/a1/evidence/official_api_mutating_calibration_index.json` remains public-safe and now accepts real `error` quota records in addition to older `partial` quota-blocked manifests.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- Disposable Docker Postgres live migration: `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `3 passed`.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- Focused official mutating schema/SDK tests -> `3 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> no errors; one CRLF normalization warning for the public mutating index JSON.
+
+Environment notes:
+- Docker daemon is usable and successfully ran `postgres:16-alpine` for live proof.
+- Windows `bash.exe` currently resolves to WSL/WindowsApps and failed with `/bin/bash` missing in this shell; Git Bash exists, but Codex `apply_patch` was not visible inside it. This did not block implementation or tests.
+
+Growth-Auditor result:
+- Auditor confirmed the main P1 was durable quota runtime wiring plus live proof. This round closes the practical Go/Postgres quota gate and live allowed/replay/deny/audit proof.
+- Remaining next P1/P2 growth: successful official mutating response after request quota reset/plan change, Go HTTP route for quota policy/readback, RLS tenant isolation live proof, generated OpenAPI route map, and invoice-ready usage rollup exports.
+
+Next 20 A1 growth points:
+1. Add Go HTTP endpoints for quota policy create/read and usage rollup readback.
+2. Add live Postgres RLS proof for tenant A/B isolation across usage/audit/quota tables.
+3. Add API key lifecycle durability in Postgres: hashed storage, revoke, scope denial, last-used, and audit.
+4. Add no-side-effect-after-quota-denial test for submit/upload/trace/artifact mutations.
+5. Add SQL usage rollup materialized view for invoice-ready runs/media/observations/storage.
+6. Add Go webhook delivery table and worker lifecycle for release/usage events.
+7. Add OpenAPI route generation from Go route manifest.
+8. Generate Python/TS clients from OpenAPI for quota and usage routes.
+9. Add TS parity for new quota HTTP routes immediately after Go route addition.
+10. Add Python SDK quota policy submit/read helpers.
+11. Add official API successful text mutation probe once request quota is reset or plan upgraded.
+12. Add official paid image/audio/file/video probes after a successful text mutation baseline.
+13. Add private evidence digest/freshness checks for official mutating manifests.
+14. Add public evidence packet for durable quota live Postgres proof.
+15. Add CI optional live Postgres service job guarded by env flag.
+16. Add self-host Docker compose profile for Go API plus Postgres plus worker.
+17. Add Terraform/HCL skeleton for managed Postgres plus worker service.
+18. Add Rust verifier hook for signed evidence bundle verification.
+19. Add Go artifact service durable storage readback and signed manifest hash.
+20. Add release gate integration that consumes durable usage/quota denial evidence.
+
+
+## Round29 usage quota route parity + paid media quota boundary - 2026-07-09T10:50:14Z
+
+Baseline:
+- Repo: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 head branch remains `codex/a1-local-sdk-runner`.
+- Fetched all remote branches and tags. PR #27 previous CL Gate run `29012107574` was green; A3/Rust jobs skipped by rule.
+- Peer movement noted from prior auditor on `origin/codex/a3-commercial-growth-round4`; no A2/A3 files staged.
+
+Implemented:
+- Added Go HTTP quota policy routes `POST /v1/projects/{project_id}/usage/quotas` and `POST /v1/projects/{project_id}/quota/limits`, routed through the existing usage read scope and `ConfigureUsageQuota`.
+- Updated Go route manifest and route scope docs so usage/quota readback and quota configuration appear in one `usage_quota` family.
+- Updated Python and TypeScript hosted route-scope requirements and validators for the new quota configure routes.
+- Added Go HTTP test proving quota configure route blocks a future mutation with `429 quota_exceeded` and preserves usage readback.
+- Regenerated Go route-scope docs and Go/Python/TS route parity evidence snapshots.
+
+Official API evidence:
+- Environment check observed an API key only by presence/length; no secret value was printed or stored.
+- Ran all-modality paid-media dry-run plan for text/image/audio/file/video; private dry-run: `docs/evidence/private_refs/a1_paid_media_all_modalities_dry_run_20260709_185014.json`; planned 17 estimated calls and 5 mutating modality steps.
+- Ran real small-batch paid-media mutating calibration with explicit audited quota override; private record: `docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json`.
+- Real execution completed 5 read steps and hit the official quota boundary at first text `create_request`; result `partial`, `quota_block_count=1`, `status_code=200`, error kind `api`, quota remaining present.
+- Public-safe summary written to `docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json`; index updated in `docs/a1/evidence/official_api_mutating_calibration_index.json`. No raw payloads, auth header values, request parameter values, or key material are present in public evidence.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> no whitespace errors; JSON line-ending normalization warnings only.
+
+Growth-Auditor follow-up:
+- P0 remains durable Postgres API key lifecycle plus protected Go HTTP auth/quota path.
+- Next commercial slice should implement durable hashed API keys, Postgres-backed preflight/rate-limit snapshot, restart durability proof, and route-level quota denial/readback/audit evidence.
+- P1 remains live RLS negative proof for tenant A/B isolation and official successful mutating evidence once hosted quota resets or plan changes.
+
+
+## Round30 durable Postgres API key lifecycle and preflight - 2026-07-09T11:06:30Z
+
+Baseline:
+- PR #27 commit `985f400` CL Gate completed green: Plan/hygiene, Go, Python, TS, and summary passed; A3/Rust jobs skipped by rule.
+- Growth-Auditor reviewed the commercial blockers and called out Postgres API key lifecycle, Postgres-backed preflight/rate-limit snapshot, route-level submit preflight, bearer-secret future parity, RLS live negative proof, and successful official mutation after quota reset.
+- No A2/A3 files were staged or modified for this slice.
+
+Implemented:
+- Replaced Go `PostgresRepository` API key placeholders with durable create/list/revoke/verify/preflight/rate-limit/snapshot methods.
+- API keys are generated as one-time local test secrets, persisted only as hashes plus prefixes, and returned through existing redacted `APIKeyRecord` envelopes.
+- UUID tenant/project/key IDs use the commercial `api_keys` table from `services/api` migration when present; non-UUID local handles use a new durable `ashr_api_keys` fallback table so local Go HTTP tests keep working without raw secrets.
+- Added durable `ashr_api_key_rate_limits` table and rate-limit consumption path. Mutating Postgres usage writes now update API key rate-limit counters and `last_used_at`, and reject overspend with public-safe `QuotaExceededError`.
+- `sdk-submit` Go HTTP route now runs server-level scope preflight before mutation while intentionally avoiding pre-mutation quota consumption so idempotent replays are not blocked or double-billed.
+- Added Go static contract tests preventing `notImplemented` regressions and pinning the submit preflight semantics.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+
+Official API evidence:
+- No new official mutating call was made in this sub-slice because Round29 already used the env-only key and proved the current hosted quota boundary at the first text write. Repeating paid media writes while quota is exhausted would only create duplicate failed evidence.
+- Next official API action remains: after quota reset or plan change, run a successful text mutation baseline, then image/audio/file/video paid media one modality at a time.
+
+Next 20 A1 growth points:
+1. Add live Docker Postgres proof for API key create/list/verify/revoke/preflight/rate-limit restart durability.
+2. Add Go HTTP server against Postgres live proof for protected submit, quota denial, usage readback, and audit readback.
+3. Add bearer auth scheme to Go HTTP without weakening current raw-secret rejection in local handle mode.
+4. Add TS/Python hosted client parity for bearer auth once Go route contract lands.
+5. Add RLS live negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log` under tenant A/B session settings.
+6. Add no-side-effect-after-denial tests for submit, upload, trace ingest, artifact manifest, and worker enqueue.
+7. Add concurrency test for simultaneous submit requests against the same quota policy.
+8. Add OpenAPI auth scheme and API key/rate-limit schemas generated from Go route manifest.
+9. Generate TS/Python API clients from the OpenAPI artifact for key and quota routes.
+10. Add SQL audit trigger or explicit audit event for API key revoke and rate-limit configure.
+11. Add usage rollup reconciliation from rate-limit usage to invoice-ready meter rows.
+12. Add self-host compose profile running Go API against Postgres repository, not memory service.
+13. Add migration test for the local fallback `ashr_api_keys` table and commercial `api_keys` parity.
+14. Add Go webhook delivery table/worker for key revoked/quota denied/release events.
+15. Add CLI command to bootstrap tenant/project/key and print one-time secret only once.
+16. Add evidence packet for durable auth/quota proof with no raw secrets.
+17. Add official readonly usage/quota endpoint probe if the hosted product exposes it.
+18. Add successful official mutating text baseline after quota reset.
+19. Add paid image/audio/file/video probes after text success, one modality per audited batch.
+20. Keep PR #27 draft until live Postgres HTTP/auth/quota evidence is present.
+
+
+## Round31 live Postgres API key proof - 2026-07-09T11:22:10Z
+
+Baseline:
+- Started from clean worktree after commit `4a68408b`; PR #27 CL Gate run `29014318715` completed green across Plan/hygiene, Go, Python, TypeScript, and summary. A3/Rust checks were skipped by rule.
+- Targeted Growth-Auditor P1: static durable API key implementation needed live Postgres proof.
+
+Implemented:
+- Added opt-in Go integration test `TestPostgresAPIKeyLifecycleLiveOptIn` under `tests/integration/go` gated by `A1_POSTGRES_TEST_DSN`.
+- The live test migrates a fresh Postgres repository, bootstraps tenant/project/dataset, creates a durable API key, lists redacted keys, verifies the one-time secret by hash, checks scope denial, configures a normalized `sdk_submit`/`sdk.submit` rate limit, submits a run, proves rate-limit denial after one mutation, reads snapshot usage, revokes the key, and proves revoked preflight denial.
+- Fixed API key rate-limit normalization so public route operation `sdk_submit` and durable mutation operation `sdk.submit` share the same Postgres counter.
+- Fixed local durable key fallback consumption so non-UUID key handles do not attempt UUID casts against the commercial `api_keys` table inside an active transaction.
+
+Live evidence:
+- Disposable Docker Postgres command started `postgres:16-alpine` on local port `55433` and set `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55433/ashr?sslmode=disable` for the test process only.
+- `go test ./... -run TestPostgresAPIKeyLifecycleLiveOptIn -count=1 -v` from `tests/integration/go` -> pass.
+- Container was removed after the test. No secrets or private official API payloads were involved.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "route|Go OpenAPI|route_scope"` -> `327 passed` because the current Node test runner still executes all package tests with this invocation.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+
+Known command note:
+- `go test ./...` from repo root is not a valid entrypoint because this repository contains multiple Go modules and no root `go.mod`; it reports `directory prefix . does not contain main module`. Correct Go validation is module-scoped.
+
+Next 20 A1 growth points:
+1. Add Go HTTP live test against Postgres repository, not just repository methods.
+2. Add bearer auth route contract with hashed secret verification and TS/Python parity.
+3. Add no-side-effect-after-denial proof for submit/upload/trace/artifact/worker routes.
+4. Add RLS tenant A/B live negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log`.
+5. Add restart durability proof that opens a second Postgres repository after key creation and still verifies/snapshots/revokes.
+6. Add explicit audit event for API key revoke and rate-limit configure.
+7. Add rate-limit concurrency test for simultaneous submit attempts.
+8. Add HTTP usage readback proving API key limit and usage quota denial share public-safe schema.
+9. Add OpenAPI bearer auth scheme and generated key/quota schemas.
+10. Add TS hosted client methods for Go key/rate-limit routes if missing.
+11. Add Python hosted client methods for Go key/rate-limit routes if missing.
+12. Add self-host compose profile running Go API plus Postgres and a smoke command.
+13. Add Terraform/HCL service skeleton for Go API plus managed Postgres.
+14. Add billing export from usage/rate-limit counters.
+15. Add webhook event for `api_key.revoked` and `quota.denied`.
+16. Add private evidence digest builder for live Postgres proof.
+17. Add release-gate blocker when durable auth proof is stale.
+18. Re-run official mutating text once quota resets.
+19. Run paid image/audio/file/video after successful text baseline.
+20. Keep monitoring peer branches and avoid A2/A3 staging.
+
+
+## Round32 live Postgres HTTP API key proof - 2026-07-09T11:33:20Z
+
+Implemented:
+- Extended the opt-in Go live Postgres test to start `httptest.NewServer(ashrclone.NewHTTPHandler(repository))` over a real migrated Postgres repository.
+- The HTTP live test now proves `POST /bootstrap`, API key create/verify/rate-limit routes, protected `sdk-submit`, `429 quota_exceeded` response schema after one submit, and revoke route all work through the Go HTTP boundary backed by Postgres.
+
+Live evidence:
+- Disposable Docker Postgres command started `postgres:16-alpine` on local port `55434`; `A1_POSTGRES_TEST_DSN` was set only for the test process.
+- `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> both repository and HTTP live tests passed.
+
+Validation:
+- `go test ./...` from `tests/integration/go` without DSN -> pass with live tests skipped.
+- Next before push: rerun Go package, Python A1, TS, compose, hygiene, and diff checks.
+
+## Round33 bearer auth and admin API-key hardening - 2026-07-09T20:10:00+08:00
+
+Baseline:
+- Started from clean A1 worktree `C:\Users\33516\Documents\Ashr_a1_clean_rebase` on `codex/a1-local-sdk-runner-clean`, tracking PR #27 head `f69bc667` before this round.
+- `gh pr checks 27 --watch=false`: CL Gate summary, Go SDK/integration, Python A1/A2 contracts, TypeScript SDK parity, and Plan/hygiene passed; A3/Rust skipped by path rules.
+- Peer updates observed on `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no A2/A3 files changed or staged in this worktree.
+- Docker Desktop daemon is usable (`docker version` returned client/server 29.6.1). `wsl -l -v` showed `docker-desktop` and `Ubuntu-24.04-Ashr` installed but stopped; direct Codex `/bin/bash` execution failed earlier in this round, so PowerShell remained the command shell.
+- Growth-Auditor read-only audit identified admin API-key route truthfulness as the highest-value next commercial hardening slice.
+- TS worker implemented Bearer secret support in `packages/ts/ashr-clone` and reported `npm test -- --runInBand` -> 328 passed plus Python parity subset -> 12 passed.
+
+Implemented:
+- Go HTTP now accepts standard `Authorization bearer header <one-time-secret>` for protected routes while continuing to reject raw `api_key` material in JSON bodies.
+- Bearer-only requests infer local generated key IDs from the one-time secret prefix, verify the stored hash, enforce route scope, and then run quota preflight before mutation.
+- API-key admin routes now require admin/read/preflight scopes after the first bootstrap admin key. The first unauthenticated API-key create is allowed only when the project has no keys and requested scopes include `api_key:write`.
+- Added Go scopes `api_key:write`, `api_key:read`, and `api_key:preflight`.
+- Added Go unit tests for Bearer submit, usage readback, invalid Authorization, key mismatch, wrong-scope denial, first-admin bootstrap, and admin-protected rate-limit/preflight paths.
+- Extended live Postgres HTTP proof to cover Bearer-only submit, quota denial, usage readback showing no extra side effect, admin Bearer rate-limit/revoke, and revoked Bearer denial.
+- TypeScript SDK now supports `bearerApiKey` / `apiKeySecret` for protected HTTP route calls and keeps raw secret material out of request bodies.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` without `A1_POSTGRES_TEST_DSN` -> pass.
+- Disposable Docker Postgres live proof on `127.0.0.1:55435`: `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> 20 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 328 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 354 passed.
+
+Official API calibration:
+- No new hosted mutating/paid media call was made in this sub-slice because Round29 already proved the current hosted quota boundary with env-only key at first text mutation. Next useful official action remains a successful text mutation baseline after quota reset/plan change, then image/audio/file/video paid probes in audited batches.
+
+Commercial agenda raised this round:
+1. Stripe test mode to live mode billing slice.
+2. GitHub OAuth and Google OAuth login.
+3. Real API key create/revoke/rate-limit/usage ledger hardening.
+4. Postgres persistence for real org/project/user/session.
+5. Object storage for real report/evidence bundles.
+6. Long-running worker daemon for real run/trace/artifact processing.
+
+Next 20 A1 growth points:
+1. Add admin-auth route manifest parity to Go OpenAPI and public route scope docs.
+2. Add Python hosted client Bearer secret support matching TS.
+3. Add CLI bootstrap command that prints first admin one-time secret only once.
+4. Add no-side-effect-after-denial proofs for upload, trace ingest, artifact manifest, and worker enqueue.
+5. Add restart durability proof: create admin key, close repo, reopen repo, verify/list/revoke.
+6. Add concurrent rate-limit race proof against Postgres.
+7. Add RLS tenant A/B negative proof for `api_keys`, `usage_ledger`, `quota_policies`, and `audit_log`.
+8. Add audit events for API key create/revoke/rate-limit configure and quota denied.
+9. Add audit-chain verification over auth/quota events.
+10. Add self-host compose profile running Go API plus Postgres plus worker daemon.
+11. Add object storage abstraction and filesystem/S3-compatible test double for evidence bundles.
+12. Add Go worker daemon lease loop with graceful shutdown and heartbeat.
+13. Add Postgres user/session tables and OAuth identity placeholders without real provider secrets.
+14. Add GitHub OAuth callback skeleton with state/nonce/session persistence.
+15. Add Google OAuth callback skeleton with state/nonce/session persistence.
+16. Add Stripe test-mode billing ledger schema and webhook verifier skeleton.
+17. Add live-mode guardrails so live billing requires explicit env and dry-run plan.
+18. Add official API successful text mutation baseline after quota reset/plan update.
+19. Add paid image/audio/file/video calibration, one modality per audited batch after text success.
+20. Add release evidence bundle storage/readback path wired to quota/audit.
+
+
+## Round34 Python Bearer/object storage/billing readiness - 2026-07-09T12:40:07Z
+
+Baseline and peer impact:
+- Worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; push target remains PR #27 branch `codex/a1-local-sdk-runner`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed remote A3 update `codex/a3-commercial-growth-round4` only; no peer files were staged or modified by A1.
+- `gh pr checks 27 --watch=false` for prior head `bac5eca3` was green: CL Gate summary, Go SDK/integration, Python A1/A2, TypeScript SDK parity, Plan/hygiene passed; A3/Rust skipped by rule.
+- Growth-Auditor read-only review confirmed current A1 diff aligns with Python Bearer parity and object evidence storage first; billing is acceptable only as A1 backend contract/test-mode readiness, not live payment activation.
+
+Implemented:
+- Python SaaS SDK hosted Bearer parity: `api_key_secret` / `bearer_api_key` options send `Authorization bearer header ...` through HTTP headers only, reject ambiguous options, reject Bearer options in local mode, and keep raw `api_key=` body material blocked.
+- A1 platform object storage now records and verifies public-safe release evidence bundles with packet hash, object key, storage URI, redaction flags, and tenant/project/run checks.
+- Added provider-neutral billing contract module for hosted Stripe Checkout/Billing Portal and hosted WeChat Pay/Alipay plans. It supports test/live modes, live-mode ack guardrails, `secret_ref` indirection, webhook envelope hash verification, provider manifest, and raw card/raw secret rejection.
+- Exported billing contract APIs from `services.api` without adding A3 UI or touching real payment providers.
+
+Official/payment calibration:
+- Consulted current official docs for Stripe API keys/authentication, Stripe payment method support for Checkout/Alipay/WeChat Pay, WeChat Pay Native `/v3/pay/transactions/native`, and Alipay trade APIs.
+- No Stripe/WeChat/Alipay provider API call was made; this round intentionally stays plan-only because real payment onboarding, account verification, webhook endpoint setup, and any real-card/live charge require explicit human-controlled provider actions.
+- No Ashr official mutating call was repeated in this sub-slice; previous private evidence already records a quota boundary on first text mutation, so this round avoided duplicate failed paid/media attempts.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_platform.py tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider` -> `47 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `365 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `328 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass after trimming `services/api/__init__.py` EOF whitespace.
+- A mistaken `go test ./...` from repository root failed with the known multi-module error `directory prefix . does not contain main module`; reran the two Go modules directly and both passed.
+
+Next 20 A1 growth points:
+1. Add billing ledger table/schema slice for checkout-created, invoice-paid, refund, cancellation, and usage meter reconciliation.
+2. Add billing webhook idempotency store with duplicate provider event replay tests.
+3. Add Stripe test-mode executor behind explicit env-only provider credentials, still defaulting to dry-run.
+4. Add WeChat Pay API v3 request signer contract and fake-signature verifier tests.
+5. Add Alipay request signer contract and fake-signature verifier tests.
+6. Add Go billing API routes for plan checkout, portal plan, webhook ingest, and ledger readback.
+7. Add Postgres RLS tests for billing accounts/provider events/ledger rows tenant isolation.
+8. Add OpenAPI billing schemas and scope manifest entries for `billing:read`, `billing:write`, `billing:webhook`.
+9. Add TS billing client parity for the Python billing contract.
+10. Add CLI `ashr billing plan-checkout` dry-run command with public-safe output.
+11. Add object storage backing for signed billing evidence bundle attachments.
+12. Add worker job for provider webhook normalization into usage/billing ledger.
+13. Add quota-to-invoice rollup proof from existing usage ledger snapshots.
+14. Add tenant/project/customer lifecycle mapping with customer refs and provider account refs.
+15. Add official Ashr API read-only usage/quota calibration if exposed in dashboard/API.
+16. After Ashr quota reset or plan change, rerun one successful official text mutation baseline, then paid image/audio/file/video one modality at a time.
+17. Add OAuth/session schema slice for GitHub/Google identity linking without secrets.
+18. Add Docker compose service profile with API, Postgres, Redis/Valkey, MinIO, and worker.
+19. Add Terraform/HCL skeleton for Postgres/object storage/secret refs, no real credentials.
+20. Add release evidence packet link from billing ledger to run/release audit chain.
+
+
+## Round35 billing ledger/idempotency and TS parity - 2026-07-09T13:01:14Z
+
+Baseline and peer impact:
+- Worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 head before this round was `2fec1b74`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed A2 branch `origin/dev/g3-a2-calibration` advance; no A2/A3 files were modified or staged by A1.
+- PR #27 check run for prior head remained queued at baseline (`Plan and hygiene` queued), so local validation stayed authoritative for this slice.
+- Growth-Auditor approved the next slice as billing ledger + provider webhook idempotency + TS parity, with a strict no-live-payment/no-card/no-provider-secret boundary.
+
+Implemented:
+- Extended Python `services.api.billing` with append-only `BillingLedger`, `BillingLedgerEvent`, provider webhook replay/idempotency store, tenant/project-scoped billing accounts, usage-rollup reconciliation, and public-safe billing evidence snapshot.
+- Provider webhook ingest now accepts only verified hash-only envelopes, records exactly one ledger mutation for a new provider event, returns duplicate without mutation for replay, and returns conflict without mutation when the same provider event id arrives with a different payload hash.
+- Added public-safe A1 billing replay fixture `docs/a1/evidence/billing_replay_fixture_round35.json` proving accepted/duplicate replay, ledger totals, usage reconciliation, and evidence hash without raw provider payloads or secret values.
+- Added TypeScript billing parity module `packages/ts/ashr-clone/src/billing.ts` and barrel export. It mirrors checkout/portal plans, Stripe/WeChat/Alipay provider normalization, live-mode guardrails, webhook envelope verification, ledger idempotency, usage reconciliation, and evidence snapshots.
+- Added TS billing parity tests and refreshed `tests/a1/docs/a1/ts_python_gap_matrix.json` from the generator.
+- Cleaned public evidence wording to avoid token-shaped bearer examples and unsafe secret-ref names in tracked docs/fixtures.
+
+Official API calibration:
+- Ran env-only official Ashr API small-batch read-only calibration with `ASHR_API_KEY` from environment only. Private raw record: `docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json` (ignored). Public-safe summary: `docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json`.
+- Summary status: `ok`; 5 read steps succeeded; response keys included init/keep_alive/list-style fields; quota block count 0; no mutating or paid media step in this slice.
+- Real payment provider execution was not run. Stripe/WeChat/Alipay remain contract/test-mode readiness only until human-owned provider onboarding, webhook endpoint setup, and explicit live payment execution plan exist.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider` -> `10 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `368 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `334 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+- Known command hygiene: two accidental root-relative/mislocated commands failed (`npm test --prefix ...` from Go module, `go test ./...` from repo root, and `python scripts/cl_guard.py hygiene` from Go integration dir). Correct module/root commands were rerun and passed.
+
+Next 20 A1 growth points:
+1. Add Postgres billing tables for billing accounts, provider events, and immutable ledger rows.
+2. Add RLS tenant A/B negative proof for billing tables.
+3. Add Go billing route contract for checkout plan, portal plan, webhook ingest, ledger readback.
+4. Add OpenAPI billing schemas and scopes `billing:read`, `billing:write`, `billing:webhook`.
+5. Add TS/Python clients for hosted billing routes once Go route contract is pinned.
+6. Add worker normalizer from provider event store to ledger with retry/dead-letter semantics.
+7. Add object-store sealed billing evidence bundle linked to release evidence packet.
+8. Add quota-to-invoice rollup reconciliation against existing usage ledger snapshots.
+9. Add refund/cancel out-of-order webhook tests.
+10. Add provider event stale timestamp and signature-shape tests using fake fixtures.
+11. Add WeChat Pay API v3 request signer contract with no real private key.
+12. Add Alipay request signer contract with no real private key.
+13. Add Stripe test-mode executor dry-run plan with explicit env-only credential probe, no charge creation.
+14. Add CLI `ashr billing plan-checkout` and `ashr billing ledger` dry-run/readback commands.
+15. Add Terraform/HCL skeleton for billing secret refs and webhook endpoint config, no values.
+16. Add Docker compose MinIO/R2-compatible object store profile for evidence and billing artifacts.
+17. Add Go self-host worker daemon linked to Postgres and object storage.
+18. Add official Ashr mutating text baseline after quota reset or plan change, then paid image/audio/file/video one modality at a time.
+19. Add GitHub/Google OAuth user/session schema slice with state/nonce storage and no client secrets.
+20. Add commercial evidence report tying release gate, billing ledger, usage, and audit chain for enterprise review.
+
+
+## Round36 durable billing ledger migration - 2026-07-09T13:16:57Z
+
+Baseline and peer impact:
+- Started after PR #27 head `f8ee9564` was pushed. GitHub CL Gate for that head passed Plan/hygiene, Go SDK/integration, Python A1/A2, and TypeScript SDK parity; summary was queued at the first check and then expected to settle.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed A3 branch `origin/codex/a3-commercial-growth-round4` advance; no A2/A3 files were modified or staged by A1.
+- Local C: drive reached 0 bytes free during this slice. Reclaimed only regenerateable project/tool caches (`node_modules`, `dist`, `__pycache__`, `.pytest_cache`, npm logs). No source, evidence, private refs, or project-external important data was deleted.
+
+Implemented:
+- Added `services/api/migrations/002_a1_billing_ledger.sql`, a durable Postgres migration for A1 billing accounts, provider webhook replay/idempotency rows, immutable billing ledger rows, RLS policies, indexes, and helper functions.
+- Added `docs/a1/schemas/a1_billing_ledger_migration_manifest.json` documenting the migration contract, supported providers/modes/currencies/events, replay semantics, and public-safety posture.
+- Added `tests/a1/test_billing_ledger_migration_manifest.py` to statically verify table order, required columns/indexes/constraints, forced RLS, provider event duplicate/conflict function fragments, ledger summary fragments, and absence of raw provider payload/secret/card columns.
+
+Commercial value:
+- Moves billing from in-memory SDK contract toward a real SaaS backend substrate: tenant-scoped billing accounts, replay-safe provider event ingestion, append-only revenue/usage ledger, and SQL-level secret/payload guardrails.
+- Still does not execute real payment providers or handle card data. Live payment remains blocked until provider onboarding, endpoint setup, and human-confirmed live execution plan exist.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py -q -p no:cacheprovider` -> `5 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> `16 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider` -> `15 passed` after local cache cleanup.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass.
+- TS full local rerun was not possible after local cache cleanup because C: had only a few MB free and reinstalling `packages/ts/ashr-clone/node_modules` failed with `ENOSPC`. This slice does not modify TS files; PR #27 previous head TS CI was green and GitHub CI should remain the authoritative TS validation for pushed SQL/Python-only changes.
+
+Next 20 A1 growth points:
+1. Add live Postgres opt-in test applying migrations 001+002 and exercising `ingest_billing_provider_event` duplicate/conflict paths.
+2. Add RLS live tenant A/B negative proof for `billing_accounts`, `billing_provider_events`, and `billing_ledger_events`.
+3. Add Go repository methods for billing account upsert, provider event ingest, and ledger summary using migration 002.
+4. Add Go HTTP routes for billing checkout plan, portal plan, webhook ingest, and ledger readback.
+5. Add OpenAPI schemas/scopes for `billing:read`, `billing:write`, and `billing:webhook`.
+6. Add Python hosted SDK methods for billing routes once route contract lands.
+7. Add TS hosted client billing route wrappers after Go OpenAPI pin.
+8. Add worker daemon step that normalizes provider webhook rows into ledger rows with retry/dead-letter semantics.
+9. Add billing ledger evidence bundle object storage linkage.
+10. Add release evidence packet reference to billing evidence snapshot hash.
+11. Add refund/cancel out-of-order SQL tests.
+12. Add stale timestamp and signature-shape provider event guardrails.
+13. Add WeChat Pay API v3 signer contract using fake private-key ref only.
+14. Add Alipay signer contract using fake app-private-key ref only.
+15. Add Stripe test-mode executor dry-run plan and explicit env-only credential presence probe.
+16. Add CLI billing dry-run/readback commands.
+17. Add Terraform/HCL billing secret refs/webhook endpoint skeleton.
+18. Move local TS dependency/cache strategy to D: or a junction so C: ENOSPC stops blocking local full TS validation.
+19. Add official Ashr read-only calibration comparison against dashboard/usage copy if exposed.
+20. After Ashr quota reset or plan change, run successful text mutation then paid media probes one modality at a time.
+
+
+## Round37 billing migration live opt-in harness - 2026-07-09T13:25:51Z
+
+Baseline:
+- PR #27 head `91213fc8` completed green on GitHub: CL Gate summary, Plan/hygiene, Go SDK/integration, Python A1/A2 contracts, and TypeScript SDK parity passed; A3/Rust skipped by path rules.
+- Local TS dependency install recovered after C: space returned to about 1.7GB; `npm_config_cache` used `D:/codex-cache/npm`.
+
+Implemented:
+- Added `tests/integration/test_a1_billing_ledger_migration_live.py`, an opt-in live Postgres test for migration 002.
+- The test reuses the existing `A1_POSTGRES_TEST_DSN` / `A1_PSQL_DOCKER_CONTAINER` helper pattern, applies migrations 001+002 idempotently, seeds org/workspace/project/billing account rows, calls `ingest_billing_provider_event`, and asserts accepted/duplicate/conflict replay plus summary output.
+
+Validation:
+- `python -B -m pytest tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider` -> `1 skipped` without DSN, as designed.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider` -> `5 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern billing` -> command still executes the full package suite under Node test runner; `334 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `python scripts/cl_guard.py hygiene` from repo root -> pass, zero findings.
+- `git diff --check` -> pass.
+- Docker daemon check via `docker version --format ...` hung for over 60 seconds and was stopped; no Docker data was modified. Therefore the live Postgres proof remains opt-in and was not executed locally this round.
+
+Next 20 A1 growth points:
+1. Run the new billing migration live test against disposable Postgres once Docker responds or DSN is provided.
+2. Add RLS live tenant A/B negative proof for billing tables.
+3. Add Go Postgres repository methods for migration 002 billing ingest/readback.
+4. Add Go HTTP billing routes and route manifest scopes.
+5. Add OpenAPI schemas for billing route contracts.
+6. Add Python hosted SDK methods for billing routes.
+7. Add TS hosted SDK methods for billing routes.
+8. Add billing webhook worker normalization loop with retries/dead-letter.
+9. Add object storage bundle for billing evidence snapshots.
+10. Link billing evidence hash into release evidence packet.
+11. Add SQL stale timestamp/signature-shape guardrails.
+12. Add out-of-order refund/cancel SQL tests.
+13. Add WeChat fake signer contract.
+14. Add Alipay fake signer contract.
+15. Add Stripe test-mode credential presence probe without provider call.
+16. Add CLI billing dry-run/readback commands.
+17. Add Terraform/HCL billing secret ref skeleton.
+18. Add self-host compose hook applying migrations 001+002.
+19. Add official Ashr dashboard/API usage quota read-only comparison if exposed.
+20. After Ashr quota reset/plan change, execute successful text mutation then paid media probes one modality at a time.
+
+## Round 38 - billing route contract + payment provider readiness (2026-07-09)
+
+Baseline and peer impact:
+- Repo: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 remained draft and latest pre-round CI was green.
+- Ran `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `git status -sb`, `gh pr list --state all --limit 20`, and `gh pr checks 27 --watch=false`.
+- Peer PRs observed: A2 PR #29 draft, A3 PR #28 open. No A2/A3 files were intentionally modified.
+- Growth-Auditor Hooke recommended Go/OpenAPI billing route contract for checkout plan, portal plan, webhook ingest, and ledger readback.
+
+Implemented:
+- Go billing route contract in `packages/go/ashrclone`: scopes `billing:read`, `billing:write`, `billing:webhook`; deterministic checkout/portal/webhook/ledger DTOs; memory-service behavior; HTTP routes; route manifest/scope-doc runtime coverage; Postgres backend compile-safe contract fallback.
+- Python SaaS client route constants and wrappers for `billing_checkout_plan`, `billing_portal_plan`, `billing_webhook_ingest`, and `billing_ledger` using existing public-safe `services.api.billing` contracts.
+- TypeScript SaaS parity: billing scopes, hosted/local billing wrappers, TS OpenAPI billing paths, Python-canonical `usage_snapshot`/`lifecycle_snapshot` envelopes.
+- Public-safe payment provider readiness packet covering Stripe test/live hosted checkout/portal, hosted WeChat Pay/Alipay, real-card human-controlled test boundary, secret-reference policy, webhook hash envelopes, and evidence object path classification.
+- Route parity snapshot and TS/Python gap matrix refreshed for billing routes and wrappers.
+- Docker daemon smoke now skips on daemon probe timeout instead of failing the whole A1 suite when Docker Desktop/WSL networking is unhealthy.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 335 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 378 passed, 1 skipped (Docker daemon probe timeout skip).
+- Focused Python billing/route/payment tests -> 51 passed.
+- Official Ashr API read-only calibration: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json` -> status ok, 5 read steps, 0 mutating steps.
+
+Evidence:
+- Public readiness: `docs/a1/payment_provider_readiness.md`, `docs/a1/evidence/payment_provider_readiness_public.json`, `docs/a1/schemas/payment_provider_readiness.schema.json`.
+- Public official summary: `docs/a1/evidence/official_api_readonly_round38_summary_20260709_215947.json`.
+- Private raw API record stayed under ignored `docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json`.
+
+Known gaps / next 20 growth points:
+1. Durable Postgres billing persistence behind migration 002 instead of current Go contract fallback.
+2. Transactional billing webhook idempotency in Go/Postgres matching SQL duplicate/conflict semantics.
+3. Go HTTP billing auth negative tests for missing/wrong scopes and wrong tenant.
+4. TS router local HTTP billing route handling, not only client/OpenAPI wrappers.
+5. Python CLI commands for billing plan/webhook/ledger operations.
+6. Public-safe live Stripe test-mode dry-run plan that records exact human action boundary.
+7. Stripe test webhook signature verification harness using secret references only.
+8. WeChat Pay hosted provider adapter contract with cert/key reference schema.
+9. Alipay hosted provider adapter contract with app/private-key reference schema.
+10. Billing usage-rollup export from Go usage ledger into billing ledger event.
+11. Object storage evidence bundle pointer for payment provider event proof.
+12. Quota ledger to billing ledger reconciliation tests.
+13. Worker job for billing webhook normalization and dead-letter.
+14. Terraform/HCL secret-manager references for payment provider credentials.
+15. Docker compose service profile for webhook receiver local smoke.
+16. OAuth login foundations before live billing admin surfaces.
+17. API key create/revoke/limit routes tied to billing scopes and audit events.
+18. Official Ashr API small-batch calibration for billing/usage fields if public API exposes them.
+19. Paid mutating Ashr API calibration remains planned but must use dry-run plan -> small batch -> bounded batch and never log raw key.
+20. A1 push gate should include root-safe command matrix to avoid invalid monorepo `go test ./...` from root.
+## Round39 billing provider semantic parity + paid-media API gate - 2026-07-09T14:25:00Z
+
+Baseline:
+- Continued on `codex/a1-local-sdk-runner-clean` / PR #27 after prior head `5c4bc83` was green for CL Gate summary, Plan/hygiene, Go, Python, and TypeScript.
+- Recovered baseline fetch after C: space exhaustion by removing regenerateable caches only; TS dependencies were restored with npm cache on `D:/codex-cache/npm`.
+- Peer branch updates observed: `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no A2/A3 files were modified this round.
+- Frontend mirror archive `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` was inspected read-only. Public-safe evidence at `docs/a1/evidence/frontend_mirror_billing_usage_fields_20260709_221430.json` records API key, usage, billing status, and billing portal field markers without raw payloads or tokens.
+
+Implemented:
+- Expanded Go billing provider semantics for checkout plan, portal plan, webhook ingest, and ledger readback. Go accepts provider config/customer/price/URL/hash/signature fields and returns public-safe side-effect flags (`provider_called=false`, `real_charge_possible=false`, `raw_payload_included=false`, `secret_value_present=false`).
+- Added Python SDK billing parity for richer local and hosted route payloads, including a more tolerant HTTP transport adapter shape for `(method, url, payload)` transports.
+- Added shared billing SDK parity fixture and Python/TS tests that pin operation names, routes, wrapper names, required public fields, and forbidden public fragments.
+- Added SQL semantic evidence/schema for migration 002 hash/reference-only provider storage, duplicate/conflict replay zero-mutation semantics, and billing ledger/provider event linkage.
+- Tightened billing provider contract tests for duplicate/conflict snapshots and public-safe raw-payload/secret/card denial.
+
+Official/API calibration:
+- `ASHR_API_KEY` was present in env for this process; only presence/length was observed, raw key was not read or logged.
+- Dry-run paid-media plan wrote private ignored evidence `docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json`: 5 modalities planned, 5 read steps + 5 mutating steps, estimated 17 calls.
+- Small-batch paid-media execution wrote private ignored evidence `docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json`: 5 read steps succeeded; text mutating step returned an API/quota-blocked partial result; non-text paid media did not proceed past quota gate. Public-safe summary at `docs/a1/evidence/official_api_paid_media_round39_summary_20260709_222232.json` records only status, response keys, and quota-block flags.
+- Follow-up: do not retry failing paid-media mutation blindly. Next real API growth should first create or verify a quota/usage gate record for the intended modality, then run one modality at a time.
+
+Subagents:
+- Worker-GoBillingSemantic implemented Go billing semantic parity in `packages/go/ashrclone` and verified `go test ./...` in that module.
+- Worker-TSPythonBillingParity added the shared fixture and Python/TS parity tests; focused tests and package TS tests passed.
+- Worker-SQLBillingEvidence added billing SQL semantic evidence/schema and static migration tests; focused tests passed.
+- Bus-Auditor approved the direction with cautions: claim provider-backed plan contract, not live payment integration; revalidate TS explicitly; keep public evidence field-readiness only; run secret scan and full validation before commit.
+
+Validation:
+- `python -B -m pytest tests/a1/test_billing_sdk_parity.py tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider` -> `17 passed` after transport/test assertion fixes.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `384 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone` with `npm_config_cache=D:/codex-cache/npm` -> `337 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> pass; one CRLF normalization warning for an existing touched Python test.
+- Targeted secret/payment scan found only intentional guardrail regexes and synthetic test fixtures; no raw Ashr API key, provider key, card, webhook secret, or bearer value was added.
+
+Next 20 A1 growth points:
+1. Add Stripe test-mode adapter skeleton behind env-only refs and no-live-charge gate.
+2. Add WeChat Pay and Alipay hosted rail signer contracts with fake key refs only.
+3. Add quota/usage gate creation/readback path so paid-media official probes can proceed one modality at a time.
+4. Add Go Postgres billing repository methods for migration 002 ingest/readback.
+5. Add live Postgres migration test for billing RLS and duplicate/conflict replay when Docker/DSN is responsive.
+6. Add Stripe webhook signature verifier test with synthetic signatures and hash-only payload storage.
+7. Add billing worker daemon that normalizes provider events into ledger events with retry/dead-letter semantics.
+8. Add object-storage evidence bundle linkage for billing events and provider request summaries.
+9. Add billing CLI commands for checkout plan, portal plan, webhook ingest, and ledger readback.
+10. Add TypeScript generated client/OpenAPI schemas for billing DTOs beyond route shells.
+11. Add OAuth login skeleton for GitHub/Google sessions without storing provider secrets.
+12. Add tenant/project/user/session durable Postgres schema and RLS tests for auth boundary.
+13. Add API key create/revoke/rate-limit integration around billing route scopes.
+14. Add quota ledger rollup for text/audio/file/image/video as equal first-class resources.
+15. Add release evidence packet references to billing SQL and official API summaries.
+16. Add Terraform/HCL secret-ref and webhook endpoint skeleton.
+17. Add Docker compose profile for API + worker + Postgres + object storage smoke.
+18. Add Rust verifier hook for signed billing evidence bundle manifests.
+19. Re-run official read-only + one successful mutating text probe after quota gate is available.
+20. Only after human-controlled provider setup, add live-mode payment smoke with explicit no-card-data logging proof.
+
+## Round40 commercial billing/control-plane growth - 2026-07-09T14:55:00Z
+
+Baseline:
+- Repo: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 remained green at the start of the round.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` observed peer branch movement on `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`; no A2/A3 files were staged or modified by A1.
+- `origin/main` is behind the A1 branch; the broad `HEAD..origin/main` deletion-looking diff was branch history shape, not a signal to overwrite A1 files.
+- Strategy reread: `docs/strategy/large-saas-a1-a2-a3-full-plan.md` continues to push Go main backend, SQL/Postgres/RLS, TypeScript SDK/OpenAPI, Docker/YAML/Terraform, and Rust verifier follow-up.
+
+20 growth points pursued in parallel:
++1. Go Postgres billing checkout plan persistence.
++2. Go Postgres billing portal plan persistence.
++3. Go Postgres billing webhook ingest wired to migration 002 function shape.
++4. Go Postgres billing ledger readback.
++5. Billing idempotency replay/conflict handling in Go Postgres path.
++6. Python SDK local CLI billing ledger state round-trip.
++7. Python CLI billing checkout/portal/webhook/ledger commands.
++8. TypeScript CLI billing checkout/portal/webhook/ledger commands.
++9. TypeScript billing ledger state persistence.
++10. OpenAPI/route parity retained for billing routes.
++11. Stripe provider rail safety matrix.
++12. WeChat Pay provider rail safety matrix.
++13. Alipay provider rail safety matrix.
++14. Webhook header-shape and secret-ref policy without raw header values.
++15. Live/test boundary ack policy for provider rails.
++16. Self-host compose API + worker + Postgres + object evidence + billing webhook receiver scaffold.
++17. Terraform/HCL self-host secret-ref/object-store/billing webhook variables.
++18. Real API public evidence index refreshed with Round39 paid-media/quota-gate private refs while preserving historical field-map coverage.
++19. Capability matrix, commercial control-plane kit, and TS/Python gap matrix regenerated from current sources.
++20. Public evidence path hygiene fixed so generated API evidence index uses repo-relative private ref paths, not absolute Windows paths.
+
+Subagents:
++- Runtime-GoSQL added SQL-backed Go Postgres billing methods, deterministic UUID/slug/SHA helpers, idempotency hooks, and source-wiring tests; `go test ./...` in `packages/go/ashrclone` passed.
++- SDK-CLI-OpenAPI added Python/TS CLI billing commands, local billing state persistence, TS CLI parity tests, and evidence artifact; focused Python/TS tests passed.
++- ProviderRails upgraded `services/api/billing.py` and payment readiness docs/schema/evidence for Stripe/WeChat/Alipay secret-ref, mode, allowed-method, signature-shape, and live-boundary policies; focused tests passed.
++- Infra-SelfHost expanded compose/Terraform/self-host evidence for API, worker, Postgres, object evidence, billing webhook receiver, quota ledger, artifact manifests, and secret refs; static compose/HCL tests passed.
++- Growth-Auditor gave conditional commit readiness: this is a public-safe billing contract, SDK parity, evidence, and self-host scaffold increment; do not call it live billing, payment-ready, or production self-host.
+
+Official/API calibration:
++- No new paid mutating API retry was run this round because Round39 already produced a quota/API-blocked partial result. Repeating the same blocked mutation without a new quota-gate artifact would be noise, not evidence.
++- The public real API evidence index was regenerated by merging existing public history with current `docs/evidence/private_refs` summaries. It now includes Round39 paid-media dry-run and small-batch private refs, with quota block count preserved and paths repo-relative.
++- Response field map JSON/Markdown were regenerated from the merged evidence index.
+
+Validation:
++- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `399 passed, 1 skipped`.
++- `npm test --prefix packages/ts/ashr-clone` -> `338 passed`.
++- `go test ./...` from `packages/go/ashrclone` -> pass.
++- `go test ./...` from `tests/integration/go` -> pass.
++- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
++- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
++- `git diff --check` -> pass with CRLF normalization warnings only.
++- `tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe` -> pass.
++- Targeted secret scan found expected synthetic tests/guardrail regexes and no tracked raw Ashr key, provider key, webhook secret, raw card, or bearer value.
+
+Residual risk / not overclaiming:
++- No real Stripe/WeChat/Alipay provider calls were made.
++- No real card/live payment flow was executed.
++- Go Postgres billing live DSN integration was not run; current coverage is unit/source-wiring plus SQL shape and existing migration tests.
++- Compose worker remains a scaffold command, not the final production queue daemon.
++- Terraform remains a provider-neutral self-host contract scaffold, not a complete cloud deploy target.
+
+Next 20 growth points:
++1. Add `A1_POSTGRES_TEST_DSN` integration tests for billing checkout/portal/webhook/ledger.
++2. Prove Postgres idempotent replay and idempotency conflict for billing.
++3. Prove provider event duplicate/conflict behavior against live migration 002 functions.
++4. Add cryptographic Stripe webhook verification behind secret refs.
++5. Add WeChat Pay signature verification adapter behind key refs.
++6. Add Alipay signature verification adapter behind key refs.
++7. Split plan-only billing routes from explicit provider-execute routes with live approval gate.
++8. Add private evidence flow for one Stripe test-mode Checkout object after human/provider setup.
++9. Replace compose worker test loop with a real long-running worker daemon command.
++10. Add worker integration smoke: enqueue, lease, heartbeat, complete, evidence object write.
++11. Add S3-compatible object-store adapter smoke without logging secrets.
++12. Convert Terraform scaffold into one concrete deploy target.
++13. Add migration checksum/version ledger and rollback policy.
++14. Add RLS tenant-isolation live proof for billing/quota/artifacts/audit/worker jobs.
++15. Add backup/restore evidence for Postgres and object evidence store.
++16. Add audit-chain coverage for billing plan creation and webhook ingest.
++17. Generate OpenAPI from Go route manifest as source of truth and regenerate SDK route maps.
++18. Add Python/TS/Go billing payload schema contract tests.
++19. Add enterprise runbook for secrets, ingress, webhook setup, reconciliation, incident response.
++20. Refresh readiness packet with capability maturity states: contracted, scaffolded, integration-tested, live-provider-tested.
+
+## Round43 executable worker/object storage/API calibration - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree used for this round: `C:/Users/33516/Documents/Ashr_a1_clean_rebase` at `a0453239` on `codex/a1-local-sdk-runner-clean`; push target remains `origin HEAD:codex/a1-local-sdk-runner` for PR #27.
+- A stale sibling workspace `C:/Users/33516/Documents/Ashr` was inspected and found at old lone commit `e8310d2f` with `ahead 1, behind 71`; it was not used for staging or push to avoid reintroducing outdated diffs.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` and `gh pr list --state all --limit 20` were run before implementation. Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`.
+- Strategy still points A1 toward Go main backend, SQL/Postgres/RLS, TypeScript/OpenAPI parity, Docker/YAML/Terraform, object storage, worker daemon, quota, billing, and API calibration.
+
+Round43 growth points landed:
+1. Added runnable Go worker daemon CLI under `packages/go/ashrclone/cmd/ashr-worker`.
+2. Worker daemon reads env aliases for tenant/project/job/lease/timing/request/API-key metadata.
+3. Worker daemon emits public-safe JSON summary and never logs raw payloads or secrets.
+4. Self-host worker compose now builds and runs a Go runtime image instead of the older Python replay command.
+5. Added `infra/docker/Dockerfile.go-runtime` building `ashr-api` and `ashr-worker` binaries.
+6. Fixed Go runtime healthcheck to verify real binaries instead of a nonexistent `ashr-api-healthcheck` command.
+7. Added local filesystem object storage contract helper with tenant/project/run scoped object keys.
+8. Added S3/MinIO-compatible public manifest contract using env refs only, not raw credentials.
+9. Wired artifact uploads to object manifests and checksum/readback metadata in `services/api/platform.py`.
+10. Wired evidence bundle storage to object manifests and verified release evidence packets before storage.
+11. Added object storage tests for scoped keys, tamper detection, redaction, refs-only manifests, and evidence bundle wiring.
+12. Added SQL/RLS static migration checks for protected control-plane, usage/audit, jobs/artifacts, and billing tables.
+13. Added opt-in live Postgres RLS proof using a scratch `NOBYPASSRLS` role when `A1_POSTGRES_TEST_DSN` is available.
+14. Ran official Ashr API read-only small-batch calibration from env key only; no key file was read and no raw key was printed.
+15. Wrote private manifest under ignored `docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json` and committed only public summary metadata.
+16. Refreshed public API evidence index and response field map to include Round43 read-only field observations.
+17. Updated readiness packet; mutating small batch remains not ready without a fresh mutation gate.
+18. Preserved payment/live-card boundary: no Stripe/WeChat/Alipay live payment or real card operation was attempted in this round.
+19. Revalidated commercial self-host compose config after Go daemon wiring.
+20. Revalidated CL hygiene/commercial guards and diff check before staging.
+
+Official API evidence:
+- Env key presence was checked by the user before this round; this round consumed `ASHR_API_KEY` only through process env.
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round43_summary_20260709_233449.json`.
+- Summary result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`; observed response keys for `init`, `keep_alive`, `list_agents`, `list_datasets`, and `list_requests`.
+- Public evidence index after merge: `400` records, `16` functions, historical quota block count preserved at `48`.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_evidence_index.py tests/a1/test_object_storage_contract.py tests/a1/test_saas_platform.py tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `48 passed, 5 skipped`.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Residual risks / next A1 queue:
+- Object storage is local-filesystem plus S3/MinIO manifest contract; no live MinIO/S3 network write was run yet.
+- Go Postgres worker daemon still needs an end-to-end Postgres-backed lease/heartbeat/complete/dead-letter live smoke.
+- Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
+- Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
+
+### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
+
+Bus-Auditor found three blocking issues and all were fixed before commit:
+- Worker daemon compose no longer exits after one bounded run and leaves a stale healthy marker. The commercial worker command now re-enters `/usr/local/bin/ashr-worker` in a loop, refreshes `/runtime/worker/heartbeat`, and the healthcheck requires a recent heartbeat file.
+- Commercial self-host Postgres no longer uses `POSTGRES_HOST_AUTH_METHOD: trust`. It now uses `POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password` backed by Docker secret `ASHR_POSTGRES_AUTH_SECRET`; `self-host.env.example` contains only the secret ref, not a password value. Local `services/runner/docker-compose.a1.yml` remains a local-dev smoke fixture and is separately tested.
+- Webhook deliveries no longer return a reusable concrete HMAC signature value. Public records now carry `x-ashr-signature-sha256: present`, `signature_present`, `signature_algorithm`, and a derived `signed_payload_sha256`; tests assert no `whsec_local_` or concrete header signature leaks.
+
+Additional validation after Bus-Auditor fixes:
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_saas_platform.py -q -p no:cacheprovider` -> `15 passed, 1 skipped`.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed; Docker warned that `ASHR_POSTGRES_AUTH_SECRET` is unset in the current shell, which is expected for a secret-ref compose config and must be supplied by the operator at runtime.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `411 passed, 1 skipped`.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `9 passed, 4 skipped`.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+### Round43 CI fixture refresh - 2026-07-10T01:05:00Z
+
+- GitHub Actions run `29031592365` failed only in `Python A1/A2 contracts`; Go and TypeScript were green.
+- Failure cause: A1 public evidence index advanced from `a1-real-api-round40-history-plus-paid-media-gate` / `399` records to `a1-real-api-round43-readonly-refresh` / `400` records, so generated A2 reports consuming A1 evidence were stale.
+- Fix: ran `python scripts/a2_regenerate_fixtures.py --write`, then staged only the four generated report files with real content diffs: `a2_commercial_readiness_report.json`, `a2_evidence_readiness_report.json`, `a2_release_gate_report.json`, and `a2_result_persistence_manifest.json`.
+- Verification: `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match; `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> `52 passed`.
+- No A2 judge semantics or source code changed; this is generated fixture alignment required by the A1 evidence label refresh.
+
+## Round44 worker/object/quota/API evidence hardening - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; PR #27 was green at commit `94716ce` before this round.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `gh pr list --state all --limit 20`, and `gh pr checks 27 --watch=false` were run before implementation.
+- Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`; no A3 files were touched.
+- Strategy reread: A1 remains responsible for Go backend, SQL/Postgres/RLS, SDK/API client, object storage, worker, quota/billing safety, and real API calibration.
+
+20 growth points advanced:
+1. Worker daemon summary now records retrying and dead-lettered counts separately from aggregate failed count.
+2. Worker daemon summary records lease seconds, max jobs, heartbeat enabled, heartbeat success count, and heartbeat error count.
+3. Heartbeat loop records heartbeat success/error evidence without making heartbeat failure fatal to handler completion.
+4. Worker tests cover lease -> heartbeat -> complete with usage/audit evidence.
+5. Worker tests cover retry release behavior with public-safe error metadata.
+6. Worker tests cover dead-letter behavior at max attempts.
+7. Go redaction now blocks free-text sensitive assignments such as `password=`, `secret=`, and `token=` in provider/worker errors.
+8. Go worker CLI tests cover config parsing without requiring Postgres DSN unless Postgres backend is selected.
+9. Object storage manifests now include canonical SHA-256 manifest signatures.
+10. Object storage tests verify signed manifest tamper detection.
+11. Object storage S3-compatible manifests carry credential refs only and reject incomplete credential ref pairs.
+12. Object storage has structured readback/checksum verification output.
+13. Optional boto3/minio adapter status/readback support is lazy and dependency-graceful.
+14. Object storage public evidence was updated to call out presigned/bearer URL non-public policy.
+15. Control-plane API-key scope gates were tightened across run upload, trace ingest, artifact manifest read/write, release evidence read/verify, billing checkout/portal, and billing webhook ingest.
+16. Denied auth attempts append public-safe `auth.denied` audit events.
+17. Denied auth attempts append zero-unit denied usage/quota receipts before side effects.
+18. New WSGI-boundary tests prove wrong/missing scopes deny mutation and do not leak bearer/API-key material.
+19. Official Ashr API Round44 read-only small batch refreshed private evidence and public summary.
+20. Public evidence index, field map, capability matrix, commercial kit, TS/Python gap matrix, and A2 generated reports were refreshed to the Round44 evidence label.
+
+Subagents:
+- Growth-Auditor identified the highest-ROI lane as Postgres-backed worker durability + MinIO/object-store write/readback + API-key/quota-gated ingestion.
+- Worker-GoRuntime added worker summary durability fields, heartbeat stats, retry/dead-letter coverage, and Go redaction hardening; `go test ./...` passed in `packages/go/ashrclone`.
+- Worker-ObjectStore added signed public manifests, signature verification, ref-only S3 credential handling, adapter status/readback contracts, and object storage tests; focused pytest passed.
+- Worker-QuotaAuth added WSGI-boundary API-key scope gates and denied audit/quota receipts for ingestion/billing/evidence surfaces; focused pytest passed.
+
+Official API evidence:
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round44_20260710_001500.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round44_summary_20260710_001500.json`.
+- Result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`, datasets count `3`, requests count `5`; no raw key, headers, request values, or private payloads were written to public files.
+- Public evidence index after merge: `401` total records, `16` functions, historical quota block count preserved at `48`, label `a1-real-api-round44-readonly-refresh`.
+- Mutating/paid API calls were not run because `mutating_small_batch_ready` remains false without a fresh quota-gate artifact.
+
+Validation plan/results in this round:
+- `python -B -m pytest tests/a1/test_object_storage_contract.py tests/a1/test_worker_quota_auth.py tests/a1/test_saas_platform.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> initial stale TS/Python matrix failure, then refreshed and focused subset passed.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match after Round44 evidence label refresh.
+
+Residual risks / next A1 queue:
+- Actual MinIO network PUT/HEAD/GET is still not in required CI because it needs running services; next round should add a local compose money-grade smoke if daemon/network stability allows.
+- Postgres-backed worker restart/lease-expiry proof remains opt-in; next round should add a compose or `A1_POSTGRES_TEST_DSN` backed test for restart recovery.
+- Billing/OAuth remain safety contracts, not live provider/account flows. Next round should add Stripe raw-body signature and OAuth PKCE/state replay tests before any live provider step.

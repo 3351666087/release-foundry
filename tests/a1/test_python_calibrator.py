@@ -12,17 +12,24 @@ from packages.sdk.ashr_clone.calibrate import (
     FIELD_PARITY_PLAN_SCHEMA_VERSION,
     API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION,
     PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION,
+    PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
     CalibrationArgs,
     CalibrationUsageError,
     build_api_calibration_readiness_packet,
     build_field_parity_plan,
     calibration_request_fingerprint,
     calibration_target_binding,
+    main,
     parse_args,
+    public_official_api_manifest_summary,
+    public_official_api_manifest_summary_from_file,
     request_for_modality,
     run_calibration,
     selected_calibration_modalities,
+    write_api_calibration_readiness_packet,
+    write_public_official_api_manifest_summary,
 )
+from packages.sdk.ashr_clone.saas import consume_official_api_mutating_calibration_index
 
 
 class FakeCalibrationClient:
@@ -556,6 +563,8 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     assert safety["contains_private_evidence_contents"] is False
     assert safety["private_evidence_references_only"] is True
     assert packet["observed_surface"]["read_only_missing_from_field_map"] == []
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["status"] == "ok"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["public_missing_claim_allowed"] is False
     assert packet["readiness"]["next_read_only_calibration_ready"] is True
     assert target_ids == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
     assert next_read_only["constraints"]["env_only_auth_material"] is True
@@ -570,6 +579,47 @@ def test_api_calibration_readiness_packet_builder_is_public_safe():
     assert "hosted_surface_not_commercially_complete" in gap_ids
     assert "Bearer " not in payload
     assert "tp_syntheticsecret" not in payload
+
+
+def test_api_calibration_readiness_packet_blocks_missing_claim_when_public_summary_proves_private_manifest(tmp_path: Path):
+    manifest_summary = tmp_path / "official_api_readonly_manifest_summary.json"
+    manifest_summary.write_text(
+        json.dumps(
+            {
+                "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+                "source_private_manifest": "docs/evidence/private_refs/a1_private_manifest.json",
+                "source_private_manifest_present": True,
+                "status": "missing",
+                "summary": {"total_steps": 5, "read_steps": 5, "mutating_steps": 0, "error_steps": 0, "quota_block_count": 0},
+                "step_summaries": [{"step_id": "init", "function": "init", "response_keys": ["status"]}],
+                "error_summaries": [],
+                "public_safety": {
+                    "redacted_summary_fields_only": True,
+                    "raw_payload_values_included": False,
+                    "header_values_included": False,
+                    "request_parameter_values_included": False,
+                    "raw_key_material_present": False,
+                    "private_payload_contents_present": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    packet = build_api_calibration_readiness_packet(evidence_index_path=None, manifest_summary_index_path=manifest_summary)
+    guard = packet["observed_surface"]["private_manifest_claim_guard"]
+    summary_index = packet["observed_surface"]["private_manifest_summary"]
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert summary_index["source_private_manifest_present"] is True
+    assert summary_index["total_steps"] == 5
+    assert guard["status"] == "blocked"
+    assert guard["public_missing_claim_allowed"] is False
+    assert guard["public_missing_claim_blocked"] is True
+    assert guard["issues"][0]["code"] == "private_manifest_present_but_public_summary_missing"
+    assert "response_headers" not in payload
+    assert "authorization" not in payload.lower()
+    assert "bearer " not in payload.lower()
 
 
 def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_private_refs_public():
@@ -588,6 +638,8 @@ def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_priv
     assert packet["public_safety"]["raw_key_material_present"] is False
     assert packet["public_safety"]["auth_header_present"] is False
     assert packet["public_safety"]["private_evidence_root"] == "docs/evidence/private_refs"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["status"] == "ok"
+    assert packet["observed_surface"]["private_manifest_claim_guard"]["public_missing_claim_allowed"] is False
     assert packet["readiness"]["next_read_only_calibration_ready"] is True
     assert {target["id"] for target in packet["next_read_only_calibration"]["target_shape_groups"]} == {"error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"}
     assert packet["next_read_only_calibration"]["constraints"]["env_only_auth_material"] is True
@@ -599,3 +651,214 @@ def test_api_calibration_readiness_packet_artifact_matches_schema_and_keeps_priv
     assert "bearer " not in payload.lower()
     assert "--include-mutating" not in packet["next_read_only_calibration"]["commands"]["real_read_only_private"]
     assert "--allow-paid-media" not in packet["next_read_only_calibration"]["commands"]["real_read_only_private"]
+
+
+def test_public_official_api_manifest_summary_keeps_only_redacted_summary_fields():
+    manifest = {
+        "schema_version": CALIBRATION_MANIFEST_SCHEMA_VERSION,
+        "mode": "small-batch",
+        "dry_run": False,
+        "status": "ok",
+        "started_at": "2026-07-09T13:39:39Z",
+        "ended_at": "2026-07-09T13:39:40Z",
+        "duration_ms": 1000,
+        "field_map_version": "a1-api-calibration-2026-07-04",
+        "env": {"auth_env_present": ["ASHR_API_KEY"], "base_url": "https://api.ashr.io/testing-platform-api?api_key=tp_syntheticsecret"},
+        "guardrails": {
+            "raw_records_private": True,
+            "execute_requires_small_batch": True,
+            "mutating_requires_include_mutating": True,
+            "paid_media_requires_allow_paid_media": True,
+            "mutating_execute_requires_quota_gate": True,
+            "output_policy": {
+                "private_output_required": True,
+                "output_is_private": True,
+                "sink": "private_file",
+                "private_root": "docs/evidence/private_refs",
+                "full_record_stdout_blocked": True,
+            },
+        },
+        "summary": {"total_steps": 1, "read_steps": 1, "mutating_steps": 0, "ok_or_planned_steps": 1, "error_steps": 0, "estimated_calls": 1, "modalities": [], "quota_block_count": 0},
+        "steps": [
+            {
+                "step_id": "list_agents",
+                "kind": "read",
+                "function": "list_agents",
+                "dry_run": False,
+                "status": "ok",
+                "status_code": 200,
+                "attempts": 1,
+                "estimated_calls": 1,
+                "response_keys": ["agents", "private_payload"],
+                "response_headers_keys": ["authorization", "x-request-id"],
+                "response_summary_keys": ["count"],
+                "response": {"private_payload": "customer-private-body", "api_key": "tp_syntheticsecret"},
+                "request": {"params": {"authorization": "Bearer tp_syntheticsecret"}},
+                "private_record_path": "docs/evidence/private_refs/raw_record.json",
+                "top_counts": {"agents": 1},
+            }
+        ],
+        "errors": [],
+    }
+
+    summary = public_official_api_manifest_summary(manifest, source_path="docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json")
+    payload = json.dumps(summary, sort_keys=True)
+
+    assert summary["schema_version"] == PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION
+    assert summary["source_private_manifest"] == "docs/evidence/private_refs/a1_worker_evidence_api_readonly_20260709_133939.json"
+    assert summary["source_private_manifest_present"] is True
+    assert summary["env"]["auth_env_present_count"] == 1
+    assert summary["env"]["base_url_host"] == "api.ashr.io"
+    assert summary["summary"]["total_steps"] == 1
+    assert summary["step_summaries"][0]["response_keys"] == ["agents", "private_payload"]
+    assert summary["public_safety"]["redacted_summary_fields_only"] is True
+    assert "response_headers" not in payload
+    assert "private_record_path" not in payload
+    assert "customer-private-body" not in payload
+    assert "tp_syntheticsecret" not in payload
+    assert "ASHR_API_KEY" not in payload
+    assert "Bearer" not in payload
+    assert "authorization" not in payload.lower()
+    assert "api_key" not in payload.lower()
+
+
+def test_public_official_api_manifest_summary_from_missing_file_is_public_safe(tmp_path: Path):
+    summary = public_official_api_manifest_summary_from_file(tmp_path / "missing_private_manifest.json")
+    payload = json.dumps(summary, sort_keys=True)
+
+    assert summary["schema_version"] == PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION
+    assert summary["source_private_manifest_present"] is False
+    assert summary["status"] == "missing"
+    assert summary["summary"]["total_steps"] == 0
+    assert summary["public_safety"]["raw_payload_values_included"] is False
+    assert "response_headers" not in payload
+    assert "authorization" not in payload.lower()
+    assert "bearer " not in payload.lower()
+
+
+def test_parse_public_safe_manifest_summary_command_defaults_to_public_artifact():
+    args = parse_args(["summarize-private-manifest", "--input", "docs/evidence/private_refs/private.json"])
+
+    assert args.command == "summarize-private-manifest"
+    assert args.input_manifest == "docs/evidence/private_refs/private.json"
+    assert args.output.endswith("official_api_readonly_manifest_summary.json")
+
+
+def test_write_public_official_api_manifest_summary_redacts_private_manifest_file(tmp_path: Path):
+    private_manifest = tmp_path / "private_refs" / "manifest.json"
+    public_summary = tmp_path / "official_api_readonly_manifest_summary.json"
+    private_manifest.parent.mkdir()
+    private_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": CALIBRATION_MANIFEST_SCHEMA_VERSION,
+                "mode": "small-batch",
+                "dry_run": False,
+                "status": "ok",
+                "env": {"auth_env_present": ["ASHR_API_KEY"], "base_url": "https://api.ashr.io/testing-platform-api?api_key=tp_syntheticsecret"},
+                "guardrails": {"raw_records_private": True, "output_policy": {"private_output_required": True, "output_is_private": True, "sink": "private_file"}},
+                "summary": {"total_steps": 1, "read_steps": 1, "mutating_steps": 0, "ok_or_planned_steps": 1, "error_steps": 0, "estimated_calls": 1, "modalities": [], "quota_block_count": 0},
+                "steps": [
+                    {
+                        "step_id": "list_agents",
+                        "kind": "read",
+                        "function": "list_agents",
+                        "dry_run": False,
+                        "status": "ok",
+                        "response_keys": ["agents", "private_payload"],
+                        "response": {"private_payload": "customer-private-body", "api_key": "tp_syntheticsecret"},
+                        "private_record_path": "docs/evidence/private_refs/raw_record.json",
+                    }
+                ],
+                "errors": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = write_public_official_api_manifest_summary(input_path=private_manifest, output_path=public_summary)
+    persisted = public_summary.read_text(encoding="utf-8")
+
+    assert summary["source_private_manifest_present"] is True
+    assert summary["summary"]["total_steps"] == 1
+    assert "customer-private-body" not in persisted
+    assert "tp_syntheticsecret" not in persisted
+    assert "ASHR_API_KEY" not in persisted
+    assert "private_record_path" not in persisted
+
+
+def test_write_readiness_packet_command_is_dry_run_public_safe(tmp_path: Path):
+    root = Path(__file__).resolve().parents[2]
+    output = tmp_path / "official_api_readiness_packet.json"
+
+    rc = main(["write-readiness-packet", "--output", str(output), "--evidence-index", "none"])
+    packet = json.loads(output.read_text(encoding="utf-8"))
+    payload = json.dumps(packet, sort_keys=True)
+
+    assert rc == 0
+    assert packet["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+    assert packet["readiness"]["public_packet_ready"] is True
+    assert packet["execution_guardrails"]["default_mode"] == "dry-run"
+    assert packet["public_safety"]["raw_key_material_present"] is False
+    assert packet["source_field_map"] == str((root / "docs" / "a1" / "api_calibration" / "real_api_response_field_map.json").relative_to(root)).replace("\\", "/")
+    assert "tp_syntheticsecret" not in payload
+    assert "Bearer" not in payload
+    assert "api_key=" not in payload.lower()
+
+
+def test_write_api_calibration_readiness_packet_helper_writes_artifact(tmp_path: Path):
+    output = tmp_path / "readiness.json"
+    packet = write_api_calibration_readiness_packet(CalibrationArgs(command="write-readiness-packet"), output_path=output, evidence_index_path=None)
+
+    assert output.exists()
+    assert packet["readiness"]["next_read_only_calibration_ready"] is True
+    assert json.loads(output.read_text(encoding="utf-8"))["schema_version"] == API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION
+
+
+def test_public_mutating_calibration_index_covers_all_modalities_without_raw_payloads():
+    root = Path(__file__).resolve().parents[2]
+    index_path = root / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    payload = json.dumps(index, sort_keys=True)
+
+    assert index["schema_version"] == "ashr.clone.official_api_mutating_calibration_index.v1"
+    assert index["public_safe"] is True
+    assert index["raw_payloads_included"] is False
+    assert index["secret_values_included"] is False
+
+    records = index["records"]
+    modalities = {record["summary_modalities"][0] for record in records}
+    assert modalities == {"text", "image", "audio", "file", "video"}
+    for record in records:
+        assert record["private_manifest"].startswith("docs/evidence/private_refs/")
+        assert record["status"] in {"partial", "error"}
+        assert record["read_steps"] >= 0
+        assert record["quota_block_count"] >= 1
+        assert record["raw_payloads_included"] is False
+        assert "api" in record["observed_error_kinds"]
+
+    for forbidden in ("ASHR_API_KEY", "Bearer ", "api_key=", "tp_", "sk-", "customer-private-body"):
+        assert forbidden not in payload
+
+
+def test_python_sdk_consumes_public_mutating_calibration_index():
+    root = Path(__file__).resolve().parents[2]
+    index_path = root / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+
+    consumption = consume_official_api_mutating_calibration_index(index_path)
+
+    assert consumption["schema_version"] == "ashr.clone.official_api_mutating_calibration_consumption.v1"
+    assert consumption["client"] == "python"
+    assert consumption["modalities"] == ["text", "image", "audio", "file", "video"]
+    assert consumption["quota_blocked_modalities"] == ["text", "image", "audio", "file", "video"]
+    by_modality = {record["modality"]: record for record in consumption["records"]}
+    assert by_modality["audio"]["mutating_step_ids"] == ["create-request-audio"]
+    assert by_modality["video"]["observed_error_kinds"] == ["api"]
+
+
+def test_python_sdk_rejects_private_mutating_calibration_paths():
+    root = Path(__file__).resolve().parents[2]
+    private_path = root / "docs" / "evidence" / "private_refs" / "a1_official_api_mutating_video_20260709_172428.json"
+
+    with pytest.raises(Exception, match="private_refs|secret"):
+        consume_official_api_mutating_calibration_index(private_path)
