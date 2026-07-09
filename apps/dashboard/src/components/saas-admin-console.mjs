@@ -18,6 +18,7 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
       row("RBAC", admin.login?.rbac_boundary?.enforced_now ? "enforced" : "planned")
     ]),
     sessionBlock(admin.login || {}),
+    authBoundaryBlock(admin.auth_boundary || {}),
     rbacBlock(admin.rbac || {}),
     sectionBlock("Team", [
       row("Members", String(admin.team?.members?.length || 0)),
@@ -130,6 +131,33 @@ function sessionBlock(login) {
     row("Required claims", (rbac.required_claims || []).join(", ") || "none"),
     row("Policy", rbac.dashboard_policy || "read-only")
   ]);
+}
+
+function authBoundaryBlock(boundary) {
+  const block = sectionBlock("Auth / RBAC Boundary", [
+    row("Context", boundary.auth_context?.auth_state || "unknown"),
+    row("Role", boundary.auth_context?.role || "unknown"),
+    row("Enforcement", boundary.enforcement_state || "contract pending"),
+    row("Operations", String(boundary.operation_count || 0))
+  ]);
+  for (const decision of boundary.sample_decisions || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(decision.operation)}</strong>
+        <span class="badge ${decision.allowed ? "pass" : "warn"}">${escapeHtml(decision.decision)}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(decision.required_permission || "unknown")}</span>
+        <span>${escapeHtml(decision.mode || "unknown")}</span>
+        <span>${decision.safety?.real_cloud_mutation_performed ? "real write" : "no real cloud write"}</span>
+      </div>
+      <div class="muted">${escapeHtml(decision.reason || "")}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
 }
 
 function rbacBlock(rbac) {

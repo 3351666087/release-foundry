@@ -26,6 +26,18 @@ type QuotaExceededError struct {
 	Requested int
 }
 
+type QuotaExceededErrorSchema struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Operation string `json:"operation"`
+	Meter     string `json:"meter"`
+	Unit      string `json:"unit"`
+	Limit     int    `json:"limit"`
+	Used      int    `json:"used"`
+	Requested int    `json:"requested"`
+	Remaining int    `json:"remaining"`
+}
+
 func (err NotFoundError) Error() string {
 	if strings.TrimSpace(err.Resource) == "" {
 		return "resource not found"
@@ -34,6 +46,11 @@ func (err NotFoundError) Error() string {
 }
 
 func (err QuotaExceededError) Error() string {
+	detail := err.PublicSchema()
+	return fmt.Sprintf("quota exceeded for %s: requested %d, remaining %d", detail.Operation, detail.Requested, detail.Remaining)
+}
+
+func (err QuotaExceededError) PublicSchema() QuotaExceededErrorSchema {
 	remaining := err.Limit - err.Used
 	if remaining < 0 {
 		remaining = 0
@@ -42,7 +59,19 @@ func (err QuotaExceededError) Error() string {
 	if requested <= 0 {
 		requested = 1
 	}
-	return fmt.Sprintf("quota exceeded for %s: requested %d, remaining %d", err.Operation, requested, remaining)
+	operation := NormalizeQuotaOperation(err.Operation)
+	meter, _ := OperationMeterFor(operation)
+	return QuotaExceededErrorSchema{
+		Code:      "quota_exceeded",
+		Message:   fmt.Sprintf("quota exceeded for %s: requested %d, remaining %d", operation, requested, remaining),
+		Operation: operation,
+		Meter:     meter.Meter,
+		Unit:      meter.Unit,
+		Limit:     err.Limit,
+		Used:      err.Used,
+		Requested: requested,
+		Remaining: remaining,
+	}
 }
 
 func NewAPIError(statusCode int, body []byte, headers http.Header) APIError {

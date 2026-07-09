@@ -1,0 +1,130 @@
+{
+  "generated_at": "2026-07-09T10:26:18Z",
+  "public_safe": true,
+  "raw_payloads_included": false,
+  "records": [
+    {
+      "mutating_step_ids": [
+        "create-request-text"
+      ],
+      "observed_error_kinds": [
+        "api"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "text"
+      ],
+      "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-image"
+      ],
+      "observed_error_kinds": [
+        "api"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_image_20260709_172407.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "image"
+      ],
+      "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-audio"
+      ],
+      "observed_error_kinds": [
+        "api"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_audio_20260709_172414.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "audio"
+      ],
+      "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-file"
+      ],
+      "observed_error_kinds": [
+        "api"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_file_20260709_172421.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "file"
+      ],
+      "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-video"
+      ],
+      "observed_error_kinds": [
+        "api"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_video_20260709_172428.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "video"
+      ],
+      "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-image"
+      ],
+      "observed_error_kinds": [
+        "api",
+        "quota"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 0,
+      "status": "error",
+      "summary_modalities": [
+        "image"
+      ],
+      "total_steps": 1
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-text"
+      ],
+      "observed_error_kinds": [
+        "api",
+        "quota"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 5,
+      "status": "partial",
+      "summary_modalities": [
+        "text"
+      ],
+      "total_steps": 6
+    }
+  ],
+  "schema_version": "ashr.clone.official_api_mutating_calibration_index.v1",
+  "secret_values_included": false
+}

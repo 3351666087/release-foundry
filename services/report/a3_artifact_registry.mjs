@@ -20,9 +20,14 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const productConsole = options.productConsole || inputs.productConsole || {};
   const saasAdmin = options.saasAdmin || inputs.saasAdmin || {};
   const githubPublishEvidence = options.githubPublishEvidence || inputs.githubPublishEvidence || {};
+  const billingMigrationReadiness = options.billingMigrationReadiness || inputs.billingMigrationReadiness || inputs.billingMigration || {};
+  const notificationControlPlane = options.notificationControlPlane || inputs.notificationControlPlane || inputs.notification_control_plane || {};
+  const sourceArtifacts = options.sourceArtifacts || inputs.sourceArtifacts || {};
   const source = options.source || inputs.source || reportCenter.source || "unknown";
   const tenantScope = {
     organization_id: options.organizationId || inputs.organizationId || reportCenter.tenant_scope?.organization_id || "org-local",
+    tenant_id: options.tenantId || inputs.tenantId || reportCenter.tenant_scope?.tenant_id || "tenant-local",
+    workspace_id: options.workspaceId || inputs.workspaceId || reportCenter.tenant_scope?.workspace_id || "workspace-local",
     project_id: options.projectId || inputs.projectId || reportCenter.tenant_scope?.project_id || "project-local"
   };
   const reports = Array.isArray(reportCenter.reports)
@@ -39,9 +44,14 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     migrationPlan,
     productConsole,
     saasAdmin,
-    githubPublishEvidence
+    githubPublishEvidence,
+    billingMigrationReadiness,
+    notificationControlPlane
   });
-  const entries = [...reportEntries, ...controlEntries];
+  const entries = [...reportEntries, ...controlEntries, ...sourceArtifactEntries(sourceArtifacts, {
+    tenantScope,
+    source
+  })];
   const summary = summarizeEntries(entries);
 
   return {
@@ -137,8 +147,87 @@ function controlArtifactEntries(context) {
     customerValue: "login, team, API-key, usage, trust, and cloud-management safety map",
     missingControls: context.saasAdmin.schema_version ? ["rbac_enforcement_receipt"] : ["saas_admin_state"]
   }));
+  entries.push(controlArtifact("auth_rbac_boundary", {
+    context,
+    ready: context.saasAdmin.auth_boundary?.schema_version === "a3.saas_admin_auth_boundary.v1",
+    contentType: "application/json",
+    billableMeter: "admin_governance_evidence",
+    customerValue: "actor context, role policy, and denied-state evidence for hosted SaaS readiness",
+    missingControls: context.saasAdmin.auth_boundary?.schema_version
+      ? ["hosted_auth_enforcement_receipt", "rbac_decision_persistence"]
+      : ["auth_rbac_boundary"]
+  }));
+  entries.push(billingMigrationReadinessArtifact(context));
+  entries.push(notificationControlPlaneArtifact(context));
   entries.push(...githubPublishArtifactEntries(context));
   return entries;
+}
+
+function notificationControlPlaneArtifact(context) {
+  const controlPlane = context.notificationControlPlane || {};
+  const ready = controlPlane.schema_version === "a3.notification_control_plane.v1";
+  const summary = controlPlane.summary || {};
+  const safety = controlPlane.safety || {};
+  const safe = safety.secret_values_included !== true
+    && safety.raw_webhook_urls_included !== true
+    && safety.raw_tokens_included !== true
+    && safety.raw_emails_included !== true
+    && safety.real_slack_mutation_performed_locally !== true
+    && safety.real_teams_mutation_performed_locally !== true
+    && safety.real_email_mutation_performed_locally !== true
+    && safety.real_webhook_mutation_performed_locally !== true;
+  return controlArtifact("notification_control_plane", {
+    context,
+    ready: ready && safe,
+    contentType: "application/json",
+    billableMeter: "notification_plans",
+    customerValue: "Slack, Teams, email, and webhook release-notification readiness for enterprise sign-off without storing connector secrets.",
+    billableValue: `${summary.channel_count || 0} planned notification channel(s), ${summary.growth_point_count || 0} commercial growth point(s), strongest path ${summary.strongest_money_path || "PR gate + incident replay"}.`,
+    selfHostValue: "Maps notification_channels, notification_deliveries, event_outbox, audit_events, and usage_events into self-host deployment planning.",
+    auditValue: "Shows who would be notified, which trigger fired, which evidence fields are included, and why A1 hosted workers must own live delivery.",
+    missingControls: !ready
+      ? ["notification_control_plane_contract"]
+      : [
+        "a1_hosted_notification_worker",
+        "encrypted_connector_secret_reference",
+        "live_delivery_receipts"
+      ]
+  });
+}
+
+function billingMigrationReadinessArtifact(context) {
+  const readiness = context.billingMigrationReadiness || {};
+  const ready = readiness.schema_version === "a3.billing_migration_readiness.v1";
+  const liveReady = readiness.summary?.ready_for_live_customer_billing === true;
+  const safety = readiness.safety || {};
+  const safe = safety.env_local_read !== true
+    && safety.real_api_called_by_a3 !== true
+    && safety.real_payment_provider_called !== true
+    && safety.billing_mutation_performed_by_a3 !== true
+    && safety.provider_secret_values_included !== true
+    && safety.raw_provider_payload_included !== true
+    && safety.raw_card_data_included !== true
+    && safety.raw_customer_email_included !== true;
+  return controlArtifact("billing_migration_readiness", {
+    context,
+    ready: ready && safe,
+    contentType: "application/json",
+    billableMeter: "billing_readiness_artifacts",
+    customerValue: "customer-safe billing ledger migration readiness for buyer review without live payment mutation claims",
+    billableValue: "Shows invoice-preview and usage-unit migration readiness while keeping A3 billing writes disabled.",
+    selfHostValue: "Maps A1-owned Postgres billing ledger tables, RLS, and replay expectations into self-host readiness evidence.",
+    auditValue: "Carries provider-event hash, replay-status, tenant/RBAC, and no-raw-payload controls into audit packets.",
+    missingControls: !ready
+      ? ["billing_migration_readiness_contract"]
+      : liveReady
+        ? []
+        : [
+          "a1_authenticated_billing_ledger_read_api",
+          "hosted_auth_rbac_enforcement",
+          "a1_provider_webhook_executor",
+          "live_billing_readback_receipts"
+        ]
+  });
 }
 
 function githubPublishArtifactEntries(context) {
@@ -201,6 +290,9 @@ function controlArtifact(type, options) {
     audit_events_required: ["artifact_generated", "redaction_scanned", "admin_reviewed"],
     missing_controls: options.missingControls,
     customer_value: options.customerValue,
+    billable_value: options.billableValue || null,
+    self_host_value: options.selfHostValue || null,
+    audit_value: options.auditValue || null,
     resource_id: options.resourceId || null,
     raw_secret_values_allowed: false,
     raw_share_token_stored: false
@@ -244,9 +336,41 @@ function buildPacketPresets(entries) {
     packetPreset("pr_review_packet", ["json_report", "markdown_report", "release_evidence_summary", "report_manifest"], entries),
     packetPreset("github_pr_gate_packet", ["github_check_publish_receipt", "github_pr_comment_publish_receipt", "github_required_check_plan"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
-    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
+    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "auth_rbac_boundary", "db_migration_plan", "billing_migration_readiness", "notification_control_plane"], entries),
+    packetPreset("billing_migration_packet", ["billing_migration_readiness", "usage_ledger", "db_migration_plan", "report_manifest"], entries),
+    packetPreset("notification_readiness_packet", ["notification_control_plane", "release_evidence_summary", "usage_ledger", "report_manifest"], entries),
+    packetPreset("source_evidence_packet", ["a1_run_result", "a1_trace_event_batch", "a2_grade_result", "a2_release_gate"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];
+}
+
+function sourceArtifactEntries(sourceArtifacts = {}, context = {}) {
+  const artifacts = Array.isArray(sourceArtifacts.artifacts) ? sourceArtifacts.artifacts : [];
+  return artifacts.map((artifact) => ({
+    artifact_id: artifact.source_artifact_id,
+    artifact_type: artifact.artifact_type,
+    content_type: "application/json",
+    source: context.source,
+    tenant_scope: artifact.tenant_scope || context.tenantScope,
+    report_id: null,
+    manifest_join_key: `source:${artifact.artifact_type}`,
+    lifecycle_state: artifact.record_count > 0 ? "generated" : "planned",
+    hash_status: artifact.content_hash ? "content_hash_present" : "pending_source",
+    redaction_status: artifact.redaction_status || "hash_only",
+    retention_class: "source_evidence",
+    share_scope: "internal_audit",
+    billable_meter: artifact.artifact_type?.startsWith("a1_") ? "run_evidence_sources" : "judge_evidence_sources",
+    audit_events_required: ["source_artifact_registered", "redaction_scanned", "bundle_reseal_checked"],
+    missing_controls: artifact.record_count > 0 ? [] : ["source_payload_missing"],
+    customer_value: `${artifact.source_lane || "source"} ${artifact.source_contracts?.join("/") || "contract"} hash evidence`,
+    source_lane: artifact.source_lane,
+    source_contracts: artifact.source_contracts || [],
+    content_hash: artifact.content_hash || null,
+    record_count: artifact.record_count || 0,
+    raw_secret_values_allowed: false,
+    raw_share_token_stored: false,
+    raw_payload_embedded: false
+  }));
 }
 
 function packetPreset(id, requiredTypes, entries) {

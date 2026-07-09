@@ -1,0 +1,77 @@
+{
+  "schema_version": "a3.live_ops_control_plane.v1",
+  "source": "mock",
+  "status": "control_plane_ready_needs_live_workers",
+  "counts": {
+    "lane_count": 6,
+    "api_backed_count": 6,
+    "audit_backed_count": 6,
+    "live_worker_ready_count": 6,
+    "read_only_state_count": 1,
+    "local_external_mutation_count": 0,
+    "missing_contract_count": 0
+  },
+  "requested_growth_items": [
+    {
+      "id": "github_pr_check_live_publishing",
+      "status": "publish_contract_ready",
+      "current_mode": "dry_run_publish_plan",
+      "next_action": "Run the check publisher from CI/GitHub App with checks:write, then post sanitized readback to A3."
+    },
+    {
+      "id": "pr_comment_live_publishing",
+      "status": "publish_contract_ready",
+      "current_mode": "dry_run_publish_plan",
+      "next_action": "Run PR comment upsert through a GitHub App/Action and capture sanitized readback."
+    },
+    {
+      "id": "reviewer_approve_deny_waiver_workflow",
+      "status": "api_backed",
+      "current_mode": "api_backed_no_records",
+      "next_action": "Submit one local approval/denial/waiver through the API to prove visible human records."
+    },
+    {
+      "id": "dashboard_human_operation_records",
+      "status": "api_backed_no_records",
+      "current_mode": "waiting_for_human_actions",
+      "next_action": "Create one review/admin/report action so dashboard has real operation rows to show."
+    },
+    {
+      "id": "billing_admin_real_usage_billing_state",
+      "status": "read_only_state_ready",
+      "current_mode": "read_only_state",
+      "next_action": "Swap read-only fixture meters to A1 durable billing ledger rows when available."
+    },
+    {
+      "id": "report_share_link_revocable_expiring_audited",
+      "status": "lifecycle_ready",
+      "current_mode": "api_backed_lifecycle",
+      "next_action": "Persist share-link events in Postgres and expose revocation/audit history in hosted mode."
+    }
+  ],
+  "a1_a2_alignment": {
+    "a1_consumed_contracts": [
+      "RunResult",
+      "Trace",
+      "ToolCall",
+      "usage ledger / billing migration evidence"
+    ],
+    "a2_consumed_contracts": [
+      "GradeResult",
+      "ReleaseGate",
+      "failure taxonomy",
+      "cross-lane security context"
+    ],
+    "a3_mutates_a1_a2_semantics": false
+  },
+  "safety": {
+    "secret_values_included": false,
+    "raw_tokens_included": false,
+    "raw_cookies_included": false,
+    "raw_emails_included": false,
+    "raw_signed_urls_included": false,
+    "real_github_mutation_performed_locally": false,
+    "real_billing_mutation_performed_locally": false,
+    "real_report_publication_performed_locally": false
+  }
+}

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 export function parseReadbackCaptureArgs(argv = []) {
   const args = {
     dryRun: true,
+    role: "reviewer",
     source: "mock"
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -19,6 +20,7 @@ export function parseReadbackCaptureArgs(argv = []) {
     else if (item === "--organization-id") args.organizationId = next();
     else if (item === "--project-id") args.projectId = next();
     else if (item === "--actor-hash") args.actorHash = next();
+    else if (item === "--role") args.role = next();
     else if (item === "--idempotency-key") args.idempotencyKey = next();
     else if (item === "--output-receipt") args.outputReceipt = next();
     else if (item === "--submit") args.dryRun = false;
@@ -58,6 +60,7 @@ export async function buildReadbackCaptureCliReceipt(options = {}, io = {}) {
     endpoint_path: endpoint.pathname,
     source: options.source || "mock",
     release_id: options.releaseId,
+    role: options.role || "reviewer",
     idempotency_key_present: Boolean(options.idempotencyKey),
     idempotency_key_hash: options.idempotencyKey ? sha256(options.idempotencyKey).slice(0, 16) : null,
     payload_hash: sha256(stableJson(readback)),
@@ -82,6 +85,7 @@ export async function buildReadbackCaptureCliReceipt(options = {}, io = {}) {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      "x-a3-role": options.role || "reviewer",
       ...(options.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {})
     },
     body: JSON.stringify(requestBody)

@@ -213,28 +213,78 @@ test("request records preserve AgentInput-compatible media schema", () => {
 });
 
 test("runAgentCloudDemo adapts an external TS agent into local cloud fixture", async () => {
+  const hostedSubmissions = [];
   const summary = await runAgentCloudDemo({
     tenantId: "tenant_demo",
     projectId: "project_demo",
     datasetId: "dataset_demo",
     runnerId: "ts-demo-runner",
-    cases: [{ id: "case-1", prompt: "hello", expected: { text: "Echo: hello" } }],
+    agentRef: "npm:@ashr-clone/sdk/quickstart-agent",
+    cases: [{ id: "case-1", prompt: "hello", expected: { text: "Echo: hello", tool_calls: [{ name: "lookup", arguments: { q: "hello" } }] } }],
     agent: (agentInput) => ({
       schema_version: AGENT_TURN_SCHEMA_VERSION,
       text: `Echo: ${agentInput.text}`,
-      tool_calls: [],
+      tool_calls: [{ name: "lookup", arguments: { q: agentInput.text } }],
       status: "ok",
       latency_ms: 0,
       metadata: { local_only: true },
     }),
+    sdkSubmitter: {
+      sdkSubmit(tenantId, projectId, options) {
+        hostedSubmissions.push({ tenantId, projectId, options });
+        return {
+          operation: "sdk_submit",
+          result: {
+            submission: {
+              status: "accepted",
+              dataset_id: options.datasetId,
+              run_id: options.runId,
+              agent_ref: options.agentRef,
+            },
+            run: { status: "queued", run_id: options.runId },
+          },
+        };
+      },
+    },
   });
 
   assert.equal(summary.schema_version, CLOUD_API_SCHEMA_VERSION);
   assert.equal(summary.run.status, "completed");
   assert.equal(summary.run.result_status, "passed");
   assert.equal(summary.run.passed, 1);
+  assert.equal(summary.run.total_tool_calls, 1);
   assert.equal(summary.run.observations, 2);
+  assert.equal(summary.cases[0].expected.text, "Echo: hello");
+  assert.equal(summary.cases[0].actual.tool_calls[0].name, "lookup");
+  assert.deepEqual(summary.cases[0].expected.tool_calls, summary.cases[0].actual.tool_calls);
+  assert.equal(summary.replay.available, true);
+  assert.equal(summary.replay.event_count, 2);
+  assert.equal(summary.sdk_submission.result.submission.status, "accepted");
+  assert.equal(summary.sdk_submission.result.submission.agent_ref, "npm:@ashr-clone/sdk/quickstart-agent");
+  assert.equal(hostedSubmissions[0].options.metadata.local_run_id, summary.run.run_id);
   assert.equal(summary.fixture.metadata.ashr_api_used, false);
   assert.equal(summary.quota.used["dataset.create"], 1);
   assert.equal(summary.quota.used["run.submit"], 1);
+});
+
+test("runAgentCloudDemo fails expected tool-call mismatches for hosted quickstart parity", async () => {
+  const summary = await runAgentCloudDemo({
+    tenantId: "tenant_tool_mismatch",
+    projectId: "project_tool_mismatch",
+    datasetId: "dataset_tool_mismatch",
+    cases: [{ id: "case-tool", prompt: "hello", expected: { text: "Echo: hello", tool_calls: [{ name: "lookup", arguments: { q: "hello" } }] } }],
+    agent: (agentInput) => ({
+      schema_version: AGENT_TURN_SCHEMA_VERSION,
+      text: `Echo: ${agentInput.text}`,
+      tool_calls: [{ name: "lookup", arguments: { q: "different" } }],
+      status: "ok",
+      latency_ms: 0,
+      metadata: { local_only: true },
+    }),
+  });
+
+  assert.equal(summary.run.result_status, "failed");
+  assert.equal(summary.run.failed, 1);
+  assert.equal(summary.cases[0].status, "failed");
+  assert.notDeepEqual(summary.cases[0].expected.tool_calls, summary.cases[0].actual.tool_calls);
 });

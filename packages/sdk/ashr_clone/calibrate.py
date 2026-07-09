@@ -28,6 +28,7 @@ from .api_client import (
 )
 
 CALIBRATION_MANIFEST_SCHEMA_VERSION = "ashr.clone.api_calibration_manifest.v1"
+PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION = "ashr.clone.public_official_api_manifest_summary.v1"
 FIELD_PARITY_PLAN_SCHEMA_VERSION = "ashr.clone.api_field_parity_plan.v1"
 API_CALIBRATION_READINESS_PACKET_SCHEMA_VERSION = "ashr.clone.api_calibration_readiness_packet.v1"
 PLAN_BATCH_QUOTA_GATE_SCHEMA_VERSION = "ashr.clone.api_probe_batch_plan.v1"
@@ -42,6 +43,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PRIVATE_EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence" / "private_refs"
 PUBLIC_API_CALIBRATION_DIR = REPO_ROOT / "docs" / "a1" / "api_calibration"
 FIELD_MAP_PATH = PUBLIC_API_CALIBRATION_DIR / "real_api_response_field_map.json"
+DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH = REPO_ROOT / "docs" / "a1" / "evidence" / "official_api_readonly_manifest_summary.json"
+DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH = PRIVATE_EVIDENCE_DIR / "a1_worker_evidence_api_readonly_20260709_133939.json"
 
 
 class CalibrationUsageError(ValueError):
@@ -50,6 +53,7 @@ class CalibrationUsageError(ValueError):
 
 @dataclass(slots=True)
 class CalibrationArgs:
+    command: str = "calibrate"
     execute: bool = False
     small_batch: bool = False
     include_mutating: bool = False
@@ -67,6 +71,9 @@ class CalibrationArgs:
     allow_quota_override: bool = False
     quota_override_reason: str | None = None
     allow_nonprivate_output: bool = False
+    input_manifest: str | None = None
+    field_map_path: str | None = None
+    evidence_index_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,6 +274,7 @@ def build_api_calibration_readiness_packet(
     *,
     field_map_path: str | Path = FIELD_MAP_PATH,
     evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+    manifest_summary_index_path: str | Path | None = DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
 ) -> JsonDict:
     plan_args = args or CalibrationArgs(modalities=("text",))
     field_map = load_json_object(str(field_map_path), "--field-map")
@@ -274,6 +282,8 @@ def build_api_calibration_readiness_packet(
     evidence_index: JsonDict = {}
     if evidence_index_path is not None and Path(evidence_index_path).exists():
         evidence_index = load_json_object(str(evidence_index_path), "--evidence-index")
+    manifest_summary_index = _load_public_manifest_summary_index(manifest_summary_index_path)
+    manifest_claim_guard = _private_manifest_claim_guard(manifest_summary_index)
     plan = build_field_parity_plan(plan_args, field_map_path=field_map_path)
     observed_functions = sorted(functions)
     read_only_steps = [step for step in plan.get("steps", []) if isinstance(step, Mapping) and step.get("kind") == "read"]
@@ -285,6 +295,7 @@ def build_api_calibration_readiness_packet(
             "generated_at": utc_now(),
             "source_field_map": _repo_relative_output_path(field_map_path),
             "source_evidence_index": _repo_relative_output_path(evidence_index_path) if evidence_index_path else None,
+            "source_manifest_summary_index": _repo_relative_output_path(manifest_summary_index_path) if manifest_summary_index_path else None,
             "field_map_version": field_map.get("field_map_version") or ASHR_API_FIELD_MAP_VERSION,
             "public_safety": {
                 "raw_key_material_present": False,
@@ -307,6 +318,8 @@ def build_api_calibration_readiness_packet(
                 "functions": observed_functions,
                 "read_only_manifest_step_count": len(read_only_steps),
                 "read_only_missing_from_field_map": read_only_missing,
+                "private_manifest_summary": manifest_summary_index,
+                "private_manifest_claim_guard": manifest_claim_guard,
                 "private_record_count": evidence_index.get("total_records"),
                 "status_counts": evidence_index.get("status_counts", {}),
                 "quota_block_count": evidence_index.get("quota_block_count", 0),
@@ -363,6 +376,85 @@ def build_api_calibration_readiness_packet(
             },
         }
     )
+
+
+def _load_public_manifest_summary_index(path: str | Path | None) -> JsonDict:
+    if path is None:
+        return _public_manifest_summary_index(None)
+    source = Path(path)
+    if not source.exists():
+        return _public_manifest_summary_index(
+            {
+                "source_private_manifest_present": False,
+                "status": "missing",
+                "summary": {},
+                "step_summaries": [],
+                "error_summaries": [],
+            },
+            summary_index_path=source,
+        )
+    return _public_manifest_summary_index(load_json_object(str(source), "--manifest-summary-index"), summary_index_path=source)
+
+
+def _public_manifest_summary_index(summary: Mapping[str, Any] | None, *, summary_index_path: str | Path | None = None) -> JsonDict:
+    summary = summary if isinstance(summary, Mapping) else {}
+    totals = summary.get("summary") if isinstance(summary.get("summary"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "summary_index_path": _repo_relative_output_path(summary_index_path) if summary_index_path else None,
+            "schema_version": summary.get("schema_version") if isinstance(summary.get("schema_version"), str) else None,
+            "source_private_manifest": summary.get("source_private_manifest") if isinstance(summary.get("source_private_manifest"), str) else None,
+            "source_private_manifest_present": summary.get("source_private_manifest_present") is True,
+            "status": summary.get("status") if isinstance(summary.get("status"), str) else "missing",
+            "mode": summary.get("mode") if isinstance(summary.get("mode"), str) else None,
+            "dry_run": summary.get("dry_run") if isinstance(summary.get("dry_run"), bool) else None,
+            "started_at_present": summary.get("started_at_present") is True,
+            "ended_at_present": summary.get("ended_at_present") is True,
+            "total_steps": _int_or_zero(totals.get("total_steps"), 0),
+            "read_steps": _int_or_zero(totals.get("read_steps"), 0),
+            "mutating_steps": _int_or_zero(totals.get("mutating_steps"), 0),
+            "error_steps": _int_or_zero(totals.get("error_steps"), 0),
+            "quota_block_count": _int_or_zero(totals.get("quota_block_count"), 0),
+            "step_summary_count": len(summary.get("step_summaries", [])) if isinstance(summary.get("step_summaries"), list) else 0,
+            "error_summary_count": len(summary.get("error_summaries", [])) if isinstance(summary.get("error_summaries"), list) else 0,
+            "public_safety": {
+                "redacted_summary_fields_only": _summary_public_safety_flag(summary, "redacted_summary_fields_only"),
+                "raw_payload_values_included": _summary_public_safety_flag(summary, "raw_payload_values_included"),
+                "header_values_included": _summary_public_safety_flag(summary, "header_values_included"),
+                "request_parameter_values_included": _summary_public_safety_flag(summary, "request_parameter_values_included"),
+                "raw_key_material_present": _summary_public_safety_flag(summary, "raw_key_material_present"),
+                "private_payload_contents_present": _summary_public_safety_flag(summary, "private_payload_contents_present"),
+            },
+        }
+    )
+
+
+def _summary_public_safety_flag(summary: Mapping[str, Any], key: str) -> bool:
+    public_safety = summary.get("public_safety") if isinstance(summary.get("public_safety"), Mapping) else {}
+    return public_safety.get(key) is True
+
+
+def _private_manifest_claim_guard(summary_index: Mapping[str, Any]) -> JsonDict:
+    source_present = summary_index.get("source_private_manifest_present") is True
+    status = summary_index.get("status") if isinstance(summary_index.get("status"), str) else "missing"
+    missing_claim_allowed = not source_present
+    issues: list[JsonDict] = []
+    if source_present and status == "missing":
+        issues.append(
+            {
+                "code": "private_manifest_present_but_public_summary_missing",
+                "severity": "high",
+                "summary": "Public docs must not claim the official API private manifest is missing when the public-safe manifest summary proves it is present.",
+            }
+        )
+    return {
+        "status": "blocked" if issues else "ok",
+        "private_manifest_present": source_present,
+        "public_missing_claim_allowed": missing_claim_allowed,
+        "public_missing_claim_blocked": source_present,
+        "claim_rule": "If source_private_manifest_present is true in the public summary index, public docs may describe only summarized counts/status and must not claim missing private evidence.",
+        "issues": issues,
+    }
 
 
 def build_next_read_only_calibration_targets(observed_functions: Mapping[str, Any]) -> list[JsonDict]:
@@ -612,6 +704,194 @@ def summarize_step(step: CalibrationStep, record: Mapping[str, Any], output_path
     return redact_sensitive(summary)
 
 
+def public_official_api_manifest_summary(manifest: Mapping[str, Any], *, source_path: str | Path | None = None) -> JsonDict:
+    steps = manifest.get("steps") if isinstance(manifest.get("steps"), list) else []
+    errors = manifest.get("errors") if isinstance(manifest.get("errors"), list) else []
+    summary = manifest.get("summary") if isinstance(manifest.get("summary"), Mapping) else {}
+    guardrails = manifest.get("guardrails") if isinstance(manifest.get("guardrails"), Mapping) else {}
+    output_policy_value = guardrails.get("output_policy") if isinstance(guardrails.get("output_policy"), Mapping) else {}
+    env_value = manifest.get("env") if isinstance(manifest.get("env"), Mapping) else {}
+    step_summaries = [_public_official_api_step_summary(step) for step in steps if isinstance(step, Mapping)]
+    error_summaries = [_public_official_api_error_summary(error) for error in errors if isinstance(error, Mapping)]
+    payload = {
+        "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+        "generated_at": utc_now(),
+        "source_private_manifest": _repo_relative_output_path(source_path) if source_path is not None else None,
+        "source_private_manifest_present": True,
+        "source_schema_version": manifest.get("schema_version") if isinstance(manifest.get("schema_version"), str) else None,
+        "mode": manifest.get("mode") if isinstance(manifest.get("mode"), str) else None,
+        "dry_run": manifest.get("dry_run") if isinstance(manifest.get("dry_run"), bool) else None,
+        "status": manifest.get("status") if isinstance(manifest.get("status"), str) else None,
+        "field_map_version": manifest.get("field_map_version") if isinstance(manifest.get("field_map_version"), str) else None,
+        "started_at_present": isinstance(manifest.get("started_at"), str),
+        "ended_at_present": isinstance(manifest.get("ended_at"), str),
+        "duration_ms_present": isinstance(manifest.get("duration_ms"), int),
+        "env": {
+            "auth_env_present_count": len(env_value.get("auth_env_present")) if isinstance(env_value.get("auth_env_present"), list) else 0,
+            "base_url_host": _url_host(env_value.get("base_url")),
+        },
+        "guardrails": {
+            "raw_records_private": guardrails.get("raw_records_private") is True,
+            "execute_requires_small_batch": guardrails.get("execute_requires_small_batch") is True,
+            "mutating_requires_include_mutating": guardrails.get("mutating_requires_include_mutating") is True,
+            "paid_media_requires_allow_paid_media": guardrails.get("paid_media_requires_allow_paid_media") is True,
+            "mutating_execute_requires_quota_gate": guardrails.get("mutating_execute_requires_quota_gate") is True,
+            "quota_gate_present": isinstance(guardrails.get("quota_gate"), Mapping),
+            "output_policy": {
+                "private_output_required": output_policy_value.get("private_output_required") is True,
+                "output_is_private": output_policy_value.get("output_is_private") is True,
+                "sink": output_policy_value.get("sink") if isinstance(output_policy_value.get("sink"), str) else None,
+                "private_root": output_policy_value.get("private_root") if isinstance(output_policy_value.get("private_root"), str) else "docs/evidence/private_refs",
+                "full_record_stdout_blocked": output_policy_value.get("full_record_stdout_blocked") is True,
+            },
+        },
+        "summary": {
+            "total_steps": _int_or_zero(summary.get("total_steps"), len(step_summaries)),
+            "read_steps": _int_or_zero(summary.get("read_steps"), sum(1 for step in step_summaries if step.get("kind") == "read")),
+            "mutating_steps": _int_or_zero(summary.get("mutating_steps"), sum(1 for step in step_summaries if step.get("kind") == "mutate")),
+            "ok_or_planned_steps": _int_or_zero(summary.get("ok_or_planned_steps"), sum(1 for step in step_summaries if step.get("status") in {"ok", "planned"})),
+            "error_steps": _int_or_zero(summary.get("error_steps"), len(error_summaries)),
+            "estimated_calls": _int_or_zero(summary.get("estimated_calls"), sum(_int_or_zero(step.get("estimated_calls"), 0) for step in step_summaries)),
+            "modalities": sorted(str(modality) for modality in summary.get("modalities", []) if isinstance(modality, str)) if isinstance(summary.get("modalities"), list) else [],
+            "quota_block_count": _int_or_zero(summary.get("quota_block_count"), sum(1 for step in step_summaries if step.get("quota_blocked") is True)),
+        },
+        "step_summaries": step_summaries,
+        "error_summaries": error_summaries,
+        "public_safety": {
+            "redacted_summary_fields_only": True,
+            "raw_payload_values_included": False,
+            "header_values_included": False,
+            "request_parameter_values_included": False,
+            "step_record_locations_included": False,
+            "auth_env_names_included": False,
+            "raw_key_material_present": False,
+            "private_payload_contents_present": False,
+        },
+    }
+    return redact_sensitive(payload)
+
+
+def public_official_api_manifest_summary_from_file(path: str | Path = DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH) -> JsonDict:
+    source = Path(path)
+    if not source.exists():
+        return {
+            "schema_version": PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_SCHEMA_VERSION,
+            "generated_at": utc_now(),
+            "source_private_manifest": _repo_relative_output_path(source),
+            "source_private_manifest_present": False,
+            "status": "missing",
+            "summary": {
+                "total_steps": 0,
+                "read_steps": 0,
+                "mutating_steps": 0,
+                "ok_or_planned_steps": 0,
+                "error_steps": 0,
+                "estimated_calls": 0,
+                "modalities": [],
+                "quota_block_count": 0,
+            },
+            "step_summaries": [],
+            "error_summaries": [],
+            "public_safety": {
+                "redacted_summary_fields_only": True,
+                "raw_payload_values_included": False,
+                "header_values_included": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "auth_env_names_included": False,
+                "raw_key_material_present": False,
+                "private_payload_contents_present": False,
+            },
+        }
+    manifest = load_json_object(str(source), "--private-official-api-manifest")
+    return public_official_api_manifest_summary(manifest, source_path=source)
+
+
+def write_public_official_api_manifest_summary(
+    *,
+    input_path: str | Path = DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH,
+    output_path: str | Path = DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
+) -> JsonDict:
+    summary = public_official_api_manifest_summary_from_file(input_path)
+    write_json(output_path, summary)
+    return summary
+
+
+def write_api_calibration_readiness_packet(
+    args: CalibrationArgs | None = None,
+    *,
+    output_path: str | Path = PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json",
+    field_map_path: str | Path = FIELD_MAP_PATH,
+    evidence_index_path: str | Path | None = PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json",
+) -> JsonDict:
+    packet = build_api_calibration_readiness_packet(
+        args,
+        field_map_path=field_map_path,
+        evidence_index_path=evidence_index_path,
+    )
+    write_json(output_path, packet)
+    return packet
+
+
+def _public_official_api_step_summary(step: Mapping[str, Any]) -> JsonDict:
+    quota = step.get("quota") if isinstance(step.get("quota"), Mapping) else {}
+    top_counts = step.get("top_counts") if isinstance(step.get("top_counts"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "step_id": step.get("step_id") if isinstance(step.get("step_id"), str) else None,
+            "kind": step.get("kind") if isinstance(step.get("kind"), str) else None,
+            "modality": step.get("modality") if isinstance(step.get("modality"), str) else None,
+            "function": step.get("function") if isinstance(step.get("function"), str) else None,
+            "dry_run": step.get("dry_run") if isinstance(step.get("dry_run"), bool) else None,
+            "status": step.get("status") if isinstance(step.get("status"), str) else None,
+            "status_code": step.get("status_code") if isinstance(step.get("status_code"), int) else None,
+            "attempts": step.get("attempts") if isinstance(step.get("attempts"), int) else None,
+            "estimated_calls": step.get("estimated_calls") if isinstance(step.get("estimated_calls"), int) else None,
+            "response_keys": sorted(str(key) for key in step.get("response_keys", []) if isinstance(key, str)) if isinstance(step.get("response_keys"), list) else [],
+            "response_status": step.get("response_status") if isinstance(step.get("response_status"), str) else None,
+            "response_summary_keys": sorted(str(key) for key in step.get("response_summary_keys", []) if isinstance(key, str)) if isinstance(step.get("response_summary_keys"), list) else [],
+            "top_counts": {str(key): value for key, value in top_counts.items() if isinstance(key, str) and isinstance(value, int)},
+            "next_cursor_present": step.get("next_cursor") is not None,
+            "error_keys": sorted(str(key) for key in step.get("error_keys", []) if isinstance(key, str)) if isinstance(step.get("error_keys"), list) else [],
+            "error_kind": step.get("error_kind") if isinstance(step.get("error_kind"), str) else None,
+            "quota_blocked": quota.get("blocked") is True,
+            "quota_resource": quota.get("resource") if isinstance(quota.get("resource"), str) else None,
+            "quota_remaining_present": quota.get("remaining") is not None,
+        }
+    )
+
+
+def _public_official_api_error_summary(error: Mapping[str, Any]) -> JsonDict:
+    quota = error.get("quota") if isinstance(error.get("quota"), Mapping) else {}
+    return redact_sensitive(
+        {
+            "step_id": error.get("step_id") if isinstance(error.get("step_id"), str) else None,
+            "status": error.get("status") if isinstance(error.get("status"), str) else None,
+            "status_code": error.get("status_code") if isinstance(error.get("status_code"), int) else None,
+            "error_kind": error.get("error_kind") if isinstance(error.get("error_kind"), str) else None,
+            "error_keys": sorted(str(key) for key in error.get("error_keys", []) if isinstance(key, str)) if isinstance(error.get("error_keys"), list) else [],
+            "quota_blocked": quota.get("blocked") is True,
+            "quota_resource": quota.get("resource") if isinstance(quota.get("resource"), str) else None,
+            "quota_remaining_present": quota.get("remaining") is not None,
+        }
+    )
+
+
+def _int_or_zero(value: Any, fallback: int) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return fallback
+
+
+def _url_host(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    return parsed.netloc or None
+
+
 def attach_quota_gate_evidence(record: Mapping[str, Any], quota_gate_summary: Mapping[str, Any]) -> JsonDict:
     updated = redact_sensitive(dict(record))
     gate = redact_sensitive(dict(quota_gate_summary))
@@ -662,6 +942,8 @@ def is_call_record(value: Mapping[str, Any]) -> bool:
 
 
 def selected_calibration_modalities(args: CalibrationArgs) -> tuple[str, ...]:
+    if args.command == "write-readiness-packet" and not args.modalities:
+        return ("text",)
     selected = args.modalities or CALIBRATION_MODALITIES
     ordered: list[str] = []
     for modality in CALIBRATION_MODALITIES:
@@ -1200,6 +1482,52 @@ def write_json(path: str | Path, value: Mapping[str, Any]) -> None:
 
 def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser = argparse.ArgumentParser(description="Run Ashr clone Python SDK real API calibration with safe private evidence records.")
+    subparsers = parser.add_subparsers(dest="command")
+    add_calibration_arguments(parser)
+
+    summarize_parser = subparsers.add_parser("summarize-private-manifest", help="Write a public-safe summary from an ignored private calibration manifest.")
+    summarize_parser.add_argument("--input", dest="input_manifest", default=str(DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH), help="Ignored private manifest path under docs/evidence/private_refs.")
+    summarize_parser.add_argument("--output", default=str(DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH), help="Public-safe redacted summary artifact path.")
+    summarize_parser.add_argument("--print-record", action="store_true", help="Print the public-safe summary JSON after writing it.")
+
+    readiness_parser = subparsers.add_parser("write-readiness-packet", help="Write a public-safe dry-run readiness packet without API calls or key reads.")
+    readiness_parser.add_argument("--output", default=str(PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json"), help="Public readiness packet artifact path.")
+    readiness_parser.add_argument("--field-map", dest="field_map_path", default=str(FIELD_MAP_PATH), help="Public field map used to derive readiness.")
+    readiness_parser.add_argument("--evidence-index", dest="evidence_index_path", default=str(PUBLIC_API_CALIBRATION_DIR / "real_api_evidence_index.json"), help="Optional public evidence index path.")
+    readiness_parser.add_argument("--modality", action="append", default=[], help="Comma-separated modality list for planned mutating readiness: text,image,audio,file,video")
+    readiness_parser.add_argument("--include-mutating", action="store_true", help="Include planned mutating calibration targets in the public readiness packet.")
+    readiness_parser.add_argument("--allow-paid-media", action="store_true", help="Allow non-text media request planning in the public readiness packet.")
+    readiness_parser.add_argument("--limit", type=positive_int, default=2)
+    readiness_parser.add_argument("--print-record", action="store_true", help="Print the public-safe readiness packet after writing it.")
+
+    ns = parser.parse_args(argv)
+    command = ns.command or "calibrate"
+    try:
+        if command == "summarize-private-manifest":
+            return CalibrationArgs(command=command, input_manifest=ns.input_manifest, output=ns.output, print_record=ns.print_record)
+        if command == "write-readiness-packet":
+            modalities = parse_modalities(ns.modality)
+            args = CalibrationArgs(
+                command=command,
+                output=ns.output,
+                include_mutating=ns.include_mutating,
+                allow_paid_media=ns.allow_paid_media,
+                limit=ns.limit,
+                modalities=modalities,
+                print_record=ns.print_record,
+                field_map_path=ns.field_map_path,
+                evidence_index_path=ns.evidence_index_path,
+            )
+            validate_calibration_guards(args)
+            return args
+        args = calibration_args_from_namespace(ns, command=command)
+        validate_calibration_guards(args)
+        return args
+    except CalibrationUsageError as exc:
+        parser.error(str(exc))
+
+
+def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--execute", action="store_true", help="Call the real Ashr API. Requires --small-batch and --max-retries 0.")
     parser.add_argument("--small-batch", action="store_true", help="Acknowledge bounded API execution.")
     parser.add_argument("--include-mutating", action="store_true", help="Include create_request calibration steps after read-only steps.")
@@ -1217,9 +1545,11 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
     parser.add_argument("--allow-quota-override", action="store_true", help="Allow mutating --execute without a go quota gate. Requires --quota-override-reason.")
     parser.add_argument("--quota-override-reason", help="Audit reason for bypassing a missing, stop, or wait quota gate.")
     parser.add_argument("--allow-nonprivate-output", action="store_true", help="Allow protected real API or gate evidence outside docs/evidence/private_refs for synthetic tests only.")
-    ns = parser.parse_args(argv)
-    modalities = parse_modalities(ns.modality)
-    args = CalibrationArgs(
+
+
+def calibration_args_from_namespace(ns: argparse.Namespace, *, command: str) -> CalibrationArgs:
+    return CalibrationArgs(
+        command=command,
         execute=ns.execute,
         small_batch=ns.small_batch,
         include_mutating=ns.include_mutating,
@@ -1230,7 +1560,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         max_retries=ns.max_retries,
         retry_backoff_seconds=ns.retry_backoff_seconds,
         limit=ns.limit,
-        modalities=modalities,
+        modalities=parse_modalities(ns.modality),
         print_record=ns.print_record,
         quota_gate_record=ns.quota_gate_record,
         quota_gate_ttl_seconds=ns.quota_gate_ttl_seconds,
@@ -1238,11 +1568,6 @@ def parse_args(argv: Sequence[str] | None = None) -> CalibrationArgs:
         quota_override_reason=ns.quota_override_reason,
         allow_nonprivate_output=ns.allow_nonprivate_output,
     )
-    try:
-        validate_calibration_guards(args)
-    except CalibrationUsageError as exc:
-        parser.error(str(exc))
-    return args
 
 
 def parse_modalities(values: Sequence[str]) -> tuple[str, ...]:
@@ -1283,7 +1608,23 @@ def non_negative_float(value: str) -> float:
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
-        manifest = run_calibration(args)
+        if args.command == "summarize-private-manifest":
+            manifest = write_public_official_api_manifest_summary(
+                input_path=args.input_manifest or DEFAULT_PRIVATE_OFFICIAL_API_READONLY_MANIFEST_PATH,
+                output_path=args.output or DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH,
+            )
+        elif args.command == "write-readiness-packet":
+            evidence_index_path: str | Path | None = args.evidence_index_path
+            if evidence_index_path in {"", "none", "None"}:
+                evidence_index_path = None
+            manifest = write_api_calibration_readiness_packet(
+                args,
+                output_path=args.output or PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json",
+                field_map_path=args.field_map_path or FIELD_MAP_PATH,
+                evidence_index_path=evidence_index_path,
+            )
+        else:
+            manifest = run_calibration(args)
     except CalibrationUsageError as exc:
         print(f"calibration usage error: {exc}")
         return 2
@@ -1293,8 +1634,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.print_record:
         print(json.dumps(manifest, indent=2, sort_keys=True))
     else:
-        print(json.dumps({"status": manifest["status"], "output": args.output or default_output_path(args.execute), "summary": manifest["summary"]}, indent=2, sort_keys=True))
-    return 0 if manifest.get("status") in {"ok", "planned"} else 1
+        print(json.dumps(public_cli_result(args, manifest), indent=2, sort_keys=True))
+    return 0 if cli_success(args, manifest) else 1
+
+
+def cli_success(args: CalibrationArgs, manifest: Mapping[str, Any]) -> bool:
+    if args.command == "write-readiness-packet":
+        readiness = manifest.get("readiness") if isinstance(manifest.get("readiness"), Mapping) else {}
+        return readiness.get("public_packet_ready") is True
+    return manifest.get("status") in {"ok", "planned", "missing"}
+
+
+def public_cli_result(args: CalibrationArgs, manifest: Mapping[str, Any]) -> JsonDict:
+    if args.command == "summarize-private-manifest":
+        return redact_sensitive(
+            {
+                "status": manifest.get("status"),
+                "output": args.output or str(DEFAULT_PUBLIC_OFFICIAL_API_MANIFEST_SUMMARY_PATH),
+                "source_private_manifest_present": manifest.get("source_private_manifest_present") is True,
+                "summary": manifest.get("summary", {}),
+            }
+        )
+    if args.command == "write-readiness-packet":
+        return redact_sensitive(
+            {
+                "status": "ready" if manifest.get("readiness", {}).get("public_packet_ready") is True else "blocked",
+                "output": args.output or str(PUBLIC_API_CALIBRATION_DIR / "official_api_readiness_packet.json"),
+                "summary": {
+                    "next_read_only_calibration_ready": manifest.get("readiness", {}).get("next_read_only_calibration_ready") is True,
+                    "read_only_small_batch_ready": manifest.get("readiness", {}).get("read_only_small_batch_ready") is True,
+                    "mutating_small_batch_ready": manifest.get("readiness", {}).get("mutating_small_batch_ready") is True,
+                    "function_count": manifest.get("observed_surface", {}).get("function_count"),
+                },
+            }
+        )
+    return redact_sensitive({"status": manifest.get("status"), "output": args.output or default_output_path(args.execute), "summary": manifest.get("summary", {})})
 
 
 if __name__ == "__main__":

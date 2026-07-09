@@ -539,6 +539,97 @@
 - [x] Test billing readiness and usage/billing report exports without enabling real payment mutations.
 - [x] Add Growth-Auditor Money-Grade Round 5 artifact with 30+ next commercial growth points.
 - [x] Redact Round 4 evidence note identity placeholders so generated A3 docs pass the export firewall.
+- [x] Add `a3.commercial_api_contract.v1` with 29 mapped `/v1` SaaS endpoints, A1/A2 owner boundaries, event envelope, usage/audit/RBAC notes, API route, fixture, SQL table, and tests.
+- [x] Add A3 commercial OpenAPI 3.1 artifact under `docs/a3/openapi/a3_commercial_api.openapi.json`.
+- [x] Add tenant scope helper preserving `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id`.
+- [x] Add metadata-only `ashr.event_envelope.v1` builder and validation guard for future `event_outbox`.
+- [x] Add A1/A2 source artifact hash summaries for A1 RunResult/Trace/ToolCall and A2 GradeResult/ReleaseGate.
+- [x] Add `source_artifacts` and `event_outbox` to the A3 SQL migration contract.
+- [x] Wire source artifact summaries into API-backed dashboard, release evidence v2, and artifact registry.
+- [x] Add A1/A2 live alignment doc for latest `origin/main` and A3 consumption rules.
+- [x] Add Growth-Auditor Money-Grade Round 7 artifact with 30 next commercial growth points.
+- [x] Verify A3 tenant/event/source-artifact/OpenAPI round with `node --test tests/a3/*.mjs`: 229 pass, 0 fail.
+- [x] Verify commercial and hygiene CL guards after tenant/event/source-artifact round.
+- [x] Add A3 Auth/RBAC boundary contract with redacted actor context, role policy, and authorization decisions.
+- [x] Add local Auth/RBAC API routes: `GET /api/a3/auth/context`, `GET /api/a3/auth/rbac-policy`, `POST /api/a3/auth/authorize`.
+- [x] Add Auth/RBAC Boundary panel to SaaS Admin dashboard rendering.
+- [x] Add Auth/RBAC boundary summary to SaaS Admin export and Artifact Registry security audit packets.
+- [x] Add SQL contract tables for `auth_contexts`, `rbac_policy_snapshots`, and `authz_decisions`.
+- [x] Add OpenAPI paths and schemas for Auth/RBAC boundary.
+- [x] Verify Auth/RBAC boundary round with focused tests, full A3 Node suite, Playwright E2E, CL commercial/hygiene, and diff check.
+- [x] Add A3 slim operating index to reduce future context load and identify done/deferred/next work.
+- [x] Add clean-room A3 UI concept preview with four screenshot options before changing the production dashboard style.
+- [x] Call the locally configured design LLM with a sanitized prompt and record guidance without exposing keys or private Ashr data.
+- [x] Apply the selected Quiet Review Console / Commercial Ledger blend to the production dashboard stylesheet.
+- [x] Improve SaaS console visuals for sidebar, topbar, metrics, panels, badges, expected-vs-actual, tool-call diff, media evidence, cloud/admin rows, and failure clusters.
+- [x] Fix narrow-screen dashboard overflow by converting the long A3 nav into a horizontal mobile scroller.
+- [x] Capture production visual-polish screenshots for desktop and mobile dashboard states.
+- [x] Verify the visual-polish round with dashboard/API Node tests, Playwright E2E, commercial CL, hygiene CL, and `git diff --check`.
+- [x] Add second-round clean-room visual concepts inspired by current SaaS product directions.
+- [x] Apply the stronger Linear / Vercel style release-console direction to the production dashboard.
+- [x] Capture V2 concept screenshots and production V2 dashboard desktop/mobile screenshots.
+- [x] Keep the second-round visual work limited to A3 dashboard/docs/screenshots without changing A1/A2 semantics.
+- [x] Apply V3 colorful, simplified, direct dashboard polish after feedback that V2 still looked too plain.
+- [x] Capture V3 production desktop and mobile screenshots.
+- [x] Keep V3 visual polish clean-room and preserve A1/A2 dashboard source wiring.
+- [x] Replace V3 loud color treatment with a refined V4 premium console style after broader web reference scan.
+- [x] Add nav click active-state animation, scroll-aware active nav, section focus animation, and reduced-motion support.
+- [x] Fix sticky overview topbar overlap so sidebar anchor navigation does not hide target sections.
+- [x] Repair direct hash-link active state so `#console` highlights `Console`.
+- [x] Capture V4 production desktop and mobile screenshots and verify mobile width does not overflow.
+- [x] Keep V4 UI refinement clean-room and preserve A1/A2 dashboard source wiring.
+- [x] Add reviewer denial as the third human review action beside waiver and approval.
+- [x] Add `POST /api/a3/review/denials` with local RBAC, idempotency, audit/event-outbox metadata, and SQLite persistence.
+- [x] Show dashboard human review action controls and receipt state for waiver, approval, and denial.
+- [x] Read usage ledger and billing readiness through A3 API-backed dashboard runtime refresh.
+- [x] Surface billing readiness in the SaaS Runtime panel without enabling real payment mutations.
+- [x] Add reviewer denial to the commercial API contract, OpenAPI artifact, and redacted contract fixture.
+- [x] Preserve existing dry-run/default-safe GitHub Check and PR-comment publishing path without reading tokens or performing live GitHub mutations.
+- [x] Confirm shareable report links remain expirable, revocable, and audit-recorded through the existing A3 API/store path.
+- [x] Add `apps/dashboard/src/visual-shell.mjs` as a data-driven visual rendering layer for primary navigation, SaaS product surfaces, and detailed workspace rails.
+- [x] Reduce the left sidebar to six primary product areas while preserving detailed A3 section access through a horizontal rail.
+- [x] Add product-surface navigation for Workspace, Product Console / Onboarding / Audit, SaaS Admin / Login / Team / Trust, Usage, API Keys, and Trust.
+- [x] Synchronize active navigation state across sidebar, product surface strip, and workspace rail.
+- [x] Rework the dashboard shell into a lighter academic SaaS console style without changing A1 runner or A2 judge semantics.
+- [x] Capture V5 visual-rendering screenshots for desktop, mobile, and first-viewport review.
+- [x] Verify V5 dashboard wiring with `node --test tests/a3/dashboard_wiring.test.mjs`.
+- [x] Convert the left sidebar into accordion groups with subsection links for Overview, Evaluate, Review, Reports, Admin, and Trust.
+- [x] Add overview anchors for product surfaces, workspace shortcuts, and run metrics so sidebar subsections target real page areas.
+- [x] Fix overview action layout so the data source selector and export buttons do not crowd each other.
+- [x] Verify desktop/mobile navigation and button text do not overflow with a Playwright layout probe.
+- [x] Wire metadata-only `ashr.event_envelope.v1` rows into A3 report share/view/revoke, admin action, review waiver/approval, and release readback write paths.
+- [x] Add local A3 store `eventOutbox` state and expose it through `GET /api/a3/events/outbox`.
+- [x] Add dashboard API `event_outbox` summary with event counts, delivery status counts, latest events, and A1/A2 boundary note.
+- [x] Add idempotency replay/conflict behavior to A3 mutation-like write paths without storing raw idempotency keys.
+- [x] Verify event outbox rows are metadata-only and do not leak raw share tokens, emails, Bearer values, cookies, API keys, or signed URLs.
+- [x] Document the A3 event outbox SaaS backbone in `docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md`.
+- [x] Enforce fail-closed RBAC on A3 mutation-like API routes before store writes occur.
+- [x] Add sanitized `a3.api_authz_denied.v1` denied responses that do not echo request bodies or secret-looking values.
+- [x] Add RBAC policies for report view, admin action plan, release readback capture, and event outbox reads.
+- [x] Verify unauthorized share/readback/admin/review/revoke/outbox attempts return 403 and do not create extra outbox rows.
+- [x] Keep local dashboard demo flows working by sending explicit local role headers from the API client and Playwright tests.
+- [x] Document the fail-closed RBAC write-path round in `docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md`.
+- [x] Add executable A3 schema drift radar for current A1/A2 source schemas with hash-only output.
+- [x] Protect `GET /api/a3/a1-a2/schema-drift` behind `audit:read` RBAC.
+- [x] Preserve newer G3 A2 evidence-readiness fields for A1 official API readonly, mutating, and paid-media summaries in A3 JSON/Markdown reports.
+- [x] Preserve newer A2 result-persistence record fields for `release_unblock_checklist` and `a1_ingestion_digest` without changing A2 judge semantics.
+- [x] Extend A3 source-artifact hashing for optional A1/A2 calibration inputs while keeping raw payloads out of reports.
+- [x] Verify schema drift and G3 field-preservation round with focused Node tests, full A3 Node tests, E2E, commercial CL, hygiene CL, and diff check.
+- [x] Add optional A3 JSON/Markdown consumers for A2 cross-lane security context.
+- [x] Add optional A3 JSON/Markdown consumers and source-artifact hashing for A2 SQL store reports.
+- [x] Surface the A1/A2 schema drift radar in the dashboard with API-backed and static-safe states.
+- [x] Add A3 peer branch calibration for A1/A2 draft PR deltas with API/dashboard/report/source-artifact coverage.
+- [x] Add `GET /api/a3/peer-branches/calibration` with redacted downstream-only A1/A2 boundary.
+- [x] Add `a3.live_workflow_readiness.v1` for GitHub check publishing, PR comment publishing, review decisions, human operation records, usage/billing reads, and share-link lifecycle.
+- [x] Add `GET /api/a3/live-workflow/readiness` and dashboard `Live Workflow Readiness` panel.
+- [x] Verify peer branch and live workflow readiness with focused Node tests: 45 pass, 0 fail.
+- [x] Add `a3.live_ops_control_plane.v1` for the six requested live SaaS workflow lanes.
+- [x] Add `GET /api/a3/live-ops/control-plane` and dashboard `Live Ops Control Plane` panel.
+- [x] Keep live ops control plane downstream of A1 hosted workers/billing ledger and A2 judge/release-policy semantics.
+- [x] Verify live ops round with focused Node tests: 43 pass, 0 fail.
+- [x] Verify full A3 Node suite after live ops round: 254 pass, 0 fail.
+- [x] Verify Playwright E2E after live ops round: 9 pass, 0 fail.
+- [x] Verify commercial/hygiene CL guards and `git diff --check` after live ops round.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.
@@ -573,3 +664,39 @@
 - [x] Add admin action guardrail E2E.
 - [x] Add reviewer waiver/approval receipt E2E.
 - [x] Add revoked/missing hosted report denied-state E2E.
+
+## A3 Live Publish / Review / Billing / Share Closeout - 2026-07-09
+
+- [x] Expose local A3 API routes for GitHub check and PR comment publishing.
+- [x] Keep GitHub publish dry-run by default and gate live mode behind hosted session or service account.
+- [x] Store sanitized GitHub publish receipts without raw tokens.
+- [x] Support reviewer waiver, approval, and denial records.
+- [x] Record human operation evidence through review records, SaaS admin requests, audit events, event outbox, and GitHub publish receipts.
+- [x] Read usage, billing readiness, and billing migration readiness through API-backed A3 routes.
+- [x] Keep billing/admin read-only; no checkout, invoice, subscription, provider webhook, or payment mutation.
+- [x] Support report share, view, revoke, expiry, denied access, and audit lifecycle.
+- [x] Keep raw share tokens out of persisted docs, fixtures, reports, and API reads.
+- [x] Re-verify full A3 Node suite after the closeout: 260 pass, 0 fail.
+- [x] Re-verify Playwright E2E after the closeout: 10 pass, 0 fail.
+- [ ] Run live GitHub check/comment readback only after maintainer-approved GitHub App or CI integration exists.
+- [ ] Replace local store persistence with A1-owned hosted Postgres/RLS once available.
+- [ ] Replace read-only billing projections with A1 durable billing ledger and provider webhook evidence before production billing claims.
+
+## A3 Notification Control Plane - 2026-07-09
+
+- [x] Add `a3.notification_control_plane.v1` for Slack, Teams, email, and customer webhook notification readiness.
+- [x] Expose `GET /api/a3/notifications/control-plane`.
+- [x] Add dashboard `Notification Control Plane` panel and navigation entries.
+- [x] Add notification evidence to JSON/Markdown report exports.
+- [x] Add `notification_control_plane` artifact and `notification_readiness_packet` to artifact registry.
+- [x] Add notification DB migration contract tables for channels, subscriptions, templates, deliveries, and webhook deliveries.
+- [x] Add commercial API contract endpoints for notification channels, test planning, and release-gate notification planning.
+- [x] Add `notifications:read` RBAC policy coverage.
+- [x] Verify notification control plane does not echo Slack, Teams, email, webhook, token, cookie, key, account, or local-path secrets.
+- [x] Re-verify full A3 Node suite after notification round: 262 pass, 0 fail.
+- [x] Re-verify Playwright E2E after notification round: 10 pass, 0 fail.
+- [x] Re-verify commercial CL guard after notification round: passed, 0 blockers, 0 advisories.
+- [x] Re-verify hygiene CL guard after notification round: passed.
+- [ ] Real Slack/Teams/email/webhook delivery remains future A1 worker work.
+- [ ] Real notification payload safety certification remains future A2 redaction/security work.
+- [ ] Real notification delivery usage billing remains future A1 usage-ledger work.

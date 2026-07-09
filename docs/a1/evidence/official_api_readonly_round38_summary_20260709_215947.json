@@ -1,0 +1,26 @@
+{
+  "private_evidence_path": "docs\\evidence\\private_refs\\a1_readonly_billing_route_round38_20260709_215947.json",
+  "public_safe": true,
+  "purpose": "read-only official API calibration after A1 billing route contract parity",
+  "raw_payloads_included": false,
+  "round": "round38_billing_route_contract",
+  "schema_version": "ashr.clone.official_api_readonly_summary.v1",
+  "status": "ok",
+  "step_count": 5,
+  "tokens_included": false,
+  "top_level_keys": [
+    "dry_run",
+    "duration_ms",
+    "ended_at",
+    "env",
+    "errors",
+    "field_map_version",
+    "guardrails",
+    "mode",
+    "schema_version",
+    "started_at",
+    "status",
+    "steps",
+    "summary"
+  ]
+}\n

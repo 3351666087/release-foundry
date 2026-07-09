@@ -1,5 +1,87 @@
 # A3 Worklog
 
+## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial And SaaS Runtime Reads
+
+### Goal
+
+Continue the A3 commercial SaaS push from
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` and cover the next six product
+requirements:
+
+1. GitHub PR check live publishing.
+2. PR comment live publishing.
+3. Reviewer approve / deny / waiver workflow.
+4. Dashboard-visible human operation records.
+5. Billing/admin pages reading real usage/billing state from the A3 API layer.
+6. Report share links that can expire, revoke, and leave audit evidence.
+
+### Work completed
+
+- Kept the existing GitHub Check and PR-comment publisher path intact:
+  `services/report/a3_github_integration.mjs` remains live-capable while tests
+  and fixtures stay dry-run/redacted by default.
+- Added reviewer denial support beside existing waiver and approval support:
+  - `a3.denial_review.v1`
+  - `POST /api/a3/review/denials`
+  - `denial.submitted` event-outbox rows
+  - `denial_count`, `human_action_count`, and `latest_human_action` summaries
+- Added dashboard buttons for `Record Waiver`, `Record Approval`, and
+  `Record Denial`.
+- Added API-backed dashboard refresh for reviewer workflow, usage ledger, and
+  billing readiness after review/report mutations.
+- Surfaced billing readiness inside the SaaS Runtime panel so the dashboard can
+  show read-only provider/checkout/invoice/quota readiness state.
+- Added denial to the commercial API contract and OpenAPI artifact:
+  - `POST /v1/release-gates/{release_gate_id}/denials`
+  - `POST /api/a3/review/denials`
+- Regenerated the redacted commercial API contract fixture:
+  - `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`
+
+### A1/A2 compatibility
+
+- A1 runner, SDK, trace, tool-call, auth, usage, GitHub, and billing backends
+  were not changed.
+- A2 judge, score, pass/fail, release-gate, failure taxonomy, and policy
+  semantics were not changed.
+- Denial records are A3 governance evidence only: they do not overwrite A2
+  release-gate decisions, and they never unblock a release automatically.
+- Usage/billing state is read-only in A3 and remains downstream of A1 usage
+  ledger ownership.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API key, GitHub token, cookie, customer email, signed URL, payment
+  credential, or live account value was printed or committed.
+- No live GitHub Check, live PR comment, live billing, live team/admin, or live
+  Ashr cloud mutation was performed in this round.
+- Share links remain token-hashed, expirable, revocable, and audit-recorded in
+  the local A3 store/API path.
+
+### Verification
+
+```text
+node --check apps\dashboard\src\app.mjs apps\dashboard\src\api-client.mjs apps\dashboard\src\components\saas-runtime-panel.mjs services\report\a3_review_workflow.mjs services\report\a3_store.mjs services\report\a3_sqlite_store.mjs services\report\a3_api_server.mjs services\report\a3_auth_rbac_boundary.mjs services\report\a3_commercial_api_contract.mjs services\report\report_builder.mjs
+node --test tests\a3\a3_review_workflow.test.mjs tests\a3\a3_store.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\a3_sqlite_store.test.mjs tests\a3\report_builder.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_commercial_api_contract.test.mjs tests\a3\a3_commercial_openapi_contract.test.mjs
+node --test tests\a3\*.mjs
+npm.cmd run test:e2e
+python scripts\cl_guard.py commercial
+python scripts\cl_guard.py hygiene
+git diff --check
+git check-ignore -v .env.local node_modules docs\screenshots\playwright-results
+```
+
+Results:
+
+- Syntax checks passed.
+- Focused A3 tests: 96 passed, 0 failed.
+- Full A3 Node suite: 243 passed, 0 failed.
+- Playwright E2E: 9 passed, 0 failed.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check` passed.
+- `.env.local`, `node_modules/`, and Playwright transient output remain ignored.
+
 ## 2026-07-09 - Commercial Growth Round 5 Billing And Usage Readiness
 
 ### Goal
@@ -4517,3 +4599,1071 @@ Result:
 
 - No `.env.local`, API key, token, cookie, real account value, raw signed URL, or
   billing provider secret was read or committed.
+
+## 2026-07-09 - Commercial API Contract and Evidence Coverage Round
+
+### Goal
+
+Continue the large SaaS strategy bus by making A3 expose a machine-readable
+commercial API map instead of only dashboard panels and scattered docs.
+
+### Work completed
+
+- Added `a3.commercial_api_contract.v1` with 29 mapped commercial `/v1`
+  endpoints across product console, release gate, review workflow, report
+  center, artifact registry, usage/billing, admin console, and audit export.
+- Exposed the contract through `GET /api/a3/commercial-api/contract`.
+- Added `commercial_api_contracts` to the A3 DB and SQL migration contract.
+- Generated `fixtures/a3/p3/a3_commercial_api_contract.redacted.json`.
+- Added commercial API contract docs and tests.
+- Integrated parallel agent work:
+  - commercial evidence coverage artifact and tests,
+  - A1/A2 compatibility contract test,
+  - security redaction guard and tests,
+  - Growth-Auditor Money-Grade Round 6 report.
+
+### A1/A2 calibration
+
+- A1 remains owner of API gateway, hosted auth/RBAC, usage source, billing
+  ledger, artifacts, object storage, and durable event publication.
+- A2 remains owner of judge scores, pass/fail, failure taxonomy, release gate,
+  commercial readiness, result persistence, and verifier semantics.
+- A3 maps these source authorities into product workflow, reports, review,
+  audit, usage/billing preview, and commercial API readiness without changing
+  A1 runner or A2 judge behavior.
+
+### API / DB / Event / Artifact contract
+
+- API: `GET /api/a3/commercial-api/contract`.
+- DB: `commercial_api_contracts` migration contract.
+- Event: `ashr.event_envelope.v1` declared with tenant, actor, request, trace,
+  resource, payload hash, and redaction fields.
+- Artifact: redacted contract fixture and commercial evidence coverage fixture.
+
+### Tenant / Auth / RBAC / Usage / Audit
+
+- Tenant: all commercial endpoints are mapped to organization/project/environment
+  scope.
+- Auth/RBAC: live writes stay blocked or plan-only until A1 hosted auth/RBAC
+  exists.
+- Usage: A3 maps read-only usage meters and explicitly keeps A1 billing ledger as
+  source of truth.
+- Audit: payload policy is ids, refs, hashes, statuses, and counts only.
+
+### Safety boundary
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, real email, raw signed URL, payment
+  secret, or account value was written.
+- No live Ashr, GitHub, billing, auth, or cloud mutation was performed.
+
+## 2026-07-09 - Commercial SaaS Contract Round 7: OpenAPI, Tenant Scope, Event Envelope, Source Artifacts
+
+Continued from latest `origin/main` and `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+
+Implemented:
+
+- Added A3 commercial OpenAPI artifact:
+  - `docs/a3/openapi/a3_commercial_api.openapi.json`
+  - `tests/a3/a3_commercial_openapi_contract.test.mjs`
+- Added tenant scope helper:
+  - `services/report/a3_tenant_scope.mjs`
+- Added metadata-only event envelope:
+  - `services/report/a3_event_envelope.mjs`
+- Added A1/A2 source artifact hash builder:
+  - `services/report/a3_source_artifacts.mjs`
+- Wired source artifact hashes into:
+  - API-backed dashboard payload
+  - release evidence v2
+  - artifact registry
+- Updated commercial API contract fixture/docs for:
+  - `tenant_id`
+  - `workspace_id`
+  - `source_artifacts`
+  - `event_outbox`
+- Updated SQL migration contract with:
+  - `source_artifacts`
+  - `event_outbox`
+- Added A1/A2 live alignment doc:
+  - `docs/a3/p3_a1_a2_live_alignment_2026_07_09.md`
+- Added Growth-Auditor Round 7:
+  - `docs/a3/p3_growth_auditor_money_grade_round7_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A3 still does not mutate A1 runner, SDK, trace, tool-call, artifact, auth,
+  usage, or event semantics.
+- A3 still does not change A2 judge score, pass/fail, release-gate, policy, or
+  failure taxonomy semantics.
+- A3 now carries A1/A2 source hashes so reports and release evidence can prove
+  their upstream evidence source without embedding raw private payloads.
+
+Verification:
+
+```text
+node --test tests/a3/*.mjs
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+```
+
+Results:
+
+- A3 Node contracts: 229 pass, 0 fail.
+- Commercial CL: passed.
+- Hygiene CL: passed.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr/GitHub/API/billing/cloud mutation.
+- No secret, token, cookie, real account value, email, raw signed URL, or
+  payment secret committed.
+
+## 2026-07-09 - Commercial SaaS Contract Round 8: Auth/RBAC Boundary Spine
+
+Continued under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` after Round 7
+added OpenAPI, tenant scope, event envelope, and source artifacts.
+
+Implemented:
+
+- Added `services/report/a3_auth_rbac_boundary.mjs`.
+- Added local API contract routes:
+  - `GET /api/a3/auth/context`
+  - `GET /api/a3/auth/rbac-policy`
+  - `POST /api/a3/auth/authorize`
+- Added redacted `a3.auth_context.v1`, `a3.rbac_policy.v1`, and
+  `a3.authz_decision.v1` objects.
+- Added Auth/RBAC boundary state to SaaS Admin Console output and dashboard UI.
+- Added Auth/RBAC boundary fields to SaaS Admin export summary.
+- Added `auth_rbac_boundary` to Artifact Registry security audit packets.
+- Added SQL contract tables:
+  - `auth_contexts`
+  - `rbac_policy_snapshots`
+  - `authz_decisions`
+- Updated OpenAPI with Auth/RBAC boundary paths and schemas.
+- Added `tests/a3/a3_auth_rbac_boundary.test.mjs`.
+- Added documentation:
+  - `docs/a3/p3_auth_rbac_boundary_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains source of truth for hosted auth middleware, sessions, API-key
+  backend, durable tenant isolation, audit, and usage.
+- A2 remains source of truth for security verification, abuse cases, release
+  policy, and redaction/verifier correctness.
+- A3 now models actor context, role policy, and authorization decisions without
+  enabling real cloud mutations.
+
+Verification so far:
+
+```text
+node --check services/report/a3_auth_rbac_boundary.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_saas_admin.mjs
+node --check services/report/a3_artifact_registry.mjs
+node --check services/report/a3_sql_migrations.mjs
+node --check services/report/report_builder.mjs
+node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/artifact_registry.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs
+```
+
+Final verification:
+
+- Focused Auth/RBAC round: 22 pass, 0 fail.
+- Full A3 Node suite: 234 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr, GitHub, billing, auth, team, API-key, Trust, object-storage, or
+  cloud mutation.
+- No API key, token, cookie, real account value, email, raw signed URL, or
+  payment secret written.
+
+## 2026-07-09 - A3 Slim Operating Index
+
+Created a short A3 operating index so future rounds can move faster without
+rereading every historical growth report.
+
+Added:
+
+- `docs/a3/a3_slim_operating_index_2026_07_09.md`
+
+The index records:
+
+- Which A3 capabilities are done enough for the student MVP.
+- Which gaps remain real commercial SaaS blockers.
+- Which old documents should be treated as evidence archives instead of
+  first-read files.
+- Which files future Codex rounds should read first.
+- Which work should be avoided or deferred.
+- The next high-value sequence: EventEnvelope, event outbox, idempotency,
+  RBAC-denied write paths, A1/A2 schema drift tests, and bundle reseal impact.
+
+Operational cleanup:
+
+- Closed unused historical subagents.
+- Did not delete project files or historical evidence.
+- Did not read `.env.local`.
+- Did not use or print any API key, token, cookie, real account value, signed
+  URL, or payment secret.
+
+## 2026-07-09 - A3 UI Visual Concept Preview
+
+Created a clean-room visual preview for A3 dashboard polish before changing the
+production dashboard CSS.
+
+Added:
+
+- `apps/dashboard/ui-concepts.html`
+- `docs/a3/a3_ui_visual_concepts_2026_07_09.md`
+- `docs/screenshots/a3-ui-concepts-overview-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-quiet-review-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-command-console-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-commercial-ledger-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-ops-matrix-2026-07-09.png`
+
+Concepts:
+
+- Quiet Review Console: recommended base for the main dashboard.
+- Engineering Command Console: useful for release gate, trace, and GitHub/CI
+  evidence sections.
+- Commercial Ledger Dashboard: useful for SaaS demo, report center, usage, and
+  trust polish.
+- Ops Matrix Console: useful for dense failure triage and observability replay.
+
+Safety:
+
+- No external website source, images, private frontend code, or assets were
+  copied.
+- The external design LLM API was not called because no safe
+  `A3_DESIGN_LLM_*` environment variables were present.
+- The API key previously sent in chat was not printed, written, committed, or
+  used in a shell command.
+
+## 2026-07-09 - A3 Production Dashboard Visual Polish
+
+Applied the selected clean-room visual direction to the real dashboard
+stylesheet while keeping A1/A2 data contracts and dashboard JavaScript wiring
+unchanged.
+
+Changed:
+
+- Updated `apps/dashboard/src/styles.css` with a lighter SaaS console shell,
+  calmer sidebar navigation, polished topbar, consistent buttons, denser metric
+  cards, unified panels, refined badges, report-table states, evidence rows,
+  expected-vs-actual blocks, tool-call diffs, media evidence, and failure
+  clusters.
+- Added mobile responsive fixes so the long A3 navigation becomes a horizontal
+  scroller and does not create page-wide horizontal overflow.
+- Called the local external design LLM through `A3_DESIGN_LLM_*` variables after
+  confirming the usable model id was `claude-opus-4-8`.
+- Wrote sanitized design guidance to
+  `docs/a3/a3_design_llm_review_2026_07_09.md`.
+- Updated `docs/a3/a3_ui_visual_concepts_2026_07_09.md` so the earlier
+  no-API note no longer misleads future agents.
+- Captured production dashboard screenshots:
+  - `docs/screenshots/a3-dashboard-visual-polish-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-polish-mobile-2026-07-09.png`
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, Trace, ToolCall, or RunResult logic was changed.
+- No A2 Scenario, Judge, GradeResult, pass/fail, score, or failure taxonomy
+  logic was changed.
+- Dashboard tests still verify raw A1, raw A2, API-backed mock, and P3 official
+  demo sources remain wired.
+
+Verification:
+
+```text
+git diff --check
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs
+npm.cmd run test:e2e
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+```
+
+Results:
+
+- Dashboard/API Node tests: 33 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- Mobile screenshot width check: `bodyScrollWidth` equals viewport width, so no
+  page-level horizontal overflow.
+
+Safety:
+
+- `.env.local` remained ignored by git.
+- API keys were read only from local environment variables and were not printed
+  or committed.
+- No token, cookie, account value, email, signed URL, payment secret, or raw
+  private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Concepts V2 and Stronger SaaS Style
+
+Responded to feedback that the first production visual polish still looked too
+plain. Created a second round of clean-room visual directions based on public
+SaaS product language and applied the strongest fit to the real dashboard.
+
+Added:
+
+- `apps/dashboard/ui-concepts-v2.html`
+- `docs/a3/a3_ui_visual_concepts_v2_2026_07_09.md`
+- `docs/screenshots/a3-ui-concepts-v2-overview-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-linear-vercel-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-supabase-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-ledger-2026-07-09.png`
+- `docs/screenshots/a3-ui-concept-v2-retool-2026-07-09.png`
+
+Applied to production dashboard:
+
+- Reworked `apps/dashboard/src/styles.css` toward Concept E, a clean-room
+  Linear / Vercel style release console.
+- Darkened the sidebar and release-context topbar.
+- Made the metric cards cleaner with subtle state borders instead of heavy top
+  bars.
+- Preserved readable white evidence panels for A1 trace and A2 judge data.
+- Kept the mobile horizontal nav and confirmed no page-level horizontal
+  overflow.
+
+Why Concept E:
+
+- A3 is mainly a release evidence review console, not a pure DB studio, billing
+  dashboard, or internal admin table.
+- The dark navigation plus white evidence cards makes the product feel closer to
+  a commercial SaaS console while keeping long expected/actual and trace text
+  readable.
+
+A1/A2 calibration:
+
+- A1 runner/trace/tool-call logic was not changed.
+- A2 judge/score/pass-fail/failure-taxonomy logic was not changed.
+- Dashboard source options for A1/A2/API-backed/P3 demo data remain intact.
+
+Safety:
+
+- Public products were used as visual references only.
+- No external source code, private frontend code, screenshots, logos, or assets
+  were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Polish V3 Colorful Direct Console
+
+Responded to feedback that the V2 dashboard still felt too plain and not
+colorful enough. Shifted the production dashboard toward a brighter, simpler,
+more direct product-console style.
+
+Changed:
+
+- Updated `apps/dashboard/src/styles.css` with a vivid but controlled color
+  system: teal, green, orange, coral, blue, and pink accents.
+- Reworked the topbar into a colorful release-context strip.
+- Kept the dark navigation for contrast but made the brand mark more colorful.
+- Updated metric cards with tinted backgrounds and strong color strips.
+- Removed purely decorative circular metric shapes and used cleaner state bars
+  instead.
+- Preserved white evidence panels so A1/A2 trace, judge, expected-vs-actual,
+  and report content remain readable.
+- Captured V3 screenshots:
+  - `docs/screenshots/a3-dashboard-visual-polish-v3-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-polish-v3-mobile-2026-07-09.png`
+- Added `docs/a3/a3_ui_visual_polish_v3_2026_07_09.md`.
+
+Public inspiration:
+
+- Figma, Pitch, Stripe, and Canva were used only as broad visual references for
+  a colorful but simple product feel.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, or failure taxonomy
+  logic changed.
+- Dashboard source switching and API-backed wiring remain intact.
+
+Safety:
+
+- No external source code, private frontend code, screenshots, logos, assets,
+  or brand tokens were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Polish V4 Refined Premium Console
+
+Responded to feedback that V3 became too colorful and that the product needed a
+broader, more refined, less industry-narrow visual pass.
+
+Changed:
+
+- Reworked `apps/dashboard/src/styles.css` away from the V3 colorful gradient
+  into a restrained premium console style.
+- Kept the V2 dark sidebar direction but refined spacing, borders, card shadows,
+  metric strips, and hover transitions.
+- Added smooth anchor scrolling and section focus animations.
+- Added nav active-state updates on click and while scrolling in
+  `apps/dashboard/src/app.mjs`.
+- Fixed the sticky overview topbar overlap: the topbar now stays in normal
+  document flow so `#console`, `#saas-admin`, and other anchors are not hidden
+  behind it.
+- Added direct hash-load and hash-change active-state repair so URLs such as
+  `#console` highlight the correct sidebar item.
+- Added reduced-motion handling for users who disable animation.
+- Captured V4 screenshots:
+  - `docs/screenshots/a3-dashboard-visual-polish-v4-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-polish-v4-mobile-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-v4-console-anchor-no-overlap-2026-07-09.png`
+- Added `docs/a3/a3_ui_visual_polish_v4_2026_07_09.md`.
+
+Reference scan:
+
+- Bilibili was considered for content density, horizontal navigation, and
+  card-feed rhythm. The fetchable page returned a browser-upgrade page in this
+  environment, so it was treated as limited category inspiration only.
+- Apple, Notion, Raycast, Linear, and Vercel were used as broad references for
+  premium spacing, calm workspace layout, dark productivity shell, and release
+  console structure.
+
+Interaction evidence:
+
+- Playwright click check confirmed clicking `SaaS Admin` updates the active nav
+  item to `SaaS Admin`.
+- Playwright direct-hash check confirmed opening `#console` makes the active nav
+  item `Console` and does not hide the Console section behind the overview
+  topbar.
+- Mobile screenshot width check confirmed `bodyScrollWidth` equals viewport
+  width, so there is no page-level horizontal overflow.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, or failure taxonomy
+  logic changed.
+
+Safety:
+
+- No external source code, private frontend code, screenshots, logos, assets,
+  or brand tokens were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Visual Rendering Architecture V5
+
+Responded to feedback that the left sidebar was still too long/dry and that the
+dashboard needed a broader product console structure, including login, team,
+API keys, usage, trust, and admin-style SaaS surfaces.
+
+Changed:
+
+- Added `apps/dashboard/src/visual-shell.mjs` as a data-driven visual
+  information architecture layer.
+- Reduced the sidebar from a long section directory to six primary product
+  areas: Overview, Evaluate, Review, Reports, Admin, and Trust.
+- Added a product surface strip for Workspace, Product Console / Onboarding /
+  Audit, SaaS Admin / Login / Team / Trust, Usage, API Keys, and Trust.
+- Added a horizontal workspace rail for detailed A3 panels across workflow,
+  platform, calibration, release, and output.
+- Updated navigation active-state logic so the sidebar, product surfaces, and
+  rail chips stay synchronized.
+- Reworked the dashboard shell to a lighter academic SaaS console style with
+  restrained cyan, blue, pink, amber, purple, and green accents.
+- Updated dashboard wiring tests so they understand the new visual-shell
+  module instead of assuming every navigation target lives in static HTML.
+- Captured V5 screenshots:
+  - `docs/screenshots/a3-dashboard-visual-rendering-v5-first-viewport-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-visual-rendering-v5-mobile-first-viewport-2026-07-09.png`
+- Added `docs/a3/a3_visual_rendering_architecture_v5_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/dashboard_wiring.test.mjs`
+- `node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/p3_ashr_mapper.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py hygiene`
+- `python scripts/cl_guard.py commercial`
+- `git diff --check`
+- Playwright screenshot probe confirmed desktop/mobile page width does not
+  overflow and the rendered shell has 6 primary nav links, 6 product surfaces,
+  and 26 rail chips.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, or failure taxonomy
+  logic changed.
+- Existing A3 panel ids and A1/A2 data rendering surfaces remain intact.
+
+Safety:
+
+- No external source code, private frontend code, logos, assets, media, brand
+  copy, account data, cookies, or tokens were copied.
+- No API key, token, cookie, account value, email, signed URL, payment secret,
+  or raw private Ashr data was written.
+
+## 2026-07-09 - A3 Sidebar Accordion And Overview Layout Fix
+
+Responded to feedback that the dashboard still felt like one overloaded page,
+that the left navigation should contain collapsible subsections, and that the
+overview data selector/export actions had text crowding.
+
+Changed:
+
+- Extended `apps/dashboard/src/visual-shell.mjs` so each primary sidebar area
+  owns a `children` list.
+- Rendered the sidebar as accordion groups with nested subsection links.
+- Added new overview anchors for product surfaces, workspace shortcuts, and run
+  metrics so accordion links can target real page areas.
+- Updated navigation sync so clicking a parent or child link expands the
+  matching sidebar group and keeps other groups collapsed.
+- Added a short navigation lock so scroll observation does not immediately steal
+  the active state after a user clicks a sidebar group.
+- Reworked the overview action area into a stable grid: the data selector owns a
+  full row and export/print actions sit in two clean columns.
+- Updated mobile rules so accordion groups, sublinks, buttons, and source
+  selector do not overflow.
+- Captured V6 screenshots:
+  - `docs/screenshots/a3-dashboard-accordion-nav-v6-first-viewport-2026-07-09.png`
+  - `docs/screenshots/a3-dashboard-accordion-nav-v6-mobile-first-viewport-2026-07-09.png`
+
+Validation so far:
+
+- `node --test tests/a3/dashboard_wiring.test.mjs`
+- `node --test tests/a3/a3_fixture_builder.test.mjs tests/a3/p3_ashr_mapper.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py hygiene`
+- `python scripts/cl_guard.py commercial`
+- `git diff --check`
+- Playwright layout probe confirmed no desktop/mobile page-level overflow and
+  no detected text overflow for buttons, nav links, rail chips, or product
+  surface labels.
+
+Page model note:
+
+- A3 is still implemented as one static/API-backed single-page app shell today.
+- The new sidebar groups now describe the future route split: overview,
+  evaluate, review, reports, admin, and trust.
+
+## 2026-07-09 - A3 Event Outbox SaaS Backbone
+
+Continued the large-SaaS goal after the UI became acceptable. This round
+focused on the non-visual commercial backbone from
+`docs/a3/a3_slim_operating_index_2026_07_09.md`: executable event envelopes,
+event outbox exposure, and idempotent mutation receipts.
+
+Changed:
+
+- Wired metadata-only `ashr.event_envelope.v1` rows into A3 write paths:
+  report share, report view, report revoke, SaaS admin action request, review
+  waiver submit, review approval submit, and release evidence readback capture.
+- Added local store `eventOutbox` state and exported it through
+  `listEventOutbox`.
+- Added `GET /api/a3/events/outbox`.
+- Added `event_outbox` summary to the dashboard API payload.
+- Added idempotency replay/conflict behavior for A3 mutation-like write paths
+  beyond the existing A1/A2 import and release-readback paths.
+- Added event outbox store/API tests that assert event types, duplicate replay,
+  metadata-only payloads, and no token/email/Bearer leakage.
+- Added `docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`
+- Result: 12 tests passed, 0 failed.
+
+A1/A2 calibration:
+
+- No A1 runner, SDK, RunResult, Trace, Observation, or ToolCall logic changed.
+- No A2 Scenario, Judge, GradeResult, score, pass/fail, release gate, or
+  failure taxonomy logic changed.
+- Event outbox rows are downstream A3 control-plane metadata only.
+
+Safety:
+
+- No `.env.local`, API key, token, cookie, email, signed URL, payment secret, or
+  raw share token was written.
+- Event rows store metadata, hashes, safe actor IDs, and delivery status only.
+- Raw A1/A2 payloads remain separate source evidence and are not embedded in
+  outbox rows.
+
+## 2026-07-09 - A3 Fail-Closed RBAC Write Paths
+
+Continued the SaaS backbone work by enforcing the existing A3 Auth/RBAC
+boundary before mutation-like API routes reach the store. This turns RBAC from
+"documented policy" into local API behavior for the write paths that create
+reports, readbacks, review records, admin action requests, idempotency receipts,
+and event outbox rows.
+
+Changed:
+
+- Added RBAC operation policies for `view_report`, `plan_admin_action`,
+  `capture_release_readback`, and `read_event_outbox`.
+- Added API fail-closed checks for A1/A2 imports, release readback capture,
+  admin action plan/submit, review waiver/approval submit, report share/view/
+  revoke, and event outbox reads.
+- Added sanitized `a3.api_authz_denied.v1` responses for unauthorized API
+  attempts.
+- Updated dashboard API client calls to send explicit local demo roles:
+  reviewer for share/review/readback flows, owner for admin/revoke flows, and
+  auditor for outbox inspection.
+- Added API tests proving unauthorized writes return 403, do not echo request
+  bodies, and do not create extra event outbox rows.
+- Added RBAC policy tests for expected local write/audit roles.
+- Added `docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_readback_capture_cli.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/dashboard_wiring.test.mjs`
+- `npm.cmd run test:e2e`
+
+A1/A2 calibration:
+
+- A1 still owns hosted auth/session middleware, service accounts, RunResult,
+  Trace, Observation, ToolCall, and runtime evidence.
+- A2 still owns Scenario, Judge, GradeResult, score, pass/fail, release gate,
+  and failure taxonomy semantics.
+- A3 only gates downstream product-console writes before they mutate A3-owned
+  report, review, admin, readback, and outbox state.
+
+Safety:
+
+- Denied responses do not echo raw request bodies, emails, Bearer strings,
+  cookies, API keys, signed URLs, or private evidence.
+- No live Ashr, GitHub, billing, team, API-key, Trust, or cloud mutation was
+  performed.
+
+## 2026-07-09 - A3 A1/A2 Schema Drift Radar and G3 Field Preservation
+
+Continued the commercial SaaS compatibility work by closing the previous
+unfinished A1/A2 schema drift radar round and extending A3 report/source-artifact
+consumers for the newer G3 A2 calibration fields seen on remote A1/A2 branches.
+This keeps A3 aligned with upstream runner/judge evidence without changing A1
+runner behavior or A2 judge semantics.
+
+Changed:
+
+- Added executable A3 schema drift radar:
+  `services/report/a3_schema_drift_radar.mjs`.
+- Added RBAC-protected API route: `GET /api/a3/a1-a2/schema-drift`.
+- Added `read_schema_drift` operation requiring `audit:read`.
+- Added schema drift tests covering hash-only output, critical field loss, and
+  viewer-denied/auditor-allowed API behavior.
+- Extended `summarizeEvidenceReadiness(...)` to preserve G3 A2 readiness fields
+  for A1 official API readonly manifests, mutating API indexes, and paid media
+  summaries.
+- Extended Markdown and JSON reports so these official API/media readiness
+  fields remain visible to A3 release reviewers.
+- Extended `summarizeA2ResultPersistence(...)` to preserve
+  `release_unblock_checklist` and `a1_ingestion_digest` record types plus
+  unblock fields such as `overall_status`, `release_gate_decision`,
+  `blocked_gate_count`, `gate_count`, and `private_evidence_required`.
+- Extended source-artifact hashing so optional A1/A2 calibration inputs can be
+  represented as hash-only audit sources:
+  `a1_official_api_readonly_manifest`,
+  `a1_official_api_mutating_index`,
+  `a1_official_api_paid_media_summary`,
+  `a2_result_persistence_manifest`, and
+  `a2_release_unblock_checklist`.
+- Updated `docs/a3/a3_a1_a2_schema_drift_radar_2026_07_09.md`.
+
+Validation so far:
+
+- `node --check services/report/report_builder.mjs`
+- `node --check services/report/a3_source_artifacts.mjs`
+- `node --check services/report/a3_schema_drift_radar.mjs`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs tests/a3/a3_schema_drift_radar.test.mjs tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_api_server.test.mjs`
+- Focused result: 59 tests passed, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 241 tests, 0
+  failed.
+- E2E result: `npm.cmd run test:e2e` passed with 9 tests, 0 failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- Current branch still contains `origin/main` as an ancestor.
+- Local remote refs show `origin/codex/a1-local-sdk-runner` and
+  `origin/dev/g3-a2-calibration`.
+- This round inspected remote A2 schema shapes for official API readonly,
+  official API mutating, paid media evidence, result persistence, cross-lane
+  security context, and SQL store reports.
+- A3 consumes those fields additively and does not require them before they land
+  in main.
+- No A1 runner, SDK, trace, observation, or tool-call production logic changed.
+- No A2 scenario, judge, score, pass/fail, release-gate, or failure taxonomy
+  semantics changed.
+
+Safety:
+
+- No `.env.local`, API key, token, cookie, email, signed URL, private evidence,
+  or raw official API payload was read into docs or fixtures.
+- Source artifacts remain hash-only and metadata-only.
+- The schema drift API embeds hashes and compatibility findings, not raw schemas.
+- `git fetch origin` was retried during this round but failed with a network
+  reset; existing local remote refs were used for compatibility inspection.
+
+## 2026-07-09 - A3 A2 Security and SQL Store Report Consumers
+
+Continued the A1/A2 compatibility thread after the schema drift commit by adding
+optional A3 consumers for A2's newer cross-lane security and SQL store report
+shapes. This moves A3 farther from "static dashboard" toward SaaS evidence
+plumbing: security policy context and DB-backed judge history can now appear in
+reports when A2 provides them.
+
+Changed:
+
+- Added `summarizeA2CrossLaneSecurityContext(...)` for
+  `a2.cross_lane_security_context.v1`.
+- Added `summarizeA2SqlStoreReport(...)` for `a2.sql_store_report.v1`.
+- Added `a2_cross_lane_security_context` and `a2_sql_store_report` to the A3
+  JSON report export.
+- Added Markdown report sections for A2 cross-lane security context and A2 SQL
+  store reports.
+- Extended A3 source-artifact hashing with
+  `a2_cross_lane_security_context` and `a2_sql_store_report`.
+- Added focused report/source-artifact tests with synthetic public-safe fixtures.
+
+Validation so far:
+
+- `node --check services/report/report_builder.mjs`
+- `node --check services/report/a3_source_artifacts.mjs`
+- `node --test tests/a3/report_builder.test.mjs tests/a3/a3_tenant_event_source_artifact_contract.test.mjs tests/a3/a1_a2_compatibility_contract.test.mjs`
+- Focused result: 49 tests passed, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 242 tests, 0
+  failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- A3 still consumes these as optional A2-owned evidence reports.
+- No A1 runner or A2 judge semantics changed.
+- Cross-lane security context is treated as policy/audit evidence, not as an
+  A3 authority to change A1 hosted auth or A2 policy.
+- SQL store report is treated as DB evidence shape for future SaaS reporting,
+  not as a live database migration.
+
+Safety:
+
+- No live database, hosted auth, Ashr API, billing provider, or cloud mutation
+  was executed.
+- Synthetic test fixtures are public-safe and do not include raw keys, tokens,
+  account identifiers, or private evidence.
+
+## 2026-07-09 - A3 Dashboard Contract Radar Surface
+
+Added a lightweight product surface for the A1/A2 schema drift radar in the A3
+dashboard so the compatibility work is visible to reviewers, not only available
+through a backend API.
+
+Changed:
+
+- Added `A1/A2 Contract Radar` panel below Enterprise Readiness.
+- Added left navigation and workspace rail anchors for `#schema-drift-radar`.
+- Added `fetchA3SchemaDriftRadar(...)` to the dashboard API client.
+- API-backed dashboard mode now reads `GET /api/a3/a1-a2/schema-drift` using
+  the local `auditor` role header.
+- Static fixture mode shows a safe `not_attached` state instead of failing when
+  no local API server is present.
+- Added `renderSchemaDriftRadar(...)` with status counts, contract rows, hash
+  prefixes, and a safety note that raw schema payloads are not embedded.
+- Added dashboard wiring and Playwright E2E assertions for both API-backed and
+  static dashboard modes.
+
+Validation so far:
+
+- `node --check apps/dashboard/src/app.mjs`
+- `node --check apps/dashboard/src/api-client.mjs`
+- `node --check apps/dashboard/src/visual-shell.mjs`
+- `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_schema_drift_radar.test.mjs`
+- Focused result: 35 tests passed, 0 failed.
+- E2E result: `npm.cmd run test:e2e` passed with 9 tests, 0 failed.
+- Full A3 result: `node --test tests/a3/*.mjs` passed with 243 tests, 0
+  failed.
+- CL result: `python scripts/cl_guard.py commercial` passed.
+- CL result: `python scripts/cl_guard.py hygiene` passed.
+- Whitespace result: `git diff --check` passed.
+
+A1/A2 calibration:
+
+- A3 reads the A1/A2 schema radar as a consumer-side dashboard status only.
+- A3 still does not modify A1 schema files, runner logic, trace semantics, A2
+  judge behavior, grade semantics, release-gate policy, or failure taxonomy.
+
+Safety:
+
+- The panel displays status, counts, schema contract IDs, source lanes, and hash
+  prefixes only.
+- It does not display raw schemas, API keys, cookies, account details, private
+  evidence, or signed URLs.
+
+## 2026-07-09 - Peer Branch and Live Workflow Readiness
+
+Goal: continue A3 commercial SaaS growth under
+`docs/strategy/large-saas-a1-a2-a3-full-plan.md` by keeping A3 aligned with A1/A2
+peer branches and by turning the next six live workflow items into one visible
+dashboard/API contract.
+
+Changed:
+
+- Added `services/report/a3_peer_branch_calibration.mjs`.
+- Added `fixtures/a3/p3/a3_peer_branch_calibration.redacted.json`.
+- Added `GET /api/a3/peer-branches/calibration` and dashboard panel
+  `#peer-branch-calibration`.
+- Made peer branch calibration idempotent so both raw fixtures and API summaries
+  preserve peer delta counts, blocking counts, and action items.
+- Added peer calibration to source-artifact hash coverage as
+  `a3_peer_branch_calibration`.
+- Added `services/report/a3_live_workflow_readiness.mjs`.
+- Added `a3.live_workflow_readiness.v1` and
+  `GET /api/a3/live-workflow/readiness`.
+- Added dashboard panel `#live-workflow-readiness` for:
+  GitHub PR check publishing, PR comment publishing, approve/deny/waiver review,
+  human operation records, usage/billing read state, and share-link
+  revoke/expiry/audit lifecycle.
+- Added documentation:
+  - `docs/a3/p3_growth_auditor_peer_branch_calibration_2026_07_09.md`
+  - `docs/a3/p3_live_workflow_readiness_2026_07_09.md`
+- Added/updated tests:
+  - `tests/a3/a3_peer_branch_calibration.test.mjs`
+  - `tests/a3/a3_live_workflow_readiness.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+  - `tests/a3/a3_tenant_event_source_artifact_contract.test.mjs`
+
+Validation so far:
+
+- `node --test tests\a3\a3_live_workflow_readiness.test.mjs tests\a3\a3_api_server.test.mjs tests\a3\dashboard_wiring.test.mjs tests\a3\a3_peer_branch_calibration.test.mjs tests\a3\a3_tenant_event_source_artifact_contract.test.mjs`
+- Focused result: 45 tests passed, 0 failed.
+- `node --test tests\a3\*.mjs`
+- Full A3 result: 249 tests passed, 0 failed.
+- `npm.cmd run test:e2e`
+- Playwright E2E result: 9 tests passed, 0 failed.
+- `python scripts\cl_guard.py commercial`
+- Commercial CL result: passed, 0 blockers, 0 advisories.
+- `python scripts\cl_guard.py hygiene`
+- Hygiene CL result: passed, no findings.
+- `git diff --check`
+- Whitespace result: passed.
+- `git check-ignore -v .env.local node_modules docs\screenshots\playwright-results`
+- Ignore result: `.env.local`, `node_modules`, and Playwright result artifacts are ignored.
+
+A1/A2 calibration:
+
+- A3 reads A1/A2 PR deltas as downstream readiness evidence only.
+- A3 does not change A1 billing/auth/runner behavior or A2 judge/release-policy
+  semantics.
+- The live workflow readiness card explicitly separates local contracts from
+  future live GitHub, hosted auth, billing provider, and durable DB work.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No real billing, hosted auth, team invite, API-key rotation, Trust publish,
+  branch-protection mutation, or cloud mutation.
+- No raw key, token, cookie, email, account value, signed URL, local path, or
+  payment secret was written.
+
+## 2026-07-09 - Live Ops Control Plane
+
+Goal: convert the six next SaaS workflow asks into an A3 control-plane contract
+that reviewers can inspect in API-backed and static dashboard modes.
+
+Implemented:
+
+- Added `services/report/a3_live_ops_control_plane.mjs`.
+- Added `a3.live_ops_control_plane.v1`.
+- Added `GET /api/a3/live-ops/control-plane`.
+- Added dashboard panel `#live-ops-control-plane`.
+- Added redacted fixture:
+  - `fixtures/a3/p3/a3_live_ops_control_plane.redacted.json`
+- Added docs:
+  - `docs/a3/p3_live_ops_control_plane_2026_07_09.md`
+- Added/updated tests:
+  - `tests/a3/a3_live_ops_control_plane.test.mjs`
+  - `tests/a3/a3_api_server.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+
+The control plane covers:
+
+- GitHub PR check live publishing.
+- PR comment live publishing.
+- Reviewer approve / deny / waiver workflow.
+- Dashboard human operation records.
+- Billing/admin read-only usage and billing state.
+- Report share-link revoke, expiry, and audit lifecycle.
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted workers, GitHub credentials, durable usage events,
+  billing ledger migrations, provider webhooks, auth/RBAC, and production DB
+  persistence.
+- A2 remains owner of judge semantics, score/pass/fail, release policy, failure
+  taxonomy, and security verification.
+- A3 maps those outputs to product workflow state without mutating A1/A2 source
+  semantics.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key mutation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, signed URL, local path, or payment secret was
+  written.
+
+Validation:
+
+- Focused Node: 43 pass, 0 fail.
+- Full A3 Node suite: 254 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+## 2026-07-09 - Live Publish / Review / Billing / Share Closeout
+
+Goal: close the team lead's six next A3 SaaS workflow asks against the current
+API-backed dashboard, store, report, audit, and test contracts.
+
+Confirmed wired surfaces:
+
+- GitHub check publishing route:
+  - `POST /api/a3/github/check-run/publish`
+- GitHub PR comment publishing route:
+  - `POST /api/a3/github/pr-comment/publish`
+- Reviewer workflow routes:
+  - `POST /api/a3/review/waivers`
+  - `POST /api/a3/review/approvals`
+  - `POST /api/a3/review/denials`
+- Human operation records:
+  - `saas_admin_action_requests`
+  - `review_workflow_records`
+  - `audit_events`
+  - `event_outbox`
+  - `github_publish_receipts`
+- Billing/admin read routes:
+  - `GET /api/a3/usage/ledger`
+  - `GET /api/a3/billing/readiness`
+  - `GET /api/a3/billing/migration-readiness`
+- Hosted/share report lifecycle routes:
+  - `POST /api/a3/reports/share`
+  - `GET /reports/:reportId`
+  - `GET /r/:shareToken`
+  - `POST /api/a3/reports/:reportId/view`
+  - `POST /api/a3/reports/:reportId/revoke`
+
+Docs added:
+
+- `docs/a3/p3_live_publish_review_billing_share_closeout_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted auth, GitHub credentials/workers, production DB,
+  durable usage events, billing ledger, provider webhooks, and runner outputs.
+- A2 remains owner of score, pass/fail, release policy, failure taxonomy,
+  security verification, and judge semantics.
+- A3 records downstream product workflow state and does not mutate A1 or A2
+  source semantics.
+
+Validation:
+
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+
+Results:
+
+- Full A3 Node suite: 260 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub API call.
+- No billing provider call.
+- No hosted auth, team invite, API-key rotation, Trust publish, branch
+  protection mutation, or cloud write.
+- No raw key, token, cookie, email, signed URL, local path, payment secret, or
+  raw share token was written.
+
+## 2026-07-09 - Notification Control Plane Closeout
+
+Goal: extend the current A3 live SaaS workflow surface with a notification
+control plane for Slack, Microsoft Teams, email, and customer webhooks while
+keeping all live provider sends disabled locally.
+
+Completed:
+
+- Added `a3.notification_control_plane.v1` in
+  `services/report/a3_notification_control_plane.mjs`.
+- Added `GET /api/a3/notifications/control-plane`.
+- Added dashboard `Notification Control Plane` panel and Admin/Platform
+  navigation entries.
+- Added notification evidence to report JSON/Markdown export summaries.
+- Added notification evidence to artifact registry and the
+  `notification_readiness_packet`.
+- Added notification DB contract tables:
+  - `notification_channels`
+  - `notification_subscriptions`
+  - `notification_templates`
+  - `notification_deliveries`
+  - `webhook_deliveries`
+- Added commercial API contract routes:
+  - `GET /v1/notification-channels`
+  - `POST /v1/notifications/test`
+  - `POST /v1/release-gates/{release_gate_id}/notifications`
+- Added RBAC policy coverage for `read_notification_control_plane` with
+  `notifications:read`.
+- Regenerated the redacted commercial API contract fixture.
+- Preserved A1/A2 boundaries: A3 only plans and displays notification readiness;
+  A1 owns hosted delivery workers, connector secrets, queue/retry, and usage
+  ledger writes; A2 owns release policy, failure taxonomy, redaction, and
+  security verification.
+
+Validation:
+
+- `node --check services/report/a3_notification_control_plane.mjs`
+- `node --check services/report/a3_auth_rbac_boundary.mjs`
+- `node --check services/report/a3_store.mjs`
+- `node --check services/report/a3_api_server.mjs`
+- `node --check services/report/report_builder.mjs`
+- `node --check apps/dashboard/src/app.mjs`
+- `node --test tests/a3/*.mjs`
+- `npm.cmd run test:e2e`
+- `python scripts/cl_guard.py commercial`
+- `python scripts/cl_guard.py hygiene`
+- `git diff --check`
+- `git check-ignore -v .env.local node_modules docs\screenshots\playwright-results`
+
+Results:
+
+- Full A3 Node suite: 262 pass, 0 fail.
+- Playwright E2E: 10 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed.
+- `git diff --check`: passed.
+- `.env.local`, `node_modules`, and Playwright result artifacts remain ignored.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No live GitHub, Slack, Teams, email, webhook, billing provider, or cloud call.
+- No raw key, token, cookie, email, signed URL, local account path, payment
+  secret, raw webhook URL, connector secret, or raw share token was written.

@@ -252,11 +252,22 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(approvalReceipt.status, "valid_exception_approval");
   assert.equal(approvalReceipt.accepted, true);
 
+  const denialReceipt = await store.submitReviewDenial(buildDenialFixture(), {
+    source: "mock",
+    generatedAt: "2026-07-07T12:00:00.000Z",
+    releaseVersion: "local-mock-commercial-gate",
+    environment: "staging",
+    headSha: "local-demo-head-sha"
+  });
+  assert.equal(denialReceipt.status, "valid_denial");
+  assert.equal(denialReceipt.accepted, true);
+
   const reviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
   assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
-  assert.equal(reviewWorkflow.record_count, 2);
+  assert.equal(reviewWorkflow.record_count, 3);
   assert.equal(reviewWorkflow.waiver_count, 1);
   assert.equal(reviewWorkflow.approval_count, 1);
+  assert.equal(reviewWorkflow.denial_count, 1);
   assert.equal(reviewWorkflow.durable_storage_ready, true);
 
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
@@ -382,6 +393,128 @@ test("A3 store applies idempotency and validation to A1/A2 imports", async () =>
   );
 });
 
+test("A3 store records metadata-only event outbox rows for SaaS write paths", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["mock"] });
+  const ownerEmail = ["owner", "example.com"].join("@");
+  const viewerEmail = ["viewer", "example.com"].join("@");
+  const report = await store.createShareableReport({
+    source: "mock",
+    createdBy: ownerEmail,
+    createdAt: "2026-07-09T08:00:00.000Z",
+    shareToken: "unit_outbox_share_token",
+    idempotencyKey: "idem-outbox-share-1"
+  });
+  assert.equal(report.event_envelope.schema_version, "ashr.event_envelope.v1");
+  assert.equal(report.event_envelope.event_type, "report.share_link_created");
+  assert.equal(report.idempotency.status, "recorded");
+
+  const duplicateShare = await store.createShareableReport({
+    source: "mock",
+    createdBy: ownerEmail,
+    createdAt: "2026-07-09T08:00:00.000Z",
+    shareToken: "unit_outbox_share_token",
+    idempotencyKey: "idem-outbox-share-1"
+  });
+  assert.equal(duplicateShare.idempotency.status, "duplicate_replay");
+  assert.equal(duplicateShare.share_url_path, "/r/[REDACTED_TOKEN]");
+
+  const viewed = await store.getReportForView(report.report_id, {
+    source: "mock",
+    viewer: viewerEmail,
+    viewedAt: "2026-07-09T08:05:00.000Z",
+    idempotencyKey: "idem-outbox-view-1"
+  });
+  assert.equal(viewed.view_audit.view_count, 1);
+  const duplicateView = await store.getReportForView(report.report_id, {
+    source: "mock",
+    viewer: viewerEmail,
+    viewedAt: "2026-07-09T08:05:00.000Z",
+    idempotencyKey: "idem-outbox-view-1"
+  });
+  assert.equal(duplicateView.idempotency.status, "duplicate_replay");
+  assert.equal(duplicateView.view_audit.view_count, 1);
+
+  const revoke = await store.revokeReport(report.report_id, {
+    source: "mock",
+    revokedBy: ownerEmail,
+    reason: "unit_outbox_revoke",
+    revokedAt: "2026-07-09T08:10:00.000Z",
+    idempotencyKey: "idem-outbox-revoke-1"
+  });
+  assert.equal(revoke.event_envelope.event_type, "report.revoked");
+
+  const adminRequest = await store.submitSaasAdminAction("rotate_api_key", {
+    source: "mock",
+    actor: ownerEmail,
+    reason: "Outbox test should redact Bearer should-not-persist.",
+    target: {
+      token: ["Bearer", "should-not-persist"].join(" "),
+      email: ownerEmail,
+      key_prefix: "ashr_ci_[REDACTED]"
+    },
+    requestedAt: "2026-07-09T08:15:00.000Z",
+    idempotencyKey: "idem-outbox-admin-1"
+  });
+  assert.equal(adminRequest.event_envelope.event_type, "admin.action_requested");
+
+  const waiver = await importJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+  const approval = await importJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+  const waiverReceipt = await store.submitReviewWaiver(waiver, {
+    source: "mock",
+    generatedAt: "2026-07-09T08:20:00.000Z",
+    idempotencyKey: "idem-outbox-waiver-1"
+  });
+  const approvalReceipt = await store.submitReviewApproval(approval, {
+    source: "mock",
+    waiver,
+    generatedAt: "2026-07-09T08:25:00.000Z",
+    idempotencyKey: "idem-outbox-approval-1"
+  });
+  const denialReceipt = await store.submitReviewDenial(buildDenialFixture(), {
+    source: "mock",
+    generatedAt: "2026-07-09T08:27:00.000Z",
+    releaseVersion: "local-mock-commercial-gate",
+    environment: "staging",
+    headSha: "local-demo-head-sha",
+    idempotencyKey: "idem-outbox-denial-1"
+  });
+  assert.equal(waiverReceipt.event_envelope.event_type, "waiver.submitted");
+  assert.equal(approvalReceipt.event_envelope.event_type, "approval.submitted");
+  assert.equal(denialReceipt.event_envelope.event_type, "denial.submitted");
+
+  const readback = await importJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+  const readbackReceipt = await store.submitReleaseEvidenceReadback("current", readback, {
+    source: "mock",
+    actor: ownerEmail,
+    capturedAt: "2026-07-09T08:30:00.000Z",
+    idempotencyKey: "idem-outbox-readback-1"
+  });
+  assert.equal(readbackReceipt.event_envelope.event_type, "release_evidence.readback_captured");
+
+  const outbox = await store.listEventOutbox({ source: "mock" });
+  assert.equal(outbox.schema_version, "a3.event_outbox_list.v1");
+  assert.equal(outbox.event_count, 8);
+  assert.equal(outbox.safety.metadata_only, true);
+  assert.deepEqual(Object.keys(outbox.event_type_counts).sort(), [
+    "admin.action_requested",
+    "approval.submitted",
+    "denial.submitted",
+    "release_evidence.readback_captured",
+    "report.revoked",
+    "report.share_link_created",
+    "report.viewed",
+    "waiver.submitted"
+  ]);
+  assert.ok(outbox.events.every((event) => event.event_schema_version === "ashr.event_envelope.v1"));
+  assert.ok(outbox.events.every((event) => event.payload_inline === false));
+  assert.doesNotMatch(JSON.stringify(outbox), /unit_outbox_share_token|owner@example.com|viewer@example.com|should-not-persist|Bearer/);
+
+  const dashboard = await store.getDashboardSnapshot("mock");
+  assert.equal(dashboard.event_outbox.schema_version, "a3.event_outbox_dashboard.v1");
+  assert.equal(dashboard.event_outbox.event_count, 8);
+  assert.match(dashboard.event_outbox.a1_a2_boundary, /A1 RunResult/);
+});
+
 test("A3 store tracks hosted report expiry, revoke, and view audit state", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
   const report = await store.createShareableReport({
@@ -501,3 +634,29 @@ test("A3 file-backed store persists shareable report metadata without a real DB 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function buildDenialFixture() {
+  return {
+    schema_version: "a3.denial.v1",
+    denial_id: "denial-local-blocked-001",
+    decision: "deny_release",
+    reason: "Release remains blocked until failed A1 traces and A2 judge evidence are remediated.",
+    release_version: "local-mock-commercial-gate",
+    environment: "staging",
+    run_id: "run_a3_generated_from_a2_g3",
+    head_sha: "local-demo-head-sha",
+    reviewer: {
+      role: "Safety reviewer",
+      name: "Safety reviewer",
+      identity_source: "unit-test",
+      reviewed_at: "2026-07-07T12:50:00.000Z"
+    },
+    reviewed_artifacts: [
+      {
+        id: "a3_gate_cli_report",
+        path: "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
+        sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ]
+  };
+}

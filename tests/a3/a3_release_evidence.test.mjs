@@ -79,10 +79,14 @@ test("A3 release evidence v2 authority summary is additive and tenant scoped", (
   assert.equal(summary.schema_version, "a3.release_evidence_summary.v2");
   assert.equal(summary.release_identity.release_id, "run-v2");
   assert.equal(summary.tenant_scope.organization_id, "org-unit");
+  assert.equal(summary.tenant_scope.tenant_id, "tenant-local");
+  assert.equal(summary.tenant_scope.workspace_id, "workspace-local");
   assert.equal(summary.a1_evidence.contracts.includes("RunResult"), true);
   assert.equal(summary.a1_evidence.trace_event_count, 8);
   assert.equal(summary.a2_evidence.contracts.includes("GradeResult"), true);
   assert.equal(summary.a2_evidence.failed_case_count, 1);
+  assert.equal(summary.source_artifacts.schema_version, "a3.source_artifacts.v1");
+  assert.equal(summary.source_artifacts.source_artifact_count, 0);
   assert.equal(summary.github_check_readback.readback_status, "missing");
   assert.equal(summary.required_check_proof.plan_only_must_not_claim_enforcement, true);
   assert.equal(summary.hosted_report.immutable_snapshot_present, true);

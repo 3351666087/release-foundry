@@ -5,6 +5,11 @@ import {
   summarizeReleaseGate,
   summarizeUsageQuota
 } from "./report_builder.mjs";
+import {
+  authorizeA3Operation,
+  buildA3AuthContext,
+  buildA3RbacPolicy
+} from "./a3_auth_rbac_boundary.mjs";
 
 export const A3_SAAS_ADMIN_SCHEMA_VERSION = "a3.saas_admin_console.v1";
 export const A3_SAAS_ADMIN_ACTION_REQUEST_SCHEMA_VERSION = "a3.saas_admin_action_request.v1";
@@ -42,6 +47,13 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
   const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverage, mediaSignedUrlCoverage);
   const organizationId = options.organizationId || inputs.organizationId || "org-local";
   const projectId = options.projectId || inputs.projectId || "project-local";
+  const authContext = buildA3AuthContext({
+    role: options.role || inputs.role || "developer",
+    actorHash: options.actorHash || inputs.actorHash,
+    organizationId,
+    projectId
+  });
+  const rbacPolicy = buildA3RbacPolicy();
 
   return {
     schema_version: A3_SAAS_ADMIN_SCHEMA_VERSION,
@@ -66,6 +78,19 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
     login: buildLoginState(authCheck, frontendSummary, cloudShell),
     team: buildTeamState(releaseGate),
     rbac: buildRbacState(),
+    auth_boundary: {
+      schema_version: "a3.saas_admin_auth_boundary.v1",
+      auth_context: authContext,
+      policy_id: rbacPolicy.policy_id,
+      operation_count: rbacPolicy.operation_count,
+      sample_decisions: [
+        authorizeA3Operation("read_dashboard", authContext),
+        authorizeA3Operation("share_report", authContext),
+        authorizeA3Operation("rotate_api_key", authContext)
+      ],
+      enforcement_state: rbacPolicy.enforcement_state,
+      next_step: "Replace local contract-only context with A1 hosted session and service-account middleware before enabling live SaaS mutations."
+    },
     api_keys: buildApiKeyState(),
     usage: buildUsageState(summary, usage, usageQuotaApiProbe),
     trust: buildTrustState(summary, releaseGate, cloudShell),

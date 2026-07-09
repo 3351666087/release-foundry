@@ -1,14 +1,18 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { AGENT_INPUT_PART_TYPES, AGENT_INPUT_SCHEMA_VERSION, CloudApiService, NotFoundError, ValidationError, coerceAgentInput } from "./index.js";
 import { resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { BillingLedger, buildBillingPortalPlan, buildCheckoutSessionPlan, verifyBillingWebhookEnvelope } from "./billing.js";
 import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
 export const SAAS_CLIENT_VERSION = "ashr.clone.ts_saas_ingestion_client.v1";
 export const SAAS_OPENAPI_SCHEMA_VERSION = "ashr.clone.saas_openapi.v1";
 export const CONTROL_PLANE_OPENAPI_VERSION = "3.0.3";
+export const MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION = "ashr.clone.official_api_mutating_calibration_index.v1";
+export const MUTATING_CALIBRATION_MODALITIES = ["text", "image", "audio", "file", "video"] as const;
 export const SAAS_QUOTA_LIMITS: Record<string, number> = {
   "api_key.create": 100,
   "run.upload": 10000,
@@ -32,6 +36,9 @@ export const ARTIFACT_MANIFEST_SCOPE = "artifact:upload";
 export const ADMIN_ALL_SCOPE = "admin:all";
 export const USAGE_READ_SCOPE = "usage:read";
 export const AUDIT_READ_SCOPE = "audit:read";
+export const BILLING_READ_SCOPE = "billing:read";
+export const BILLING_WRITE_SCOPE = "billing:write";
+export const BILLING_WEBHOOK_SCOPE = "billing:webhook";
 export const WORKER_JOB_READ_SCOPE = "worker_job:read";
 export const WORKER_JOB_WRITE_SCOPE = "worker_job:write";
 
@@ -46,10 +53,92 @@ const SCOPE_ALIASES: Record<string, string[]> = {
   "artifacts:write": [ARTIFACT_MANIFEST_SCOPE],
   "worker:read": [WORKER_JOB_READ_SCOPE],
   "worker:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
+  "billing:admin": [BILLING_READ_SCOPE, BILLING_WRITE_SCOPE, BILLING_WEBHOOK_SCOPE],
+  "billing:write": [BILLING_READ_SCOPE],
   "queue:read": [WORKER_JOB_READ_SCOPE],
   "queue:write": [WORKER_JOB_READ_SCOPE, WORKER_JOB_WRITE_SCOPE],
   [API_KEY_ADMIN_SCOPE]: [API_KEY_READ_SCOPE],
   [ADMIN_ALL_SCOPE]: ["*"],
+};
+
+export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
+  "GET /v1/projects/{project_id}/api-keys": [API_KEY_READ_SCOPE],
+  "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
+  "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
+  "GET /v1/projects/{project_id}/billing/ledger": [BILLING_READ_SCOPE],
+  "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ["evidence:read"],
+  "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle": ["run:lifecycle:read"],
+  "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence": ["evidence:read"],
+  "GET /v1/projects/{project_id}/quota": [USAGE_READ_SCOPE],
+  "GET /v1/projects/{project_id}/usage": [USAGE_READ_SCOPE],
+  "POST /v1/projects/{project_id}/quota/limits": [USAGE_READ_SCOPE],
+  "POST /v1/projects/{project_id}/usage/quotas": [USAGE_READ_SCOPE],
+  "GET /v1/projects/{project_id}/worker-jobs": [WORKER_JOB_READ_SCOPE],
+  "POST /v1/bootstrap": [],
+  "POST /v1/projects/{project_id}/api-keys": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/authenticate": [],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke": [API_KEY_ADMIN_SCOPE],
+  "POST /v1/projects/{project_id}/api-keys/{key_id}/verify": [],
+  "POST /v1/projects/{project_id}/audit-chain/verify": [AUDIT_READ_SCOPE],
+  "POST /v1/projects/{project_id}/billing/checkout-plan": [BILLING_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/billing/portal-plan": [BILLING_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/billing/webhooks/ingest": [BILLING_WEBHOOK_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": [ARTIFACT_MANIFEST_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ["evidence:read"],
+  "POST /v1/projects/{project_id}/runs/{run_id}/release-gate": [AUDIT_READ_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/trace-events": [TRACE_INGEST_SCOPE],
+  "POST /v1/projects/{project_id}/runs/{run_id}/upload": [RUN_UPLOAD_SCOPE],
+  "POST /v1/projects/{project_id}/sdk-submit": ["sdk:submit"],
+  "POST /v1/projects/{project_id}/worker-jobs/enqueue": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/lease": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": [WORKER_JOB_WRITE_SCOPE],
+};
+
+export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
+  "GET /health": {
+    reason: "Go exposes a root health alias; the hosted TS client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
+    replacement_route: "GET /healthz",
+    consumer_action: "keep unsupported until the generated Go OpenAPI marks root health aliases as public client surface",
+  },
+  "GET /healthz": {
+    reason: "The TS router exposes this local health helper, but the route/scope manifest tracks project-scoped hosted API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /openapi.json": {
+    reason: "The TS router exposes this local OpenAPI helper, but hosted route scope parity covers project-scoped API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /v1/healthz": {
+    reason: "Go exposes a versioned health alias that is not part of the TS/Python shared hosted ingestion surface.",
+    replacement_route: "GET /healthz",
+    consumer_action: "keep unsupported until versioned health aliases become SDK contract routes",
+  },
+  "GET /v1/openapi.json": {
+    reason: "The TS router exposes this local OpenAPI helper, but hosted route scope parity covers project-scoped API calls.",
+    consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
+  },
+  "GET /v1/projects/{project_id}/audit-chain/verify": {
+    reason: "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
+    replacement_route: "POST /v1/projects/{project_id}/audit-chain/verify",
+    consumer_action: "keep unsupported until Go and hosted clients settle on one audit-chain verification method",
+  },
+  "POST /bootstrap": {
+    reason: "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
+    replacement_route: "POST /v1/bootstrap",
+    consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+  },
+  "POST /v1/projects/{project_id}/api-keys/preflight": {
+    reason: "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
+    consumer_action: "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
+  },
+  "POST /v1/projects/{project_id}/runs/submit": {
+    reason: "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
+    replacement_route: "POST /v1/projects/{project_id}/sdk-submit",
+    consumer_action: "keep unsupported until run submit is either removed from Go or added to both hosted SDKs deliberately",
+  },
 };
 
 export interface SaaSControlPlaneStore {
@@ -72,6 +161,7 @@ export interface SaaSControlPlaneState extends JsonRecord {
   metadata: { local_only: true; ashr_api_used: false };
   state_metadata: JsonRecord;
   control_plane: SaaSControlPlaneStore;
+  billing_ledger?: JsonRecord;
   integrity: JsonRecord;
 }
 
@@ -92,8 +182,14 @@ export type SaaSClientOperation =
   | "upload_run"
   | "ingest_trace"
   | "lifecycle"
+  | "lifecycle_snapshot"
   | "usage"
+  | "usage_snapshot"
   | "quota_snapshot"
+  | "billing_checkout_plan"
+  | "billing_portal_plan"
+  | "billing_webhook_ingest"
+  | "billing_ledger"
   | "audit_log"
   | "audit_chain_verify"
   | "release_gate"
@@ -138,6 +234,10 @@ export type SaaSFetchLike = (input: string | URL, init?: {
 type SaaSClientOptions = JsonRecord & {
   apiKey?: string;
   api_key?: string;
+  bearerApiKey?: string;
+  bearer_api_key?: string;
+  apiKeySecret?: string;
+  api_key_secret?: string;
   apiKeyId?: string;
   api_key_id?: string;
   authKeyId?: string;
@@ -168,10 +268,12 @@ export interface SaaSHttpTransportOptions {
   baseUrl: string;
   fetch?: SaaSFetchLike;
   headers?: Record<string, string>;
+  bearerApiKey?: string;
+  apiKeySecret?: string;
 }
 
 export interface SaaSClientTransport {
-  requestJson(method: string, path: string, body?: JsonRecord): Promise<JsonRecord>;
+  requestJson(method: string, path: string, body?: JsonRecord, options?: { headers?: Record<string, string> }): Promise<JsonRecord>;
 }
 
 export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore> = {}): SaaSControlPlaneStore {
@@ -192,10 +294,43 @@ export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore>
 export class SaaSControlPlaneService {
   readonly cloud: CloudApiService;
   readonly store: SaaSControlPlaneStore;
+  readonly billingLedger: BillingLedger;
 
   constructor(options: { cloud?: CloudApiService; store?: Partial<SaaSControlPlaneStore> } = {}) {
     this.cloud = options.cloud ?? new CloudApiService();
     this.store = createSaaSControlPlaneStore(options.store);
+    this.billingLedger = new BillingLedger();
+  }
+
+  restoreBillingLedgerState(state: JsonRecord = {}): void {
+    this.billingLedger.ledgerEvents.length = 0;
+    for (const event of Array.isArray(state.ledger_events) ? state.ledger_events : []) {
+      if (isRecord(event)) this.billingLedger.ledgerEvents.push(cloneJson(event) as JsonRecord);
+    }
+    this.billingLedger.providerEvents.clear();
+    const providerEvents = isRecord(state.provider_events) ? Object.values(state.provider_events) : (Array.isArray(state.provider_events) ? state.provider_events : []);
+    for (const event of providerEvents) {
+      if (!isRecord(event)) continue;
+      const key = `${event.tenant_id}:${event.project_id}:${event.provider}:${event.mode}:${event.event_id ?? event.provider_event_id}`;
+      this.billingLedger.providerEvents.set(key, cloneJson(event) as JsonRecord);
+    }
+    this.billingLedger.billingAccounts.clear();
+    const accounts = isRecord(state.billing_accounts) ? Object.values(state.billing_accounts) : (Array.isArray(state.billing_accounts) ? state.billing_accounts : []);
+    for (const account of accounts) {
+      if (!isRecord(account)) continue;
+      const key = `${account.tenant_id}:${account.project_id}:${account.provider}:${account.mode}:${account.customer_ref}`;
+      this.billingLedger.billingAccounts.set(key, cloneJson(account) as JsonRecord);
+    }
+  }
+
+  billingLedgerState(): JsonRecord {
+    return {
+      ledger_events: cloneJson(this.billingLedger.ledgerEvents) as JsonRecord[],
+      provider_events: Object.fromEntries([...this.billingLedger.providerEvents.entries()].map(([key, value]) => [key, cloneJson(value) as JsonRecord])),
+      billing_accounts: Object.fromEntries([...this.billingLedger.billingAccounts.entries()].map(([key, value]) => [key, cloneJson(value) as JsonRecord])),
+      raw_payload_included: false,
+      secret_value_present: false,
+    };
   }
 
   bootstrapProject(options: { tenantName: string; projectName: string; tenantId?: string; projectId?: string }): JsonRecord {
@@ -314,6 +449,17 @@ export class SaaSControlPlaneService {
       api_key: publicApiKey(record),
       secret_value_present: false,
     };
+  }
+
+  apiKeyIdForSecret(tenantId: string, projectId: string, secret: string | undefined): string | undefined {
+    if (secret === undefined || secret.trim() === "") return undefined;
+    const hash = secretHash(secret);
+    for (const record of Object.values(this.store.api_keys)) {
+      if (record.tenant_id === tenantId && record.project_id === projectId && record.secret_hash_sha256 === hash) {
+        return String(record.key_id);
+      }
+    }
+    throw new ValidationError("api key secret verification failed");
   }
 
   configureApiKeyRateLimit(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): JsonRecord {
@@ -500,6 +646,39 @@ export class SaaSControlPlaneService {
       totals[op] = (totals[op] ?? 0) + Number(event.units ?? 0);
     }
     return { schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION, tenant_id: tenantId, project_id: projectId, events, totals, quota: this.cloud.quotaSnapshot(tenantId, projectId) };
+  }
+
+  billingCheckoutPlan(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WRITE_SCOPE });
+    return buildCheckoutSessionPlan({ ...options, tenantId, projectId } as Parameters<typeof buildCheckoutSessionPlan>[0]);
+  }
+
+  billingPortalPlan(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WRITE_SCOPE });
+    return buildBillingPortalPlan({ ...options, tenantId, projectId });
+  }
+
+  billingWebhookIngest(tenantId: string, projectId: string, options: JsonRecord & { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_WEBHOOK_SCOPE });
+    const envelopeResult = verifyBillingWebhookEnvelope({ ...options, tenantId, projectId, signatureHeaderPresent: Boolean(options.signatureHeaderPresent ?? options.signature_header_present) } as Parameters<typeof verifyBillingWebhookEnvelope>[0]);
+    return this.billingLedger.ingestProviderWebhook({
+      envelope: envelopeResult,
+      customerRef: clientString(options, "customerRef", "customer_ref"),
+      amountMinor: Number(options.amountMinor ?? options.amount_minor ?? 0),
+      currency: clientString(options, "currency") || "usd",
+      invoiceRef: clientString(options, "invoiceRef", "invoice_ref"),
+      usageUnits: Number(options.usageUnits ?? options.usage_units ?? 0),
+      metadata: isRecord(options.metadata) ? options.metadata : {},
+    });
+  }
+
+  billingLedgerSnapshot(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): JsonRecord {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: BILLING_READ_SCOPE });
+    return this.billingLedger.publicLedger({ tenantId, projectId });
   }
 
   createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
@@ -858,6 +1037,7 @@ export class SaaSControlPlaneService {
       metadata: { local_only: true as const, ashr_api_used: false as const },
       state_metadata: { writer: "packages/ts/ashr-clone/saas", updated_at: utcNow() },
       control_plane: cloneJson(this.store),
+      billing_ledger: this.billingLedgerState(),
     };
     return { ...payload, integrity: { payload_sha256: sha256(JSON.stringify(sortJson(payload))) } };
   }
@@ -883,7 +1063,7 @@ export class SaaSControlPlaneService {
       throw new ValidationError(`unsupported control-plane state schema version: ${version}`);
     }
     const control = isRecord(payload.control_plane) ? payload.control_plane : {};
-    return new SaaSControlPlaneService({
+    const service = new SaaSControlPlaneService({
       cloud: CloudApiService.fromState(payload.cloud),
       store: {
         api_keys: stateBucket(control, "api_keys"),
@@ -898,6 +1078,8 @@ export class SaaSControlPlaneService {
         worker_jobs: stateBucket(control, "worker_jobs"),
       },
     });
+    if (isRecord(payload.billing_ledger)) service.restoreBillingLedgerState(payload.billing_ledger);
+    return service;
   }
 
   static async fromStateFile(inputPath: string): Promise<SaaSControlPlaneService> {
@@ -1028,7 +1210,7 @@ export class SaaSControlPlaneRouter {
     this.service = service;
   }
 
-  handle(method: string, path: string, body: JsonRecord = {}): SaaSRouterResponse {
+  handle(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string | string[] | undefined> } = {}): SaaSRouterResponse {
     const upperMethod = method.toUpperCase();
     const parts = path.split("/").filter(Boolean);
     try {
@@ -1045,7 +1227,9 @@ export class SaaSControlPlaneRouter {
         const projectId = parts[2];
         const tenantId = String(body.tenant_id ?? body.organization_id ?? body.tenant ?? "");
         if (!tenantId) throw new ValidationError("tenant_id is required");
-        const authKeyId = optionalString(body.auth_key_id ?? body.api_key_id);
+        const explicitAuthKeyId = optionalString(body.auth_key_id ?? body.api_key_id);
+        const bearerSecret = bearerSecretFromHeaders(options.headers);
+        const authKeyId = explicitAuthKeyId ?? this.service.apiKeyIdForSecret(tenantId, projectId, bearerSecret);
         if (upperMethod === "POST" && parts.length === 4 && parts[3] === "api-keys") {
           return { status_code: 201, body: this.service.createApiKey(tenantId, projectId, { name: String(body.name ?? "API key"), scopes: arrayOfStrings(body.scopes), keyId: optionalString(body.key_id), authKeyId, revealSecret: Boolean(body.reveal_secret) }) };
         }
@@ -1151,15 +1335,19 @@ export class SaaSHttpJsonTransport implements SaaSClientTransport {
     if (candidate === undefined) throw new ValidationError("fetch implementation is required for SaaS HTTP transport");
     this.baseUrl = String(options.baseUrl).replace(/\/+$/, "");
     this.headers = { ...(options.headers ?? {}) };
+    const bearerApiKey = options.bearerApiKey ?? options.apiKeySecret;
+    if (bearerApiKey !== undefined && bearerApiKey.trim() !== "") {
+      this.headers.Authorization = bearerAuthorizationHeader(bearerApiKey);
+    }
     this.fetchImpl = candidate;
   }
 
-  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
+  async requestJson(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string> } = {}): Promise<JsonRecord> {
     const upperMethod = method.toUpperCase();
     const url = new URL(path.startsWith("/") ? path : `/${path}`, `${this.baseUrl}/`);
     const init: { method: string; headers: Record<string, string>; body?: string } = {
       method: upperMethod,
-      headers: { accept: "application/json", ...this.headers },
+      headers: { accept: "application/json", ...this.headers, ...(options.headers ?? {}) },
     };
     if (upperMethod === "GET") {
       for (const [key, value] of Object.entries(body)) {
@@ -1234,7 +1422,12 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/release-gate": { post: { operationId: "evaluateReleaseGate", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release gate decision") } } },
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence": { get: { operationId: "buildReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), responses: { "200": response("Release evidence packet") } } },
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": { post: { operationId: "verifyReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release evidence packet verification") } } },
+      "/v1/projects/{project_id}/quota": { get: { operationId: "quotaSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Quota snapshot") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
+      "/v1/projects/{project_id}/billing/checkout-plan": { post: { operationId: "billingCheckoutPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing checkout plan") } } },
+      "/v1/projects/{project_id}/billing/portal-plan": { post: { operationId: "billingPortalPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing portal plan") } } },
+      "/v1/projects/{project_id}/billing/webhooks/ingest": { post: { operationId: "billingWebhookIngest", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing webhook ingest") } } },
+      "/v1/projects/{project_id}/billing/ledger": { get: { operationId: "billingLedger", parameters: pathTenantParameters(), responses: { "200": response("Billing ledger") } } },
       "/v1/projects/{project_id}/audit-log": { get: { operationId: "auditSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Audit log snapshot") } } },
       "/v1/projects/{project_id}/worker-jobs": { get: { operationId: "listWorkerJobs", parameters: pathTenantParameters(), responses: { "200": response("Worker jobs") } } },
       "/v1/projects/{project_id}/worker-jobs/enqueue": { post: { operationId: "enqueueWorkerJob", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "202": response("Enqueued worker job") } } },
@@ -1254,6 +1447,209 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
   };
 }
 
+export function hostedRouteScopeManifest(): JsonRecord {
+  return {
+    schema_version: "ashr.clone.hosted_route_scope_manifest.v1",
+    client: "typescript",
+    public_safe: true,
+    source_policy: { private_evidence_read: false, raw_payloads_included: false, tokens_included: false },
+    routes: Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS).sort().map((route) => ({
+      route,
+      required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]],
+    })),
+  };
+}
+
+export function consumeGoRouteScopeManifest(manifest: JsonRecord | string): JsonRecord {
+  const snapshot = typeof manifest === "string" ? JSON.parse(readFileSync(assertPublicManifestPath(manifest), "utf8")) as JsonRecord : manifest;
+  if (snapshot.public_safe !== true) throw new ValidationError("route/scope manifest must be public_safe");
+  const safeSourcePolicy = { private_evidence_read: false, raw_payloads_included: false, tokens_included: false };
+  const sourcePolicy = isRecord(snapshot.source_policy)
+    ? snapshot.source_policy
+    : snapshot.raw_payloads_included === false
+      ? safeSourcePolicy
+      : {};
+  if (sourcePolicy.private_evidence_read !== false || sourcePolicy.raw_payloads_included !== false || sourcePolicy.tokens_included !== false) {
+    throw new ValidationError("route/scope manifest has unsafe source policy");
+  }
+  const goRoutes = new Set((Array.isArray(snapshot.go_manifest_routes) ? snapshot.go_manifest_routes : []).map((route) => String(route)));
+  if (goRoutes.size === 0) {
+    for (const route of goRoutesFromOpenApi(snapshot)) goRoutes.add(route);
+  }
+  const hostedRoutes = new Set(Object.keys(HOSTED_ROUTE_SCOPE_REQUIREMENTS));
+  const consumableGoRoutes = [...goRoutes].filter((route) => hostedRoutes.has(route)).sort();
+  const unsupportedGoRoutes = [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort();
+  const unsupportedGoRouteGaps = validateUnsupportedGoRouteGaps(goRoutes, hostedRoutes);
+  const routeScopeDocs = extractGoRouteScopeDocs(snapshot);
+  return {
+    schema_version: "ashr.clone.go_route_scope_consumption.v1",
+    client: "typescript",
+    public_safe: true,
+    source_policy: safeSourcePolicy,
+    consumable_go_routes: consumableGoRoutes,
+    unsupported_go_routes: unsupportedGoRoutes,
+    unsupported_go_route_gaps: unsupportedGoRouteGaps,
+    client_only_routes: [...hostedRoutes].filter((route) => !goRoutes.has(route)).sort(),
+    route_scopes: consumableGoRoutes.map((route) => ({ route, required_scopes: [...HOSTED_ROUTE_SCOPE_REQUIREMENTS[route]] })),
+    route_scope_docs: routeScopeDocs === undefined ? null : consumeGoRouteScopeDocs(routeScopeDocs),
+  };
+}
+
+export function consumeOfficialApiMutatingCalibrationIndex(index: JsonRecord | string): JsonRecord {
+  const snapshot = typeof index === "string" ? JSON.parse(readFileSync(assertPublicManifestPath(index), "utf8")) as JsonRecord : { ...index };
+  if (snapshot.schema_version !== MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION) throw new ValidationError("official API mutating calibration index schema_version drift");
+  if (snapshot.public_safe !== true || snapshot.raw_payloads_included !== false || snapshot.secret_values_included !== false) {
+    throw new ValidationError("official API mutating calibration index must be public-safe");
+  }
+  if (!Array.isArray(snapshot.records)) throw new ValidationError("official API mutating calibration index records must be an array");
+
+  const byModality = new Map<string, JsonRecord>();
+  for (const rawRecord of snapshot.records) {
+    if (!isRecord(rawRecord)) throw new ValidationError("official API mutating calibration index record must be an object");
+    const modalities = Array.isArray(rawRecord.summary_modalities) ? rawRecord.summary_modalities.map((item) => String(item)) : [];
+    if (modalities.length !== 1) throw new ValidationError("official API mutating calibration index record must bind one modality");
+    const modality = modalities[0];
+    if (!(MUTATING_CALIBRATION_MODALITIES as readonly string[]).includes(modality)) throw new ValidationError(`official API mutating calibration index has unsupported modality: ${modality}`);
+    const stepIds = Array.isArray(rawRecord.mutating_step_ids) ? rawRecord.mutating_step_ids.map((item) => String(item)) : [];
+    const expectedStep = `create-request-${modality}`;
+    if (!stepIds.includes(expectedStep)) throw new ValidationError(`official API mutating calibration index missing ${expectedStep}`);
+    const privateManifest = typeof rawRecord.private_manifest === "string" ? rawRecord.private_manifest : "";
+    if (!privateManifest.startsWith("docs/evidence/private_refs/")) throw new ValidationError("official API mutating calibration index record must point to ignored private evidence");
+    if (rawRecord.raw_payloads_included !== false) throw new ValidationError("official API mutating calibration index record must exclude raw payloads");
+    byModality.set(modality, {
+      modality,
+      status: rawRecord.status,
+      quota_block_count: numberOrZero(rawRecord.quota_block_count),
+      observed_error_kinds: Array.isArray(rawRecord.observed_error_kinds) ? rawRecord.observed_error_kinds.map((item) => String(item)).sort() : [],
+      mutating_step_ids: stepIds,
+      private_manifest: privateManifest,
+      read_steps: numberOrZero(rawRecord.read_steps),
+      total_steps: numberOrZero(rawRecord.total_steps),
+    });
+  }
+
+  const missing = MUTATING_CALIBRATION_MODALITIES.filter((modality) => !byModality.has(modality));
+  if (missing.length > 0) throw new ValidationError(`official API mutating calibration index missing modalities: ${missing.join(",")}`);
+
+  const records = MUTATING_CALIBRATION_MODALITIES.map((modality) => byModality.get(modality) as JsonRecord);
+  return {
+    schema_version: "ashr.clone.official_api_mutating_calibration_consumption.v1",
+    client: "typescript",
+    public_safe: true,
+    modalities: [...MUTATING_CALIBRATION_MODALITIES],
+    quota_blocked_modalities: records.filter((record) => numberOrZero(record.quota_block_count) > 0).map((record) => String(record.modality)),
+    records,
+  };
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function goRoutesFromOpenApi(snapshot: JsonRecord): Set<string> {
+  const routes = new Set<string>();
+  if (isRecord(snapshot.paths)) {
+    for (const [path, pathItem] of Object.entries(snapshot.paths)) {
+      if (!isRecord(pathItem)) continue;
+      for (const method of ["get", "post", "put", "patch", "delete"]) {
+        if (Object.prototype.hasOwnProperty.call(pathItem, method)) routes.add(`${method.toUpperCase()} ${path}`);
+      }
+    }
+  }
+  if (Array.isArray(snapshot.routes)) {
+    for (const route of snapshot.routes) {
+      if (typeof route === "string" && route.includes(" ")) routes.add(route);
+    }
+  }
+  return routes;
+}
+
+function extractGoRouteScopeDocs(snapshot: JsonRecord): JsonRecord | undefined {
+  for (const key of ["route_scope_docs", "go_route_scope_docs"]) {
+    if (isRecord(snapshot[key])) return snapshot[key] as JsonRecord;
+  }
+  if (isRecord(snapshot.artifact)) return extractGoRouteScopeDocs(snapshot.artifact as JsonRecord);
+  if (isRecord(snapshot.payload)) return extractGoRouteScopeDocs(snapshot.payload as JsonRecord);
+  return undefined;
+}
+
+function consumeGoRouteScopeDocs(docs: JsonRecord): JsonRecord {
+  if (docs.schema_version !== "ashr.clone.go_route_scope_docs.v1") throw new ValidationError("route_scope_docs schema_version drift");
+  if (docs.public_safe !== true || docs.raw_payloads_included !== false) {
+    throw new ValidationError("route_scope_docs must be public-safe and exclude raw payloads");
+  }
+  if (docs.source !== "generated_from_go_route_manifest") throw new ValidationError("route_scope_docs source drift");
+
+  const groups = new Map<string, JsonRecord>();
+  for (const group of Array.isArray(docs.route_groups) ? docs.route_groups : []) {
+    if (isRecord(group)) groups.set(String(group.name), group);
+  }
+  const requiredGroups = new Set(["usage_quota", "run_lifecycle", "audit"]);
+  const missingGroups = [...requiredGroups].filter((name) => !groups.has(name)).sort();
+  if (missingGroups.length > 0) throw new ValidationError(`route_scope_docs missing route families: ${missingGroups.join(",")}`);
+
+  assertRouteScopeGroup(groups.get("usage_quota")!, "usage_quota", new Set(["GET /v1/projects/{project_id}/usage", "GET /v1/projects/{project_id}/quota", "POST /v1/projects/{project_id}/usage/quotas", "POST /v1/projects/{project_id}/quota/limits"]), new Set(["usage:read"]));
+  assertRouteScopeGroup(groups.get("run_lifecycle")!, "run_lifecycle", new Set(["GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"]), new Set(["run:lifecycle:read"]));
+  assertRouteScopeGroup(groups.get("audit")!, "audit", new Set(["GET /v1/projects/{project_id}/audit-log", "POST /v1/projects/{project_id}/audit-chain/verify"]), new Set(["audit:read"]));
+
+  const planMetrics = new Map<string, JsonRecord>();
+  for (const metric of Array.isArray(docs.plan_metrics) ? docs.plan_metrics : []) {
+    if (isRecord(metric)) planMetrics.set(String(metric.metric), metric);
+  }
+  const requiredMetrics = new Set(["graded_scenarios", "observations", "voice_minutes", "projects"]);
+  const missingMetrics = [...requiredMetrics].filter((metric) => !planMetrics.has(metric)).sort();
+  if (missingMetrics.length > 0) throw new ValidationError(`route_scope_docs missing plan metrics: ${missingMetrics.join(",")}`);
+
+  const planLimits = new Map<string, JsonRecord>();
+  for (const plan of Array.isArray(docs.plan_limits) ? docs.plan_limits : []) {
+    if (isRecord(plan)) planLimits.set(String(plan.plan), plan);
+  }
+  for (const planName of ["Developer", "Startup"]) {
+    const plan = planLimits.get(planName);
+    if (plan === undefined) throw new ValidationError(`route_scope_docs missing plan limit docs: ${planName}`);
+    const limits = new Set((Array.isArray(plan.limits) ? plan.limits : []).filter(isRecord).map((limit) => String(limit.metric)));
+    const missingLimits = [...requiredMetrics].filter((metric) => !limits.has(metric)).sort();
+    if (missingLimits.length > 0) throw new ValidationError(`route_scope_docs missing ${planName} limits: ${missingLimits.join(",")}`);
+  }
+
+  return {
+    schema_version: docs.schema_version,
+    source: docs.source,
+    public_safe: true,
+    route_families: [...requiredGroups].sort(),
+    plan_metrics: [...planMetrics.keys()].sort(),
+    plan_limits: [...planLimits.keys()].sort(),
+  };
+}
+
+function assertRouteScopeGroup(group: JsonRecord, name: string, routes: Set<string>, scopes: Set<string>): void {
+  const groupRoutes = new Set((Array.isArray(group.routes) ? group.routes : []).map((route) => String(route)));
+  const groupScopes = new Set((Array.isArray(group.scopes) ? group.scopes : []).map((scope) => String(scope)));
+  const missingRoutes = [...routes].filter((route) => !groupRoutes.has(route)).sort();
+  if (missingRoutes.length > 0) throw new ValidationError(`route_scope_docs ${name} missing routes: ${missingRoutes.join(",")}`);
+  const missingScopes = [...scopes].filter((scope) => !groupScopes.has(scope)).sort();
+  if (missingScopes.length > 0) throw new ValidationError(`route_scope_docs ${name} missing scopes: ${missingScopes.join(",")}`);
+}
+
+function validateUnsupportedGoRouteGaps(goRoutes: Set<string>, hostedRoutes: Set<string>): JsonRecord[] {
+  const unsupportedRoutes = [...goRoutes].filter((route) => !hostedRoutes.has(route)).sort();
+  const declaredRoutes = Object.keys(UNSUPPORTED_GO_ROUTE_GAPS).sort();
+  const missingRoutes = unsupportedRoutes.filter((route) => !Object.prototype.hasOwnProperty.call(UNSUPPORTED_GO_ROUTE_GAPS, route));
+  const staleRoutes = declaredRoutes.filter((route) => !goRoutes.has(route) || hostedRoutes.has(route));
+  if (missingRoutes.length > 0 || staleRoutes.length > 0) {
+    throw new ValidationError(`Go route/scope gap registry drift: missing=${missingRoutes.join(",") || "none"}; stale=${staleRoutes.join(",") || "none"}`);
+  }
+  return unsupportedRoutes.map((route) => ({ route, ...UNSUPPORTED_GO_ROUTE_GAPS[route] }));
+}
+
+function assertPublicManifestPath(inputPath: string): string {
+  const lowerParts = resolve(inputPath).toLowerCase().split(/[\\/]+/u);
+  if (lowerParts.includes("private_refs") || lowerParts.includes(".secrets")) {
+    throw new SecretInputError("refusing to read private_refs or .secrets input paths");
+  }
+  return inputPath;
+}
+
 
 
 export class SecretInputError extends Error {
@@ -1264,18 +1660,18 @@ export class SaaSIngestionClient {
   readonly service: SaaSControlPlaneService;
   readonly transport?: SaaSClientTransport;
 
-  constructor(options: { service?: SaaSControlPlaneService; transport?: SaaSClientTransport; baseUrl?: string; fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}) {
+  constructor(options: { service?: SaaSControlPlaneService; transport?: SaaSClientTransport; baseUrl?: string; fetch?: SaaSFetchLike; headers?: Record<string, string>; bearerApiKey?: string; apiKeySecret?: string } = {}) {
     this.service = options.service ?? new SaaSControlPlaneService();
-    this.transport = options.transport ?? (options.baseUrl !== undefined ? new SaaSHttpJsonTransport({ baseUrl: options.baseUrl, fetch: options.fetch, headers: options.headers }) : undefined);
+    this.transport = options.transport ?? (options.baseUrl !== undefined ? new SaaSHttpJsonTransport({ baseUrl: options.baseUrl, fetch: options.fetch, headers: options.headers, bearerApiKey: options.bearerApiKey, apiKeySecret: options.apiKeySecret }) : undefined);
   }
 
-  static forBaseUrl(baseUrl: string, options: { fetch?: SaaSFetchLike; headers?: Record<string, string> } = {}): SaaSIngestionClient {
-    return new SaaSIngestionClient({ baseUrl, fetch: options.fetch, headers: options.headers });
+  static forBaseUrl(baseUrl: string, options: { fetch?: SaaSFetchLike; headers?: Record<string, string>; bearerApiKey?: string; apiKeySecret?: string } = {}): SaaSIngestionClient {
+    return new SaaSIngestionClient({ baseUrl, fetch: options.fetch, headers: options.headers, bearerApiKey: options.bearerApiKey, apiKeySecret: options.apiKeySecret });
   }
 
-  async requestJson(method: string, path: string, body: JsonRecord = {}): Promise<JsonRecord> {
-    if (this.transport !== undefined) return this.transport.requestJson(method, path, body);
-    return new SaaSControlPlaneRouter(this.service).handle(method, path, body).body;
+  async requestJson(method: string, path: string, body: JsonRecord = {}, options: { headers?: Record<string, string> } = {}): Promise<JsonRecord> {
+    if (this.transport !== undefined) return this.transport.requestJson(method, path, body, options);
+    return new SaaSControlPlaneRouter(this.service).handle(method, path, body, options).body;
   }
 
   async healthz(): Promise<JsonRecord> {
@@ -1405,6 +1801,22 @@ export class SaaSIngestionClient {
     return envelope("quota_snapshot", this.service.usageSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
   }
 
+  billingCheckoutPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_checkout_plan", this.service.billingCheckoutPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingPortalPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_portal_plan", this.service.billingPortalPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingWebhookIngest(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
+    return envelope("billing_webhook_ingest", this.service.billingWebhookIngest(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
+  billingLedger(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
+    return envelope("billing_ledger", this.service.billingLedgerSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  }
+
   auditLog(tenantId: string, projectId: string, options: SaaSClientOptions & { runId?: string; run_id?: string; actionPrefix?: string; action_prefix?: string; authKeyId?: string; auth_key_id?: string; limit?: number } = {}): JsonRecord {
     return envelope("audit_log", this.service.auditSnapshot(tenantId, projectId, {
       runId: clientString(options, "runId", "run_id"),
@@ -1521,6 +1933,12 @@ export class SaaSIngestionClient {
     return envelope("verify_api_key_secret", body);
   }
 
+  async revokeApiKeyHttp(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<JsonRecord> {
+    rejectRawApiKey(clientString(options, "apiKey", "api_key"));
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/revoke`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    return envelope("revoke_api_key", body);
+  }
+
   async configureApiKeyRateLimitHttp(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): Promise<JsonRecord> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/rate-limit`, { tenant_id: tenantId, operation: options.operation, limit: options.limit, period: options.period, auth_key_id: options.authKeyId });
     return envelope("configure_api_key_rate_limit", body);
@@ -1533,37 +1951,61 @@ export class SaaSIngestionClient {
 
   async sdkSubmitHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: clientRequiredString(options, "datasetId", "dataset_id"), agent_ref: clientRequiredString(options, "agentRef", "agent_ref"), run_id: clientString(options, "runId", "run_id"), metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/sdk-submit`, { tenant_id: tenantId, dataset_id: clientRequiredString(options, "datasetId", "dataset_id"), agent_ref: clientRequiredString(options, "agentRef", "agent_ref"), run_id: clientString(options, "runId", "run_id"), metadata: { client: SAAS_CLIENT_VERSION, ...(options.metadata ?? {}) }, api_key_id: clientString(options, "apiKeyId", "api_key_id"), idempotency_key: clientString(options, "idempotencyKey", "idempotency_key"), request_id: clientString(options, "requestId", "request_id") }, clientAuthHeaders(options));
     return envelope("sdk_submit", body);
   }
 
   async uploadRunHttp(tenantId: string, projectId: string, runId: string, result: JsonRecord, options: SaaSClientOptions & { uploadId?: string; upload_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const upload = clientUploadOptions(options);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: upload.uploadId, api_key_id: upload.apiKeyId, idempotency_key: upload.idempotencyKey, request_id: upload.requestId });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/upload`, { tenant_id: tenantId, result, upload_id: upload.uploadId, api_key_id: upload.apiKeyId, idempotency_key: upload.idempotencyKey, request_id: upload.requestId }, clientAuthHeaders(options));
     return envelope("upload_run", body);
   }
 
   async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const trace = clientTraceOptions(options);
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId });
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId }, clientAuthHeaders(options));
     return envelope("ingest_trace", body);
   }
 
   async lifecycleHttp(tenantId: string, projectId: string, runId: string): Promise<JsonRecord> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/lifecycle`, { tenant_id: tenantId });
-    return envelope("lifecycle", body);
+    return envelope("lifecycle_snapshot", body);
   }
 
-  async usageHttp(tenantId: string, projectId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
-    return envelope("usage", body);
+  async usageHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/usage`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("usage_snapshot", body);
+  }
+
+  async usageSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    return this.usageHttp(tenantId, projectId, options);
   }
 
   async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
     return envelope("quota_snapshot", body);
+  }
+
+  async billingCheckoutPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/checkout-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_checkout_plan", body);
+  }
+
+  async billingPortalPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/portal-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_portal_plan", body);
+  }
+
+  async billingWebhookIngestHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/webhooks/ingest`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_webhook_ingest", body);
+  }
+
+  async billingLedgerHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/billing/ledger`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
+    return envelope("billing_ledger", body);
   }
 
   async auditLogHttp(tenantId: string, projectId: string, options: { runId?: string; actionPrefix?: string; authKeyId?: string; limit?: number } = {}): Promise<JsonRecord> {
@@ -1591,13 +2033,13 @@ export class SaaSIngestionClient {
     return envelope("release_evidence_verify", body);
   }
 
-  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId });
+  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: SaaSClientOptions & { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId }, clientAuthHeaders(options));
     return envelope("artifact_manifest", body);
   }
 
-  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: { authKeyId?: string } = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId });
+  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: SaaSClientOptions & { authKeyId?: string } = {}): Promise<JsonRecord> {
+    const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId }, clientAuthHeaders(options));
     return envelope("artifact_manifests", body);
   }
 }
@@ -1608,7 +2050,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["api-key-create", "api-key-list", "api-key-verify", "api-key-rate-limit", "api-key-rate-limits", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list"]);
+const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -1625,6 +2067,11 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
   const client = baseUrl !== undefined ? SaaSIngestionClient.forBaseUrl(baseUrl) : (stateInput !== undefined ? await SaaSIngestionClient.fromStateFile(stateInput) : new SaaSIngestionClient());
   let result: JsonRecord;
   switch (command) {
+    case "bootstrap":
+      result = baseUrl !== undefined
+        ? await client.bootstrapProjectHttp({ tenantName: stringOption(options, "tenant-name", true), projectName: stringOption(options, "project-name", true), tenantId: stringOption(options, "tenant-id", false), projectId: stringOption(options, "project-id", false), datasetId: stringOption(options, "dataset-id", false), datasetName: stringOption(options, "dataset-name", false) })
+        : client.bootstrapProject({ tenantName: stringOption(options, "tenant-name", true), projectName: stringOption(options, "project-name", true), tenantId: stringOption(options, "tenant-id", false), projectId: stringOption(options, "project-id", false), datasetId: stringOption(options, "dataset-id", false), datasetName: stringOption(options, "dataset-name", false) });
+      break;
     case "api-key-create":
       result = baseUrl !== undefined
         ? await client.createApiKeyHttp(projectTenant(options).tenantId, projectTenant(options).projectId, {
@@ -1644,6 +2091,11 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
         ? await client.verifyApiKeySecretHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) })
         : client.verifyApiKeySecret(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), secret: stringOption(options, "secret", true), scope: stringOption(options, "scope", false) });
       break;
+    case "api-key-revoke":
+      result = baseUrl !== undefined
+        ? await client.revokeApiKeyHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "key-id", true), { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.revokeApiKey(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "key-id", true), { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
     case "api-key-rate-limit":
       result = baseUrl !== undefined
         ? await client.configureApiKeyRateLimitHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", true), operation: stringOption(options, "operation", true), limit: numberOption(options, "limit", true), period: stringOption(options, "period", false), authKeyId: stringOption(options, "auth-key-id", false) })
@@ -1653,6 +2105,57 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       result = baseUrl !== undefined
         ? await client.apiKeyRateLimitSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) })
         : client.apiKeyRateLimitSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) });
+      break;
+    case "sdk-submit":
+      result = baseUrl !== undefined
+        ? await client.sdkSubmitHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { datasetId: stringOption(options, "dataset-id", true), agentRef: stringOption(options, "agent-ref", true), runId: stringOption(options, "run-id", false), metadata: await jsonObjectOption(options, "metadata", {}), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+        : client.sdkSubmit(projectTenant(options).tenantId, projectTenant(options).projectId, { datasetId: stringOption(options, "dataset-id", true), agentRef: stringOption(options, "agent-ref", true), runId: stringOption(options, "run-id", false), metadata: await jsonObjectOption(options, "metadata", {}), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "run-upload":
+      {
+        const resultPayload = await jsonObjectOption(options, "result", {});
+        result = baseUrl !== undefined
+          ? await client.uploadRunHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), resultPayload, { uploadId: stringOption(options, "upload-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+          : client.uploadRun(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), resultPayload, { uploadId: stringOption(options, "upload-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      }
+      break;
+    case "trace-ingest":
+      result = baseUrl !== undefined
+        ? await client.ingestTraceHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), await jsonArrayOption(options, "observations"), { batchId: stringOption(options, "batch-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) })
+        : client.ingestTrace(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true), await jsonArrayOption(options, "observations"), { batchId: stringOption(options, "batch-id", false), apiKeyId: stringOption(options, "api-key-id", false), idempotencyKey: stringOption(options, "idempotency-key", false), requestId: stringOption(options, "request-id", false) });
+      break;
+    case "lifecycle":
+      result = baseUrl !== undefined
+        ? await client.lifecycleHttp(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true))
+        : client.lifecycle(projectTenant(options).tenantId, projectTenant(options).projectId, stringOption(options, "run-id", true));
+      break;
+    case "quota":
+      result = baseUrl !== undefined ? await client.quotaSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId) : client.quotaSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId);
+      break;
+    case "usage":
+      result = baseUrl !== undefined
+        ? await client.usageHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.usage(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-checkout-plan":
+      result = baseUrl !== undefined
+        ? await client.billingCheckoutPlanHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), price: await jsonObjectOption(options, "price", {}), successUrl: stringOption(options, "success-url", true), cancelUrl: stringOption(options, "cancel-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), usageRollup: await jsonObjectOption(options, "usage-rollup", {}), metadata: await jsonObjectOption(options, "metadata", {}), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingCheckoutPlan(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), price: await jsonObjectOption(options, "price", {}), successUrl: stringOption(options, "success-url", true), cancelUrl: stringOption(options, "cancel-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), usageRollup: await jsonObjectOption(options, "usage-rollup", {}), metadata: await jsonObjectOption(options, "metadata", {}), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-portal-plan":
+      result = baseUrl !== undefined
+        ? await client.billingPortalPlanHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), returnUrl: stringOption(options, "return-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingPortalPlan(projectTenant(options).tenantId, projectTenant(options).projectId, { customerRef: stringOption(options, "customer-ref", true), returnUrl: stringOption(options, "return-url", true), providerConfig: await optionalJsonObjectOption(options, "provider-config"), idempotencyKey: stringOption(options, "idempotency-key", false), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-webhook-ingest":
+      result = baseUrl !== undefined
+        ? await client.billingWebhookIngestHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { provider: stringOption(options, "provider", true), mode: stringOption(options, "mode", true), eventType: stringOption(options, "event-type", true), eventId: stringOption(options, "event-id", true), payloadSha256: stringOption(options, "payload-sha256", true), signatureHeaderPresent: Boolean(options["signature-header-present"]), webhookSecretRef: stringOption(options, "webhook-secret-ref", false), livemode: Boolean(options.livemode), customerRef: stringOption(options, "customer-ref", false), amountMinor: optionalNumberOption(options, "amount-minor"), currency: stringOption(options, "currency", false), invoiceRef: stringOption(options, "invoice-ref", false), usageUnits: optionalNumberOption(options, "usage-units"), metadata: await jsonObjectOption(options, "metadata", {}), authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingWebhookIngest(projectTenant(options).tenantId, projectTenant(options).projectId, { provider: stringOption(options, "provider", true), mode: stringOption(options, "mode", true), eventType: stringOption(options, "event-type", true), eventId: stringOption(options, "event-id", true), payloadSha256: stringOption(options, "payload-sha256", true), signatureHeaderPresent: Boolean(options["signature-header-present"]), webhookSecretRef: stringOption(options, "webhook-secret-ref", false), livemode: Boolean(options.livemode), customerRef: stringOption(options, "customer-ref", false), amountMinor: optionalNumberOption(options, "amount-minor"), currency: stringOption(options, "currency", false), invoiceRef: stringOption(options, "invoice-ref", false), usageUnits: optionalNumberOption(options, "usage-units"), metadata: await jsonObjectOption(options, "metadata", {}), authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "billing-ledger":
+      result = baseUrl !== undefined
+        ? await client.billingLedgerHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
+        : client.billingLedger(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
       break;
     case "release-gate":
       result = baseUrl !== undefined
@@ -1823,12 +2326,33 @@ async function jsonObjectOption(options: CliOptions, name: string, defaultValue:
   return defaultValue;
 }
 
+async function optionalJsonObjectOption(options: CliOptions, name: string): Promise<JsonRecord | undefined> {
+  const hasJson = stringOption(options, `${name}-json`, false) !== undefined;
+  const hasFile = stringOption(options, `${name}-file`, false) !== undefined;
+  return hasJson || hasFile ? jsonObjectOption(options, name, {}) : undefined;
+}
+
+async function jsonArrayOption(options: CliOptions, name: string): Promise<JsonRecord[]> {
+  const jsonValue = stringOption(options, `${name}-json`, false);
+  const fileValue = stringOption(options, `${name}-file`, false);
+  if (jsonValue !== undefined && fileValue !== undefined) throw new SecretInputError(`provide only one of --${name}-json or --${name}-file`);
+  const raw = jsonValue ?? (fileValue !== undefined ? await (async () => {
+    assertPublicControlPlanePath(fileValue);
+    const fs = await import("node:fs/promises");
+    return fs.readFile(fileValue, "utf8");
+  })() : undefined);
+  if (raw === undefined) return [];
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) throw new SecretInputError(`--${name}-json must decode to an array of objects`);
+  return parsed as JsonRecord[];
+}
+
 function projectTenant(options: CliOptions): { tenantId: string; projectId: string } {
   return { tenantId: stringOption(options, "tenant-id", true), projectId: stringOption(options, "project-id", true) };
 }
 
 function saasCliUsage(): string {
-  return "usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <api-key-create|api-key-list|api-key-verify|api-key-rate-limit|api-key-rate-limits|release-gate|audit-log|audit-chain-verify|release-evidence|release-evidence-verify|job-enqueue|job-lease|job-heartbeat|job-complete|job-fail|job-list> [options]";
+  return `usage: node dist/saas.js [--state-input PATH] [--state-output PATH] [--base-url URL] <${[...SAAS_CLI_COMMANDS].join("|")}> [options]`;
 }
 
 async function mainSaaSCli(): Promise<number> {
@@ -1911,6 +2435,19 @@ function rejectRawApiKey(value: unknown): void { if (value !== undefined && valu
 function clientString(options: JsonRecord, ...keys: string[]): string | undefined { for (const key of keys) { const value = options[key]; if (typeof value === "string" && value.trim() !== "") return value; } return undefined; }
 function clientRequiredString(options: JsonRecord, ...keys: string[]): string { const value = clientString(options, ...keys); if (value === undefined) throw new ValidationError(`missing required option: ${keys.join("/")}`); return value; }
 function clientBool(options: JsonRecord, ...keys: string[]): boolean { for (const key of keys) { if (options[key] !== undefined) return Boolean(options[key]); } return false; }
+function bearerAuthorizationHeader(secret: string): string { return String(secret).trim().toLowerCase().startsWith("bearer ") ? String(secret).trim() : `Bearer ${String(secret).trim()}`; }
+function clientAuthHeaders(options: SaaSClientOptions): { headers?: Record<string, string> } {
+  const secret = clientString(options, "bearerApiKey", "bearer_api_key", "apiKeySecret", "api_key_secret");
+  return secret === undefined ? {} : { headers: { Authorization: bearerAuthorizationHeader(secret) } };
+}
+function bearerSecretFromHeaders(headers: Record<string, string | string[] | undefined> | undefined): string | undefined {
+  if (headers === undefined) return undefined;
+  const value = headers.Authorization ?? headers.authorization;
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return undefined;
+  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
+  return match === null ? undefined : match[1].trim();
+}
 function clientUploadOptions(options: SaaSClientOptions): { uploadId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { uploadId: clientString(options, "uploadId", "upload_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
 function clientTraceOptions(options: SaaSClientOptions): { batchId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } { return { batchId: clientString(options, "batchId", "batch_id"), apiKeyId: clientString(options, "apiKeyId", "api_key_id"), idempotencyKey: clientString(options, "idempotencyKey", "idempotency_key"), requestId: clientString(options, "requestId", "request_id") }; }
 function assertPublicControlPlanePath(inputPath: string): void { const normalized = resolve(inputPath).replaceAll("\\", "/").toLowerCase(); for (const part of [".secrets", "private_refs"]) { if (normalized.includes("/" + part + "/") || normalized.endsWith("/" + part)) throw new SecretInputError("refusing to read or write control-plane state under " + part); } }

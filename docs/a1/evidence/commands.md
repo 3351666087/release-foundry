@@ -743,7 +743,7 @@ Results:
 - Evidence index schema tests: 4 passed.
 - Final readiness safety smoke: ok, 2 steps, output `docs/evidence/private_refs/a1_readiness_round5_final_safety.json`.
 - `git diff --check`: exit 0 with CRLF warnings only.
-- Secret scan: matches were intentional synthetic test strings such as `tp_test_secret`; no real API key was printed or written to tracked docs/code/evidence index.
+- Secret scan: matches were intentional synthetic test-token fixtures; no real API key was printed or written to tracked docs/code/evidence index.
 - Growth-Auditor quota-detail follow-up: public evidence index quota summaries now use `*_present` booleans and generic quota-block text; tracked public docs/index scan found no exact hosted quota count phrase or numeric `used/requested/remaining` tuple.
 - One failed inspection command used bash-style `\n` in a PowerShell `python -c` string and produced a SyntaxError; it was rerun with a PowerShell-compatible one-liner.
 
@@ -990,7 +990,7 @@ Results:
 - Chrome read-only Usage page confirmed logged-in labels for Usage, Images, Audio, Files, and Upgrade; docs overview confirmed Python SDK / Testing Platform / Observability / EvalRunner / RunBuilder / Agent / `client.trace` / Span / Generation / VM Integration.
 - Public evidence index refreshed to 333 records, 16 response-field functions, quota block count 41, lint issues 0.
 - `git diff --check`: exit 0 with CRLF warnings only.
-- Secret scan matches were historical docs/pattern descriptions plus the intentional synthetic TS test token `tp_syntheticsecret`; no operational API key was printed or written.
+- Secret scan matches were historical docs/pattern descriptions plus an intentional synthetic TS test-token fixture; no operational API key was printed or written.
 - Failed point preserved: validation of the media no-quota gate without matching media flags and `--batch-size 3` failed with `target_binding_mismatch`; rerun with matching arguments passed.
 - No mutating paid Ashr API call was executed; the request-bound gate from real read-only evidence remained blocked because no quota/reset go evidence was present.
 
@@ -1174,3 +1174,545 @@ Results:
 - Multimodal dry-run planned 10 steps across Text/Audio/File/Image/Video, estimated 17 small-batch calls, required no API key, and made no official API calls.
 - Public field parity plan now covers all five modalities, keeps dry-run calls at zero, and records only request-shape/fingerprint metadata.
 - Real mutating execution now requires explicit `--modality` selection before quota-gate validation can proceed; dry-run may still enumerate all modalities safely.
+
+## Round23 public-safe official API evidence workflow - 2026-07-09
+
+```powershell
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet --evidence-index none --output docs/evidence/private_refs/a1_readiness_packet_public_safe_smoke.json
+python -B -m pytest tests/a1/test_python_calibrator.py -q
+```
+
+Results:
+- Public-safe manifest summary CLI completed with `status=missing` because the ignored private manifest was absent in this worktree.
+- Readiness packet CLI completed with `status=ready`; it used tracked/public inputs, did not read desktop key files, and did not call the hosted API.
+- The `--evidence-index none` readiness smoke also completed with `status=ready` to prove the artifact can be generated without private evidence context.
+- Focused calibrator tests: 36 passed.
+
+## Round24 lifecycle/quota parity and real read-only calibration - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+gh pr checks 27
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python scripts/cl_guard.py hygiene
+git diff --check
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "pwd; uname -a; command -v go || true; command -v python3 || true"
+docker version --format '{{.Server.Version}}'
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_readonly_20260709_155325.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m pytest tests/a1/test_python_calibrator.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_a1_foundation_migration_manifest.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider
+python -B tests/a1/ts_python_parity_matrix.py --check
+```
+
+Results:
+- PR #27 CL was green before this new slice: Plan/hygiene, Go, Python, TS, and summary passed; A3/Rust jobs were skipped by plan.
+- Go SDK package and Go integration tests passed from their module roots.
+- TS SDK suite passed with 321 tests, including SaaS route/scope, hosted client, CLI, and fixture parity.
+- Python A1 suite passed with 336 tests after adding the migration manifest hook and route-scope hardening.
+- `cl_guard.py hygiene` passed; `git diff --check` produced CRLF normalization warnings only.
+- `Ubuntu-24.04-Ashr` WSL2 started successfully from the D-drive install and reached the current worktree; Python 3 was available. Docker daemon reported server version 29.6.1.
+- Real official API read-only small batch completed with status `ok`: 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls. Raw records stayed only under ignored `docs/evidence/private_refs/`.
+- Public summary was regenerated from the private manifest and records only status/counts/response key names plus private path references. Readiness packet was regenerated without embedding key material or private payloads.
+
+## Round25 WSL self-host Go readiness - 2026-07-09
+
+```powershell
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -e; whoami; pwd; command -v go || true; go version 2>/dev/null || true; command -v apt-get || true; command -v sudo || true; cat /etc/os-release | head -5"
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y golang-go; go version"
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "set -euo pipefail; cd /mnt/c/Users/33516/Documents/Ashr_a1_clean_rebase/packages/go/ashrclone; go test ./..."
+```
+
+Results:
+- `Ubuntu-24.04-Ashr` runs as root on Ubuntu 24.04.4 LTS with `apt-get` and `sudo` available.
+- Installed Go toolchain in the D-drive WSL environment: `go version go1.22.2 linux/amd64`.
+- Linux/WSL Go SDK tests passed from `packages/go/ashrclone`; this validates the self-host backend package on a Linux runtime, not just Windows.
+
+## Round25 integrated A1 validation - 2026-07-09
+
+```powershell
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py tests/integration/test_a1_large_saas_migration_live.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+- Go package tests passed in `packages/go/ashrclone`; Go integration tests passed in `tests/integration/go`.
+- TS SDK suite passed with 322 tests after quickstart parity growth.
+- SQL/self-host focused tests passed with 18 passed and 2 live-DB tests skipped behind `A1_POSTGRES_TEST_DSN`.
+- TS/Python gap matrix regenerated after TS export growth and checked successfully.
+- Python A1 full suite passed with 340 tests.
+- Both Docker compose config checks passed.
+- CL hygiene passed with zero findings; `git diff --check` produced CRLF normalization warnings only.
+
+## Round26 route docs, quota enforcement, live Postgres, and mutating API calibration - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh repo view --json nameWithOwner,defaultBranchRef,url
+gh pr list --state all --limit 20 --json number,title,headRefName,baseRefName,state,url,updatedAt
+python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --max-retries 0 --output docs/evidence/private_refs/a1_official_api_mutating_all_modalities_dryrun_20260709_172241.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality text,image,audio,file,video --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_mutating_all_modalities_quota_gate_20260709_172259.json --output docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality image --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172407.json --output docs/evidence/private_refs/a1_official_api_mutating_image_20260709_172407.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality audio --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172414.json --output docs/evidence/private_refs/a1_official_api_mutating_audio_20260709_172414.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality file --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172421.json --output docs/evidence/private_refs/a1_official_api_mutating_file_20260709_172421.json
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --modality video --max-retries 0 --quota-gate-record docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172428.json --output docs/evidence/private_refs/a1_official_api_mutating_video_20260709_172428.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_mutating_all_modalities_20260709_172259.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+python -B -m pytest tests/a1/test_python_calibrator.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_a1_foundation_migration_manifest.py -q -p no:cacheprovider
+docker run --rm -d --name ashr-a1-live-pg -e POSTGRES_DB=ashr -e POSTGRES_USER=ashr -e POSTGRES_HOST_AUTH_METHOD=trust -p 15433:5432 postgres:16-alpine
+$env:A1_POSTGRES_TEST_DSN='docker://ashr-a1-live-pg'; $env:A1_PSQL_DOCKER_CONTAINER='ashr-a1-live-pg'; python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider
+go test ./...
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+wsl -d Ubuntu-24.04-Ashr -- bash -lc "pwd; uname -a; command -v bash; command -v go; go version; command -v python3; python3 --version"
+docker version --format '{{.Server.Version}}'
+```
+
+Results:
+- Baseline observed peer movement on `origin/codex/a3-commercial-growth-round4` and `origin/dev/g3-a2-calibration`; no peer files were staged in this A1 slice.
+- Mutating dry-run plan covered text/image/audio/file/video with 10 planned steps, 5 mutating steps, 17 estimated calls, and no local guard errors.
+- Real official API mutating small batches were attempted with env-only `ASHR_API_KEY`, small-batch, zero retries, quota-gate records, and private ignored output paths. The all-modality run reached `create-request-text`; per-media runs reached `create-request-image`, `create-request-audio`, `create-request-file`, and `create-request-video`. Each returned `status=partial`, 5 read steps, 1 mutating attempt, and `quota_block_count=1`. This proves real hosted mutating/media boundary behavior without leaking raw payloads publicly.
+- Public mutating evidence index was written to `docs/a1/evidence/official_api_mutating_calibration_index.json`; raw manifests and quota gates remain ignored under `docs/evidence/private_refs/`.
+- Disposable Docker Postgres live migration proof passed with 2 tests after removing UTF-8 BOMs from the migration and live test.
+- Go package tests passed; Go integration tests passed.
+- TS SDK suite passed with 325 tests.
+- Python A1 suite passed with 347 tests after adding public mutating index coverage.
+- Focused calibrator/SQL tests passed with 50 tests, and Docker compose configs passed.
+- `python scripts/cl_guard.py hygiene` passed with zero findings; `git diff --check` produced CRLF normalization warnings only.
+- WSL `Ubuntu-24.04-Ashr` starts from the D-drive install and has Bash, Go `1.22.2`, and Python `3.12.3`; Docker daemon reports `29.6.1`.
+
+## Round27 durable quota catalog and official mutating evidence SDK consumption - 2026-07-09
+
+```powershell
+git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags
+git status -sb
+gh pr checks 27
+gh run view 29008613785 --json status,conclusion,updatedAt,jobs
+python -B -m pytest tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+npm run build --prefix packages/ts/ashr-clone
+node --test packages/ts/ashr-clone/test/route-scope-manifest.test.mjs
+python -B -m pytest tests/a1/test_a1_foundation_migration_manifest.py tests/a1/test_a1_control_plane_postgres_migration.py tests/integration/test_a1_large_saas_migration.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_python_calibrator.py -q -p no:cacheprovider
+go test ./...
+docker run --rm -d --name ashr-a1-live-pg -e POSTGRES_DB=ashr -e POSTGRES_USER=ashr -e POSTGRES_HOST_AUTH_METHOD=trust -p 15433:5432 postgres:16-alpine
+$env:A1_POSTGRES_TEST_DSN='docker://ashr-a1-live-pg'; $env:A1_PSQL_DOCKER_CONTAINER='ashr-a1-live-pg'; python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider
+go test ./...
+npm test --prefix packages/ts/ashr-clone
+python -B tests/a1/ts_python_parity_matrix.py --write
+python -B tests/a1/ts_python_parity_matrix.py --check
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json
+python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json --output docs/a1/evidence/official_api_readonly_manifest_summary.json
+python -B -m packages.sdk.ashr_clone.calibrate write-readiness-packet
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+python scripts/cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+- PR #27 GitHub run `29008613785` was still queued at baseline; no failing logs were available.
+- Peer movement observed again on `origin/codex/a3-commercial-growth-round4`; no peer files were staged.
+- SQL durable quota foundation now includes operation-aware `usage_ledger`, `operation_meter_mapping`, `current_quota_policy`, `check_quota_and_insert_usage`, advisory lock usage, idempotency replay, and quota-denied audit insertion.
+- Go quota surface now has `QuotaRepository`, operation catalog, canonical SQL-aligned meters (`runs`, `media`, `observations`, `storage_bytes`), structured public-safe quota error responses, and repository append/readback tests.
+- Growth-Auditor flagged SQL/Go meter vocabulary drift as P1; fixed this round by aligning Go meters with SQL and adding a Python static contract test that parses SQL + Go mappings together.
+- Python and TypeScript SDKs now consume `docs/a1/evidence/official_api_mutating_calibration_index.json` and reject private evidence paths.
+- Added `docs/a1/schemas/official_api_mutating_calibration_index.schema.json` and schema validation for the public mutating evidence index.
+- Official API read-only small batch refreshed successfully with env-only key, 5 read steps, 0 errors, 0 mutating steps, estimated 7 calls. Private evidence remains ignored under `docs/evidence/private_refs/a1_official_api_readonly_20260709_175938.json`.
+- Focused Python/SQL/schema tests passed with 82 tests before the meter-catalog fix and 10 focused migration tests after the fix.
+- Disposable Docker Postgres live migration proof passed with 2 tests after SQL quota additions and meter catalog fix.
+- Go package tests passed; Go integration tests passed.
+- TS package suite passed with 327 tests.
+- Python A1 suite passed with 354 tests.
+- Docker compose config checks passed; CL hygiene passed with zero findings; `git diff --check` reported CRLF normalization warnings only.
+
+
+## Round28 durable quota runtime wiring + paid media mutating proof - 2026-07-09T10:33:59Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr checks 27`; `gh run list --branch codex/a1-local-sdk-runner --limit 8 --json ...`: baseline fetched; peer change on `origin/dev/g3-a2-calibration`; PR #27 latest run `29010797860` later completed success.
+- `python -B -m services.runner.api_probe plan-batch --target-operation create-request --request-name "A1 Paid Media Calibration 20260709_182610" --request-file docs/a1/api_calibration/media_interface_request.json --allow-media-generation --allow-non-text-inputs --small-batch-size 1 --batch-size 1 --output docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json`: planned paid media mutating batch; status `blocked` by quota gate.
+- `python -B -m services.runner.api_probe create-request --execute --allow-mutate --allow-media-generation --allow-non-text-inputs --max-request-variations 1 --max-retries 0 --request-name "A1 Paid Media Calibration 20260709_182610" --request-file docs/a1/api_calibration/media_interface_request.json --quota-gate-record docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json --quota-gate-ttl-seconds 0 --allow-quota-override --quota-override-reason "user-authorized paid media calibration for A1 mutating/media contract coverage on 2026-07-09" --output docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json`: real official paid-media mutating attempt; `function=create_request`, `status=error`, `status_code=200`, `attempts=1`; public-safe observation is request quota exhausted with counters `limit=5`, `used=5`, `requested=1`, `remaining=0`.
+- `docker run --rm -d --name ashr-a1-live-pg ... postgres:16-alpine`; `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider`: disposable live Postgres proof after SQL fixes -> `3 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- Focused official mutating schema/SDK tests: `3 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, zero findings.
+- `git diff --check`: no whitespace errors; CRLF normalization warning for `docs/a1/evidence/official_api_mutating_calibration_index.json` only.
+- `gh pr checks 27`: CL Gate green; A3 checks skipped by rule, not failing.
+
+
+## Round29 usage quota route parity + paid media quota boundary - 2026-07-09T10:50:14Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb --untracked-files=all`; `gh pr view 27 --json ...`: baseline fetched; PR #27 green at run `29012107574`; local working tree had only A1 Round29 edits.
+- Growth-Auditor read-only audit: flagged durable Postgres API key/preflight, route-level quota proof, RLS live negative proof, and official quota exhaustion as next blockers; no files modified by auditor.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: no whitespace errors; JSON CRLF normalization warnings only.
+- `python -c "import os; ..."`: key presence/length only confirmed, value not printed.
+- `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_paid_media_all_modalities_dry_run_20260709_185014.json`: dry-run planned 17 estimated calls and 5 mutating modality steps.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --include-mutating --allow-paid-media --modality text,image,audio,file,video --allow-quota-override --quota-override-reason ... --output docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json`: real official call used env-only key; 5 read steps succeeded, first text mutating create_request hit quota boundary; result `partial`, quota block count 1.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_all_modalities_real_20260709_185014.json --output docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json`: wrote public-safe summary. A mistaken attempt to write summary into the mutating index was reverted with `git checkout -- docs/a1/evidence/official_api_mutating_calibration_index.json` before manual schema-safe index append.
+
+
+## Round30 durable Postgres API key lifecycle and preflight - 2026-07-09T11:06:30Z
+
+- `gh pr checks 27`: PR #27 commit `985f400` CL Gate green; Go, Python, TS, Plan/hygiene, and summary passed; A3/Rust jobs skipped by rule.
+- Growth-Auditor read-only audit: P0 blockers were durable Postgres API key lifecycle, Postgres-backed preflight/rate-limit snapshot, `sdk-submit` route preflight, and future bearer-auth parity; P1 blockers were RLS live negative proof and successful official mutating baseline after quota reset.
+- `go test ./...` from `packages/go/ashrclone`: pass after implementing durable Postgres API key create/list/revoke/verify/preflight/rate-limit/snapshot.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: pass.
+- Official API note: no duplicate mutating call in this sub-slice because Round29 already proved hosted quota boundary with env-only key; next paid/API calibration should wait for quota reset or plan change to produce a successful text baseline before media writes.
+
+
+## Round31 live Postgres API key proof - 2026-07-09T11:22:10Z
+
+- `gh pr checks 27`: commit `4a68408b` CL Gate green; Go, Python, TS, Plan/hygiene, and summary passed; A3/Rust skipped by rule.
+- Added `tests/integration/go/postgres_api_key_live_test.go`, gated by `A1_POSTGRES_TEST_DSN` so CI without a live DB skips it safely.
+- `go test ./...` from `tests/integration/go` without DSN: pass; live test skipped.
+- Disposable live proof: `docker run --rm -d --name ashr-a1-go-live-pg -e POSTGRES_USER=ashr -e POSTGRES_PASSWORD=ashr -e POSTGRES_DB=ashr -p 55433:5432 postgres:16-alpine`; set process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55433/ashr?sslmode=disable`; `go test ./... -run TestPostgresAPIKeyLifecycleLiveOptIn -count=1 -v` from `tests/integration/go` -> pass; container removed.
+- The first live attempt failed because API key rate-limit configuration used public route operation `sdk_submit` while Postgres mutation evidence used durable operation `sdk.submit`; fixed by normalizing operation names in configure/preflight/load/consume paths.
+- The second live attempt failed because non-UUID local key handles touched the commercial UUID `api_keys` table inside a transaction; fixed by skipping commercial table updates for non-UUID tenant/project/key handles.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `20 passed`.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "route|Go OpenAPI|route_scope"`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: passed with zero findings.
+- `git diff --check`: pass.
+- `go test ./...` from repository root is a known invalid command for this multi-module repo and reports `directory prefix . does not contain main module`; correct Go test entrypoints are module-scoped and passed.
+
+
+## Round32 live Postgres HTTP API key proof - 2026-07-09T11:33:20Z
+
+- Extended `tests/integration/go/postgres_api_key_live_test.go` with `TestPostgresHTTPAPIKeyLifecycleLiveOptIn`, using `httptest.NewServer(ashrclone.NewHTTPHandler(repository))` over a real Postgres repository.
+- `go test ./...` from `tests/integration/go` without DSN: pass; live tests skipped.
+- Disposable HTTP live proof: `docker run --rm -d --name ashr-a1-go-http-live-pg -e POSTGRES_USER=ashr -e POSTGRES_PASSWORD=ashr -e POSTGRES_DB=ashr -p 55434:5432 postgres:16-alpine`; process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@localhost:55434/ashr?sslmode=disable`; `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> repository and HTTP live tests passed; container removed.
+
+## Round33 bearer auth and admin API-key hardening - 2026-07-09T20:10:00+08:00
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; git branch --show-current; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb --untracked-files=all; gh repo view --json nameWithOwner,defaultBranchRef,url; gh pr list --state all --limit 20 --json number,title,headRefName,baseRefName,state,isDraft,updatedAt,url; gh pr checks 27 --watch=false`: PR #27 green before this round; A3/Rust skipped by rule.
+- `docker version; docker ps; wsl -l -v`: Docker Desktop daemon available; WSL distributions installed but stopped. Direct `/bin/bash` command in Codex failed with `/bin/bash: No such file or directory`, so this round used PowerShell.
+- Growth-Auditor read-only review: recommended admin API-key auth truthfulness and live evidence.
+- TS worker: changed `packages/ts/ashr-clone/src/saas.ts` and `packages/ts/ashr-clone/test/saas.test.mjs`; reported `npm test -- --runInBand` -> 328 passed and Python parity subset -> 12 passed.
+- `go test ./...` from `packages/go/ashrclone`: pass after Bearer auth and admin API-key hardening.
+- `go test ./...` from `tests/integration/go`: pass without DSN.
+- Disposable Postgres live proof: `docker run --name ashr-a1-pg-live-55435 -e POSTGRES_PASSWORD=ashr -e POSTGRES_USER=ashr -e POSTGRES_DB=ashr -p 55435:5432 -d postgres:16-alpine`; set process-only `A1_POSTGRES_TEST_DSN=postgres://ashr:ashr@127.0.0.1:55435/ashr?sslmode=disable`; `go test ./... -run 'TestPostgres.*LiveOptIn' -count=1 -v` from `tests/integration/go` -> both live tests passed; container removed.
+- `python -B -m pytest tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: 20 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 328 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 354 passed.
+
+
+## Round34 commands - 2026-07-09T12:40:07Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: fetched remote branches; observed A3 branch update only.
+- `gh pr list --state all --limit 20 --json ...`: PR #27 open draft for A1; PR #28 A3 open; PR #29 A2 open.
+- `gh pr checks 27 --watch=false`: prior A1 head green for CL Gate summary, Go SDK/integration, Python A1/A2, TypeScript, Plan/hygiene; A3/Rust skipped.
+- `python -m py_compile services/api/billing.py services/api/__init__.py`: pass after adding billing module/export.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider`: `7 passed` after fixing raw Stripe secret prefix rejection.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_platform.py tests/a1/test_go_python_route_contract_evidence.py -q -p no:cacheprovider`: `47 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `365 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `328 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- Official docs checked via web search: Stripe API keys/authentication, Stripe payment method support, Stripe Checkout, WeChat Pay Native pay docs, Alipay trade docs. No provider secret or real-card value was read or logged.
+
+
+## Round35 commands - 2026-07-09T13:01:14Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: fetched remote branches; observed A2 branch update only.
+- `gh pr view 27 --json ...` / `gh pr checks 27 --watch=false`: PR #27 prior head `2fec1b74`; Plan/hygiene queued at baseline.
+- `python -m py_compile services/api/billing.py services/api/__init__.py`: pass after Python billing ledger/idempotency additions.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider`: `10 passed`.
+- `python tests/a1/ts_python_parity_matrix.py --write`: refreshed TS/Python parity matrix after adding TS billing module.
+- `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: pass.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: pass after public evidence wording/ref cleanup.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `368 passed`.
+- `npm test --prefix packages/ts/ashr-clone`: `334 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json`: official Ashr API read-only small batch succeeded, 5 read steps, no mutating steps, raw record private/ignored.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_readonly_round35_20260709_210008.json --output docs/a1/evidence/official_api_readonly_round35_summary_20260709_210008.json`: wrote public-safe summary.
+
+
+## Round36 commands - 2026-07-09T13:16:57Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`: fetched remote branches; observed A3 branch update only.
+- `gh pr view 27 --json ...` / `gh pr checks 27 --watch=false`: PR #27 head `f8ee9564`; Plan/hygiene, Go, Python, and TypeScript passed; summary queued at inspection time.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py -q -p no:cacheprovider`: `5 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: `16 passed`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_billing_provider_contract.py -q -p no:cacheprovider`: `15 passed`.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- Environment note: `Get-PSDrive` showed C: at 0 bytes free. Removed regenerateable workspace/tool caches only. Reinstalling TS package dependencies with npm cache on D: still failed because `node_modules` target remains on C:. No source/evidence/private refs were deleted.
+
+
+## Round37 commands - 2026-07-09T13:25:51Z
+
+- `gh pr checks 27 --watch=false`: PR #27 head `91213fc8` green for summary, Plan/hygiene, Go, Python, and TypeScript; A3/Rust skipped.
+- `npm install --prefix packages/ts/ashr-clone --cache D:/codex-cache/npm --prefer-offline`: restored local TS dependencies after C: space recovered.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern billing`: `334 passed` because the current Node runner still executes the full package suite.
+- `python -B -m pytest tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider`: `1 skipped` without `A1_POSTGRES_TEST_DSN`.
+- `python -B -m pytest tests/a1/test_billing_ledger_migration_manifest.py tests/integration/test_a1_billing_ledger_migration_live.py -q -p no:cacheprovider`: `5 passed, 1 skipped`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass.
+- Docker note: `docker version --format '{.Server.Version}'` hung and was stopped by terminating the command process only; live Postgres proof not run locally.
+
+### Round 38 billing route contract + payment provider readiness
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` -> completed.
+- `gh pr checks 27 --watch=false` -> latest pre-round PR #27 checks green; A3 checks skipped by gate policy.
+- `go test ./...` from repo root -> invalid monorepo entry (`directory prefix . does not contain main module`); use package module paths instead.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "billing|route|SaaS"` -> 335 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 335 passed.
+- `python -B -m pytest tests/a1/test_saas_sdk_client.py tests/a1/test_billing_provider_contract.py tests/a1/test_go_python_route_contract_evidence.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider` -> 51 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 378 passed, 1 skipped; Docker daemon probe timed out and skipped compose validation.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 1 --output docs/evidence/private_refs/a1_readonly_billing_route_round38_20260709_215947.json` -> status ok, 5 read steps, 0 mutating steps; public summary at `docs/a1/evidence/official_api_readonly_round38_summary_20260709_215947.json`.
+
+## Round39 commands - 2026-07-09T14:25:00Z
+
+- `git status -sb; git diff --name-only; git log --oneline -5`: confirmed branch `codex/a1-local-sdk-runner-clean`, previous PR head `5c4bc83`, and dirty A1 billing/provider files only.
+- `python -B -m pytest tests/a1/test_billing_sdk_parity.py tests/a1/test_billing_ledger_migration_manifest.py tests/a1/test_payment_provider_readiness_docs.py -q -p no:cacheprovider`: first run found Python transport and SQL assertion mismatches; after fixes, `17 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `384 passed, 1 skipped`.
+- `npm test --prefix packages/ts/ashr-clone` with `npm_config_cache=D:/codex-cache/npm`: `337 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, `findings=[]`.
+- `git diff --check`: pass; Git emitted a CRLF normalization warning for `tests/a1/test_billing_provider_contract.py`.
+- Targeted scan: `rg -n "sk_live_|sk_test_|rk_live_|rk_test_|whsec_|Bearer [A-Za-z0-9._-]+|4242[ -]?4242|card_number|cvv|cvc|client_secret|api_key_secret" ...` found only expected SQL guardrail regexes, synthetic tests, and SDK parameter names; no raw key/card/provider secret was added.
+- Frontend mirror inspection from `C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip` wrote `docs/a1/evidence/frontend_mirror_billing_usage_fields_20260709_221430.json`, public-safe markers only.
+- `Get-ChildItem Env:ASHR_API_KEY,Env:ASHR_LABS_API_KEY`: Ashr API key was present in the process environment with a 46-character value; raw value was not printed.
+- `python -B -m packages.sdk.ashr_clone.calibrate --include-mutating --allow-paid-media --modality text,image,audio,file,video --limit 12 --output docs/evidence/private_refs/a1_paid_media_mutating_dryrun_round39_20260709_222232.json`: planned 5 read + 5 mutating modality steps, estimated 17 calls.
+- `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --include-mutating --allow-paid-media --allow-quota-override --quota-override-reason user_authorized_paid_media_calibration_round39_bounded_once --max-retries 0 --modality text,image,audio,file,video --limit 8 --output docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json`: partial; 5 read steps ok, text mutating step quota/API blocked, non-text paid media did not proceed past gate.
+- `python -B -m packages.sdk.ashr_clone.calibrate summarize-private-manifest --input docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json --output docs/a1/evidence/official_api_paid_media_round39_summary_20260709_222232.json --print-record`: wrote public-safe summary and returned non-zero because source status was partial; summary contains only response keys/status/quota flags.
+
+## Round40 commands - 2026-07-09T14:55:00Z
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; gh repo view --json nameWithOwner,url,defaultBranchRef; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb; git branch --show-current; git rev-parse --short HEAD; git rev-parse --short origin/main; gh pr list --state all --limit 20 --json ...; gh pr checks 27 --watch=false`: baseline confirmed PR #27 green and peer A2/A3 branches updated.
+- `python -B -c <build_private_evidence_index_from_dir + merge_evidence_indices + build_response_field_map>`: regenerated `docs/a1/api_calibration/real_api_evidence_index.json`, `real_api_response_field_map.json`, and `real_api_response_field_map.md`; merged historical public evidence with current private refs; result `total_records=399`, `quota_block_count=48`.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths ...` -> `5 passed`.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py ...` -> `11 passed, 1 skipped` for self-host/evidence focused checks.
+- `python -B -m pytest tests/a1/test_billing_provider_contract.py tests/a1/test_payment_provider_readiness_docs.py tests/a1/test_saas_sdk_client.py::test_sdk_saas_cli_end_to_end_and_redacts -q -p no:cacheprovider` -> `28 passed`.
+- `npm test --prefix packages/ts/ashr-clone` -> `338 passed`.
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `399 passed, 1 skipped`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, `findings=[]`.
+- `git diff --check` -> pass with CRLF normalization warnings only.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider` -> pass.
+- Targeted secret scan over A1 public dirs found only expected synthetic fixtures and guardrail regexes; no raw API key/provider key/card/webhook secret was added.
+- Incorrect command note: `go test ./...` from repo root and pytest from `tests/integration/go` cwd are invalid in this monorepo; corrected module-root commands above were used as authoritative validation.
+
+## Round41 commands - 2026-07-09T23:10:00Z
+
+- `pwd; git rev-parse --show-toplevel; git remote -v; git branch --show-current; git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags; git status -sb; gh repo view ...; gh pr list ...`: confirmed `C:/Users/33516/Documents/Ashr_a1_clean_rebase`, branch `codex/a1-local-sdk-runner-clean`, PR #27 open, peer A3 branch updated.
+- `python scripts/a2_regenerate_fixtures.py --write`: wrote 52 deterministic A2 generated fixture files as a CL unblock after A1 evidence index label/count changes.
+- `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider`: 52 passed.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_tracked_a1_public_evidence_artifacts_are_secret_safe -q -p no:cacheprovider`: 1 passed.
+- `python scripts/cl_guard.py hygiene`: passed, findings empty.
+- `git diff --check`: passed with CRLF normalization warnings only.
+- `python scripts/a2_regenerate_fixtures.py --check`: all 52 A2 generated fixture files match committed output.
+- `python scripts/cl_guard.py commercial`: passed, no blockers/advisories.
+- `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
+- Safety: no secret/key file read, no Ashr API call, no live billing/auth/team/API-key/storage mutation in this CI-unblock slice.
+- Environment note: `bash -lc ...` through the current WSL relay failed with `/bin/bash` missing; revisit Linux shell availability before daemon/container-heavy follow-up.
+
+### Round41 CI follow-up - fresh private evidence dir
+
+- `gh run view 29028012989 --job 86152945121 --log-failed`: Python A1/A2 failed because `tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths` tried to write `docs/evidence/private_refs/pytest_relative_path_record.json` in a fresh GitHub checkout where the ignored private evidence directory does not exist.
+- Fix: the test now creates `record.parent` before writing the temporary private evidence record, then still deletes only that temporary file.
+- `python -B -m pytest tests/a1/test_evidence_index.py::test_evidence_index_from_repo_private_refs_uses_relative_paths -q -p no:cacheprovider`: 1 passed.
+- `python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider`: 536 passed, 1 skipped.
+- `python scripts/cl_guard.py hygiene`: passed, findings empty.
+- `git diff --check`: passed with CRLF normalization warning only.
+
+## Round42 commands - 2026-07-09T23:55:00Z
+
+- `gh pr checks 27 --watch=false`: confirmed PR #27 CL green before A1 growth resumed.
+- `npm run build --prefix packages/ts/ashr-clone`: passed after adding TS SaaS CLI revoke and HTTP revoke.
+- `npm test --prefix packages/ts/ashr-clone -- --test-name-pattern "SaaS CLI covers API key"`: passed; Node runner executed full package suite, 338 passed at that point.
+- `python -B tests/a1/ts_python_parity_matrix.py --write`; `python -B tests/a1/ts_python_parity_matrix.py --check`; `python -B -m pytest tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: refreshed and verified TS/Python parity matrix after TS CLI revoke.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider`: 11 passed, 1 skipped.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet`: passed.
+- `go test ./...` from `packages/go/ashrclone`: passed after adding worker daemon and audit events.
+- `go test ./...` from `tests/integration/go`: passed.
+- `python -B -m pytest tests/a1/test_payment_oauth_safety.py -q -p no:cacheprovider`: 3 passed.
+- `npm test --prefix packages/ts/ashr-clone`: 342 passed.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_ts_python_gap_matrix.py tests/a1/test_saas_sdk_client.py -q -p no:cacheprovider`: 26 passed, 1 skipped.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: 406 passed, 1 skipped.
+- Incorrect command note: `go test ./...` from repo root remains invalid for this monorepo; module-root Go commands above are authoritative.
+- Safety: no key files read, no real Ashr API call, no live payment or real card action.
+
+## Round43 executable worker/object storage/API calibration - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree used for this round: `C:/Users/33516/Documents/Ashr_a1_clean_rebase` at `a0453239` on `codex/a1-local-sdk-runner-clean`; push target remains `origin HEAD:codex/a1-local-sdk-runner` for PR #27.
+- A stale sibling workspace `C:/Users/33516/Documents/Ashr` was inspected and found at old lone commit `e8310d2f` with `ahead 1, behind 71`; it was not used for staging or push to avoid reintroducing outdated diffs.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags` and `gh pr list --state all --limit 20` were run before implementation. Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`.
+- Strategy still points A1 toward Go main backend, SQL/Postgres/RLS, TypeScript/OpenAPI parity, Docker/YAML/Terraform, object storage, worker daemon, quota, billing, and API calibration.
+
+Round43 growth points landed:
+1. Added runnable Go worker daemon CLI under `packages/go/ashrclone/cmd/ashr-worker`.
+2. Worker daemon reads env aliases for tenant/project/job/lease/timing/request/API-key metadata.
+3. Worker daemon emits public-safe JSON summary and never logs raw payloads or secrets.
+4. Self-host worker compose now builds and runs a Go runtime image instead of the older Python replay command.
+5. Added `infra/docker/Dockerfile.go-runtime` building `ashr-api` and `ashr-worker` binaries.
+6. Fixed Go runtime healthcheck to verify real binaries instead of a nonexistent `ashr-api-healthcheck` command.
+7. Added local filesystem object storage contract helper with tenant/project/run scoped object keys.
+8. Added S3/MinIO-compatible public manifest contract using env refs only, not raw credentials.
+9. Wired artifact uploads to object manifests and checksum/readback metadata in `services/api/platform.py`.
+10. Wired evidence bundle storage to object manifests and verified release evidence packets before storage.
+11. Added object storage tests for scoped keys, tamper detection, redaction, refs-only manifests, and evidence bundle wiring.
+12. Added SQL/RLS static migration checks for protected control-plane, usage/audit, jobs/artifacts, and billing tables.
+13. Added opt-in live Postgres RLS proof using a scratch `NOBYPASSRLS` role when `A1_POSTGRES_TEST_DSN` is available.
+14. Ran official Ashr API read-only small-batch calibration from env key only; no key file was read and no raw key was printed.
+15. Wrote private manifest under ignored `docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json` and committed only public summary metadata.
+16. Refreshed public API evidence index and response field map to include Round43 read-only field observations.
+17. Updated readiness packet; mutating small batch remains not ready without a fresh mutation gate.
+18. Preserved payment/live-card boundary: no Stripe/WeChat/Alipay live payment or real card operation was attempted in this round.
+19. Revalidated commercial self-host compose config after Go daemon wiring.
+20. Revalidated CL hygiene/commercial guards and diff check before staging.
+
+Official API evidence:
+- Env key presence was checked by the user before this round; this round consumed `ASHR_API_KEY` only through process env.
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round43_20260709_233449.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round43_summary_20260709_233449.json`.
+- Summary result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`; observed response keys for `init`, `keep_alive`, `list_agents`, `list_datasets`, and `list_requests`.
+- Public evidence index after merge: `400` records, `16` functions, historical quota block count preserved at `48`.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_evidence_index.py tests/a1/test_object_storage_contract.py tests/a1/test_saas_platform.py tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `48 passed, 5 skipped`.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+Residual risks / next A1 queue:
+- Object storage is local-filesystem plus S3/MinIO manifest contract; no live MinIO/S3 network write was run yet.
+- Go Postgres worker daemon still needs an end-to-end Postgres-backed lease/heartbeat/complete/dead-letter live smoke.
+- Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
+- Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
+
+### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
+
+Bus-Auditor found three blocking issues and all were fixed before commit:
+- Worker daemon compose no longer exits after one bounded run and leaves a stale healthy marker. The commercial worker command now re-enters `/usr/local/bin/ashr-worker` in a loop, refreshes `/runtime/worker/heartbeat`, and the healthcheck requires a recent heartbeat file.
+- Commercial self-host Postgres no longer uses `POSTGRES_HOST_AUTH_METHOD: trust`. It now uses `POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password` backed by Docker secret `ASHR_POSTGRES_AUTH_SECRET`; `self-host.env.example` contains only the secret ref, not a password value. Local `services/runner/docker-compose.a1.yml` remains a local-dev smoke fixture and is separately tested.
+- Webhook deliveries no longer return a reusable concrete HMAC signature value. Public records now carry `x-ashr-signature-sha256: present`, `signature_present`, `signature_algorithm`, and a derived `signed_payload_sha256`; tests assert no `whsec_local_` or concrete header signature leaks.
+
+Additional validation after Bus-Auditor fixes:
+- `python -B -m pytest tests/a1/test_local_self_host_smoke_compose.py tests/a1/test_saas_platform.py -q -p no:cacheprovider` -> `15 passed, 1 skipped`.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `docker compose --env-file infra/docker/self-host.env.example -f infra/docker/docker-compose.self-host.yml --profile commercial config --quiet` -> passed; Docker warned that `ASHR_POSTGRES_AUTH_SECRET` is unset in the current shell, which is expected for a secret-ref compose config and must be supplied by the operator at runtime.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `411 passed, 1 skipped`.
+- `python -B -m pytest tests/integration/test_a1_large_saas_migration.py tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `9 passed, 4 skipped`.
+- `python scripts/cl_guard.py hygiene` -> passed, no findings.
+- `python scripts/cl_guard.py commercial` -> passed, no blockers/advisories.
+- `git diff --check` -> passed with CRLF normalization warnings only.
+
+### Round43 CI fixture refresh - 2026-07-10T01:05:00Z
+
+- GitHub Actions run `29031592365` failed only in `Python A1/A2 contracts`; Go and TypeScript were green.
+- Failure cause: A1 public evidence index advanced from `a1-real-api-round40-history-plus-paid-media-gate` / `399` records to `a1-real-api-round43-readonly-refresh` / `400` records, so generated A2 reports consuming A1 evidence were stale.
+- Fix: ran `python scripts/a2_regenerate_fixtures.py --write`, then staged only the four generated report files with real content diffs: `a2_commercial_readiness_report.json`, `a2_evidence_readiness_report.json`, `a2_release_gate_report.json`, and `a2_result_persistence_manifest.json`.
+- Verification: `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match; `python -B -m pytest tests/a2/test_contracts.py -q -p no:cacheprovider` -> `52 passed`.
+- No A2 judge semantics or source code changed; this is generated fixture alignment required by the A1 evidence label refresh.
+
+## Round44 worker/object/quota/API evidence hardening - 2026-07-10T00:25:00Z
+
+Baseline:
+- Working tree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`; PR #27 was green at commit `94716ce` before this round.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`, `gh pr list --state all --limit 20`, and `gh pr checks 27 --watch=false` were run before implementation.
+- Peer branches observed: `origin/dev/g3-a2-calibration` and `origin/codex/a3-commercial-growth-round4`; no A3 files were touched.
+- Strategy reread: A1 remains responsible for Go backend, SQL/Postgres/RLS, SDK/API client, object storage, worker, quota/billing safety, and real API calibration.
+
+20 growth points advanced:
+1. Worker daemon summary now records retrying and dead-lettered counts separately from aggregate failed count.
+2. Worker daemon summary records lease seconds, max jobs, heartbeat enabled, heartbeat success count, and heartbeat error count.
+3. Heartbeat loop records heartbeat success/error evidence without making heartbeat failure fatal to handler completion.
+4. Worker tests cover lease -> heartbeat -> complete with usage/audit evidence.
+5. Worker tests cover retry release behavior with public-safe error metadata.
+6. Worker tests cover dead-letter behavior at max attempts.
+7. Go redaction now blocks free-text sensitive assignments such as `password=`, `secret=`, and `token=` in provider/worker errors.
+8. Go worker CLI tests cover config parsing without requiring Postgres DSN unless Postgres backend is selected.
+9. Object storage manifests now include canonical SHA-256 manifest signatures.
+10. Object storage tests verify signed manifest tamper detection.
+11. Object storage S3-compatible manifests carry credential refs only and reject incomplete credential ref pairs.
+12. Object storage has structured readback/checksum verification output.
+13. Optional boto3/minio adapter status/readback support is lazy and dependency-graceful.
+14. Object storage public evidence was updated to call out presigned/bearer URL non-public policy.
+15. Control-plane API-key scope gates were tightened across run upload, trace ingest, artifact manifest read/write, release evidence read/verify, billing checkout/portal, and billing webhook ingest.
+16. Denied auth attempts append public-safe `auth.denied` audit events.
+17. Denied auth attempts append zero-unit denied usage/quota receipts before side effects.
+18. New WSGI-boundary tests prove wrong/missing scopes deny mutation and do not leak bearer/API-key material.
+19. Official Ashr API Round44 read-only small batch refreshed private evidence and public summary.
+20. Public evidence index, field map, capability matrix, commercial kit, TS/Python gap matrix, and A2 generated reports were refreshed to the Round44 evidence label.
+
+Subagents:
+- Growth-Auditor identified the highest-ROI lane as Postgres-backed worker durability + MinIO/object-store write/readback + API-key/quota-gated ingestion.
+- Worker-GoRuntime added worker summary durability fields, heartbeat stats, retry/dead-letter coverage, and Go redaction hardening; `go test ./...` passed in `packages/go/ashrclone`.
+- Worker-ObjectStore added signed public manifests, signature verification, ref-only S3 credential handling, adapter status/readback contracts, and object storage tests; focused pytest passed.
+- Worker-QuotaAuth added WSGI-boundary API-key scope gates and denied audit/quota receipts for ingestion/billing/evidence surfaces; focused pytest passed.
+
+Official API evidence:
+- Read-only command: `python -B -m packages.sdk.ashr_clone.calibrate --execute --small-batch --max-retries 0 --limit 8 --output docs/evidence/private_refs/a1_readonly_api_round44_20260710_001500.json`.
+- Public summary: `docs/a1/evidence/official_api_readonly_round44_summary_20260710_001500.json`.
+- Result: status `ok`, read steps `5`, mutating steps `0`, quota blocks `0`, datasets count `3`, requests count `5`; no raw key, headers, request values, or private payloads were written to public files.
+- Public evidence index after merge: `401` total records, `16` functions, historical quota block count preserved at `48`, label `a1-real-api-round44-readonly-refresh`.
+- Mutating/paid API calls were not run because `mutating_small_batch_ready` remains false without a fresh quota-gate artifact.
+
+Validation plan/results in this round:
+- `python -B -m pytest tests/a1/test_object_storage_contract.py tests/a1/test_worker_quota_auth.py tests/a1/test_saas_platform.py tests/a1/test_saas_sdk_client.py tests/a1/test_saas_release_gate_endpoint.py tests/a1/test_ts_python_gap_matrix.py -q -p no:cacheprovider` -> initial stale TS/Python matrix failure, then refreshed and focused subset passed.
+- `go test ./...` from `packages/go/ashrclone` -> passed.
+- `python scripts/a2_regenerate_fixtures.py --check` -> all 52 generated fixture files match after Round44 evidence label refresh.
+
+Residual risks / next A1 queue:
+- Actual MinIO network PUT/HEAD/GET is still not in required CI because it needs running services; next round should add a local compose money-grade smoke if daemon/network stability allows.
+- Postgres-backed worker restart/lease-expiry proof remains opt-in; next round should add a compose or `A1_POSTGRES_TEST_DSN` backed test for restart recovery.
+- Billing/OAuth remain safety contracts, not live provider/account flows. Next round should add Stripe raw-body signature and OAuth PKCE/state replay tests before any live provider step.

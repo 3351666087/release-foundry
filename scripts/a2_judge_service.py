@@ -23,6 +23,7 @@ def main() -> int:
             "/internal/judge/run",
             "/internal/judge/batch",
             "/internal/release-policy/evaluate",
+            "/internal/release/unblock-checklist",
             "/internal/regression/replay",
             "/internal/calibration/evaluate",
             "/internal/scenarios/select",

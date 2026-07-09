@@ -1,6 +1,9 @@
 package ashrclone
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 const Redacted = "[REDACTED]"
 
@@ -15,6 +18,8 @@ var sensitiveExactKeys = map[string]struct{}{
 
 var sensitiveKeyParts = []string{"api_key", "apikey", "secret", "token", "password", "authorization", "bearer"}
 
+var sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(api[_-]?key|authorization|bearer|password|secret|token)\s*[:=]\s*[^\s,;]+`)
+
 func RedactSensitive(value any) any {
 	switch typed := value.(type) {
 	case JSONMap:
@@ -28,13 +33,28 @@ func RedactSensitive(value any) any {
 		}
 		return items
 	case string:
-		if strings.Contains(strings.ToLower(typed), "bearer ") {
+		if stringContainsSensitiveMaterial(typed) {
 			return Redacted
 		}
 		return typed
 	default:
 		return typed
 	}
+}
+
+func stringContainsSensitiveMaterial(value string) bool {
+	normalized := strings.ToLower(value)
+	if strings.Contains(normalized, "bearer ") {
+		return true
+	}
+	for _, part := range sensitiveKeyParts {
+		for _, delimiter := range []string{"=", ":"} {
+			if strings.Contains(normalized, part+delimiter) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func redactMap(input map[string]any) map[string]any {
@@ -60,4 +80,12 @@ func isSensitiveKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func redactSensitiveString(value string) string {
+	redacted := sensitiveAssignmentPattern.ReplaceAllString(value, Redacted)
+	if strings.Contains(strings.ToLower(redacted), "bearer ") {
+		return Redacted
+	}
+	return redacted
 }

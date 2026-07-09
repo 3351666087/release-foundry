@@ -11,6 +11,7 @@ from services.judge.service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
     CASE_ENDPOINT,
     REGRESSION_REPLAY_ENDPOINT,
+    RELEASE_UNBLOCK_CHECKLIST_ENDPOINT,
     RELEASE_POLICY_ENDPOINT,
     RESULTS_PERSIST_ENDPOINT,
     RUN_ENDPOINT,
@@ -22,6 +23,7 @@ from services.judge.service_wrapper import (
     post_internal_judge_case,
     post_internal_judge_run,
     post_internal_regression_replay,
+    post_internal_release_unblock_checklist,
     post_internal_release_policy_evaluate,
     post_internal_results_persist,
     post_internal_scenarios_select,
@@ -40,6 +42,7 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
             RUN_ENDPOINT: "post_internal_judge_run",
             BATCH_ENDPOINT: "post_internal_judge_batch",
             RELEASE_POLICY_ENDPOINT: "post_internal_release_policy_evaluate",
+            RELEASE_UNBLOCK_CHECKLIST_ENDPOINT: "post_internal_release_unblock_checklist",
             REGRESSION_REPLAY_ENDPOINT: "post_internal_regression_replay",
             CALIBRATION_EVALUATE_ENDPOINT: "post_internal_calibration_evaluate",
             SCENARIO_SELECT_ENDPOINT: "post_internal_scenarios_select",
@@ -50,6 +53,9 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         }
         expected_response_refs[REGRESSION_REPLAY_ENDPOINT] = (
             "#/components/responses/RegressionReplayServiceEnvelope"
+        )
+        expected_response_refs[RELEASE_UNBLOCK_CHECKLIST_ENDPOINT] = (
+            "#/components/responses/ReleaseUnblockChecklistServiceEnvelope"
         )
 
         self.assertEqual(contract["openapi"], "3.1.0")
@@ -75,7 +81,8 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         boundary = contract["x-a2-boundary"]
         self.assertEqual(boundary["implementation_language"], "Python")
         self.assertFalse(boundary["hosted_server_in_scope"])
-        self.assertFalse(boundary["sql_in_scope"])
+        self.assertTrue(boundary["sql_in_scope"])
+        self.assertIn("sqlite reference adapter", boundary["sql_scope"])
         self.assertFalse(boundary["typescript_runtime_in_scope"])
         envelope = contract["components"]["schemas"]["InternalServiceEnvelope"]
         self.assertEqual(
@@ -127,6 +134,30 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
             "evidence_refs",
         ):
             self.assertIn(field, release_summary["required"])
+
+    def test_openapi_contract_covers_release_unblock_checklist(self):
+        contract = json.loads(OPENAPI_CONTRACT.read_text(encoding="utf-8"))
+        response_ref = contract["paths"][RELEASE_UNBLOCK_CHECKLIST_ENDPOINT]["post"]["responses"]["200"]["$ref"]
+        envelope = contract["components"]["schemas"]["ReleaseUnblockChecklistServiceEnvelope"]
+        checklist = contract["components"]["schemas"]["ReleaseUnblockChecklist"]
+        action_item = contract["components"]["schemas"]["ReleaseUnblockActionItem"]
+
+        self.assertEqual(response_ref, "#/components/responses/ReleaseUnblockChecklistServiceEnvelope")
+        self.assertEqual(
+            envelope["allOf"][1]["properties"]["result"]["$ref"],
+            "#/components/schemas/ReleaseUnblockChecklist",
+        )
+        self.assertEqual(checklist["properties"]["schema_version"]["const"], "a2.release_unblock_checklist.v1")
+        for field in (
+            "overall_status",
+            "blocked_gate_count",
+            "gate_items",
+            "a3_consumption_summary",
+            "metadata",
+        ):
+            self.assertIn(field, checklist["required"])
+        self.assertIn("required_evidence_source", action_item["required"])
+        self.assertIn("private_evidence_required", action_item["required"])
 
     def test_case_endpoint_grades_single_case_without_external_api(self):
         response = post_internal_judge_case(
@@ -515,6 +546,36 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertIn("blocks_release", summary)
         self.assertIn("evidence_refs", summary)
 
+    def test_release_unblock_checklist_endpoint_returns_a3_ready_actions(self):
+        payload = {
+            "request_id": "svc-release-unblock",
+            "tenant_id": "tenant_demo",
+            "project_id": "proj_demo",
+            "run_id": "run_release_unblock_demo",
+        }
+        response = post_internal_release_unblock_checklist(payload)
+        dispatched = handle_internal_request(RELEASE_UNBLOCK_CHECKLIST_ENDPOINT, payload)
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response, dispatched)
+        self.assertEqual(response["endpoint"], RELEASE_UNBLOCK_CHECKLIST_ENDPOINT)
+        result = response["result"]
+        self.assertEqual(result["schema_version"], "a2.release_unblock_checklist.v1")
+        self.assertEqual(result["overall_status"], "blocked")
+        self.assertEqual(result["blocked_gate_count"], 3)
+        gates = {item["gate"]: item for item in result["gate_items"]}
+        self.assertEqual(set(gates), {"C3", "C4", "C5"})
+        self.assertEqual(gates["C3"]["required_actions"][0]["required_evidence_source"], "reviewed_ashr_grading")
+        self.assertEqual(gates["C4"]["required_actions"][0]["required_evidence_source"], "audited_semantic_judge")
+        self.assertEqual(gates["C5"]["required_actions"][0]["required_evidence_source"], "reviewed_regression_replay")
+        self.assertEqual(
+            result["a3_consumption_summary"]["evidence_refs"],
+            ["fixtures/a2/results/a2_release_unblock_checklist.json"],
+        )
+        serialized = json.dumps(response, sort_keys=True)
+        self.assertNotIn("Bearer ", serialized)
+        self.assertNotIn("ashr_live_", serialized)
+
     def test_calibration_evaluate_endpoint_returns_public_matrix(self):
         response = post_internal_calibration_evaluate(
             {
@@ -697,6 +758,31 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
         self.assertEqual(response["endpoint"], SCENARIO_SELECT_ENDPOINT)
         self.assertEqual(response["result"]["schema_version"], "a2.project_scenario_selection.v1")
         self.assertEqual(response["result"]["project"]["project_id"], "proj_enterprise_support")
+
+    def test_cli_exposes_release_unblock_checklist_endpoint(self):
+        payload = {"request_id": "cli-release-unblock"}
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            input_path = Path(tmp_dir) / "payload.json"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/a2_judge_service.py"),
+                    RELEASE_UNBLOCK_CHECKLIST_ENDPOINT,
+                    "--input",
+                    str(input_path),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        response = json.loads(result.stdout)
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["endpoint"], RELEASE_UNBLOCK_CHECKLIST_ENDPOINT)
+        self.assertEqual(response["result"]["schema_version"], "a2.release_unblock_checklist.v1")
 
     def test_cli_exposes_results_persist_endpoint(self):
         payload = {

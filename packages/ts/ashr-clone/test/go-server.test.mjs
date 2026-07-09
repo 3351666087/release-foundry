@@ -98,7 +98,7 @@ test("TS SaaS client drives the real Go HTTP server vertical slice", async () =>
     assert.equal(artifacts.result.count, 1);
 
     const usage = await client.usageHttp("tenant_ts_go", "project_ts_go", { authKeyId: apiKeyId });
-    assert.equal(usage.operation, "usage");
+    assert.equal(usage.operation, "usage_snapshot");
     assert.equal(usage.result.tenant_id, "tenant_ts_go");
     assert.equal(usage.result.project_id, "project_ts_go");
     assert.equal(usage.result.operation_totals === null || Array.isArray(usage.result.operation_totals), true);

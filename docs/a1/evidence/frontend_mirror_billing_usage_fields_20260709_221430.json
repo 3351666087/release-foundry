@@ -1,0 +1,89 @@
+{
+  "files": {
+    "mirror/ashr.io/docs/python-sdk/api-reference/index.html": {
+      "field_markers": [
+        "APIKey",
+        "API_KEY",
+        "RunBuilder.add_test",
+        "RunBuilder.build",
+        "RunBuilder.complete",
+        "RunBuilder.deploy",
+        "RunBuilder.start",
+        "Runner.__init__",
+        "Runner.from_dataset",
+        "Runner.run",
+        "Runner.run_and_deploy",
+        "api-key",
+        "api_key",
+        "api_key_id",
+        "api_keys",
+        "apikey",
+        "dataset_id",
+        "request_input_schema",
+        "run_id",
+        "usage"
+      ],
+      "sha256": "77a71f73f6ebe883c1afa3998f29620b3e5bb4e2c975c23a9bf6b41b95cef5ec",
+      "size_bytes": 533187
+    },
+    "mirror/ashr.io/docs/typescript-sdk/api-reference/index.html": {
+      "field_markers": [
+        "APIKey",
+        "API_KEY",
+        "ApiKey",
+        "ApiKeys",
+        "RunBuilder.addTest",
+        "RunBuilder.build",
+        "RunBuilder.complete",
+        "RunBuilder.deploy",
+        "RunBuilder.start",
+        "Runner.fromDataset",
+        "Runner.run",
+        "Runner.runAndDeploy",
+        "api-key",
+        "apiKey",
+        "apiKeyId",
+        "apikey",
+        "apikeys",
+        "datasetId",
+        "requestInputSchema",
+        "request_input_schema",
+        "runId",
+        "usage"
+      ],
+      "sha256": "3848f12a9229f1df1cca28829e4715bfa3bd65b52d59b187e5f6627a079b9a86",
+      "size_bytes": 465373
+    },
+    "mirror/lab.ashr.io/assets/ApiKeysPage-DcsMtTi4.js": {
+      "field_markers": [
+        "API_KEY",
+        "ApiKey",
+        "ApiKeys",
+        "api-key",
+        "api-keys",
+        "api_key",
+        "api_keys",
+        "apikey"
+      ],
+      "sha256": "76dbfa6719fcb45ed4f43fe251e1d0696c9861dbac324c52d5c2c5e506c0046d",
+      "size_bytes": 9933
+    },
+    "mirror/lab.ashr.io/assets/UsagePage-CoD18uzD.js": {
+      "field_markers": [
+        "Usage",
+        "billing",
+        "billingCreatePortalSession",
+        "billingGetStatus",
+        "usage"
+      ],
+      "sha256": "2a14d8f1c09f398ab8250399768b84f14f561a2e1e4e9a62c69a03e58e2dc2b1",
+      "size_bytes": 5143
+    }
+  },
+  "generated_at": "20260709_221430",
+  "public_safe": true,
+  "raw_payloads_included": false,
+  "schema_version": "ashr.clone.frontend_mirror_billing_usage_fields.v1",
+  "source_archive": "C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip",
+  "tokens_included": false
+}

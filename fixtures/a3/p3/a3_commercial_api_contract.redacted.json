@@ -1,0 +1,1431 @@
+{
+  "schema_version": "a3.commercial_api_contract.v1",
+  "contract_id": "a3_commercial_api_contract_2026_07_09",
+  "generated_at": "2026-07-09T00:00:00.000Z",
+  "source": "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+  "tenant_scope": {
+    "organization_id": "org-local",
+    "tenant_id": "tenant-local",
+    "workspace_id": "workspace-local",
+    "project_id": "project-local",
+    "environment_id": "staging"
+  },
+  "purpose": "Map commercial /v1 SaaS endpoints to current A3 product surfaces without claiming A1/A2 backend ownership.",
+  "summary": {
+    "endpoint_count": 34,
+    "implemented_or_read_only_count": 21,
+    "plan_only_count": 10,
+    "blocked_by_auth_count": 3,
+    "by_status": {
+      "blocked_until_A1_auth_RBAC": 3,
+      "implemented_local_a3": 11,
+      "plan_only_until_backend": 10,
+      "read_only_local_a3": 10
+    },
+    "by_owner_lane": {
+      "A1": 13,
+      "A1/A2": 4,
+      "A1/A2/A3": 2,
+      "A1/A3": 8,
+      "A2/A3": 4,
+      "A3": 3
+    },
+    "by_a3_surface": {
+      "admin_console": 5,
+      "artifact_registry": 2,
+      "audit_export": 2,
+      "notification_control_plane": 3,
+      "product_console": 9,
+      "release_gate": 2,
+      "report_center": 3,
+      "review_workflow": 3,
+      "usage_billing": 5
+    },
+    "sellable_claim": "A3 can show customers which release-intelligence workflow is product-ready, which API is only planned, and which backend owner must close the gap before live SaaS launch."
+  },
+  "required_a3_surfaces": [
+    "product_console",
+    "release_gate",
+    "review_workflow",
+    "report_center",
+    "artifact_registry",
+    "usage_billing",
+    "admin_console",
+    "notification_control_plane",
+    "audit_export"
+  ],
+  "endpoint_matrix": [
+    {
+      "route": "GET /v1/me",
+      "owner_lane": "A1",
+      "a3_surface": "admin_console",
+      "local_a3_route": "GET /api/a3/admin/console",
+      "method": "GET",
+      "status_hint": "blocked_by_auth",
+      "rbac": "authenticated_user",
+      "db_tables": [
+        "users",
+        "identities",
+        "sessions",
+        "organization_members"
+      ],
+      "events": [
+        "auth.session_read",
+        "audit.actor_bound"
+      ],
+      "artifacts": [
+        "auth_boundary_receipt"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 1,
+      "a3_status": "blocked_until_A1_auth_RBAC",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/organizations",
+      "owner_lane": "A1",
+      "a3_surface": "admin_console",
+      "local_a3_route": "GET /api/a3/admin/console",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "organization_member",
+      "db_tables": [
+        "organizations",
+        "organization_members",
+        "roles"
+      ],
+      "events": [
+        "organization.listed"
+      ],
+      "artifacts": [
+        "saas_admin_guardrails"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 2,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/organizations",
+      "owner_lane": "A1",
+      "a3_surface": "admin_console",
+      "local_a3_route": "POST /api/a3/admin/actions/submit",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "authenticated_user",
+      "db_tables": [
+        "organizations",
+        "organization_members",
+        "audit_events"
+      ],
+      "events": [
+        "organization.create_requested",
+        "audit.mutation_planned"
+      ],
+      "artifacts": [
+        "saas_admin_action_request"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 3,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/projects",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "GET /api/a3/product/console",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "project_reader",
+      "db_tables": [
+        "projects",
+        "environments",
+        "runs"
+      ],
+      "events": [
+        "project.listed"
+      ],
+      "artifacts": [
+        "product_console_snapshot"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 4,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/projects",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "POST /api/a3/admin/actions/submit",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "organization_admin",
+      "db_tables": [
+        "projects",
+        "environments",
+        "audit_events"
+      ],
+      "events": [
+        "project.create_requested",
+        "audit.mutation_planned"
+      ],
+      "artifacts": [
+        "saas_admin_action_request"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 5,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/projects/{project_id}",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "GET /api/a3/dashboard",
+      "method": "GET",
+      "status_hint": "implemented",
+      "rbac": "project_reader",
+      "db_tables": [
+        "projects",
+        "runs",
+        "run_cases",
+        "grade_results"
+      ],
+      "events": [
+        "project.dashboard_read"
+      ],
+      "artifacts": [
+        "dashboard_snapshot"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 RunResult",
+        "A2 GradeResult"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 6,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/api-keys",
+      "owner_lane": "A1",
+      "a3_surface": "admin_console",
+      "local_a3_route": "POST /api/a3/admin/actions/submit",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "organization_admin",
+      "db_tables": [
+        "api_keys",
+        "audit_events"
+      ],
+      "events": [
+        "api_key.create_requested"
+      ],
+      "artifacts": [
+        "api_key_metadata_only_plan"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 7,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/api-keys",
+      "owner_lane": "A1",
+      "a3_surface": "admin_console",
+      "local_a3_route": "GET /api/a3/admin/console",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "organization_admin",
+      "db_tables": [
+        "api_keys",
+        "audit_events"
+      ],
+      "events": [
+        "api_key.listed"
+      ],
+      "artifacts": [
+        "api_key_prefix_metadata"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 tenant/auth/API gateway",
+        "A1 Postgres/object storage",
+        "A1 audit and usage source"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 8,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "high_tenant_or_secret_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/datasets",
+      "owner_lane": "A1/A2",
+      "a3_surface": "product_console",
+      "local_a3_route": "POST /api/a3/import/a2-grade-result",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "project_developer",
+      "db_tables": [
+        "datasets",
+        "scenarios",
+        "scenario_packs",
+        "audit_events"
+      ],
+      "events": [
+        "dataset.create_requested"
+      ],
+      "artifacts": [
+        "scenario_selection_manifest"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "case_count"
+      ],
+      "a1_a2_dependencies": [
+        "A1 dataset persistence",
+        "A2 scenario schema"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 9,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/datasets/{dataset_id}",
+      "owner_lane": "A1/A2",
+      "a3_surface": "product_console",
+      "local_a3_route": "GET /api/a3/dashboard",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "project_reader",
+      "db_tables": [
+        "datasets",
+        "scenarios",
+        "run_cases"
+      ],
+      "events": [
+        "dataset.read"
+      ],
+      "artifacts": [
+        "dataset_summary"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 dataset record",
+        "A2 scenario metadata"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 10,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/runs",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "POST /api/a3/import/a1-run-result",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "project_developer_or_service_account",
+      "db_tables": [
+        "runs",
+        "run_cases",
+        "api_import_receipts",
+        "idempotency_keys"
+      ],
+      "events": [
+        "run.created",
+        "a1.imported"
+      ],
+      "artifacts": [
+        "run_result",
+        "api_import_receipt"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "run_count"
+      ],
+      "a1_a2_dependencies": [
+        "A1 RunResult"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 11,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/runs",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "GET /api/a3/runs",
+      "method": "GET",
+      "status_hint": "implemented",
+      "rbac": "project_reader",
+      "db_tables": [
+        "runs",
+        "run_cases"
+      ],
+      "events": [
+        "run.listed"
+      ],
+      "artifacts": [
+        "run_list"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 RunResult"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 12,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/runs/{run_id}",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "GET /api/a3/runs/:runId",
+      "method": "GET",
+      "status_hint": "implemented",
+      "rbac": "project_reader",
+      "db_tables": [
+        "runs",
+        "run_cases",
+        "trace_events",
+        "tool_calls"
+      ],
+      "events": [
+        "run.read"
+      ],
+      "artifacts": [
+        "run_detail",
+        "trace_timeline"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 RunResult",
+        "A1 TraceEvent",
+        "A1 ToolCall"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 13,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/runs/{run_id}/trace-events",
+      "owner_lane": "A1",
+      "a3_surface": "product_console",
+      "local_a3_route": "POST /api/a3/import/a1-run-result",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "project_developer_or_service_account",
+      "db_tables": [
+        "trace_events",
+        "observations",
+        "tool_calls",
+        "api_import_receipts"
+      ],
+      "events": [
+        "trace.ingested",
+        "trace.validation_failed"
+      ],
+      "artifacts": [
+        "trace_event_batch",
+        "tool_call_batch"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "trace_event_count"
+      ],
+      "a1_a2_dependencies": [
+        "A1 TraceEvent",
+        "A1 Observation",
+        "A1 ToolCall"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 14,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/runs/{run_id}/complete",
+      "owner_lane": "A1/A2",
+      "a3_surface": "release_gate",
+      "local_a3_route": "GET /api/a3/releases/:releaseId/evidence-summary",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "project_developer_or_service_account",
+      "db_tables": [
+        "runs",
+        "judge_results",
+        "release_gates",
+        "usage_ledger"
+      ],
+      "events": [
+        "run.completed",
+        "judge.completed",
+        "release_gate.blocked"
+      ],
+      "artifacts": [
+        "run_result",
+        "judge_result",
+        "release_gate_report"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "run_count",
+        "judge_invocations"
+      ],
+      "a1_a2_dependencies": [
+        "A1 RunResult",
+        "A2 judge/release policy",
+        "A2 failure taxonomy",
+        "A2 evidence readiness"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 15,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/artifacts/upload-url",
+      "owner_lane": "A1",
+      "a3_surface": "artifact_registry",
+      "local_a3_route": "GET /api/a3/artifacts/registry",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "project_developer_or_service_account",
+      "db_tables": [
+        "artifacts",
+        "artifact_manifests",
+        "artifact_lifecycle_events"
+      ],
+      "events": [
+        "artifact.upload_url_requested"
+      ],
+      "artifacts": [
+        "artifact_upload_plan"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "artifact_bytes_uploaded"
+      ],
+      "a1_a2_dependencies": [
+        "A1 artifact service",
+        "A2 redaction policy"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 16,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/artifacts/complete",
+      "owner_lane": "A1/A2",
+      "a3_surface": "artifact_registry",
+      "local_a3_route": "GET /api/a3/artifacts/registry",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "project_developer_or_service_account",
+      "db_tables": [
+        "artifacts",
+        "artifact_manifests",
+        "artifact_lifecycle_events"
+      ],
+      "events": [
+        "artifact.uploaded",
+        "artifact.redaction_scanned"
+      ],
+      "artifacts": [
+        "artifact_manifest",
+        "redaction_report"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "artifact_bytes_uploaded"
+      ],
+      "a1_a2_dependencies": [
+        "A1 artifact service",
+        "A2 redaction verifier"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 17,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/evaluate",
+      "owner_lane": "A2/A3",
+      "a3_surface": "release_gate",
+      "local_a3_route": "GET /api/a3/releases/:releaseId/evidence-health",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "project_reviewer",
+      "db_tables": [
+        "release_gates",
+        "judge_results",
+        "release_evidence_summaries"
+      ],
+      "events": [
+        "policy.evaluated",
+        "release_gate.blocked",
+        "release_gate.approved"
+      ],
+      "artifacts": [
+        "release_gate_report",
+        "release_evidence_summary"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "judge_invocations"
+      ],
+      "a1_a2_dependencies": [
+        "A2 judge/release policy",
+        "A2 failure taxonomy",
+        "A2 evidence readiness"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 18,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/{release_gate_id}/waivers",
+      "owner_lane": "A2/A3",
+      "a3_surface": "review_workflow",
+      "local_a3_route": "POST /api/a3/review/waivers",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "reviewer_or_security_admin",
+      "db_tables": [
+        "waivers",
+        "review_workflow_records",
+        "audit_events"
+      ],
+      "events": [
+        "waiver.requested",
+        "waiver.accepted",
+        "audit.mutation_recorded"
+      ],
+      "artifacts": [
+        "waiver_request",
+        "waiver_review"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A2 release policy",
+        "A3 reviewer workflow"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 19,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/{release_gate_id}/approvals",
+      "owner_lane": "A2/A3",
+      "a3_surface": "review_workflow",
+      "local_a3_route": "POST /api/a3/review/approvals",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "reviewer_or_owner",
+      "db_tables": [
+        "approvals",
+        "review_workflow_records",
+        "audit_events"
+      ],
+      "events": [
+        "approval.recorded",
+        "release_gate.approved"
+      ],
+      "artifacts": [
+        "approval_record",
+        "approval_review"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A2 release policy",
+        "A3 reviewer workflow"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 20,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/{release_gate_id}/denials",
+      "owner_lane": "A2/A3",
+      "a3_surface": "review_workflow",
+      "local_a3_route": "POST /api/a3/review/denials",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "reviewer_or_owner",
+      "db_tables": [
+        "denials",
+        "review_workflow_records",
+        "audit_events"
+      ],
+      "events": [
+        "denial.recorded",
+        "release_gate.denied"
+      ],
+      "artifacts": [
+        "denial_record",
+        "denial_review"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A2 release policy",
+        "A3 reviewer workflow"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 21,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/evidence-bundles/{bundle_id}",
+      "owner_lane": "A1/A3",
+      "a3_surface": "audit_export",
+      "local_a3_route": "GET /api/a3/artifacts/registry",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "auditor",
+      "db_tables": [
+        "evidence_bundles",
+        "bundle_signatures",
+        "artifact_registry_entries"
+      ],
+      "events": [
+        "bundle.read"
+      ],
+      "artifacts": [
+        "audit_bundle_index",
+        "audit_archive_manifest"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "report_exports"
+      ],
+      "a1_a2_dependencies": [
+        "A1 bundle service",
+        "A2 verifier correctness",
+        "A3 audit export UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 22,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/evidence-bundles/{bundle_id}/verify",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "audit_export",
+      "local_a3_route": "GET /api/a3/artifacts/registry",
+      "method": "POST",
+      "status_hint": "read_only",
+      "rbac": "auditor",
+      "db_tables": [
+        "evidence_bundles",
+        "bundle_signatures",
+        "audit_events"
+      ],
+      "events": [
+        "bundle.verified",
+        "bundle.verification_failed"
+      ],
+      "artifacts": [
+        "bundle_verification",
+        "audit_archive_verification"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "report_exports"
+      ],
+      "a1_a2_dependencies": [
+        "A1 bundle service",
+        "A2 verifier correctness",
+        "A3 audit export UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 23,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/reports",
+      "owner_lane": "A3",
+      "a3_surface": "report_center",
+      "local_a3_route": "GET /api/a3/reports",
+      "method": "GET",
+      "status_hint": "implemented",
+      "rbac": "project_reader",
+      "db_tables": [
+        "shareable_reports",
+        "report_share_links",
+        "report_view_events"
+      ],
+      "events": [
+        "report.listed"
+      ],
+      "artifacts": [
+        "report_center_manifest"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "report_exports"
+      ],
+      "a1_a2_dependencies": [
+        "A1/A2 source evidence"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 24,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/reports/{report_id}",
+      "owner_lane": "A3",
+      "a3_surface": "report_center",
+      "local_a3_route": "GET /api/a3/reports/:reportId",
+      "method": "GET",
+      "status_hint": "implemented",
+      "rbac": "project_reader",
+      "db_tables": [
+        "shareable_reports",
+        "report_view_events",
+        "artifact_registry_entries"
+      ],
+      "events": [
+        "report.read",
+        "report.viewed"
+      ],
+      "artifacts": [
+        "hosted_report",
+        "markdown_report",
+        "json_export"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "report_exports"
+      ],
+      "a1_a2_dependencies": [
+        "A1/A2 source evidence"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 25,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/reports/{report_id}/share",
+      "owner_lane": "A3",
+      "a3_surface": "report_center",
+      "local_a3_route": "POST /api/a3/reports/share",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "project_reviewer_or_owner",
+      "db_tables": [
+        "shareable_reports",
+        "report_share_links",
+        "audit_events"
+      ],
+      "events": [
+        "report.share_link_created",
+        "artifact.redaction_scanned"
+      ],
+      "artifacts": [
+        "hosted_report",
+        "redaction_report"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "report_exports"
+      ],
+      "a1_a2_dependencies": [
+        "A3 export redaction firewall",
+        "A1/A2 source evidence"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 26,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/usage",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/usage/ledger",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "billing_admin_or_auditor",
+      "db_tables": [
+        "usage_events",
+        "usage_rollups",
+        "usage_ledger"
+      ],
+      "events": [
+        "usage.read",
+        "usage.recorded"
+      ],
+      "artifacts": [
+        "usage_rollup",
+        "usage_ledger"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 usage ledger",
+        "A2 model cost policy",
+        "A3 usage UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 27,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/billing/migration-readiness",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/billing/migration-readiness",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "billing:read",
+      "db_tables": [
+        "billing_migration_readiness",
+        "billing_ledger_events",
+        "billing_provider_events",
+        "audit_events"
+      ],
+      "events": [
+        "billing.migration_readiness_read",
+        "billing.ledger_summary_read"
+      ],
+      "artifacts": [
+        "billing_migration_readiness_snapshot"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "billing_readiness_reads"
+      ],
+      "a1_a2_dependencies": [
+        "A1 read-only billing ledger summary",
+        "A1 durable billing migration manifest",
+        "A3 billing UI"
+      ],
+      "notes": "Maps future commercial billing migration readiness to A1 ledger/migration summaries; A3 remains read-only and cannot mutate billing provider state.",
+      "order": 28,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/billing/subscription",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/billing/readiness",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "billing_admin",
+      "db_tables": [
+        "billing_customers",
+        "billing_subscriptions",
+        "billing_invoices",
+        "usage_rollups"
+      ],
+      "events": [
+        "billing.subscription_read"
+      ],
+      "artifacts": [
+        "billing_readiness_snapshot"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 billing ledger",
+        "A3 billing UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 29,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/billing/checkout",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/billing/readiness",
+      "method": "POST",
+      "status_hint": "blocked_by_auth",
+      "rbac": "billing_admin",
+      "db_tables": [
+        "billing_customers",
+        "billing_subscriptions",
+        "audit_events"
+      ],
+      "events": [
+        "billing.checkout_requested",
+        "billing.mutation_blocked"
+      ],
+      "artifacts": [
+        "billing_checkout_plan"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 payment backend",
+        "A3 billing UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 30,
+      "a3_status": "blocked_until_A1_auth_RBAC",
+      "contract_risk": "high_payment_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/billing/portal",
+      "owner_lane": "A1/A3",
+      "a3_surface": "usage_billing",
+      "local_a3_route": "GET /api/a3/billing/readiness",
+      "method": "POST",
+      "status_hint": "blocked_by_auth",
+      "rbac": "billing_admin",
+      "db_tables": [
+        "billing_customers",
+        "billing_subscriptions",
+        "audit_events"
+      ],
+      "events": [
+        "billing.portal_requested",
+        "billing.mutation_blocked"
+      ],
+      "artifacts": [
+        "billing_portal_plan"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 payment backend",
+        "A3 billing UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 31,
+      "a3_status": "blocked_until_A1_auth_RBAC",
+      "contract_risk": "high_payment_mutation",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/notification-channels",
+      "owner_lane": "A1/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "project_reviewer_or_admin",
+      "db_tables": [
+        "notification_channels",
+        "notification_subscriptions",
+        "notification_templates"
+      ],
+      "events": [
+        "notification.channels_read"
+      ],
+      "artifacts": [
+        "notification_control_plane"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 hosted notification worker",
+        "A2 release policy",
+        "A3 notification UI"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 32,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/notifications/test",
+      "owner_lane": "A1/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "notifications:publish",
+      "db_tables": [
+        "notification_deliveries",
+        "event_outbox",
+        "audit_events",
+        "usage_events"
+      ],
+      "events": [
+        "notification.test_requested",
+        "notification.delivery_audited"
+      ],
+      "artifacts": [
+        "notification_test_plan"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "notification_plans"
+      ],
+      "a1_a2_dependencies": [
+        "A1 encrypted connector reference",
+        "A1 delivery worker",
+        "A3 notification control plane"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 33,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "POST /v1/release-gates/{release_gate_id}/notifications",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "notification_control_plane",
+      "local_a3_route": "GET /api/a3/notifications/control-plane",
+      "method": "POST",
+      "status_hint": "plan_only",
+      "rbac": "notifications:publish",
+      "db_tables": [
+        "notification_deliveries",
+        "webhook_deliveries",
+        "event_outbox",
+        "audit_events",
+        "usage_events"
+      ],
+      "events": [
+        "notification.slack_release_requested",
+        "notification.teams_incident_requested",
+        "notification.webhook_delivery_requested"
+      ],
+      "artifacts": [
+        "slack_release_notification_plan",
+        "teams_incident_notification_plan",
+        "webhook_delivery_plan"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "notification_plans",
+        "webhook_deliveries"
+      ],
+      "a1_a2_dependencies": [
+        "A2 ReleaseGate",
+        "A1 hosted notification worker",
+        "A3 report/review workflow"
+      ],
+      "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
+      "order": 34,
+      "a3_status": "plan_only_until_backend",
+      "contract_risk": "medium_release_governance",
+      "secret_values_allowed": false
+    }
+  ],
+  "event_envelope_contract": {
+    "schema_version": "ashr.event_envelope.v1",
+    "required_fields": [
+      "event_id",
+      "event_type",
+      "schema_version",
+      "organization_id",
+      "tenant_id",
+      "workspace_id",
+      "project_id",
+      "environment_id",
+      "actor_id",
+      "request_id",
+      "trace_id",
+      "resource_type",
+      "resource_id",
+      "created_at",
+      "payload_ref",
+      "payload_hash",
+      "redaction_status"
+    ],
+    "a3_current_state": "modeled_as_contract; persisted audit_events exist only in local A3 store",
+    "local_contract_module": "services/report/a3_event_envelope.mjs",
+    "durable_outbox_table": "event_outbox",
+    "a1_dependency": "A1 owns durable API gateway, auth middleware, usage source, and worker event publication.",
+    "a2_dependency": "A2 owns judge/policy events and verifier correctness for grade/release evidence."
+  },
+  "source_authority": {
+    "a1": {
+      "owns": [
+        "runs",
+        "trace_events",
+        "observations",
+        "tool_calls",
+        "artifacts",
+        "usage_source",
+        "auth_backend"
+      ],
+      "consumed_by_a3_as": [
+        "RunResult",
+        "TraceEvent",
+        "ToolCall",
+        "Observation",
+        "artifact refs",
+        "usage preview"
+      ],
+      "must_not_change": "A3 does not mutate A1 runner, SDK, auth, quota, or artifact semantics."
+    },
+    "a2": {
+      "owns": [
+        "scenarios",
+        "judge_results",
+        "release_gate",
+        "failure_taxonomy",
+        "commercial_readiness"
+      ],
+      "consumed_by_a3_as": [
+        "GradeResult",
+        "ReleaseGate",
+        "CommercialReadiness",
+        "RegressionReplay",
+        "ResultPersistence"
+      ],
+      "must_not_change": "A3 does not change judge scores, pass/fail, thresholds, or failure-class semantics."
+    },
+    "a3": {
+      "owns": [
+        "console UX",
+        "review workflow",
+        "report center",
+        "shareable report",
+        "commercial API mapping"
+      ],
+      "downstream_only": true
+    }
+  },
+  "tenant_auth_rbac_usage_audit": {
+    "tenant": {
+      "required_scope": [
+        "organization_id",
+        "project_id",
+        "environment_id"
+      ],
+      "cross_tenant_default": "404_or_empty",
+      "durable_backend_owner": "A1"
+    },
+    "auth": {
+      "current_a3_state": "read-only or plan-only shell",
+      "required_before_live_write": [
+        "hosted session",
+        "safe actor id",
+        "service account id",
+        "idempotency key"
+      ],
+      "raw_credentials_in_contract": false
+    },
+    "rbac": {
+      "roles": [
+        "owner",
+        "admin",
+        "developer",
+        "reviewer",
+        "auditor",
+        "billing_admin",
+        "service_account"
+      ],
+      "enforcement_state": "contract_only_until_A1_auth_middleware",
+      "denied_state_required": true
+    },
+    "usage": {
+      "meters": [
+        "api_requests",
+        "artifact_bytes_uploaded",
+        "billing_readiness_reads",
+        "case_count",
+        "judge_invocations",
+        "notification_plans",
+        "report_exports",
+        "run_count",
+        "trace_event_count",
+        "webhook_deliveries"
+      ],
+      "billing_mutations_enabled": false,
+      "source_of_truth": "A1 billing ledger; A3 remains read-only preview"
+    },
+    "audit": {
+      "append_only_required": true,
+      "event_types": [
+        "a1.imported",
+        "api_key.create_requested",
+        "api_key.listed",
+        "approval.recorded",
+        "artifact.redaction_scanned",
+        "artifact.upload_url_requested",
+        "artifact.uploaded",
+        "audit.actor_bound",
+        "audit.mutation_planned",
+        "audit.mutation_recorded",
+        "auth.session_read",
+        "billing.checkout_requested",
+        "billing.ledger_summary_read",
+        "billing.migration_readiness_read",
+        "billing.mutation_blocked",
+        "billing.portal_requested",
+        "billing.subscription_read",
+        "bundle.read",
+        "bundle.verification_failed",
+        "bundle.verified",
+        "dataset.create_requested",
+        "dataset.read",
+        "denial.recorded",
+        "judge.completed",
+        "notification.channels_read",
+        "notification.delivery_audited",
+        "notification.slack_release_requested",
+        "notification.teams_incident_requested",
+        "notification.test_requested",
+        "notification.webhook_delivery_requested",
+        "organization.create_requested",
+        "organization.listed",
+        "policy.evaluated",
+        "project.create_requested",
+        "project.dashboard_read",
+        "project.listed",
+        "release_gate.approved",
+        "release_gate.blocked",
+        "release_gate.denied",
+        "report.listed",
+        "report.read",
+        "report.share_link_created",
+        "report.viewed",
+        "run.completed",
+        "run.created",
+        "run.listed",
+        "run.read",
+        "trace.ingested",
+        "trace.validation_failed",
+        "usage.read",
+        "usage.recorded",
+        "waiver.accepted",
+        "waiver.requested"
+      ],
+      "payload_policy": "ids, hashes, refs, statuses, and counts only"
+    }
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "raw_tokens_allowed": false,
+    "raw_cookies_allowed": false,
+    "raw_emails_allowed": false,
+    "raw_signed_urls_allowed": false,
+    "live_cloud_mutations_performed": false,
+    "fixture_output_path": "fixtures/a3/p3/a3_commercial_api_contract.redacted.json"
+  },
+  "acceptance": {
+    "node_test": "node --test tests/a3/a3_commercial_api_contract.test.mjs",
+    "fixture": "fixtures/a3/p3/a3_commercial_api_contract.redacted.json",
+    "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
+    "api_route": "GET /api/a3/commercial-api/contract"
+  },
+  "contract_hash": "91fc248ac073cbcc5107d027a27eb3f6bbfa1343a2955ab91689c5d783dee830"
+}

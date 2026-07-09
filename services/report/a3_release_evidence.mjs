@@ -21,6 +21,8 @@ export function buildReleaseEvidenceSummaryV2(summary = {}, context = {}) {
     source: context.source || "unknown",
     tenant_scope: {
       organization_id: context.organizationId || context.organization_id || "org-local",
+      tenant_id: context.tenantId || context.tenant_id || "tenant-local",
+      workspace_id: context.workspaceId || context.workspace_id || "workspace-local",
       project_id: context.projectId || context.project_id || "project-local"
     },
     release_identity: {
@@ -50,6 +52,7 @@ export function buildReleaseEvidenceSummaryV2(summary = {}, context = {}) {
       failure_class_count: numberOrZero(context.a2?.failureClassCount),
       missing_required_fields: arrayOrEmpty(context.a2?.missingRequiredFields)
     },
+    source_artifacts: normalizeSourceArtifacts(context.sourceArtifacts),
     github_check_readback: readbackState(context.githubCheckReadback || safeSummary.github_check_readback || safeSummary.github_check_publish, {
       generated_status: safeSummary.github_check_publish?.status,
       readback_status: context.githubCheckReadback?.readback_status || safeSummary.github_check_readback?.readback_status || safeSummary.github_check_publish?.readback_status || "missing",
@@ -129,6 +132,8 @@ export function buildReleaseEvidenceHealth(summary = {}, context = {}) {
     source: context.source || "unknown",
     tenant_scope: {
       organization_id: context.organizationId || context.organization_id || "org-local",
+      tenant_id: context.tenantId || context.tenant_id || "tenant-local",
+      workspace_id: context.workspaceId || context.workspace_id || "workspace-local",
       project_id: context.projectId || context.project_id || "project-local"
     },
     summary_id: context.summaryId || `res_${summaryHash.slice(0, 16)}`,
@@ -317,6 +322,28 @@ function readbackState(item = {}, defaults = {}) {
 
 function arrayOrEmpty(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function normalizeSourceArtifacts(value = {}) {
+  const artifacts = Array.isArray(value.artifacts) ? value.artifacts : Array.isArray(value) ? value : [];
+  return {
+    schema_version: value.schema_version || "a3.source_artifacts.v1",
+    source_artifact_count: artifacts.length,
+    hash_algorithm: value.hash_algorithm || "sha256",
+    artifacts: artifacts.map((artifact) => ({
+      source_artifact_id: artifact.source_artifact_id,
+      artifact_type: artifact.artifact_type,
+      source_lane: artifact.source_lane,
+      source_contracts: arrayOrEmpty(artifact.source_contracts),
+      content_hash: artifact.content_hash,
+      record_count: numberOrZero(artifact.record_count),
+      redaction_status: artifact.redaction_status || "hash_only",
+      raw_payload_embedded: false,
+      required_by_a3_surfaces: arrayOrEmpty(artifact.required_by_a3_surfaces)
+    })),
+    raw_payload_embedded: false,
+    raw_secret_values_allowed: false
+  };
 }
 
 function numberOrZero(value) {

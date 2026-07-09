@@ -19,9 +19,14 @@ if str(SDK_ROOT) not in sys.path:
 ARTIFACT = ROOT / "docs" / "a1" / "go_python_route_contract_evidence.json"
 SCHEMA = ROOT / "docs" / "a1" / "schemas" / "go_python_route_contract_evidence.schema.json"
 ROUTE_SNAPSHOT = ROOT / "docs" / "a1" / "evidence" / "go_python_ts_route_parity_snapshot.json"
+GO_ROUTE_SCOPE_DOCS = ROOT / "docs" / "a1" / "evidence" / "go_route_scope_docs.json"
+GO_ROUTE_SCOPE_DOCS_SCHEMA = ROOT / "docs" / "a1" / "schemas" / "go_route_scope_docs.schema.json"
+MUTATING_CALIBRATION_INDEX = ROOT / "docs" / "a1" / "evidence" / "official_api_mutating_calibration_index.json"
+MUTATING_CALIBRATION_INDEX_SCHEMA = ROOT / "docs" / "a1" / "schemas" / "official_api_mutating_calibration_index.schema.json"
 GO_SERVER = ROOT / "packages" / "go" / "ashrclone" / "server.go"
 PY_SAAS = ROOT / "packages" / "sdk" / "ashr_clone" / "saas.py"
 TS_SAAS = ROOT / "packages" / "ts" / "ashr-clone" / "src" / "saas.ts"
+GO_AUTH = ROOT / "packages" / "go" / "ashrclone" / "auth.go"
 
 
 GO_EXECUTABLE_ROUTE_SET = {
@@ -75,6 +80,11 @@ PYTHON_ROUTE_EXAMPLES = {
     "lifecycle_snapshot": {"project_id": "project_contract", "run_id": "run_contract"},
     "quota_snapshot": {"project_id": "project_contract"},
     "usage_snapshot": {"project_id": "project_contract"},
+    "billing_checkout_plan": {"project_id": "project_contract"},
+    "billing_portal_plan": {"project_id": "project_contract"},
+    "billing_webhook_ingest": {"project_id": "project_contract"},
+    "billing_ledger": {"project_id": "project_contract"},
+    "audit_log": {"project_id": "project_contract"},
     "create_artifact_manifest": {"project_id": "project_contract", "run_id": "run_contract"},
     "list_artifact_manifests": {"project_id": "project_contract", "run_id": "run_contract"},
     "enqueue_worker_job": {"project_id": "project_contract"},
@@ -97,11 +107,127 @@ def _load_route_snapshot() -> dict:
     return json.loads(ROUTE_SNAPSHOT.read_text(encoding="utf-8"))
 
 
+def _load_go_route_scope_docs() -> dict:
+    return json.loads(GO_ROUTE_SCOPE_DOCS.read_text(encoding="utf-8"))
+
+
+def _go_structured_manifest_entries() -> list[dict]:
+    text = GO_SERVER.read_text(encoding="utf-8")
+    body_match = re.search(r"func GoRouteManifestEntries\(\) \[\]RouteManifestEntry \{(?P<body>.*?)\n\s*return entries\s*\n\}", text, re.S)
+    assert body_match, "GoRouteManifestEntries literal not found"
+    entries: list[dict] = []
+    for match in re.finditer(r'go(?P<kind>Public|Admin|Scoped)Route\("(?P<method>[A-Z]+)", "(?P<path>[^"]+)", "(?P<operation>[^"]+)", "(?P<category>[^"]+)"(?P<scopes>[^\n]*)\)', body_match.group("body")):
+        scopes = re.findall(r"Scope[A-Za-z0-9]+", match.group("scopes"))
+        entries.append({
+            "kind": match.group("kind"),
+            "method": match.group("method"),
+            "path": match.group("path"),
+            "route": f"{match.group('method')} {match.group('path')}",
+            "operation": match.group("operation"),
+            "category": match.group("category"),
+            "scopes": scopes,
+        })
+    assert entries, "Go structured manifest entries were not parsed"
+    return entries
+
+
+def _go_route_scope_docs_fixture() -> dict:
+    go_by_operation = {}
+    go_scope_values = _go_scope_values()
+    for entry in _go_structured_manifest_entries():
+        go_by_operation.setdefault(entry["operation"], []).append(entry)
+
+    def group(name: str, operations: list[str]) -> dict:
+        routes: set[str] = set()
+        scopes: set[str] = set()
+        resolved_operations: set[str] = set()
+        for operation in operations:
+            for entry in go_by_operation.get(operation, []):
+                routes.add(entry["route"])
+                resolved_operations.add(operation)
+                scopes.update(go_scope_values[scope_name] for scope_name in entry["scopes"])
+        return {"name": name, "operations": sorted(resolved_operations), "routes": sorted(routes), "scopes": sorted(scopes)}
+
+    return {
+        "schema_version": "ashr.clone.go_route_scope_docs.v1",
+        "public_safe": True,
+        "raw_payloads_included": False,
+        "source": "generated_from_go_route_manifest",
+        "route_groups": [
+            group("usage_quota", ["usage", "usage_quota.configure"]),
+            group("run_lifecycle", ["lifecycle"]),
+            group("audit", ["audit.chain.verify", "audit_log"]),
+        ],
+        "plan_limits": [
+            {
+                "plan": "Developer",
+                "cap_mode": "hard_limit",
+                "public_url": "https://www.ashr.io/pricing",
+                "limits": [
+                    {"metric": "graded_scenarios", "limit": 5000, "unit": "scenario"},
+                    {"metric": "observations", "limit": 250000, "unit": "observation"},
+                    {"metric": "voice_minutes", "limit": 1000, "unit": "minute"},
+                    {"metric": "projects", "limit": 1, "unit": "project"},
+                ],
+            },
+            {
+                "plan": "Startup",
+                "cap_mode": "overage_billing",
+                "public_url": "https://www.ashr.io/pricing",
+                "limits": [
+                    {"metric": "graded_scenarios", "limit": 100000, "unit": "scenario"},
+                    {"metric": "observations", "limit": 10000000, "unit": "observation"},
+                    {"metric": "voice_minutes", "limit": 50000, "unit": "minute"},
+                    {"metric": "projects", "limit": 0, "unit": "unlimited"},
+                ],
+            },
+        ],
+        "plan_metrics": [
+            {"metric": "graded_scenarios", "unit": "scenario", "operations": ["sdk_submit"], "description": "Run submissions counted as graded scenario units."},
+            {"metric": "observations", "unit": "observation", "operations": ["ingest_trace"], "description": "Trace observation rows accepted by the runtime."},
+            {"metric": "voice_minutes", "unit": "minute", "operations": ["upload_run", "ingest_trace"], "description": "Voice/media usage documented for quota parity; local runtime records route coverage only."},
+            {"metric": "projects", "unit": "project", "operations": ["bootstrap_project"], "description": "Project-count limit reference for billing documentation parity."},
+        ],
+        "notes": [
+            "plan limits are public documentation references, not secret billing state",
+            "route groups are derived from GoRouteManifestEntries",
+            "captured HTTP bodies and tenant data are intentionally excluded",
+        ],
+    }
+
+
+def _go_openapi_route_scope_fixture() -> dict:
+    paths: dict[str, dict[str, dict]] = {}
+    for route in sorted(_go_manifest_routes()):
+        method, path = route.split(" ", 1)
+        paths.setdefault(path, {})[method.lower()] = {"operationId": f"fixture_{method.lower()}_{path}"}
+    return {
+        "schema_version": "ashr.clone.saas_control_plane.v1",
+        "manifest_schema_version": "ashr.clone.go_route_scope_manifest.v1",
+        "public_safe": True,
+        "raw_payloads_included": False,
+        "source_policy": {"private_evidence_read": False, "raw_payloads_included": False, "tokens_included": False},
+        "paths": paths,
+        "route_scope_docs": _go_route_scope_docs_fixture(),
+    }
+
+def _go_scope_values() -> dict[str, str]:
+    text = GO_AUTH.read_text(encoding="utf-8")
+    return {
+        match.group("name"): match.group("value")
+        for match in re.finditer(r"(?P<name>Scope[A-Za-z0-9_]+)\s*=\s*\"(?P<value>[^\"]+)\"", text)
+    }
+
+
 def _go_manifest_routes() -> set[str]:
     text = GO_SERVER.read_text(encoding="utf-8")
-    match = re.search(r'"routes"\s*:\s*\[\]string\{(?P<body>.*?)\},\s*"go_owned"', text, re.S)
-    assert match, "GoRouteManifest routes literal not found"
-    return set(re.findall(r'"([A-Z]+ [^"]+)"', match.group("body")))
+    match = re.search(r"func GoRouteManifestEntries\(\) \[\]RouteManifestEntry \{(?P<body>.*?)\n\}", text, re.S)
+    assert match, "Go route manifest entries function not found"
+    routes: set[str] = set()
+    for call in re.finditer(r'go(?:Public|Admin|Scoped)Route\("(?P<method>[A-Z]+)",\s*"(?P<path>[^"]+)"', match.group("body")):
+        routes.add(f"{call.group('method')} {call.group('path')}")
+    assert routes, "Go route manifest entries not found"
+    return routes
 
 
 def _python_hosted_routes() -> set[str]:
@@ -169,6 +295,110 @@ def test_go_python_route_contract_does_not_leak_private_markers():
     assert "docs/evidence/private_refs/**" in text
     for marker in ("tp_", "sk-", "Bearer ", "ashr_live_", "raw prompt", "owner@example.com"):
         assert marker not in text
+
+
+def test_go_route_scope_docs_artifact_matches_schema_and_public_safety():
+    artifact = _load_go_route_scope_docs()
+    schema = json.loads(GO_ROUTE_SCOPE_DOCS_SCHEMA.read_text(encoding="utf-8"))
+
+    assert artifact["schema_version"] == "ashr.clone.go_route_scope_docs_artifact.v1"
+    assert artifact["artifact_id"] == "go_route_scope_docs"
+    assert artifact["owner"] == "a1.go"
+    assert artifact["public_safe"] is True
+    assert artifact["raw_payloads_included"] is False
+    assert artifact["source_policy"] == {
+        "private_evidence_read": False,
+        "raw_payloads_included": False,
+        "tokens_included": False,
+        "allowed_source_paths": ["packages/go/ashrclone/server.go"],
+        "excluded_source_classes": [
+                "private evidence",
+                "tenant fixtures",
+                "API keys or bearer tokens",
+                "captured HTTP bodies or tenant data",
+            ],
+        }
+    assert artifact["producer"]["stable_export"] == "route_scope_docs"
+    assert "GoRouteScopeDocs" in artifact["producer"]["source_symbols"]
+    assert artifact["route_scope_docs"] == _go_route_scope_docs_fixture()
+
+    if Draft202012Validator is not None:
+        Draft202012Validator(schema).validate(artifact)
+
+    text = GO_ROUTE_SCOPE_DOCS.read_text(encoding="utf-8")
+    for marker in ("tenant_", "project_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "sk-", "raw_request_payload", "raw_response_payload"):
+        assert marker not in text
+
+
+def test_official_api_mutating_calibration_index_matches_schema_and_modalities():
+    artifact = json.loads(MUTATING_CALIBRATION_INDEX.read_text(encoding="utf-8"))
+    schema = json.loads(MUTATING_CALIBRATION_INDEX_SCHEMA.read_text(encoding="utf-8"))
+
+    if Draft202012Validator is not None:
+        Draft202012Validator(schema).validate(artifact)
+
+    assert artifact["public_safe"] is True
+    assert artifact["raw_payloads_included"] is False
+    assert artifact["secret_values_included"] is False
+    by_modality = {record["summary_modalities"][0]: record for record in artifact["records"]}
+    assert set(by_modality) == {"text", "image", "audio", "file", "video"}
+    for modality, record in by_modality.items():
+        assert record["mutating_step_ids"] == [f"create-request-{modality}"]
+        assert record["private_manifest"].startswith("docs/evidence/private_refs/")
+        assert record["quota_block_count"] >= 1
+        assert record["raw_payloads_included"] is False
+    payload = json.dumps(artifact, sort_keys=True)
+    for forbidden in ("ASHR_API_KEY", "Bearer ", "api_key=", "tp_", "sk-", "customer-private-body"):
+        assert forbidden not in payload
+
+
+def test_go_route_scope_docs_artifact_exports_required_route_families():
+    docs = _load_go_route_scope_docs()["route_scope_docs"]
+    groups = {group["name"]: group for group in docs["route_groups"]}
+
+    assert set(groups) == {"usage_quota", "run_lifecycle", "audit"}
+    assert groups["usage_quota"] == {
+        "name": "usage_quota",
+        "operations": ["usage", "usage_quota.configure"],
+        "routes": ["GET /v1/projects/{project_id}/quota", "GET /v1/projects/{project_id}/usage", "POST /v1/projects/{project_id}/quota/limits", "POST /v1/projects/{project_id}/usage/quotas"],
+        "scopes": ["usage:read"],
+    }
+    assert groups["run_lifecycle"] == {
+        "name": "run_lifecycle",
+        "operations": ["lifecycle"],
+        "routes": ["GET /v1/projects/{project_id}/runs/{run_id}/lifecycle"],
+        "scopes": ["run:lifecycle:read"],
+    }
+    assert groups["audit"] == {
+        "name": "audit",
+        "operations": ["audit.chain.verify", "audit_log"],
+        "routes": [
+            "GET /v1/projects/{project_id}/audit-chain/verify",
+            "GET /v1/projects/{project_id}/audit-log",
+            "POST /v1/projects/{project_id}/audit-chain/verify",
+        ],
+        "scopes": ["audit:read"],
+    }
+
+    go_routes = _go_manifest_routes()
+    for group in groups.values():
+        assert set(group["routes"]) <= go_routes
+
+
+def test_go_route_scope_docs_artifact_exposes_public_plan_metrics_for_consumers():
+    docs = _load_go_route_scope_docs()["route_scope_docs"]
+
+    plans = {plan["plan"]: plan for plan in docs["plan_limits"]}
+    assert set(plans) == {"Developer", "Startup"}
+    metric_names = {metric["metric"] for metric in docs["plan_metrics"]}
+    assert {"graded_scenarios", "observations", "voice_minutes", "projects"} <= metric_names
+
+    developer_limits = {limit["metric"]: limit for limit in plans["Developer"]["limits"]}
+    startup_limits = {limit["metric"]: limit for limit in plans["Startup"]["limits"]}
+    assert developer_limits["graded_scenarios"] == {"metric": "graded_scenarios", "limit": 5000, "unit": "scenario"}
+    assert developer_limits["observations"] == {"metric": "observations", "limit": 250000, "unit": "observation"}
+    assert startup_limits["voice_minutes"] == {"metric": "voice_minutes", "limit": 50000, "unit": "minute"}
+    assert startup_limits["projects"] == {"metric": "projects", "limit": 0, "unit": "unlimited"}
 
 
 def test_go_python_route_contract_symbols_match_current_source():
@@ -240,4 +470,172 @@ def test_python_and_ts_hosted_route_sets_do_not_drift_silently():
     assert set(snapshot["intentional_route_differences"]["python_only"]) == python_routes - ts_routes
     assert set(snapshot["intentional_route_differences"]["ts_only"]) == ts_routes - python_routes
     assert "POST /v1/projects/{project_id}/runs/{run_id}/release-gate" in snapshot["intentional_route_differences"]["ts_only"]
-    assert "GET /v1/projects/{project_id}/quota" in snapshot["intentional_route_differences"]["python_only"]
+    assert "GET /v1/projects/{project_id}/quota" in snapshot["intentional_route_differences"]["shared_all"]
+
+
+def test_python_hosted_client_consumes_go_route_scope_manifest_publicly():
+    from ashr_clone.saas import consume_go_route_scope_manifest, hosted_route_scope_manifest
+
+    manifest = hosted_route_scope_manifest()
+    consumption = consume_go_route_scope_manifest(ROUTE_SNAPSHOT)
+    snapshot = _load_route_snapshot()
+
+    assert manifest["schema_version"] == "ashr.clone.hosted_route_scope_manifest.v1"
+    assert manifest["public_safe"] is True
+    assert consumption["schema_version"] == "ashr.clone.go_route_scope_consumption.v1"
+    assert consumption["public_safe"] is True
+    assert consumption["source_policy"] == snapshot["source_policy"]
+
+    manifest_routes = {entry["route"] for entry in manifest["routes"]}
+    route_scopes = {entry["route"]: tuple(entry["required_scopes"]) for entry in consumption["route_scopes"]}
+    assert set(consumption["consumable_go_routes"]) == set(snapshot["go_manifest_routes"]) & manifest_routes
+    assert set(consumption["unsupported_go_routes"]) == set(snapshot["go_manifest_routes"]) - manifest_routes
+    assert {entry["route"] for entry in consumption["unsupported_go_route_gaps"]} == set(consumption["unsupported_go_routes"])
+    assert all(entry["reason"] and entry["consumer_action"] for entry in consumption["unsupported_go_route_gaps"])
+    assert set(consumption["client_only_routes"]) == manifest_routes - set(snapshot["go_manifest_routes"])
+    assert route_scopes["POST /v1/projects/{project_id}/sdk-submit"] == ("sdk:submit",)
+    assert route_scopes["POST /v1/projects/{project_id}/worker-jobs/lease"] == ("worker_job:write",)
+    assert route_scopes["GET /v1/projects/{project_id}/worker-jobs"] == ("worker_job:read",)
+    assert route_scopes["GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"] == ("evidence:read",)
+    assert "POST /v1/projects/{project_id}/runs/submit" in consumption["unsupported_go_routes"]
+    assert consumption["route_scope_docs"] is None
+
+
+def test_python_hosted_client_consumes_go_openapi_route_scope_docs():
+    from ashr_clone.saas import consume_go_route_scope_manifest
+
+    openapi = _go_openapi_route_scope_fixture()
+    openapi.pop("source_policy")
+    consumption = consume_go_route_scope_manifest(openapi)
+
+    assert "GET /v1/projects/{project_id}/usage" in consumption["consumable_go_routes"]
+    assert "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle" in consumption["consumable_go_routes"]
+    docs = consumption["route_scope_docs"]
+    assert docs["schema_version"] == "ashr.clone.go_route_scope_docs.v1"
+    assert docs["source"] == "generated_from_go_route_manifest"
+    assert docs["route_families"] == ["audit", "run_lifecycle", "usage_quota"]
+    assert {"graded_scenarios", "observations", "projects", "voice_minutes"} <= set(docs["plan_metrics"])
+    assert docs["plan_limits"] == ["Developer", "Startup"]
+
+
+def test_python_hosted_client_consumes_future_route_artifact_wrapper():
+    from ashr_clone.saas import consume_go_route_scope_manifest
+
+    openapi = _go_openapi_route_scope_fixture()
+    wrapped = {
+        "schema_version": "ashr.clone.route_artifact.worker.v1",
+        "public_safe": True,
+        "source_policy": openapi["source_policy"],
+        "paths": openapi["paths"],
+        "artifact": {"route_scope_docs": openapi["route_scope_docs"]},
+    }
+
+    consumption = consume_go_route_scope_manifest(wrapped)
+    assert consumption["route_scope_docs"]["route_families"] == ["audit", "run_lifecycle", "usage_quota"]
+
+
+def test_python_go_openapi_route_scope_docs_reject_route_family_drift():
+    from ashr_clone import saas
+
+    openapi = _go_openapi_route_scope_fixture()
+    openapi["route_scope_docs"]["route_groups"] = [
+        group for group in openapi["route_scope_docs"]["route_groups"] if group["name"] != "usage_quota"
+    ]
+
+    try:
+        saas.consume_go_route_scope_manifest(openapi)
+    except saas.SaaSClientError as exc:
+        assert "missing route families: usage_quota" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("missing Go route scope docs family was accepted")
+
+
+def test_python_go_route_consumer_rejects_missing_or_stale_unsupported_gap_records(monkeypatch):
+    from ashr_clone import saas
+
+    snapshot = _load_route_snapshot()
+    original_gaps = dict(saas.UNSUPPORTED_GO_ROUTE_GAPS)
+    unsupported_route = "POST /v1/projects/{project_id}/runs/submit"
+
+    missing_gaps = dict(original_gaps)
+    missing_gaps.pop(unsupported_route)
+    monkeypatch.setattr(saas, "UNSUPPORTED_GO_ROUTE_GAPS", missing_gaps)
+    try:
+        saas.consume_go_route_scope_manifest(snapshot)
+    except saas.SaaSClientError as exc:
+        assert "missing=POST /v1/projects/{project_id}/runs/submit" in str(exc)
+    else:  # pragma: no cover - assertion aid if the drift check stops firing
+        raise AssertionError("missing unsupported Go route gap was accepted")
+
+    stale_gaps = dict(original_gaps)
+    stale_gaps["GET /v1/projects/{project_id}/usage"] = {
+        "reason": "stale fixture",
+        "consumer_action": "should be rejected because the route is hosted",
+    }
+    monkeypatch.setattr(saas, "UNSUPPORTED_GO_ROUTE_GAPS", stale_gaps)
+    try:
+        saas.consume_go_route_scope_manifest(snapshot)
+    except saas.SaaSClientError as exc:
+        assert "stale=GET /v1/projects/{project_id}/usage" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("stale unsupported Go route gap was accepted")
+
+
+def test_go_structured_route_scope_manifest_is_public_safe_and_saas_grade():
+    entries = _go_structured_manifest_entries()
+    by_route = {entry["route"]: entry for entry in entries}
+
+    assert len(by_route) == len(entries)
+    assert by_route["GET /v1/projects/{project_id}/audit-log"]["scopes"] == ["ScopeAuditRead"]
+    assert by_route["GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"]["scopes"] == ["ScopeEvidenceRead"]
+    assert by_route["POST /v1/projects/{project_id}/runs/{run_id}/trace-events"]["scopes"] == ["ScopeTraceIngest"]
+    assert by_route["POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"]["scopes"] == ["ScopeWorkerJobLease"]
+
+    categories = {entry["category"] for entry in entries}
+    assert {"audit", "billing", "release", "trace", "worker", "artifact", "run"} <= categories
+
+    payload = json.dumps(entries, sort_keys=True)
+    for forbidden in ("tenant_", "project_contract", "run_contract", "key_contract", "Bearer ", "ASHR_API_KEY", "raw_payload"):
+        assert forbidden not in payload
+
+
+def test_shared_hosted_routes_are_declared_in_route_scope_manifest():
+    from ashr_clone.saas import hosted_route_scope_manifest
+
+    route_scopes = {entry["route"]: entry["required_scopes"] for entry in hosted_route_scope_manifest()["routes"]}
+    assert PYTHON_TS_SHARED_HOSTED_ROUTES <= set(route_scopes)
+    assert all(isinstance(route_scopes[route], list) for route in PYTHON_TS_SHARED_HOSTED_ROUTES)
+
+
+def test_shared_go_python_hosted_routes_have_matching_scope_values():
+    from ashr_clone.saas import hosted_route_scope_manifest
+
+    go_scope_values = _go_scope_values()
+    go_by_route = {entry["route"]: entry for entry in _go_structured_manifest_entries()}
+    python_by_route = {entry["route"]: entry for entry in hosted_route_scope_manifest()["routes"]}
+
+    docs_routes = {
+        route
+        for group in _go_route_scope_docs_fixture()["route_groups"]
+        for route in group["routes"]
+    }
+    task_route_families = {
+        "GET /v1/projects/{project_id}/usage",
+        "GET /v1/projects/{project_id}/quota",
+        "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
+        "GET /v1/projects/{project_id}/audit-log",
+        "POST /v1/projects/{project_id}/audit-chain/verify",
+    }
+    assert task_route_families <= docs_routes
+
+    shared_routes = PYTHON_TS_SHARED_HOSTED_ROUTES & task_route_families & set(python_by_route)
+    assert {
+        "GET /v1/projects/{project_id}/usage",
+        "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
+        "POST /v1/projects/{project_id}/audit-chain/verify",
+    } <= shared_routes
+
+    for route in sorted(shared_routes):
+        go_scope_names = go_by_route[route]["scopes"]
+        go_scopes = sorted(go_scope_values[name] for name in go_scope_names)
+        assert go_scopes == sorted(python_by_route[route]["required_scopes"]), route

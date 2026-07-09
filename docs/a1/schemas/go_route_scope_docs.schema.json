@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/go_route_scope_docs.schema.json",
+  "title": "A1 Public-Safe Go Route Scope Docs Artifact",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "owner",
+    "public_safe",
+    "raw_payloads_included",
+    "generated_at",
+    "source_policy",
+    "producer",
+    "route_scope_docs"
+  ],
+  "properties": {
+    "schema_version": {"const": "ashr.clone.go_route_scope_docs_artifact.v1"},
+    "artifact_id": {"const": "go_route_scope_docs"},
+    "owner": {"const": "a1.go"},
+    "public_safe": {"const": true},
+    "raw_payloads_included": {"const": false},
+    "generated_at": {"type": "string", "minLength": 1},
+    "source_policy": {
+      "type": "object",
+      "required": [
+        "private_evidence_read",
+        "raw_payloads_included",
+        "tokens_included",
+        "allowed_source_paths",
+        "excluded_source_classes"
+      ],
+      "properties": {
+        "private_evidence_read": {"const": false},
+        "raw_payloads_included": {"const": false},
+        "tokens_included": {"const": false},
+        "allowed_source_paths": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "excluded_source_classes": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "producer": {
+      "type": "object",
+      "required": ["language", "package", "source_symbols", "stable_export", "consumer_intent"],
+      "properties": {
+        "language": {"const": "go"},
+        "package": {"type": "string", "minLength": 1},
+        "source_symbols": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "stable_export": {"const": "route_scope_docs"},
+        "consumer_intent": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "route_scope_docs": {"$ref": "#/$defs/route_scope_docs"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "route_scope_docs": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "public_safe",
+        "raw_payloads_included",
+        "source",
+        "route_groups",
+        "plan_limits",
+        "plan_metrics",
+        "notes"
+      ],
+      "properties": {
+        "schema_version": {"const": "ashr.clone.go_route_scope_docs.v1"},
+        "public_safe": {"const": true},
+        "raw_payloads_included": {"const": false},
+        "source": {"const": "generated_from_go_route_manifest"},
+        "route_groups": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/route_group"}},
+        "plan_limits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/plan"}},
+        "plan_metrics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/metric"}},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "route_group": {
+      "type": "object",
+      "required": ["name", "operations", "routes", "scopes"],
+      "properties": {
+        "name": {"enum": ["usage_quota", "run_lifecycle", "audit"]},
+        "operations": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "routes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "scopes": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "plan": {
+      "type": "object",
+      "required": ["plan", "cap_mode", "limits", "public_url"],
+      "properties": {
+        "plan": {"type": "string", "minLength": 1},
+        "cap_mode": {"type": "string", "minLength": 1},
+        "limits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/plan_limit"}},
+        "public_url": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "plan_limit": {
+      "type": "object",
+      "required": ["metric", "limit", "unit"],
+      "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "limit": {"type": "integer", "minimum": 0},
+        "unit": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "metric": {
+      "type": "object",
+      "required": ["metric", "unit", "operations", "description"],
+      "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "operations": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "description": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

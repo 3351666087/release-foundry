@@ -72,6 +72,48 @@ func TestGoSDKWorkerJobControlPlaneLifecycleSmoke(t *testing.T) {
 	}
 }
 
+func TestGoSDKRouteScopeDocsUsageQuotaLifecycleAudit(t *testing.T) {
+	docs := ashrclone.GoRouteScopeDocs(ashrclone.GoRouteManifestEntries())
+	if docs.SchemaVersion != "ashr.clone.go_route_scope_docs.v1" || !docs.PublicSafe || docs.RawPayloadsIncluded {
+		t.Fatalf("unexpected route scope docs metadata: %#v", docs)
+	}
+	for _, want := range []string{"usage_quota", "run_lifecycle", "audit"} {
+		if routeScopeGroupForIntegration(docs, want) == nil {
+			t.Fatalf("missing route scope docs group %q: %#v", want, docs.RouteGroups)
+		}
+	}
+	usage := routeScopeGroupForIntegration(docs, "usage_quota")
+	if !containsStringForIntegration(usage.Routes, "GET /v1/projects/{project_id}/usage") || !containsStringForIntegration(usage.Routes, "GET /v1/projects/{project_id}/quota") || !containsStringForIntegration(usage.Scopes, ashrclone.ScopeUsageRead) {
+		t.Fatalf("usage/quota route docs are not importable from integration module: %#v", usage)
+	}
+	metrics := map[string]bool{}
+	for _, metric := range docs.PlanMetrics {
+		metrics[metric.Metric] = true
+	}
+	for _, want := range []string{"graded_scenarios", "observations", "voice_minutes", "projects"} {
+		if !metrics[want] {
+			t.Fatalf("missing public plan metric %q: %#v", want, docs.PlanMetrics)
+		}
+	}
+	developer := routeScopePlanForIntegration(docs, "Developer")
+	startup := routeScopePlanForIntegration(docs, "Startup")
+	if developer == nil || startup == nil {
+		t.Fatalf("missing public plan limit references: %#v", docs.PlanLimits)
+	}
+	if routeScopeLimitForIntegration(developer, "graded_scenarios") != 5000 || routeScopeLimitForIntegration(startup, "voice_minutes") != 50000 {
+		t.Fatalf("unexpected public plan limits: developer=%#v startup=%#v", developer.Limits, startup.Limits)
+	}
+	encoded, err := json.Marshal(docs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secretish := range []string{"tenant_", "project_contract", "key_contract", "sk-"} {
+		if strings.Contains(string(encoded), secretish) {
+			t.Fatalf("route scope docs include fixture/secret-like value %q: %s", secretish, encoded)
+		}
+	}
+}
+
 func TestGoSDKHostedUploadParityAndMediaSafety(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.EscapedPath() != "/v1/projects/project_go/runs/run_go/upload" {
@@ -109,4 +151,40 @@ func TestGoSDKHostedUploadParityAndMediaSafety(t *testing.T) {
 	if !errors.As(err, &mediaErr) {
 		t.Fatalf("expected media safety error, got %T %v", err, err)
 	}
+}
+
+func routeScopeGroupForIntegration(docs ashrclone.RouteScopeDocs, name string) *ashrclone.RouteScopeDocGroup {
+	for i := range docs.RouteGroups {
+		if docs.RouteGroups[i].Name == name {
+			return &docs.RouteGroups[i]
+		}
+	}
+	return nil
+}
+
+func routeScopePlanForIntegration(docs ashrclone.RouteScopeDocs, name string) *ashrclone.RouteScopeDocPlan {
+	for i := range docs.PlanLimits {
+		if docs.PlanLimits[i].Plan == name {
+			return &docs.PlanLimits[i]
+		}
+	}
+	return nil
+}
+
+func routeScopeLimitForIntegration(plan *ashrclone.RouteScopeDocPlan, metric string) int {
+	for _, item := range plan.Limits {
+		if item.Metric == metric {
+			return item.Limit
+		}
+	}
+	return -1
+}
+
+func containsStringForIntegration(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

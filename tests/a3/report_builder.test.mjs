@@ -14,8 +14,10 @@ import {
   filterCases,
   getFilterOptions,
   normalizeCases,
+  summarizeA2CrossLaneSecurityContext,
   summarizeA2ReleaseUnblockChecklist,
   summarizeA2ResultPersistence,
+  summarizeA2SqlStoreReport,
   summarizeCommercialReadiness,
   summarizeArtifactRegistryExport,
   summarizeCoverage,
@@ -33,6 +35,7 @@ import {
   summarizeReviewWorkflowExport,
   summarizeSaasAdminExport,
   summarizeBillingUsage,
+  summarizeBillingMigrationReadiness,
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
@@ -715,6 +718,7 @@ test("A3 report exports include SaaS admin login, team, API-key, usage, trust, a
 test("A3 report exports include Artifact Registry evidence catalog", async () => {
   const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
   const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const billingMigrationReadiness = await loadJson("../../fixtures/a3/p3/a3_billing_migration_readiness.redacted.json");
   const artifactRegistry = buildA3ArtifactRegistry({
     source: "mock",
     reportCenter: {
@@ -732,7 +736,8 @@ test("A3 report exports include Artifact Registry evidence catalog", async () =>
     usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "runs", quantity: 1 }] },
     migrationPlan: { schema_version: "a3.sql_migration_plan.v1", status: "contract_ready", migration_count: 7 },
     productConsole: { schema_version: "a3.product_console.v1" },
-    saasAdmin: { schema_version: "a3.saas_admin_console.v1" }
+    saasAdmin: { schema_version: "a3.saas_admin_console.v1" },
+    billingMigrationReadiness
   });
 
   const summary = summarizeArtifactRegistryExport(artifactRegistry);
@@ -745,14 +750,111 @@ test("A3 report exports include Artifact Registry evidence catalog", async () =>
   assert.equal(json.artifact_registry.schema_version, "a3.artifact_registry_export.v1");
   assert.equal(json.artifact_registry.available, true);
   assert.ok(json.artifact_registry.top_artifacts.some((item) => item.artifact_type === "hosted_report"));
+  const billingArtifact = json.artifact_registry.top_artifacts.find((item) => item.artifact_type === "billing_migration_readiness");
+  assert.equal(billingArtifact.lifecycle_state, "generated");
+  assert.equal(billingArtifact.missing_controls.includes("a1_authenticated_billing_ledger_read_api"), true);
+  assert.match(billingArtifact.customer_value, /billing ledger migration readiness/);
+  assert.match(billingArtifact.billable_value, /invoice-preview/);
+  assert.match(billingArtifact.self_host_value, /Postgres billing ledger/);
+  assert.match(billingArtifact.audit_value, /provider-event hash/);
 
   const markdown = buildMarkdownReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, artifactRegistry);
   assert.match(markdown, /## Artifact Registry/);
   assert.match(markdown, /Artifact Packet Presets/);
+  assert.match(markdown, /billing_migration_readiness/);
 
   const missing = summarizeArtifactRegistryExport({});
   assert.equal(missing.available, false);
   assert.match(missing.recommendation, /Attach Artifact Registry/);
+});
+
+test("A3 report exports include billing migration readiness without leaking provider secrets", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a3/mock_grade_results.json");
+  const billingMigrationReadiness = await loadJson("../../fixtures/a3/p3/a3_billing_migration_readiness.redacted.json");
+  const unsafeProbe = {
+    ...billingMigrationReadiness,
+    ignored_provider_secret: "sk_live_should_not_escape_1234567890",
+    ignored_webhook_secret: "whsec_should_not_escape_1234567890",
+    ignored_email: "billing-owner@example.com",
+    ignored_path: "C:\\Users\\private\\billing.env",
+    ignored_header: "Authorization: Bearer should-not-escape"
+  };
+
+  const summary = summarizeBillingMigrationReadiness(unsafeProbe);
+  assert.equal(summary.schema_version, "a3.billing_migration_readiness_export.v1");
+  assert.equal(summary.source_schema_version, "a3.billing_migration_readiness.v1");
+  assert.equal(summary.available, true);
+  assert.equal(summary.status, "read_only_migration_contract_ready");
+  assert.equal(summary.ready_for_live_customer_billing, false);
+  assert.equal(summary.db_contract.table_names.includes("billing_provider_events"), true);
+  assert.equal(summary.db_contract.a3_db_mutation_required, false);
+  assert.equal(summary.replay_evidence.raw_payload_included, false);
+  assert.equal(summary.boundary.billing_mutations_enabled, false);
+  assert.equal(summary.safety.env_local_read, false);
+  assert.equal(summary.missing_controls.includes("hosted_auth_rbac_enforcement"), true);
+  assert.match(summary.customer_value, /billing-ledger migration readiness/);
+  assert.match(summary.self_host_value, /Postgres migration/);
+  assert.match(summary.audit_value, /tenant-scope/);
+
+  const json = buildJsonReport(...[
+    runs,
+    grades,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    unsafeProbe
+  ]);
+  assert.equal(json.billing_migration_readiness.available, true);
+  assert.equal(json.billing_migration_readiness.ready_for_live_customer_billing, false);
+  assert.equal(json.billing_migration_readiness.db_contract.raw_provider_secret_allowed, false);
+  assert.equal(json.billing_migration_readiness.live_smoke.executed_by_a3, false);
+  assert.equal(json.billing_migration_readiness.official_api_readonly.mutating_steps, 0);
+
+  const markdown = buildMarkdownReport(...[
+    runs,
+    grades,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    unsafeProbe
+  ]);
+  assert.match(markdown, /## Billing Migration Readiness/);
+  assert.match(markdown, /Live customer billing ready: no/);
+  assert.match(markdown, /billing_accounts, billing_provider_events, billing_ledger_events/);
+  assert.match(markdown, /Billing mutations enabled: no/);
+
+  const serialized = JSON.stringify(json) + markdown + JSON.stringify(summary);
+  assert.doesNotMatch(serialized, /sk_live_should_not_escape|whsec_should_not_escape|billing-owner@example\.com|C:\\Users|Authorization: Bearer/);
 });
 
 test("A3 report exports include durable review workflow records", async () => {
@@ -761,10 +863,12 @@ test("A3 report exports include durable review workflow records", async () => {
   const reviewWorkflow = {
     schema_version: "a3.review_workflow_index.v1",
     source: "mock",
-    record_count: 2,
+    record_count: 3,
     waiver_count: 1,
     approval_count: 1,
-    accepted_count: 2,
+    denial_count: 1,
+    human_action_count: 3,
+    accepted_count: 3,
     durable_storage_ready: true,
     real_cloud_mutations_performed: false,
     records: [{
@@ -785,19 +889,32 @@ test("A3 report exports include durable review workflow records", async () => {
       payload_hash: "c".repeat(64),
       review_hash: "d".repeat(64),
       signature: { status: "hash_sealed_signer_record" }
+    }, {
+      record_id: "rwr_denial_unit",
+      record_type: "denial",
+      status: "valid_denial",
+      accepted: true,
+      run_id: "run_a3_generated_from_a2_g3",
+      payload_hash: "e".repeat(64),
+      review_hash: "f".repeat(64),
+      subject: { decision: "deny_release" },
+      signature: { status: "hash_sealed_signer_record" }
     }]
   };
 
   const summary = summarizeReviewWorkflowExport(reviewWorkflow);
   assert.equal(summary.available, true);
-  assert.equal(summary.record_count, 2);
+  assert.equal(summary.record_count, 3);
+  assert.equal(summary.denial_count, 1);
+  assert.equal(summary.human_action_count, 3);
   assert.equal(summary.durable_storage_ready, true);
   assert.equal(summary.real_cloud_mutations_performed, false);
 
   const json = buildJsonReport(runs, grades, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, reviewWorkflow);
   assert.equal(json.review_workflow.schema_version, "a3.review_workflow_export.v1");
-  assert.equal(json.review_workflow.accepted_count, 2);
-  assert.equal(json.review_workflow.latest_records[1].signature_status, "hash_sealed_signer_record");
+  assert.equal(json.review_workflow.accepted_count, 3);
+  assert.equal(json.review_workflow.denial_count, 1);
+  assert.equal(json.review_workflow.latest_records[2].subject_decision, "deny_release");
 
   const missing = summarizeReviewWorkflowExport({});
   assert.equal(missing.available, false);
@@ -1256,16 +1373,99 @@ test("A3 report builder can summarize A2 evidence readiness fixture", async () =
   assert.ok(summary.batch_plan_refs.includes("semantic_llm_judge_audit"));
   assert.ok(summary.never_commit.includes("raw prompts"));
 
+  const readinessWithOfficialApi = {
+    ...readiness,
+    a1_official_api_readonly_manifest: {
+      available: true,
+      status: "ready",
+      read_step_count: 7,
+      ok_or_planned_step_count: 6,
+      error_step_count: 1,
+      quota_block_count: 0,
+      modalities: ["text", "image"],
+      step_ids: ["list_runs", "get_run"],
+      public_safe: true,
+      redacted_summary_fields_only: true,
+      raw_payload_values_included: false,
+      ready_for_a2_evidence_context: true
+    },
+    a1_official_api_mutating_index: {
+      available: true,
+      public_safe: true,
+      raw_payloads_included: false,
+      secret_values_included: false,
+      record_count: 4,
+      status_counts: { ok: 2, blocked: 2 },
+      modalities: ["text", "audio"],
+      mutating_step_ids: ["create_request", "create_run"],
+      observed_error_kinds: ["quota"],
+      total_steps: 8,
+      read_step_count: 4,
+      mutating_step_count: 4,
+      quota_block_count: 2,
+      private_manifest_count: 2,
+      ready_for_a2_evidence_context: true,
+      c3_grading_ready: false
+    },
+    a1_official_api_paid_media_summary: {
+      available: true,
+      status: "quota_blocked",
+      mode: "small_batch",
+      public_safe: true,
+      redacted_summary_fields_only: true,
+      raw_payload_values_included: false,
+      guardrails: {
+        quota_gate_present: true,
+        raw_records_private: true
+      },
+      total_step_count: 5,
+      read_step_count: 2,
+      mutating_step_count: 3,
+      ok_or_planned_step_count: 3,
+      error_step_count: 2,
+      quota_block_count: 2,
+      estimated_call_count: 5,
+      modalities: ["image", "audio"],
+      step_ids: ["media-image-smoke", "media-audio-smoke"],
+      mutating_functions: ["create_request"],
+      mutating_modalities: ["image"],
+      quota_blocked_step_ids: ["media-image-smoke"],
+      quota_remaining_observed: true,
+      status_code_counts: { 200: 2, 429: 2 },
+      ready_for_a2_evidence_context: true,
+      safe_for_paid_media_claims: false,
+      c3_grading_ready: false
+    }
+  };
+  const officialSummary = summarizeEvidenceReadiness(readinessWithOfficialApi);
+  assert.equal(officialSummary.official_api_readonly_available, true);
+  assert.equal(officialSummary.official_api_readonly_ready_for_a2_evidence_context, true);
+  assert.deepEqual(officialSummary.official_api_readonly_modalities, ["text", "image"]);
+  assert.equal(officialSummary.official_api_mutating_record_count, 4);
+  assert.equal(officialSummary.official_api_mutating_secret_values_included, false);
+  assert.equal(officialSummary.official_api_mutating_quota_block_count, 2);
+  assert.equal(officialSummary.official_api_paid_media_status, "quota_blocked");
+  assert.equal(officialSummary.official_api_paid_media_estimated_call_count, 5);
+  assert.equal(officialSummary.official_api_paid_media_safe_for_paid_media_claims, false);
+  assert.equal(officialSummary.official_api_paid_media_guardrails.raw_records_private, true);
+
   const json = buildJsonReport(runs, grades, coverage, readiness);
   assert.equal(json.evidence_readiness.available, true);
   assert.equal(json.evidence_readiness.ashr_current_missing, 6);
   assert.equal(json.evidence_readiness.semantic_offline_reference_only, true);
+  const officialJson = buildJsonReport(runs, grades, coverage, readinessWithOfficialApi);
+  assert.equal(officialJson.evidence_readiness.official_api_mutating_record_count, 4);
+  assert.equal(officialJson.evidence_readiness.official_api_paid_media_quota_block_count, 2);
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness);
   assert.match(markdown, /## Evidence Readiness/);
   assert.match(markdown, /Status: awaiting_private_evidence/);
   assert.match(markdown, /Ashr grading missing: 6\/6/);
   assert.match(markdown, /SDK languages covered: python, typescript/);
+  const officialMarkdown = buildMarkdownReport(runs, grades, coverage, readinessWithOfficialApi);
+  assert.match(officialMarkdown, /Official API readonly: ready \/ A2 context ready/);
+  assert.match(officialMarkdown, /Official API mutating: records 4, quota blocks 2, raw payloads not included/);
+  assert.match(officialMarkdown, /Official paid media: quota_blocked \/ safe claims no \/ estimated calls 5/);
 });
 
 test("A3 report builder summarizes P3 Ashr request provenance", async () => {
@@ -1861,14 +2061,63 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   const persistenceSummary = summarizeA2ResultPersistence(resultPersistence);
   assert.equal(persistenceSummary.available, true);
   assert.equal(persistenceSummary.schema_version, "a2.result_persistence_manifest.v1");
-  assert.equal(persistenceSummary.record_count, 162);
+  assert.equal(persistenceSummary.record_count, 163);
   assert.equal(persistenceSummary.judge_result_count, 160);
   assert.equal(persistenceSummary.release_gate_record_count, 1);
   assert.equal(persistenceSummary.scenario_selection_record_count, 1);
+  assert.equal(persistenceSummary.release_unblock_checklist_record_count, 1);
   assert.equal(persistenceSummary.safety_blocking_result_count, 4);
   assert.equal(persistenceSummary.public_safe, true);
   assert.equal(persistenceSummary.secrets_not_recorded, true);
-  assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_gate" || record.record_type === "scenario_selection"));
+  assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_unblock_checklist"));
+
+  const extendedPersistence = {
+    ...resultPersistence,
+    record_count: resultPersistence.records.length + 1,
+    record_type_counts: {
+      ...resultPersistence.record_type_counts,
+      release_unblock_checklist: (resultPersistence.record_type_counts.release_unblock_checklist || 0) + 1
+    },
+    source_refs: {
+      ...resultPersistence.source_refs,
+      release_unblock_checklist: "fixtures/a2/results/a2_release_unblock_checklist.json"
+    },
+    records: [
+      ...resultPersistence.records,
+      {
+        schema_version: "a2.result_persistence_record.v1",
+        record_type: "release_unblock_checklist",
+        tenant_id: "org_local_demo",
+        org: "org_local_demo",
+        project: "a2_g3_calibration",
+        run: "a2_g3_grade_results",
+        case: "release-unblock-checklist",
+        case_id: "release-unblock-checklist",
+        scenario_id: null,
+        judge_id: "release_unblock_checklist_builder",
+        judge_version: "a2.release_unblock_checklist.v1",
+        policy_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        input_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+        output_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+        created_at: "2026-07-09T00:00:00Z",
+        overall_status: "blocked",
+        blocked_gate_count: 3,
+        release_gate_decision: "block",
+        release_gate_risk_score: 100,
+        gate_count: 3,
+        private_evidence_required: true,
+        result_schema_version: "a2.release_unblock_checklist.v1"
+      }
+    ]
+  };
+  const extendedPersistenceSummary = summarizeA2ResultPersistence(extendedPersistence);
+  const latestUnblockRecord = extendedPersistenceSummary.latest_records.at(-1);
+  assert.equal(extendedPersistenceSummary.release_unblock_checklist_record_count, 2);
+  assert.equal(latestUnblockRecord.record_type, "release_unblock_checklist");
+  assert.equal(latestUnblockRecord.overall_status, "blocked");
+  assert.equal(latestUnblockRecord.release_gate_decision, "block");
+  assert.equal(latestUnblockRecord.release_gate_risk_score, 100);
+  assert.equal(latestUnblockRecord.private_evidence_required, true);
 
   const unblockSummary = summarizeA2ReleaseUnblockChecklist(releaseUnblockChecklist);
   assert.equal(unblockSummary.available, true);
@@ -1890,15 +2139,148 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   };
   const json = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
   assert.equal(json.a2_result_persistence.available, true);
-  assert.equal(json.a2_result_persistence.record_count, 162);
+  assert.equal(json.a2_result_persistence.record_count, 163);
   assert.equal(json.a2_release_unblock_checklist.overall_status, "blocked");
   assert.deepEqual(json.a2_release_unblock_checklist.blocking_gate_ids, ["C3", "C4", "C5"]);
+  const extendedJson = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
+    ...bundle,
+    resultPersistence: extendedPersistence
+  });
+  assert.equal(extendedJson.a2_result_persistence.release_unblock_checklist_record_count, 2);
+  assert.equal(extendedJson.a2_result_persistence.latest_records.at(-1).overall_status, "blocked");
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
   assert.match(markdown, /## A2 Result Persistence/);
-  assert.match(markdown, /Records: 162/);
+  assert.match(markdown, /Records: 163/);
   assert.match(markdown, /Safety blocking results: 4/);
+  assert.match(markdown, /Release unblock checklist records: 1/);
+  const extendedMarkdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
+    ...bundle,
+    resultPersistence: extendedPersistence
+  });
+  assert.match(extendedMarkdown, /Release unblock checklist records: 2/);
   assert.match(markdown, /## A2 Release Unblock Checklist/);
   assert.match(markdown, /Blocking gates: C3, C4, C5/);
   assert.match(markdown, /Required reviewers: A2 evidence reviewer, A2 case-book owner/);
+});
+
+test("A3 report builder preserves A2 cross-lane security and SQL store summaries", async () => {
+  const runs = await loadJson("../../fixtures/a3/mock_run_results.json");
+  const grades = await loadJson("../../fixtures/a2/results/a2_g3_grade_results.json");
+  const coverage = await loadJson("../../fixtures/a2/results/a2_g3_coverage_report.json");
+  const readiness = await loadJson("../../fixtures/a2/results/a2_evidence_readiness_report.json");
+  const crossLaneSecurityContext = {
+    schema_version: "a2.cross_lane_security_context.v1",
+    report_id: "a2_cross_lane_security_context_unit",
+    source_refs: {
+      a1_route_scope: "docs/a1/route_scope.md",
+      a3_auth_rbac_boundary: "docs/a3/auth_rbac.md",
+      a3_openapi: "docs/a3/openapi/a3_commercial_api.openapi.json"
+    },
+    a1_route_scope: {
+      available: true,
+      schema_version: "a1.route_scope.v1",
+      ready_for_a2_security_context: true
+    },
+    a3_auth_rbac_boundary: {
+      available: true,
+      schema_version: "a3.rbac_policy.v1",
+      ready_for_a2_security_context: true
+    },
+    a2_policy_implications: {
+      should_block_hosted_mutations_without_a1_auth: true,
+      should_require_metadata_only_audit_events: true,
+      should_keep_raw_actor_identity_forbidden: true,
+      should_add_route_scope_security_cases: true,
+      should_add_auth_rbac_abuse_cases: true,
+      release_policy_refs: ["release_gate.auth_boundary"]
+    },
+    a2_security_followups: [{
+      followup_id: "security-followup-1",
+      action: "Add hosted mutation abuse case.",
+      owner: "A2 security reviewer",
+      tags: ["auth", "rbac"],
+      writes_private_evidence: false,
+      requires_user_decision: false
+    }],
+    metadata: {
+      public_safe: true,
+      deterministic: true,
+      requires_network: false,
+      requires_ashr_api_key: false,
+      does_not_execute_live_calls: true,
+      does_not_read_private_evidence: true,
+      raw_private_evidence_not_recorded: true,
+      secrets_not_recorded: true
+    }
+  };
+  const sqlStoreReport = {
+    schema_version: "a2.sql_store_report.v1",
+    report_id: "a2_sql_store_unit",
+    database: {
+      engine: "sqlite",
+      reference_dialect: "sqlite",
+      production_target: "postgres",
+      ddl_version: "a2.sql_store.sqlite.v1",
+      ddl_ref: "services/judge/sql/a2.sql"
+    },
+    table_counts: {
+      a2_eval_runs: 1,
+      a2_judge_results: 160,
+      a2_calibration_cases: 6
+    },
+    write_counts: {
+      a2_judge_results: 160,
+      a2_calibration_cases: 6
+    },
+    query_checks: {
+      failure_class_counts: { missing_required_tool: 3 },
+      golden_failure_class_counts: { wrong_arguments: 1 },
+      calibration_missing_ashr_count: 6,
+      calibration_disagreement_count: 1,
+      regression_replay_status_counts: { blocked: 3 },
+      can_join_case_level_history: true
+    },
+    source_refs: {
+      grade_report: "fixtures/a2/results/a2_g3_grade_results.json",
+      ddl: "services/judge/sql/a2.sql"
+    },
+    metadata: {
+      public_safe: true,
+      uses_python_stdlib_sqlite: true,
+      does_not_require_external_database: true,
+      does_not_execute_live_calls: true,
+      raw_private_evidence_not_recorded: true,
+      secrets_not_recorded: true,
+      intended_consumers: ["A3 reporting", "SaaS audit export"]
+    }
+  };
+
+  const securitySummary = summarizeA2CrossLaneSecurityContext(crossLaneSecurityContext);
+  assert.equal(securitySummary.available, true);
+  assert.equal(securitySummary.should_block_hosted_mutations_without_a1_auth, true);
+  assert.equal(securitySummary.followup_count, 1);
+  assert.equal(securitySummary.safety.secrets_not_recorded, true);
+
+  const sqlSummary = summarizeA2SqlStoreReport(sqlStoreReport);
+  assert.equal(sqlSummary.available, true);
+  assert.equal(sqlSummary.production_target, "postgres");
+  assert.equal(sqlSummary.table_count_total, 167);
+  assert.equal(sqlSummary.write_count_total, 166);
+  assert.equal(sqlSummary.can_join_case_level_history, true);
+
+  const bundle = {
+    crossLaneSecurityContext,
+    sqlStoreReport
+  };
+  const json = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.equal(json.a2_cross_lane_security_context.report_id, "a2_cross_lane_security_context_unit");
+  assert.equal(json.a2_sql_store_report.database_engine, "sqlite");
+  assert.equal(json.a2_sql_store_report.table_count_total, 167);
+
+  const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
+  assert.match(markdown, /## A2 Cross-Lane Security Context/);
+  assert.match(markdown, /Block hosted mutations without A1 auth: yes/);
+  assert.match(markdown, /## A2 SQL Store Report/);
+  assert.match(markdown, /DB: sqlite \/ target postgres/);
 });

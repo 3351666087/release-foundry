@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any, Iterable, Mapping
 
 from .api_client import ASHR_API_FIELD_MAP_VERSION, redact_sensitive, summarize_quota_error
@@ -15,8 +16,18 @@ EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1"
 _PUBLIC_SECRET_PATTERNS = (
     re.compile(r"tp_[A-Za-z0-9_\-]+"),
     re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
-    re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE),
+    re.compile(r"Bearer\s+(?=[A-Za-z0-9._\-]*(?:\d|[._\-]))[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"ashr_live_[A-Za-z0-9_\-]+"),
+)
+_PUBLIC_ARTIFACT_SECRET_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    *(("secret_like_text", pattern) for pattern in _PUBLIC_SECRET_PATTERNS),
+    ("authorization_header", re.compile(r"\bAuthorization\s*[:=]\s*[^\s`'\"]+", re.IGNORECASE)),
+    ("api_key_header", re.compile(r"\b(?:X-API-Key|x-api-key)\s*[:=]\s*[^\s`'\"]+", re.IGNORECASE)),
+    ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    (
+        "raw_private_payload_included",
+        re.compile(r"\b(?:raw_)?(?:private_)?(?:payloads?|requests?|responses?|headers?)_included\b\s*[:=]\s*(?:true|1|yes)\b", re.IGNORECASE),
+    ),
 )
 
 
@@ -121,6 +132,31 @@ def assert_public_evidence_index_safe(index: Mapping[str, Any]) -> None:
     blocking = [issue for issue in issues if issue.get("severity") == "error"]
     if blocking:
         raise PublicEvidenceIndexError(blocking)
+
+
+def scan_tracked_public_evidence_artifacts(repo_root: str | Path, *, public_root: str = "docs/a1/evidence") -> list[JsonDict]:
+    """Scan tracked public A1 evidence artifacts for leak-shaped secret markers."""
+
+    root = Path(repo_root)
+    paths = _tracked_public_evidence_paths(root, public_root)
+    issues: list[JsonDict] = []
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            issues.append({"severity": "error", "kind": "non_utf8_public_evidence", "path": _repo_relative_path(root, path)})
+            continue
+        issues.extend(scan_public_evidence_artifact_text(text, path=_repo_relative_path(root, path)))
+    return issues
+
+
+def scan_public_evidence_artifact_text(text: str, *, path: str = "<memory>") -> list[JsonDict]:
+    issues: list[JsonDict] = []
+    for kind, pattern in _PUBLIC_ARTIFACT_SECRET_MARKERS:
+        for match in pattern.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            issues.append({"severity": "error", "kind": kind, "path": path, "line": line, "pattern": pattern.pattern})
+    return issues
 
 
 def validate_public_evidence_index(index: Mapping[str, Any]) -> list[JsonDict]:
@@ -269,7 +305,7 @@ def _summarize_record_path(path: Path) -> JsonDict | None:
     request = record.get("request") if isinstance(record.get("request"), Mapping) else {}
     quota = _public_safe_quota_summary(summarize_quota_error(record))
     entry: JsonDict = {
-        "path": path.as_posix(),
+        "path": _repo_relative_path(Path.cwd(), path.resolve()),
         "function": record.get("function"),
         "dry_run": record.get("dry_run"),
         "status": record.get("status"),
@@ -461,3 +497,21 @@ def _unsafe_output_policy_path(value: Any) -> bool:
     if not isinstance(value, str):
         return True
     return bool(re.match(r"^[A-Za-z]:", value) or value.startswith("/") or "\\" in value or any(part == ".." for part in value.split("/")))
+
+
+def _tracked_public_evidence_paths(repo_root: Path, public_root: str) -> list[Path]:
+    proc = subprocess.run(
+        ["git", "ls-files", "--", public_root],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [repo_root / line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _repo_relative_path(repo_root: Path, path: Path) -> str:
+    try:
+        return path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return path.as_posix()

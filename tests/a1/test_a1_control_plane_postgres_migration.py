@@ -193,7 +193,10 @@ def test_a1_go_postgres_worker_lifecycle_uses_atomic_hash_only_queue_contract():
     assert "insertIdempotentWorkerJobResponse" in source
     assert "WHERE tenant_id = $1 AND project_id = $2 AND ($3 = '' OR status = $3)" in source
     assert "job_type = $4" in source
-    assert "raw_payload" not in normalized_source
+    worker_method_start = source.index("func (repository *PostgresRepository) EnqueueWorkerJob")
+    worker_method_end = source.index("func (repository *PostgresRepository) CreateBillingCheckoutPlan")
+    worker_related_source = _normalize_sql(source[worker_method_start:worker_method_end])
+    assert "raw_payload" not in worker_related_source
 
 
 def test_a1_postgres_upload_trace_artifact_schema_preserves_hash_only_contract():
