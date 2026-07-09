@@ -8,14 +8,15 @@ export function buildA3SqlMigrationPlan(options = {}) {
     dialect,
     status: "contract_ready",
     migration_count: statements.length,
-    tenancy_columns: ["organization_id", "project_id"],
+    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id"],
     guardrails: [
-      "Every tenant-owned row must include organization_id and project_id.",
+    "Every tenant-owned row must include organization_id, tenant_id, workspace_id, and project_id where the table participates in hosted SaaS scope.",
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
       "Import endpoints must write idempotency_keys and api_import_receipts before exposing dashboard state.",
       "Hosted report views and revocations must write audit_events.",
       "Artifact registry rows must link report exports, control-plane evidence, lifecycle events, redaction status, and retention class.",
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
+      "Auth context, RBAC policy snapshots, and authz decisions are metadata-only records until A1 hosted auth becomes authoritative.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
@@ -47,7 +48,7 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at ${types.timestamp} NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);`),
-    statement("003_identity_team_keys_trust", ["users", "roles", "team_members", "api_keys", "trust_reports"], `
+    statement("003_identity_team_keys_trust", ["users", "roles", "team_members", "api_keys", "trust_reports", "auth_contexts", "rbac_policy_snapshots", "authz_decisions"], `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -101,7 +102,52 @@ CREATE TABLE IF NOT EXISTS trust_reports (
   evidence_hash TEXT,
   published_at ${types.timestamp},
   created_at ${types.timestamp} NOT NULL
-);`),
+);
+CREATE TABLE IF NOT EXISTS auth_contexts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  actor_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  permissions ${types.json} NOT NULL,
+  auth_state TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_contexts_actor ON auth_contexts(project_id, actor_hash, role, created_at);
+CREATE TABLE IF NOT EXISTS rbac_policy_snapshots (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  policy_schema_version TEXT NOT NULL,
+  role_count INTEGER NOT NULL,
+  operation_count INTEGER NOT NULL,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rbac_policy_snapshots_hash ON rbac_policy_snapshots(project_id, payload_hash);
+CREATE TABLE IF NOT EXISTS authz_decisions (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  tenant_id TEXT NOT NULL DEFAULT 'tenant-local',
+  workspace_id TEXT NOT NULL DEFAULT 'workspace-local',
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  actor_hash TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  required_permission TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  allowed BOOLEAN NOT NULL DEFAULT FALSE,
+  audit_event_id TEXT,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_authz_decisions_project_operation ON authz_decisions(project_id, operation, decision, created_at);`),
     statement("003_runs_cases", ["runs", "cases"], `
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,

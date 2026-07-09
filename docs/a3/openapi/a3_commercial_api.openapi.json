@@ -169,6 +169,239 @@
         }
       }
     },
+    "/api/a3/auth/context": {
+      "get": {
+        "operationId": "getA3AuthContext",
+        "summary": "Read the redacted local actor context used by A3 contract checks.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.auth_context_api_response.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "headers_query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "auth.context_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant/auth/API gateway",
+            "RBAC backend",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "abuse policy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Redacted auth context and sample authorization decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/auth/rbac-policy": {
+      "get": {
+        "operationId": "getA3RbacPolicy",
+        "summary": "Read the A3 RBAC policy matrix for local contract validation.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.rbac_policy.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "query_or_session",
+          "cross_tenant_default": "sanitized_empty_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "auditor_or_admin",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "rbac.policy_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RBAC backend",
+            "tenant/auth/API gateway",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "redaction verifier"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "A3 local RBAC policy matrix.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RbacPolicy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/auth/authorize": {
+      "post": {
+        "operationId": "authorizeA3Operation",
+        "summary": "Check whether a local A3 actor context can perform a named operation.",
+        "tags": [
+          "Admin",
+          "Trust"
+        ],
+        "x-schema-version": "a3.authz_decision.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id"
+          ],
+          "source": "body_headers_or_session",
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "local_contract_only",
+          "backend_owner": "A1"
+        },
+        "x-rbac": {
+          "permission": "project_reader",
+          "denied_state_required": true
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "authz.operation_checked"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RBAC backend",
+            "tenant/auth/API gateway",
+            "audit events"
+          ],
+          "a2": [
+            "security verification",
+            "abuse policy",
+            "redaction verifier"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "actor_hash": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "tenant_id": {
+                    "type": "string"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  },
+                  "project_id": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization decision with sanitized denied state and audit event envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthzDecision"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/a3/dashboard": {
       "get": {
         "operationId": "getA3Dashboard",
@@ -1776,6 +2009,131 @@
           },
           "audit_event": {
             "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AuthContextResponse": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "auth_context",
+          "sample_decisions",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.auth_context_api_response.v1"
+          },
+          "auth_context": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "actor_hash",
+              "role",
+              "permissions",
+              "tenant_scope",
+              "safety"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a3.auth_context.v1"
+              },
+              "actor_hash": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tenant_scope": {
+                "$ref": "#/components/schemas/TenantScope"
+              },
+              "safety": {
+                "$ref": "#/components/schemas/SafetyEnvelope"
+              }
+            },
+            "additionalProperties": true
+          },
+          "sample_decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthzDecision"
+            }
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "RbacPolicy": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "roles",
+          "operations",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.rbac_policy.v1"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AuthzDecision": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "operation",
+          "allowed",
+          "decision",
+          "audit_event",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.authz_decision.v1"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "audit_event": {
+            "type": "object"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
           }
         },
         "additionalProperties": true

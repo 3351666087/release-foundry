@@ -550,6 +550,13 @@
 - [x] Add Growth-Auditor Money-Grade Round 7 artifact with 30 next commercial growth points.
 - [x] Verify A3 tenant/event/source-artifact/OpenAPI round with `node --test tests/a3/*.mjs`: 229 pass, 0 fail.
 - [x] Verify commercial and hygiene CL guards after tenant/event/source-artifact round.
+- [x] Add A3 Auth/RBAC boundary contract with redacted actor context, role policy, and authorization decisions.
+- [x] Add local Auth/RBAC API routes: `GET /api/a3/auth/context`, `GET /api/a3/auth/rbac-policy`, `POST /api/a3/auth/authorize`.
+- [x] Add Auth/RBAC Boundary panel to SaaS Admin dashboard rendering.
+- [x] Add Auth/RBAC boundary summary to SaaS Admin export and Artifact Registry security audit packets.
+- [x] Add SQL contract tables for `auth_contexts`, `rbac_policy_snapshots`, and `authz_decisions`.
+- [x] Add OpenAPI paths and schemas for Auth/RBAC boundary.
+- [x] Verify Auth/RBAC boundary round with focused tests, full A3 Node suite, Playwright E2E, CL commercial/hygiene, and diff check.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

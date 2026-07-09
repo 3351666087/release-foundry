@@ -4636,3 +4636,67 @@ Safety:
 - No live Ashr/GitHub/API/billing/cloud mutation.
 - No secret, token, cookie, real account value, email, raw signed URL, or
   payment secret committed.
+
+## 2026-07-09 - Commercial SaaS Contract Round 8: Auth/RBAC Boundary Spine
+
+Continued under `docs/strategy/large-saas-a1-a2-a3-full-plan.md` after Round 7
+added OpenAPI, tenant scope, event envelope, and source artifacts.
+
+Implemented:
+
+- Added `services/report/a3_auth_rbac_boundary.mjs`.
+- Added local API contract routes:
+  - `GET /api/a3/auth/context`
+  - `GET /api/a3/auth/rbac-policy`
+  - `POST /api/a3/auth/authorize`
+- Added redacted `a3.auth_context.v1`, `a3.rbac_policy.v1`, and
+  `a3.authz_decision.v1` objects.
+- Added Auth/RBAC boundary state to SaaS Admin Console output and dashboard UI.
+- Added Auth/RBAC boundary fields to SaaS Admin export summary.
+- Added `auth_rbac_boundary` to Artifact Registry security audit packets.
+- Added SQL contract tables:
+  - `auth_contexts`
+  - `rbac_policy_snapshots`
+  - `authz_decisions`
+- Updated OpenAPI with Auth/RBAC boundary paths and schemas.
+- Added `tests/a3/a3_auth_rbac_boundary.test.mjs`.
+- Added documentation:
+  - `docs/a3/p3_auth_rbac_boundary_2026_07_09.md`
+
+A1/A2 calibration:
+
+- A1 remains source of truth for hosted auth middleware, sessions, API-key
+  backend, durable tenant isolation, audit, and usage.
+- A2 remains source of truth for security verification, abuse cases, release
+  policy, and redaction/verifier correctness.
+- A3 now models actor context, role policy, and authorization decisions without
+  enabling real cloud mutations.
+
+Verification so far:
+
+```text
+node --check services/report/a3_auth_rbac_boundary.mjs
+node --check services/report/a3_api_server.mjs
+node --check services/report/a3_saas_admin.mjs
+node --check services/report/a3_artifact_registry.mjs
+node --check services/report/a3_sql_migrations.mjs
+node --check services/report/report_builder.mjs
+node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/artifact_registry.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs
+```
+
+Final verification:
+
+- Focused Auth/RBAC round: 22 pass, 0 fail.
+- Full A3 Node suite: 234 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+
+Safety:
+
+- No `.env.local` read.
+- No live Ashr, GitHub, billing, auth, team, API-key, Trust, object-storage, or
+  cloud mutation.
+- No API key, token, cookie, real account value, email, raw signed URL, or
+  payment secret written.

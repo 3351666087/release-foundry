@@ -110,6 +110,9 @@ export const A3_DB_CONTRACT = {
     "users",
     "team_members",
     "roles",
+    "auth_contexts",
+    "rbac_policy_snapshots",
+    "authz_decisions",
     "api_keys",
     "projects",
     "runs",
@@ -141,6 +144,9 @@ export const A3_DB_CONTRACT = {
     "event_outbox"
   ],
   api_surfaces: [
+    "GET /api/a3/auth/context",
+    "GET /api/a3/auth/rbac-policy",
+    "POST /api/a3/auth/authorize",
     "GET /api/a3/dashboard",
     "GET /api/a3/runs",
     "GET /api/a3/runs/:runId",
@@ -175,6 +181,7 @@ export const A3_DB_CONTRACT = {
   ],
   guardrails: [
     "All reads are project scoped before real multi-tenant auth is enabled.",
+    "Auth context, RBAC policy, and authorization decisions are metadata-only until A1 hosted auth middleware is available.",
     "Shareable reports must pass the export redaction firewall.",
     "Secrets, cookies, tokens, emails, raw signed URLs, and local paths are never persisted in public report payloads.",
     "A1 runner payloads and A2 judge payloads are normalized at the A3 boundary without changing their source semantics."

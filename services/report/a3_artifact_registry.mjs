@@ -143,6 +143,16 @@ function controlArtifactEntries(context) {
     customerValue: "login, team, API-key, usage, trust, and cloud-management safety map",
     missingControls: context.saasAdmin.schema_version ? ["rbac_enforcement_receipt"] : ["saas_admin_state"]
   }));
+  entries.push(controlArtifact("auth_rbac_boundary", {
+    context,
+    ready: context.saasAdmin.auth_boundary?.schema_version === "a3.saas_admin_auth_boundary.v1",
+    contentType: "application/json",
+    billableMeter: "admin_governance_evidence",
+    customerValue: "actor context, role policy, and denied-state evidence for hosted SaaS readiness",
+    missingControls: context.saasAdmin.auth_boundary?.schema_version
+      ? ["hosted_auth_enforcement_receipt", "rbac_decision_persistence"]
+      : ["auth_rbac_boundary"]
+  }));
   entries.push(...githubPublishArtifactEntries(context));
   return entries;
 }
@@ -250,7 +260,7 @@ function buildPacketPresets(entries) {
     packetPreset("pr_review_packet", ["json_report", "markdown_report", "release_evidence_summary", "report_manifest"], entries),
     packetPreset("github_pr_gate_packet", ["github_check_publish_receipt", "github_pr_comment_publish_receipt", "github_required_check_plan"], entries),
     packetPreset("executive_signoff_packet", ["hosted_report", "markdown_report", "product_console_state"], entries),
-    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "db_migration_plan"], entries),
+    packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "auth_rbac_boundary", "db_migration_plan"], entries),
     packetPreset("source_evidence_packet", ["a1_run_result", "a1_trace_event_batch", "a2_grade_result", "a2_release_gate"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];

@@ -3437,3 +3437,65 @@ Safety boundary:
   protection, or cloud mutation.
 - No API key, token, cookie, real account value, email, raw signed URL, or
   payment secret was written.
+
+## 2026-07-09 - Auth/RBAC Boundary Spine Round
+
+Goal: answer Contract-Agent and Bus-Auditor feedback that A3 had auth/RBAC
+claims in OpenAPI/docs but needed a concrete local actor context and
+authorization decision contract.
+
+Implemented:
+
+- `services/report/a3_auth_rbac_boundary.mjs`
+- `a3.auth_context.v1`
+- `a3.rbac_policy.v1`
+- `a3.authz_decision.v1`
+- API routes:
+  - `GET /api/a3/auth/context`
+  - `GET /api/a3/auth/rbac-policy`
+  - `POST /api/a3/auth/authorize`
+- SaaS Admin Console `auth_boundary` state.
+- Dashboard Auth/RBAC Boundary panel inside SaaS Admin.
+- SaaS Admin export `auth_boundary` summary.
+- Artifact Registry `auth_rbac_boundary` evidence.
+- SQL contract tables:
+  - `auth_contexts`
+  - `rbac_policy_snapshots`
+  - `authz_decisions`
+- OpenAPI paths and schemas for Auth/RBAC boundary.
+- Documentation:
+  - `docs/a3/p3_auth_rbac_boundary_2026_07_09.md`
+- Tests:
+  - `tests/a3/a3_auth_rbac_boundary.test.mjs`
+
+A1/A2 calibration:
+
+- A1 remains owner of hosted auth, sessions, API keys, RBAC enforcement, tenant
+  isolation, audit, usage, and API gateway.
+- A2 remains owner of security verification, abuse cases, release policy,
+  redaction, and verifier correctness.
+- A3 only models local product-workflow authorization and denied states.
+
+Verification:
+
+```text
+node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_saas_admin.test.mjs tests/a3/artifact_registry.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_commercial_openapi_contract.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs
+```
+
+Final verification result:
+
+- Focused Auth/RBAC round: 22 pass, 0 fail.
+- Full A3 Node suite: 234 pass, 0 fail.
+- Playwright E2E: 9 pass, 0 fail.
+- Commercial CL: passed, 0 blockers, 0 advisories.
+- Hygiene CL: passed, no findings.
+- `git diff --check`: passed.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No live Ashr API call.
+- No real hosted auth, team invite, API-key rotation, billing, Trust publish, or
+  cloud mutation.
+- Actor identity is represented as `actor_hash`; raw email/token/cookie/key
+  values are not returned.

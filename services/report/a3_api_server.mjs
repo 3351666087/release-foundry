@@ -7,6 +7,11 @@ import {
   A3StoreValidationError,
   createFixtureBackedA3Store
 } from "./a3_store.mjs";
+import {
+  authorizeA3Operation,
+  buildA3AuthContext,
+  buildA3RbacPolicy
+} from "./a3_auth_rbac_boundary.mjs";
 import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
 
 export function createA3ApiHandler(options = {}) {
@@ -32,6 +37,39 @@ export function createA3ApiHandler(options = {}) {
           storage_mode: store.storage_mode || "fixture_file",
           db_ready: true
         });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/auth/context") {
+        const authContext = buildAuthContextFromRequest(request, url);
+        return sendJson(response, 200, {
+          schema_version: "a3.auth_context_api_response.v1",
+          auth_context: authContext,
+          rbac_policy_id: buildA3RbacPolicy().policy_id,
+          sample_decisions: [
+            authorizeA3Operation("read_dashboard", authContext),
+            authorizeA3Operation("share_report", authContext),
+            authorizeA3Operation("rotate_api_key", authContext)
+          ],
+          safety: {
+            raw_actor_identity_exposed: false,
+            raw_token_allowed: false,
+            raw_cookie_allowed: false,
+            raw_api_key_allowed: false
+          }
+        });
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/auth/rbac-policy") {
+        return sendJson(response, 200, buildA3RbacPolicy());
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/auth/authorize") {
+        const body = await readJsonBody(request);
+        const authContext = buildAuthContextFromRequest(request, url, body);
+        return sendJson(response, 200, authorizeA3Operation(body.operation || body.route || "read_dashboard", authContext, {
+          requestId: body.request_id || body.requestId,
+          traceId: body.trace_id || body.traceId
+        }));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/db-contract") {
@@ -441,6 +479,21 @@ function sourceFrom(url) {
   return url.searchParams.get("source") || "mock";
 }
 
+function buildAuthContextFromRequest(request, url, body = {}) {
+  return buildA3AuthContext({
+    role: body.role || url.searchParams.get("role") || request.headers["x-a3-role"],
+    actor_id: body.actor_id || body.actorId || url.searchParams.get("actor_id") || request.headers["x-a3-actor-id"],
+    actor_hash: body.actor_hash || body.actorHash || request.headers["x-a3-actor-hash"],
+    hosted_session: body.hosted_session === true || url.searchParams.get("hosted_session") === "true",
+    service_account: body.service_account === true || request.headers["x-a3-service-account"] === "true",
+    organization_id: body.organization_id || body.organizationId || url.searchParams.get("organization_id") || request.headers["x-a3-organization-id"],
+    tenant_id: body.tenant_id || body.tenantId || url.searchParams.get("tenant_id") || request.headers["x-a3-tenant-id"],
+    workspace_id: body.workspace_id || body.workspaceId || url.searchParams.get("workspace_id") || request.headers["x-a3-workspace-id"],
+    project_id: body.project_id || body.projectId || url.searchParams.get("project_id") || request.headers["x-a3-project-id"],
+    environment_id: body.environment_id || body.environmentId || url.searchParams.get("environment_id") || request.headers["x-a3-environment-id"]
+  });
+}
+
 function reportScopeFrom(url, body = {}) {
   return {
     source: body.source || sourceFrom(url),
@@ -472,7 +525,7 @@ function sendJson(response, statusCode, payload) {
     "cache-control": "no-store",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,idempotency-key,x-idempotency-key"
+    "access-control-allow-headers": "content-type,idempotency-key,x-idempotency-key,x-a3-role,x-a3-actor-id,x-a3-actor-hash,x-a3-organization-id,x-a3-tenant-id,x-a3-workspace-id,x-a3-project-id,x-a3-environment-id,x-a3-service-account"
   });
   response.end(body);
 }

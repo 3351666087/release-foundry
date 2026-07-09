@@ -39,7 +39,7 @@ test("A3 artifact registry turns reports and control-plane state into audit entr
   assert.equal(registry.schema_version, "a3.artifact_registry.v1");
   assert.equal(registry.registry_status, "evidence_available");
   assert.equal(registry.summary.report_artifact_count, 5);
-  assert.equal(registry.summary.control_artifact_count, 8);
+  assert.equal(registry.summary.control_artifact_count, 9);
   assert.equal(registry.summary.billable_meter_count >= 4, true);
   assert.ok(registry.entries.some((item) => item.artifact_type === "hosted_report" && item.lifecycle_state === "shared"));
   assert.ok(registry.entries.some((item) => item.artifact_type === "release_evidence_summary"));
@@ -65,7 +65,7 @@ test("A3 artifact registry keeps empty projects honest", () => {
 
   assert.equal(registry.registry_status, "evidence_available");
   assert.equal(registry.summary.report_artifact_count, 0);
-  assert.equal(registry.summary.control_artifact_count, 7);
+  assert.equal(registry.summary.control_artifact_count, 8);
   assert.ok(registry.next_actions.some((item) => item.includes("Create a hosted report")));
   assert.ok(registry.entries.every((item) => item.raw_secret_values_allowed === false));
 });

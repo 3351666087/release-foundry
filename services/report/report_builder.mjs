@@ -4178,6 +4178,7 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
   const actions = Array.isArray(saasAdminFixture.actions) ? saasAdminFixture.actions : [];
   const actionRequests = Array.isArray(saasAdminFixture.action_requests) ? saasAdminFixture.action_requests : [];
   const actionRequestSummary = saasAdminFixture.action_request_summary || {};
+  const authBoundary = saasAdminFixture.auth_boundary || {};
 
   return {
     schema_version: "a3.saas_admin_export.v1",
@@ -4195,6 +4196,16 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       session_storage: login.session_storage || "not_persisted",
       user_identity_redacted: login.user_identity === "[REDACTED]" || login.session?.account_email === "[REDACTED]",
       rbac_enforced_now: login.rbac_boundary?.enforced_now === true
+    },
+    auth_boundary: {
+      schema_version: authBoundary.schema_version || "unknown",
+      actor_identity_redacted: authBoundary.auth_context?.safety?.raw_actor_identity_exposed === false,
+      role: authBoundary.auth_context?.role || "unknown",
+      auth_state: authBoundary.auth_context?.auth_state || "unknown",
+      enforcement_state: authBoundary.enforcement_state || "unknown",
+      operation_count: authBoundary.operation_count || 0,
+      denied_state_count: (authBoundary.sample_decisions || []).filter((item) => item.allowed !== true).length,
+      real_cloud_mutations_performed: (authBoundary.sample_decisions || []).some((item) => item.safety?.real_cloud_mutation_performed === true)
     },
     team: {
       status: team.status || "unknown",
