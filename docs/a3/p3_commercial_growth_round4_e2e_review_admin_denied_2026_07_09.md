@@ -77,7 +77,7 @@ Implemented in this round: 1 through 9, plus supporting evidence for 10 through
 - Audit: waiver, approval, admin request, share, revoke, and denied-page states
   are now covered through browser-level tests.
 - Secret safety: the tests assert that admin/review output does not leak
-  `owner@example.com` or `teammate@example.com`; no real secret values are read.
+  fixture owner or teammate identity placeholders; no real secret values are read.
 
 ## A1 / A2 Calibration
 

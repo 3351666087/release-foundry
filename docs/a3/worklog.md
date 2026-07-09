@@ -4475,3 +4475,45 @@ Result:
 
 - No `.env.local`, API key, token, cookie, email, raw signed URL, account value, or private credential was read or committed.
 - No live Ashr/GitHub/cloud/billing/auth mutation was performed.
+
+## 2026-07-09 - PR #25 Export Firewall CI Redaction Fix
+
+### Goal
+
+Fix the PR #25 GitHub Actions failure in `A3 dashboard/report/evidence contracts`
+without changing A1/A2 semantics or A3 runtime behavior.
+
+### Work completed
+
+- Replaced email-shaped fixture placeholders in the Round 4 evidence note with
+  redacted identity wording.
+- Confirmed the failure was documentation-only safety scanning, not a dashboard,
+  billing, review workflow, or A1/A2 contract regression.
+
+### Verification
+
+```text
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Result:
+
+- Export firewall passed.
+- Hygiene CL passed with no findings.
+- Whitespace diff check passed.
+
+### A1/A2 calibration
+
+- A1 runner, SDK, trace, observation, artifact, usage, and auth semantics were
+  not changed.
+- A2 judge, grade, score, pass/fail, release-gate, and failure-taxonomy
+  semantics were not changed.
+- This change only keeps A3 generated documentation within the repository export
+  safety boundary.
+
+### Safety boundary
+
+- No `.env.local`, API key, token, cookie, real account value, raw signed URL, or
+  billing provider secret was read or committed.

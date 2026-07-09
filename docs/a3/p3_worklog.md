@@ -3252,3 +3252,30 @@ Safety boundary:
 - No real billing, auth, team, API-key, Trust, database, object storage, or cloud mutation.
 - Hosted report share/revoke runs only against the local fixture-backed A3 API store.
 - One subagent accidentally wrote mobile draft files outside the repository root. Those exact accidental outer-workspace files and empty folders were removed after verifying their absolute paths were outside `ashr-codex-factory`; the correct in-repo mobile contract was kept.
+
+## 2026-07-09 - PR #25 Export Firewall CI Redaction Fix
+
+Fixed the GitHub Actions `A3 dashboard/report/evidence contracts` failure by
+removing email-shaped fixture placeholders from the Round 4 evidence document.
+The failure was caused by the repository export firewall treating fixture
+identity text as an unsafe account value. No runtime code, A1 runner behavior, or
+A2 judge semantics changed.
+
+Verification:
+
+```text
+node --test tests/a3/export_firewall_generated_artifacts.test.mjs
+python scripts\cl_guard.py hygiene
+git diff --check
+```
+
+Results:
+
+- Export firewall passed.
+- Hygiene CL passed with no findings.
+- Diff whitespace check passed.
+
+Safety:
+
+- No `.env.local`, Ashr API key, GitHub token, cookie, real account value, raw
+  signed URL, or payment secret was read or committed.
