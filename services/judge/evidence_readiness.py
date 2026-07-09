@@ -14,6 +14,7 @@ DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX = Path("docs/a1/evidence/official_api_mut
 DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY = Path(
     "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json"
 )
+DEFAULT_A1_BILLING_REPLAY_FIXTURE = Path("docs/a1/evidence/billing_replay_fixture_round35.json")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -51,6 +52,7 @@ def build_evidence_readiness_report(
     a1_official_api_readonly_manifest_path: str | Path = DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST,
     a1_official_api_mutating_index_path: str | Path = DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX,
     a1_official_api_paid_media_summary_path: str | Path = DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY,
+    a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -91,6 +93,7 @@ def build_evidence_readiness_report(
     a1_official_api_paid_media_summary = _a1_official_api_paid_media_summary(
         a1_official_api_paid_media_summary_path
     )
+    a1_billing_replay_evidence = _a1_billing_replay_evidence_summary(a1_billing_replay_fixture_path)
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
@@ -140,6 +143,7 @@ def build_evidence_readiness_report(
         "a1_official_api_readonly_manifest": a1_official_api_readonly_manifest,
         "a1_official_api_mutating_index": a1_official_api_mutating_index,
         "a1_official_api_paid_media_summary": a1_official_api_paid_media_summary,
+        "a1_billing_replay_evidence": a1_billing_replay_evidence,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -612,6 +616,95 @@ def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_billing_replay_evidence_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_billing_replay_evidence(
+            target,
+            "A1 billing replay fixture is not available on this branch yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_billing_replay_evidence(
+            target,
+            "A1 billing replay fixture is not a JSON object.",
+        )
+
+    billing = payload.get("billing_evidence") if isinstance(payload.get("billing_evidence"), dict) else {}
+    public_ledger = payload.get("public_ledger") if isinstance(payload.get("public_ledger"), dict) else {}
+    accepted = (
+        payload.get("accepted_provider_event")
+        if isinstance(payload.get("accepted_provider_event"), dict)
+        else {}
+    )
+    duplicate = (
+        payload.get("duplicate_provider_event")
+        if isinstance(payload.get("duplicate_provider_event"), dict)
+        else {}
+    )
+    raw_payload_included = _contains_true_flag(payload, {"raw_payload_included"})
+    secret_value_present = _contains_true_flag(payload, {"secret_value_present"})
+    raw_secret_present = _contains_true_flag(payload, {"raw_secret_present"})
+    public_safe = not raw_payload_included and not secret_value_present and not raw_secret_present
+    ledger_event_count = _int_value(billing.get("ledger_event_count"))
+    provider_event_count = _int_value(billing.get("provider_event_count"))
+    usage_units = _int_value(billing.get("usage_units"))
+    totals_by_currency = _currency_minor_totals(billing.get("totals_by_currency_minor"))
+    duplicate_idempotency_proven = (
+        str(accepted.get("ledger_event_id", "")) != ""
+        and accepted.get("ledger_event_id") == duplicate.get("ledger_event_id")
+        and str(accepted.get("ingest_status", "")) == "accepted"
+        and str(duplicate.get("ingest_status", "")) == "duplicate"
+        and _int_value(accepted.get("ledger_mutation_count")) >= 1
+        and _int_value(duplicate.get("ledger_mutation_count")) == 0
+    )
+    ready = bool(
+        public_safe
+        and ledger_event_count > 0
+        and provider_event_count > 0
+        and usage_units >= 0
+        and duplicate_idempotency_proven
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "billing_evidence_schema_version": str(billing.get("schema_version", "")),
+        "tenant_id": str(billing.get("tenant_id", "")),
+        "project_id": str(billing.get("project_id", "")),
+        "provider": str(accepted.get("provider") or public_ledger.get("provider") or ""),
+        "mode": str(accepted.get("mode") or public_ledger.get("mode") or ""),
+        "ledger_event_count": ledger_event_count,
+        "provider_event_count": provider_event_count,
+        "usage_units": usage_units,
+        "totals_by_currency_minor": totals_by_currency,
+        "totals_currencies": sorted(totals_by_currency),
+        "billing_snapshot_sha256_present": bool(str(billing.get("billing_snapshot_sha256", "")).strip()),
+        "accepted_ingest_status": str(accepted.get("ingest_status", "")),
+        "duplicate_ingest_status": str(duplicate.get("ingest_status", "")),
+        "accepted_ledger_mutation_count": _int_value(accepted.get("ledger_mutation_count")),
+        "duplicate_ledger_mutation_count": _int_value(duplicate.get("ledger_mutation_count")),
+        "duplicate_idempotency_proven": duplicate_idempotency_proven,
+        "raw_payload_included": raw_payload_included,
+        "secret_value_present": secret_value_present,
+        "raw_secret_present": raw_secret_present,
+        "public_safe": public_safe,
+        "ready_for_a2_evidence_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "billing_usage_policy_context": ready,
+            "can_support_cost_policy_calibration": ready and usage_units > 0,
+            "should_add_billing_abuse_cases": ready,
+            "must_not_mark_c3_from_billing_context": True,
+        },
+        "notes": [
+            "A1 billing replay fixture is public-safe usage and provider-ledger evidence for A2 cost/risk policy context.",
+            "It does not count as reviewed ashr_grading rows for C3.",
+        ],
+    }
+
+
 def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -685,6 +778,46 @@ def _missing_paid_media_summary(path: Path, reason: str) -> dict[str, Any]:
     }
 
 
+def _missing_billing_replay_evidence(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "billing_evidence_schema_version": "",
+        "tenant_id": "",
+        "project_id": "",
+        "provider": "",
+        "mode": "",
+        "ledger_event_count": 0,
+        "provider_event_count": 0,
+        "usage_units": 0,
+        "totals_by_currency_minor": {},
+        "totals_currencies": [],
+        "billing_snapshot_sha256_present": False,
+        "accepted_ingest_status": "",
+        "duplicate_ingest_status": "",
+        "accepted_ledger_mutation_count": 0,
+        "duplicate_ledger_mutation_count": 0,
+        "duplicate_idempotency_proven": False,
+        "raw_payload_included": False,
+        "secret_value_present": False,
+        "raw_secret_present": False,
+        "public_safe": False,
+        "ready_for_a2_evidence_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "billing_usage_policy_context": False,
+            "can_support_cost_policy_calibration": False,
+            "should_add_billing_abuse_cases": False,
+            "must_not_mark_c3_from_billing_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as billing usage and idempotency policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
 def _official_manifest_public_safe(public_safety: dict[str, Any]) -> bool:
     return (
         public_safety.get("raw_key_material_present") is False
@@ -751,6 +884,28 @@ def _int_value(value: Any) -> int:
     if isinstance(value, int):
         return value
     return 0
+
+
+def _currency_minor_totals(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(currency).lower(): _int_value(amount)
+        for currency, amount in value.items()
+        if str(currency).strip()
+    }
+
+
+def _contains_true_flag(value: Any, flag_names: set[str]) -> bool:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if str(key) in flag_names and nested is True:
+                return True
+            if _contains_true_flag(nested, flag_names):
+                return True
+    elif isinstance(value, list):
+        return any(_contains_true_flag(item, flag_names) for item in value)
+    return False
 
 
 def _quota_gate_summary(records: list[dict[str, Any]]) -> dict[str, Any]:

@@ -455,6 +455,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_official_api_readonly_manifest", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_mutating_index", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_paid_media_summary", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -500,6 +501,17 @@ class A2ContractTests(unittest.TestCase):
             set(evidence_readiness["a1_official_api_paid_media_summary"]["guardrails"]),
         )
         self.assertIn("paid_media_requires_allow_paid_media", paid_media_guardrail_required)
+        billing_replay_required = set(evidence_readiness_schema["$defs"]["a1_billing_replay_evidence"]["required"])
+        self.assertLessEqual(
+            billing_replay_required,
+            set(evidence_readiness["a1_billing_replay_evidence"]),
+        )
+        self.assertIn("duplicate_idempotency_proven", billing_replay_required)
+        self.assertIn("c3_grading_ready", billing_replay_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_replay_evidence"]["$ref"],
+            "#/$defs/a1_billing_replay_evidence",
+        )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
@@ -1362,6 +1374,18 @@ class A2ContractTests(unittest.TestCase):
         self.assertFalse(paid_media_summary["safe_for_paid_media_claims"])
         self.assertFalse(paid_media_summary["c3_grading_ready"])
         self.assertFalse(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
+        billing_replay = report["a1_billing_replay_evidence"]
+        self.assertFalse(billing_replay["available"])
+        self.assertEqual(
+            billing_replay["path"],
+            "docs/a1/evidence/billing_replay_fixture_round35.json",
+        )
+        self.assertFalse(billing_replay["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_replay["duplicate_idempotency_proven"])
+        self.assertFalse(billing_replay["c3_grading_ready"])
+        self.assertTrue(
+            billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -1633,6 +1657,128 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(paid_media["guardrails"]["paid_media_requires_allow_paid_media"])
         self.assertTrue(paid_media["guardrails"]["mutating_execute_requires_quota_gate"])
         self.assertTrue(paid_media["guardrails"]["full_record_stdout_blocked"])
+
+    def test_evidence_readiness_consumes_a1_billing_replay_fixture(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        fixture = {
+            "schema_version": "ashr.clone.billing_replay_fixture.v1",
+            "accepted_provider_event": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "event_id": "evt_fixture_invoice_paid",
+                "event_type": "invoice.paid",
+                "ingest_status": "accepted",
+                "ledger_event_id": "ble_fixture_invoice_paid",
+                "ledger_event_type": "invoice_paid",
+                "ledger_mutation_count": 1,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "duplicate_provider_event": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "event_id": "evt_fixture_invoice_paid",
+                "event_type": "invoice.paid",
+                "ingest_status": "duplicate",
+                "ledger_event_id": "ble_fixture_invoice_paid",
+                "ledger_event_type": "invoice_paid",
+                "ledger_mutation_count": 0,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "billing_evidence": {
+                "schema_version": "ashr.clone.billing_evidence_snapshot.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "ledger_event_count": 2,
+                "provider_event_count": 1,
+                "usage_units": 14,
+                "totals_by_currency_minor": {"usd": 12345},
+                "billing_snapshot_sha256": "a" * 64,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "public_ledger": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "ledger_event_count": 2,
+                "provider_event_count": 1,
+                "usage_units": 14,
+                "totals_by_currency_minor": {"usd": 12345},
+                "raw_payload_included": False,
+                "secret_value_present": False,
+                "billing_accounts": [
+                    {
+                        "tenant_id": "tenant_fixture",
+                        "project_id": "project_fixture",
+                        "provider": "stripe",
+                        "mode": "test",
+                        "raw_payload_included": False,
+                        "raw_secret_present": False,
+                    }
+                ],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fixture_path = Path(tmp_dir) / "billing_replay_fixture_round35.json"
+            fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_replay_fixture_path=fixture_path,
+            )
+
+        billing_replay = report["a1_billing_replay_evidence"]
+        self.assertTrue(billing_replay["available"])
+        self.assertEqual(billing_replay["schema_version"], "ashr.clone.billing_replay_fixture.v1")
+        self.assertEqual(
+            billing_replay["billing_evidence_schema_version"],
+            "ashr.clone.billing_evidence_snapshot.v1",
+        )
+        self.assertEqual(billing_replay["tenant_id"], "tenant_fixture")
+        self.assertEqual(billing_replay["project_id"], "project_fixture")
+        self.assertEqual(billing_replay["provider"], "stripe")
+        self.assertEqual(billing_replay["mode"], "test")
+        self.assertEqual(billing_replay["ledger_event_count"], 2)
+        self.assertEqual(billing_replay["provider_event_count"], 1)
+        self.assertEqual(billing_replay["usage_units"], 14)
+        self.assertEqual(billing_replay["totals_by_currency_minor"], {"usd": 12345})
+        self.assertEqual(billing_replay["totals_currencies"], ["usd"])
+        self.assertTrue(billing_replay["billing_snapshot_sha256_present"])
+        self.assertEqual(billing_replay["accepted_ingest_status"], "accepted")
+        self.assertEqual(billing_replay["duplicate_ingest_status"], "duplicate")
+        self.assertEqual(billing_replay["accepted_ledger_mutation_count"], 1)
+        self.assertEqual(billing_replay["duplicate_ledger_mutation_count"], 0)
+        self.assertTrue(billing_replay["duplicate_idempotency_proven"])
+        self.assertFalse(billing_replay["raw_payload_included"])
+        self.assertFalse(billing_replay["secret_value_present"])
+        self.assertFalse(billing_replay["raw_secret_present"])
+        self.assertTrue(billing_replay["public_safe"])
+        self.assertTrue(billing_replay["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_replay["c3_grading_ready"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["billing_usage_policy_context"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["can_support_cost_policy_calibration"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["should_add_billing_abuse_cases"])
+        self.assertTrue(
+            billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
