@@ -1,0 +1,18 @@
+{
+  "name": "@ashr-clone/a3-mobile",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A3 React Native / Expo client surface contract for release approval alerts.",
+  "main": "src/release-intelligence-contract.ts",
+  "scripts": {
+    "contract:test": "node --test ../../tests/a3/a3_mobile_expo_client_surface.test.mjs"
+  },
+  "dependencies": {
+    "expo": "latest",
+    "react": "latest",
+    "react-native": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest"
+  }
+}

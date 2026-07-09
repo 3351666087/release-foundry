@@ -521,6 +521,14 @@
 - [x] Classify 20+ growth points with A1/A2/A3 evidence bindings, explicit gaps, and API/DB/event/artifact surfaces.
 - [x] Add executable Playwright TS E2E coverage for dashboard, report, release evidence, review workflow, SaaS admin, enterprise readiness, and A1/A2 contract visibility.
 - [x] Save Playwright dashboard screenshot evidence to `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`.
+- [x] Mount the existing A3 API handler into the Playwright E2E server for API-backed dashboard tests.
+- [x] Add API-backed Playwright E2E for `source=api-mock`.
+- [x] Add hosted report create/revoke Playwright E2E through local A3 API routes.
+- [x] Document A3 Commercial Growth Round 3 with 20 growth points and A1/A2 compatibility notes.
+- [x] Add Tailwind product-system scaffold with A3 content globs, semantic tokens, PostCSS readiness, documentation, and tests.
+- [x] Add React Native / Expo mobile release approval client-surface scaffold, documentation, and tests.
+- [x] Add WeChat mini program release approval / incident alert client-surface scaffold, documentation, and tests.
+- [x] Reduce commercial CL advisories to 0 while keeping blocker count at 0.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 
@@ -549,5 +557,6 @@
 - [x] Verified `npm.cmd run test:e2e`: 4 passed.
 - [x] Captured screenshot evidence under `docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png`.
 - [x] Documented PowerShell `.cmd` workaround and browser-install failure mode in `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`.
-- [ ] Add API-backed `api-mock` E2E with `services/report/a3_api_server.mjs`.
-- [ ] Add hosted report share/revoke and admin action guardrail E2E.
+- [x] Add API-backed `api-mock` E2E with `services/report/a3_api_server.mjs`.
+- [x] Add hosted report share/revoke E2E.
+- [ ] Add admin action guardrail E2E.

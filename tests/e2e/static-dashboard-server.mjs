@@ -3,10 +3,13 @@ import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createA3ApiHandler } from "../../services/report/a3_api_server.mjs";
+
 const workspaceRoot = resolve(process.cwd());
 const fallbackRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const root = workspaceRoot.endsWith("ashr-codex-factory") ? workspaceRoot : fallbackRoot;
 const port = parsePort(process.argv, process.env.A3_DASHBOARD_E2E_PORT || "4173");
+const apiHandler = createA3ApiHandler({ repoRoot: root });
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -26,6 +29,17 @@ const server = createServer((request, response) => {
     const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
     if (requestUrl.pathname === "/__health") {
       sendText(response, 200, "ok");
+      return;
+    }
+
+    if (isA3ApiPath(requestUrl.pathname)) {
+      apiHandler(request, response).catch((error) => {
+        if (!response.headersSent) {
+          sendText(response, 500, "A3 API handler error");
+        } else {
+          response.destroy(error);
+        }
+      });
       return;
     }
 
@@ -72,6 +86,12 @@ function resolveRequestPath(pathname) {
   const decoded = decodeURIComponent(pathname);
   const withoutLeadingSlash = decoded.replace(/^\/+/, "");
   return resolve(root, normalize(withoutLeadingSlash || "apps/dashboard/index.html"));
+}
+
+function isA3ApiPath(pathname) {
+  return pathname.startsWith("/api/a3/")
+    || pathname.startsWith("/reports/")
+    || pathname.startsWith("/r/");
 }
 
 function sendFile(response, filePath) {

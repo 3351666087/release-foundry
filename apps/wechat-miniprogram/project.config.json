@@ -1,0 +1,31 @@
+{
+  "description": "A3 WeChat Mini Program client surface for release approval and incident alert shell.",
+  "appid": "touristappid",
+  "projectname": "ashr-a3-wechat-client-surface",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": false,
+    "coverView": true
+  },
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "Release Approval",
+          "pathName": "pages/release-approval/index",
+          "query": "releaseId=local-mock-commercial-gate&tenantId=org-local"
+        },
+        {
+          "name": "Incident Alert",
+          "pathName": "pages/incident-alert/index",
+          "query": "incidentId=incident-local-risk&releaseId=local-mock-commercial-gate"
+        }
+      ]
+    }
+  }
+}

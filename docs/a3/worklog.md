@@ -4250,3 +4250,47 @@ Continue A3 commercial growth after PR #23 by consuming newer A2 release evidenc
 - No live Ashr API call.
 - No hosted auth, billing, team, API-key, Trust, database, object storage, or cloud mutation.
 - A2 private evidence refs remain named anchors only; raw private payloads were not read.
+
+## 2026-07-09 - API-Backed Playwright E2E Bridge
+
+### Goal
+
+Advance A3 from static dashboard browser proof toward the strategy bus requirement: `static -> API-backed`, `report export -> shareable hosted report`, and A1/A2-visible commercial workflow evidence.
+
+### Work completed
+
+- Mounted `services/report/a3_api_server.mjs` into the local Playwright dashboard server.
+- Added API-backed Playwright E2E for `apps/dashboard/index.html?source=api-mock`.
+- Verified browser-visible API/DB surfaces, SaaS Admin shell, A1 trace references, A2 judge evidence, Report Center, and hosted report lifecycle.
+- Exercised hosted report create/revoke through local A3 API routes.
+- Added Tailwind product-system config, PostCSS readiness, docs, and tests.
+- Added React Native / Expo mobile release approval client-surface contract, docs, and tests.
+- Added WeChat mini program release approval / incident alert client-surface contract, docs, and tests.
+- Added `docs/a3/p3_commercial_growth_round3_execution_2026_07_09.md` with 20 growth points.
+- Updated Playwright evidence notes and acceptance checklist.
+
+### Verification
+
+```text
+node --check tests/e2e/static-dashboard-server.mjs
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+node --test tests/a3/tailwind_boundary_contract.test.mjs tests/a3/a3_wechat_mini_program_client_surface.test.mjs tests/a3/a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+```
+
+Result:
+
+- API-backed Playwright E2E passed: 2 pass, 0 fail.
+- Client/design-surface contract tests passed: 16 pass, 0 fail.
+- Commercial CL passed with 0 blockers and 0 advisories.
+
+### A1/A2 calibration
+
+- A1 runner logic was not changed.
+- A2 judge semantics were not changed.
+- A3 now proves in a browser that API-backed mode still exposes A1 import/trace and A2 import/judge evidence.
+
+### Safety boundary
+
+- No `.env.local`, API key, token, cookie, email, raw signed URL, account value, or private credential was read or committed.
+- No live Ashr/GitHub/cloud/billing/auth mutation was performed.

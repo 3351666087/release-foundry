@@ -2970,3 +2970,68 @@ Safety boundary:
 Current interpretation:
 
 This round turns A3 from "dashboard with many panels" toward "testable commercial product surface." The important movement is executable browser proof plus stronger A2 release evidence in exports plus a growth manifest that forces future work to name evidence, contracts, tenant/RBAC/usage/audit impact, and commercial value.
+
+## 2026-07-09 - Commercial Growth Round 3 API-Backed E2E Start
+
+Continued from PR #24 / `codex/a3-commercial-growth-round2`. Opening checks confirmed the local worktree was clean and PR #24 remained clean on GitHub. A retry `git fetch origin` hit a transient GitHub HTTPS reset, so this round avoided rebasing or overwriting remote state and continued from the already pushed A3 branch.
+
+Implemented:
+
+- Mounted the existing A3 API handler inside the Playwright E2E static server:
+  - `tests/e2e/static-dashboard-server.mjs`
+- Added API-backed browser coverage:
+  - `tests/e2e/a3-dashboard-api-backed.spec.ts`
+- Added Tailwind product-system contract surface:
+  - `tailwind.config.ts`
+  - `postcss.config.mjs`
+  - `tests/a3/tailwind_boundary_contract.test.mjs`
+  - `docs/a3/p3_tailwind_product_system_contract_2026_07_09.md`
+- Added Expo mobile client-surface contract:
+  - `apps/mobile/package.json`
+  - `apps/mobile/app.json`
+  - `apps/mobile/src/release-intelligence-contract.ts`
+  - `tests/a3/a3_mobile_expo_client_surface.test.mjs`
+  - `docs/a3/p3_mobile_expo_client_surface_2026_07_09.md`
+- Added WeChat mini program client-surface contract:
+  - `apps/wechat-miniprogram/project.config.json`
+  - `apps/wechat-miniprogram/pages/release-approval/index.*`
+  - `apps/wechat-miniprogram/pages/incident-alert/index.*`
+  - `tests/a3/a3_wechat_mini_program_client_surface.test.mjs`
+  - `docs/a3/p3_wechat_mini_program_client_surface_2026_07_09.md`
+- Added Round 3 execution evidence:
+  - `docs/a3/p3_commercial_growth_round3_execution_2026_07_09.md`
+- Updated Playwright growth notes:
+  - `docs/a3/p3_playwright_e2e_growth_2026_07_09.md`
+
+Verification:
+
+```text
+node --check tests/e2e/static-dashboard-server.mjs
+npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts
+node --test tests/a3/tailwind_boundary_contract.test.mjs tests/a3/a3_wechat_mini_program_client_surface.test.mjs tests/a3/a3_mobile_expo_client_surface.test.mjs
+python scripts\cl_guard.py commercial
+```
+
+Results:
+
+- Static/API E2E server syntax check passed.
+- API-backed Playwright E2E passed: 2 pass, 0 fail.
+- Client/design-surface contract tests passed: 16 pass, 0 fail.
+- Commercial CL passed with 0 blockers and 0 advisories.
+- Windows backslash path invocation did not match the Playwright spec; the forward-slash invocation succeeded.
+
+A1/A2 calibration:
+
+- A1 runner, trace, and tool-call semantics were not changed.
+- A2 judge, grade, release-gate, and failure taxonomy semantics were not changed.
+- API-backed dashboard E2E still requires visible A1 import surfaces, A1 trace references, A2 import surfaces, and A2 judge evidence.
+
+Safety boundary:
+
+- No `.env.local` read.
+- No Ashr API key, GitHub token, cookie, email, raw signed URL, or account value read or written.
+- No live Ashr API call.
+- No live GitHub mutation.
+- No real billing, auth, team, API-key, Trust, database, object storage, or cloud mutation.
+- Hosted report share/revoke runs only against the local fixture-backed A3 API store.
+- One subagent accidentally wrote mobile draft files outside the repository root. Those exact accidental outer-workspace files and empty folders were removed after verifying their absolute paths were outside `ashr-codex-factory`; the correct in-repo mobile contract was kept.

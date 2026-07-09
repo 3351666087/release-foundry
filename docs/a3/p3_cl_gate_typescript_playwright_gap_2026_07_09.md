@@ -2,6 +2,14 @@
 
 Role: UI/TS/Playwright Explorer for A3.
 
+Round 3 update:
+
+- Playwright TS E2E now exists at root level and covers static official-demo plus API-backed dashboard/report lifecycle.
+- `tailwind.config.ts` and `postcss.config.mjs` now exist with A3 product-system contract tests.
+- `apps/mobile/package.json` now exists as the React Native / Expo release approval client-surface contract.
+- `apps/wechat-miniprogram/project.config.json` now exists as the WeChat mini program release approval / incident alert client-surface contract.
+- `python scripts\cl_guard.py commercial` now reports 0 blockers and 0 advisories in this branch.
+
 Scope: documentation artifact only. This pass inspected `bb09c81`, with `HEAD`, local `main`, `origin/main`, and `FETCH_HEAD` all aligned to the same commit after a retry fetch of `origin main`.
 
 Safety boundary:

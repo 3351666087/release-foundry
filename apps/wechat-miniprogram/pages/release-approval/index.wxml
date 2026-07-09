@@ -1,0 +1,19 @@
+<view class="page">
+  <view class="eyebrow">A3 WeChat Mini Program</view>
+  <view class="title">{{pageTitle}}</view>
+  <view class="section">
+    <text class="label">Release</text>
+    <text class="value">{{releaseId}}</text>
+  </view>
+  <view class="section">
+    <text class="label">Approval state</text>
+    <text class="value">{{approvalState}}</text>
+  </view>
+  <view class="section">
+    <text class="label">Evidence feeds</text>
+    <view wx:for="{{evidenceFeeds}}" wx:key="*this" class="row">{{item}}</view>
+  </view>
+  <view class="section">
+    <text class="guardrail">{{guardrailSummary}}</text>
+  </view>
+</view>
