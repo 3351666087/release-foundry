@@ -454,6 +454,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_readonly_manifest", evidence_readiness_schema["required"])
         self.assertIn("a1_official_api_mutating_index", evidence_readiness_schema["required"])
+        self.assertIn("a1_official_api_paid_media_summary", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -486,6 +487,19 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertIn("mutating_step_count", mutating_index_required)
         self.assertIn("c3_grading_ready", mutating_index_required)
+        paid_media_required = set(evidence_readiness_schema["$defs"]["a1_official_api_paid_media_summary"]["required"])
+        self.assertLessEqual(
+            paid_media_required,
+            set(evidence_readiness["a1_official_api_paid_media_summary"]),
+        )
+        self.assertIn("safe_for_paid_media_claims", paid_media_required)
+        self.assertIn("c3_grading_ready", paid_media_required)
+        paid_media_guardrail_required = set(evidence_readiness_schema["$defs"]["paid_media_guardrails"]["required"])
+        self.assertLessEqual(
+            paid_media_guardrail_required,
+            set(evidence_readiness["a1_official_api_paid_media_summary"]["guardrails"]),
+        )
+        self.assertIn("paid_media_requires_allow_paid_media", paid_media_guardrail_required)
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
@@ -1338,6 +1352,16 @@ class A2ContractTests(unittest.TestCase):
         )
         self.assertFalse(mutating_index["ready_for_a2_evidence_context"])
         self.assertFalse(mutating_index["c3_grading_ready"])
+        paid_media_summary = report["a1_official_api_paid_media_summary"]
+        self.assertFalse(paid_media_summary["available"])
+        self.assertEqual(
+            paid_media_summary["path"],
+            "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
+        )
+        self.assertFalse(paid_media_summary["ready_for_a2_evidence_context"])
+        self.assertFalse(paid_media_summary["safe_for_paid_media_claims"])
+        self.assertFalse(paid_media_summary["c3_grading_ready"])
+        self.assertFalse(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -1502,6 +1526,113 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(mutating_index["mutating_step_ids"], ["create-request-image", "create-request-text"])
         self.assertEqual(mutating_index["observed_error_kinds"], ["api", "quota"])
         self.assertEqual(mutating_index["status_counts"], {"partial": 2})
+
+    def test_evidence_readiness_consumes_a1_paid_media_manifest_summary(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        summary = {
+            "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+            "status": "partial",
+            "mode": "small-batch",
+            "source_private_manifest_present": True,
+            "guardrails": {
+                "execute_requires_small_batch": True,
+                "mutating_execute_requires_quota_gate": True,
+                "mutating_requires_include_mutating": True,
+                "paid_media_requires_allow_paid_media": True,
+                "quota_gate_present": True,
+                "raw_records_private": True,
+                "output_policy": {
+                    "full_record_stdout_blocked": True,
+                    "output_is_private": True,
+                    "private_output_required": True,
+                },
+            },
+            "public_safety": {
+                "raw_key_material_present": False,
+                "header_values_included": False,
+                "raw_payload_values_included": False,
+                "private_payload_contents_present": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "redacted_summary_fields_only": True,
+            },
+            "summary": {
+                "read_steps": 5,
+                "mutating_steps": 1,
+                "ok_or_planned_steps": 5,
+                "error_steps": 1,
+                "quota_block_count": 1,
+                "estimated_calls": 17,
+                "modalities": ["text"],
+                "total_steps": 6,
+            },
+            "step_summaries": [
+                {
+                    "step_id": "init",
+                    "function": "init",
+                    "kind": "read",
+                    "status": "ok",
+                    "status_code": 200,
+                    "quota_blocked": False,
+                },
+                {
+                    "step_id": "list-requests",
+                    "function": "list_requests",
+                    "kind": "read",
+                    "status": "ok",
+                    "status_code": 200,
+                    "quota_blocked": False,
+                },
+                {
+                    "step_id": "create-request-text",
+                    "function": "create_request",
+                    "kind": "mutate",
+                    "modality": "text",
+                    "status": "error",
+                    "status_code": 200,
+                    "quota_blocked": True,
+                    "quota_remaining_present": True,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "official_api_paid_media_summary_20260709_185014.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_official_api_paid_media_summary_path=summary_path,
+            )
+
+        paid_media = report["a1_official_api_paid_media_summary"]
+        self.assertTrue(paid_media["available"])
+        self.assertTrue(paid_media["public_safe"])
+        self.assertTrue(paid_media["redacted_summary_fields_only"])
+        self.assertFalse(paid_media["raw_payload_values_included"])
+        self.assertTrue(paid_media["ready_for_a2_evidence_context"])
+        self.assertFalse(paid_media["safe_for_paid_media_claims"])
+        self.assertFalse(paid_media["c3_grading_ready"])
+        self.assertEqual(paid_media["status"], "partial")
+        self.assertEqual(paid_media["mode"], "small-batch")
+        self.assertEqual(paid_media["estimated_call_count"], 17)
+        self.assertEqual(paid_media["quota_block_count"], 1)
+        self.assertEqual(paid_media["mutating_step_count"], 1)
+        self.assertEqual(paid_media["mutating_functions"], ["create_request"])
+        self.assertEqual(paid_media["mutating_modalities"], ["text"])
+        self.assertEqual(paid_media["quota_blocked_step_ids"], ["create-request-text"])
+        self.assertTrue(paid_media["quota_remaining_observed"])
+        self.assertEqual(paid_media["status_code_counts"], {"200": 3})
+        self.assertTrue(paid_media["guardrails"]["paid_media_requires_allow_paid_media"])
+        self.assertTrue(paid_media["guardrails"]["mutating_execute_requires_quota_gate"])
+        self.assertTrue(paid_media["guardrails"]["full_record_stdout_blocked"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:

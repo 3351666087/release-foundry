@@ -269,6 +269,49 @@
       "When present, A2 uses it as public quota/error behavior context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_official_api_paid_media_summary": {
+    "available": false,
+    "path": "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
+    "schema_version": "",
+    "status": "missing",
+    "mode": "",
+    "source_private_manifest_present": false,
+    "public_safe": false,
+    "redacted_summary_fields_only": false,
+    "raw_payload_values_included": false,
+    "guardrails": {
+      "execute_requires_small_batch": false,
+      "mutating_execute_requires_quota_gate": false,
+      "mutating_requires_include_mutating": false,
+      "paid_media_requires_allow_paid_media": false,
+      "quota_gate_present": false,
+      "output_is_private": false,
+      "private_output_required": false,
+      "raw_records_private": false,
+      "full_record_stdout_blocked": false
+    },
+    "total_step_count": 0,
+    "read_step_count": 0,
+    "mutating_step_count": 0,
+    "ok_or_planned_step_count": 0,
+    "error_step_count": 0,
+    "quota_block_count": 0,
+    "estimated_call_count": 0,
+    "modalities": [],
+    "step_ids": [],
+    "mutating_functions": [],
+    "mutating_modalities": [],
+    "quota_blocked_step_ids": [],
+    "quota_remaining_observed": false,
+    "status_code_counts": {},
+    "ready_for_a2_evidence_context": false,
+    "safe_for_paid_media_claims": false,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 official API paid-media manifest summary is not available yet.",
+      "When present, A2 uses it as public paid-media quota/error context, not as C3 server-side grading evidence."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",

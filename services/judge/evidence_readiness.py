@@ -11,6 +11,9 @@ DEFAULT_ASHR_CASE_MAP = Path("fixtures/a2/calibration/ashr_grading_batch_case_ma
 DEFAULT_A1_REAL_API_EVIDENCE_INDEX = Path("docs/a1/api_calibration/real_api_evidence_index.json")
 DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST = Path("docs/a1/evidence/official_api_readonly_manifest_summary.json")
 DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX = Path("docs/a1/evidence/official_api_mutating_calibration_index.json")
+DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY = Path(
+    "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json"
+)
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -47,6 +50,7 @@ def build_evidence_readiness_report(
     a1_real_api_evidence_index_path: str | Path = DEFAULT_A1_REAL_API_EVIDENCE_INDEX,
     a1_official_api_readonly_manifest_path: str | Path = DEFAULT_A1_OFFICIAL_API_READONLY_MANIFEST,
     a1_official_api_mutating_index_path: str | Path = DEFAULT_A1_OFFICIAL_API_MUTATING_INDEX,
+    a1_official_api_paid_media_summary_path: str | Path = DEFAULT_A1_OFFICIAL_API_PAID_MEDIA_SUMMARY,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -83,6 +87,9 @@ def build_evidence_readiness_report(
     )
     a1_official_api_mutating_index = _a1_official_api_mutating_index_summary(
         a1_official_api_mutating_index_path
+    )
+    a1_official_api_paid_media_summary = _a1_official_api_paid_media_summary(
+        a1_official_api_paid_media_summary_path
     )
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
@@ -132,6 +139,7 @@ def build_evidence_readiness_report(
         "a1_real_api_evidence": a1_real_api_evidence,
         "a1_official_api_readonly_manifest": a1_official_api_readonly_manifest,
         "a1_official_api_mutating_index": a1_official_api_mutating_index,
+        "a1_official_api_paid_media_summary": a1_official_api_paid_media_summary,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -515,6 +523,95 @@ def _a1_official_api_mutating_index_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_paid_media_summary(
+            target,
+            "A1 official API paid-media manifest summary is not available yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_paid_media_summary(
+            target,
+            "A1 official API paid-media manifest summary is not a JSON object.",
+        )
+
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    guardrails = payload.get("guardrails") if isinstance(payload.get("guardrails"), dict) else {}
+    output_policy = guardrails.get("output_policy") if isinstance(guardrails.get("output_policy"), dict) else {}
+    public_safety = payload.get("public_safety") if isinstance(payload.get("public_safety"), dict) else {}
+    step_summaries = [step for step in payload.get("step_summaries", []) if isinstance(step, dict)]
+    mutating_steps = [
+        step
+        for step in step_summaries
+        if step.get("kind") == "mutate" or str(step.get("function", "")).startswith("create_")
+    ]
+    quota_blocked_steps = [step for step in step_summaries if step.get("quota_blocked") is True]
+    public_safe = _official_manifest_public_safe(public_safety)
+    guardrail_summary = {
+        "execute_requires_small_batch": guardrails.get("execute_requires_small_batch") is True,
+        "mutating_execute_requires_quota_gate": guardrails.get("mutating_execute_requires_quota_gate") is True,
+        "mutating_requires_include_mutating": guardrails.get("mutating_requires_include_mutating") is True,
+        "paid_media_requires_allow_paid_media": guardrails.get("paid_media_requires_allow_paid_media") is True,
+        "quota_gate_present": guardrails.get("quota_gate_present") is True,
+        "output_is_private": output_policy.get("output_is_private") is True,
+        "private_output_required": output_policy.get("private_output_required") is True,
+        "raw_records_private": guardrails.get("raw_records_private") is True,
+        "full_record_stdout_blocked": output_policy.get("full_record_stdout_blocked") is True,
+    }
+    ready = bool(
+        public_safe
+        and guardrail_summary["quota_gate_present"]
+        and guardrail_summary["paid_media_requires_allow_paid_media"]
+        and guardrail_summary["mutating_execute_requires_quota_gate"]
+        and guardrail_summary["output_is_private"]
+    )
+    error_step_count = int(summary.get("error_steps", 0))
+    quota_block_count = int(summary.get("quota_block_count", len(quota_blocked_steps)))
+    safe_for_claims = str(payload.get("status", "")) == "ok" and error_step_count == 0 and quota_block_count == 0
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "status": str(payload.get("status", "")),
+        "mode": str(payload.get("mode", "")),
+        "source_private_manifest_present": payload.get("source_private_manifest_present") is True,
+        "public_safe": public_safe,
+        "redacted_summary_fields_only": public_safety.get("redacted_summary_fields_only") is True,
+        "raw_payload_values_included": public_safety.get("raw_payload_values_included") is True,
+        "guardrails": guardrail_summary,
+        "total_step_count": int(summary.get("total_steps", len(step_summaries))),
+        "read_step_count": int(summary.get("read_steps", 0)),
+        "mutating_step_count": int(summary.get("mutating_steps", len(mutating_steps))),
+        "ok_or_planned_step_count": int(summary.get("ok_or_planned_steps", 0)),
+        "error_step_count": error_step_count,
+        "quota_block_count": quota_block_count,
+        "estimated_call_count": int(summary.get("estimated_calls", 0)),
+        "modalities": [str(modality) for modality in summary.get("modalities", [])],
+        "step_ids": sorted(str(step.get("step_id", "")) for step in step_summaries if step.get("step_id")),
+        "mutating_functions": sorted(
+            {str(step.get("function", "")) for step in mutating_steps if step.get("function")}
+        ),
+        "mutating_modalities": sorted(
+            {str(step.get("modality", "")) for step in mutating_steps if step.get("modality")}
+        ),
+        "quota_blocked_step_ids": sorted(
+            str(step.get("step_id", "")) for step in quota_blocked_steps if step.get("step_id")
+        ),
+        "quota_remaining_observed": any(step.get("quota_remaining_present") is True for step in step_summaries),
+        "status_code_counts": _count_records(step_summaries, "status_code"),
+        "ready_for_a2_evidence_context": ready,
+        "safe_for_paid_media_claims": safe_for_claims,
+        "c3_grading_ready": False,
+        "notes": [
+            "A1 paid-media manifest summary is public-safe quota/error behavior context for mutating media calls.",
+            "Partial or quota-blocked paid-media summaries must not be treated as hosted media readiness or C3 grading evidence.",
+        ],
+    }
+
+
 def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -538,6 +635,52 @@ def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
         "notes": [
             reason,
             "When present, A2 uses it as public quota/error behavior context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_paid_media_summary(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "status": "missing",
+        "mode": "",
+        "source_private_manifest_present": False,
+        "public_safe": False,
+        "redacted_summary_fields_only": False,
+        "raw_payload_values_included": False,
+        "guardrails": {
+            "execute_requires_small_batch": False,
+            "mutating_execute_requires_quota_gate": False,
+            "mutating_requires_include_mutating": False,
+            "paid_media_requires_allow_paid_media": False,
+            "quota_gate_present": False,
+            "output_is_private": False,
+            "private_output_required": False,
+            "raw_records_private": False,
+            "full_record_stdout_blocked": False,
+        },
+        "total_step_count": 0,
+        "read_step_count": 0,
+        "mutating_step_count": 0,
+        "ok_or_planned_step_count": 0,
+        "error_step_count": 0,
+        "quota_block_count": 0,
+        "estimated_call_count": 0,
+        "modalities": [],
+        "step_ids": [],
+        "mutating_functions": [],
+        "mutating_modalities": [],
+        "quota_blocked_step_ids": [],
+        "quota_remaining_observed": False,
+        "status_code_counts": {},
+        "ready_for_a2_evidence_context": False,
+        "safe_for_paid_media_claims": False,
+        "c3_grading_ready": False,
+        "notes": [
+            reason,
+            "When present, A2 uses it as public paid-media quota/error context, not as C3 server-side grading evidence.",
         ],
     }
 
