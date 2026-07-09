@@ -14,6 +14,7 @@ from .readiness import build_commercial_readiness_report
 from .regression_replay import build_regression_replay_report
 from .result_persistence import build_result_record, build_result_persistence_manifest, write_jsonl
 from .saas_control_plane import build_saas_control_plane_report
+from .scenario_generation import build_scenario_generation_backlog
 from .scenario_selection import build_project_scenario_selection, build_scenario_selection_report
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
@@ -71,6 +72,7 @@ __all__ = [
     "build_result_record",
     "build_result_persistence_manifest",
     "build_saas_control_plane_report",
+    "build_scenario_generation_backlog",
     "build_scenario_selection_report",
     "build_sdk_parity_report",
     "build_semantic_harness_report",

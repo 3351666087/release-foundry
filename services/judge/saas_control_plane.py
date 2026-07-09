@@ -35,6 +35,7 @@ def build_saas_control_plane_report(
     result_persistence_manifest: dict[str, Any],
     release_policy_config: dict[str, Any],
     judge_version_registry: dict[str, Any] | None = None,
+    scenario_generation_backlog: dict[str, Any] | None = None,
     source_refs: dict[str, str] | None = None,
     created_at: str = DEFAULT_CREATED_AT,
     report_id: str = DEFAULT_REPORT_ID,
@@ -67,6 +68,7 @@ def build_saas_control_plane_report(
             release_gate_report=release_gate_report,
         ),
         "scenario_selection": _scenario_selection_summary(scenario_selection_report),
+        "scenario_generation": _scenario_generation_summary(scenario_generation_backlog or {}),
         "calibration": _calibration_summary(calibration_matrix),
         "result_persistence": _persistence_summary(result_persistence_manifest),
         "release_gate": _release_gate_summary(release_gate_report),
@@ -74,6 +76,7 @@ def build_saas_control_plane_report(
             grade_report=grade_report,
             coverage_report=coverage_report,
             scenario_selection_report=scenario_selection_report,
+            scenario_generation_backlog=scenario_generation_backlog or {},
             result_persistence_manifest=result_persistence_manifest,
             selected_policy=selected_policy,
             release_gate_report=release_gate_report,
@@ -88,6 +91,7 @@ def build_saas_control_plane_report(
             "result_persistence": source_refs.get("result_persistence", ""),
             "judge_versions": source_refs.get("judge_versions", ""),
             "sql_store": source_refs.get("sql_store", ""),
+            "scenario_generation": source_refs.get("scenario_generation", ""),
             "release_policy_config": source_refs.get("release_policy_config", ""),
         },
         "metadata": {
@@ -284,6 +288,40 @@ def _scenario_selection_summary(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _scenario_generation_summary(backlog: dict[str, Any]) -> dict[str, Any]:
+    candidates = [candidate for candidate in backlog.get("candidates", []) if isinstance(candidate, dict)]
+    experiments = [
+        experiment for experiment in backlog.get("policy_experiments", []) if isinstance(experiment, dict)
+    ]
+    promotion_gate = backlog.get("promotion_gate", {})
+    if not isinstance(promotion_gate, dict):
+        promotion_gate = {}
+    return {
+        "backlog_id": str(backlog.get("backlog_id", "")),
+        "candidate_count": int(backlog.get("candidate_count", len(candidates))),
+        "policy_experiment_count": int(backlog.get("policy_experiment_count", len(experiments))),
+        "candidate_ids": [
+            str(candidate.get("candidate_id", ""))
+            for candidate in candidates
+            if candidate.get("candidate_id")
+        ],
+        "target_failure_classes": sorted(
+            {
+                str(candidate.get("target_failure_class", ""))
+                for candidate in candidates
+                if candidate.get("target_failure_class")
+            }
+        ),
+        "policy_experiment_ids": [
+            str(experiment.get("experiment_id", ""))
+            for experiment in experiments
+            if experiment.get("experiment_id")
+        ],
+        "may_mutate_main_pack": promotion_gate.get("may_mutate_main_pack") is True,
+        "promotion_status": str(promotion_gate.get("status", "")),
+    }
+
+
 def _calibration_summary(matrix: dict[str, Any]) -> dict[str, Any]:
     coverage = matrix.get("source_coverage", {})
     agreements = matrix.get("agreement_summary", {})
@@ -368,6 +406,7 @@ def _a3_dashboard_contract(
     grade_report: dict[str, Any],
     coverage_report: dict[str, Any],
     scenario_selection_report: dict[str, Any],
+    scenario_generation_backlog: dict[str, Any],
     result_persistence_manifest: dict[str, Any],
     selected_policy: dict[str, Any],
     release_gate_report: dict[str, Any],
@@ -387,6 +426,7 @@ def _a3_dashboard_contract(
             "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
             "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
             "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
+            "scenarioGeneration": "fixtures/a2/results/a2_scenario_generation_backlog.json",
             "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json",
         },
         "dashboard_can_show": [
@@ -398,12 +438,14 @@ def _a3_dashboard_contract(
             "release unblock checklist owner actions",
             "public-safe persistence record counts",
             "SQL-readable eval/calibration/golden/regression history",
+            "reviewable scenario generation backlog and policy experiments",
             "calibration source coverage and live evidence gaps",
         ],
         "local_meter": {
             "grade_case_count": int(grade_report.get("total_cases", 0)),
             "scenario_count": int(coverage_report.get("scenario_count", 0)),
             "selected_scenario_count": int(scenario_selection_report.get("selected_scenario_count", 0)),
+            "scenario_generation_candidate_count": int(scenario_generation_backlog.get("candidate_count", 0)),
             "audit_record_count": int(result_persistence_manifest.get("record_count", 0)),
         },
         "selected_policy_id": str(selected_policy.get("policy_id", "")),

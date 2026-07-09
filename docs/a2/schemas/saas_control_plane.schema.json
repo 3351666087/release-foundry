@@ -12,6 +12,7 @@
     "judge_version_registry",
     "policy_config",
     "scenario_selection",
+    "scenario_generation",
     "calibration",
     "result_persistence",
     "release_gate",
@@ -174,6 +175,30 @@
         "missing_capability_axes": { "$ref": "#/$defs/string_array" },
         "missing_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
         "risk_tier_counts": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "scenario_generation": {
+      "type": "object",
+      "required": [
+        "backlog_id",
+        "candidate_count",
+        "policy_experiment_count",
+        "candidate_ids",
+        "target_failure_classes",
+        "policy_experiment_ids",
+        "may_mutate_main_pack",
+        "promotion_status"
+      ],
+      "properties": {
+        "backlog_id": { "type": "string" },
+        "candidate_count": { "type": "integer", "minimum": 0 },
+        "policy_experiment_count": { "type": "integer", "minimum": 0 },
+        "candidate_ids": { "$ref": "#/$defs/string_array" },
+        "target_failure_classes": { "$ref": "#/$defs/string_array" },
+        "policy_experiment_ids": { "$ref": "#/$defs/string_array" },
+        "may_mutate_main_pack": { "type": "boolean" },
+        "promotion_status": { "type": "string" }
       },
       "additionalProperties": true
     },
