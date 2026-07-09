@@ -106,3 +106,52 @@ Validation:
 Next:
 - Implement Go Postgres `EnqueueWorkerJob`, `LeaseWorkerJob`, heartbeat, complete, fail, and list using this table.
 - Add PLpgSQL quota ledger consume/refund before worker mutations.
+
+## 2026-07-09 - A1 durable Postgres worker lifecycle
+
+Goal:
+- Move the Go self-host backend from worker-job schema-only support to a durable queue lifecycle that can back API gateway worker routes, self-host workers, release-gate jobs, and future quota/audit enforcement without using Ashr-hosted APIs.
+
+Implemented:
+- `packages/go/ashrclone/postgres.go`: implemented Postgres `EnqueueWorkerJob`, `LeaseWorkerJob`, `HeartbeatWorkerJob`, `CompleteWorkerJob`, `FailWorkerJob`, and `ListWorkerJobs`.
+- Added worker-specific idempotency replay/insert helpers for `Envelope[WorkerJob]` while preserving existing run submit idempotency behavior.
+- Added project existence checks, expired lease normalization, `FOR UPDATE SKIP LOCKED` lease selection, row scanning with nullable lifecycle timestamps, redacted `last_error` JSONB decode/encode, result/failure hash persistence, and lease-owner validation.
+- `packages/go/ashrclone/postgres_test.go`: updated Postgres boundary tests so worker lifecycle methods are treated as implemented DB-backed operations; remaining not-implemented coverage now targets upload, trace, and artifact persistence.
+- `tests/a1/test_a1_control_plane_postgres_migration.py`: added static lifecycle assertions for atomic worker queue behavior, hash-only payload/result/error handling, idempotency helpers, and list filters.
+
+Validation:
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` in `tests/integration/go` -> passed.
+- `python -B -m pytest tests/a1/test_a1_control_plane_postgres_migration.py tests/a1/test_local_self_host_smoke_compose.py -q -p no:cacheprovider` -> 7 passed.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> 308 passed.
+- `npm test --prefix packages/ts/ashr-clone` -> 282 passed.
+- `git diff --check` -> only pre-existing A3 CRLF warnings for `docs/a3/acceptance_checklist.md` and `docs/a3/worklog.md`; no A1 whitespace errors.
+
+Real API / private evidence:
+- No official Ashr API call in this backend durability subround. No API key or desktop key file was read, printed, logged, or staged.
+
+Peer changes / impact:
+- `origin/main` and PR list were fetched before implementation. PR #21 is merged, but branch still contains later A1 commit `9c721d3`; next PR must include `9c721d3` plus this worker lifecycle implementation.
+- Existing dirty A3 EOL-only files and untracked `recon/`, `tools/` remain out of scope and must not be staged.
+
+Next 20 A1 growth points:
+1. Add live Postgres worker lifecycle tests gated by `A1_POSTGRES_TEST_DSN`.
+2. Implement durable Postgres run upload persistence.
+3. Implement durable Postgres trace ingestion persistence.
+4. Implement durable Postgres artifact manifest persistence.
+5. Add PLpgSQL quota ledger consume/refund functions and static tests.
+6. Add API-key lifecycle tables and Go routes.
+7. Enforce API-key scopes in Go middleware before worker/upload/trace/artifact mutations.
+8. Add usage ledger writes before durable mutations.
+9. Add audit hash-chain append and verify routes in Go.
+10. Add worker daemon loop that heartbeats, completes, retries, and dead-letters against Postgres.
+11. Add Docker Compose live smoke for Go API + Postgres + worker when Docker daemon is available.
+12. Add TS SDK smoke against Go Postgres backend, not only memory backend.
+13. Add Python SDK smoke against Go Postgres backend.
+14. Generate OpenAPI from Go route manifest and validate TS/Python route parity from it.
+15. Add SQL migration checksum/version ledger.
+16. Add Terraform/HCL self-host skeleton for enterprise review.
+17. Add Rust evidence bundle verifier for tamper-proof audit packets.
+18. Run official API dry-run/small-batch calibration for run lifecycle fields with public-safe summaries.
+19. Expand five-modality official API evidence packet for text/audio/file/image/video equally after quota gate review.
+20. Keep A2/A3 artifacts out of A1 commits unless a CL emergency explicitly requires otherwise.

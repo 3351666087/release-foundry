@@ -38,6 +38,30 @@ REQUIRED_POLICIES = (
     "ashr_worker_jobs_tenant_isolation",
 )
 
+REQUIRED_WORKER_JOB_COLUMNS = (
+    "tenant_id TEXT NOT NULL",
+    "project_id TEXT NOT NULL",
+    "job_id TEXT NOT NULL",
+    "job_type TEXT NOT NULL",
+    "target_id TEXT NOT NULL DEFAULT ''",
+    "payload_sha256 TEXT NOT NULL",
+    "status TEXT NOT NULL",
+    "priority INTEGER NOT NULL DEFAULT 100",
+    "attempts INTEGER NOT NULL DEFAULT 0",
+    "max_attempts INTEGER NOT NULL DEFAULT 3",
+    "lease_owner_id TEXT NOT NULL DEFAULT ''",
+    "lease_expires_at TIMESTAMPTZ",
+    "available_at TIMESTAMPTZ",
+    "last_error JSONB",
+    "result_sha256 TEXT NOT NULL DEFAULT ''",
+    "idempotency_key TEXT NOT NULL DEFAULT ''",
+    "request_id TEXT NOT NULL DEFAULT ''",
+    "created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    "completed_at TIMESTAMPTZ",
+    "dead_lettered_at TIMESTAMPTZ",
+)
+
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -93,3 +117,58 @@ def test_a1_postgres_migration_declares_static_rls_and_audit_contract():
         assert f"create policy {policy_name}" in migration_sql
         assert "using (tenant_id = ashr_current_tenant_id())" in migration_sql
         assert "with check (tenant_id = ashr_current_tenant_id())" in migration_sql
+
+
+def test_a1_postgres_worker_jobs_schema_preserves_durable_method_contract():
+    migration_sql = _read(MIGRATION_PATH)
+    worker_jobs_statement = _normalize_sql(
+        _extract_statement(migration_sql, "CREATE TABLE IF NOT EXISTS ashr_worker_jobs")
+    )
+
+    for column in REQUIRED_WORKER_JOB_COLUMNS:
+        assert _normalize_sql(column) in worker_jobs_statement
+
+    assert "primary key (tenant_id, project_id, job_id)" in worker_jobs_statement
+    assert (
+        "foreign key (tenant_id, project_id) references ashr_projects(tenant_id, project_id) on delete cascade"
+        in worker_jobs_statement
+    )
+
+    normalized_migration = _normalize_sql(migration_sql)
+    assert (
+        "create index if not exists ashr_worker_jobs_lease_idx on ashr_worker_jobs "
+        "(tenant_id, project_id, status, job_type, priority, available_at, created_at)"
+        in normalized_migration
+    )
+    assert (
+        "create index if not exists ashr_worker_jobs_status_idx on ashr_worker_jobs "
+        "(tenant_id, project_id, status, updated_at)"
+        in normalized_migration
+    )
+
+
+def test_a1_go_postgres_worker_lifecycle_uses_atomic_hash_only_queue_contract():
+    source = _read(GO_POSTGRES_PATH)
+    normalized_source = _normalize_sql(source)
+
+    for method_name in (
+        "EnqueueWorkerJob",
+        "LeaseWorkerJob",
+        "HeartbeatWorkerJob",
+        "CompleteWorkerJob",
+        "FailWorkerJob",
+        "ListWorkerJobs",
+    ):
+        assert f"func (repository *PostgresRepository) {method_name}" in source
+
+    assert "FOR UPDATE SKIP LOCKED" in source
+    assert "expirePostgresWorkerLeases" in source
+    assert "status = $4, attempts = attempts + 1" in source
+    assert "result_sha256 = $5" in source
+    assert "last_error = $7::jsonb" in source
+    assert "RawPayloadIncluded: false" in source
+    assert "loadIdempotentWorkerJobReplay" in source
+    assert "insertIdempotentWorkerJobResponse" in source
+    assert "WHERE tenant_id = $1 AND project_id = $2 AND ($3 = '' OR status = $3)" in source
+    assert "job_type = $4" in source
+    assert "raw_payload" not in normalized_source
