@@ -82,7 +82,8 @@ export async function planA3AdminAction(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/admin/actions/plan?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       source,
@@ -101,7 +102,8 @@ export async function createShareableA3Report(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/reports/share?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "reviewer"
     },
     body: JSON.stringify({
       source,
@@ -122,7 +124,8 @@ export async function submitA3AdminAction(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/admin/actions/submit?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       source,
@@ -148,7 +151,8 @@ export async function revokeShareableA3Report(options = {}) {
   const response = await fetch(`${baseUrl}/api/a3/reports/${encodeURIComponent(reportId)}/revoke?source=${encodeURIComponent(source)}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json",
+      "x-a3-role": options.role || "owner"
     },
     body: JSON.stringify({
       reason: options.reason || "dashboard_revoke",

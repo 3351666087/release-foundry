@@ -112,6 +112,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     const approval = loadFixture("fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
 
     const waiverResponse = await page.request.post(apiUrl(page, "/api/a3/review/waivers?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         waiver,
         generated_at: "2026-07-07T12:00:00.000Z"
@@ -123,6 +126,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(waiverReceipt.accepted).toBe(true);
 
     const approvalResponse = await page.request.post(apiUrl(page, "/api/a3/review/approvals?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         approval,
         waiver,
@@ -159,6 +165,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await page.goto(apiBackedPath);
 
     const shareResponse = await page.request.post(apiUrl(page, "/api/a3/reports/share?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
       data: {
         source: "mock",
         title: "A3 Round 4 denied-state report",
@@ -176,6 +185,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(page.locator("body")).toContainText("Case Evidence");
 
     const revokeResponse = await page.request.post(apiUrl(page, `/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke?source=mock`), {
+      headers: {
+        "x-a3-role": "owner"
+      },
       data: {
         reason: "round4_denied_state_e2e",
         revoked_by: "round4-e2e"

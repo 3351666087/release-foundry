@@ -68,7 +68,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     };
     const readbackCapture = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1", "x-a3-role": "reviewer" },
       body: JSON.stringify(readbackCaptureBody)
     });
     assert.equal(readbackCapture.status, 202);
@@ -81,7 +81,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const duplicateReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1" },
+      headers: { "content-type": "application/json", "idempotency-key": "idem-readback-1", "x-a3-role": "reviewer" },
       body: JSON.stringify(readbackCaptureBody)
     });
     assert.equal(duplicateReadback.status, 202);
@@ -159,7 +159,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const actionResponse = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ action: "invite_teammate" })
     });
     assert.equal(actionResponse.ok, true);
@@ -171,7 +171,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const teammateEmail = ["teammate", "example.com"].join("@");
     const actionSubmitResponse = await fetch(`${url}/api/a3/admin/actions/submit?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({
         action: "invite_teammate",
         actor: ownerEmail,
@@ -202,7 +202,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     const approval = await loadJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
     const waiverResponse = await fetch(`${url}/api/a3/review/waivers?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         waiver,
         generated_at: "2026-07-07T12:00:00.000Z"
@@ -215,7 +215,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const approvalResponse = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         approval,
         waiver,
@@ -362,7 +362,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const shareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({ title: "A3 API smoke report" })
     });
     assert.equal(shareResponse.status, 201);
@@ -376,7 +376,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const otherTenantShareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({
         title: "A3 other tenant report",
         organization_id: "org-other",
@@ -404,7 +404,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(crossTenantView.status, 404);
     const crossTenantRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(otherTenantReport.report_id)}/revoke?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ reason: "wrong-tenant" })
     });
     assert.equal(crossTenantRevoke.status, 404);
@@ -467,7 +467,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const revokeResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ reason: "unit-test" })
     });
     assert.equal(revokeResponse.status, 200);
@@ -480,7 +480,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.match(revokedHostedHtml, /A3 report is not available/);
     assert.doesNotMatch(revokedHostedHtml, /Case Evidence/);
 
-    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock`);
+    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor`);
     assert.equal(outbox.schema_version, "a3.event_outbox_list.v1");
     assert.equal(outbox.safety.metadata_only, true);
     assert.ok(outbox.event_count >= 7);
@@ -500,7 +500,7 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(outbox.events.every((event) => event.payload_inline === false));
     assert.doesNotMatch(JSON.stringify(outbox), /release-owner@example.com|owner@example.com|teammate@example.com|Bearer|should-not-leak|a3s_[A-Za-z0-9]/);
 
-    const revokedOutbox = await getJson(`${url}/api/a3/events/outbox?source=mock&event_type=report.revoked`);
+    const revokedOutbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor&event_type=report.revoked`);
     assert.equal(revokedOutbox.event_count, 1);
     assert.equal(revokedOutbox.events[0].event_type, "report.revoked");
 
@@ -509,6 +509,122 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
 
     const missing = await fetch(`${url}/api/a3/cases/missing-case?source=mock`);
     assert.equal(missing.status, 404);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API server fails closed on unauthorized write and audit routes", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["mock"] });
+  const { server, url } = await startA3ApiServer({ store });
+  try {
+    const releaseEvidence = await getJson(`${url}/api/a3/releases/current/evidence-summary?source=mock`);
+    const deniedShare = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({
+        title: "Should not be created",
+        actor: ["viewer", "example.com"].join("@"),
+        authorization: "Bearer should-not-leak"
+      })
+    });
+    assert.equal(deniedShare.status, 403);
+    const deniedSharePayload = await deniedShare.json();
+    assert.equal(deniedSharePayload.schema_version, "a3.api_authz_denied.v1");
+    assert.equal(deniedSharePayload.operation, "share_report");
+    assert.equal(deniedSharePayload.decision, "denied_missing_permission");
+    assert.equal(deniedSharePayload.safety.raw_request_body_echoed, false);
+    assert.doesNotMatch(JSON.stringify(deniedSharePayload), /Should not be created|viewer@example.com|should-not-leak|Bearer/);
+
+    const deniedReadback = await fetch(`${url}/api/a3/releases/${encodeURIComponent(releaseEvidence.release_id)}/readbacks?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "developer"
+      },
+      body: JSON.stringify({
+        readback: {
+          readback_id: "should_not_persist",
+          resource_kind: "github_check",
+          readback_status: "readback_confirmed"
+        }
+      })
+    });
+    assert.equal(deniedReadback.status, 403);
+    const deniedReadbackPayload = await deniedReadback.json();
+    assert.equal(deniedReadbackPayload.operation, "capture_release_readback");
+    assert.equal(deniedReadbackPayload.decision, "denied_missing_permission");
+    assert.doesNotMatch(JSON.stringify(deniedReadbackPayload), /should_not_persist/);
+
+    const deniedAdminPlan = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({ action: "rotate_api_key" })
+    });
+    assert.equal(deniedAdminPlan.status, 403);
+    const deniedAdminPlanPayload = await deniedAdminPlan.json();
+    assert.equal(deniedAdminPlanPayload.operation, "plan_admin_action");
+    assert.equal(deniedAdminPlanPayload.required_permission, "admin:plan");
+
+    const deniedApproval = await fetch(`${url}/api/a3/review/approvals?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "admin"
+      },
+      body: JSON.stringify({
+        approval: {
+          approval_id: "should_not_persist",
+          authorization: "Bearer should-not-leak"
+        }
+      })
+    });
+    assert.equal(deniedApproval.status, 403);
+    const deniedApprovalPayload = await deniedApproval.json();
+    assert.equal(deniedApprovalPayload.operation, "submit_review_approval");
+    assert.equal(deniedApprovalPayload.required_permission, "release:approve");
+    assert.doesNotMatch(JSON.stringify(deniedApprovalPayload), /should_not_persist|should-not-leak|Bearer/);
+
+    const allowedShare = await fetch(`${url}/api/a3/reports/share?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "reviewer"
+      },
+      body: JSON.stringify({ title: "RBAC allowed before denied revoke" })
+    });
+    assert.equal(allowedShare.status, 201);
+    const report = await allowedShare.json();
+    const deniedRevoke = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "viewer"
+      },
+      body: JSON.stringify({ reason: "should_not_persist" })
+    });
+    assert.equal(deniedRevoke.status, 403);
+    const deniedRevokePayload = await deniedRevoke.json();
+    assert.equal(deniedRevokePayload.operation, "revoke_report");
+    assert.equal(deniedRevokePayload.required_permission, "reports:revoke");
+
+    const deniedOutbox = await fetch(`${url}/api/a3/events/outbox?source=mock`, {
+      headers: { "x-a3-role": "viewer" }
+    });
+    assert.equal(deniedOutbox.status, 403);
+    const deniedOutboxPayload = await deniedOutbox.json();
+    assert.equal(deniedOutboxPayload.operation, "read_event_outbox");
+    assert.equal(deniedOutboxPayload.decision, "denied_missing_permission");
+
+    const outbox = await getJson(`${url}/api/a3/events/outbox?source=mock&role=auditor`);
+    assert.equal(outbox.event_count, 1);
+    assert.equal(outbox.event_type_counts["report.share_link_created"], 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

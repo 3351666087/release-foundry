@@ -108,6 +108,10 @@ export function createA3ApiHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/events/outbox") {
+        const authz = authorizeRequest(request, url, "read_event_outbox");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         return sendJson(response, 200, await store.listEventOutbox({
           source: sourceFrom(url),
           organizationId: url.searchParams.get("organization_id") || undefined,
@@ -122,6 +126,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/import/a1-run-result") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a1_run_result", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.importA1RunResult(body.run_result || body.runResult || body, {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
@@ -134,6 +142,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/import/a2-grade-result") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a2_grade_result", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.importA2GradeResult(body.grade_result || body.gradeResult || body, {
           source: body.source || url.searchParams.get("source") || "api-ingest",
           sourceLabel: body.source_label || body.sourceLabel,
@@ -199,6 +211,10 @@ export function createA3ApiHandler(options = {}) {
       const releaseEvidenceReadbacksMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/readbacks$/);
       if (request.method === "POST" && releaseEvidenceReadbacksMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "capture_release_readback", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReleaseEvidenceReadback(decodeURIComponent(releaseEvidenceReadbacksMatch[1]), body.readback || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -242,6 +258,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/plan") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "plan_admin_action", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const plan = await store.planSaasAdminAction(body.action, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -252,6 +272,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/admin/actions/submit") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_admin_action", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitSaasAdminAction(body.action, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -276,6 +300,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/review/waivers") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_waiver", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReviewWaiver(body.waiver || body.waiver_request || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -292,6 +320,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/review/approvals") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_review_approval", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.submitReviewApproval(body.approval || body.approval_record || body, {
           source: body.source || sourceFrom(url),
           organizationId: body.organization_id,
@@ -341,6 +373,10 @@ export function createA3ApiHandler(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/a3/reports/share") {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "share_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const report = await store.createShareableReport({
           source: body.source || sourceFrom(url),
           title: body.title,
@@ -397,6 +433,10 @@ export function createA3ApiHandler(options = {}) {
       const reportRevokeMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/revoke$/);
       if (request.method === "POST" && reportRevokeMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "revoke_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const receipt = await store.revokeReport(decodeURIComponent(reportRevokeMatch[1]), {
           reason: body.reason,
           revokedBy: body.revoked_by || body.revokedBy || "a3-api",
@@ -412,6 +452,10 @@ export function createA3ApiHandler(options = {}) {
       const reportViewMatch = url.pathname.match(/^\/api\/a3\/reports\/([^/]+)\/view$/);
       if (request.method === "POST" && reportViewMatch) {
         const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "view_report", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
         const report = await store.getReportForView(decodeURIComponent(reportViewMatch[1]), {
           viewer: body.viewer || "api",
           viewedAt: body.viewed_at || body.viewedAt,
@@ -498,6 +542,14 @@ function sourceFrom(url) {
   return url.searchParams.get("source") || "mock";
 }
 
+function authorizeRequest(request, url, operation, body = {}) {
+  const authContext = buildAuthContextFromRequest(request, url, body);
+  return authorizeA3Operation(operation, authContext, {
+    requestId: body.request_id || body.requestId || request.headers["x-a3-request-id"],
+    traceId: body.trace_id || body.traceId || request.headers["x-a3-trace-id"]
+  });
+}
+
 function buildAuthContextFromRequest(request, url, body = {}) {
   return buildA3AuthContext({
     role: body.role || url.searchParams.get("role") || request.headers["x-a3-role"],
@@ -518,6 +570,27 @@ function reportScopeFrom(url, body = {}) {
     source: body.source || sourceFrom(url),
     organizationId: body.organization_id || body.organizationId || url.searchParams.get("organization_id") || undefined,
     projectId: body.project_id || body.projectId || url.searchParams.get("project_id") || undefined
+  };
+}
+
+function forbiddenPayload(decision = {}) {
+  return {
+    schema_version: "a3.api_authz_denied.v1",
+    error: "forbidden",
+    operation: decision.operation || "unknown",
+    decision: decision.decision || "denied",
+    reason: decision.reason || "This role is not allowed to perform the requested action.",
+    required_permission: decision.required_permission || "unknown",
+    role: decision.role || "unknown",
+    tenant_scope: decision.tenant_scope,
+    denied_state: decision.denied_state,
+    authz_audit_event: decision.audit_event,
+    safety: {
+      raw_request_body_echoed: false,
+      raw_actor_identity_exposed: false,
+      raw_secret_values_allowed: false,
+      real_cloud_mutation_performed: false
+    }
   };
 }
 

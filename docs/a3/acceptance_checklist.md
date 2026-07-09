@@ -595,6 +595,12 @@
 - [x] Add idempotency replay/conflict behavior to A3 mutation-like write paths without storing raw idempotency keys.
 - [x] Verify event outbox rows are metadata-only and do not leak raw share tokens, emails, Bearer values, cookies, API keys, or signed URLs.
 - [x] Document the A3 event outbox SaaS backbone in `docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md`.
+- [x] Enforce fail-closed RBAC on A3 mutation-like API routes before store writes occur.
+- [x] Add sanitized `a3.api_authz_denied.v1` denied responses that do not echo request bodies or secret-looking values.
+- [x] Add RBAC policies for report view, admin action plan, release readback capture, and event outbox reads.
+- [x] Verify unauthorized share/readback/admin/review/revoke/outbox attempts return 403 and do not create extra outbox rows.
+- [x] Keep local dashboard demo flows working by sending explicit local role headers from the API client and Playwright tests.
+- [x] Document the fail-closed RBAC write-path round in `docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md`.
 - [ ] Add live GitHub Check and PR comment readback evidence after maintainer-approved integration.
 - [ ] Re-run tenant-scope negative tests with real hosted auth/RBAC once A1 auth middleware is available.
 - [ ] Add production billing provider checkout/portal only after A1 billing ledger, hosted auth/RBAC, and webhook verification exist.

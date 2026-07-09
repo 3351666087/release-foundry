@@ -116,6 +116,10 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "report.share_link_revoked",
     resourceType: "shareable_report"
   }),
+  operation("view_report", "POST /api/a3/reports/:reportId/view", "project:read", "local_write", {
+    event: "report.viewed",
+    resourceType: "shareable_report"
+  }),
   operation("submit_review_waiver", "POST /api/a3/review/waivers", "release:review", "local_write", {
     event: "waiver.requested",
     resourceType: "review_waiver",
@@ -129,6 +133,20 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
   operation("submit_admin_action", "POST /api/a3/admin/actions/submit", "admin:plan", "plan_only", {
     event: "admin.action_requested",
     resourceType: "saas_admin_action"
+  }),
+  operation("plan_admin_action", "POST /api/a3/admin/actions/plan", "admin:plan", "plan_only", {
+    event: "admin.action_planned",
+    resourceType: "saas_admin_action_plan"
+  }),
+  operation("capture_release_readback", "POST /api/a3/releases/:releaseId/readbacks", "release:review", "local_write", {
+    event: "release_evidence.readback_captured",
+    resourceType: "release_evidence_readback",
+    a1: ["GitHub readback worker boundary"],
+    a2: ["ReleaseGate evidence state"]
+  }),
+  operation("read_event_outbox", "GET /api/a3/events/outbox", "audit:read", "read_only", {
+    event: "event_outbox.read",
+    resourceType: "event_outbox"
   }),
   operation("read_usage", "GET /api/a3/usage/ledger", "usage:read", "read_only", {
     event: "usage.read",

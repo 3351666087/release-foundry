@@ -228,7 +228,7 @@ test("A3 API server can run on the SQLite store without changing API contracts",
 
     const shareResponse = await fetch(`${url}/api/a3/reports/share?source=mock`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
       body: JSON.stringify({ title: "SQLite API report" })
     });
     assert.equal(shareResponse.status, 201);
@@ -240,7 +240,7 @@ test("A3 API server can run on the SQLite store without changing API contracts",
 
     const revokeResponse = await fetch(`${url}/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-a3-role": "owner" },
       body: JSON.stringify({ reason: "sqlite-api-test" })
     });
     assert.equal(revokeResponse.status, 200);

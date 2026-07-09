@@ -5107,3 +5107,49 @@ Safety:
 - Event rows store metadata, hashes, safe actor IDs, and delivery status only.
 - Raw A1/A2 payloads remain separate source evidence and are not embedded in
   outbox rows.
+
+## 2026-07-09 - A3 Fail-Closed RBAC Write Paths
+
+Continued the SaaS backbone work by enforcing the existing A3 Auth/RBAC
+boundary before mutation-like API routes reach the store. This turns RBAC from
+"documented policy" into local API behavior for the write paths that create
+reports, readbacks, review records, admin action requests, idempotency receipts,
+and event outbox rows.
+
+Changed:
+
+- Added RBAC operation policies for `view_report`, `plan_admin_action`,
+  `capture_release_readback`, and `read_event_outbox`.
+- Added API fail-closed checks for A1/A2 imports, release readback capture,
+  admin action plan/submit, review waiver/approval submit, report share/view/
+  revoke, and event outbox reads.
+- Added sanitized `a3.api_authz_denied.v1` responses for unauthorized API
+  attempts.
+- Updated dashboard API client calls to send explicit local demo roles:
+  reviewer for share/review/readback flows, owner for admin/revoke flows, and
+  auditor for outbox inspection.
+- Added API tests proving unauthorized writes return 403, do not echo request
+  bodies, and do not create extra event outbox rows.
+- Added RBAC policy tests for expected local write/audit roles.
+- Added `docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md`.
+
+Validation so far:
+
+- `node --test tests/a3/a3_auth_rbac_boundary.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/a3_readback_capture_cli.test.mjs tests/a3/a3_sqlite_store.test.mjs tests/a3/dashboard_wiring.test.mjs`
+- `npm.cmd run test:e2e`
+
+A1/A2 calibration:
+
+- A1 still owns hosted auth/session middleware, service accounts, RunResult,
+  Trace, Observation, ToolCall, and runtime evidence.
+- A2 still owns Scenario, Judge, GradeResult, score, pass/fail, release gate,
+  and failure taxonomy semantics.
+- A3 only gates downstream product-console writes before they mutate A3-owned
+  report, review, admin, readback, and outbox state.
+
+Safety:
+
+- Denied responses do not echo raw request bodies, emails, Bearer strings,
+  cookies, API keys, signed URLs, or private evidence.
+- No live Ashr, GitHub, billing, team, API-key, Trust, or cloud mutation was
+  performed.

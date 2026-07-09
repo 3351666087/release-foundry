@@ -67,6 +67,38 @@ test("A3 RBAC policy allows local read/review operations and blocks hosted mutat
   assert.match(hostedBlocked.reason, /hosted auth/);
 });
 
+test("A3 RBAC policy covers local write and audit operations with expected roles", () => {
+  const policy = buildA3RbacPolicy();
+  const operations = Object.fromEntries(policy.operations.map((item) => [item.operation, item]));
+
+  for (const operation of [
+    "import_a1_run_result",
+    "import_a2_grade_result",
+    "share_report",
+    "revoke_report",
+    "view_report",
+    "submit_review_waiver",
+    "submit_review_approval",
+    "plan_admin_action",
+    "submit_admin_action",
+    "capture_release_readback",
+    "read_event_outbox"
+  ]) {
+    assert.ok(operations[operation], `${operation} should be covered by RBAC policy`);
+    assert.equal(operations[operation].denied_state_required, true);
+  }
+
+  assert.deepEqual(operations.share_report.roles_allowed, ["admin", "owner", "reviewer"]);
+  assert.deepEqual(operations.revoke_report.roles_allowed, ["admin", "owner"]);
+  assert.deepEqual(operations.submit_review_approval.roles_allowed, ["owner", "reviewer"]);
+  assert.deepEqual(operations.read_event_outbox.roles_allowed, ["admin", "auditor", "owner", "reviewer"]);
+  assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).allowed, false);
+  assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).decision, "denied_missing_permission");
+  assert.equal(authorizeA3Operation("plan_admin_action", { role: "viewer" }).allowed, false);
+  assert.equal(authorizeA3Operation("plan_admin_action", { role: "billing_admin" }).decision, "allowed_plan_only");
+  assert.equal(authorizeA3Operation("unknown_mutation", { role: "owner" }).decision, "denied_unknown_operation");
+});
+
 test("A3 SaaS admin export and artifact registry include auth/RBAC boundary evidence", async () => {
   const runFixture = await loadJson("../../fixtures/a3/mock_run_results.json");
   const gradeFixture = await loadJson("../../fixtures/a3/mock_grade_results.json");
