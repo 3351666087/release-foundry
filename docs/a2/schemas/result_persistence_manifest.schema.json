@@ -34,7 +34,8 @@
         "release_gate": { "type": "string" },
         "scenario_pack": { "type": "string" },
         "scenario_selection": { "type": "string" },
-        "regression_promotion_queue": { "type": "string" }
+        "regression_promotion_queue": { "type": "string" },
+        "release_unblock_checklist": { "type": "string" }
       },
       "additionalProperties": true
     },
@@ -97,7 +98,13 @@
       "properties": {
         "schema_version": { "const": "a2.result_persistence_record.v1" },
         "record_type": {
-          "enum": ["judge_result", "release_gate", "scenario_selection", "a1_ingestion_digest"]
+          "enum": [
+            "judge_result",
+            "release_gate",
+            "scenario_selection",
+            "release_unblock_checklist",
+            "a1_ingestion_digest"
+          ]
         },
         "org": { "type": "string" },
         "tenant_id": { "type": "string" },
@@ -123,6 +130,12 @@
         "selected_count": { "type": ["integer", "null"], "minimum": 0 },
         "selection_id": { "type": ["string", "null"] },
         "family_counts": { "type": "object" },
+        "overall_status": { "type": ["string", "null"] },
+        "blocked_gate_count": { "type": ["integer", "null"], "minimum": 0 },
+        "release_gate_decision": { "type": ["string", "null"] },
+        "release_gate_risk_score": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+        "gate_count": { "type": ["integer", "null"], "minimum": 0 },
+        "private_evidence_required": { "type": "boolean" },
         "release_policy_audit": {
           "type": "object",
           "properties": {

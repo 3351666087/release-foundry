@@ -241,11 +241,368 @@
       "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed ashr_grading rows before public merge."
     ]
   },
+  "a1_official_api_readonly_manifest": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+    "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+    "status": "ok",
+    "source_private_manifest_present": true,
+    "read_step_count": 5,
+    "ok_or_planned_step_count": 5,
+    "error_step_count": 0,
+    "quota_block_count": 0,
+    "modalities": [],
+    "step_ids": [
+      "health-check",
+      "init",
+      "list-agents",
+      "list-datasets",
+      "list-requests"
+    ],
+    "public_safe": true,
+    "redacted_summary_fields_only": true,
+    "raw_payload_values_included": false,
+    "ready_for_a2_evidence_context": true,
+    "notes": [
+      "A1 official API readonly manifest summary can support A2 evidence context and API shape confidence.",
+      "It does not count as reviewed ashr_grading rows for C3."
+    ]
+  },
+  "a1_official_api_mutating_index": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_mutating_calibration_index.json",
+    "schema_version": "ashr.clone.official_api_mutating_calibration_index.v1",
+    "public_safe": true,
+    "raw_payloads_included": false,
+    "secret_values_included": false,
+    "record_count": 7,
+    "status_counts": {
+      "error": 1,
+      "partial": 6
+    },
+    "modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "mutating_step_ids": [
+      "create-request-audio",
+      "create-request-file",
+      "create-request-image",
+      "create-request-text",
+      "create-request-video"
+    ],
+    "observed_error_kinds": [
+      "api",
+      "quota"
+    ],
+    "total_steps": 37,
+    "read_step_count": 30,
+    "mutating_step_count": 5,
+    "quota_block_count": 7,
+    "private_manifest_count": 7,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 mutating calibration index is public-safe quota/error shape evidence for official create-request calls.",
+      "It does not count as reviewed ashr_grading rows for C3."
+    ]
+  },
+  "a1_official_api_paid_media_summary": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
+    "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+    "status": "partial",
+    "mode": "small-batch",
+    "source_private_manifest_present": true,
+    "public_safe": true,
+    "redacted_summary_fields_only": true,
+    "raw_payload_values_included": false,
+    "guardrails": {
+      "execute_requires_small_batch": true,
+      "mutating_execute_requires_quota_gate": true,
+      "mutating_requires_include_mutating": true,
+      "paid_media_requires_allow_paid_media": true,
+      "quota_gate_present": true,
+      "output_is_private": true,
+      "private_output_required": true,
+      "raw_records_private": true,
+      "full_record_stdout_blocked": true
+    },
+    "total_step_count": 6,
+    "read_step_count": 5,
+    "mutating_step_count": 1,
+    "ok_or_planned_step_count": 5,
+    "error_step_count": 1,
+    "quota_block_count": 1,
+    "estimated_call_count": 17,
+    "modalities": [
+      "text"
+    ],
+    "step_ids": [
+      "create-request-text",
+      "health-check",
+      "init",
+      "list-agents",
+      "list-datasets",
+      "list-requests"
+    ],
+    "mutating_functions": [
+      "create_request"
+    ],
+    "mutating_modalities": [
+      "text"
+    ],
+    "quota_blocked_step_ids": [
+      "create-request-text"
+    ],
+    "quota_remaining_observed": true,
+    "status_code_counts": {
+      "200": 6
+    },
+    "ready_for_a2_evidence_context": true,
+    "safe_for_paid_media_claims": false,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 paid-media manifest summary is public-safe quota/error behavior context for mutating media calls.",
+      "Partial or quota-blocked paid-media summaries must not be treated as hosted media readiness or C3 grading evidence."
+    ]
+  },
+  "a1_payment_provider_readiness": {
+    "available": true,
+    "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+    "schema_version": "ashr.clone.a1.payment_provider_readiness.v1",
+    "owner": "A1 Worker-PaymentDocsEvidence",
+    "public_safe": true,
+    "provider_count": 3,
+    "providers": [
+      "alipay",
+      "stripe",
+      "wechat_pay"
+    ],
+    "mode_count": 2,
+    "modes": [
+      "live",
+      "test"
+    ],
+    "hosted_surface_count": 3,
+    "payment_methods": [
+      "alipay",
+      "card",
+      "wechat_pay"
+    ],
+    "provider_called": false,
+    "checkout_or_portal_called": false,
+    "real_charge_possible": false,
+    "ci_payment_calls_allowed": false,
+    "raw_secret_values_allowed": false,
+    "secret_reference_prefixes": [
+      "dashboard-ref:",
+      "env:",
+      "kms:",
+      "provider-ref:",
+      "vault:"
+    ],
+    "forbidden_material_count": 6,
+    "webhook_hash_envelope_count": 4,
+    "verified_webhook_hash_count": 4,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "human_real_card_testing_allowed": true,
+    "human_real_card_automation_allowed": false,
+    "stored_card_data_allowed": false,
+    "public_evidence_path_count": 3,
+    "private_ref_path_count": 2,
+    "ready_for_a2_payment_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_provider_policy_context": true,
+      "can_support_payment_abuse_cases": true,
+      "live_payment_requires_human_operator": true,
+      "must_not_mark_c3_from_payment_context": true
+    },
+    "notes": [
+      "A1 payment provider readiness is public-safe payment policy context for A2 cost, abuse, and release gates.",
+      "It records provider references and webhook hashes only; it does not prove C3 grading or authorize CI payment calls."
+    ]
+  },
+  "a1_billing_replay_evidence": {
+    "available": true,
+    "path": "docs/a1/evidence/billing_replay_fixture_round35.json",
+    "schema_version": "ashr.clone.billing_replay_fixture.v1",
+    "billing_evidence_schema_version": "ashr.clone.billing_evidence_snapshot.v1",
+    "tenant_id": "tenant_fixture",
+    "project_id": "project_fixture",
+    "provider": "stripe",
+    "mode": "test",
+    "ledger_event_count": 2,
+    "provider_event_count": 1,
+    "usage_units": 14,
+    "totals_by_currency_minor": {
+      "usd": 12345
+    },
+    "totals_currencies": [
+      "usd"
+    ],
+    "billing_snapshot_sha256_present": true,
+    "accepted_ingest_status": "accepted",
+    "duplicate_ingest_status": "duplicate",
+    "accepted_ledger_mutation_count": 1,
+    "duplicate_ledger_mutation_count": 0,
+    "duplicate_idempotency_proven": true,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "raw_secret_present": false,
+    "public_safe": true,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "billing_usage_policy_context": true,
+      "can_support_cost_policy_calibration": true,
+      "should_add_billing_abuse_cases": true,
+      "must_not_mark_c3_from_billing_context": true
+    },
+    "notes": [
+      "A1 billing replay fixture is public-safe usage and provider-ledger evidence for A2 cost/risk policy context.",
+      "It does not count as reviewed ashr_grading rows for C3."
+    ]
+  },
+  "a1_billing_ledger_migration": {
+    "available": true,
+    "path": "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
+    "schema_version": "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+    "version": 2,
+    "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+    "table_count": 3,
+    "table_names": [
+      "billing_accounts",
+      "billing_ledger_events",
+      "billing_provider_events"
+    ],
+    "tenant_rls_table_count": 3,
+    "tenant_rls_ready": true,
+    "required_index_count": 5,
+    "required_constraint_count": 6,
+    "constraint_names": [
+      "billing_accounts_no_raw_secret",
+      "billing_accounts_provider_customer_key",
+      "billing_ledger_events_amount_check",
+      "billing_ledger_events_no_raw_secret",
+      "billing_provider_events_event_key",
+      "billing_provider_events_no_raw_secret"
+    ],
+    "provider_event_type_count": 11,
+    "ledger_event_type_count": 5,
+    "providers": [
+      "alipay",
+      "stripe",
+      "wechat_pay"
+    ],
+    "modes": [
+      "live",
+      "test"
+    ],
+    "currencies": [
+      "cny",
+      "usd"
+    ],
+    "required_function_names": [
+      "ingest_billing_provider_event",
+      "normalize_billing_event_type",
+      "summarize_billing_ledger"
+    ],
+    "public_safe": true,
+    "raw_provider_payload_stored": false,
+    "raw_provider_secret_stored": false,
+    "raw_card_data_stored": false,
+    "provider_calls_executed": false,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_billing_policy_context": true,
+      "can_support_billing_abuse_cases": true,
+      "can_cross_check_usage_rollups": true,
+      "must_not_mark_c3_from_billing_context": true
+    },
+    "notes": [
+      "A1 billing ledger migration manifest is public-safe SQL contract evidence for A2 billing/usage policy checks.",
+      "It does not count as reviewed ashr_grading rows for C3."
+    ]
+  },
+  "a1_billing_sql_semantic_contract": {
+    "available": true,
+    "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
+    "schema_version": "ashr.clone.a1.billing_sql_semantic_contract.v1",
+    "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+    "public_safe": true,
+    "durable_policy": "hash_or_reference_only",
+    "provider_config_column_present": false,
+    "provider_config_object_persisted": false,
+    "hash_columns": [
+      "billing_provider_events.payload_sha256"
+    ],
+    "reference_only_field_count": 5,
+    "forbidden_durable_columns": [
+      "card_number",
+      "client_secret",
+      "payload",
+      "provider_config",
+      "provider_secret",
+      "raw_payload"
+    ],
+    "forbidden_public_marker_count": 5,
+    "replay_statuses": [
+      "accepted",
+      "conflict",
+      "duplicate"
+    ],
+    "accepted_ledger_mutation_count": 1,
+    "duplicate_ledger_mutation_count": 0,
+    "conflict_ledger_mutation_count": 0,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "match_key": [
+      "mode",
+      "organization_id",
+      "project_id",
+      "provider",
+      "provider_event_id"
+    ],
+    "billing_sql_edge_count": 2,
+    "go_postgres_hash_only_object_count": 3,
+    "raw_payload_column_present_count": 0,
+    "public_snapshot_fields": [
+      "billing_snapshot_sha256",
+      "ledger_event_count",
+      "provider_event_count",
+      "raw_payload_included",
+      "secret_value_present"
+    ],
+    "pytest_targets": [
+      "tests/a1/test_billing_ledger_migration_manifest.py",
+      "tests/a1/test_billing_provider_contract.py"
+    ],
+    "schema_path": "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+    "ready_for_a2_sql_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_semantic_policy_context": true,
+      "can_support_replay_regression_cases": true,
+      "can_support_hash_only_artifact_audit": true,
+      "must_not_mark_c3_from_sql_context": true
+    },
+    "notes": [
+      "A1 billing SQL semantic contract is public-safe SQL and replay semantics context for A2 policy checks.",
+      "It validates hash/reference-only billing storage semantics, not reviewed Ashr grading rows."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
     "schema_version": "a2.real_api_smoke.v1",
-    "generated_at": "2026-07-07T04:14:18Z",
+    "generated_at": "2026-07-09T13:35:50Z",
     "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
     "base_url": "https://api.ashr.io/testing-platform-api",
     "api_call_count": 6,

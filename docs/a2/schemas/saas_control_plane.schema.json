@@ -12,6 +12,8 @@
     "judge_version_registry",
     "policy_config",
     "scenario_selection",
+    "scenario_generation",
+    "cross_lane_security",
     "calibration",
     "result_persistence",
     "release_gate",
@@ -175,6 +177,68 @@
         "missing_tenant_saas_tags": { "$ref": "#/$defs/string_array" },
         "risk_tier_counts": { "type": "object" }
       },
+      "additionalProperties": true
+    },
+    "scenario_generation": {
+      "type": "object",
+      "required": [
+        "backlog_id",
+        "candidate_count",
+        "policy_experiment_count",
+        "candidate_ids",
+        "target_failure_classes",
+        "policy_experiment_ids",
+        "may_mutate_main_pack",
+        "promotion_status"
+      ],
+      "properties": {
+        "backlog_id": { "type": "string" },
+        "candidate_count": { "type": "integer", "minimum": 0 },
+        "policy_experiment_count": { "type": "integer", "minimum": 0 },
+        "candidate_ids": { "$ref": "#/$defs/string_array" },
+        "target_failure_classes": { "$ref": "#/$defs/string_array" },
+        "policy_experiment_ids": { "$ref": "#/$defs/string_array" },
+        "may_mutate_main_pack": { "type": "boolean" },
+        "promotion_status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "cross_lane_security": {
+      "type": "object",
+        "required": [
+          "report_id",
+          "a1_route_scope_available",
+          "a3_auth_rbac_available",
+          "a3_fail_closed_rbac_available",
+          "a3_event_outbox_available",
+          "route_scope_ready",
+          "auth_rbac_ready",
+          "fail_closed_rbac_ready",
+          "event_outbox_ready",
+          "should_block_hosted_mutations_without_a1_auth",
+          "should_add_auth_rbac_abuse_cases",
+          "should_add_fail_closed_write_abuse_cases",
+          "should_add_event_outbox_integrity_cases",
+          "followup_count",
+          "followup_ids"
+        ],
+      "properties": {
+          "report_id": { "type": "string" },
+          "a1_route_scope_available": { "type": "boolean" },
+          "a3_auth_rbac_available": { "type": "boolean" },
+          "a3_fail_closed_rbac_available": { "type": "boolean" },
+          "a3_event_outbox_available": { "type": "boolean" },
+          "route_scope_ready": { "type": "boolean" },
+          "auth_rbac_ready": { "type": "boolean" },
+          "fail_closed_rbac_ready": { "type": "boolean" },
+          "event_outbox_ready": { "type": "boolean" },
+          "should_block_hosted_mutations_without_a1_auth": { "type": "boolean" },
+          "should_add_auth_rbac_abuse_cases": { "type": "boolean" },
+          "should_add_fail_closed_write_abuse_cases": { "type": "boolean" },
+          "should_add_event_outbox_integrity_cases": { "type": "boolean" },
+          "followup_count": { "type": "integer", "minimum": 0 },
+          "followup_ids": { "$ref": "#/$defs/string_array" }
+        },
       "additionalProperties": true
     },
     "calibration": {

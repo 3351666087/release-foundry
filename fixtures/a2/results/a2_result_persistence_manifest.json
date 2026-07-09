@@ -12,12 +12,14 @@
     "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
     "scenario_pack": "packages/scenarios/a2_g3_full_pack.json",
     "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
-    "regression_promotion_queue": "fixtures/a2/results/a2_regression_promotion_queue.json"
+    "regression_promotion_queue": "fixtures/a2/results/a2_regression_promotion_queue.json",
+    "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json"
   },
-  "record_count": 162,
+  "record_count": 163,
   "record_type_counts": {
     "judge_result": 160,
     "release_gate": 1,
+    "release_unblock_checklist": 1,
     "scenario_selection": 1
   },
   "records": [
@@ -3593,6 +3595,30 @@
         "workflow_planning": 3
       },
       "result_schema_version": "a2.scenario_selection.v1"
+    },
+    {
+      "schema_version": "a2.result_persistence_record.v1",
+      "record_type": "release_unblock_checklist",
+      "tenant_id": "org_local_demo",
+      "org": "org_local_demo",
+      "project": "a2_g3_calibration",
+      "run": "a2_g3_grade_results",
+      "case": "release-unblock-checklist",
+      "case_id": "release-unblock-checklist",
+      "scenario_id": null,
+      "judge_id": "release_unblock_checklist",
+      "judge_version": "a2.release_unblock_checklist.v1",
+      "policy_hash": "sha256:dcebb1a82064d62f80d87411c9721db8f32cee95ebfe8dd9ce3e0e2fb0d75cf0",
+      "input_hash": "sha256:d9db38c724c01290efec3fb29cac7f64eb5bf997c1c39e47e06c7cb11f8a97bd",
+      "output_hash": "sha256:6a299cd0cb83bb1e19cff25764fbe2ebd923d88b316adb8c077cd73f40553d6b",
+      "created_at": "2026-07-07T00:00:00Z",
+      "overall_status": "blocked",
+      "blocked_gate_count": 3,
+      "release_gate_decision": "block",
+      "release_gate_risk_score": 100,
+      "gate_count": 3,
+      "private_evidence_required": true,
+      "result_schema_version": "a2.release_unblock_checklist.v1"
     }
   ],
   "metadata": {

@@ -11,6 +11,7 @@ MANIFEST_FIXTURE = ROOT / "fixtures/a2/results/a2_result_persistence_manifest.js
 MANIFEST_SCHEMA = ROOT / "docs/a2/schemas/result_persistence_manifest.schema.json"
 GRADE_REPORT = ROOT / "fixtures/a2/results/a2_g3_grade_results.json"
 RELEASE_GATE = ROOT / "fixtures/a2/results/a2_release_gate_report.json"
+RELEASE_UNBLOCK_CHECKLIST = ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json"
 SCENARIO_PACK = ROOT / "packages/scenarios/a2_g3_full_pack.json"
 SCENARIO_SELECTION = ROOT / "fixtures/a2/results/a2_scenario_selection_report.json"
 RUN_DIR = ROOT / "fixtures/a2/runs"
@@ -44,6 +45,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
     def test_manifest_fixture_matches_builder(self):
         grade_report = load_json(GRADE_REPORT)
         release_gate = load_json(RELEASE_GATE)
+        release_unblock_checklist = load_json(RELEASE_UNBLOCK_CHECKLIST)
         scenario_pack = load_json(SCENARIO_PACK)
         scenario_selection = load_json(SCENARIO_SELECTION)
         run_fixtures = [load_json(path) for path in sorted(RUN_DIR.glob("*.json"))]
@@ -53,6 +55,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
             release_gate,
             scenario_pack,
             scenario_selection_report=scenario_selection,
+            release_unblock_checklist_report=release_unblock_checklist,
             run_fixtures=run_fixtures,
             source_refs={
                 "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
@@ -60,6 +63,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
                 "scenario_pack": "packages/scenarios/a2_g3_full_pack.json",
                 "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
                 "regression_promotion_queue": "fixtures/a2/results/a2_regression_promotion_queue.json",
+                "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
             },
         )
 
@@ -78,10 +82,15 @@ class A2ResultPersistenceTests(unittest.TestCase):
             "fixtures/a2/results/a2_regression_promotion_queue.json",
         )
         self.assertEqual(
+            manifest["source_refs"]["release_unblock_checklist"],
+            "fixtures/a2/results/a2_release_unblock_checklist.json",
+        )
+        self.assertEqual(
             manifest["record_type_counts"],
             {
                 "judge_result": 160,
                 "release_gate": 1,
+                "release_unblock_checklist": 1,
                 "scenario_selection": 1,
             },
         )
@@ -105,10 +114,18 @@ class A2ResultPersistenceTests(unittest.TestCase):
         scenario_selection = next(
             record for record in manifest["records"] if record["record_type"] == "scenario_selection"
         )
+        release_unblock = next(
+            record for record in manifest["records"] if record["record_type"] == "release_unblock_checklist"
+        )
 
         self.assertEqual(release_gate["case"], "release-gate")
         self.assertEqual(release_gate["decision"], "block")
         self.assertEqual(release_gate["judge_id"], "release_policy_engine")
+        self.assertEqual(release_unblock["case"], "release-unblock-checklist")
+        self.assertEqual(release_unblock["judge_id"], "release_unblock_checklist")
+        self.assertEqual(release_unblock["overall_status"], "blocked")
+        self.assertEqual(release_unblock["blocked_gate_count"], 3)
+        self.assertTrue(release_unblock["private_evidence_required"])
         self.assertEqual(scenario_selection["case"], "scenario-selection")
         self.assertEqual(scenario_selection["selection_id"], "a2_enterprise_saas_prod_selection")
         self.assertEqual(scenario_selection["selected_count"], 12)

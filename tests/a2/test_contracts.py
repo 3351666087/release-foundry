@@ -332,6 +332,9 @@ class A2ContractTests(unittest.TestCase):
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
+        sql_store_schema = json.loads((schema_dir / "sql_store_report.schema.json").read_text(encoding="utf-8"))
+        scenario_generation_schema = json.loads((schema_dir / "scenario_generation_backlog.schema.json").read_text(encoding="utf-8"))
+        cross_lane_security_schema = json.loads((schema_dir / "cross_lane_security_context.schema.json").read_text(encoding="utf-8"))
         grade_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_grade_results.json").read_text(encoding="utf-8"))
         coverage_report = json.loads((ROOT / "fixtures/a2/results/a2_g3_coverage_report.json").read_text(encoding="utf-8"))
         calibration_matrix = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
@@ -350,6 +353,9 @@ class A2ContractTests(unittest.TestCase):
         unblock_checklist = json.loads((ROOT / "fixtures/a2/results/a2_release_unblock_checklist.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
+        sql_store = json.loads((ROOT / "fixtures/a2/results/a2_sql_store_report.json").read_text(encoding="utf-8"))
+        scenario_generation = json.loads((ROOT / "fixtures/a2/results/a2_scenario_generation_backlog.json").read_text(encoding="utf-8"))
+        cross_lane_security = json.loads((ROOT / "fixtures/a2/results/a2_cross_lane_security_context.json").read_text(encoding="utf-8"))
 
         self.assertEqual(grade_schema["properties"]["schema_version"]["const"], grade_report["schema_version"])
         self.assertEqual(coverage_schema["properties"]["schema_version"]["const"], coverage_report["schema_version"])
@@ -398,6 +404,18 @@ class A2ContractTests(unittest.TestCase):
             scenario_selection_schema["properties"]["schema_version"]["const"],
             scenario_selection["schema_version"],
         )
+        self.assertEqual(
+            sql_store_schema["properties"]["schema_version"]["const"],
+            sql_store["schema_version"],
+        )
+        self.assertEqual(
+            scenario_generation_schema["properties"]["schema_version"]["const"],
+            scenario_generation["schema_version"],
+        )
+        self.assertEqual(
+            cross_lane_security_schema["properties"]["schema_version"]["const"],
+            cross_lane_security["schema_version"],
+        )
         self.assertLessEqual(set(grade_schema["required"]), set(grade_report))
         self.assertLessEqual(set(coverage_schema["required"]), set(coverage_report))
         self.assertLessEqual(set(calibration_schema["required"]), set(calibration_matrix))
@@ -427,8 +445,20 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
         self.assertLessEqual(set(unblock_checklist_schema["required"]), set(unblock_checklist))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
+        self.assertLessEqual(set(sql_store_schema["required"]), set(sql_store))
+        self.assertLessEqual(set(scenario_generation_schema["required"]), set(scenario_generation))
+        self.assertLessEqual(set(cross_lane_security_schema["required"]), set(cross_lane_security))
+        self.assertIn("promotion_gate", scenario_generation_schema["required"])
+        self.assertIn("a2_policy_implications", cross_lane_security_schema["required"])
         self.assertIn("risk_assessment", semantic_harness_schema["required"])
         self.assertIn("a1_real_api_evidence", evidence_readiness_schema["required"])
+        self.assertIn("a1_official_api_readonly_manifest", evidence_readiness_schema["required"])
+        self.assertIn("a1_official_api_mutating_index", evidence_readiness_schema["required"])
+        self.assertIn("a1_official_api_paid_media_summary", evidence_readiness_schema["required"])
+        self.assertIn("a1_payment_provider_readiness", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -448,6 +478,76 @@ class A2ContractTests(unittest.TestCase):
             set(evidence_readiness["a1_real_api_evidence"]["api_probe_gate_validation"]),
         )
         self.assertIn("validate_gate_count", api_probe_gate_required)
+        official_manifest_required = set(evidence_readiness_schema["$defs"]["a1_official_api_readonly_manifest"]["required"])
+        self.assertLessEqual(
+            official_manifest_required,
+            set(evidence_readiness["a1_official_api_readonly_manifest"]),
+        )
+        self.assertIn("ready_for_a2_evidence_context", official_manifest_required)
+        mutating_index_required = set(evidence_readiness_schema["$defs"]["a1_official_api_mutating_index"]["required"])
+        self.assertLessEqual(
+            mutating_index_required,
+            set(evidence_readiness["a1_official_api_mutating_index"]),
+        )
+        self.assertIn("mutating_step_count", mutating_index_required)
+        self.assertIn("c3_grading_ready", mutating_index_required)
+        paid_media_required = set(evidence_readiness_schema["$defs"]["a1_official_api_paid_media_summary"]["required"])
+        self.assertLessEqual(
+            paid_media_required,
+            set(evidence_readiness["a1_official_api_paid_media_summary"]),
+        )
+        self.assertIn("safe_for_paid_media_claims", paid_media_required)
+        self.assertIn("c3_grading_ready", paid_media_required)
+        paid_media_guardrail_required = set(evidence_readiness_schema["$defs"]["paid_media_guardrails"]["required"])
+        self.assertLessEqual(
+            paid_media_guardrail_required,
+            set(evidence_readiness["a1_official_api_paid_media_summary"]["guardrails"]),
+        )
+        self.assertIn("paid_media_requires_allow_paid_media", paid_media_guardrail_required)
+        payment_provider_required = set(evidence_readiness_schema["$defs"]["a1_payment_provider_readiness"]["required"])
+        self.assertLessEqual(
+            payment_provider_required,
+            set(evidence_readiness["a1_payment_provider_readiness"]),
+        )
+        self.assertIn("ready_for_a2_payment_policy_context", payment_provider_required)
+        self.assertIn("c3_grading_ready", payment_provider_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_payment_provider_readiness"]["$ref"],
+            "#/$defs/a1_payment_provider_readiness",
+        )
+        billing_replay_required = set(evidence_readiness_schema["$defs"]["a1_billing_replay_evidence"]["required"])
+        self.assertLessEqual(
+            billing_replay_required,
+            set(evidence_readiness["a1_billing_replay_evidence"]),
+        )
+        self.assertIn("duplicate_idempotency_proven", billing_replay_required)
+        self.assertIn("c3_grading_ready", billing_replay_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_replay_evidence"]["$ref"],
+            "#/$defs/a1_billing_replay_evidence",
+        )
+        billing_migration_required = set(evidence_readiness_schema["$defs"]["a1_billing_ledger_migration"]["required"])
+        self.assertLessEqual(
+            billing_migration_required,
+            set(evidence_readiness["a1_billing_ledger_migration"]),
+        )
+        self.assertIn("tenant_rls_ready", billing_migration_required)
+        self.assertIn("c3_grading_ready", billing_migration_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_ledger_migration"]["$ref"],
+            "#/$defs/a1_billing_ledger_migration",
+        )
+        billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
+        self.assertLessEqual(
+            billing_sql_required,
+            set(evidence_readiness["a1_billing_sql_semantic_contract"]),
+        )
+        self.assertIn("ready_for_a2_sql_policy_context", billing_sql_required)
+        self.assertIn("c3_grading_ready", billing_sql_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_billing_sql_semantic_contract"]["$ref"],
+            "#/$defs/a1_billing_sql_semantic_contract",
+        )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
@@ -1285,6 +1385,80 @@ class A2ContractTests(unittest.TestCase):
             "docs/a1/api_calibration/real_api_evidence_index.json",
             report["a1_real_api_evidence"]["index_path"],
         )
+        official_manifest = report["a1_official_api_readonly_manifest"]
+        self.assertFalse(official_manifest["available"])
+        self.assertEqual(
+            official_manifest["path"],
+            "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+        )
+        self.assertFalse(official_manifest["ready_for_a2_evidence_context"])
+        mutating_index = report["a1_official_api_mutating_index"]
+        self.assertFalse(mutating_index["available"])
+        self.assertEqual(
+            mutating_index["path"],
+            "docs/a1/evidence/official_api_mutating_calibration_index.json",
+        )
+        self.assertFalse(mutating_index["ready_for_a2_evidence_context"])
+        self.assertFalse(mutating_index["c3_grading_ready"])
+        paid_media_summary = report["a1_official_api_paid_media_summary"]
+        self.assertFalse(paid_media_summary["available"])
+        self.assertEqual(
+            paid_media_summary["path"],
+            "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
+        )
+        self.assertFalse(paid_media_summary["ready_for_a2_evidence_context"])
+        self.assertFalse(paid_media_summary["safe_for_paid_media_claims"])
+        self.assertFalse(paid_media_summary["c3_grading_ready"])
+        self.assertFalse(paid_media_summary["guardrails"]["paid_media_requires_allow_paid_media"])
+        payment_provider = report["a1_payment_provider_readiness"]
+        self.assertFalse(payment_provider["available"])
+        self.assertEqual(
+            payment_provider["path"],
+            "docs/a1/evidence/payment_provider_readiness_public.json",
+        )
+        self.assertFalse(payment_provider["ready_for_a2_payment_policy_context"])
+        self.assertFalse(payment_provider["public_safe"])
+        self.assertFalse(payment_provider["ci_payment_calls_allowed"])
+        self.assertFalse(payment_provider["c3_grading_ready"])
+        self.assertTrue(
+            payment_provider["a2_policy_implications"]["must_not_mark_c3_from_payment_context"]
+        )
+        billing_replay = report["a1_billing_replay_evidence"]
+        self.assertFalse(billing_replay["available"])
+        self.assertEqual(
+            billing_replay["path"],
+            "docs/a1/evidence/billing_replay_fixture_round35.json",
+        )
+        self.assertFalse(billing_replay["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_replay["duplicate_idempotency_proven"])
+        self.assertFalse(billing_replay["c3_grading_ready"])
+        self.assertTrue(
+            billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+        billing_migration = report["a1_billing_ledger_migration"]
+        self.assertFalse(billing_migration["available"])
+        self.assertEqual(
+            billing_migration["path"],
+            "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
+        )
+        self.assertFalse(billing_migration["tenant_rls_ready"])
+        self.assertFalse(billing_migration["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_migration["c3_grading_ready"])
+        self.assertTrue(
+            billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+        billing_sql = report["a1_billing_sql_semantic_contract"]
+        self.assertFalse(billing_sql["available"])
+        self.assertEqual(
+            billing_sql["path"],
+            "docs/a1/evidence/billing_sql_semantic_contract.json",
+        )
+        self.assertFalse(billing_sql["ready_for_a2_sql_policy_context"])
+        self.assertFalse(billing_sql["public_safe"])
+        self.assertFalse(billing_sql["c3_grading_ready"])
+        self.assertTrue(
+            billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"]
+        )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -1330,6 +1504,791 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("ashr_grading_tiny_calibration", report["batch_plan_refs"])
         self.assertIn("semantic_llm_judge_audit", report["batch_plan_refs"])
         self.assertIn("raw prompts", report["redaction_policy"]["never_commit"])
+
+    def test_evidence_readiness_consumes_a1_official_api_readonly_manifest_summary(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        summary = {
+            "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+            "status": "ok",
+            "source_private_manifest_present": True,
+            "summary": {
+                "read_steps": 5,
+                "ok_or_planned_steps": 5,
+                "error_steps": 0,
+                "quota_block_count": 0,
+                "modalities": ["text"],
+            },
+            "step_summaries": [
+                {"step_id": "init"},
+                {"step_id": "list_datasets"},
+                {"step_id": "list_runs"},
+            ],
+            "public_safety": {
+                "raw_key_material_present": False,
+                "header_values_included": False,
+                "raw_payload_values_included": False,
+                "private_payload_contents_present": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "redacted_summary_fields_only": True,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "official_api_readonly_manifest_summary.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_official_api_readonly_manifest_path=summary_path,
+            )
+
+        official_manifest = report["a1_official_api_readonly_manifest"]
+        self.assertTrue(official_manifest["available"])
+        self.assertTrue(official_manifest["public_safe"])
+        self.assertTrue(official_manifest["ready_for_a2_evidence_context"])
+        self.assertEqual(official_manifest["read_step_count"], 5)
+        self.assertEqual(official_manifest["step_ids"], ["init", "list_datasets", "list_runs"])
+        self.assertFalse(official_manifest["raw_payload_values_included"])
+
+    def test_evidence_readiness_consumes_a1_official_api_mutating_index_summary(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        summary = {
+            "schema_version": "ashr.clone.official_api_mutating_calibration_index.v1",
+            "public_safe": True,
+            "raw_payloads_included": False,
+            "secret_values_included": False,
+            "records": [
+                {
+                    "mutating_step_ids": ["create-request-text"],
+                    "observed_error_kinds": ["api"],
+                    "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_text.redacted.json",
+                    "quota_block_count": 1,
+                    "raw_payloads_included": False,
+                    "read_steps": 5,
+                    "status": "partial",
+                    "summary_modalities": ["text"],
+                    "total_steps": 6,
+                },
+                {
+                    "mutating_step_ids": ["create-request-image"],
+                    "observed_error_kinds": ["quota"],
+                    "private_manifest": "docs/evidence/private_refs/a1_official_api_mutating_image.redacted.json",
+                    "quota_block_count": 1,
+                    "raw_payloads_included": False,
+                    "read_steps": 5,
+                    "status": "partial",
+                    "summary_modalities": ["image"],
+                    "total_steps": 6,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "official_api_mutating_calibration_index.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_official_api_mutating_index_path=summary_path,
+            )
+
+        mutating_index = report["a1_official_api_mutating_index"]
+        self.assertTrue(mutating_index["available"])
+        self.assertTrue(mutating_index["public_safe"])
+        self.assertTrue(mutating_index["ready_for_a2_evidence_context"])
+        self.assertFalse(mutating_index["raw_payloads_included"])
+        self.assertFalse(mutating_index["secret_values_included"])
+        self.assertFalse(mutating_index["c3_grading_ready"])
+        self.assertEqual(mutating_index["record_count"], 2)
+        self.assertEqual(mutating_index["mutating_step_count"], 2)
+        self.assertEqual(mutating_index["quota_block_count"], 2)
+        self.assertEqual(mutating_index["read_step_count"], 10)
+        self.assertEqual(mutating_index["total_steps"], 12)
+        self.assertEqual(mutating_index["modalities"], ["image", "text"])
+        self.assertEqual(mutating_index["mutating_step_ids"], ["create-request-image", "create-request-text"])
+        self.assertEqual(mutating_index["observed_error_kinds"], ["api", "quota"])
+        self.assertEqual(mutating_index["status_counts"], {"partial": 2})
+
+    def test_evidence_readiness_consumes_a1_paid_media_manifest_summary(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        summary = {
+            "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+            "status": "partial",
+            "mode": "small-batch",
+            "source_private_manifest_present": True,
+            "guardrails": {
+                "execute_requires_small_batch": True,
+                "mutating_execute_requires_quota_gate": True,
+                "mutating_requires_include_mutating": True,
+                "paid_media_requires_allow_paid_media": True,
+                "quota_gate_present": True,
+                "raw_records_private": True,
+                "output_policy": {
+                    "full_record_stdout_blocked": True,
+                    "output_is_private": True,
+                    "private_output_required": True,
+                },
+            },
+            "public_safety": {
+                "raw_key_material_present": False,
+                "header_values_included": False,
+                "raw_payload_values_included": False,
+                "private_payload_contents_present": False,
+                "request_parameter_values_included": False,
+                "step_record_locations_included": False,
+                "redacted_summary_fields_only": True,
+            },
+            "summary": {
+                "read_steps": 5,
+                "mutating_steps": 1,
+                "ok_or_planned_steps": 5,
+                "error_steps": 1,
+                "quota_block_count": 1,
+                "estimated_calls": 17,
+                "modalities": ["text"],
+                "total_steps": 6,
+            },
+            "step_summaries": [
+                {
+                    "step_id": "init",
+                    "function": "init",
+                    "kind": "read",
+                    "status": "ok",
+                    "status_code": 200,
+                    "quota_blocked": False,
+                },
+                {
+                    "step_id": "list-requests",
+                    "function": "list_requests",
+                    "kind": "read",
+                    "status": "ok",
+                    "status_code": 200,
+                    "quota_blocked": False,
+                },
+                {
+                    "step_id": "create-request-text",
+                    "function": "create_request",
+                    "kind": "mutate",
+                    "modality": "text",
+                    "status": "error",
+                    "status_code": 200,
+                    "quota_blocked": True,
+                    "quota_remaining_present": True,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            summary_path = Path(tmp_dir) / "official_api_paid_media_summary_20260709_185014.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_official_api_paid_media_summary_path=summary_path,
+            )
+
+        paid_media = report["a1_official_api_paid_media_summary"]
+        self.assertTrue(paid_media["available"])
+        self.assertTrue(paid_media["public_safe"])
+        self.assertTrue(paid_media["redacted_summary_fields_only"])
+        self.assertFalse(paid_media["raw_payload_values_included"])
+        self.assertTrue(paid_media["ready_for_a2_evidence_context"])
+        self.assertFalse(paid_media["safe_for_paid_media_claims"])
+        self.assertFalse(paid_media["c3_grading_ready"])
+        self.assertEqual(paid_media["status"], "partial")
+        self.assertEqual(paid_media["mode"], "small-batch")
+        self.assertEqual(paid_media["estimated_call_count"], 17)
+        self.assertEqual(paid_media["quota_block_count"], 1)
+        self.assertEqual(paid_media["mutating_step_count"], 1)
+        self.assertEqual(paid_media["mutating_functions"], ["create_request"])
+        self.assertEqual(paid_media["mutating_modalities"], ["text"])
+        self.assertEqual(paid_media["quota_blocked_step_ids"], ["create-request-text"])
+        self.assertTrue(paid_media["quota_remaining_observed"])
+        self.assertEqual(paid_media["status_code_counts"], {"200": 3})
+        self.assertTrue(paid_media["guardrails"]["paid_media_requires_allow_paid_media"])
+        self.assertTrue(paid_media["guardrails"]["mutating_execute_requires_quota_gate"])
+        self.assertTrue(paid_media["guardrails"]["full_record_stdout_blocked"])
+
+    def test_evidence_readiness_consumes_a1_payment_provider_readiness(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        packet = {
+            "schema_version": "ashr.clone.a1.payment_provider_readiness.v1",
+            "owner": "A1 Worker-PaymentDocsEvidence",
+            "public_safe": True,
+            "payment_call_policy": {
+                "provider_called": False,
+                "checkout_or_portal_called": False,
+                "real_charge_possible": False,
+                "ci_payment_calls_allowed": False,
+            },
+            "provider_secret_policy": {
+                "raw_secret_values_allowed": False,
+                "secret_reference_prefixes": ["env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:"],
+                "forbidden_material": [
+                    "Stripe secret keys",
+                    "WeChat merchant private keys",
+                    "Alipay app private keys",
+                    "card PAN or CVC",
+                ],
+            },
+            "providers": [
+                {
+                    "provider": "stripe",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Stripe-hosted Checkout and Billing Portal plans only",
+                    "payment_methods": ["card", "alipay", "wechat_pay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+                {
+                    "provider": "wechat_pay",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Hosted WeChat Pay provider handoff contract",
+                    "payment_methods": ["wechat_pay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+                {
+                    "provider": "alipay",
+                    "modes": ["test", "live"],
+                    "hosted_surface": "Hosted Alipay trade page/provider handoff contract",
+                    "payment_methods": ["alipay"],
+                    "side_effects": {
+                        "provider_called": False,
+                        "checkout_or_portal_called": False,
+                        "real_charge_possible": False,
+                    },
+                },
+            ],
+            "human_real_card_testing": {
+                "allowed": True,
+                "automation_allowed": False,
+                "stored_card_data_allowed": False,
+            },
+            "webhook_hash_envelopes": [
+                {
+                    "provider": "stripe",
+                    "mode": "test",
+                    "payload_sha256": "a" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                {
+                    "provider": "wechat_pay",
+                    "mode": "test",
+                    "payload_sha256": "b" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                {
+                    "provider": "alipay",
+                    "mode": "test",
+                    "payload_sha256": "c" * 64,
+                    "verified": True,
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+            ],
+            "object_evidence_paths": [
+                {
+                    "path": "docs/a1/payment_provider_readiness.md",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/a1/schemas/payment_provider_readiness.schema.json",
+                    "classification": "public_contract",
+                    "allowed_in_public_repo": True,
+                },
+                {
+                    "path": "docs/evidence/private_refs/payments/{provider}/{mode}/{object}.hash-envelope.json",
+                    "classification": "private_ref",
+                    "allowed_in_public_repo": False,
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            packet_path = Path(tmp_dir) / "payment_provider_readiness_public.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_payment_provider_readiness_path=packet_path,
+            )
+
+        payment_provider = report["a1_payment_provider_readiness"]
+        self.assertTrue(payment_provider["available"])
+        self.assertEqual(payment_provider["schema_version"], "ashr.clone.a1.payment_provider_readiness.v1")
+        self.assertTrue(payment_provider["public_safe"])
+        self.assertEqual(payment_provider["provider_count"], 3)
+        self.assertEqual(payment_provider["providers"], ["alipay", "stripe", "wechat_pay"])
+        self.assertEqual(payment_provider["mode_count"], 2)
+        self.assertEqual(payment_provider["modes"], ["live", "test"])
+        self.assertEqual(payment_provider["hosted_surface_count"], 3)
+        self.assertEqual(payment_provider["payment_methods"], ["alipay", "card", "wechat_pay"])
+        self.assertFalse(payment_provider["provider_called"])
+        self.assertFalse(payment_provider["checkout_or_portal_called"])
+        self.assertFalse(payment_provider["real_charge_possible"])
+        self.assertFalse(payment_provider["ci_payment_calls_allowed"])
+        self.assertFalse(payment_provider["raw_secret_values_allowed"])
+        self.assertIn("vault:", payment_provider["secret_reference_prefixes"])
+        self.assertEqual(payment_provider["forbidden_material_count"], 4)
+        self.assertEqual(payment_provider["webhook_hash_envelope_count"], 3)
+        self.assertEqual(payment_provider["verified_webhook_hash_count"], 3)
+        self.assertFalse(payment_provider["raw_payload_included"])
+        self.assertFalse(payment_provider["secret_value_present"])
+        self.assertTrue(payment_provider["human_real_card_testing_allowed"])
+        self.assertFalse(payment_provider["human_real_card_automation_allowed"])
+        self.assertFalse(payment_provider["stored_card_data_allowed"])
+        self.assertEqual(payment_provider["public_evidence_path_count"], 3)
+        self.assertEqual(payment_provider["private_ref_path_count"], 1)
+        self.assertTrue(payment_provider["ready_for_a2_payment_policy_context"])
+        self.assertFalse(payment_provider["c3_grading_ready"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["payment_provider_policy_context"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["can_support_payment_abuse_cases"])
+        self.assertTrue(payment_provider["a2_policy_implications"]["live_payment_requires_human_operator"])
+        self.assertTrue(
+            payment_provider["a2_policy_implications"]["must_not_mark_c3_from_payment_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_billing_replay_fixture(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        fixture = {
+            "schema_version": "ashr.clone.billing_replay_fixture.v1",
+            "accepted_provider_event": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "event_id": "evt_fixture_invoice_paid",
+                "event_type": "invoice.paid",
+                "ingest_status": "accepted",
+                "ledger_event_id": "ble_fixture_invoice_paid",
+                "ledger_event_type": "invoice_paid",
+                "ledger_mutation_count": 1,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "duplicate_provider_event": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "event_id": "evt_fixture_invoice_paid",
+                "event_type": "invoice.paid",
+                "ingest_status": "duplicate",
+                "ledger_event_id": "ble_fixture_invoice_paid",
+                "ledger_event_type": "invoice_paid",
+                "ledger_mutation_count": 0,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "billing_evidence": {
+                "schema_version": "ashr.clone.billing_evidence_snapshot.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "ledger_event_count": 2,
+                "provider_event_count": 1,
+                "usage_units": 14,
+                "totals_by_currency_minor": {"usd": 12345},
+                "billing_snapshot_sha256": "a" * 64,
+                "raw_payload_included": False,
+                "secret_value_present": False,
+            },
+            "public_ledger": {
+                "schema_version": "ashr.clone.billing_provider_contract.v1",
+                "tenant_id": "tenant_fixture",
+                "project_id": "project_fixture",
+                "provider": "stripe",
+                "mode": "test",
+                "ledger_event_count": 2,
+                "provider_event_count": 1,
+                "usage_units": 14,
+                "totals_by_currency_minor": {"usd": 12345},
+                "raw_payload_included": False,
+                "secret_value_present": False,
+                "billing_accounts": [
+                    {
+                        "tenant_id": "tenant_fixture",
+                        "project_id": "project_fixture",
+                        "provider": "stripe",
+                        "mode": "test",
+                        "raw_payload_included": False,
+                        "raw_secret_present": False,
+                    }
+                ],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fixture_path = Path(tmp_dir) / "billing_replay_fixture_round35.json"
+            fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_replay_fixture_path=fixture_path,
+            )
+
+        billing_replay = report["a1_billing_replay_evidence"]
+        self.assertTrue(billing_replay["available"])
+        self.assertEqual(billing_replay["schema_version"], "ashr.clone.billing_replay_fixture.v1")
+        self.assertEqual(
+            billing_replay["billing_evidence_schema_version"],
+            "ashr.clone.billing_evidence_snapshot.v1",
+        )
+        self.assertEqual(billing_replay["tenant_id"], "tenant_fixture")
+        self.assertEqual(billing_replay["project_id"], "project_fixture")
+        self.assertEqual(billing_replay["provider"], "stripe")
+        self.assertEqual(billing_replay["mode"], "test")
+        self.assertEqual(billing_replay["ledger_event_count"], 2)
+        self.assertEqual(billing_replay["provider_event_count"], 1)
+        self.assertEqual(billing_replay["usage_units"], 14)
+        self.assertEqual(billing_replay["totals_by_currency_minor"], {"usd": 12345})
+        self.assertEqual(billing_replay["totals_currencies"], ["usd"])
+        self.assertTrue(billing_replay["billing_snapshot_sha256_present"])
+        self.assertEqual(billing_replay["accepted_ingest_status"], "accepted")
+        self.assertEqual(billing_replay["duplicate_ingest_status"], "duplicate")
+        self.assertEqual(billing_replay["accepted_ledger_mutation_count"], 1)
+        self.assertEqual(billing_replay["duplicate_ledger_mutation_count"], 0)
+        self.assertTrue(billing_replay["duplicate_idempotency_proven"])
+        self.assertFalse(billing_replay["raw_payload_included"])
+        self.assertFalse(billing_replay["secret_value_present"])
+        self.assertFalse(billing_replay["raw_secret_present"])
+        self.assertTrue(billing_replay["public_safe"])
+        self.assertTrue(billing_replay["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_replay["c3_grading_ready"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["billing_usage_policy_context"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["can_support_cost_policy_calibration"])
+        self.assertTrue(billing_replay["a2_policy_implications"]["should_add_billing_abuse_cases"])
+        self.assertTrue(
+            billing_replay["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_billing_ledger_migration_manifest(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        manifest = {
+            "schema_version": "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+            "version": 2,
+            "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+            "tables": [
+                {
+                    "name": "billing_accounts",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_accounts_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id"],
+                    "required_indexes": ["idx_billing_accounts_scope"],
+                    "required_constraints": ["billing_accounts_no_raw_secret"],
+                },
+                {
+                    "name": "billing_provider_events",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_provider_events_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id", "raw_payload_included"],
+                    "required_indexes": ["idx_billing_provider_events_scope_created"],
+                    "required_constraints": ["billing_provider_events_no_raw_secret"],
+                },
+                {
+                    "name": "billing_ledger_events",
+                    "tenant_column": "organization_id",
+                    "rls_policy": "billing_ledger_events_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id", "usage_units"],
+                    "required_indexes": ["idx_billing_ledger_events_scope_created"],
+                    "required_constraints": ["billing_ledger_events_no_raw_secret"],
+                },
+            ],
+            "provider_event_types": [
+                "invoice.paid",
+                "wechat_pay.transaction.success",
+                "alipay.trade.success",
+                "ashr.usage.reconciled",
+            ],
+            "ledger_event_types": ["invoice_paid", "usage_reconciled", "refund_created"],
+            "providers": ["stripe", "wechat_pay", "alipay"],
+            "modes": ["test", "live"],
+            "currencies": ["usd", "cny"],
+            "required_functions": {
+                "normalize_billing_event_type": {"must_contain": ["invoice.paid"]},
+                "ingest_billing_provider_event": {"must_contain": ["replay_status := 'duplicate'"]},
+                "summarize_billing_ledger": {"must_contain": ["SUM(l.usage_units)"]},
+            },
+            "public_safety": {
+                "raw_provider_payload_stored": False,
+                "raw_provider_secret_stored": False,
+                "raw_card_data_stored": False,
+                "provider_calls_executed": False,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "a1_billing_ledger_migration_manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_ledger_migration_manifest_path=manifest_path,
+            )
+
+        billing_migration = report["a1_billing_ledger_migration"]
+        self.assertTrue(billing_migration["available"])
+        self.assertEqual(
+            billing_migration["schema_version"],
+            "ashr.clone.a1_billing_ledger_migration_manifest.v1",
+        )
+        self.assertEqual(billing_migration["version"], 2)
+        self.assertEqual(
+            billing_migration["migration"],
+            "services/api/migrations/002_a1_billing_ledger.sql",
+        )
+        self.assertEqual(billing_migration["table_count"], 3)
+        self.assertEqual(
+            billing_migration["table_names"],
+            ["billing_accounts", "billing_ledger_events", "billing_provider_events"],
+        )
+        self.assertEqual(billing_migration["tenant_rls_table_count"], 3)
+        self.assertTrue(billing_migration["tenant_rls_ready"])
+        self.assertEqual(billing_migration["required_index_count"], 3)
+        self.assertEqual(billing_migration["required_constraint_count"], 3)
+        self.assertIn("billing_provider_events_no_raw_secret", billing_migration["constraint_names"])
+        self.assertEqual(billing_migration["provider_event_type_count"], 4)
+        self.assertEqual(billing_migration["ledger_event_type_count"], 3)
+        self.assertEqual(billing_migration["providers"], ["alipay", "stripe", "wechat_pay"])
+        self.assertEqual(billing_migration["modes"], ["live", "test"])
+        self.assertEqual(billing_migration["currencies"], ["cny", "usd"])
+        self.assertEqual(
+            billing_migration["required_function_names"],
+            ["ingest_billing_provider_event", "normalize_billing_event_type", "summarize_billing_ledger"],
+        )
+        self.assertTrue(billing_migration["public_safe"])
+        self.assertFalse(billing_migration["raw_provider_payload_stored"])
+        self.assertFalse(billing_migration["raw_provider_secret_stored"])
+        self.assertFalse(billing_migration["raw_card_data_stored"])
+        self.assertFalse(billing_migration["provider_calls_executed"])
+        self.assertTrue(billing_migration["ready_for_a2_evidence_context"])
+        self.assertFalse(billing_migration["c3_grading_ready"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["sql_billing_policy_context"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["can_support_billing_abuse_cases"])
+        self.assertTrue(billing_migration["a2_policy_implications"]["can_cross_check_usage_rollups"])
+        self.assertTrue(
+            billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        contract = {
+            "schema_version": "ashr.clone.a1.billing_sql_semantic_contract.v1",
+            "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+            "public_safe": True,
+            "provider_config_storage": {
+                "durable_policy": "hash_or_reference_only",
+                "provider_config_column_present": False,
+                "provider_config_object_persisted": False,
+                "hash_columns": ["billing_provider_events.payload_sha256"],
+                "reference_only_fields": [
+                    "billing_accounts.account_ref",
+                    "billing_accounts.customer_ref",
+                    "billing_ledger_events.provider_event_ref",
+                ],
+                "forbidden_durable_columns": [
+                    "provider_config",
+                    "provider_secret",
+                    "client_secret",
+                    "raw_payload",
+                    "payload",
+                    "card_number",
+                ],
+                "forbidden_public_markers": [
+                    "stripe secret key prefix",
+                    "authorization header marker",
+                ],
+            },
+            "replay_semantics": {
+                "accepted": {
+                    "status": "accepted",
+                    "ledger_mutation_count": 1,
+                    "payload_sha256_relation": "new_provider_event",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "duplicate": {
+                    "status": "duplicate",
+                    "ledger_mutation_count": 0,
+                    "payload_sha256_relation": "same_provider_event_same_hash",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "conflict": {
+                    "status": "conflict",
+                    "ledger_mutation_count": 0,
+                    "payload_sha256_relation": "same_provider_event_different_hash",
+                    "raw_payload_included": False,
+                    "secret_value_present": False,
+                },
+                "match_key": [
+                    "organization_id",
+                    "project_id",
+                    "provider",
+                    "mode",
+                    "provider_event_id",
+                ],
+            },
+            "object_evidence_linkage": {
+                "billing_sql_edges": [
+                    {
+                        "from": "billing_provider_events.ledger_event_id",
+                        "to": "billing_ledger_events.id",
+                        "link_type": "provider replay row stores accepted ledger mutation id pointer",
+                    },
+                    {
+                        "from": "billing_ledger_events.provider_event_id",
+                        "to": "billing_provider_events.id",
+                        "link_type": "ledger row links back to provider event row",
+                    },
+                ],
+                "go_postgres_hash_only_objects": [
+                    {
+                        "table": "ashr_run_uploads",
+                        "object_id_column": "upload_id",
+                        "sha256_column": "result_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                    {
+                        "table": "ashr_trace_batches",
+                        "object_id_column": "batch_id",
+                        "sha256_column": "observations_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                    {
+                        "table": "ashr_artifact_manifests",
+                        "object_id_column": "artifact_id",
+                        "sha256_column": "manifest_sha256",
+                        "raw_payload_column_present": False,
+                    },
+                ],
+                "public_snapshot_fields": [
+                    "billing_snapshot_sha256",
+                    "ledger_event_count",
+                    "provider_event_count",
+                    "raw_payload_included",
+                    "secret_value_present",
+                ],
+            },
+            "validation": {
+                "pytest_targets": [
+                    "tests/a1/test_billing_provider_contract.py",
+                    "tests/a1/test_billing_ledger_migration_manifest.py",
+                ],
+                "schema_path": "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            contract_path = Path(tmp_dir) / "billing_sql_semantic_contract.json"
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_billing_sql_semantic_contract_path=contract_path,
+            )
+
+        billing_sql = report["a1_billing_sql_semantic_contract"]
+        self.assertTrue(billing_sql["available"])
+        self.assertEqual(billing_sql["schema_version"], "ashr.clone.a1.billing_sql_semantic_contract.v1")
+        self.assertEqual(billing_sql["migration"], "services/api/migrations/002_a1_billing_ledger.sql")
+        self.assertTrue(billing_sql["public_safe"])
+        self.assertEqual(billing_sql["durable_policy"], "hash_or_reference_only")
+        self.assertFalse(billing_sql["provider_config_column_present"])
+        self.assertFalse(billing_sql["provider_config_object_persisted"])
+        self.assertEqual(billing_sql["hash_columns"], ["billing_provider_events.payload_sha256"])
+        self.assertEqual(billing_sql["reference_only_field_count"], 3)
+        self.assertIn("provider_config", billing_sql["forbidden_durable_columns"])
+        self.assertEqual(billing_sql["forbidden_public_marker_count"], 2)
+        self.assertEqual(billing_sql["replay_statuses"], ["accepted", "conflict", "duplicate"])
+        self.assertEqual(billing_sql["accepted_ledger_mutation_count"], 1)
+        self.assertEqual(billing_sql["duplicate_ledger_mutation_count"], 0)
+        self.assertEqual(billing_sql["conflict_ledger_mutation_count"], 0)
+        self.assertFalse(billing_sql["raw_payload_included"])
+        self.assertFalse(billing_sql["secret_value_present"])
+        self.assertIn("provider_event_id", billing_sql["match_key"])
+        self.assertEqual(billing_sql["billing_sql_edge_count"], 2)
+        self.assertEqual(billing_sql["go_postgres_hash_only_object_count"], 3)
+        self.assertEqual(billing_sql["raw_payload_column_present_count"], 0)
+        self.assertIn("billing_snapshot_sha256", billing_sql["public_snapshot_fields"])
+        self.assertEqual(
+            billing_sql["schema_path"],
+            "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+        )
+        self.assertTrue(billing_sql["ready_for_a2_sql_policy_context"])
+        self.assertFalse(billing_sql["c3_grading_ready"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["sql_semantic_policy_context"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["can_support_replay_regression_cases"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["can_support_hash_only_artifact_audit"])
+        self.assertTrue(billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
