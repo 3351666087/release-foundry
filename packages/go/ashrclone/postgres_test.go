@@ -2,6 +2,9 @@ package ashrclone
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -62,10 +65,14 @@ func TestPostgresSchemaIncludesDurableWorkerJobContract(t *testing.T) {
 func TestPostgresSchemaIncludesQuotaUsageLedgerContract(t *testing.T) {
 	for _, required := range []string{
 		"CREATE TABLE IF NOT EXISTS ashr_quota_ledger",
+		"CREATE TABLE IF NOT EXISTS ashr_usage_quota_policies",
 		"tenant_id TEXT NOT NULL",
 		"project_id TEXT NOT NULL",
 		"usage_event_id TEXT NOT NULL",
 		"operation TEXT NOT NULL",
+		"meter TEXT NOT NULL",
+		"limit_units INTEGER NOT NULL",
+		"status TEXT NOT NULL DEFAULT 'active'",
 		"units INTEGER NOT NULL DEFAULT 1",
 		"api_key_id TEXT NOT NULL DEFAULT ''",
 		"idempotency_key TEXT NOT NULL DEFAULT ''",
@@ -77,11 +84,39 @@ func TestPostgresSchemaIncludesQuotaUsageLedgerContract(t *testing.T) {
 		"FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE",
 		"ashr_quota_ledger_scope_idx ON ashr_quota_ledger (tenant_id, project_id, operation, created_at)",
 		"ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at)",
+		"ashr_usage_quota_policies_scope_idx ON ashr_usage_quota_policies (tenant_id, project_id, operation, status)",
 	} {
 		if !strings.Contains(PostgresSchemaSQL, required) {
 			t.Fatalf("quota usage ledger schema missing %q", required)
 		}
 	}
+}
+
+func TestPostgresRepositoryWiresDurableSaaSQuotaFunction(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, required := range []string{
+		`postgresFunctionExists(ctx, tx, "check_quota_and_insert_usage", 12)`,
+		"FROM check_quota_and_insert_usage($1::uuid, $2::uuid, $3, $4, NULL, NULL, $5::uuid, 'go-postgres', $6, $7, $8::jsonb, NULL)",
+		"INSERT INTO quota_policies (organization_id, project_id, meter, period, limit_quantity, enforcement_mode, status, effective_from, metadata)",
+		"ON CONFLICT (organization_id, project_id, meter, period)",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres quota wiring missing %q", required)
+		}
+	}
+}
+
+func readPostgresSource(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve postgres test path")
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(file), "postgres.go"))
+	if err != nil {
+		t.Fatalf("read postgres source: %v", err)
+	}
+	return string(contents)
 }
 
 func TestPostgresSchemaIncludesAuditLogHashChainContract(t *testing.T) {

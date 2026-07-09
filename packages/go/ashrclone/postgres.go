@@ -186,6 +186,21 @@ CREATE INDEX IF NOT EXISTS ashr_quota_ledger_scope_idx ON ashr_quota_ledger (ten
 CREATE INDEX IF NOT EXISTS ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at);
 CREATE INDEX IF NOT EXISTS ashr_audit_events_scope_idx ON ashr_audit_events (tenant_id, project_id, action, created_at);
 CREATE INDEX IF NOT EXISTS ashr_audit_events_target_idx ON ashr_audit_events (tenant_id, project_id, target_id, created_at);
+
+CREATE TABLE IF NOT EXISTS ashr_usage_quota_policies (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    meter TEXT NOT NULL,
+    limit_units INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, project_id, operation),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ashr_usage_quota_policies_scope_idx ON ashr_usage_quota_policies (tenant_id, project_id, operation, status);
 `
 
 type PostgresRepository struct {
@@ -1006,7 +1021,53 @@ func (repository *PostgresRepository) ConfigureAPIKeyRateLimit(tenantID, project
 }
 
 func (repository *PostgresRepository) ConfigureUsageQuota(tenantID, projectID, operation string, limit int) (Envelope[UsageOperationTotal], error) {
-	return Envelope[UsageOperationTotal]{}, repository.notImplemented("configure_usage_quota")
+	if err := repository.requireDB(); err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	operation = NormalizeQuotaOperation(operation)
+	if operation == "" {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("usage quota operation is required")
+	}
+	meter, ok := OperationMeterFor(operation)
+	if !ok {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("usage quota operation %q is not supported", operation)
+	}
+	if limit < 0 {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("usage quota limit must be non-negative")
+	}
+	ctx := context.Background()
+	tx, err := repository.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("configure usage quota begin transaction: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	now := repository.now().UTC().Truncate(time.Microsecond)
+	configuredSaaS, err := configureSaaSUsageQuotaPolicy(ctx, tx, tenantID, projectID, meter, limit, now)
+	if err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	if !configuredSaaS {
+		if err := requireProject(ctx, tx, tenantID, projectID); err != nil {
+			return Envelope[UsageOperationTotal]{}, err
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO ashr_usage_quota_policies (tenant_id, project_id, operation, meter, limit_units, status, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
+ON CONFLICT (tenant_id, project_id, operation)
+DO UPDATE SET meter = EXCLUDED.meter, limit_units = EXCLUDED.limit_units, status = 'active', updated_at = EXCLUDED.updated_at
+`, tenantID, projectID, operation, meter.Meter, limit, now); err != nil {
+			return Envelope[UsageOperationTotal]{}, fmt.Errorf("configure usage quota policy: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Envelope[UsageOperationTotal]{}, fmt.Errorf("configure usage quota commit: %w", err)
+	}
+	used, events, err := repository.usageOperationTotal(tenantID, projectID, operation)
+	if err != nil {
+		return Envelope[UsageOperationTotal]{}, err
+	}
+	result := UsageOperationTotal{Operation: operation, Units: used, Events: events}
+	return Envelope[UsageOperationTotal]{Operation: "usage_quota.configure", Status: "ok", Result: result}, nil
 }
 
 func (repository *PostgresRepository) APIKeyRateLimitSnapshot(tenantID, projectID, keyID string) (Envelope[APIKeyRateLimitSnapshot], error) {
@@ -1722,6 +1783,12 @@ func appendPostgresUsageEvent(ctx context.Context, tx *sql.Tx, tenantID, project
 	if units < 1 {
 		units = 1
 	}
+	if gated, err := appendSaaSQuotaUsageIfAvailable(ctx, tx, tenantID, projectID, operation, units, evidence, now); gated || err != nil {
+		return err
+	}
+	if err := checkLocalPostgresUsageQuota(ctx, tx, tenantID, projectID, operation, units); err != nil {
+		return err
+	}
 	usageEventID := stablePostgresTimedID("usage", operation, now)
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO ashr_quota_ledger (tenant_id, project_id, usage_event_id, operation, units, api_key_id, idempotency_key, request_id, run_id, target_id, created_at)
@@ -1731,6 +1798,193 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		return fmt.Errorf("append usage ledger: %w", err)
 	}
 	return nil
+}
+
+func appendSaaSQuotaUsageIfAvailable(ctx context.Context, tx *sql.Tx, tenantID, projectID, operation string, units int, evidence postgresMutationEvidence, now time.Time) (bool, error) {
+	if !looksLikeUUID(tenantID) || !looksLikeUUID(projectID) {
+		return false, nil
+	}
+	available, err := postgresFunctionExists(ctx, tx, "check_quota_and_insert_usage", 12)
+	if err != nil {
+		return false, err
+	}
+	if !available {
+		return false, nil
+	}
+	metadata := JSONMap{
+		"api_key_id":      evidence.APIKeyID,
+		"idempotency_key": evidence.IdempotencyKey,
+		"request_id":      evidence.RequestID,
+		"run_id":          evidence.RunID,
+		"target_id":       evidence.TargetID,
+	}
+	if len(evidence.After) > 0 {
+		metadata["after"] = evidence.After
+	}
+	metadataJSON, err := jsonBytes(RedactSensitive(metadata))
+	if err != nil {
+		return true, fmt.Errorf("marshal SaaS quota metadata: %w", err)
+	}
+	var idempotencyKeyID any
+	if strings.TrimSpace(evidence.IdempotencyKey) != "" {
+		var keyID string
+		err := tx.QueryRowContext(ctx, `
+SELECT id
+FROM idempotency_keys
+WHERE organization_id = $1::uuid AND project_id IS NOT DISTINCT FROM $2::uuid AND idempotency_key = $3
+LIMIT 1
+`, tenantID, projectID, evidence.IdempotencyKey).Scan(&keyID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return true, fmt.Errorf("load SaaS idempotency key: %w", err)
+		}
+		if keyID != "" {
+			idempotencyKeyID = keyID
+		}
+	}
+	var allowed bool
+	var idempotentReplay bool
+	var returnedOperation string
+	var meter string
+	var quantityFloat float64
+	var deniedPolicyID sql.NullString
+	var denialReason sql.NullString
+	var usageLedgerID sql.NullString
+	err = tx.QueryRowContext(ctx, `
+SELECT allowed, usage_ledger_id::text, idempotent_replay, operation, meter, quantity::float8, denied_policy_id::text, denial_reason
+FROM check_quota_and_insert_usage($1::uuid, $2::uuid, $3, $4, NULL, NULL, $5::uuid, 'go-postgres', $6, $7, $8::jsonb, NULL)
+`, tenantID, projectID, operation, units, idempotencyKeyID, evidence.TargetID, now, string(metadataJSON)).Scan(&allowed, &usageLedgerID, &idempotentReplay, &returnedOperation, &meter, &quantityFloat, &deniedPolicyID, &denialReason)
+	if err != nil {
+		return true, fmt.Errorf("append SaaS quota usage: %w", err)
+	}
+	if !allowed {
+		used, limit := saasQuotaDenialContext(ctx, tx, tenantID, projectID, meter, deniedPolicyID.String, now)
+		return true, QuotaExceededError{Operation: returnedOperation, Limit: limit, Used: used, Requested: int(quantityFloat)}
+	}
+	return true, nil
+}
+
+func checkLocalPostgresUsageQuota(ctx context.Context, tx *sql.Tx, tenantID, projectID, operation string, units int) error {
+	var limit int
+	err := tx.QueryRowContext(ctx, `
+SELECT limit_units
+FROM ashr_usage_quota_policies
+WHERE tenant_id = $1 AND project_id = $2 AND operation = $3 AND status = 'active'
+LIMIT 1
+`, tenantID, projectID, operation).Scan(&limit)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load usage quota policy: %w", err)
+	}
+	var used int
+	if err := tx.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(units), 0)::int
+FROM ashr_quota_ledger
+WHERE tenant_id = $1 AND project_id = $2 AND operation = $3
+`, tenantID, projectID, operation).Scan(&used); err != nil {
+		return fmt.Errorf("load usage quota total: %w", err)
+	}
+	if used+units > limit {
+		return QuotaExceededError{Operation: operation, Limit: limit, Used: used, Requested: units}
+	}
+	return nil
+}
+
+func configureSaaSUsageQuotaPolicy(ctx context.Context, tx *sql.Tx, tenantID, projectID string, meter OperationMeter, limit int, now time.Time) (bool, error) {
+	if !looksLikeUUID(tenantID) || !looksLikeUUID(projectID) {
+		return false, nil
+	}
+	available, err := postgresTableExists(ctx, tx, "quota_policies")
+	if err != nil || !available {
+		return available, err
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO quota_policies (organization_id, project_id, meter, period, limit_quantity, enforcement_mode, status, effective_from, metadata)
+VALUES ($1::uuid, $2::uuid, $3, 'day', $4, 'hard', 'active', $5, $6::jsonb)
+ON CONFLICT (organization_id, project_id, meter, period)
+DO UPDATE SET limit_quantity = EXCLUDED.limit_quantity, enforcement_mode = EXCLUDED.enforcement_mode, status = EXCLUDED.status, effective_from = EXCLUDED.effective_from, metadata = EXCLUDED.metadata
+`, tenantID, projectID, meter.Meter, limit, now, `{"configured_by":"go-postgres-repository"}`)
+	if err != nil {
+		return true, fmt.Errorf("configure SaaS usage quota policy: %w", err)
+	}
+	return true, nil
+}
+
+func (repository *PostgresRepository) usageOperationTotal(tenantID, projectID, operation string) (int, int, error) {
+	ctx := context.Background()
+	var used int
+	var events int
+	err := repository.db.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(units), 0)::int, COUNT(*)::int
+FROM ashr_quota_ledger
+WHERE tenant_id = $1 AND project_id = $2 AND operation = $3
+`, tenantID, projectID, operation).Scan(&used, &events)
+	if err != nil {
+		return 0, 0, fmt.Errorf("load usage operation total: %w", err)
+	}
+	return used, events, nil
+}
+
+func postgresTableExists(ctx context.Context, tx *sql.Tx, table string) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check postgres table %s: %w", table, err)
+	}
+	return exists, nil
+}
+
+func postgresFunctionExists(ctx context.Context, tx *sql.Tx, name string, argCount int) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = current_schema()
+    AND p.proname = $1
+    AND p.pronargs = $2
+)
+`, name, argCount).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check postgres function %s: %w", name, err)
+	}
+	return exists, nil
+}
+
+func looksLikeUUID(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 36 {
+		return false
+	}
+	for index, char := range value {
+		switch index {
+		case 8, 13, 18, 23:
+			if char != '-' {
+				return false
+			}
+		default:
+			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func saasQuotaDenialContext(ctx context.Context, tx *sql.Tx, tenantID, projectID, meter, policyID string, at time.Time) (int, int) {
+	limit := 0
+	if policyID != "" {
+		_ = tx.QueryRowContext(ctx, `SELECT limit_quantity::int FROM quota_policies WHERE id = $1::uuid`, policyID).Scan(&limit)
+	}
+	var used int
+	_ = tx.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(quantity), 0)::int
+FROM usage_ledger
+WHERE organization_id = $1::uuid AND project_id IS NOT DISTINCT FROM $2::uuid AND meter = $3 AND period_start <= $4 AND period_end > $4
+`, tenantID, projectID, meter, at).Scan(&used)
+	return used, limit
 }
 
 func appendPostgresAuditEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID, action string, evidence postgresMutationEvidence, now time.Time) error {

@@ -1058,7 +1058,7 @@ BEGIN
       FROM quota_policies
      WHERE organization_id = p_organization_id
        AND project_id IS NOT DISTINCT FROM p_project_id
-       AND meter = mapping.meter
+       AND quota_policies.meter = mapping.meter
        AND status = 'active'
        AND enforcement_mode = 'hard'
        AND effective_from <= p_period_at

@@ -1346,3 +1346,21 @@ Results:
 - TS package suite passed with 327 tests.
 - Python A1 suite passed with 354 tests.
 - Docker compose config checks passed; CL hygiene passed with zero findings; `git diff --check` reported CRLF normalization warnings only.
+
+
+## Round28 durable quota runtime wiring + paid media mutating proof - 2026-07-09T10:33:59Z
+
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`; `git status -sb`; `gh pr checks 27`; `gh run list --branch codex/a1-local-sdk-runner --limit 8 --json ...`: baseline fetched; peer change on `origin/dev/g3-a2-calibration`; PR #27 latest run `29010797860` later completed success.
+- `python -B -m services.runner.api_probe plan-batch --target-operation create-request --request-name "A1 Paid Media Calibration 20260709_182610" --request-file docs/a1/api_calibration/media_interface_request.json --allow-media-generation --allow-non-text-inputs --small-batch-size 1 --batch-size 1 --output docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json`: planned paid media mutating batch; status `blocked` by quota gate.
+- `python -B -m services.runner.api_probe create-request --execute --allow-mutate --allow-media-generation --allow-non-text-inputs --max-request-variations 1 --max-retries 0 --request-name "A1 Paid Media Calibration 20260709_182610" --request-file docs/a1/api_calibration/media_interface_request.json --quota-gate-record docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json --quota-gate-ttl-seconds 0 --allow-quota-override --quota-override-reason "user-authorized paid media calibration for A1 mutating/media contract coverage on 2026-07-09" --output docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json`: real official paid-media mutating attempt; `function=create_request`, `status=error`, `status_code=200`, `attempts=1`; public-safe observation is request quota exhausted with counters `limit=5`, `used=5`, `requested=1`, `remaining=0`.
+- `docker run --rm -d --name ashr-a1-live-pg ... postgres:16-alpine`; `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider`: disposable live Postgres proof after SQL fixes -> `3 passed`.
+- `go test ./...` from `packages/go/ashrclone`: pass.
+- `go test ./...` from `tests/integration/go`: pass.
+- `npm test --prefix packages/ts/ashr-clone`: `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider`: `354 passed`.
+- Focused official mutating schema/SDK tests: `3 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet`: pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet`: pass.
+- `python scripts/cl_guard.py hygiene`: pass, zero findings.
+- `git diff --check`: no whitespace errors; CRLF normalization warning for `docs/a1/evidence/official_api_mutating_calibration_index.json` only.
+- `gh pr checks 27`: CL Gate green; A3 checks skipped by rule, not failing.

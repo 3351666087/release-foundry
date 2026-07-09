@@ -735,3 +735,68 @@ Round27 next 20 A1 growth points:
 18. Add billing export artifact from usage rollups.
 19. Add self-host push gate script wrapping Go/TS/Python/compose/live Postgres optional checks.
 20. Keep monitoring A2/A3 branches but stage only A1-owned files.
+
+
+## Round28 durable quota runtime wiring + paid media mutating proof - 2026-07-09T10:33:59Z
+
+Baseline:
+- Repo: `C:\Users\33516\Documents\Ashr_a1_clean_rebase`; branch `codex/a1-local-sdk-runner-clean`; PR #27 target branch `codex/a1-local-sdk-runner`.
+- Fetched remote refs; peer change observed on `origin/dev/g3-a2-calibration`; no A2/A3 files staged.
+- PR #27 CL Gate run `29010797860` completed green. A3 checks were skipped by CL rules, not failing.
+
+Implemented:
+- Wired Go Postgres quota paths toward commercial SQL quota enforcement. `ConfigureUsageQuota` now persists quota policy into SaaS `quota_policies` when the commercial schema exists, otherwise falls back to lightweight `ashr_usage_quota_policies` for fresh local setup.
+- `appendPostgresUsageEvent` now first attempts the durable SaaS `check_quota_and_insert_usage` path for UUID tenant/project IDs, maps SQL denial to Go `QuotaExceededError`, then falls back to local quota policy plus `ashr_quota_ledger` when the SaaS migration is absent.
+- Added local Postgres quota policy schema and Go static wiring test for the 12-argument `check_quota_and_insert_usage` signature.
+- Fixed SQL PLpgSQL ambiguity in `check_quota_and_insert_usage` by qualifying `quota_policies.meter`.
+- Added live Docker Postgres proof for allowed usage, idempotent replay without double insert, quota-denied response, and `quota.denied` audit payload.
+- Updated public official mutating calibration index to include the new paid-media real attempt while keeping raw payloads and private response data under ignored private evidence.
+
+Official API evidence:
+- Real paid media mutating request was attempted with env-only `ASHR_API_KEY`, `--allow-mutate`, `--allow-media-generation`, and `--allow-non-text-inputs`.
+- Dry-run/plan evidence: `docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json`, status `blocked`.
+- Real private evidence: `docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json`, `function=create_request`, `status=error`, `status_code=200`, `attempts=1`, duration about 2969ms.
+- Public-safe observed result: official request quota blocked the write path with counters `limit=5`, `used=5`, `requested=1`, `remaining=0`. No raw response body or key material was copied to public files.
+- Public index updated: `docs/a1/evidence/official_api_mutating_calibration_index.json` remains public-safe and now accepts real `error` quota records in addition to older `partial` quota-blocked manifests.
+
+Validation:
+- `go test ./...` from `packages/go/ashrclone` -> pass.
+- Disposable Docker Postgres live migration: `python -B -m pytest tests/integration/test_a1_large_saas_migration_live.py -q -p no:cacheprovider` -> `3 passed`.
+- `go test ./...` from `tests/integration/go` -> pass.
+- `npm test --prefix packages/ts/ashr-clone` -> `327 passed`.
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` -> `354 passed`.
+- Focused official mutating schema/SDK tests -> `3 passed`.
+- `docker compose -f services/runner/docker-compose.a1.yml config --quiet` -> pass.
+- `docker compose -f infra/docker/docker-compose.self-host.yml config --quiet` -> pass.
+- `python scripts/cl_guard.py hygiene` -> pass, zero findings.
+- `git diff --check` -> no errors; one CRLF normalization warning for the public mutating index JSON.
+
+Environment notes:
+- Docker daemon is usable and successfully ran `postgres:16-alpine` for live proof.
+- Windows `bash.exe` currently resolves to WSL/WindowsApps and failed with `/bin/bash` missing in this shell; Git Bash exists, but Codex `apply_patch` was not visible inside it. This did not block implementation or tests.
+
+Growth-Auditor result:
+- Auditor confirmed the main P1 was durable quota runtime wiring plus live proof. This round closes the practical Go/Postgres quota gate and live allowed/replay/deny/audit proof.
+- Remaining next P1/P2 growth: successful official mutating response after request quota reset/plan change, Go HTTP route for quota policy/readback, RLS tenant isolation live proof, generated OpenAPI route map, and invoice-ready usage rollup exports.
+
+Next 20 A1 growth points:
+1. Add Go HTTP endpoints for quota policy create/read and usage rollup readback.
+2. Add live Postgres RLS proof for tenant A/B isolation across usage/audit/quota tables.
+3. Add API key lifecycle durability in Postgres: hashed storage, revoke, scope denial, last-used, and audit.
+4. Add no-side-effect-after-quota-denial test for submit/upload/trace/artifact mutations.
+5. Add SQL usage rollup materialized view for invoice-ready runs/media/observations/storage.
+6. Add Go webhook delivery table and worker lifecycle for release/usage events.
+7. Add OpenAPI route generation from Go route manifest.
+8. Generate Python/TS clients from OpenAPI for quota and usage routes.
+9. Add TS parity for new quota HTTP routes immediately after Go route addition.
+10. Add Python SDK quota policy submit/read helpers.
+11. Add official API successful text mutation probe once request quota is reset or plan upgraded.
+12. Add official paid image/audio/file/video probes after a successful text mutation baseline.
+13. Add private evidence digest/freshness checks for official mutating manifests.
+14. Add public evidence packet for durable quota live Postgres proof.
+15. Add CI optional live Postgres service job guarded by env flag.
+16. Add self-host Docker compose profile for Go API plus Postgres plus worker.
+17. Add Terraform/HCL skeleton for managed Postgres plus worker service.
+18. Add Rust verifier hook for signed evidence bundle verification.
+19. Add Go artifact service durable storage readback and signed manifest hash.
+20. Add release gate integration that consumes durable usage/quota denial evidence.

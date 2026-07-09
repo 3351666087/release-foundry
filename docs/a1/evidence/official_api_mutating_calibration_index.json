@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-09T09:24:40Z",
+  "generated_at": "2026-07-09T10:26:18Z",
   "public_safe": true,
   "raw_payloads_included": false,
   "records": [
@@ -87,6 +87,24 @@
         "video"
       ],
       "total_steps": 6
+    },
+    {
+      "mutating_step_ids": [
+        "create-request-image"
+      ],
+      "observed_error_kinds": [
+        "api",
+        "quota"
+      ],
+      "private_manifest": "docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json",
+      "quota_block_count": 1,
+      "raw_payloads_included": false,
+      "read_steps": 0,
+      "status": "error",
+      "summary_modalities": [
+        "image"
+      ],
+      "total_steps": 1
     }
   ],
   "schema_version": "ashr.clone.official_api_mutating_calibration_index.v1",

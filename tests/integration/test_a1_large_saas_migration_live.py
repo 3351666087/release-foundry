@@ -131,3 +131,121 @@ def test_a1_foundation_idempotency_conflict_is_live_opt_in() -> None:
     assert result.returncode != 0
     assert "idempotency" in result.stderr
     assert "fingerprint conflict" in result.stderr
+
+
+def test_a1_check_quota_and_insert_usage_allowed_replay_denied_and_audited_live_opt_in() -> None:
+    dsn = _dsn()
+    _psql(dsn, file=MIGRATION)
+
+    setup_sql = """
+    INSERT INTO organizations (id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000301', 'org-live-a1-quota', 'Org Live A1 Quota')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO workspaces (id, organization_id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000301', 'ws-live-a1-quota', 'Workspace Live A1 Quota')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO projects (id, organization_id, workspace_id, slug, display_name)
+      VALUES ('00000000-0000-0000-0000-000000000303', '00000000-0000-0000-0000-000000000301', '00000000-0000-0000-0000-000000000302', 'proj-live-a1-quota', 'Project Live A1 Quota')
+      ON CONFLICT DO NOTHING;
+    INSERT INTO quota_policies (id, organization_id, project_id, meter, period, limit_quantity, enforcement_mode, status, effective_from, metadata)
+      VALUES ('00000000-0000-0000-0000-000000000304', '00000000-0000-0000-0000-000000000301', '00000000-0000-0000-0000-000000000303', 'runs', 'day', 1, 'hard', 'active', '2026-07-01T00:00:00Z', '{"source":"a1-live-test"}'::jsonb)
+      ON CONFLICT (organization_id, project_id, meter, period)
+      DO UPDATE SET limit_quantity = EXCLUDED.limit_quantity, enforcement_mode = EXCLUDED.enforcement_mode, status = EXCLUDED.status, effective_from = EXCLUDED.effective_from, metadata = EXCLUDED.metadata;
+    INSERT INTO idempotency_keys (id, organization_id, project_id, idempotency_key, request_method, request_path, fingerprint)
+      VALUES ('00000000-0000-0000-0000-000000000305', '00000000-0000-0000-0000-000000000301', '00000000-0000-0000-0000-000000000303', 'quota-live-a1-allowed', 'POST', '/v1/runs', 'fp-quota-live-a1-allowed')
+      ON CONFLICT (organization_id, project_id, idempotency_key) DO NOTHING;
+    """
+    _psql(dsn, setup_sql)
+
+    allowed_sql = """
+    SELECT allowed, idempotent_replay, operation, meter, quantity::int, denial_reason
+      FROM check_quota_and_insert_usage(
+        '00000000-0000-0000-0000-000000000301',
+        '00000000-0000-0000-0000-000000000303',
+        'sdk.submit',
+        1,
+        '00000000-0000-0000-0000-000000000302',
+        NULL,
+        '00000000-0000-0000-0000-000000000305',
+        'api',
+        'run-live-a1-quota-allowed',
+        '2026-07-09T00:00:00Z',
+        '{"request_id":"req-live-a1-quota-allowed"}'::jsonb,
+        '00000000-0000-0000-0000-000000000306'
+      );
+    SELECT count(*) AS usage_rows_after_allowed
+      FROM usage_ledger
+     WHERE organization_id = '00000000-0000-0000-0000-000000000301'
+       AND project_id = '00000000-0000-0000-0000-000000000303'
+       AND operation = 'sdk.submit';
+    """
+    allowed = _psql(dsn, allowed_sql)
+    assert " t " in allowed.stdout
+    assert " f " in allowed.stdout
+    assert "sdk.submit" in allowed.stdout
+    assert "runs" in allowed.stdout
+    assert "usage_rows_after_allowed" in allowed.stdout
+    assert "1" in allowed.stdout
+
+    replay_sql = """
+    SELECT allowed, idempotent_replay, operation, meter, quantity::int, denial_reason
+      FROM check_quota_and_insert_usage(
+        '00000000-0000-0000-0000-000000000301',
+        '00000000-0000-0000-0000-000000000303',
+        'sdk.submit',
+        1,
+        '00000000-0000-0000-0000-000000000302',
+        NULL,
+        '00000000-0000-0000-0000-000000000305',
+        'api',
+        'run-live-a1-quota-allowed',
+        '2026-07-09T00:00:00Z',
+        '{"request_id":"req-live-a1-quota-replay"}'::jsonb,
+        '00000000-0000-0000-0000-000000000307'
+      );
+    SELECT count(*) AS usage_rows_after_replay
+      FROM usage_ledger
+     WHERE organization_id = '00000000-0000-0000-0000-000000000301'
+       AND project_id = '00000000-0000-0000-0000-000000000303'
+       AND operation = 'sdk.submit';
+    """
+    replay = _psql(dsn, replay_sql)
+    assert " t " in replay.stdout
+    assert "usage_rows_after_replay" in replay.stdout
+    assert "1" in replay.stdout
+
+    denied_sql = """
+    SELECT allowed, idempotent_replay, operation, meter, quantity::int, denial_reason
+      FROM check_quota_and_insert_usage(
+        '00000000-0000-0000-0000-000000000301',
+        '00000000-0000-0000-0000-000000000303',
+        'sdk.submit',
+        1,
+        '00000000-0000-0000-0000-000000000302',
+        NULL,
+        NULL,
+        'api',
+        'run-live-a1-quota-denied',
+        '2026-07-09T00:00:00Z',
+        '{"request_id":"req-live-a1-quota-denied"}'::jsonb,
+        '00000000-0000-0000-0000-000000000308'
+      );
+    SELECT action, payload->>'operation' AS operation, payload->>'meter' AS meter
+      FROM audit_log
+     WHERE organization_id = '00000000-0000-0000-0000-000000000301'
+       AND project_id = '00000000-0000-0000-0000-000000000303'
+       AND action = 'quota.denied';
+    SELECT count(*) AS usage_rows_after_denied
+      FROM usage_ledger
+     WHERE organization_id = '00000000-0000-0000-0000-000000000301'
+       AND project_id = '00000000-0000-0000-0000-000000000303'
+       AND operation = 'sdk.submit';
+    """
+    denied = _psql(dsn, denied_sql)
+    assert " f " in denied.stdout
+    assert "quota_exceeded" in denied.stdout
+    assert "quota.denied" in denied.stdout
+    assert "sdk.submit" in denied.stdout
+    assert "runs" in denied.stdout
+    assert "usage_rows_after_denied" in denied.stdout
+    assert "1" in denied.stdout
