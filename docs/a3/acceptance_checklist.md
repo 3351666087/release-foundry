@@ -222,8 +222,15 @@
 - [x] Saved redacted audit bundle verification fixture under `fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json`.
 - [x] Added verifier tests in `tests/a3/a3_gate_cli.test.mjs`.
 - [x] Documented audit bundle verifier growth in `docs/a3/p3_audit_bundle_verifier_growth_2026_07_07.md`.
-- [ ] Turn the PR Gate payload into a live GitHub required check.
-- [ ] Persist cryptographically signed reviewer approvals in durable storage.
+- [x] Add live-capable GitHub Check Run publisher and CLI with dry-run default and sanitized receipts.
+- [x] Update GitHub Actions example to publish the Ashr++ Release Gate check using a runtime `GITHUB_TOKEN`.
+- [x] Save redacted dry-run publish receipt under `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`.
+- [x] Add live-capable PR comment publisher behind explicit `--pr-comment --pull-number` opt-in.
+- [x] Add dry-run branch-protection required-check plan for `Ashr++ Release Gate`.
+- [x] Save redacted PR comment receipt and required-check plan fixtures under `fixtures/a3/p3`.
+- [ ] Configure repository branch protection to require the `Ashr++ Release Gate` check after maintainer approval.
+- [x] Persist hash-sealed reviewer waiver/approval records through A3 API, store, SQLite, dashboard, and JSON export.
+- [ ] Verify real cryptographic reviewer signatures and identity binding before accepting approvals as production sign-off.
 - [ ] Add file hashes for generated PDF and screenshot export artifacts.
 - [ ] Add signed immutable audit bundle archive and archive/zip verifier.
 
@@ -390,8 +397,14 @@
 - [x] Add SaaS Admin login/team/usage/API-key/trust/cloud guardrails to JSON, Markdown, and print/PDF report exports.
 - [x] Confirm Product Console and SaaS Admin exports still derive readiness from A1 run evidence and A2 judge evidence.
 - [x] Add Growth-Auditor artifact with 40 next growth points for Product Console artifact/export entry.
+- [x] Add Artifact Registry model for report exports and control-plane evidence.
+- [x] Add `GET /api/a3/artifacts/registry`.
+- [x] Add `artifact_registry_entries` and `artifact_lifecycle_events` to the SQL migration contract.
+- [x] Show Artifact Registry summary and entries in Report Center.
+- [x] Include Artifact Registry evidence in JSON, Markdown, and print/PDF report exports.
+- [x] Add Growth-Auditor artifact with 45 next growth points for Artifact Registry commercialization.
 - [x] Add CI export-firewall scans for generated docs and fixtures.
-- [ ] Add a real SQL adapter after the team chooses Postgres/MySQL/SQLite migration tooling.
+- [x] Add a real local SQL adapter target using Node SQLite, while keeping Postgres/MySQL production migration tooling as future work.
 - [x] Add hosted report page rendering for `/reports/:reportId` or `/r/:shareToken`.
 - [x] Add API import routes for new A1 RunResult and A2 GradeResult uploads.
 - [x] Add Enterprise Readiness report schema and dashboard panel for self-host/audit review.
@@ -408,3 +421,11 @@
 - [x] Add external `/r/:shareToken` hosted report route with token-hash lookup.
 - [x] Keep raw share tokens out of stored report payloads and durable Report Center summaries.
 - [x] Record allowed and denied share-link view audit events for active, expired, revoked, and missing tokens.
+- [x] Add dashboard Report Center revoke controls for active API-backed hosted reports.
+- [x] Verify SQLite-backed A3 store can persist A1/A2 imports, hosted report lifecycle, audit events, and usage ledger rows.
+- [x] Add safe SaaS Admin action request workflow for login/team/usage/API-key/trust/cloud-management operations.
+- [x] Add `POST /api/a3/admin/actions/submit` and `GET /api/a3/admin/actions`.
+- [x] Persist `saas_admin_action_requests` in the SQL migration contract and SQLite-backed A3 store.
+- [x] Add dashboard Record Request / Record Guardrail controls without enabling real Ashr cloud mutations.
+- [x] Include SaaS Admin action request summary in JSON/Markdown/print-ready exports.
+- [x] Confirm SaaS Admin action requests preserve A1/A2 compatibility and do not store secrets, emails, tokens, cookies, or real API keys.

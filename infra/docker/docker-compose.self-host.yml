@@ -1,0 +1,135 @@
+name: ashr-a1-self-host
+
+x-ashr-runtime-env: &ashr-runtime-env
+  ASHR_RUNTIME_ENV: self-host
+  ASHR_CONTROL_PLANE_BASE_URL: http://api:8080
+  ASHR_DATABASE_URL: postgresql://ashr:ashr_dev_only@postgres:5432/ashr
+  ASHR_REDIS_URL: redis://redis:6379/0
+  ASHR_OBJECT_STORE_URL: file:///object-store
+  ASHR_OBJECT_STORE_BUCKET: ashr-local-artifacts
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.python-runtime
+    image: ashr/a1-python-runtime:local
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_API_HOST: 0.0.0.0
+      ASHR_API_PORT: "8080"
+    command:
+      - python
+      - -c
+      - >-
+        from services.api.control_plane import serve_control_plane_http;
+        server = serve_control_plane_http('0.0.0.0', 8080);
+        server.serve_forever()
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      object-store:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          from services.api.control_plane import SaaSControlPlaneService;
+          assert SaaSControlPlaneService().health()['status'] == 'ok'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    image: ashr/a1-python-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.python-runtime
+    profiles: ["worker"]
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_REPLAY_STATE_INPUT: /runtime/state/cloud-state.json
+      ASHR_REPLAY_STATE_OUTPUT: /runtime/state/cloud-state.replayed.json
+      ASHR_REPLAY_OUTPUT_DIR: /runtime/replay
+    command:
+      - python
+      - -m
+      - services.api.cli
+      - replay-queued
+      - --state-input
+      - /runtime/state/cloud-state.json
+      - --state-output
+      - /runtime/state/cloud-state.replayed.json
+      - --agent
+      - examples.agents.mock_agent:RespondingMockAgent
+      - --tenant-id
+      - tenant_self_host
+      - --project-id
+      - project_self_host
+      - --dataset-id
+      - dataset_self_host
+      - --summary-output
+      - /runtime/replay/summary.json
+      - --fixture-output-dir
+      - /runtime/replay/fixtures
+      - --run-output-dir
+      - /runtime/replay/runs
+      - --max-runs
+      - "10"
+      - --queue-workers
+      - "4"
+      - --max-workers
+      - "4"
+      - --timeout
+      - "30"
+    volumes:
+      - ashr-runtime-state:/runtime/state
+      - ashr-replay-output:/runtime/replay
+      - ashr-object-store:/object-store
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ashr
+      POSTGRES_USER: ashr
+      POSTGRES_PASSWORD: ashr_dev_only
+    volumes:
+      - ashr-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - ashr-redis-data:/data
+
+  object-store:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /object-store/ashr-local-artifacts && tail -f /dev/null"]
+    volumes:
+      - ashr-object-store:/object-store
+
+volumes:
+  ashr-postgres-data:
+  ashr-redis-data:
+  ashr-runtime-state:
+  ashr-replay-output:
+  ashr-object-store:

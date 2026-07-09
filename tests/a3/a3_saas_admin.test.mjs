@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import {
+  buildSaasAdminActionRequest,
   buildSaasAdminConsole,
-  planSaasAdminAction
+  planSaasAdminAction,
+  summarizeSaasAdminActionRequests
 } from "../../services/report/a3_saas_admin.mjs";
 
 async function loadJson(path) {
@@ -76,4 +78,29 @@ test("A3 SaaS admin actions are explicit read-only or plan-only guardrails", () 
   });
   assert.equal(trust.enabled, false);
   assert.match(trust.next_step, /Fix blocking release-gate/);
+});
+
+test("A3 SaaS admin action requests record guardrails without cloud writes or secrets", () => {
+  const plan = planSaasAdminAction("rotate_api_key", {
+    organizationId: "org-unit",
+    projectId: "project-unit",
+    createdAt: "2026-07-08T00:00:00.000Z"
+  });
+  const request = buildSaasAdminActionRequest("rotate_api_key", {
+    plan,
+    requestId: "aar_unit_rotate",
+    actorHash: "actor_hash_only",
+    requestedAt: "2026-07-08T00:00:00.000Z"
+  });
+
+  assert.equal(request.schema_version, "a3.saas_admin_action_request.v1");
+  assert.equal(request.status, "recorded_plan_only");
+  assert.equal(request.real_cloud_mutation_performed, false);
+  assert.equal(request.secret_values_included, false);
+  assert.equal(request.safety.raw_api_key_values_allowed, false);
+
+  const summary = summarizeSaasAdminActionRequests([request]);
+  assert.equal(summary.request_count, 1);
+  assert.equal(summary.pending_count, 1);
+  assert.equal(summary.real_cloud_mutations_performed, false);
 });

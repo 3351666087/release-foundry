@@ -10,6 +10,7 @@ import {
   normalizeCases,
   summarizeCoverage,
   summarizeCloudConsoleShell,
+  summarizeArtifactRegistryExport,
   summarizeMediaReadiness,
   summarizeOfficialAshrGap,
   summarizeOfficialCodeCrawlParity,
@@ -31,10 +32,15 @@ import {
 import { mapAshrSampleToA3Fixtures } from "../../../services/report/p3_ashr_mapper.mjs?v=a3-polish";
 import {
   createShareableA3Report,
+  fetchA3AdminConsole,
+  fetchA3ArtifactRegistry,
   fetchA3DashboardSnapshot,
   fetchA3ProductConsole,
   fetchA3ReportCenter,
+  fetchA3ReviewWorkflow,
   planA3AdminAction,
+  submitA3AdminAction,
+  revokeShareableA3Report,
   isA3ApiSource
 } from "./api-client.mjs";
 import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
@@ -44,6 +50,7 @@ import { renderProductConsolePanel } from "./components/product-console-panel.mj
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
+import { buildA3ArtifactRegistry } from "../../../services/report/a3_artifact_registry.mjs";
 
 const state = {
   runs: null,
@@ -68,8 +75,11 @@ const state = {
   productConsole: {},
   usageLedger: {},
   reportCenter: {},
+  artifactRegistry: {},
+  reviewWorkflow: {},
   selectedAdminAction: "view_usage",
   selectedAdminPlan: null,
+  selectedAdminReceipt: null,
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -979,6 +989,53 @@ function renderReviewerWorkflowBoard() {
       ? board.items.map((item) => reviewerWorkflowItemRow(item))
       : [emptyMatrixRow("No reviewer workflow items are open.")]
   ));
+  renderReviewWorkflowRecords();
+}
+
+function renderReviewWorkflowRecords() {
+  const workflow = state.reviewWorkflow || {};
+  const records = Array.isArray(workflow.records) ? workflow.records : [];
+  const block = $("review-workflow-records");
+  if (!block) {
+    return;
+  }
+  const recordRows = records.length
+    ? records.slice(-4).reverse().map((record) => reviewWorkflowRecordRow(record))
+    : [emptyMatrixRow("No durable waiver or approval records have been submitted through the A3 API yet.")];
+  block.replaceChildren(
+    matrixKicker("Durable Review Records"),
+    miniRow("Records", String(workflow.record_count || records.length || 0)),
+    miniRow("Waivers", String(workflow.waiver_count || 0)),
+    miniRow("Approvals", String(workflow.approval_count || 0)),
+    miniRow("Accepted", String(workflow.accepted_count || 0)),
+    miniRow("Storage", workflow.durable_storage_ready ? "durable-ready" : "not durable"),
+    ...recordRows
+  );
+}
+
+function matrixKicker(label) {
+  const node = document.createElement("div");
+  node.className = "section-kicker";
+  node.textContent = label;
+  return node;
+}
+
+function reviewWorkflowRecordRow(record) {
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>${escapeHtml(record.record_type || "record")}</strong>
+      <span class="badge ${record.accepted ? "pass" : "warn"}">${escapeHtml(record.status || "unknown")}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(record.record_id)}</span>
+      <span>${escapeHtml(record.run_id || "no run")}</span>
+      <span>${escapeHtml(record.signature?.status || "hash sealed")}</span>
+    </div>
+    <div class="muted">${escapeHtml(record.subject?.decision || record.subject?.follow_up_issue || record.release_version || "")}</div>
+  `;
+  return node;
 }
 
 function reviewerWorkflowLaneRow(lane) {
@@ -1292,10 +1349,11 @@ function renderReportCenter() {
   const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
   const reportCenter = state.reportCenter || {};
+  const artifactRegistry = state.artifactRegistry || reportCenter.artifact_registry || {};
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
+  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
   const tiles = [
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
@@ -1305,6 +1363,10 @@ function renderReportCenter() {
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
     tiles.push(...hostedReports.map(hostedReportRow));
+  }
+  if (artifactRegistry.schema_version === "a3.artifact_registry.v1") {
+    tiles.push(artifactRegistrySummaryRow(artifactRegistry));
+    tiles.push(...(artifactRegistry.entries || []).slice(0, 8).map(artifactEntryRow));
   }
   $("report-center").replaceChildren(...tiles);
 }
@@ -1396,7 +1458,74 @@ function hostedReportRow(report) {
     </div>
     <div class="muted">${escapeHtml((report.manifest?.missing || []).length ? `Missing: ${report.manifest.missing.join(", ")}` : "Manifest evidence is ready for PR gate and audit bundle linkage.")}</div>
   `;
+  const canRevoke = isA3ApiSource(state.source)
+    && report.lifecycle?.revocable !== false
+    && !["revoked", "expired"].includes(report.status);
+  if (canRevoke) {
+    const actions = document.createElement("div");
+    actions.className = "report-actions compact";
+    const revokeButton = document.createElement("button");
+    revokeButton.type = "button";
+    revokeButton.className = "button danger";
+    revokeButton.textContent = "Revoke";
+    revokeButton.title = "Revoke hosted report link and refresh Report Center evidence";
+    revokeButton.addEventListener("click", () => revokeHostedReport(report));
+    actions.append(revokeButton);
+    node.append(actions);
+  }
   return node;
+}
+
+function artifactRegistrySummaryRow(registry = {}) {
+  const summary = registry.summary || {};
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Artifact Registry</strong>
+      <span class="badge ${summary.blocked_count ? "fail" : summary.artifact_count ? "pass" : "neutral"}">${escapeHtml(registry.registry_status || "unknown")}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(summary.artifact_count || 0)} artifact(s)</span>
+      <span>${escapeHtml(summary.ready_count || 0)} ready</span>
+      <span>${escapeHtml(summary.hash_ready_count || 0)} hash-ready</span>
+      <span>${escapeHtml(summary.billable_meter_count || 0)} billable meter(s)</span>
+    </div>
+    <div class="muted">${escapeHtml((registry.next_actions || []).join(" "))}</div>
+  `;
+  return node;
+}
+
+function artifactEntryRow(entry = {}) {
+  const node = document.createElement("div");
+  node.className = "matrix-row artifact-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>${escapeHtml(entry.artifact_type || entry.artifact_id)}</strong>
+      <span class="badge ${artifactLifecycleClass(entry.lifecycle_state)}">${escapeHtml(entry.lifecycle_state || "unknown")}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(entry.content_type || "unknown")}</span>
+      <span>${escapeHtml(entry.hash_status || "unknown")}</span>
+      <span>${escapeHtml(entry.redaction_status || "unknown")} redaction</span>
+      <span>${escapeHtml(entry.billable_meter || "no meter")}</span>
+    </div>
+    <div class="muted">${escapeHtml(entry.customer_value || "")}</div>
+  `;
+  return node;
+}
+
+function artifactLifecycleClass(stateValue) {
+  if (stateValue === "shared" || stateValue === "generated" || stateValue === "retained") {
+    return "pass";
+  }
+  if (stateValue === "planned") {
+    return "warn";
+  }
+  if (stateValue === "blocked") {
+    return "fail";
+  }
+  return "neutral";
 }
 
 function reportStatusClass(status) {
@@ -1421,6 +1550,7 @@ function renderPrintReport() {
   const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
   const productConsole = summarizeProductConsoleExport(state.productConsole);
   const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
+  const artifactRegistry = summarizeArtifactRegistryExport(state.artifactRegistry);
   const officialGap = summarizeOfficialAshrGap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
   const officialMirror = summarizeOfficialFrontendMirror(state.frontendMirror);
   const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
@@ -1518,6 +1648,7 @@ function renderPrintReport() {
         ["API keys", saasAdmin.available ? `${saasAdmin.api_keys.status}, ${saasAdmin.api_keys.key_count} metadata row(s), ${saasAdmin.api_keys.reveal_policy}` : "missing"],
         ["Trust", saasAdmin.available ? `${saasAdmin.trust.status}, publish ${saasAdmin.trust.publish_enabled ? "enabled" : "disabled"}, public publish ${saasAdmin.trust.public_publish_enabled ? "enabled" : "disabled"}` : "missing"],
         ["Cloud management", saasAdmin.available ? `${saasAdmin.cloud_management.status}, ${saasAdmin.cloud_management.resource_count} resource(s), real mutations ${saasAdmin.cloud_management.real_mutations_enabled ? "enabled" : "disabled"}` : "missing"],
+        ["Action requests", saasAdmin.available ? `${saasAdmin.action_requests?.request_count || 0} recorded, ${saasAdmin.action_requests?.pending_count || 0} pending, real cloud writes ${saasAdmin.action_requests?.real_cloud_mutations_performed ? "yes" : "no"}` : "missing"],
         ["A1/A2 compatibility", saasAdmin.available ? `A1 ${saasAdmin.a1_a2_compatibility.a1_run_result_ready ? "ready" : "missing"}, A2 ${saasAdmin.a1_a2_compatibility.a2_grade_result_ready ? "ready" : "missing"}` : "missing"]
       ])}
       ${renderReportTable(["Action", "Mode", "Real Cloud Write"], saasAdmin.available ? saasAdmin.action_plans.map((action) => [
@@ -1525,6 +1656,30 @@ function renderPrintReport() {
         action.mode,
         action.writes_real_ashr_cloud ? "yes" : "no"
       ]) : [], "No SaaS admin action guardrails.")}
+      ${renderReportTable(["Request", "Action", "Status"], saasAdmin.available ? (saasAdmin.action_requests?.latest || []).map((request) => [
+        request.request_id,
+        request.action,
+        request.status
+      ]) : [], "No SaaS admin action requests recorded yet.")}
+    </div>
+    <div class="report-section">
+      <h4>Artifact Registry</h4>
+      <div class="muted">${escapeHtml(artifactRegistry.recommendation)}</div>
+      ${renderReportTable(["Signal", "Value"], [
+        ["Available", artifactRegistry.available ? "yes" : "no"],
+        ["Status", artifactRegistry.available ? artifactRegistry.status : "missing"],
+        ["Artifacts", artifactRegistry.available ? `${artifactRegistry.artifact_count} total, ${artifactRegistry.report_artifact_count} report, ${artifactRegistry.control_artifact_count} control` : "missing"],
+        ["Ready / blocked", artifactRegistry.available ? `${artifactRegistry.ready_count} ready, ${artifactRegistry.blocked_count} blocked` : "missing"],
+        ["Hash-ready", artifactRegistry.available ? String(artifactRegistry.hash_ready_count) : "missing"],
+        ["Billable meters", artifactRegistry.available ? String(artifactRegistry.billable_meter_count) : "missing"],
+        ["Safety", artifactRegistry.available ? `raw secrets ${artifactRegistry.safety.raw_secret_values_allowed ? "allowed" : "blocked"}, raw share tokens ${artifactRegistry.safety.raw_share_tokens_stored ? "stored" : "not stored"}` : "missing"]
+      ])}
+      ${renderReportTable(["Artifact", "Lifecycle", "Hash", "Meter"], artifactRegistry.available ? artifactRegistry.top_artifacts.map((artifact) => [
+        artifact.artifact_type,
+        artifact.lifecycle_state,
+        artifact.hash_status,
+        artifact.billable_meter
+      ]) : [], "No Artifact Registry entries.")}
     </div>
     <div class="report-section">
       <h4>Release War Room</h4>
@@ -2144,7 +2299,9 @@ function exportReport(format) {
         regressionReplay: state.regressionReplay,
         commercialReadiness: state.commercialReadiness,
         releaseGate: state.releaseGate
-      }
+      },
+      state.artifactRegistry,
+      state.reviewWorkflow
     ), null, 2), "application/json");
     return;
   }
@@ -2172,7 +2329,8 @@ function exportReport(format) {
       regressionReplay: state.regressionReplay,
       commercialReadiness: state.commercialReadiness,
       releaseGate: state.releaseGate
-    }
+    },
+    state.artifactRegistry
   ), "text/markdown");
 }
 
@@ -2197,22 +2355,78 @@ async function shareReport() {
     status.className = `badge ${report.status === "shareable" ? "pass" : "fail"}`;
     status.textContent = report.status;
     $("share-report-detail").textContent = `${report.share_url_path} / ${report.sealed_evidence.hash_algorithm}:${report.sealed_evidence.payload_hash.slice(0, 12)} / ${report.redaction.status}`;
-    state.reportCenter = await fetchA3ReportCenter({
-      source: state.source,
-      baseUrl: getA3ApiBaseUrl()
-    });
-    state.productConsole = await fetchA3ProductConsole({
-      source: state.source,
-      baseUrl: getA3ApiBaseUrl()
-    });
-    renderReportCenter();
-    renderProductConsole();
+    await refreshReportEvidence();
   } catch (error) {
     status.className = "badge fail";
     status.textContent = "failed";
     $("share-report-detail").textContent = error.message;
     console.error(error);
   }
+}
+
+async function revokeHostedReport(report) {
+  const status = $("share-report-status");
+  if (!isA3ApiSource(state.source)) {
+    status.className = "badge warn";
+    status.textContent = "API required";
+    $("share-report-detail").textContent = "Switch Data to API-backed Mock before revoking a hosted report link.";
+    return;
+  }
+  status.className = "badge neutral";
+  status.textContent = "revoking";
+  $("share-report-detail").textContent = `Revoking ${report.report_id} and refreshing Report Center evidence.`;
+  try {
+    const receipt = await revokeShareableA3Report({
+      source: state.source,
+      baseUrl: getA3ApiBaseUrl(),
+      reportId: report.report_id,
+      reason: "dashboard_revoke"
+    });
+    status.className = `badge ${receipt.status === "revoked" ? "pass" : "warn"}`;
+    status.textContent = receipt.status;
+    $("share-report-detail").textContent = `${receipt.report_id} revoked by ${receipt.revoked_by}; reason ${receipt.reason}.`;
+    await refreshReportEvidence();
+  } catch (error) {
+    status.className = "badge fail";
+    status.textContent = "failed";
+    $("share-report-detail").textContent = error.message;
+    console.error(error);
+  }
+}
+
+async function refreshReportEvidence() {
+  state.reportCenter = await fetchA3ReportCenter({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.artifactRegistry = await fetchA3ArtifactRegistry({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.productConsole = await fetchA3ProductConsole({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.reviewWorkflow = await fetchA3ReviewWorkflow({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  renderReportCenter();
+  renderProductConsole();
+  renderReviewerWorkflowBoard();
+  renderPrintReport();
+}
+
+async function refreshAdminEvidence() {
+  state.saasAdmin = await fetchA3AdminConsole({
+    source: state.source,
+    baseUrl: getA3ApiBaseUrl()
+  });
+  state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || state.selectedAdminPlan;
+  refreshEnterpriseReadiness();
+  await refreshReportEvidence();
+  renderSaasAdmin();
+  renderEnterpriseReadiness();
 }
 
 function printReport() {
@@ -2237,6 +2451,8 @@ function applyApiDashboardPayload(payload) {
   state.productConsole = payload.product_console || {};
   state.usageLedger = payload.usage_ledger || {};
   state.reportCenter = payload.report_center || {};
+  state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
+  state.reviewWorkflow = payload.review_workflow || {};
   state.selectedAdminPlan = (state.saasAdmin.actions || []).find((item) => item.action === state.selectedAdminAction) || null;
   state.saasRuntime = {
     ...(payload.storage || {}),
@@ -2263,11 +2479,17 @@ function resetSaasRuntime(mode = "static_fixture") {
         "GET /api/a3/enterprise/readiness",
         "GET /api/a3/admin/console",
         "POST /api/a3/admin/actions/plan",
+        "POST /api/a3/admin/actions/submit",
+        "GET /api/a3/admin/actions",
+        "POST /api/a3/review/waivers",
+        "POST /api/a3/review/approvals",
+        "GET /api/a3/review/workflow",
         "GET /api/a3/product/console",
         "POST /api/a3/reports/share",
-        "GET /api/a3/reports/center"
+        "GET /api/a3/reports/center",
+        "GET /api/a3/artifacts/registry"
       ],
-      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "trust_reports"],
+      tables: ["organizations", "users", "team_members", "roles", "api_keys", "projects", "runs", "cases", "trace_events", "grade_results", "shareable_reports", "artifact_registry_entries", "artifact_lifecycle_events", "saas_admin_action_requests", "trust_reports"],
       guardrails: [
         "Static mode keeps existing fixtures working.",
         "API mode uses the same A1/A2 normalized fields.",
@@ -2328,6 +2550,7 @@ function renderSaasAdmin() {
   if (select) {
     select.addEventListener("change", async () => {
       state.selectedAdminAction = select.value;
+      state.selectedAdminReceipt = null;
       if (isA3ApiSource(state.source)) {
         try {
           state.selectedAdminPlan = await planA3AdminAction({
@@ -2352,6 +2575,71 @@ function renderSaasAdmin() {
       }
       renderSaasAdmin();
     });
+  }
+  const submitButton = document.querySelector("[data-admin-action-submit]");
+  if (submitButton) {
+    submitButton.addEventListener("click", submitAdminActionRequest);
+  }
+}
+
+async function submitAdminActionRequest() {
+  const action = state.selectedAdminAction;
+  const plan = state.selectedAdminPlan || {};
+  if (!isA3ApiSource(state.source)) {
+    state.selectedAdminReceipt = {
+      schema_version: "a3.saas_admin_action_receipt.v1",
+      request_id: "static_fixture_preview",
+      action,
+      status: "api_required",
+      next_step: "Switch Data to API-backed Mock before recording a durable admin action request."
+    };
+    state.saasAdmin = {
+      ...state.saasAdmin,
+      action_requests: [
+        ...(state.saasAdmin.action_requests || []),
+        {
+          request_id: "static_fixture_preview",
+          action,
+          area: plan.area || "unknown",
+          mode: plan.mode || "preview",
+          status: "api_required",
+          real_cloud_mutation_performed: false,
+          next_step: state.selectedAdminReceipt.next_step
+        }
+      ],
+      action_request_summary: {
+        ...(state.saasAdmin.action_request_summary || {}),
+        request_count: ((state.saasAdmin.action_request_summary || {}).request_count || 0) + 1,
+        real_cloud_mutations_performed: false
+      }
+    };
+    renderSaasAdmin();
+    renderPrintReport();
+    return;
+  }
+
+  try {
+    state.selectedAdminReceipt = await submitA3AdminAction({
+      source: state.source,
+      action,
+      baseUrl: getA3ApiBaseUrl(),
+      reason: "dashboard_admin_request",
+      target: {
+        mode: plan.mode,
+        area: plan.area
+      }
+    });
+    await refreshAdminEvidence();
+  } catch (error) {
+    state.selectedAdminReceipt = {
+      schema_version: "a3.saas_admin_action_receipt.v1",
+      request_id: "submit_failed",
+      action,
+      status: "failed",
+      next_step: error.message
+    };
+    console.error(error);
+    renderSaasAdmin();
   }
 }
 
@@ -2380,6 +2668,18 @@ function refreshLocalProductConsole() {
     reportCenter: state.reportCenter || {},
     auditEvents: [],
     importReceipts: []
+  });
+}
+
+function refreshLocalArtifactRegistry() {
+  state.artifactRegistry = buildA3ArtifactRegistry({
+    source: state.source,
+    reportCenter: state.reportCenter || {},
+    usageLedger: state.usageLedger || {},
+    productConsole: state.productConsole || {},
+    saasAdmin: state.saasAdmin || {}
+  }, {
+    source: state.source
   });
 }
 
@@ -2449,6 +2749,7 @@ async function loadDataSource(source) {
     refreshLocalSaasAdmin();
     refreshLocalUsageLedger();
     refreshLocalProductConsole();
+    refreshLocalArtifactRegistry();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -2507,6 +2808,7 @@ function resetCalibrationState() {
   state.commercialReadiness = {};
   state.releaseGate = {};
   state.reportCenter = {};
+  state.artifactRegistry = {};
 }
 
 async function init() {

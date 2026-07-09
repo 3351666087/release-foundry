@@ -22,9 +22,13 @@ export interface AgentInputPart extends JsonRecord {
   text?: string;
   path?: string;
   url?: string;
+  uri?: string;
   source?: string;
   mime_type?: string;
+  mimeType?: string;
   name?: string;
+  filename?: string;
+  fileName?: string;
   description?: string;
 }
 
@@ -1388,9 +1392,25 @@ function normalizeInputPart(part: unknown, index: number): AgentInputPart {
     normalized.mime_type = String(normalized.mimeType);
     delete normalized.mimeType;
   }
+  if (normalized.uri !== undefined && normalized.url === undefined) {
+    normalized.url = String(normalized.uri);
+    delete normalized.uri;
+  }
+  if (normalized.fileName !== undefined && normalized.name === undefined) {
+    normalized.name = String(normalized.fileName);
+    delete normalized.fileName;
+  }
+  if (normalized.filename !== undefined && normalized.name === undefined) {
+    normalized.name = String(normalized.filename);
+    delete normalized.filename;
+  }
   if (normalized.type === "text") {
     normalized.text = textValue(normalized.text ?? normalized.content ?? "");
     delete normalized.content;
+  } else if (normalized.source !== undefined && normalized.url === undefined && normalized.path === undefined) {
+    const source = String(normalized.source);
+    if (/^https?:\/\//i.test(source)) normalized.url = source;
+    else normalized.path = source;
   }
   return normalized;
 }

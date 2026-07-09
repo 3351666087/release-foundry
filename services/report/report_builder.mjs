@@ -3388,6 +3388,8 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
   const compatibility = saasAdminFixture.a1_a2_compatibility || {};
   const safety = saasAdminFixture.safety || {};
   const actions = Array.isArray(saasAdminFixture.actions) ? saasAdminFixture.actions : [];
+  const actionRequests = Array.isArray(saasAdminFixture.action_requests) ? saasAdminFixture.action_requests : [];
+  const actionRequestSummary = saasAdminFixture.action_request_summary || {};
 
   return {
     schema_version: "a3.saas_admin_export.v1",
@@ -3467,11 +3469,90 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       enabled: item.enabled === true,
       writes_real_ashr_cloud: item.writes_real_ashr_cloud === true
     })),
+    action_requests: {
+      request_count: actionRequestSummary.request_count || actionRequests.length,
+      pending_count: actionRequestSummary.pending_count || 0,
+      blocked_count: actionRequestSummary.blocked_count || 0,
+      real_cloud_mutations_performed: actionRequestSummary.real_cloud_mutations_performed === true,
+      secret_values_included: actionRequestSummary.secret_values_included === true,
+      latest: actionRequests.slice(-3).map((item) => ({
+        request_id: item.request_id,
+        action: item.action,
+        area: item.area,
+        mode: item.mode,
+        status: item.status,
+        real_cloud_mutation_performed: item.real_cloud_mutation_performed === true,
+        secret_values_included: item.secret_values_included === true
+      }))
+    },
     recommendation: "Keep SaaS admin, key, team, billing, trust, and cloud workflows read-only or plan-only until hosted auth, RBAC, SQL persistence, and audit events are real."
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}) {
+function isArtifactRegistryFixture(value = {}) {
+  const schema = isObject(value) ? String(value.schema_version || "") : "";
+  if (schema.includes("artifact_registry")) {
+    return true;
+  }
+  return isObject(value)
+    && Array.isArray(value.entries)
+    && (Array.isArray(value.packet_presets) || isObject(value.summary));
+}
+
+export function summarizeArtifactRegistryExport(artifactRegistryFixture = {}) {
+  const available = artifactRegistryFixture?.schema_version === "a3.artifact_registry.v1"
+    || Boolean(artifactRegistryFixture?.entries || artifactRegistryFixture?.summary);
+  if (!available) {
+    return {
+      schema_version: "a3.artifact_registry_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach Artifact Registry state before claiming managed report/export evidence."
+    };
+  }
+
+  const entries = Array.isArray(artifactRegistryFixture.entries) ? artifactRegistryFixture.entries : [];
+  const summary = artifactRegistryFixture.summary || {};
+  return {
+    schema_version: "a3.artifact_registry_export.v1",
+    available: true,
+    status: artifactRegistryFixture.registry_status || "unknown",
+    source: artifactRegistryFixture.source || "unknown",
+    artifact_count: summary.artifact_count || entries.length,
+    report_artifact_count: summary.report_artifact_count || entries.filter((item) => item.report_id).length,
+    control_artifact_count: summary.control_artifact_count || entries.filter((item) => !item.report_id).length,
+    ready_count: summary.ready_count || 0,
+    blocked_count: summary.blocked_count || 0,
+    hash_ready_count: summary.hash_ready_count || 0,
+    billable_meter_count: summary.billable_meter_count || 0,
+    packet_presets: (artifactRegistryFixture.packet_presets || []).map((item) => ({
+      preset_id: item.preset_id,
+      status: item.status,
+      missing_artifact_types: item.missing_artifact_types || []
+    })),
+    top_artifacts: entries.slice(0, 8).map((item) => ({
+      artifact_id: item.artifact_id,
+      artifact_type: item.artifact_type,
+      lifecycle_state: item.lifecycle_state,
+      hash_status: item.hash_status,
+      redaction_status: item.redaction_status,
+      billable_meter: item.billable_meter,
+      customer_value: item.customer_value
+    })),
+    safety: {
+      raw_secret_values_allowed: artifactRegistryFixture.safety?.raw_secret_values_allowed === true,
+      raw_share_tokens_stored: artifactRegistryFixture.safety?.raw_share_tokens_stored === true,
+      real_cloud_mutations_enabled: artifactRegistryFixture.safety?.real_cloud_mutations_enabled === true
+    },
+    recommendation: "Use Artifact Registry as the enterprise evidence catalog behind report exports, PR gates, billing meters, and audit bundles."
+  };
+}
+
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}) {
+  if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
+    artifactRegistryFixture = a2ReadinessBundle;
+    a2ReadinessBundle = {};
+  }
   const productConsoleAsA2Bundle = isA2ReadinessBundle(productConsoleFixture);
   const effectiveA2ReadinessBundle = isA2ReadinessBundle(a2ReadinessBundle)
     ? a2ReadinessBundle
@@ -3513,6 +3594,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const exportRedactionFirewall = summarizeExportRedactionFirewall(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, frontendCodeCrawlFixture);
   const productConsole = summarizeProductConsoleExport(productConsoleFixture);
   const saasAdmin = summarizeSaasAdminExport(saasAdminFixture);
+  const artifactRegistry = summarizeArtifactRegistryExport(artifactRegistryFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -3623,6 +3705,34 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       lines.push("### SaaS Admin Action Guardrails", "");
       for (const action of saasAdmin.action_plans) {
         lines.push(`- ${action.action}: ${action.mode}, real cloud write ${action.writes_real_ashr_cloud ? "yes" : "no"}`);
+      }
+      lines.push("");
+    }
+  }
+
+  if (artifactRegistry.available) {
+    lines.push(
+      "## Artifact Registry",
+      "",
+      `- Source: ${artifactRegistry.source}`,
+      `- Status: ${artifactRegistry.status}`,
+      `- Artifacts: ${artifactRegistry.artifact_count} total, ${artifactRegistry.report_artifact_count} report, ${artifactRegistry.control_artifact_count} control`,
+      `- Ready: ${artifactRegistry.ready_count}, hash-ready ${artifactRegistry.hash_ready_count}, blocked ${artifactRegistry.blocked_count}`,
+      `- Billable meters: ${artifactRegistry.billable_meter_count}`,
+      `- Safety: raw secrets ${artifactRegistry.safety.raw_secret_values_allowed ? "allowed" : "blocked"}, raw share tokens ${artifactRegistry.safety.raw_share_tokens_stored ? "stored" : "not stored"}, real cloud mutations ${artifactRegistry.safety.real_cloud_mutations_enabled ? "enabled" : "disabled"}`,
+      ""
+    );
+    if (artifactRegistry.packet_presets.length) {
+      lines.push("### Artifact Packet Presets", "");
+      for (const preset of artifactRegistry.packet_presets) {
+        lines.push(`- ${preset.preset_id}: ${preset.status}${preset.missing_artifact_types.length ? `, missing ${preset.missing_artifact_types.join(", ")}` : ""}`);
+      }
+      lines.push("");
+    }
+    if (artifactRegistry.top_artifacts.length) {
+      lines.push("### Registry Entries", "");
+      for (const artifact of artifactRegistry.top_artifacts) {
+        lines.push(`- ${artifact.artifact_type}: ${artifact.lifecycle_state}, ${artifact.hash_status}, ${artifact.redaction_status}, meter ${artifact.billable_meter}`);
       }
       lines.push("");
     }
@@ -4175,7 +4285,47 @@ function scanCsvExportSurface(cases = []) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}) {
+export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
+  const available = reviewWorkflowFixture?.schema_version === "a3.review_workflow_index.v1"
+    || Boolean(reviewWorkflowFixture?.records || reviewWorkflowFixture?.record_count);
+  if (!available) {
+    return {
+      schema_version: "a3.review_workflow_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Submit waiver and approval records through the A3 Review Workflow API before claiming durable sign-off storage."
+    };
+  }
+  const records = Array.isArray(reviewWorkflowFixture.records) ? reviewWorkflowFixture.records : [];
+  return {
+    schema_version: "a3.review_workflow_export.v1",
+    available: true,
+    source: reviewWorkflowFixture.source || "unknown",
+    record_count: reviewWorkflowFixture.record_count || records.length,
+    waiver_count: reviewWorkflowFixture.waiver_count || records.filter((item) => item.record_type === "waiver").length,
+    approval_count: reviewWorkflowFixture.approval_count || records.filter((item) => item.record_type === "approval").length,
+    accepted_count: reviewWorkflowFixture.accepted_count || records.filter((item) => item.accepted === true).length,
+    durable_storage_ready: reviewWorkflowFixture.durable_storage_ready === true,
+    real_cloud_mutations_performed: reviewWorkflowFixture.real_cloud_mutations_performed === true,
+    latest_records: records.slice(-5).map((item) => ({
+      record_id: item.record_id,
+      record_type: item.record_type,
+      status: item.status,
+      accepted: item.accepted === true,
+      run_id: item.run_id,
+      payload_hash: item.payload_hash,
+      review_hash: item.review_hash,
+      signature_status: item.signature?.status || "unknown"
+    })),
+    recommendation: "Use durable Review Workflow records as the enterprise sign-off layer above the local reviewer board and PR gate."
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}) {
+  if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
+    artifactRegistryFixture = a2ReadinessBundle;
+    a2ReadinessBundle = {};
+  }
   const productConsoleAsA2Bundle = isA2ReadinessBundle(productConsoleFixture);
   const effectiveA2ReadinessBundle = isA2ReadinessBundle(a2ReadinessBundle)
     ? a2ReadinessBundle
@@ -4212,6 +4362,8 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture),
     product_console: summarizeProductConsoleExport(productConsoleFixture),
     saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
+    artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
+    review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

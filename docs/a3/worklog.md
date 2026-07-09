@@ -1,5 +1,81 @@
 # A3 Worklog
 
+## 2026-07-07 - Artifact Registry Evidence Catalog
+
+### Goal
+
+Close today's final A3 commercial gap by turning Report Center outputs and control-plane state into a managed artifact registry. This moves A3 from "download some reports" toward "enterprise evidence catalog": every report/export/control artifact can be counted, linked to a manifest key, checked for redaction/hash readiness, attached to usage meters, and later persisted for audit/self-host workflows.
+
+### Work completed
+
+- Added `services/report/a3_artifact_registry.mjs`.
+  - Produces `a3.artifact_registry.v1`.
+  - Converts hosted reports into JSON, Markdown, hosted HTML, and report-manifest artifact entries.
+  - Adds control-plane artifact entries for usage ledger, DB migration plan, Product Console state, and SaaS Admin guardrails.
+  - Adds packet presets for PR review, executive sign-off, security audit, and customer-safe report sharing.
+  - Keeps raw secrets and raw share tokens explicitly forbidden.
+- Extended `services/report/a3_report_center.mjs`.
+  - Report Center now embeds `artifact_registry`.
+  - Summary includes artifact count, ready count, and billable meter count.
+- Extended `services/report/a3_store.mjs` and `services/report/a3_api_server.mjs`.
+  - Dashboard payload now includes `artifact_registry`.
+  - Added `GET /api/a3/artifacts/registry`.
+  - DB contract now names `artifact_registry_entries` and `artifact_lifecycle_events`.
+- Extended `services/report/a3_sql_migrations.mjs`.
+  - Added migration batch `007_artifact_registry`.
+  - Added tables for artifact registry entries and lifecycle events.
+  - Added indexes for project/state/type and artifact lifecycle lookup.
+- Extended dashboard wiring.
+  - Report Center now shows Artifact Registry summary and first artifact entries.
+  - Hosted report sharing refreshes Report Center, Product Console, and Artifact Registry.
+  - JSON, Markdown, and print/PDF exports now include Artifact Registry evidence.
+- Added Growth-Auditor artifact:
+  - `docs/a3/p3_growth_auditor_artifact_registry_2026_07_07.md`
+  - Contains 45 next growth points for artifact registry commercialization.
+
+### A1/A2 compatibility
+
+- Registry entries are still derived from A1 run/case/trace/tool-call evidence and A2 grade/judge/pass-fail/failure evidence through the existing A3 report pipeline.
+- No A1 runner logic or A2 judge semantics were changed.
+- API-backed and fixture-backed sources still share the same normalized A3 boundary.
+
+### Verification
+
+Focused command:
+
+```text
+node --test tests/a3/artifact_registry.test.mjs tests/a3/report_center_index.test.mjs tests/a3/a3_sql_usage_report_center.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs
+```
+
+Focused result:
+
+```text
+78 tests
+78 pass
+0 fail
+```
+
+Full A3 suite:
+
+```text
+$tests = rg --files tests/a3 -g "*.test.mjs"; node --test $tests
+```
+
+Full result:
+
+```text
+135 tests
+135 pass
+0 fail
+```
+
+### Safety boundary
+
+- Did not read or print `.env.local`.
+- Did not call live Ashr, hosted auth, billing, database, email, or cloud mutation APIs.
+- Did not commit real API keys, cookies, tokens, account emails, signed URLs, or official private frontend source.
+- Artifact Registry stores metadata, schema references, lifecycle state, redaction state, and hash-readiness state only.
+
 ## 2026-07-07 - Product Console And SaaS Admin Export Evidence
 
 ### Goal
@@ -3252,3 +3328,261 @@ Create a docs-only Growth-Auditor artifact for the next A3 commercial SaaS round
 - Did not read or print `.env.local`.
 - Did not call live Ashr, GitHub, billing, hosted auth, database, or external APIs.
 - Stayed within the requested write scope: the new growth-auditor artifact and append-only worklog update.
+
+## 2026-07-08 - SQLite-backed A3 store and hosted report revoke UI
+
+### Goal
+
+Move A3 from "SQL contract exists" toward "local SQL-backed SaaS store can actually run."
+
+### Work completed
+
+- Added `services/report/a3_sqlite_store.mjs`.
+  - Uses Node's built-in SQLite runtime.
+  - Applies the existing SQLite migration contract.
+  - Persists A3 state into real SQL tables for dashboard snapshots, runs, cases, reports, share links, import receipts, idempotency rows, audit events, view events, revocations, and usage ledger rows.
+  - Keeps raw share tokens out of stored report reads and inspection evidence.
+  - Handles missing share-token audit as an audit event without creating fake report rows.
+- Added `tests/a3/a3_sqlite_store.test.mjs`.
+  - Verifies A1 RunResult and A2 GradeResult import persistence.
+  - Verifies idempotency duplicate replay and conflict behavior.
+  - Verifies hosted report share/view/revoke lifecycle rows.
+  - Verifies API server compatibility when injected with the SQLite store.
+  - Verifies reopen-after-close persistence for revoked report state.
+- Extended dashboard Report Center lifecycle controls.
+  - Added `revokeShareableA3Report()` to the dashboard API client.
+  - Added a Revoke button for active API-backed hosted reports.
+  - Refreshes Report Center, Artifact Registry, Product Console, and print report evidence after share/revoke actions.
+- Added `docs/a3/p3_sqlite_store_growth_2026_07_08.md`.
+  - Captures commercial value, safety boundary, verification, and 22 next growth points.
+
+### Verification
+
+```text
+node --test tests/a3/a3_sqlite_store.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_store.test.mjs tests/a3/a3_api_server.test.mjs
+```
+
+Result:
+
+```text
+38 tests
+38 pass
+0 fail
+```
+
+Syntax check:
+
+```text
+node --check apps/dashboard/src/app.mjs
+node --check apps/dashboard/src/api-client.mjs
+node --check services/report/a3_sqlite_store.mjs
+```
+
+Result: passed.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team, Trust, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, or live signed URL was committed.
+
+### Current interpretation
+
+A3 now has a concrete local SQL-backed store target. This is still not production Postgres or a hosted multi-tenant SaaS, but it turns the previous SQL contract into executable storage evidence and makes the hosted report lifecycle feel more like a real SaaS control plane.
+
+## 2026-07-08 - SaaS admin action request workflow
+
+### Goal
+
+Respond to the SaaS growth request for login, cloud/project management, usage, API keys, team, and trust workflows without introducing unsafe real Ashr mutations.
+
+The group lead also changed `main` and several files while resolving merge conflicts. This round first fetched `origin/main` and confirmed the A3 branch is already based on the current main, then kept changes additive inside A3-owned areas.
+
+### Work completed
+
+- Added `a3.saas_admin_action_request.v1` and `a3.saas_admin_action_receipt.v1`.
+- Added safe admin action request recording for login/team/usage/API-key/trust/cloud-management operations.
+- Added API routes:
+  - `POST /api/a3/admin/actions/submit`
+  - `GET /api/a3/admin/actions`
+- Added `saas_admin_action_requests` to the SQL migration contract.
+- Persisted SaaS admin action requests in the SQLite-backed A3 store.
+- Added dashboard `Record Request` / `Record Guardrail` control in the SaaS Admin Console.
+- Added request summary and latest requests to SaaS Admin report exports.
+- Preserved A1/A2 compatibility: A3 still only consumes A1 run/trace/tool-call evidence and A2 score/pass/fail/failure-class evidence.
+
+### Verification
+
+```text
+node --check services/report/a3_store.mjs
+node --check services/report/a3_saas_admin.mjs
+node --check services/report/a3_api_server.mjs
+node --check apps/dashboard/src/app.mjs
+```
+
+Result: passed.
+
+```text
+node --test tests/a3/a3_saas_admin.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result:
+
+```text
+79 tests
+79 pass
+0 fail
+```
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team invite, API-key, Trust publish, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, or live signed URL was committed.
+
+### Current interpretation
+
+A3 now has a safer SaaS admin workflow: dangerous console actions can be represented as request records and audit events instead of fake-working buttons. This keeps the student MVP honest while moving it closer to enterprise product behavior.
+
+## 2026-07-08 - Durable review workflow records
+
+### Goal
+
+Move reviewer waiver/approval from file-backed validation only toward API-backed and DB-backed enterprise sign-off evidence.
+
+### Work completed
+
+- Added `services/report/a3_review_workflow.mjs`.
+- Reused existing Gate CLI validators:
+  - `validateWaiverRequest(...)`
+  - `validateApprovalRecord(...)`
+- Added schemas:
+  - `a3.review_workflow_record.v1`
+  - `a3.review_workflow_index.v1`
+  - `a3.review_workflow_receipt.v1`
+- Added API routes:
+  - `POST /api/a3/review/waivers`
+  - `POST /api/a3/review/approvals`
+  - `GET /api/a3/review/workflow`
+- Added SQL migration table `review_workflow_records`.
+- Added SQLite persistence and inspection count for review workflow rows.
+- Added dashboard durable review records under Reviewer Workflow.
+- Added JSON export field `review_workflow`.
+- Added tests for service, store, API, SQLite, dashboard wiring, and report export.
+
+### Verification
+
+Focused tests:
+
+```text
+node --test tests/a3/a3_review_workflow.test.mjs tests/a3/a3_store.test.mjs
+node --test tests/a3/a3_api_server.test.mjs tests/a3/a3_sqlite_store.test.mjs
+node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs
+```
+
+Result: passed after aligning waiver validation context with the original release version fixture.
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No live Ashr API call was made.
+- No live GitHub, billing, auth, team, API-key, Trust, or cloud mutation API was called.
+- No API key, token, cookie, account email, raw share token, live signed URL, or raw cryptographic signature was committed.
+
+### Current interpretation
+
+A3 now has durable review workflow records, but not final production-grade signature verification. The next true enterprise step is real reviewer identity binding through SSO/OIDC/GitHub plus cryptographic signature verification before approvals can affect a live required check.
+
+## 2026-07-08 - Live-capable GitHub Check publisher
+
+### Goal
+
+Move the A3 PR Gate closer to a real customer merge workflow by turning the existing GitHub Check payload into a live-capable Check Run publisher.
+
+### Work completed
+
+- Added `publishGitHubCheckRun(...)` in `services/report/a3_github_integration.mjs`.
+- Added `services/report/a3_github_publish_cli.mjs`.
+- Kept publisher dry-run by default.
+- Added explicit live mode through CLI `--live` or `dryRun: false`.
+- Added runtime-token handling through `GITHUB_TOKEN`, `GH_TOKEN`, or `--token-env`.
+- Updated `docs/a3/p3_github_action_workflow_example.yml` with a `Publish Ashr++ GitHub Check` step.
+- Saved redacted dry-run receipt:
+  - `fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json`
+- Added documentation:
+  - `docs/a3/p3_live_github_check_publisher_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result:
+
+```text
+13 tests
+13 pass
+0 fail
+```
+
+### Safety boundary
+
+- No `.env.local` was read.
+- No Ashr API call was made.
+- No live GitHub API call was made in this pass.
+- No GitHub token, API key, cookie, email, raw signed URL, or Authorization header was committed.
+- Branch protection was not changed; making `Ashr++ Release Gate` a required check still requires maintainer approval in GitHub settings.
+
+### Current interpretation
+
+A3 can now publish a GitHub Check Run when CI explicitly opts in, which is much closer to a commercial PR gate. It is still not the full "required check" story until branch protection is configured and evidenced.
+
+## 2026-07-08 - PR comment publisher and required-check plan
+
+### Goal
+
+Continue the PR Gate commercial workflow by adding human-readable PR comment publishing and a branch-protection required-check plan.
+
+### Work completed
+
+- Added `publishPrCommentUpsert(...)` in `services/report/a3_github_integration.mjs`.
+- Added `buildBranchProtectionRequiredCheckPlan(...)` in `services/report/a3_github_integration.mjs`.
+- Extended `services/report/a3_github_publish_cli.mjs` with explicit PR comment mode:
+  - `--pr-comment`
+  - `--pull-number`
+- Updated `docs/a3/p3_github_action_workflow_example.yml` with `Publish Ashr++ PR Comment`.
+- Saved redacted evidence fixtures:
+  - `fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json`
+  - `fixtures/a3/p3/a3_github_required_check_plan.redacted.json`
+- Added documentation:
+  - `docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md`
+
+### Verification
+
+```text
+node --test tests/a3/a3_github_integration.test.mjs
+```
+
+Result:
+
+```text
+21 tests
+21 pass
+0 fail
+```
+
+### Safety boundary
+
+- Existing PR comment plan builder remains dry-run and plan-only.
+- PR comment publishing requires explicit `--pr-comment --pull-number`.
+- Branch protection is still plan-only; no repository settings were changed.
+- No `.env.local`, Ashr key, GitHub token, cookie, email, Authorization header, or raw signed URL was committed.
+
+### Current interpretation
+
+A3 now has both machine-readable Check Run publishing and human-readable PR comment publishing. The remaining commercial gap is enforcing the check through branch protection and proving that setting with maintainer-approved evidence.

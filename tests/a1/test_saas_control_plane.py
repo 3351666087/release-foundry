@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, SaaSControlPlaneService
+from services.api.control_plane import CONTROL_PLANE_SCHEMA_VERSION, IdempotencyConflictError, SaaSControlPlaneService, verify_audit_chain
 from services.api.runtime import QuotaExceededError, ValidationError
 
 
@@ -84,6 +84,34 @@ def test_saas_control_plane_sdk_submit_run_upload_trace_ingestion_and_lifecycle(
     assert quota["observation.write"] == 2
 
 
+def test_saas_control_plane_audit_log_is_hash_chained_and_tamper_evident():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    control.create_api_key(tenant["tenant_id"], project["project_id"], name="Writer", scopes=["write:runs", "trace:ingest"], key_id="key_chain")
+    submitted = control.sdk_submit_run(tenant["tenant_id"], project["project_id"], dataset_id=dataset["dataset_id"], agent_ref="mock", run_id="run_chain", api_key_id="key_chain")
+    control.upload_run_result(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], {"status": "completed"}, upload_id="upload_chain", api_key_id="key_chain")
+    control.ingest_trace(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], [{"observation_id": "obs_chain"}], batch_id="trace_chain", api_key_id="key_chain")
+
+    snapshot = control.audit_snapshot(tenant["tenant_id"], project["project_id"])
+    events = snapshot["events"]
+    assert snapshot["chain"]["verified"] is True
+    assert snapshot["chain"]["event_count"] == len(events)
+    filtered = control.audit_snapshot(tenant["tenant_id"], project["project_id"], action="run.upload", limit=1)
+    assert filtered["events"][0]["action"] == "run.upload"
+    assert filtered["chain"]["verified"] is True
+    assert filtered["chain"]["event_count"] == len(events)
+    assert events[0]["chain_position"] == 0
+    assert events[0]["previous_audit_event_sha256"] is None
+    for previous, current in zip(events, events[1:]):
+        assert current["previous_audit_event_id"] == previous["audit_event_id"]
+        assert current["previous_audit_event_sha256"] == previous["audit_event_sha256"]
+
+    tampered = [dict(event) for event in events]
+    tampered[1]["after_sha256"] = "0" * 64
+    verification = verify_audit_chain(tampered)
+    assert verification["verified"] is False
+    assert any(failure["reason"] == "event_hash_mismatch" for failure in verification["failures"])
+
+
 def test_saas_control_plane_quota_ledger_blocks_trace_ingestion_before_append():
     control, tenant, project, dataset = _control_plane_with_dataset()
     submitted = control.sdk_submit_run(tenant["tenant_id"], project["project_id"], dataset_id=dataset["dataset_id"], agent_ref="mock", run_id="run_trace_quota")
@@ -113,6 +141,159 @@ def test_saas_control_plane_validates_api_key_scope_and_trace_payload():
         control.create_api_key(tenant["tenant_id"], project["project_id"], name="bad", scopes=[])
     with pytest.raises(ValidationError, match="at least one observation"):
         control.ingest_trace(tenant["tenant_id"], project["project_id"], submitted["run"]["run_id"], [])
+
+
+def test_saas_control_plane_idempotency_keys_enforce_request_fingerprints_before_mutation():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    control.create_api_key(
+        tenant["tenant_id"],
+        project["project_id"],
+        name="Writer",
+        scopes=["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"],
+        key_id="key_idem",
+    )
+    for operation in ["sdk:submit", "run:upload", "trace:ingest", "artifact:upload"]:
+        control.configure_api_key_rate_limit(tenant["tenant_id"], project["project_id"], key_id="key_idem", operation=operation, limit=20)
+
+    submitted = control.sdk_submit_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        agent_ref="mock",
+        run_id="run_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_submit",
+    )
+    replayed_submit = control.sdk_submit_run(
+        tenant["tenant_id"],
+        project["project_id"],
+        dataset_id=dataset["dataset_id"],
+        agent_ref="mock",
+        run_id="run_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_submit",
+    )
+    assert replayed_submit["idempotent_replay"] is True
+    assert replayed_submit["run"]["run_id"] == submitted["run"]["run_id"]
+
+    uploaded = control.upload_run_result(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"run_id": "run_idem", "status": "completed", "cases": []},
+        upload_id="upload_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_upload",
+    )
+    assert control.upload_run_result(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"run_id": "run_idem", "status": "completed", "cases": []},
+        upload_id="upload_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_upload",
+    )["idempotent_replay"] is True
+
+    trace = control.ingest_trace(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        [{"observation_id": "obs_idem", "type": "agent_message"}],
+        batch_id="trace_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_trace",
+    )
+    assert control.ingest_trace(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        [{"observation_id": "obs_idem", "type": "agent_message"}],
+        batch_id="trace_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_trace",
+    )["idempotent_replay"] is True
+
+    artifact = control.create_artifact_manifest(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "report.json", "sha256": "a" * 64}]},
+        artifact_id="artifact_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_artifact",
+    )
+    assert control.create_artifact_manifest(
+        tenant["tenant_id"],
+        project["project_id"],
+        "run_idem",
+        {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "report.json", "sha256": "a" * 64}]},
+        artifact_id="artifact_idem",
+        api_key_id="key_idem",
+        idempotency_key="idem_artifact",
+    )["idempotent_replay"] is True
+    assert artifact["artifact_id"] == "artifact_idem"
+    assert uploaded["upload_id"] == "upload_idem"
+    assert trace["batch_id"] == "trace_idem"
+    rate_after_replays = control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"]
+    assert {bucket["operation"]: bucket["used"] for bucket in rate_after_replays} == {"sdk:submit": 1, "run:upload": 1, "trace:ingest": 1, "artifact:upload": 1}
+
+    quota_before = control.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
+    rate_before = control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"]
+    audit_before = len(control.store.audit_log)
+    uploads_before = dict(control.store.uploads)
+    trace_batches_before = dict(control.store.trace_batches)
+    artifacts_before = dict(control.store.artifact_manifests)
+    runs_before = dict(control.cloud.store.runs)
+
+    with pytest.raises(IdempotencyConflictError, match="sdk.submit"):
+        control.sdk_submit_run(
+            tenant["tenant_id"],
+            project["project_id"],
+            dataset_id=dataset["dataset_id"],
+            agent_ref="different",
+            run_id="run_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_submit",
+        )
+    with pytest.raises(IdempotencyConflictError, match="run.upload"):
+        control.upload_run_result(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem",
+            {"run_id": "run_idem", "status": "failed", "cases": []},
+            upload_id="upload_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_upload",
+        )
+    with pytest.raises(IdempotencyConflictError, match="trace.ingest"):
+        control.ingest_trace(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem",
+            [{"observation_id": "obs_idem_conflict", "type": "agent_message"}],
+            batch_id="trace_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_trace",
+        )
+    with pytest.raises(IdempotencyConflictError, match="artifact.manifest"):
+        control.create_artifact_manifest(
+            tenant["tenant_id"],
+            project["project_id"],
+            "run_idem_missing",
+            {"schema_version": "ashr.clone.artifact_manifest.v1", "files": [{"path": "other.json", "sha256": "b" * 64}]},
+            artifact_id="artifact_idem_conflict",
+            api_key_id="key_idem",
+            idempotency_key="idem_artifact",
+        )
+
+    assert control.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"] == quota_before
+    assert control.api_key_rate_limit_snapshot(tenant["tenant_id"], project["project_id"], key_id="key_idem")["rate_limits"] == rate_before
+    assert len(control.store.audit_log) == audit_before
+    assert control.store.uploads == uploads_before
+    assert control.store.trace_batches == trace_batches_before
+    assert control.store.artifact_manifests == artifacts_before
+    assert control.cloud.store.runs == runs_before
 
 
 def test_saas_control_plane_authenticate_by_key_id_scope_never_returns_raw_secret():
@@ -235,6 +416,86 @@ def test_saas_control_plane_revoked_key_cannot_auth_or_consume_quota():
     after = control.cloud.quota_snapshot(tenant["tenant_id"], project["project_id"])["used"]
     assert after == before
     assert "run_revoked_blocked" not in control.cloud.store.runs
+
+
+def test_saas_control_plane_worker_job_lease_retry_dead_letter_and_redaction():
+    control, tenant, project, dataset = _control_plane_with_dataset()
+    tenant_id = tenant["tenant_id"]
+    project_id = project["project_id"]
+    submitted = control.sdk_submit_run(tenant_id, project_id, dataset_id=dataset["dataset_id"], agent_ref="mock", run_id="run_worker_job")
+
+    enqueued = control.enqueue_worker_job(
+        tenant_id,
+        project_id,
+        job_type="run.replay",
+        target_id=submitted["run"]["run_id"],
+        payload={"run_id": submitted["run"]["run_id"], "secret": "must-not-be-stored"},
+        job_id="job_replay_1",
+        priority=5,
+        max_attempts=2,
+        idempotency_key="idem_job_1",
+    )
+    replay = control.enqueue_worker_job(
+        tenant_id,
+        project_id,
+        job_type="run.replay",
+        target_id=submitted["run"]["run_id"],
+        payload={"run_id": submitted["run"]["run_id"], "secret": "must-not-be-stored"},
+        job_id="job_replay_1",
+        priority=5,
+        max_attempts=2,
+        idempotency_key="idem_job_1",
+    )
+    assert replay["idempotent_replay"] is True
+    assert enqueued["raw_payload_included"] is False
+    assert "secret" not in json.dumps(enqueued, sort_keys=True)
+
+    leased = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-a", lease_seconds=30, job_type="run.replay")
+    assert leased["leased"] is True
+    assert leased["job"]["attempts"] == 1
+    assert leased["job"]["lease_owner_id"] == "worker-a"
+    with pytest.raises(ValidationError, match="lease owner mismatch"):
+        control.complete_worker_job(tenant_id, project_id, "job_replay_1", {"ok": True}, lease_owner_id="worker-b")
+
+    failed = control.fail_worker_job(
+        tenant_id,
+        project_id,
+        "job_replay_1",
+        {"type": "TransientError", "message": "redacted network failure", "raw": "not stored"},
+        lease_owner_id="worker-a",
+        retry_after_seconds=0,
+    )
+    assert failed["status"] == "retrying"
+    assert failed["last_error"]["raw_payload_included"] is False
+
+    leased_again = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-b", lease_seconds=30)
+    assert leased_again["job"]["attempts"] == 2
+    dead = control.fail_worker_job(tenant_id, project_id, "job_replay_1", {"type": "PermanentError"}, lease_owner_id="worker-b")
+    assert dead["status"] == "dead_lettered"
+    assert control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-c")["status"] == "empty"
+
+    listed = control.list_worker_jobs(tenant_id, project_id, status="dead_lettered")
+    assert listed["count"] == 1
+    assert listed["jobs"][0]["job_id"] == "job_replay_1"
+    assert control.cloud.quota_snapshot(tenant_id, project_id)["used"]["worker.job.fail"] == 2
+    audit = control.audit_snapshot(tenant_id, project_id)
+    assert {event["action"] for event in audit["events"]} >= {"worker.job.enqueue", "worker.job.lease", "worker.job.fail"}
+
+
+def test_saas_control_plane_worker_job_can_be_released_after_expired_lease():
+    control, tenant, project, _dataset = _control_plane_with_dataset()
+    tenant_id = tenant["tenant_id"]
+    project_id = project["project_id"]
+    control.enqueue_worker_job(tenant_id, project_id, job_type="trace.compact", job_id="job_expiring", max_attempts=2)
+
+    leased = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-old", lease_seconds=1)
+    assert leased["job"]["lease_owner_id"] == "worker-old"
+    control.store.worker_jobs["job_expiring"]["lease_expires_at"] = "2000-01-01T00:00:00.000Z"
+
+    leased_again = control.lease_worker_job(tenant_id, project_id, lease_owner_id="worker-new", lease_seconds=1)
+    assert leased_again["leased"] is True
+    assert leased_again["job"]["lease_owner_id"] == "worker-new"
+    assert leased_again["job"]["attempts"] == 2
 
 
 def test_saas_control_plane_router_covers_key_sdk_upload_trace_lifecycle_and_redaction():

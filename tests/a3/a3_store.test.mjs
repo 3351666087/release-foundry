@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -12,6 +12,10 @@ import {
   createMemoryA3Store,
   loadA3SourceSnapshot
 } from "../../services/report/a3_store.mjs";
+
+async function importJson(path) {
+  return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+}
 
 test("A3 store loads fixture sources through a DB-ready dashboard snapshot", async () => {
   const snapshot = await loadA3SourceSnapshot("mock");
@@ -74,6 +78,54 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(action.mode, "plan_only");
   assert.equal(action.writes_real_ashr_cloud, false);
 
+  const adminRequest = await store.submitSaasAdminAction("rotate_api_key", {
+    source: "mock",
+    actor: ["reviewer", "example.com"].join("@"),
+    reason: "Rotate old key without exposing secret value.",
+    target: {
+      key_prefix: "ashr_ci_[REDACTED]",
+      email: ["reviewer", "example.com"].join("@"),
+      token: ["Bearer", "should-not-persist"].join(" ")
+    }
+  });
+  assert.equal(adminRequest.schema_version, "a3.saas_admin_action_receipt.v1");
+  assert.equal(adminRequest.status, "recorded_plan_only");
+  assert.equal(adminRequest.real_cloud_mutation_performed, false);
+  assert.equal(adminRequest.secret_values_included, false);
+
+  const adminRequests = await store.listSaasAdminActionRequests({ source: "mock" });
+  assert.equal(adminRequests.schema_version, "a3.saas_admin_action_request_list.v1");
+  assert.equal(adminRequests.summary.request_count, 1);
+  assert.equal(adminRequests.requests[0].action, "rotate_api_key");
+  assert.equal(adminRequests.requests[0].target.email, undefined);
+  assert.equal(adminRequests.requests[0].target.token, undefined);
+  assert.doesNotMatch(JSON.stringify(adminRequests), new RegExp(`${["reviewer", "example.com"].join("@")}|should-not-persist`));
+
+  const waiver = await importJson("../../fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+  const approval = await importJson("../../fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
+  const waiverReceipt = await store.submitReviewWaiver(waiver, {
+    source: "mock",
+    generatedAt: "2026-07-07T12:00:00.000Z"
+  });
+  assert.equal(waiverReceipt.schema_version, "a3.review_workflow_receipt.v1");
+  assert.equal(waiverReceipt.status, "valid_exceptional_waiver");
+  assert.equal(waiverReceipt.accepted, true);
+
+  const approvalReceipt = await store.submitReviewApproval(approval, {
+    source: "mock",
+    waiver,
+    generatedAt: "2026-07-07T12:00:00.000Z"
+  });
+  assert.equal(approvalReceipt.status, "valid_exception_approval");
+  assert.equal(approvalReceipt.accepted, true);
+
+  const reviewWorkflow = await store.getReviewWorkflow({ source: "mock" });
+  assert.equal(reviewWorkflow.schema_version, "a3.review_workflow_index.v1");
+  assert.equal(reviewWorkflow.record_count, 2);
+  assert.equal(reviewWorkflow.waiver_count, 1);
+  assert.equal(reviewWorkflow.approval_count, 1);
+  assert.equal(reviewWorkflow.durable_storage_ready, true);
+
   const readiness = await store.getEnterpriseReadiness({ source: "mock" });
   assert.equal(readiness.schema_version, "a3.enterprise_readiness.v1");
   assert.equal(readiness.a1_a2_compatibility_notes.dashboard_case_count, 32);
@@ -92,6 +144,13 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(reportCenter.summary.shareable_count, 1);
   assert.equal(reportCenter.control_plane.sql_contract_ready, true);
   assert.equal(reportCenter.control_plane.billing_mutations_enabled, false);
+  assert.equal(reportCenter.artifact_registry.schema_version, "a3.artifact_registry.v1");
+  assert.equal(reportCenter.artifact_registry.summary.report_artifact_count, 4);
+
+  const artifactRegistry = await store.getArtifactRegistry({ source: "mock" });
+  assert.equal(artifactRegistry.schema_version, "a3.artifact_registry.v1");
+  assert.ok(artifactRegistry.entries.some((item) => item.artifact_type === "product_console_state"));
+  assert.equal(artifactRegistry.safety.raw_secret_values_allowed, false);
 });
 
 test("A3 store imports A1 run results and A2 grade results into an API-ingest source", async () => {
@@ -243,13 +302,14 @@ test("A3 store tracks hosted report expiry, revoke, and view audit state", async
 
   const manifest = await store.getReportManifest(report.report_id, { source: "mock" });
   assert.equal(manifest.schema_version, "a3.report_center_manifest.v1");
-  assert.equal(manifest.release_packet.migration_count, 7);
+  assert.ok(manifest.release_packet.migration_count >= 8);
   assert.ok(manifest.artifacts.some((item) => item.id === "usage_ledger"));
 
   const center = await store.getReportCenter({ source: "mock" });
   assert.equal(center.summary.report_count, 1);
   assert.equal(center.reports[0].report_id, report.report_id);
-  assert.equal(center.reports[0].manifest.migration_count, 7);
+  assert.ok(center.reports[0].manifest.migration_count >= 8);
+  assert.ok(center.artifact_registry.entries.some((item) => item.artifact_type === "db_migration_plan"));
   assert.ok(center.reports[0].manifest.completeness_score > 0);
 
   const revoked = await store.getReportForView(report.report_id, {

@@ -13,6 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Local-only Ashr SaaS ingestion SDK client CLI.")
     parser.add_argument("--state-input", help="Optional public local control-plane state JSON. .secrets/private_refs are refused.")
     parser.add_argument("--state-output", help="Optional local control-plane state JSON to write after command completion.")
+    parser.add_argument("--base-url", help="Optional local hosted adapter base URL for HTTP JSON transport.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     bootstrap = subparsers.add_parser("bootstrap", help="Create local tenant/project quota bootstrap state.")
@@ -24,12 +25,13 @@ def build_parser() -> argparse.ArgumentParser:
     bootstrap.add_argument("--dataset-name", default="SDK Bootstrap Dataset")
     bootstrap.add_argument("--cases-file")
 
-    key_create = subparsers.add_parser("api-key-create", help="Create a redacted local API key record; never returns raw key material.")
+    key_create = subparsers.add_parser("api-key-create", help="Create a redacted local API key record; optionally reveals a one-time local secret.")
     _add_project_args(key_create)
     key_create.add_argument("--name", required=True)
     key_create.add_argument("--scope", action="append", dest="scopes", required=True)
     key_create.add_argument("--key-id")
     key_create.add_argument("--auth-key-id")
+    key_create.add_argument("--reveal-secret", action="store_true", help="Return the synthetic local secret once in this command output.")
 
     key_list = subparsers.add_parser("api-key-list", help="List redacted local API key records.")
     _add_project_args(key_list)
@@ -39,6 +41,24 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_args(key_revoke)
     key_revoke.add_argument("--key-id", required=True)
     key_revoke.add_argument("--auth-key-id")
+
+    key_verify = subparsers.add_parser("api-key-verify", help="Verify a one-time local API key secret against its stored hash.")
+    _add_project_args(key_verify)
+    key_verify.add_argument("--key-id", required=True)
+    key_verify.add_argument("--secret", required=True)
+    key_verify.add_argument("--scope")
+
+    key_rate = subparsers.add_parser("api-key-rate-limit", help="Configure a local per-key operation rate limit.")
+    _add_project_args(key_rate)
+    key_rate.add_argument("--key-id", required=True)
+    key_rate.add_argument("--operation", required=True)
+    key_rate.add_argument("--limit", required=True, type=int)
+    key_rate.add_argument("--period", default="local-window")
+    key_rate.add_argument("--auth-key-id")
+
+    key_rate_snapshot = subparsers.add_parser("api-key-rate-limits", help="Read local per-key operation rate-limit buckets.")
+    _add_project_args(key_rate_snapshot)
+    key_rate_snapshot.add_argument("--key-id")
 
     submit = subparsers.add_parser("sdk-submit", help="Create a local SDK-submitted queued run.")
     _add_project_args(submit)
@@ -72,6 +92,42 @@ def build_parser() -> argparse.ArgumentParser:
     quota = subparsers.add_parser("quota", help="Read tenant/project quota snapshot.")
     _add_project_args(quota)
 
+    usage = subparsers.add_parser("usage", help="Read tenant/project usage ledger snapshot.")
+    _add_project_args(usage)
+    usage.add_argument("--auth-key-id")
+
+    artifact_create = subparsers.add_parser("artifact-manifest-create", help="Store a hash-only artifact manifest receipt for a run.")
+    _add_run_args(artifact_create)
+    artifact_create.add_argument("--manifest-json")
+    artifact_create.add_argument("--manifest-file")
+    artifact_create.add_argument("--artifact-id")
+    artifact_create.add_argument("--api-key-id")
+    _add_ingestion_retry_args(artifact_create)
+
+    artifact_list = subparsers.add_parser("artifact-manifest-list", help="List artifact manifest receipts for a run.")
+    _add_run_args(artifact_list)
+    artifact_list.add_argument("--auth-key-id")
+
+    audit_verify = subparsers.add_parser("audit-chain-verify", help="Verify the local hosted audit event hash chain.")
+    _add_project_args(audit_verify)
+    audit_verify.add_argument("--auth-key-id")
+    audit_verify.add_argument("--action")
+    audit_verify.add_argument("--target-id")
+    audit_verify.add_argument("--audit-api-key-id")
+    audit_verify.add_argument("--limit", type=int)
+    audit_verify.add_argument("--request-id")
+
+    release_verify = subparsers.add_parser("release-evidence-verify", help="Verify a release evidence packet JSON file.")
+    _add_run_args(release_verify)
+    release_verify.add_argument("--packet-json")
+    release_verify.add_argument("--packet-file")
+    release_verify.add_argument("--auth-key-id")
+    release_verify.add_argument("--request-id")
+
+    release_evidence = subparsers.add_parser("release-evidence", help="Build a public-safe release evidence packet from local control-plane state.")
+    _add_run_args(release_evidence)
+    release_evidence.add_argument("--auth-key-id")
+
     state = subparsers.add_parser("state", help="Read a public-safe summary of local client state.")
     state.add_argument("--include-full", action="store_true")
 
@@ -79,7 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_command(args: argparse.Namespace) -> dict[str, Any]:
-    client = SaaSIngestionClient.from_state_file(args.state_input) if args.state_input else SaaSIngestionClient()
+    if args.base_url and args.state_input:
+        raise SecretInputError("--base-url cannot be combined with --state-input")
+    if args.base_url and args.state_output:
+        raise SecretInputError("--base-url cannot be combined with --state-output")
+    client = SaaSIngestionClient.from_base_url(args.base_url) if args.base_url else (SaaSIngestionClient.from_state_file(args.state_input) if args.state_input else SaaSIngestionClient())
     command = args.command
     if command == "bootstrap":
         cases = _load_optional_array(args.cases_file)
@@ -93,11 +153,17 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             cases=cases,
         )
     elif command == "api-key-create":
-        envelope = client.create_api_key(args.tenant_id, args.project_id, name=args.name, scopes=args.scopes, key_id=args.key_id, auth_key_id=args.auth_key_id)
+        envelope = client.create_api_key(args.tenant_id, args.project_id, name=args.name, scopes=args.scopes, key_id=args.key_id, auth_key_id=args.auth_key_id, reveal_secret=args.reveal_secret)
     elif command == "api-key-list":
         envelope = client.list_api_keys(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
     elif command == "api-key-revoke":
         envelope = client.revoke_api_key(args.tenant_id, args.project_id, args.key_id, auth_key_id=args.auth_key_id)
+    elif command == "api-key-verify":
+        envelope = client.verify_api_key_secret(args.tenant_id, args.project_id, args.key_id, secret=args.secret, scope=args.scope)
+    elif command == "api-key-rate-limit":
+        envelope = client.configure_api_key_rate_limit(args.tenant_id, args.project_id, args.key_id, operation=args.operation, limit=args.limit, period=args.period, auth_key_id=args.auth_key_id)
+    elif command == "api-key-rate-limits":
+        envelope = client.api_key_rate_limit_snapshot(args.tenant_id, args.project_id, key_id=args.key_id)
     elif command == "sdk-submit":
         envelope = client.sdk_submit(
             args.tenant_id,
@@ -136,13 +202,35 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.lifecycle_snapshot(args.tenant_id, args.project_id, args.run_id)
     elif command == "quota":
         envelope = client.quota_snapshot(args.tenant_id, args.project_id)
+    elif command == "usage":
+        envelope = client.usage_snapshot(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id)
+    elif command == "artifact-manifest-create":
+        envelope = client.create_artifact_manifest(
+            args.tenant_id,
+            args.project_id,
+            args.run_id,
+            _load_object_arg(args.manifest_json, args.manifest_file, default={}),
+            artifact_id=args.artifact_id,
+            api_key_id=args.api_key_id,
+            idempotency_key=args.idempotency_key,
+            request_id=args.request_id,
+        )
+    elif command == "artifact-manifest-list":
+        envelope = client.list_artifact_manifests(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
+    elif command == "audit-chain-verify":
+        envelope = client.verify_audit_chain(args.tenant_id, args.project_id, auth_key_id=args.auth_key_id, action=args.action, target_id=args.target_id, api_key_id=args.audit_api_key_id, limit=args.limit, request_id=args.request_id)
+    elif command == "release-evidence":
+        envelope = client.build_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, auth_key_id=args.auth_key_id)
+    elif command == "release-evidence-verify":
+        packet = _load_object_arg(args.packet_json, args.packet_file, default=None) if (args.packet_json or args.packet_file) else None
+        envelope = client.verify_release_evidence_packet(args.tenant_id, args.project_id, args.run_id, packet=packet, auth_key_id=args.auth_key_id, request_id=args.request_id)
     elif command == "state":
         snapshot = client.snapshot_state()
         envelope = {
             "schema_version": "ashr.clone.saas_ingestion_client.v1",
             "operation": "state",
             "result": snapshot if args.include_full else _state_summary(snapshot),
-            "metadata": {"local_only": True, "ashr_api_used": False, "raw_auth_material_used": False},
+            "metadata": _client_metadata(client),
         }
     else:  # pragma: no cover
         raise SecretInputError(f"unsupported command: {command}")
@@ -223,6 +311,12 @@ def _state_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         "cloud_counts": {name: len(value) for name, value in store.items() if isinstance(value, Mapping)},
         "control_plane_counts": {name: len(value) for name, value in control.items() if isinstance(value, Mapping)},
     }
+
+
+def _client_metadata(client: SaaSIngestionClient) -> dict[str, Any]:
+    if client.uses_http:
+        return {"local_only": False, "ashr_api_used": False, "raw_auth_material_used": False, "transport": "http"}
+    return {"local_only": True, "ashr_api_used": False, "raw_auth_material_used": False}
 
 
 if __name__ == "__main__":

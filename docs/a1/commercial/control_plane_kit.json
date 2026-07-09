@@ -60,7 +60,7 @@
       },
       "median_capabilities_per_domain": 60.5,
       "real_read_verified_capabilities": 9,
-      "test_covered_capabilities": 28,
+      "test_covered_capabilities": 30,
       "tool_reliability": [],
       "total_capabilities": 121
     },

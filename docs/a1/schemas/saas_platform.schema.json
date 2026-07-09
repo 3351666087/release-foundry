@@ -1,0 +1,87 @@
+{
+  "$id": "https://ashr.clone.local/schemas/saas_platform.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "Local A1 SaaS platform contract for DB-shaped schema, object/artifact metadata, webhook delivery logs, usage rollups, and A2 release-gate bridge payloads. Public records never include raw webhook secrets or raw artifact payload bytes.",
+  "properties": {
+    "artifact_id": {
+      "type": "string"
+    },
+    "billable_units": {
+      "type": "integer"
+    },
+    "content_type": {
+      "type": "string"
+    },
+    "decision_hint": {
+      "enum": [
+        "pass",
+        "review"
+      ]
+    },
+    "delivery_id": {
+      "type": "string"
+    },
+    "indexes": {
+      "type": "array"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "operation_totals": {
+      "type": "object"
+    },
+    "organization_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "redaction_status": {
+      "enum": [
+        "redacted",
+        "public",
+        "private",
+        "hash_only"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ashr.clone.saas_platform.v1"
+    },
+    "secret_hash_present": {
+      "type": "boolean"
+    },
+    "secret_value_present": {
+      "const": false
+    },
+    "sha256": {
+      "type": "string"
+    },
+    "size_bytes": {
+      "type": "integer"
+    },
+    "tables": {
+      "type": "object"
+    },
+    "target_contract": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "webhook_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "A1 SaaS Platform DB/Object/Webhook Contract",
+  "type": "object"
+}
