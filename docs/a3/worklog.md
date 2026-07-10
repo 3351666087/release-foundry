@@ -6020,3 +6020,12 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Kept A3 downstream-only: no A1 runner mutation, no A2 judge semantic change, no real cloud billing/auth/report mutation.
 - Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` -> `95 pass / 0 fail`.
 - Commercial reason: this pushes A3 from a plain hosted-report list toward a real release-governance console where operators can answer `which workspace`, `which environment`, `who can see this`, and `why customer external is still blocked` before sign-off.
+
+## 2026-07-10 - SaaS Admin Export Audience Governance Pass
+
+- Added `export_governance` to `services/report/a3_saas_admin.mjs` so A3 can explicitly model reviewer packet, executive packet, and blocked customer-external export posture.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` with `Export / Audience Governance` so operators can see allowed audiences, blocked audiences, packet readiness, and required controls in the admin surface.
+- Added `summarizeExportAudienceGovernance()` to `services/report/report_builder.mjs` and included it in JSON report exports as `export_audience_governance`.
+- Reinforced the China-first commercial direction: export governance now stays aligned with CN-first billing posture and avoids claiming customer-safe public export before trust workflow exists.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_center_index.test.mjs` -> `97 pass / 0 fail`.
+- Commercial reason: this makes A3 closer to a sellable release-governance console because it explains which packet can go to reviewers, which can go to executives, and why customer-facing export is still blocked.

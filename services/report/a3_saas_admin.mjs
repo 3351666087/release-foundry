@@ -96,6 +96,7 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
     usage: buildUsageState(summary, usage, usageQuotaApiProbe),
     billing_account: buildBillingAccountState(usage, usageQuotaApiProbe, summary),
     trust: buildTrustState(summary, releaseGate, cloudShell, usage),
+    export_governance: buildExportGovernanceState(summary, releaseGate, usage),
     cloud_management: buildCloudManagementState(cloudShell, summary, releaseGate, usage),
     cloud_posture: cloudPosture,
     cloud_summary_strip: buildCloudSummaryStrip({ cloudPosture, releaseGate, usage, frontendSummary, authCheck }),
@@ -476,7 +477,103 @@ function buildRbacState() {
       "POST /api/a3/reports/:reportId/revoke",
       "POST /api/a3/admin/actions/plan"
     ],
-    current_enforcement: "documented_not_enforced_without_hosted_auth"
+    current_enforcement: "documented_not_enforced_without_hosted_auth",
+    high_risk_permissions: [
+      "release:approve",
+      "api_keys:manage",
+      "team:manage",
+      "billing:read",
+      "trust:publish"
+    ],
+    separation_of_duties: [
+      {
+        lane: "release_governance",
+        requirement: "Blocked release should involve reviewer plus owner or delegate before sign-off.",
+        buyer_value: "Reduces one-person risky release approval."
+      },
+      {
+        lane: "api_key_hygiene",
+        requirement: "Key rotation and scope changes must emit audit events and avoid self-approval.",
+        buyer_value: "Supports enterprise secret hygiene review."
+      },
+      {
+        lane: "billing_and_procurement",
+        requirement: "Billing viewers should read invoices without gaining release approval or key rotation rights.",
+        buyer_value: "Matches finance and engineering separation in real companies."
+      }
+    ]
+  };
+}
+
+function buildTenantControlState() {
+  return {
+    status: "contract_visible",
+    tenancy_model: "organization -> workspace -> project -> environment",
+    default_environment: "staging",
+    environment_switcher: {
+      enabled: true,
+      mode: "read_only_shell",
+      guardrail: "A3 reads tenant scope and environment labels without mutating hosted deployment targets."
+    },
+    workspace_inventory: [
+      {
+        workspace_id: "workspace-local",
+        label: "Release Intelligence Workspace",
+        environment_count: 3,
+        status: "active",
+        posture: "single_workspace_demo_with_multi_env_contract"
+      },
+      {
+        workspace_id: "workspace-audit",
+        label: "Audit Replica Workspace",
+        environment_count: 2,
+        status: "planned",
+        posture: "customer_visible_shell_for_multi_workspace_story"
+      }
+    ],
+    environment_policies: [
+      {
+        environment: "dev",
+        release_policy: "developer experimentation",
+        approval_rule: "no external sharing without reviewer evidence"
+      },
+      {
+        environment: "staging",
+        release_policy: "candidate release validation",
+        approval_rule: "review workflow and report share governance required"
+      },
+      {
+        environment: "production",
+        release_policy: "sign-off only",
+        approval_rule: "approval plus audit packet and readback evidence required"
+      }
+    ],
+    tenant_boundaries: [
+      "Every report, approval, and admin action is tenant-scoped.",
+      "Workspace and project labels must remain visible in export and audit surfaces.",
+      "Environment selection should change readback and publish context before any future live mutation."
+    ]
+  };
+}
+
+function buildWorkspacePosture(summary = {}, releaseGate = {}, usage = {}) {
+  return {
+    schema_version: "a3.workspace_posture.v1",
+    status: "cloud_shell_visible",
+    tenant_scope_state: "visible",
+    project_state: summary.totalRuns > 0 ? "instrumented_demo_project" : "empty_project",
+    environment_state: releaseGate.decision === "block_release" ? "staging_requires_signoff" : "staging_reviewable",
+    usage_state: usage.available ? "usage_surface_visible" : "local_projection_only",
+    operator_story: [
+      "Ops can see which workspace and environment a report belongs to.",
+      "Reviewers can see whether a release is blocked before hosted sharing.",
+      "Finance and audit viewers can inspect usage and report lifecycle without key or trace secret exposure."
+    ],
+    next_capabilities: [
+      "Persist tenant-scoped workspace selection in hosted session state.",
+      "Expose environment-specific publish readiness and rollback packet links.",
+      "Join workspace posture with billable seat usage and audit export presets."
+    ]
   };
 }
 
@@ -672,6 +769,40 @@ function buildInvoicePreview(billableMeters = []) {
   };
 }
 
+function buildExportGovernanceState(summary = {}, releaseGate = {}, usage = {}) {
+  const releaseApproved = releaseGate.decision === "approve_release";
+  return {
+    schema_version: "a3.export_governance_state.v1",
+    status: releaseApproved ? "reviewer_and_exec_packets_ready_for_review" : "waiting_for_release_gate",
+    shareable_reports_ready: summary.totalCases > 0,
+    allowed_audiences: ["internal_ops", "reviewer_signoff", ...(releaseApproved ? ["executive_summary"] : [])],
+    blocked_audiences: ["customer_external"],
+    customer_external_blocked: true,
+    packet_readiness: [
+      { packet: "reviewer_signoff", status: summary.totalCases > 0 ? "copy_now" : "missing_cases", why: "Reviewer packet can carry trace, tool-call, failure, and audit evidence." },
+      { packet: "executive_summary", status: releaseApproved ? "copy_now" : "blocked_by_release_gate", why: "Executive packet should only appear after release evidence is coherent enough for sign-off." },
+      { packet: "customer_external", status: "blocked", why: "Customer-safe export needs explicit trust workflow, redaction proof, and revocable hosted audit path." }
+    ],
+    required_controls: [
+      "tenant-scoped hosted reports",
+      "reviewer approval or waiver receipt",
+      "release evidence summary",
+      "audit-visible share-link lifecycle",
+      "redaction firewall proof"
+    ],
+    commercial_value: [
+      "Gives operators a safe reviewer packet without leaking raw trace or secrets.",
+      "Lets leadership read executive status without granting tool-level evidence access.",
+      "Prevents premature customer-facing export claims before trust controls exist."
+    ],
+    billing_alignment: {
+      primary_region: "CN-first",
+      invoice_mode: usage.available ? "metered_preview" : "local_preview",
+      ties_to_usage: true
+    }
+  };
+}
+
 function buildTrustState(summary, releaseGate = {}, cloudShell = {}, usage = {}) {
   const publishable = releaseGate.decision === "approve_release" && summary.totalCases > 0;
   return {
@@ -735,13 +866,7 @@ function buildCloudManagementState(cloudShell = {}, summary = {}, releaseGate = 
       tenant_isolation_required: true,
       mutation_mode: "read_only"
     },
-    workspace_posture: {
-      environment_count: 3,
-      active_environment: "staging",
-      usage_state: usage.available ? "metered_read_only" : "fixture_only",
-      billing_state: usage.available ? "invoice_preview_ready" : "not_calibrated",
-      release_state: releaseGate.decision || "unknown"
-    },
+    workspace_posture: buildWorkspacePosture(summary, releaseGate, usage),
     audit_controls: {
       enabled: true,
       storage_target: "audit_events table",
@@ -774,17 +899,6 @@ function buildNotificationSummary(controlPlane = {}) {
   };
 }
 
-function buildTenantControlState() {
-  return {
-    schema_version: "a3.tenant_control_state.v1",
-    mode: "single_org_local_shell",
-    environment_tiers: ["dev", "staging", "prod-preview"],
-    tenant_switching: "read_only_project_switcher",
-    org_creation: "plan_only",
-    sso_state: "not_enabled_local_shell",
-    why_it_matters: "Commercial buyers expect clear org, tenant, and environment boundaries before they trust release controls."
-  };
-}
 
 function buildRolloutControlState(releaseGate = {}, usage = {}) {
   return {
@@ -855,5 +969,9 @@ function consolePage(page, purpose, a3Decision) {
     a3_decision: a3Decision
   };
 }
+
+
+
+
 
 

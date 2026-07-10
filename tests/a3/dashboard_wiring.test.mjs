@@ -877,3 +877,16 @@ test("A3 dashboard wires audience filters, grouped scopes, and external publish 
   assert.match(reportCenterSource, /external_publish_blockers/);
   assert.match(appSource, /customer external blocked/);
 });
+
+
+test("A3 dashboard wires SaaS admin export audience governance shell", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const reportBuilderSource = await readFile(new URL("../../services/report/report_builder.mjs", import.meta.url), "utf8");
+
+  assert.match(adminSource, /buildExportGovernanceState/);
+  assert.match(adminComponent, /Export \/ Audience Governance/);
+  assert.match(reportBuilderSource, /summarizeExportAudienceGovernance/);
+  assert.match(reportBuilderSource, /export_audience_governance/);
+  assert.match(adminComponent, /customer_external/);
+});

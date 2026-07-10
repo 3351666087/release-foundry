@@ -50,6 +50,7 @@ import {
 } from "../../services/report/report_builder.mjs";
 import { buildA3UsageLedger } from "../../services/report/a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
+import { buildReportCenterIndex } from "../../services/report/a3_report_center.mjs";
 import { buildA3ArtifactRegistry } from "../../services/report/a3_artifact_registry.mjs";
 import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
@@ -2333,4 +2334,74 @@ test("A3 report builder summarizes live ops control-plane export", async () => {
   assert.equal(summary.share_link_timeline.length, 2);
   assert.ok(summary.audit_history.length >= 1);
   assert.equal(summary.report_link_summary.shareable_count, 1);
+});
+test("A3 report exports preserve richer workspace posture from SaaS Admin", () => {
+  const admin = buildSaasAdminConsole(
+    { totalRuns: 2, totalCases: 6, failed: 2, mediaEvidenceCases: 1 },
+    [{ trace_ready: true, judge_results: [{}], expected: { tool_calls: [] }, actual: { tool_calls: [] } }],
+    {},
+    { available: true },
+    { available: true }
+  );
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.cloud_management.workspace_posture.status, "cloud_shell_visible");
+  assert.equal(exported.cloud_management.workspace_posture.tenant_scope_state, "visible");
+  assert.ok(["instrumented_demo_project", "empty_project"].includes(exported.cloud_management.workspace_posture.project_state));
+  assert.equal(Array.isArray(exported.cloud_management.workspace_posture.operator_story), true);
+  assert.equal(exported.cloud_management.workspace_posture.operator_story.length > 0, true);
+});
+
+
+test("A3 report center index preserves tenant workspace and environment scope", () => {
+  const index = buildReportCenterIndex([], {
+    organizationId: "org-scope",
+    tenantId: "tenant-scope",
+    workspaceId: "workspace-scope",
+    projectId: "project-scope",
+    environmentId: "prod"
+  });
+  assert.equal(index.tenant_scope.organization_id, "org-scope");
+  assert.equal(index.tenant_scope.tenant_id, "tenant-scope");
+  assert.equal(index.tenant_scope.workspace_id, "workspace-scope");
+  assert.equal(index.tenant_scope.project_id, "project-scope");
+  assert.equal(index.tenant_scope.environment_id, "prod");
+});
+
+
+
+test("A3 report exports include export audience governance from SaaS admin", () => {
+  const report = buildJsonReport(
+    { runs: [] },
+    { grade_results: [] },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {
+      export_governance: {
+        schema_version: "a3.export_governance_state.v1",
+        status: "reviewer_and_exec_packets_ready_for_review",
+        allowed_audiences: ["internal_ops", "reviewer_signoff", "executive_summary"],
+        blocked_audiences: ["customer_external"],
+        customer_external_blocked: true,
+        packet_readiness: [
+          { packet: "reviewer_signoff", status: "copy_now", why: "review evidence ready" },
+          { packet: "customer_external", status: "blocked", why: "trust workflow missing" }
+        ],
+        required_controls: ["tenant-scoped hosted reports"],
+        commercial_value: ["Safe reviewer packet"]
+      }
+    }
+  );
+
+  assert.equal(report.export_audience_governance.available, true);
+  assert.equal(report.export_audience_governance.customer_external_blocked, true);
+  assert.deepEqual(report.export_audience_governance.allowed_audiences, ["internal_ops", "reviewer_signoff", "executive_summary"]);
 });

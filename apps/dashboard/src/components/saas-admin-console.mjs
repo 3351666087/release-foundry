@@ -22,8 +22,10 @@
     sessionBlock(admin.login || {}),
     authBoundaryBlock(admin.auth_boundary || {}),
     rbacBlock(admin.rbac || {}),
+    separationOfDutiesBlock(admin.rbac || {}),
     cloudPostureBlock(admin.cloud_posture || {}),
     tenantControlBlock(admin.tenant_control || {}),
+    workspaceInventoryBlock(admin.tenant_control || {}),
     rolloutControlBlock(admin.rollout_control || {}),
     sectionBlock("Team", [
       row("Members", String(admin.team?.members?.length || 0)),
@@ -66,6 +68,7 @@
     ]),
     trustBlock(admin.trust || {}),
     compliancePostureBlock(admin.trust?.compliance_posture || {}),
+    exportGovernanceBlock(admin.export_governance || {}),
     cloudManagementBlock(admin.cloud_management || {}),
     workspacePostureBlock(admin.cloud_management?.workspace_posture || {}),
     workflowBlock("Product Console Map", admin.product_console_map || [], "page", "a3_decision", "purpose"),
@@ -274,6 +277,65 @@ function rbacBlock(rbac) {
         <span class="badge info">${escapeHtml(role.permission_count || 0)} permission(s)</span>
       </div>
       <div class="muted">${escapeHtml((role.permissions || []).join(", "))}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function separationOfDutiesBlock(rbac) {
+  const block = sectionBlock("Separation Of Duties", [
+    row("High-risk permissions", (rbac.high_risk_permissions || []).join(", ") || "none"),
+    row("Policy", rbac.current_enforcement || "unknown")
+  ]);
+  for (const item of rbac.separation_of_duties || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(item.lane || "lane")}</strong>
+        <span class="badge warn">control</span>
+      </div>
+      <div class="muted">${escapeHtml(item.requirement || "")}</div>
+      <div class="muted">${escapeHtml(item.buyer_value || "")}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function workspaceInventoryBlock(control) {
+  const block = sectionBlock("Workspace / Environment Control", [
+    row("Tenancy", control.tenancy_model || "unknown"),
+    row("Default env", control.default_environment || "unknown"),
+    row("Switcher", control.environment_switcher?.enabled ? `${control.environment_switcher.mode || "enabled"}` : "disabled")
+  ]);
+  for (const workspace of control.workspace_inventory || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(workspace.label || workspace.workspace_id || "workspace")}</strong>
+        <span class="badge ${badgeClass(workspace.status)}">${escapeHtml(workspace.status || "unknown")}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(workspace.workspace_id || "unknown")}</span>
+        <span>${escapeHtml(String(workspace.environment_count || 0))} env</span>
+        <span>${escapeHtml(workspace.posture || "unknown")}</span>
+      </div>
+    `;
+    block.appendChild(node);
+  }
+  for (const policy of control.environment_policies || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(policy.environment || "env")}</strong>
+        <span class="badge info">policy</span>
+      </div>
+      <div class="muted">${escapeHtml(policy.release_policy || "")}</div>
+      <div class="muted">${escapeHtml(policy.approval_rule || "")}</div>
     `;
     block.appendChild(node);
   }
@@ -623,6 +685,35 @@ function apiKeyAuditBlock(apiKeys) {
   return block;
 }
 
+function exportGovernanceBlock(governance) {
+  const block = sectionBlock("Export / Audience Governance", [
+    row("Status", governance.status || "unknown"),
+    row("Allowed", (governance.allowed_audiences || []).join(", ") || "none"),
+    row("Blocked", (governance.blocked_audiences || []).join(", ") || "none"),
+    row("Customer external", governance.customer_external_blocked ? "blocked" : "enabled"),
+    row("Billing alignment", governance.billing_alignment?.primary_region || "unknown")
+  ]);
+  for (const item of governance.packet_readiness || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(item.packet || "packet")}</strong>
+        <span class="badge ${badgeClass(item.status || "neutral")}">${escapeHtml(item.status || "unknown")}</span>
+      </div>
+      <div class="muted">${escapeHtml(item.why || "")}</div>
+    `;
+    block.appendChild(node);
+  }
+  for (const control of governance.required_controls || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `<div class="muted">${escapeHtml(control)}</div>`;
+    block.appendChild(node);
+  }
+  return block;
+}
+
 function compliancePostureBlock(posture) {
   return sectionBlock("Compliance Posture", [
     row("Audit export", posture.audit_export_ready ? "ready" : "missing"),
@@ -641,3 +732,5 @@ function workspacePostureBlock(posture) {
     row("Release state", posture.release_state || "unknown")
   ]);
 }
+
+

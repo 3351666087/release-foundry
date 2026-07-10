@@ -799,3 +799,6 @@
 - [x] Report Center now exposes explicit external publish blockers instead of implying future customer export readiness.
 - [x] Hosted report rows now show blocked audiences, customer-external blocker posture, release-evidence readiness, and audit visibility.
 - [x] Node tests verify audience filters, grouped scope summaries, and external publish blockers contract + dashboard wiring.
+- [x] SaaS Admin now exposes explicit Export / Audience Governance for reviewer, executive, and blocked customer-external report posture.
+- [x] JSON report exports now include export audience governance summarized from SaaS Admin commercial controls.
+- [x] Node tests verify export audience governance flows through SaaS Admin, report builder, and dashboard wiring.

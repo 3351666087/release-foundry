@@ -4591,11 +4591,14 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       supported_readonly_surfaces: Array.isArray(cloud.supported_readonly_surfaces) ? cloud.supported_readonly_surfaces : [],
       disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : [],
       workspace_posture: {
-        environment_count: cloud.workspace_posture?.environment_count || 0,
-        active_environment: cloud.workspace_posture?.active_environment || "unknown",
+        schema_version: cloud.workspace_posture?.schema_version || "unknown",
+        status: cloud.workspace_posture?.status || "unknown",
+        tenant_scope_state: cloud.workspace_posture?.tenant_scope_state || "unknown",
+        project_state: cloud.workspace_posture?.project_state || "unknown",
+        environment_state: cloud.workspace_posture?.environment_state || cloud.workspace_posture?.active_environment || "unknown",
         usage_state: cloud.workspace_posture?.usage_state || "unknown",
-        billing_state: cloud.workspace_posture?.billing_state || "unknown",
-        release_state: cloud.workspace_posture?.release_state || "unknown"
+        operator_story: Array.isArray(cloud.workspace_posture?.operator_story) ? cloud.workspace_posture.operator_story : [],
+        next_capabilities: Array.isArray(cloud.workspace_posture?.next_capabilities) ? cloud.workspace_posture.next_capabilities : []
       }
     },
     a1_a2_compatibility: {
@@ -6219,6 +6222,33 @@ function scanCsvExportSurface(cases = []) {
   };
 }
 
+export function summarizeExportAudienceGovernance(governance = {}) {
+  const packetReadiness = Array.isArray(governance.packet_readiness) ? governance.packet_readiness : [];
+  if (!governance.schema_version && !packetReadiness.length) {
+    return {
+      schema_version: "a3.export_audience_summary.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach export audience governance before claiming reviewer, executive, or customer-safe report posture."
+    };
+  }
+  return {
+    schema_version: "a3.export_audience_summary.v1",
+    available: true,
+    status: governance.status || "unknown",
+    allowed_audiences: governance.allowed_audiences || [],
+    blocked_audiences: governance.blocked_audiences || [],
+    customer_external_blocked: governance.customer_external_blocked === true,
+    packet_status: packetReadiness.map((item) => ({
+      packet: item.packet,
+      status: item.status,
+      why: item.why
+    })),
+    required_controls: governance.required_controls || [],
+    commercial_value: governance.commercial_value || []
+  };
+}
+
 export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   const available = reviewWorkflowFixture?.schema_version === "a3.review_workflow_index.v1"
     || Boolean(reviewWorkflowFixture?.records || reviewWorkflowFixture?.record_count);
@@ -6305,6 +6335,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture),
     product_console: summarizeProductConsoleExport(productConsoleFixture),
     saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
+    export_audience_governance: summarizeExportAudienceGovernance(saasAdminFixture.export_governance || {}),
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
@@ -6558,3 +6589,4 @@ function sortForStableJson(value) {
   }
   return value;
 }
+
