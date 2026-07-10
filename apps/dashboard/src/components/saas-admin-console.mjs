@@ -1,4 +1,4 @@
-﻿export function renderSaasAdminConsole(target, admin = {}, options = {}) {
+export function renderSaasAdminConsole(target, admin = {}, options = {}) {
   if (!target) {
     return;
   }
@@ -39,6 +39,7 @@
     seatManagementBlock(admin.team?.seat_management || {}),
     rosterBlock(admin.team?.members || []),
     workflowBlock("Invite Workflow", admin.team?.invite_workflow || [], "step", "status", "reason"),
+    procurementPostureBlock(admin.team?.procurement_posture || {}),
     sectionBlock("Usage", [
       row("Status", admin.usage?.status || "unknown"),
       row("Runs", String(admin.usage?.local_meter?.run_count || 0)),
@@ -49,9 +50,11 @@
       row("Overage posture", admin.usage?.plan_snapshot?.overage_posture || "unknown")
     ]),
     workflowBlock("Usage Controls", admin.usage?.budget_controls || [], "control", "status", "mutation_enabled"),
+    usageEscalationBlock(admin.usage?.escalation_posture || {}),
     billingAccountBlock(admin.billing_account || {}),
     providerPriorityBlock(admin.billing_account || {}),
     workflowBlock("Domestic Invoice Workflow", admin.billing_account?.invoice_workflow || [], "step", "status", "detail"),
+    collectionsPostureBlock(admin.billing_account?.collections_posture || {}),
     commercialOpsBlock(admin.commercial_ops || {}),
     selfHostConsoleBlock(admin.self_host_console || {}),
     developerPlatformBlock(admin.developer_platform || {}),
@@ -75,6 +78,7 @@
     compliancePostureBlock(admin.trust?.compliance_posture || {}),
     exportGovernanceBlock(admin.export_governance || {}),
     cloudManagementBlock(admin.cloud_management || {}),
+    workspaceActionReadinessBlock(admin.cloud_management?.workspace_action_readiness || {}),
     workspacePostureBlock(admin.cloud_management?.workspace_posture || {}),
     workflowBlock("Product Console Map", admin.product_console_map || [], "page", "a3_decision", "purpose"),
     actionPlanBlock(actions, selectedAction, selectedPlan),
@@ -929,6 +933,38 @@ function exportGovernanceBlock(governance) {
   return block;
 }
 
+function procurementPostureBlock(posture) {
+  return sectionBlock("Procurement / Sign-Off Posture", [
+    row("Seat budget", posture.seat_budget_state || "unknown"),
+    row("Sign-off lane", posture.signoff_lane || "unknown"),
+    row("Buyer view", posture.buyer_message || "unknown")
+  ]);
+}
+
+function usageEscalationBlock(posture) {
+  return sectionBlock("Usage Escalation", [
+    row("State", posture.state || "unknown"),
+    row("Buyer message", posture.buyer_message || "unknown")
+  ]);
+}
+
+function collectionsPostureBlock(posture) {
+  return sectionBlock("Collections / Invoice Escalation", [
+    row("State", posture.state || "unknown"),
+    row("Invoice escalation", posture.invoice_escalation || "unknown"),
+    row("Customer message", posture.customer_message || "unknown")
+  ]);
+}
+
+function workspaceActionReadinessBlock(posture) {
+  return sectionBlock("Workspace Action Readiness", [
+    row("Create project", posture.create_project || "unknown"),
+    row("Invite teammate", posture.invite_teammate || "unknown"),
+    row("Rotate API key", posture.rotate_api_key || "unknown"),
+    row("Publish trust", posture.publish_trust_certificate || "unknown"),
+    row("Buyer message", posture.buyer_message || "unknown")
+  ]);
+}
 function compliancePostureBlock(posture) {
   return sectionBlock("Compliance Posture", [
     row("Audit export", posture.audit_export_ready ? "ready" : "missing"),
@@ -947,8 +983,3 @@ function workspacePostureBlock(posture) {
     row("Release state", posture.release_state || "unknown")
   ]);
 }
-
-
-
-
-

@@ -1,4 +1,4 @@
-﻿import {
+import {
   redactExport,
   sanitizeCsvCellValue,
   summarizeRedactionResults
@@ -3882,9 +3882,10 @@ function normalizeBillingMeter(meter = {}) {
 function resolveBillingPlan(usageFixture = {}, usageQuota = {}, options = {}) {
   const optionPlan = options.plan || options.billingPlan || {};
   const planFixture = usageFixture.billing_plan || usageFixture.current_plan || usageFixture.plan || {};
+  const hasOptionPlan = isObject(optionPlan) && Object.keys(optionPlan).length > 0;
   const planObject = typeof optionPlan === "string"
     ? { plan_name: optionPlan }
-    : isObject(optionPlan)
+    : hasOptionPlan
       ? optionPlan
       : typeof planFixture === "string"
         ? { plan_name: planFixture }
@@ -3922,7 +3923,7 @@ function resolveBillingPlan(usageFixture = {}, usageQuota = {}, options = {}) {
 function resolveBillingQuota(usageFixture = {}, options = {}, billableUnitCount = 0, plan = {}) {
   const optionQuota = options.quota || {};
   const fixtureQuota = usageFixture.quota || usageFixture.usage_quota || {};
-  const quotaObject = isObject(optionQuota)
+  const quotaObject = isObject(optionQuota) && Object.keys(optionQuota).length > 0
     ? optionQuota
     : isObject(fixtureQuota)
       ? fixtureQuota
@@ -4499,6 +4500,7 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
   const team = saasAdminFixture.team || {};
   const apiKeys = saasAdminFixture.api_keys || {};
   const usage = saasAdminFixture.usage || {};
+  const billing = saasAdminFixture.billing_account || {};
   const trust = saasAdminFixture.trust || {};
   const cloud = saasAdminFixture.cloud_management || {};
   const compatibility = saasAdminFixture.a1_a2_compatibility || {};
@@ -4541,13 +4543,15 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       member_count: Array.isArray(team.members) ? team.members.length : 0,
       roles: Array.isArray(team.roles) ? team.roles : [],
       self_approval_allowed: team.approval_policy?.self_approval_allowed === true,
+      approval_escalation_summary: team.approval_policy?.escalation_summary || "unknown",
       seat_management: {
         purchased_seats: team.seat_management?.purchased_seats || 0,
         assigned_billable_seats: team.seat_management?.assigned_billable_seats || 0,
         free_audit_seats: team.seat_management?.free_audit_seats || 0,
         pending_invites: team.seat_management?.pending_invites || 0,
         overage_risk: team.seat_management?.overage_risk || "unknown"
-      }
+      },
+      procurement_posture: team.procurement_posture || {}
     },
     api_keys: {
       status: apiKeys.status || "unknown",
@@ -4569,7 +4573,23 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       quota_mutations_enabled: usage.plan_snapshot?.quota_mutations_enabled === true,
       overage_posture: usage.plan_snapshot?.overage_posture || "unknown",
       channels: Array.isArray(usage.channels) ? usage.channels : [],
-      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : []
+      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : [],
+      escalation_posture: usage.escalation_posture || {}
+    },
+    billing_account: {
+      schema_version: billing.schema_version || "unknown",
+      status: billing.status || "unknown",
+      plan_name: billing.plan_name || "unknown",
+      quota_window: billing.quota_window || "unknown",
+      invoice_preview_state: billing.invoice_preview_state || "unknown",
+      overage_risk: billing.overage_risk || "unknown",
+      collections_posture: billing.collections_posture || {},
+      provider_priority: (billing.provider_priority || []).slice(0, 4).map((item) => ({
+        provider: item.provider,
+        priority: item.priority,
+        market: item.market,
+        readiness: item.readiness
+      }))
     },
     commercial_ops: saasAdminFixture.commercial_ops || {},
     self_host_console: saasAdminFixture.self_host_console || {},
@@ -4593,6 +4613,7 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       real_mutations_enabled: cloud.real_mutations_enabled === true,
       supported_readonly_surfaces: Array.isArray(cloud.supported_readonly_surfaces) ? cloud.supported_readonly_surfaces : [],
       disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : [],
+      workspace_action_readiness: cloud.workspace_action_readiness || {},
       workspace_posture: {
         schema_version: cloud.workspace_posture?.schema_version || "unknown",
         status: cloud.workspace_posture?.status || "unknown",
@@ -6592,4 +6613,3 @@ function sortForStableJson(value) {
   }
   return value;
 }
-

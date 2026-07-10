@@ -1,6 +1,7 @@
-﻿import {
+import {
   buildDashboardSummary,
   normalizeCases,
+  summarizeBillingUsage,
   summarizeCloudConsoleShell,
   summarizeReleaseGate,
   summarizeUsageQuota
@@ -43,6 +44,17 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
   const summary = buildDashboardSummary(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const usage = summarizeUsageQuota(usageQuota, usageQuotaApiProbe);
+  const billingUsage = summarizeBillingUsage(runFixture, gradeFixture, usageQuota, usageQuotaApiProbe);
+  const commercialUsage = {
+    ...usage,
+    available: usage.available || billingUsage.available,
+    plan: billingUsage.plan,
+    plan_name: billingUsage.plan?.plan_name,
+    quota_window: billingUsage.plan?.billing_period,
+    billable_meters: billingUsage.billable_meters || [],
+    overage_risk: billingUsage.overage_risk?.status || "unknown_limit",
+    billing_usage_summary: billingUsage
+  };
   const cloudShell = summarizeCloudConsoleShell(authCheck, frontendSummary, requestProvenance, usageQuota, usageQuotaApiProbe);
   const releaseGate = summarizeReleaseGate(runFixture, gradeFixture, coverage, mediaSignedUrlCoverage);
   const organizationId = options.organizationId || inputs.organizationId || "org-local";
@@ -54,7 +66,7 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
     projectId
   });
   const rbacPolicy = buildA3RbacPolicy();
-  const cloudPosture = buildCloudPostureSummary({ authCheck, frontendSummary, cloudShell, usage, releaseGate });
+  const cloudPosture = buildCloudPostureSummary({ authCheck, frontendSummary, cloudShell, usage: commercialUsage, releaseGate });
 
   return {
     schema_version: A3_SAAS_ADMIN_SCHEMA_VERSION,
@@ -62,7 +74,7 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
     organization: {
       organization_id: organizationId,
       display_name: options.organizationName || "A3 Local Organization",
-      plan: usage.available ? "calibrated" : "local_dev",
+      plan: commercialUsage.available ? "calibrated" : "local_dev",
       tenancy_mode: "single_org_local",
       data_region: "local_only",
       auth_boundary: "mock_session_no_real_oauth"
@@ -77,7 +89,7 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
       release_gate_label: releaseGate.decision_label
     },
     login: buildLoginState(authCheck, frontendSummary, cloudShell),
-    team: buildTeamState(releaseGate, usage),
+    team: buildTeamState(releaseGate, commercialUsage),
     rbac: buildRbacState(),
     auth_boundary: {
       schema_version: "a3.saas_admin_auth_boundary.v1",
@@ -93,25 +105,25 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
       next_step: "Replace local contract-only context with A1 hosted session and service-account middleware before enabling live SaaS mutations."
     },
     api_keys: buildApiKeyState(),
-    usage: buildUsageState(summary, usage, usageQuotaApiProbe),
-    billing_account: buildBillingAccountState(usage, usageQuotaApiProbe, summary),
-    commercial_ops: buildCommercialOpsState(usage, releaseGate, summary),
-    self_host_console: buildSelfHostConsoleState(releaseGate, usage, summary),
-    developer_platform: buildDeveloperPlatformState(summary, usage),
-    trust: buildTrustState(summary, releaseGate, cloudShell, usage),
-    export_governance: buildExportGovernanceState(summary, releaseGate, usage),
-    cloud_management: buildCloudManagementState(cloudShell, summary, releaseGate, usage),
+    usage: buildUsageState(summary, commercialUsage, usageQuotaApiProbe),
+    billing_account: buildBillingAccountState(commercialUsage, usageQuotaApiProbe, summary),
+    commercial_ops: buildCommercialOpsState(commercialUsage, releaseGate, summary),
+    self_host_console: buildSelfHostConsoleState(releaseGate, commercialUsage, summary),
+    developer_platform: buildDeveloperPlatformState(summary, commercialUsage),
+    trust: buildTrustState(summary, releaseGate, cloudShell, commercialUsage),
+    export_governance: buildExportGovernanceState(summary, releaseGate, commercialUsage),
+    cloud_management: buildCloudManagementState(cloudShell, summary, releaseGate, commercialUsage),
     cloud_posture: cloudPosture,
-    cloud_summary_strip: buildCloudSummaryStrip({ cloudPosture, releaseGate, usage, frontendSummary, authCheck }),
+    cloud_summary_strip: buildCloudSummaryStrip({ cloudPosture, releaseGate, usage: commercialUsage, frontendSummary, authCheck }),
     tenant_control: buildTenantControlState(),
-    rollout_control: buildRolloutControlState(releaseGate, usage),
+    rollout_control: buildRolloutControlState(releaseGate, commercialUsage),
     notification_destinations: buildNotificationDestinations(inputs.notificationControlPlane || inputs.notification_control_plane || {}),
     notification_summary: buildNotificationSummary(inputs.notificationControlPlane || inputs.notification_control_plane || {}),
     product_console_map: buildProductConsoleMap(),
     a1_a2_compatibility: buildCompatibilityState(summary, cases),
     actions: A3_SAAS_ADMIN_ACTIONS.map((action) => planSaasAdminAction(action, {
       releaseGate,
-      usage,
+      usage: commercialUsage,
       cloudShell,
       organizationId,
       projectId
@@ -449,15 +461,30 @@ function buildTeamState(releaseGate = {}, usage = {}) {
     approval_policy: {
       required_for_blocked_release: blocked,
       required_roles: blocked ? ["reviewer", "owner"] : ["reviewer"],
-      self_approval_allowed: false
+      self_approval_allowed: false,
+      escalation_summary: blocked
+        ? "Blocked release requires reviewer plus owner sign-off before customer-visible motion."
+        : "Reviewer sign-off is sufficient for internal-only release review."
     },
     invite_workflow: [
       { step: "enter_email", status: "blocked", reason: "Email is private user data and is not stored in A3 fixtures." },
       { step: "choose_role", status: "preview", reason: "Role metadata is safe to model locally." },
       { step: "assign_seat", status: "preview", reason: "Every invited operator should consume an approved billable or audit seat." },
+      { step: "owner_or_procurement_check", status: blocked ? "required" : "preview", reason: "Seat changes should align with budget-owner policy before they affect a commercial workspace." },
       { step: "send_invite", status: "disabled", reason: "Sending email is a real cloud mutation." },
       { step: "audit_event", status: "required", reason: "Every invite must write a tenant-scoped audit event." }
-    ]
+    ],
+    procurement_posture: {
+      seat_budget_state: billableSeats >= seatsPurchased
+        ? "hard_stop"
+        : billableSeats >= Math.max(seatsPurchased - 1, 1)
+          ? "owner_review"
+          : "healthy",
+      signoff_lane: blocked ? "owner_plus_reviewer" : "reviewer_only",
+      buyer_message: blocked
+        ? "Seat and sign-off policy should be visible before claiming release readiness to a paying customer."
+        : "Team routing is healthy enough for internal review, but hosted auth is still required for live invites."
+    }
   };
 }
 
@@ -646,17 +673,27 @@ function buildUsageState(summary, usage, usageApiProbe = {}) {
       media_case_count: summary.mediaEvidenceCases
     },
     plan_snapshot: {
-      plan_name: usage.available ? "ashr_calibrated_unknown_plan" : "local_dev",
+      plan_name: usage.plan_name || (usage.available ? "ashr_calibrated_unknown_plan" : "local_dev"),
       billing_status: "read_only",
       quota_mutations_enabled: false,
       recommended_meters: ["runs", "cases", "trace_events", "judge_results", "media_evidence_cases", "shareable_reports"],
-      overage_posture: summary.failed > 0 ? "watch_failed_case_spike" : "healthy_usage_mix"
+      overage_posture: usage.overage_risk !== "unknown_limit"
+        ? usage.overage_risk
+        : summary.failed > 0
+          ? "watch_failed_case_spike"
+          : "healthy_usage_mix"
     },
     budget_controls: [
       { control: "daily_run_limit", status: "preview_only", mutation_enabled: false },
       { control: "media_storage_limit", status: "preview_only", mutation_enabled: false },
       { control: "report_view_limit", status: "preview_only", mutation_enabled: false }
     ],
+    escalation_posture: {
+      state: summary.failed > 0 ? "review_failed_case_spike" : "healthy",
+      buyer_message: summary.failed > 0
+        ? "Failure spikes should be reviewed before usage or billing discussions become customer-facing."
+        : "Usage mix is healthy enough for internal rollout planning."
+    },
     api_probe_status: Object.fromEntries(Object.entries(apiProbeCalls).map(([name, value]) => [
       name,
       value?.status || value?.error?.status || "unknown"
@@ -751,6 +788,13 @@ function buildBillingAccountState(usage = {}, usageApiProbe = {}, summary = {}) 
       "Keep invoice preview read-only until hosted auth and provider webhooks exist.",
       "Prioritize WeChat Pay and Alipay provider contracts before secondary international payment providers."
     ],
+    collections_posture: {
+      state: usage.overage_risk === "over_quota" ? "watch_collections_now" : "quiet",
+      invoice_escalation: usage.overage_risk === "over_quota" ? "billing_owner_review_required" : "normal_review",
+      customer_message: usage.overage_risk === "over_quota"
+        ? "Customer expansion or renewal should include a usage-spike explanation and invoice readiness."
+        : "Billing is safe for planning, but it is not yet backed by real provider settlement."
+    },
     source_fields: Object.keys(usageApiProbe || {}).slice(0, 8)
   };
 }
@@ -966,6 +1010,13 @@ function buildCloudManagementState(cloudShell = {}, summary = {}, releaseGate = 
       storage_target: "audit_events table",
       redaction_required: true,
       sampled_events: ["report_share_link_viewed", "report_view", "report_revoke", "api_import"]
+    },
+    workspace_action_readiness: {
+      create_project: "blocked_until_hosted_auth",
+      invite_teammate: "blocked_until_hosted_auth",
+      rotate_api_key: "blocked_until_server_secret_path",
+      publish_trust_certificate: "blocked_until_trust_service",
+      buyer_message: "Blocked cloud actions remain visible so procurement and operators can evaluate what is still required."
     }
   };
 }
@@ -1063,9 +1114,3 @@ function consolePage(page, purpose, a3Decision) {
     a3_decision: a3Decision
   };
 }
-
-
-
-
-
-

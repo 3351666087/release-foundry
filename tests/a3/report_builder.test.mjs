@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -2453,4 +2453,41 @@ test("A3 SaaS admin commercial ops exports stay available after bootstrap recove
   assert.equal(exported.commercial_ops.schema_version, "a3.commercial_ops_state.v1");
   assert.equal(exported.self_host_console.schema_version, "a3.self_host_console_state.v1");
   assert.equal(exported.developer_platform.schema_version, "a3.developer_platform_state.v1");
+});
+
+test("A3 SaaS admin preserves procurement, usage, billing, and cloud escalation posture", () => {
+  const admin = buildSaasAdminConsole({
+    runs: {
+      runs: [{
+        run_id: "run-commercial-blocked",
+        cases: [{ case_id: "case-blocked", status: "failed" }]
+      }]
+    },
+    usageQuota: {
+      frontend_known_modules: ["usage", "billing"],
+      plan: {
+        plan_name: "team-cn",
+        included_unit_count: 1,
+        overage_enabled: true,
+        currency: "CNY"
+      },
+      quota: {
+        included_units: 1,
+        used_units: 100
+      }
+    }
+  }, {});
+
+  assert.equal(admin.team.procurement_posture.signoff_lane, "owner_plus_reviewer");
+  assert.equal(admin.usage.escalation_posture.state, "review_failed_case_spike");
+  assert.equal(admin.billing_account.collections_posture.state, "watch_collections_now");
+  assert.equal(admin.cloud_management.workspace_action_readiness.create_project, "blocked_until_hosted_auth");
+
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.team.procurement_posture.signoff_lane, "owner_plus_reviewer");
+  assert.equal(exported.usage.escalation_posture.state, "review_failed_case_spike");
+  assert.equal(exported.billing_account.collections_posture.state, "watch_collections_now");
+  assert.equal(exported.billing_account.provider_priority[0].provider, "wechat_pay");
+  assert.equal(exported.cloud_management.workspace_action_readiness.publish_trust_certificate, "blocked_until_trust_service");
+  assert.equal(exported.auth_boundary.real_cloud_mutations_performed, false);
 });

@@ -6119,3 +6119,19 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `97 pass / 0 fail`
   - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance and enterprise decision packets in the API-backed console|release publish chain continuity in live ops control plane|trust publish blockers and customer-safe artifact posture"` -> `3 passed`
 - Commercial reason: this was not cosmetic. Recovering API-backed bootstrap means A3 behaves more like a real hosted product console instead of a static report shell. It directly improves operator trust and reduces launch risk for every commercial surface that depends on first-load data.
+
+## 2026-07-10 - Commercial Escalation + Billing Normalization Pass
+
+- Added four API-backed SaaS Admin surfaces: `Procurement / Sign-Off Posture`, `Usage Escalation`, `Collections / Invoice Escalation`, and `Workspace Action Readiness`.
+- Kept these surfaces downstream of A1/A2: A1 run volume and future billing ledger remain the durable source, while A2 release-gate failures continue to determine reviewer/owner escalation. A3 only normalizes and presents the commercial state.
+- Fixed a real billing normalization bug in `resolveBillingPlan()` and `resolveBillingQuota()`: default empty option objects previously shadowed fixture plan/quota input, forcing `local-readonly / unknown_limit` even when calibrated billing data existed.
+- Connected `buildSaasAdminConsole()` to `summarizeBillingUsage()` so plan, CNY currency, billable meters, quota, and overage status now flow into team, billing, commercial ops, trust, rollout, and cloud summaries.
+- Extended `a3.saas_admin_export.v1` additively with team procurement posture, usage escalation posture, billing account/collections posture, CN-first provider priority, and workspace-action readiness.
+- Preserved safety boundaries: no live payment mutation, invite, secret rotation, trust publication, or raw customer identity was enabled.
+- Verification:
+  - billing diagnostic -> `team-cn / CNY / used 100 / over_quota`
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `100 pass / 0 fail`
+  - API-backed Playwright subset for hosted-report lifecycle, durable review records, and commercial admin controls -> `3 passed`
+- Evidence screenshot: `docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png`.
+- Screenshot limitation: the current single-page console is extremely tall, so full-page evidence is useful for audit existence but weak for detailed visual review. This reinforces the existing need to continue component/page decomposition.
+- Commercial reason: paying teams need usage spikes, seat approvals, invoice escalation, and blocked cloud actions explained beside release risk. This pass makes those operator and buyer decisions explicit without pretending live billing or hosted auth already exists.

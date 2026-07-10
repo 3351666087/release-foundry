@@ -813,7 +813,8 @@
 - [x] Screenshot evidence exists for live publish chain continuity in `docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png`.
 - [x] SaaS Admin Trust Center now explains customer-facing publish blockers and customer-safe artifact posture.
 - [x] Playwright now proves trust blockers and customer-safe artifact posture in the API-backed admin console.
-- [x] Screenshot evidence exists for trust blockers in `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.- [x] Release publish chain now distinguishes waiting-for-approval from denial-blocked states.
+- [x] Screenshot evidence exists for trust blockers in `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.
+- [x] Release publish chain now distinguishes waiting-for-approval from denial-blocked states.
 - [x] Live Ops Control Plane now exposes reviewer-gate status as an explicit field instead of only counts.
 - [x] Live Ops Control Plane now surfaces blocker reasons for governed publish.
 - [x] Node tests prove both approval-ready and denial-blocked publish-chain states.
@@ -829,3 +830,12 @@
 - [x] Re-green critical API-backed Playwright coverage for export governance, live publish chain, and trust blockers.
 - [x] Keep commercial/self-host/developer-platform shells intact after bootstrap recovery.
 - [x] Confirm direct GitHub remote-read connectivity is intermittently healthy again (`git ls-remote origin HEAD` succeeded).
+- [x] SaaS Admin exposes procurement/sign-off posture derived from release-gate and seat state.
+- [x] SaaS Admin exposes usage escalation and collections/invoice escalation without enabling live billing mutations.
+- [x] SaaS Admin exposes blocked workspace actions with explicit hosted-auth, secret-path, and trust-service dependencies.
+- [x] Billing plan/quota normalization no longer lets default empty options shadow calibrated fixture inputs.
+- [x] SaaS Admin JSON exports preserve procurement, usage, billing, CN-first provider, and workspace-action readiness fields.
+- [x] Node tests prove `team-cn / CNY / over_quota` flows into commercial escalation fields (`100 pass / 0 fail`).
+- [x] Playwright proves the new commercial escalation surfaces render in API-backed mode (`3 passed`).
+- [x] Screenshot evidence exists at `docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png`.
+- [ ] Split the extremely tall single-page console into route-level or component-level product pages so screenshots and operator scanning become practical.

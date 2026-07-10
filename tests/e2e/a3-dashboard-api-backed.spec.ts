@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -242,12 +242,23 @@ test.describe("A3 API-backed dashboard E2E", () => {
     const admin = section(page, "#saas-admin");
     await expect(admin).toContainText("Cloud workspace shell");
     await expect(admin).toContainText("Governance Overview");
+    await expect(admin).toContainText("Procurement / Sign-Off Posture");
+    await expect(admin).toContainText("Usage Escalation");
+    await expect(admin).toContainText("Collections / Invoice Escalation");
+    await expect(admin).toContainText("Workspace Action Readiness");
+    await expect(admin).toContainText("owner_plus_reviewer");
+    await expect(admin).toContainText("blocked_until_hosted_auth");
     await expect(section(page, "#review-workflow-records")).toContainText("Report Share Readiness");
     await expect(admin).toContainText("Separation Of Duties");
     await expect(admin).toContainText("Workspace / Environment Control");
 
     const enterprise = section(page, "#enterprise-readiness");
     await expect(enterprise).toContainText("Hosted Buyer Readiness");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png",
+      fullPage: true
+    });
 
     expect(consoleErrors, "scope and commercial governance surfaces should not emit browser console errors").toEqual([]);
   });
@@ -347,5 +358,3 @@ function loadFixture(path: string) {
 function apiUrl(page: Page, path: string): string {
   return new URL(path, page.url()).toString();
 }
-
-
