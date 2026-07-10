@@ -35,29 +35,41 @@ func main() {
 			}
 		}()
 	}
-	unifiedIdentity, err := ashrclone.NewUnifiedIdentityService(ashrclone.UnifiedIdentityServiceOptions{})
+	identityRuntime, err := productionIdentityRuntime(context.Background())
 	if err != nil {
-		log.Fatalf("configure unified identity: %v", err)
+		log.Fatalf("configure identity runtime: %v", err)
 	}
-	identityBridge := ashrclone.UnifiedIdentityOAuthBridge{Identity: unifiedIdentity}
-	githubOAuth, err := ashrclone.NewGitHubOAuthServiceFromEnv(ashrclone.GitHubOAuthEnvRuntimeOptions{
-		LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: unifiedIdentity,
-	})
-	if err != nil {
-		log.Fatalf("configure GitHub OAuth: %v", err)
+	if identityRuntime.close != nil {
+		defer func() {
+			if err := identityRuntime.close(); err != nil {
+				log.Printf("close identity runtime: %v", err)
+			}
+		}()
 	}
-	googleOAuth, err := ashrclone.NewGoogleOAuthServiceFromEnv(ashrclone.GoogleOAuthEnvRuntimeOptions{
-		LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: unifiedIdentity,
-	})
-	if err != nil {
-		log.Fatalf("configure Google OAuth: %v", err)
+	var githubOAuth *ashrclone.GitHubOAuthService
+	var googleOAuth *ashrclone.OAuthService
+	if identityRuntime.mode == ashrclone.IdentityRuntimeMemory {
+		identityBridge := ashrclone.UnifiedIdentityOAuthBridge{Identity: identityRuntime.unifiedIdentity}
+		githubOAuth, err = ashrclone.NewGitHubOAuthServiceFromEnv(ashrclone.GitHubOAuthEnvRuntimeOptions{
+			LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: identityRuntime.unifiedIdentity,
+		})
+		if err != nil {
+			log.Fatalf("configure GitHub OAuth: %v", err)
+		}
+		googleOAuth, err = ashrclone.NewGoogleOAuthServiceFromEnv(ashrclone.GoogleOAuthEnvRuntimeOptions{
+			LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: identityRuntime.unifiedIdentity,
+		})
+		if err != nil {
+			log.Fatalf("configure Google OAuth: %v", err)
+		}
 	}
 	oauthProviders := map[string]*ashrclone.OAuthService{}
 	if googleOAuth != nil {
 		oauthProviders["google"] = googleOAuth
 	}
-	var identitySessions ashrclone.IdentityHTTPSessionResolver
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("ASHR_IDENTITY_DEV_SESSION_ENABLED")), "true") {
+	identitySessions := identityRuntime.identitySessions
+	if identityRuntime.mode == ashrclone.IdentityRuntimeMemory &&
+		strings.EqualFold(strings.TrimSpace(os.Getenv("ASHR_IDENTITY_DEV_SESSION_ENABLED")), "true") {
 		identitySessions = ashrclone.LocalhostDevIdentityHTTPSessionResolver{
 			Enabled:   true,
 			AccountID: os.Getenv("ASHR_IDENTITY_DEV_ACCOUNT_ID"),
@@ -77,7 +89,7 @@ func main() {
 			BackendReady:          selection.Ready,
 			PaymentReconciliation: selection.PaymentReconciliation,
 			PaymentDomain:         selection.PaymentDomain,
-			UnifiedIdentity:       unifiedIdentity,
+			UnifiedIdentity:       identityRuntime.unifiedIdentity,
 			IdentitySessions:      identitySessions,
 			OAuthProviders:        oauthProviders,
 			GitHubOAuth:           githubOAuth,

@@ -457,8 +457,11 @@ UPDATE oauth_token_opaque_refs
    AND status <> 'revoked';
 INSERT INTO oauth_revocation_outbox (
   organization_id, project_id, provider, connection_id, token_ref_id,
-  reason_code, available_at, created_at, updated_at
-) VALUES ($1::uuid, $2::uuid, $4, $5::uuid, $3::uuid, 'disconnect', $6, $6, $6)
+  operation_kind, reason_code, available_at, created_at, updated_at
+) VALUES (
+  $1::uuid, $2::uuid, $4, $5::uuid, $3::uuid,
+  'provider_revoke_and_cleanup', 'disconnect', $6, $6, $6
+)
 ON CONFLICT (token_ref_id) DO NOTHING
 `, organizationID, projectID, row.tokenRefID, binding.Provider, row.id, at); err != nil {
 			return OAuthConnection{}, fmt.Errorf("enqueue %s OAuth revocation: %w", binding.Provider, err)
@@ -534,8 +537,11 @@ UPDATE oauth_token_opaque_refs
    AND status = 'active';
 INSERT INTO oauth_revocation_outbox (
   organization_id, project_id, provider, connection_id, token_ref_id,
-  reason_code, available_at, created_at, updated_at
-) VALUES ($1::uuid, $2::uuid, $4, $6::uuid, $3::uuid, 'superseded', $5, $5, $5)
+  operation_kind, reason_code, available_at, created_at, updated_at
+) VALUES (
+  $1::uuid, $2::uuid, $4, $6::uuid, $3::uuid,
+  'provider_revoke_and_cleanup', 'superseded', $5, $5, $5
+)
 ON CONFLICT (token_ref_id) DO NOTHING
 `, organizationID, projectID, tokenRefID, provider, at, connectionID)
 	if err != nil {

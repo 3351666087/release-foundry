@@ -73,6 +73,9 @@ _FORBIDDEN_PUBLIC_KEYS = {
     "subject_digest",
     "identifier_sha256",
     "token",
+    "token_ref",
+    "token_ref_id",
+    "revocation_outbox_id",
 }
 _FORBIDDEN_KEY_SUFFIXES = (
     "_access_token",
@@ -87,6 +90,10 @@ _FORBIDDEN_KEY_SUFFIXES = (
     "_session_token",
 )
 _RECOVERY_PROVIDERS = ("phone", "email")
+_FORBIDDEN_CANONICAL_KEYS = frozenset(
+    "".join(character for character in key if character.isalnum())
+    for key in _FORBIDDEN_PUBLIC_KEYS
+)
 
 
 class UnifiedIdentityContractError(ValueError):
@@ -710,10 +717,13 @@ def _assert_public_safe(payload: Mapping[str, Any]) -> None:
     def visit(value: Any) -> None:
         if isinstance(value, Mapping):
             for key, item in value.items():
-                normalized = str(key).strip().lower()
+                normalized = str(key).strip().lower().replace("-", "_")
+                canonical = "".join(
+                    character for character in normalized if character.isalnum()
+                )
                 if normalized in _FORBIDDEN_PUBLIC_KEYS or normalized.endswith(
                     _FORBIDDEN_KEY_SUFFIXES
-                ):
+                ) or canonical in _FORBIDDEN_CANONICAL_KEYS:
                     raise UnifiedIdentityContractError(
                         f"public identity payload must not include {normalized}"
                     )

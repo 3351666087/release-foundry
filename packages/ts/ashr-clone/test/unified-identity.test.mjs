@@ -138,6 +138,22 @@ test("manifest declares one account with provider credentials and membership iso
   assert.equal(manifest.public_safety.oauth_token_present, false);
 });
 
+test("public DTO guard rejects normalized private reference aliases", () => {
+  for (const field of [
+    "tokenRef",
+    "tokenref",
+    "tokenRefId",
+    "token-ref-id",
+    "revocationOutboxId",
+    "revocationoutboxid",
+  ]) {
+    assert.throws(
+      () => assertPublicUnifiedIdentityPayload({ metadata: { nested: { [field]: "private" } } }),
+      UnifiedIdentityContractError,
+    );
+  }
+});
+
 test("route manifest and builders exactly match Python routes", () => {
   assert.equal(UNIFIED_IDENTITY_ROUTES.length, 8);
   assert.equal(identityAccountRoute("account_01"), "/v1/accounts/account_01");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS,
   ACCOUNT_CONNECTION_ERROR_CODES,
   ACCOUNT_CONNECTION_ROUTES,
   GOOGLE_ACCOUNT_CONNECTION_ISSUERS,
@@ -40,6 +41,9 @@ function googleAuthorizeUrl(overrides = {}) {
 }
 
 test("TS publishes Python-parity providers, stable errors, issuers, and hosted connection routes", () => {
+  assert.deepEqual([...ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS], [
+    "github", "google", "wechat", "qq", "alipay", "phone", "email",
+  ]);
   assert.deepEqual(GOOGLE_ACCOUNT_CONNECTION_ISSUERS, [
     "https://accounts.google.com",
     "accounts.google.com",
@@ -58,6 +62,15 @@ test("TS publishes Python-parity providers, stable errors, issuers, and hosted c
   assert.deepEqual(manifest.providers.google.issuer_allowlist, [...GOOGLE_ACCOUNT_CONNECTION_ISSUERS]);
   assert.deepEqual(manifest.stable_error_codes, [...ACCOUNT_CONNECTION_ERROR_CODES]);
   assert.equal(manifest.routes.length, 12);
+});
+
+test("account connection public guard rejects normalized private reference aliases", () => {
+  for (const field of ["tokenRef", "tokenrefid", "token-ref-id", "revocationOutboxId"]) {
+    assert.throws(
+      () => assertPublicAccountConnectionPayload({ metadata: { [field]: "private" } }),
+      /must not include/i,
+    );
+  }
 });
 
 test("binding constructor validates tenant, project, account, and provider without credentials", () => {

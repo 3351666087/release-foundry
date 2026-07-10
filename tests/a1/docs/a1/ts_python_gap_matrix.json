@@ -160,6 +160,7 @@
       ],
       "status": "partial",
       "typescript_leads": [
+        "ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS",
         "ACCOUNT_CONNECTION_EXACT_SCOPES",
         "ACCOUNT_CONNECTION_ROUTES",
         "ADMIN_ALL_SCOPE",
@@ -1560,6 +1561,7 @@
         "unified-identity"
       ],
       "typescript_effective_export_names": [
+        "ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS",
         "ACCOUNT_CONNECTION_ERROR_CODES",
         "ACCOUNT_CONNECTION_EXACT_SCOPES",
         "ACCOUNT_CONNECTION_PROVIDERS",
@@ -2015,6 +2017,7 @@
       ],
       "typescript_exported_symbols_by_module": {
         "account-connections": [
+          "ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS",
           "ACCOUNT_CONNECTION_ERROR_CODES",
           "ACCOUNT_CONNECTION_EXACT_SCOPES",
           "ACCOUNT_CONNECTION_PROVIDERS",
@@ -2506,6 +2509,7 @@
         ]
       },
       "typescript_only_export_names": [
+        "ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS",
         "ACCOUNT_CONNECTION_EXACT_SCOPES",
         "ACCOUNT_CONNECTION_ROUTES",
         "ADMIN_ALL_SCOPE",
@@ -2962,11 +2966,14 @@
           "phone",
           "provider_subject_sha256",
           "refresh_token",
+          "revocation_outbox_id",
           "secret",
           "session_token",
           "state",
           "subject_digest",
-          "token"
+          "token",
+          "token_ref",
+          "token_ref_id"
         ],
         "invariants": {
           "email_match_does_not_merge_accounts": true,
@@ -3132,11 +3139,14 @@
           "phone",
           "provider_subject_sha256",
           "refresh_token",
+          "revocation_outbox_id",
           "secret",
           "session_token",
           "state",
           "subject_digest",
-          "token"
+          "token",
+          "token_ref",
+          "token_ref_id"
         ],
         "invariants": {
           "email_match_does_not_merge_accounts": true,

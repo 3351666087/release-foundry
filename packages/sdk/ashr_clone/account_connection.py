@@ -7,6 +7,9 @@ from urllib.parse import parse_qs, urlparse
 
 ACCOUNT_CONNECTION_SCHEMA_VERSION = "ashr.clone.account_connection.v1"
 ACCOUNT_CONNECTION_PROVIDERS = ("github", "google")
+ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS = (
+    "github", "google", "wechat", "qq", "alipay", "phone", "email"
+)
 GOOGLE_ACCOUNT_CONNECTION_SCOPES = ("openid", "email", "profile")
 GOOGLE_OIDC_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 
@@ -45,7 +48,13 @@ _FORBIDDEN_PUBLIC_KEYS = {
     "identifier_sha256",
     "token",
     "token_ref",
+    "token_ref_id",
+    "revocation_outbox_id",
 }
+_FORBIDDEN_CANONICAL_KEYS = frozenset(
+    "".join(character for character in key if character.isalnum())
+    for key in _FORBIDDEN_PUBLIC_KEYS
+)
 
 
 class AccountConnectionContractError(ValueError):
@@ -65,6 +74,13 @@ def account_connection_contract_manifest() -> dict[str, Any]:
     return {
         "schema_version": ACCOUNT_CONNECTION_SCHEMA_VERSION,
         "providers": list(ACCOUNT_CONNECTION_PROVIDERS),
+        "credential_providers": list(ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS),
+        "credential_model": "one_account_many_credentials",
+        "provider_boundaries": {
+            "hosted_oauth": list(ACCOUNT_CONNECTION_PROVIDERS),
+            "domestic_oauth_contract": ["wechat", "qq", "alipay"],
+            "verification_contract": ["phone", "email"],
+        },
         "google": {
             "authorization_scopes": list(GOOGLE_ACCOUNT_CONNECTION_SCOPES),
             "issuer_allowlist": list(GOOGLE_OIDC_ISSUERS),
@@ -348,8 +364,14 @@ def _assert_public_safe(payload: Mapping[str, Any]) -> None:
     def visit(value: Any) -> None:
         if isinstance(value, Mapping):
             for key, item in value.items():
-                normalized = str(key).lower()
-                if normalized in _FORBIDDEN_PUBLIC_KEYS:
+                normalized = str(key).strip().lower().replace("-", "_")
+                canonical = "".join(
+                    character for character in normalized if character.isalnum()
+                )
+                if (
+                    normalized in _FORBIDDEN_PUBLIC_KEYS
+                    or canonical in _FORBIDDEN_CANONICAL_KEYS
+                ):
                     raise AccountConnectionContractError(
                         f"public account connection payload must not include {normalized}"
                     )

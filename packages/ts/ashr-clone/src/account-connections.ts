@@ -7,6 +7,15 @@ import {
 
 export const ACCOUNT_CONNECTION_SCHEMA_VERSION = "ashr.clone.account_connection.v1";
 export const ACCOUNT_CONNECTION_PROVIDERS = ["github", "google"] as const;
+export const ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS = [
+  "github",
+  "google",
+  "wechat",
+  "qq",
+  "alipay",
+  "phone",
+  "email",
+] as const;
 export const ACCOUNT_CONNECTION_EXACT_SCOPES = {
   github: ["read:user", "user:email"],
   google: ["openid", "email", "profile"],
@@ -113,7 +122,14 @@ const FORBIDDEN_ACCOUNT_CONNECTION_PUBLIC_KEYS = new Set([
   "identifier_sha256",
   "token",
   "token_ref",
+  "token_ref_id",
+  "revocation_outbox_id",
 ]);
+const FORBIDDEN_ACCOUNT_CONNECTION_CANONICAL_KEYS = new Set(
+  [...FORBIDDEN_ACCOUNT_CONNECTION_PUBLIC_KEYS].map((key) =>
+    key.replace(/[^a-z0-9]/gu, "")
+  ),
+);
 
 export const ACCOUNT_CONNECTION_ROUTES: readonly AccountConnectionRouteDeclaration[] = Object.freeze(
   ACCOUNT_CONNECTION_PROVIDERS.flatMap((provider) => [
@@ -534,8 +550,12 @@ export function assertPublicAccountConnectionPayload(value: unknown): asserts va
     }
     if (!isRecord(item)) return;
     for (const [key, child] of Object.entries(item)) {
-      const normalized = key.toLowerCase();
-      if (FORBIDDEN_ACCOUNT_CONNECTION_PUBLIC_KEYS.has(normalized)) {
+      const normalized = key.trim().toLowerCase().replaceAll("-", "_");
+      const canonical = normalized.replace(/[^a-z0-9]/gu, "");
+      if (
+        FORBIDDEN_ACCOUNT_CONNECTION_PUBLIC_KEYS.has(normalized)
+        || FORBIDDEN_ACCOUNT_CONNECTION_CANONICAL_KEYS.has(canonical)
+      ) {
         throw new AccountConnectionError(
           "invalid_oauth_callback",
           `Public account connection payload must not include ${normalized} at ${path}`,
@@ -775,6 +795,13 @@ export function verifyGoogleAccountConnectionClaims(options: {
 export function accountConnectionContractManifest(): Record<string, unknown> {
   return {
     schema_version: ACCOUNT_CONNECTION_SCHEMA_VERSION,
+    credential_providers: [...ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS],
+    credential_model: "one_account_many_credentials",
+    provider_boundaries: {
+      hosted_oauth: [...ACCOUNT_CONNECTION_PROVIDERS],
+      domestic_oauth_contract: ["wechat", "qq", "alipay"],
+      verification_contract: ["phone", "email"],
+    },
     providers: {
       github: {
         protocol: "oauth2",

@@ -248,6 +248,9 @@ const FORBIDDEN_PUBLIC_KEYS = new Set([
   "subject_digest",
   "identifier_sha256",
   "token",
+  "token_ref",
+  "token_ref_id",
+  "revocation_outbox_id",
 ]);
 
 const FORBIDDEN_KEY_SUFFIXES = [
@@ -264,6 +267,9 @@ const FORBIDDEN_KEY_SUFFIXES = [
 ];
 
 const RECOVERY_PROVIDERS = new Set<UnifiedIdentityProvider>(["phone", "email"]);
+const FORBIDDEN_CANONICAL_KEYS = new Set(
+  [...FORBIDDEN_PUBLIC_KEYS].map((key) => key.replace(/[^a-z0-9]/gu, "")),
+);
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,254}$/u;
 
 export class UnifiedIdentityContractError extends Error {
@@ -737,9 +743,11 @@ function visitPublicPayload(value: unknown): void {
   if (!isRecord(value)) return;
   for (const [key, item] of Object.entries(value)) {
     const normalized = key.trim().toLowerCase().replaceAll("-", "_");
+    const canonical = normalized.replace(/[^a-z0-9]/gu, "");
     if (
       FORBIDDEN_PUBLIC_KEYS.has(normalized)
       || FORBIDDEN_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
+      || FORBIDDEN_CANONICAL_KEYS.has(canonical)
     ) {
       throw new UnifiedIdentityContractError("identity payload contains raw sensitive material");
     }

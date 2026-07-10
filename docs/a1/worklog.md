@@ -1951,3 +1951,170 @@ Growth-Auditor disposition:
   internal audit metadata from public metadata.
 - These blockers are the next A1 identity P0 slice and are not represented as
   completed by the localhost calibration.
+
+## Round50 production identity and revocation hardening - 2026-07-10
+
+Scope and safety boundary:
+
+- This round keeps one provider-neutral backend account or principal as the
+  stable business identity.
+- A credential is only a login method. A membership grants tenant or project
+  authorization, and a session represents an authenticated account. Changing
+  or unlinking a credential does not create, merge, or delete memberships.
+- GitHub, Google, WeChat, QQ, Alipay, phone, and email are represented by the
+  same credential model. Hosted OAuth execution remains limited to GitHub and
+  Google; the other channels remain contract boundaries.
+- Accounts are never implicitly merged because contact identifiers happen to
+  match. Provider-subject ownership conflicts fail closed, and merge or
+  recovery requires a separate explicit, audited workflow.
+- Public identity and audit metadata now use recursive allowlist-style
+  filtering and defensive copies. Normalized aliases for credential,
+  callback, contact, token-reference, and revocation bookkeeping material are
+  removed from public output.
+- No secret, callback URL, callback query, provider identifier, contact value,
+  credential material, session material, cookie, header, or raw provider
+  response is recorded in this worklog.
+
+Localhost same-account evidence:
+
+- Controlled localhost flows verified that GitHub and Google credentials can
+  resolve to the same canonical backend account.
+- The proof also verified that login credentials and authorization memberships
+  remain independent and that a forged account assertion is rejected.
+- The evidence retained only public-safe outcome classes and counts. It did
+  not retain callback or provider material.
+- This is a localhost development proof. It is not evidence of production
+  OAuth, multi-instance uniqueness, account recovery, or a deployed external
+  secret vault.
+
+Production startup and session resolution:
+
+1. The Go API now defaults to the PostgreSQL identity runtime and fails closed
+   when the database configuration or required identity migration set is
+   unavailable.
+2. The memory identity runtime is available only when the environment is
+   explicitly development and memory identity is explicitly enabled.
+3. PostgreSQL startup opens and pings the database and verifies identity
+   migrations 007 through 010 before serving.
+4. Production session lookup uses a PostgreSQL-backed resolver shared by the
+   identity and OAuth HTTP boundaries.
+5. Raw session bearer values are not queried or stored by the resolver.
+   Incoming values are transformed with HMAC-SHA256 using a runtime key of at
+   least 32 bytes, and only active, unexpired session rows are accepted.
+6. Production startup refuses enabled hosted OAuth until an injected external
+   opaque vault is available. It does not silently fall back to process memory
+   or plaintext provider-token storage.
+
+Durable revocation outbox:
+
+1. Disconnect and reconnect supersession perform local state transitions and
+   enqueue provider cleanup in PostgreSQL instead of making remote cleanup the
+   prerequisite for local invalidation.
+2. The outbox claims bounded batches with `FOR UPDATE SKIP LOCKED`, lease
+   expiration, and monotonically increasing lease-generation fencing.
+3. Provider revocation and opaque-vault deletion have separate durable
+   checkpoints so a worker can resume safely after interruption.
+4. Failures use bounded exponential backoff and transition to dead letter
+   after the configured attempt limit.
+5. Completion revokes the superseded opaque reference and disconnects only a
+   connection still bound to that reference. A reconnect that already issued a
+   newer reference is not undone by stale cleanup.
+6. The worker implementation and focused unit coverage exist, but the API
+   process does not yet start this worker as a long-running production service.
+
+Validation ledger:
+
+- `gofmt` on the changed Go files: passed.
+- `go test -count=1 ./...` from `packages/go/ashrclone`: passed.
+- `go vet ./...` from `packages/go/ashrclone`: passed.
+- Fresh-setup smoke from the preceding pushed slice: passed with 30/30 cases,
+  `max_workers=4`, trace completeness `1.0`, and no inherited `PYTHONPATH`.
+- Focused Python identity, Google account-connection, revocation migration, and
+  fresh-setup tests: passed. The expanded focused identity and migration ledger
+  passed 89 tests.
+- TypeScript build: passed.
+- TypeScript full suite: passed, 495 tests. The Go-server integration test now
+  supplies the explicit development-memory runtime settings without weakening
+  production defaults.
+- Full `tests/a1` plus `tests/a2`: passed, 1038 tests with 2 expected skips.
+- TS/Python generated parity artifact check: passed after the final refresh.
+- A2 fixture regeneration check: all 55 generated fixture files match.
+- CL hygiene: passed with zero findings.
+- CL commercial: passed with zero blockers and zero advisories.
+- `git diff --check`: passed with line-ending warnings only.
+- Bounded secret and forbidden-material scan over the intended staged set:
+  passed with zero suspicious literal matches. The scan reported locations
+  only and did not print any matched value.
+
+Peer and generated-fixture handling:
+
+- One A2 cross-lane generated fixture has an intentional route-count refresh
+  caused by the expanded A1 route surface. It is a narrow Gate compatibility
+  update and does not change A2 judge semantics.
+- Five additional A2 generated fixtures show line-ending-only working-tree
+  noise. They are peer-owned, have no reviewed semantic change, and must remain
+  unstaged.
+- Staging must remain path-explicit; bulk staging is prohibited for this
+  closeout.
+
+Honest limitations and remaining evidence gaps:
+
+1. The production HTTP write path for accounts, credentials, memberships, and
+   link or unlink operations is not fully wired to the PostgreSQL store because
+   the current handler option still expects the memory service.
+2. Hosted production OAuth is intentionally unavailable until an external
+   opaque vault and production provider adapters are injected.
+3. The revocation worker is not started, supervised, or observed as a
+   long-running process by the production entry point.
+4. Multi-instance PostgreSQL proofs for provider-subject uniqueness, concurrent
+   final-credential unlink, restart persistence, and lease recovery remain
+   pending.
+5. Session rotation families, reuse detection, revoke-one, revoke-all,
+   account recovery, recent-authentication enforcement, and human-reviewed
+   merge workflows are not complete.
+6. WeChat, QQ, Alipay, phone, and email have cross-language credential-contract
+   coverage only; no real-provider or delivery-channel calibration is claimed.
+7. PostgreSQL integration still needs a clean-volume migration proof under the
+   restricted runtime role and an end-to-end worker proof with a real external
+   opaque vault.
+8. Production session resolution still needs a narrow `SECURITY DEFINER`
+   bootstrap under forced RLS. The resolver must revalidate active principal,
+   credential, organization membership, and project membership state rather
+   than trusting only the stored session row.
+9. Outbox retry must reject expired leases, malformed tasks must dead-letter
+   before any provider or vault call, and slow provider calls need bounded
+   deadlines plus fenced lease extension.
+10. Public audit metadata still needs event-specific allowlists and value-level
+    rejection. Recursive key filtering alone cannot prove that a callback URL,
+    bearer-looking value, provider subject, email, or phone is absent when it
+    appears under a benign key.
+
+Publication boundary:
+
+- A1 business and evidence files will be committed to
+  `origin/codex/a1-local-sdk-runner` only.
+- The reviewed `a2_cross_lane_security_context.json` route-count refresh is
+  excluded from the A1 commit and must be committed separately to the A2
+  branch. The five CRLF-only A2 fixture changes remain unstaged.
+- Because PR #31 CI executes against the A1 branch checkout, an A2-only fixture
+  commit cannot green that PR until the reviewed A2 fixture commit is merged
+  or cherry-picked through the normal Gate integration path.
+
+Planned closeout commands:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path packages/sdk)
+python -m pytest tests/a1/test_identity_revocation_outbox_migration.py tests/a1/test_python_unified_identity.py tests/a1/test_python_google_account_connection.py tests/a1/test_fresh_setup_smoke.py -q -p no:cacheprovider
+Remove-Item Env:PYTHONPATH
+
+Push-Location packages/ts/ashr-clone
+npm run build
+npm test
+Pop-Location
+
+python -m pytest tests/a1 tests/a2 -q -p no:cacheprovider
+python scripts/a2_regenerate_fixtures.py --check
+python scripts/cl_guard.py hygiene
+python scripts/cl_guard.py commercial
+git diff --check
+```

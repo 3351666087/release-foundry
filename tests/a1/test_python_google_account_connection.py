@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import pytest
 
 from ashr_clone.account_connection import (
+    ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS,
     ACCOUNT_CONNECTION_ERROR_CODES,
     AccountConnection,
     AccountConnectionContractError,
@@ -59,6 +60,10 @@ def test_google_manifest_requires_oidc_and_durable_reconnect_guards() -> None:
     manifest = account_connection_contract_manifest()
 
     assert manifest["providers"] == ["github", "google"]
+    assert list(ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS) == [
+        "github", "google", "wechat", "qq", "alipay", "phone", "email"
+    ]
+    assert manifest["credential_providers"] == list(ACCOUNT_CONNECTION_CREDENTIAL_PROVIDERS)
     assert manifest["google"]["authorization_scopes"] == ["openid", "email", "profile"]
     assert manifest["google"]["issuer_validation"] is True
     assert manifest["google"]["audience_validation"] is True
@@ -220,6 +225,33 @@ def test_public_contract_rejects_callback_and_token_material(forbidden: str) -> 
 def test_public_contract_rejects_nested_secret_or_identity_digest(forbidden: str) -> None:
     payload = _connection(metadata=[{"nested": {forbidden: "must-not-cross"}}])
     with pytest.raises(AccountConnectionContractError, match=forbidden):
+        AccountConnection.from_public_response(payload, expected_provider="google")
+
+
+def test_connection_dto_does_not_retain_recursive_metadata_or_alias_mutations() -> None:
+    payload = _connection(metadata={"safe": [{"label": "original"}]})
+    connection = AccountConnection.from_public_response(
+        payload, expected_provider="google"
+    )
+
+    payload["metadata"]["safe"][0]["label"] = "mutated"
+    exported = connection.to_dict()
+    exported["display_name"] = "mutated"
+
+    assert connection.display_name == "Verified User"
+    assert connection.to_dict()["display_name"] == "Verified User"
+    assert "metadata" not in connection.to_dict()
+
+
+@pytest.mark.parametrize(
+    "forbidden",
+    ["tokenRef", "tokenrefid", "token-ref-id", "revocationOutboxId"],
+)
+def test_public_contract_rejects_normalized_private_reference_aliases(
+    forbidden: str,
+) -> None:
+    payload = _connection(metadata={"nested": {forbidden: "private-reference"}})
+    with pytest.raises(AccountConnectionContractError, match="must not include"):
         AccountConnection.from_public_response(payload, expected_provider="google")
 
 

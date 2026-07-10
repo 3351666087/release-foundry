@@ -141,6 +141,73 @@ def test_account_owns_credentials_and_memberships_with_matching_account_ids() ->
         )
 
 
+def test_account_dto_is_isolated_from_recursive_input_and_output_mutation() -> None:
+    payload = _account(
+        credentials=[_credential("github")],
+        memberships=[_membership()],
+        metadata={"safe": [{"label": "original"}]},
+    )
+    account = UnifiedAccount.from_public_response(payload)
+
+    payload["credentials"][0]["provider"] = "google"
+    payload["memberships"][0]["role"] = "viewer"
+    payload["metadata"]["safe"][0]["label"] = "mutated"
+    exported = account.to_dict()
+    exported["credentials"][0]["provider"] = "wechat"
+    exported["memberships"][0]["role"] = "billing"
+
+    assert account.credentials[0].provider == "github"
+    assert account.memberships[0].role == "owner"
+    assert account.to_dict()["credentials"][0]["provider"] == "github"
+    assert account.to_dict()["memberships"][0]["role"] == "owner"
+    assert "metadata" not in account.to_dict()
+
+
+@pytest.mark.parametrize(
+    ("provider", "display_hint"),
+    [
+        ("phone", "+86 138****8000"),
+        ("email", "u***@example.invalid"),
+    ],
+)
+def test_matching_phone_or_email_hint_never_implicitly_merges_accounts(
+    provider: str, display_hint: str
+) -> None:
+    first = UnifiedAccount.from_public_response(
+        _account(
+            account_id="acct_first",
+            credentials=[
+                _credential(
+                    provider,
+                    credential_id=f"cred_{provider}_first",
+                    account_id="acct_first",
+                    display_hint=display_hint,
+                )
+            ],
+            memberships=[_membership(account_id="acct_first")],
+        )
+    )
+    second = UnifiedAccount.from_public_response(
+        _account(
+            account_id="acct_second",
+            credentials=[
+                _credential(
+                    provider,
+                    credential_id=f"cred_{provider}_second",
+                    account_id="acct_second",
+                    display_hint=display_hint,
+                )
+            ],
+            memberships=[_membership(account_id="acct_second")],
+        )
+    )
+
+    assert first.account_id == "acct_first"
+    assert second.account_id == "acct_second"
+    assert first.account_id != second.account_id
+    assert first.credentials[0].credential_id != second.credentials[0].credential_id
+
+
 @pytest.mark.parametrize(
     "field",
     [
@@ -189,6 +256,24 @@ def test_public_dtos_reject_stable_provider_subject_digests(field: str) -> None:
     with pytest.raises(UnifiedIdentityContractError, match=field):
         IdentityCredential.from_public_response(
             _credential("wechat", **{field: "a" * 64})
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "tokenRef",
+        "tokenref",
+        "tokenRefId",
+        "token-ref-id",
+        "revocationOutboxId",
+        "revocationoutboxid",
+    ],
+)
+def test_public_dtos_reject_normalized_sensitive_aliases(field: str) -> None:
+    with pytest.raises(UnifiedIdentityContractError, match="must not include"):
+        UnifiedAccount.from_public_response(
+            _account(metadata={"nested": {field: "opaque-private-reference"}})
         )
 
 
@@ -406,3 +491,35 @@ def test_client_rejects_raw_verification_material_before_transport() -> None:
         )
     assert exc.value.code == "identity_merge_cycle"
     assert calls == []
+
+
+@pytest.mark.parametrize("provider", UNIFIED_IDENTITY_PROVIDERS)
+def test_client_preserves_final_credential_unlink_protection_code(
+    provider: str,
+) -> None:
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    def transport(method: str, url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        calls.append((method, urlparse(url).path, dict(payload)))
+        return {
+            "error": {
+                "code": "identity_last_credential_unlink_forbidden",
+                "message": "at least one active login credential must remain",
+                "retryable": False,
+                "provider": provider,
+            }
+        }
+
+    client = UnifiedIdentityClient("http://localhost:8787", transport=transport)
+    with pytest.raises(UnifiedIdentityContractError) as exc:
+        client.unlink_credential(
+            "acct_canonical",
+            f"cred_{provider}",
+            step_up_receipt_id="stepup_final_credential",
+            idempotency_key=f"idem_unlink_{provider}",
+        )
+
+    assert exc.value.code == "identity_last_credential_unlink_forbidden"
+    assert len(calls) == 1
+    assert calls[0][0] == "POST"
+    assert calls[0][1].endswith(f"/credentials/cred_{provider}/unlink")

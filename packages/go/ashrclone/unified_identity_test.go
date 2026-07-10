@@ -414,6 +414,145 @@ func TestUnifiedIdentityConcurrentCredentialClaimHasSingleOwner(t *testing.T) {
 	}
 }
 
+func TestUnifiedIdentityConcurrentUnlinkPreservesFinalCredentialAndMemberships(t *testing.T) {
+	service, _ := newIdentityTestService(t)
+	account := createIdentityTestAccount(t, service, IdentityProviderGitHub, "concurrent-unlink-github")
+	google, err := service.LinkCredential(account.AccountID, LinkIdentityCredentialRequest{
+		Credential: IdentityCredentialInput{
+			Kind:       IdentityCredentialOAuth,
+			Provider:   IdentityProviderGoogle,
+			Identifier: "concurrent-unlink-google",
+			Verified:   true,
+		},
+		ActorID: account.AccountID,
+	})
+	if err != nil {
+		t.Fatalf("link second credential: %v", err)
+	}
+	membership, err := service.AddMembership(account.AccountID, IdentityMembershipRequest{
+		TenantID: "tenant_concurrent_unlink", ProjectID: "project_concurrent_unlink",
+		Role: "owner", ActorID: account.AccountID,
+	})
+	if err != nil {
+		t.Fatalf("add membership: %v", err)
+	}
+
+	credentialIDs := []string{account.Credentials[0].CredentialID, google.CredentialID}
+	start := make(chan struct{})
+	results := make(chan error, len(credentialIDs))
+	var wait sync.WaitGroup
+	for _, credentialID := range credentialIDs {
+		wait.Add(1)
+		go func(credentialID string) {
+			defer wait.Done()
+			<-start
+			_, unlinkErr := service.UnlinkCredential(account.AccountID, credentialID, account.AccountID)
+			results <- unlinkErr
+		}(credentialID)
+	}
+	close(start)
+	wait.Wait()
+	close(results)
+
+	successes, finalCredentialRejections := 0, 0
+	for unlinkErr := range results {
+		if unlinkErr == nil {
+			successes++
+			continue
+		}
+		var domainError IdentityDomainError
+		if errors.As(unlinkErr, &domainError) && domainError.Code == "last_login_credential" {
+			finalCredentialRejections++
+			continue
+		}
+		t.Fatalf("unexpected concurrent unlink result: %v", unlinkErr)
+	}
+	if successes != 1 || finalCredentialRejections != 1 {
+		t.Fatalf("expected one unlink and one final-credential rejection, got success=%d rejected=%d",
+			successes, finalCredentialRejections)
+	}
+
+	updated, err := service.GetAccount(account.AccountID)
+	if err != nil {
+		t.Fatalf("get account after concurrent unlink: %v", err)
+	}
+	if updated.CredentialCount != 1 || !updated.Credentials[0].Verified || !updated.Credentials[0].CanLogin {
+		t.Fatalf("concurrent unlink orphaned account: %#v", updated.Credentials)
+	}
+	if updated.MembershipCount != 1 || updated.Memberships[0].MembershipID != membership.MembershipID {
+		t.Fatalf("concurrent unlink changed membership authorization: %#v", updated.Memberships)
+	}
+}
+
+func TestUnifiedIdentityPublicAuditMetadataRejectsNormalizedSensitiveAliases(t *testing.T) {
+	service, _ := newIdentityTestService(t)
+	now := time.Unix(1_700_000_000, 0).UTC()
+	service.mu.Lock()
+	service.appendAuditLocked("identity.security.test", "actor", "account", "account", "success", map[string]any{
+		"safe_field":   "visible",
+		"TokenRef":     "secret-token-ref",
+		"token-ref-id": "secret-token-ref-id",
+		"nested": map[string]any{
+			"revocation_outbox_id": "secret-outbox",
+			"safe_nested":          "visible-nested",
+		},
+		"items": []any{
+			map[string]any{"Provider Subject": "secret-subject", "safe_item": "visible-item"},
+			map[string]any{"CLIENT.SECRET": "secret-client", "status": "ok"},
+		},
+	}, now)
+	service.mu.Unlock()
+
+	events := service.AuditEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected one public audit event, got %#v", events)
+	}
+	encoded, err := json.Marshal(events[0].Details)
+	if err != nil {
+		t.Fatalf("marshal public audit details: %v", err)
+	}
+	public := string(encoded)
+	for _, forbidden := range []string{
+		"secret-token-ref", "secret-token-ref-id", "secret-outbox", "secret-subject", "secret-client",
+		"TokenRef", "token-ref-id", "revocation_outbox_id", "Provider Subject", "CLIENT.SECRET",
+	} {
+		if strings.Contains(public, forbidden) {
+			t.Fatalf("public audit metadata leaked normalized sensitive alias %q: %s", forbidden, public)
+		}
+	}
+	for _, expected := range []string{"visible", "visible-nested", "visible-item", `"status":"ok"`} {
+		if !strings.Contains(public, expected) {
+			t.Fatalf("public audit metadata removed safe field %q: %s", expected, public)
+		}
+	}
+}
+
+func TestUnifiedIdentityAuditDetailsAreRecursivelyDetached(t *testing.T) {
+	service, _ := newIdentityTestService(t)
+	details := map[string]any{
+		"nested": map[string]any{"safe": "original"},
+		"items":  []any{map[string]any{"safe": "original"}},
+	}
+	service.mu.Lock()
+	service.appendAuditLocked("identity.security.test", "actor", "account", "account", "success", details, time.Now().UTC())
+	service.mu.Unlock()
+
+	details["nested"].(map[string]any)["safe"] = "mutated-source"
+	details["items"].([]any)[0].(map[string]any)["safe"] = "mutated-source"
+	first := service.AuditEvents()
+	first[0].Details["nested"].(map[string]any)["safe"] = "mutated-result"
+	first[0].Details["items"].([]any)[0].(map[string]any)["safe"] = "mutated-result"
+
+	fresh := service.AuditEvents()
+	encoded, err := json.Marshal(fresh[0].Details)
+	if err != nil {
+		t.Fatalf("marshal detached audit details: %v", err)
+	}
+	if strings.Contains(string(encoded), "mutated") || strings.Count(string(encoded), "original") != 2 {
+		t.Fatalf("audit details escaped recursive copy boundary: %s", encoded)
+	}
+}
+
 func TestUnifiedIdentityConstructorAndMissingResources(t *testing.T) {
 	_, err := NewUnifiedIdentityService(UnifiedIdentityServiceOptions{FingerprintKey: []byte("short")})
 	if err == nil {

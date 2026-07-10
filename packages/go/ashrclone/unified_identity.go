@@ -646,7 +646,7 @@ func (service *UnifiedIdentityService) AuditEvents() []IdentityAuditEventDTO {
 	result := make([]IdentityAuditEventDTO, len(service.auditEvents))
 	for index, event := range service.auditEvents {
 		result[index] = event
-		result[index].Details = cloneIdentityDetails(event.Details)
+		result[index].Details = publicIdentityDetails(event.Details)
 	}
 	return result
 }
@@ -921,9 +921,89 @@ func cloneIdentityDetails(details map[string]any) map[string]any {
 	}
 	result := make(map[string]any, len(details))
 	for key, value := range details {
-		result[key] = value
+		result[key] = cloneIdentityDetailValue(value)
 	}
 	return result
+}
+
+func cloneIdentityDetailValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneIdentityDetails(typed)
+	case []any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = cloneIdentityDetailValue(item)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func publicIdentityDetails(details map[string]any) map[string]any {
+	if len(details) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(details))
+	for key, value := range details {
+		if isPrivateIdentityMetadataKey(key) {
+			continue
+		}
+		result[key] = publicIdentityDetailValue(value)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func publicIdentityDetailValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return publicIdentityDetails(typed)
+	case []any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = publicIdentityDetailValue(item)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func isPrivateIdentityMetadataKey(key string) bool {
+	var normalized strings.Builder
+	for _, character := range strings.ToLower(strings.TrimSpace(key)) {
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
+			normalized.WriteRune(character)
+		}
+	}
+	switch normalized.String() {
+	case "subject",
+		"providersubject",
+		"subjectdigest",
+		"providersubjectsha256",
+		"identifiersha256",
+		"accesstoken",
+		"refreshtoken",
+		"idtoken",
+		"token",
+		"tokenref",
+		"tokenrefid",
+		"authorizationcode",
+		"codeverifier",
+		"clientsecret",
+		"state",
+		"nonce",
+		"email",
+		"phone",
+		"revocationoutboxid":
+		return true
+	default:
+		return false
+	}
 }
 
 func cloneIdentityMergePlanDTO(plan IdentityMergePlanDTO) IdentityMergePlanDTO {

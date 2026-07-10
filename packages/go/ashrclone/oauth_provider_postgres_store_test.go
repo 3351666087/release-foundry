@@ -284,6 +284,71 @@ func TestPostgresOAuthStoreTreatsInvisibleTokenReferenceAsRevokeFailure(t *testi
 	}
 }
 
+func TestPostgresOAuthStoreReconnectSupersedesOnlyPreviousToken(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := NewPostgresOAuthStore(db, &recordingOAuthVault{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
+	connection := OAuthConnection{
+		Provider: "google", TenantID: "tenant", ProjectID: "project",
+		AccountID: "canonical-account", SessionID: "session-new", UserID: "canonical-account",
+		ProviderSubjectHash: strings.Repeat("a", 64), DisplayName: "Canonical User",
+		TokenRef: "vault:new-token", ConnectedAt: now,
+	}
+	organizationID, projectID := postgresOAuthScope(connection.TenantID, connection.ProjectID)
+	newTokenRefID := "00000000-0000-0000-0000-000000000011"
+	oldTokenRefID := "00000000-0000-0000-0000-000000000010"
+	connectionID := "00000000-0000-0000-0000-000000000020"
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").
+		WithArgs(organizationID, projectID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("FROM oauth_token_opaque_refs").
+		WithArgs(organizationID, projectID, "google", postgresOAuthDigest(connection.TokenRef)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(newTokenRefID))
+	mock.ExpectQuery("FROM oauth_account_connections").
+		WithArgs(organizationID, projectID, "google", connection.AccountID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "token_ref_id"}).
+			AddRow(connectionID, oldTokenRefID))
+	mock.ExpectQuery("INSERT INTO oauth_account_connections").
+		WithArgs(
+			organizationID, projectID, "google", connection.AccountID, connection.SessionID,
+			connection.UserID, postgresOAuthBindingDigestNeutral(oauthConnectionBinding(connection)),
+			connection.ProviderSubjectHash, connection.DisplayName, sqlmock.AnyArg(), false,
+			newTokenRefID, now,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "account_id", "session_id", "user_id", "provider_subject_digest",
+			"provider_login", "email_present", "token_ref_id", "connected_at", "disconnected_at",
+		}).AddRow(
+			connectionID, connection.AccountID, connection.SessionID, connection.UserID,
+			connection.ProviderSubjectHash, connection.DisplayName, false, newTokenRefID, now, nil,
+		))
+	mock.ExpectExec("UPDATE oauth_token_opaque_refs").
+		WithArgs(organizationID, projectID, oldTokenRefID, "google", now, connectionID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	result, err := store.UpsertOAuthConnection(context.Background(), connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.AccountID != connection.AccountID || result.TokenRef != connection.TokenRef ||
+		result.SessionID != connection.SessionID {
+		t.Fatalf("reconnect changed canonical identity or new token binding: %#v", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOAuthRuntimeMigrationSecurityInvariants(t *testing.T) {
 	migration := readOAuthMigration(t, "007_a1_oauth_runtime_store.sql")
 	required := []string{
@@ -315,6 +380,24 @@ func TestOAuthRuntimeMigrationSecurityInvariants(t *testing.T) {
 	} {
 		if strings.Contains(strings.ToLower(migration), strings.ToLower(forbiddenColumn)) {
 			t.Errorf("migration 007 contains forbidden raw-secret column %q", forbiddenColumn)
+		}
+	}
+}
+
+func TestOAuthRevocationMigrationFencesReclaimAndProtectsReconnect(t *testing.T) {
+	migration := readOAuthMigration(t, "010_a1_identity_revocation_outbox.sql")
+	required := []string{
+		"FOR UPDATE SKIP LOCKED",
+		"target.status = 'leased' AND target.lease_expires_at <= p_now",
+		"lease_generation = target.lease_generation + 1",
+		"target.lease_generation <> p_lease_generation",
+		"target.lease_expires_at <= p_now",
+		"AND token_ref_id = target.token_ref_id",
+		"AND status = 'revocation_pending'",
+	}
+	for _, invariant := range required {
+		if !strings.Contains(migration, invariant) {
+			t.Errorf("migration 010 is missing lease/reconnect invariant %q", invariant)
 		}
 	}
 }

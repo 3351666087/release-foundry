@@ -54,7 +54,14 @@ test("TS SaaS client drives the real Go HTTP server vertical slice", async () =>
   const built = await buildGoServerBinary();
   const child = spawn(built.binary, [], {
     cwd: goServerCwd,
-    env: { ...process.env, ASHR_GO_API_ADDR: `127.0.0.1:${port}`, ASHR_GO_BACKEND: "memory" },
+    env: {
+      ...process.env,
+      ASHR_GO_API_ADDR: `127.0.0.1:${port}`,
+      ASHR_GO_BACKEND: "memory",
+      ASHR_ENVIRONMENT: "development",
+      ASHR_IDENTITY_RUNTIME: "memory",
+      ASHR_IDENTITY_MEMORY_ENABLED: "true",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   const stderr = [];
